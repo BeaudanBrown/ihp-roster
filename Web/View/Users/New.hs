@@ -5,13 +5,13 @@ newtype NewView = NewView { user :: User }
 
 instance View NewView where
     html NewView { .. } = [hsx|
-        <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light">
-            <div class="card shadow-sm" style="width: 100%; max-width: 420px;">
-                <div class="card-body p-4">
+        <div class="app-page-auth">
+            <div class="app-auth-card">
+                <div class="app-auth-body">
                     <h4 class="card-title mb-4 text-center">Create Account</h4>
                     {renderForm user}
                     <hr/>
-                    <p class="text-center mb-0 text-muted small">
+                    <p class="text-center mb-0 app-muted small">
                         Already have an account?
                         <a href={NewSessionAction}>Sign in</a>
                     </p>

@@ -1,16 +1,16 @@
 module Web.View.Sessions.New where
-import Web.View.Prelude
 import IHP.AuthSupport.View.Sessions.New
+import Web.View.Prelude
 
 instance View (NewView User) where
     html NewView { .. } = [hsx|
-        <div class="min-vh-100 d-flex align-items-center justify-content-center bg-light">
-            <div class="card shadow-sm" style="width: 100%; max-width: 420px;">
-                <div class="card-body p-4">
+        <div class="app-page-auth">
+            <div class="app-auth-card">
+                <div class="app-auth-body">
                     <h4 class="card-title mb-4 text-center">Sign In</h4>
                     {renderForm user}
                     <hr/>
-                    <p class="text-center mb-0 text-muted small">
+                    <p class="text-center mb-0 app-muted small">
                         Don't have an account?
                         <a href={NewUserAction}>Create one</a>
                     </p>
