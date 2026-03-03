@@ -1,9 +1,11 @@
 module Web.View.Layout (defaultLayout, Html) where
 
 import Application.Helper.View
+import Data.Maybe (mapMaybe)
 import Generated.Types
 import IHP.Controller.RequestContext
 import IHP.Environment
+import IHP.FlashMessages.Types (FlashMessage (..))
 import IHP.ViewPrelude
 import Web.Routes
 import Web.Types
@@ -24,11 +26,11 @@ defaultLayout inner = [hsx|
         <div class="app-shell">
             {renderAppHeader}
             <main class="app-content container py-4">
-                {renderFlashMessages}
                 {inner}
             </main>
         </div>
-        <div id="dialog-overlay-mount"></div>
+        <div id={dialogOverlayMountId}></div>
+        {renderFlashOverlayToasts}
         {modal}
     </body>
 </html>
@@ -48,6 +50,23 @@ renderAppHeader =
             </header>
         |]
         Nothing -> mempty
+
+renderFlashOverlayToasts :: (?context :: ControllerContext) => Html
+renderFlashOverlayToasts =
+    renderToastOverlayHost ToastBottomCenter (mapMaybe flashToToast (fromFrozenContext :: [FlashMessage]))
+    where
+        flashToToast (SuccessFlashMessage msg) = Just ToastOverlayConfig
+            { toastOverlayTitle = Nothing
+            , toastOverlayMessage = msg
+            , toastOverlayClass = "border-success"
+            , toastOverlayAutoHideMs = 4000
+            }
+        flashToToast (ErrorFlashMessage msg) = Just ToastOverlayConfig
+            { toastOverlayTitle = Just "Error"
+            , toastOverlayMessage = msg
+            , toastOverlayClass = "border-danger"
+            , toastOverlayAutoHideMs = 0
+            }
 
 -- The 'assetPath' function used below appends a `?v=SOME_VERSION` to the static assets in production
 -- This is useful to avoid users having old CSS and JS files in their browser cache once a new version is deployed
