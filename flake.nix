@@ -72,7 +72,7 @@
                         typecheck.exec = ''
                             set -euo pipefail
                             TARGET="''${1:-Main.hs}"
-                            GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS='''' 2>/dev/null \
+                            GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS=${"''"} 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             exec ghc -fno-code $GHC_OPTS "$TARGET"
                         '';
@@ -90,7 +90,7 @@
                         # Usage: test
                         test.exec = ''
                             set -euo pipefail
-                            GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS='''' 2>/dev/null \
+                            GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS=${"''"} 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             mkdir -p build/Test
                             ghc $GHC_OPTS -iTest -main-is Main Test/Main.hs -o build/Test/Main -odir build/Test -hidir build/Test
@@ -127,7 +127,7 @@
                         # Usage: ghci-app
                         ghci-app.exec = ''
                             set -euo pipefail
-                            GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS='''' 2>/dev/null \
+                            GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS=${"''"} 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             exec ghci $GHC_OPTS Main.hs "$@"
                         '';
