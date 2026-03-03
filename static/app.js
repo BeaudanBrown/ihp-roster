@@ -184,3 +184,198 @@ $(document).on('ready turbolinks:load', function () {
         initHostToasts();
     }
 })();
+
+(function enableQuarterHourTimePicker() {
+    if (typeof window === 'undefined') return;
+
+    const modalId = 'quarter-hour-time-picker-modal';
+    const emptyLabel = 'Select time';
+    let activeField = null;
+
+    function getModalElement() {
+        return document.getElementById(modalId);
+    }
+
+    function getBootstrapModal(modalEl) {
+        if (!modalEl || !window.bootstrap || !window.bootstrap.Modal) return null;
+        return window.bootstrap.Modal.getOrCreateInstance(modalEl);
+    }
+
+    function getFieldInput(fieldEl) {
+        return fieldEl ? fieldEl.querySelector('.js-time-picker-input') : null;
+    }
+
+    function getFieldLabel(fieldEl) {
+        return fieldEl ? fieldEl.querySelector('.js-time-picker-label') : null;
+    }
+
+    function findOptionByValue(modalEl, value) {
+        if (!modalEl) return null;
+        return modalEl.querySelector(`.js-time-picker-option[data-time-value="${value}"]`);
+    }
+
+    function minuteOfDayFromValue(value) {
+        if (!value || !/^\d{2}:\d{2}$/.test(value)) return null;
+        const parts = value.split(':');
+        const hour = Number(parts[0]);
+        const minute = Number(parts[1]);
+        if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+        if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+        return hour * 60 + minute;
+    }
+
+    function displayLabelFromValue(value) {
+        const minuteOfDay = minuteOfDayFromValue(value);
+        if (minuteOfDay === null) return value;
+
+        const hour24 = Math.floor(minuteOfDay / 60);
+        const minute = minuteOfDay % 60;
+        const meridiem = hour24 >= 12 ? 'PM' : 'AM';
+        const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+        const minuteLabel = String(minute).padStart(2, '0');
+        return `${hour12}:${minuteLabel} ${meridiem}`;
+    }
+
+    function resolveRange(fieldEl, modalEl) {
+        const defaultStart = (modalEl && modalEl.dataset.defaultStartTime) || '06:00';
+        const defaultEnd = (modalEl && modalEl.dataset.defaultEndTime) || '23:45';
+        const startValue = (fieldEl && fieldEl.dataset.timePickerStart) || defaultStart;
+        const endValue = (fieldEl && fieldEl.dataset.timePickerEnd) || defaultEnd;
+
+        const startMinute = minuteOfDayFromValue(startValue);
+        const endMinuteRaw = minuteOfDayFromValue(endValue);
+        if (startMinute === null || endMinuteRaw === null) return null;
+
+        const endMinute = endMinuteRaw < startMinute ? endMinuteRaw + 24 * 60 : endMinuteRaw;
+        return { startMinute, endMinute };
+    }
+
+    function buildTimeOptions(range) {
+        if (!range) return [];
+
+        const options = [];
+        for (let minute = range.startMinute; minute <= range.endMinute; minute += 15) {
+            const minuteOfDay = minute % (24 * 60);
+            const hour = Math.floor(minuteOfDay / 60);
+            const minutePart = minuteOfDay % 60;
+            const value = `${String(hour).padStart(2, '0')}:${String(minutePart).padStart(2, '0')}`;
+            options.push({ value, label: displayLabelFromValue(value) });
+        }
+        return options;
+    }
+
+    function renderOptions(modalEl, range) {
+        if (!modalEl) return;
+        const gridEl = modalEl.querySelector('.js-time-picker-grid');
+        if (!gridEl) return;
+
+        const options = buildTimeOptions(range);
+        gridEl.innerHTML = options
+            .map(function (option) {
+                return `<button type="button" class="btn btn-outline-secondary time-picker-option js-time-picker-option" data-time-value="${option.value}">${option.label}</button>`;
+            })
+            .join('');
+    }
+
+    function updateFieldLabel(fieldEl, value, explicitLabel) {
+        const labelEl = getFieldLabel(fieldEl);
+        if (!labelEl) return;
+
+        if (!value) {
+            labelEl.textContent = emptyLabel;
+            labelEl.classList.add('app-muted');
+            return;
+        }
+
+        labelEl.textContent = explicitLabel || value;
+        labelEl.classList.remove('app-muted');
+    }
+
+    function highlightSelectedOption(modalEl, value) {
+        if (!modalEl) return;
+
+        modalEl.querySelectorAll('.js-time-picker-option').forEach(function (optionEl) {
+            const isSelected = value && optionEl.dataset.timeValue === value;
+            optionEl.classList.toggle('active', Boolean(isSelected));
+            optionEl.classList.toggle('btn-primary', Boolean(isSelected));
+            optionEl.classList.toggle('btn-outline-secondary', !isSelected);
+        });
+    }
+
+    function applyTimeValue(fieldEl, value, labelText) {
+        const inputEl = getFieldInput(fieldEl);
+        if (!inputEl || inputEl.disabled) return;
+
+        const previousValue = inputEl.value || '';
+        const nextValue = value || '';
+
+        updateFieldLabel(fieldEl, nextValue, labelText);
+        if (previousValue === nextValue) return;
+
+        inputEl.value = nextValue;
+        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    document.addEventListener('click', function (event) {
+        const triggerEl = event.target.closest('.js-time-picker-trigger');
+        if (!triggerEl || triggerEl.disabled) return;
+
+        const fieldEl = triggerEl.closest('[data-time-picker-field]');
+        const inputEl = getFieldInput(fieldEl);
+        if (!fieldEl || !inputEl || inputEl.disabled) return;
+
+        const modalEl = getModalElement();
+        const bootstrapModal = getBootstrapModal(modalEl);
+        if (!modalEl || !bootstrapModal) return;
+
+        activeField = fieldEl;
+        renderOptions(modalEl, resolveRange(fieldEl, modalEl));
+        highlightSelectedOption(modalEl, inputEl.value || '');
+        bootstrapModal.show();
+    });
+
+    document.addEventListener('click', function (event) {
+        const optionEl = event.target.closest('.js-time-picker-option');
+        if (!optionEl || !activeField) return;
+
+        const modalEl = getModalElement();
+        const bootstrapModal = getBootstrapModal(modalEl);
+        const value = optionEl.dataset.timeValue || '';
+        const labelText = optionEl.textContent ? optionEl.textContent.trim() : value;
+
+        applyTimeValue(activeField, value, labelText);
+        highlightSelectedOption(modalEl, value);
+        if (bootstrapModal) bootstrapModal.hide();
+    });
+
+    document.addEventListener('click', function (event) {
+        const clearButton = event.target.closest('.js-time-picker-clear');
+        if (!clearButton || !activeField) return;
+
+        const modalEl = getModalElement();
+        const bootstrapModal = getBootstrapModal(modalEl);
+
+        applyTimeValue(activeField, '', emptyLabel);
+        highlightSelectedOption(modalEl, '');
+        if (bootstrapModal) bootstrapModal.hide();
+    });
+
+    document.addEventListener('hidden.bs.modal', function (event) {
+        const modalEl = event.target;
+        if (!(modalEl instanceof HTMLElement)) return;
+        if (modalEl.id !== modalId) return;
+
+        activeField = null;
+    });
+
+    document.addEventListener('turbolinks:load', function () {
+        document.querySelectorAll('[data-time-picker-field]').forEach(function (fieldEl) {
+            const inputEl = getFieldInput(fieldEl);
+            if (!inputEl) return;
+            const modalEl = getModalElement();
+            const selectedOption = findOptionByValue(modalEl, inputEl.value || '');
+            const selectedLabel = selectedOption ? selectedOption.textContent.trim() : displayLabelFromValue(inputEl.value);
+            updateFieldLabel(fieldEl, inputEl.value || '', selectedLabel);
+        });
+    });
+})();

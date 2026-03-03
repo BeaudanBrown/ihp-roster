@@ -245,6 +245,16 @@ a:not(.btn):hover {
     transform: translateY(0.35rem);
 }
 
+.time-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.time-picker-option {
+    white-space: nowrap;
+}
+
 @media print {
     .btn,
     .breadcrumb {

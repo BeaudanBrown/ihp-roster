@@ -1,6 +1,8 @@
 module Application.Helper.View where
 
 import qualified Data.Text as Text
+import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
+import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ViewPrelude
 import Web.Routes ()
@@ -229,3 +231,76 @@ renderToastCopy toast =
                 <div>{toast.toastOverlayMessage}</div>
             </div>
         |]
+
+timePickerModalId :: Text
+timePickerModalId = "quarter-hour-time-picker-modal"
+
+quarterHourTimeOptions :: [(Text, Text)]
+quarterHourTimeOptions = quarterHourTimeOptionsInRange (TimeOfDay 6 0 0) (TimeOfDay 23 45 0)
+
+quarterHourTimeOptionsInRange :: TimeOfDay -> TimeOfDay -> [(Text, Text)]
+quarterHourTimeOptionsInRange startTime endTime =
+    map toOption minuteMarks
+    where
+        startMinutes = timeOfDayToMinuteOfDay startTime
+        endMinutesRaw = timeOfDayToMinuteOfDay endTime
+        endMinutes = if endMinutesRaw < startMinutes then endMinutesRaw + 1440 else endMinutesRaw
+        minuteMarks = [startMinutes, startMinutes + 15 .. endMinutes]
+
+        toOption totalMinutes =
+            let minuteOfDay = totalMinutes `mod` 1440
+                (hours, minutes) = minuteOfDay `divMod` 60
+                tod = TimeOfDay hours minutes 0
+             in (timeOfDayToStorageValue tod, Text.pack (formatTime defaultTimeLocale "%-I:%M %p" tod))
+
+        timeOfDayToMinuteOfDay tod = todHour tod * 60 + todMin tod
+
+timeOfDayToStorageValue :: TimeOfDay -> Text
+timeOfDayToStorageValue tod = Text.pack (formatTime defaultTimeLocale "%H:%M" tod)
+
+optionalTimeOfDayToStorageValue :: Maybe TimeOfDay -> Text
+optionalTimeOfDayToStorageValue = maybe "" timeOfDayToStorageValue
+
+storageTimeToDisplayLabel :: Text -> Text
+storageTimeToDisplayLabel rawValue =
+    case parseTimeM True defaultTimeLocale "%H:%M" (cs rawValue) :: Maybe TimeOfDay of
+        Just tod -> Text.pack (formatTime defaultTimeLocale "%-I:%M %p" tod)
+        Nothing -> rawValue
+
+renderQuarterHourTimePickerModal :: Html
+renderQuarterHourTimePickerModal = [hsx|
+    <div class="modal fade"
+         id={timePickerModalId}
+         tabindex="-1"
+         data-default-start-time="06:00"
+         data-default-end-time="23:45"
+         aria-labelledby="timePickerModalLabel"
+         aria-hidden="true">
+        <div class="modal-dialog modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="timePickerModalLabel">Select Time</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="time-picker-grid js-time-picker-grid">
+                        {forEach quarterHourTimeOptions renderTimePickerOption}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary js-time-picker-clear">Clear time</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+|]
+
+renderTimePickerOption :: (Text, Text) -> Html
+renderTimePickerOption (value, label) = [hsx|
+    <button type="button"
+            class="btn btn-outline-secondary time-picker-option js-time-picker-option"
+            data-time-value={value}>
+        {label}
+    </button>
+|]

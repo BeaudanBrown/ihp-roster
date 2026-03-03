@@ -32,6 +32,7 @@ defaultLayout inner = [hsx|
         <div id={dialogOverlayMountId}></div>
         {renderFlashOverlayToasts}
         {modal}
+        {renderQuarterHourTimePickerModal}
     </body>
 </html>
 |]
