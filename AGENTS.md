@@ -1,42 +1,61 @@
 # IHP Project — Agent Guidelines
 
 ## Framework Reference (in priority order)
-1. **IHP Guide** — `IHP/Guide/*.markdown` covers controllers, views, routing, forms, database, auth, HSX, validation, etc. Read the relevant guide FIRST before implementing any feature.
-2. **IHP Source** — `IHP/ihp/IHP/` contains the full framework source. Use grep/find here to understand type signatures, available functions, and implementation details.
-3. **Generated Types** — `build/Generated/Types.hs` contains types generated from `Application/Schema.sql`. Regenerated automatically.
+1. **IHP Guide** — `IHP/Guide/*.markdown` covers controllers, views, routing, forms, database, auth, HSX, validation, and more. Read the relevant guide first.
+2. **IHP Source** — `IHP/ihp/IHP/` contains the framework source. Use it to confirm type signatures, available helpers, and implementation details.
+3. **Generated Types** — `build/Generated/Types.hs` contains types generated from `Application/Schema.sql`.
 
 ## Project Structure
-- `Web/Types.hs` — All controller action types and app-level types
-- `Web/Routes.hs` — AutoRoute instances
-- `Web/FrontController.hs` — Controller mounting and context initialization
-- `Web/Controller/` — Controller implementations (import `Web.Controller.Prelude`)
-- `Web/View/` — Views (import `Web.View.Prelude`, use HSX quasi-quoter `[hsx|...|]`)
+- `Web/Types.hs` — Controller action types and app-level types
+- `Web/Routes.hs` — `AutoRoute` instances
+- `Web/FrontController.hs` — Controller mounting and request context initialization
+- `Web/Controller/` — Controllers (import `Web.Controller.Prelude`)
+- `Web/View/` — Views (import `Web.View.Prelude`, use `[hsx|...|]`)
 - `Config/Config.hs` — App configuration
-- `Application/Schema.sql` — Database schema (source of truth for models)
-- `Application/Helper/` — Shared helpers for controllers and views
+- `Application/Schema.sql` — Database schema source of truth
+- `Application/Helper/` — Shared controller and view helpers
 
 ## Styling
-- **Bootstrap 5.2.1** is included via vendor files — use Bootstrap classes in HSX
-- Custom CSS goes in `static/app.css` (loaded by `Web/View/Layout.hs`)
-- Custom JS goes in `static/app.js`
-- The layout shell is defined in `Web/View/Layout.hs` — edit `defaultLayout` to change page structure
-- Use `assetPath` for all static asset references (enables cache-busting in production)
+- Bootstrap is included via vendored files under `static/vendor/`
+- Custom CSS lives in `static/app.css`
+- Custom JS lives in `static/app.js`
+- The layout shell lives in `Web/View/Layout.hs`
+- Use `assetPath` for static assets so production cache-busting works
 
 ## Key Conventions
-- Every new controller needs: type in `Web/Types.hs`, AutoRoute in `Web/Routes.hs`, import+mount in `Web/FrontController.hs`, implementation in `Web/Controller/`
-- Use `Web.Controller.Prelude` in controllers, `Web.View.Prelude` in views — these re-export everything needed
-- HSX uses `[hsx|...|]` quasi-quotes — it's like JSX but type-checked at compile time
-- Database queries use IHP's QueryBuilder, not raw SQL — see `IHP/Guide/querybuilder.markdown`
-- Form handling uses IHP's form helpers — see `IHP/Guide/form.markdown`
+- Every new controller needs: a type in `Web/Types.hs`, an `AutoRoute` instance in `Web/Routes.hs`, an import plus `parseRoute` in `Web/FrontController.hs`, and an implementation file under `Web/Controller/`
+- Use `Web.Controller.Prelude` in controllers and `Web.View.Prelude` in views
+- HSX uses `[hsx|...|]` quasi-quotes and is type-checked at compile time
+- Database access should use IHP's QueryBuilder rather than raw SQL
+- Form handling should use IHP's form helpers
+
+## Overlay Architecture
+- Treat overlays as three lanes:
+  - `dialog` for workflow forms and confirmations
+  - `picker` for short-lived utility selection flows
+  - `toast` for transient notifications
+- Multiple overlay triggers may exist on a page, but only one workflow dialog should be active at a time in the shared dialog mount
+- Avoid nested workflow dialogs. A picker may appear above a workflow dialog, but dialogs should replace each other rather than stack
+- Prefer declarative overlay config in `Application/Helper/View.hs` over ad-hoc per-view footer buttons
+- For HTMX flows, return the smallest updated fragment plus any out-of-band overlay updates instead of redirecting whole pages when the current screen can update in place
+
+## Overlay Implementation Plan
+- Shared overlay helpers live in `Application/Helper/View.hs` and define mount ids, config records, footer rendering, and toast rendering
+- `Web/View/Layout.hs` owns the top-level overlay hosts:
+  - one shared dialog mount for workflow dialogs
+  - one shared toast mount for transient notifications
+  - picker markup rendered separately when a project uses picker overlays
+- Toast placement should be controlled declaratively in the helper layer
+- Controllers should prefer HTMX-driven in-place overlay workflows and keep `setModal` as a fallback
+- When migrating older modal code, move save/cancel controls into shared overlay/footer helpers before changing response shapes
 
 ## Verification Tools
 
-These scripts are defined in `flake.nix` as devenv shell scripts. They are placed on `PATH` automatically when the **direnv environment is active** (i.e. when a user's shell has been loaded by direnv via the `.envrc` file using `use flake`).
+These scripts are defined in `flake.nix` as devenv shell scripts. They are available on `PATH` only inside the activated direnv environment.
 
-**Agent/automation note:** Agents and CI running outside an interactive direnv shell must prefix commands with `direnv exec .` to run them inside the activated environment:
+Agents and CI running outside an interactive direnv shell must prefix commands with `direnv exec .`:
 
 ```bash
-# Correct — works from any shell (e.g. Bash tool, CI)
 direnv exec . regen-types
 direnv exec . typecheck
 direnv exec . test
@@ -45,60 +64,69 @@ direnv exec . format
 direnv exec . e2e
 direnv exec . screenshot http://localhost:8000/MyPage output.png
 direnv exec . e2e-report
+direnv exec . dev-start
+direnv exec . dev-stop
+direnv exec . dev-status
+direnv exec . dev-wait
 ```
 
-Never use bare names like `regen-types` or `typecheck` in Bash tool calls — they will fail with "command not found" unless direnv has already activated the environment in that shell session.
+Never use bare names like `typecheck` or `lint` in non-direnv shells.
+
+If you hit `attempt to write a readonly database` or other nix fetcher cache errors, ensure `XDG_CACHE_HOME` points to a writable path. This repo defaults to `/tmp/nix-cache`.
 
 Available scripts:
+- `typecheck` — Fast typecheck without a full build
+- `regen-types` — Regenerate `build/Generated/Types.hs` after schema edits
+- `test` — Compile and run the test suite
+- `lint` — Run hlint on app sources
+- `format` — Format app sources with stylish-haskell
+- `ghci-app` — Launch GHCi with the app loaded
+- `new-controller NAME` — Scaffold a new IHP controller
+- `e2e` — Run Playwright end-to-end tests
+- `screenshot` — Take a screenshot of a page
+- `e2e-report` — Open the Playwright HTML report
+- `dev-start` — Start the app in background for automation
+- `dev-stop` — Stop the background server started by `dev-start`
+- `dev-status` — Check background server health
+- `dev-wait [seconds]` — Wait for the background server to become healthy
 
-- **`typecheck`** — Fast (~2-3s) typecheck without full build. **Run after every code change** to catch errors immediately. Exit 0 = success.
-- **`regen-types`** — Regenerate `build/Generated/Types.hs` after editing `Application/Schema.sql`. Always run this before `typecheck` when schema has changed.
-- **`test`** — Compile and run the hspec test suite. **Add tests for every new controller** (see `Test/AGENTS.md`).
-- **`lint`** — Run hlint on app sources. Provides suggestions for idiomatic Haskell.
-- **`format`** — Format app sources with stylish-haskell (config in `.stylish-haskell.yaml`).
-- **`ghci-app`** — Launch GHCi with the full app loaded for testing expressions interactively.
-- **`new-controller NAME`** — IHP code generator that scaffolds controller, views, types, and routes. Prefer this for new CRUD controllers, then customize.
-- **`e2e`** — Run Playwright end-to-end tests against the live dev server. Accepts playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). Requires `devenv up` running.
-- **`screenshot`** — Take a screenshot of a page. Usage: `screenshot http://localhost:8000/Dashboard dash.png`. Requires `devenv up` running.
-- **`e2e-report`** — Open the Playwright HTML test report from the last run.
-- The app runs via `devenv up` — it auto-reloads on file changes, so you can check the browser for runtime behavior.
+For reliable non-interactive automation, prefer:
 
-## Adding a New Feature (e.g. a new page with database table)
+```bash
+direnv exec . dev-start
+direnv exec . dev-wait
+# run commands that need server + DB
+direnv exec . dev-stop
+```
 
-1. **Schema** — Add table to `Application/Schema.sql`, then:
-   - Run `direnv exec . regen-types` to regenerate Haskell types
-   - Run `make db` (requires `devenv up` running) to apply the schema to the dev database — **skipping this causes "relation does not exist" crashes at runtime even when typecheck passes**
-2. **Types** — Add controller type to `Web/Types.hs` (see `Web/Controller/AGENTS.md` for pattern)
-3. **Routes** — Add `instance AutoRoute MyController` to `Web/Routes.hs`
-4. **Controller** — Create `Web/Controller/My.hs` with action implementations
-5. **Views** — Create `Web/View/My/Index.hs`, `Show.hs`, etc. (see `Web/View/AGENTS.md`)
-6. **Mount** — Add `import Web.Controller.My` and `parseRoute @MyController` to `Web/FrontController.hs`
-7. **Verify** — Run `direnv exec . typecheck` (must pass before moving on)
-8. **DB check** — Confirm the table exists: `psql -h "$PWD/build/db" app -c "\dt"`
-9. **Polish** — Run `direnv exec . lint`, then `direnv exec . format`
+## Adding a New Feature
+1. Update `Application/Schema.sql` if the feature needs new tables or columns
+2. Run `direnv exec . regen-types` after schema changes
+3. Run `make db` while the dev server is available so the schema is applied to the dev database
+4. Add controller types, routes, controller implementation, and views
+5. Run `direnv exec . typecheck`
+6. Run `direnv exec . test` when controller logic changes
+7. Run `direnv exec . lint` and `direnv exec . format` before finishing
 
-For simple CRUD, prefer running `new-controller NAME` to scaffold all files, then customize.
+For simple CRUD, prefer `new-controller NAME` and then customize the generated files.
 
 ## Verification Workflow
-- **After every code change**: `direnv exec . typecheck` (fast, ~2-3s)
-- **After schema changes**: `direnv exec . regen-types` first, then `direnv exec . typecheck`, then `make db` (requires `devenv up`)
-- **After adding/changing controllers**: `direnv exec . test` to run the test suite
-- **After UI/integration changes**: `direnv exec . e2e` to run end-to-end tests (requires `devenv up`)
-- **Before committing**: `direnv exec . lint` then `direnv exec . format`
-- **To confirm DB is in sync**: `psql -h "$PWD/build/db" app -c "\dt"` — all tables in `Schema.sql` should be present
+- After every code change: `direnv exec . typecheck`
+- After schema changes: `direnv exec . regen-types`, then `direnv exec . typecheck`, then `make db`
+- After adding or changing controllers: `direnv exec . test`
+- After UI or integration changes: `direnv exec . e2e`
+- Before committing: `direnv exec . lint`, then `direnv exec . format`
+- To confirm DB sync: `psql -h "$PWD/build/db" app -c "\dt"`
 
 ## E2E Testing
-
-Playwright-based end-to-end tests live in `e2e/` and run against the live dev server (`http://localhost:8000`). See `e2e/AGENTS.md` for the full guide.
-
-- **Config**: `playwright.config.ts` — single chromium project, serial execution
-- **Test data**: Seeded via `e2e/fixtures/seed.sql` (test user: `e2e-test@example.com` / `test-password-123`)
-- **Cleanup**: `global-teardown.ts` deletes all rows with `e2e-` prefixed emails
-- **Browsers**: Provided by Nix via `playwright-web-flake` — no manual browser install needed
-- **npm deps**: `@playwright/test` version in `package.json` must match the `playwright-web-flake` tag in `flake.nix`
+- Playwright tests live in `e2e/`
+- The config is `playwright.config.ts`
+- Seeded test data lives in `e2e/fixtures/seed.sql`
+- `global-teardown.ts` cleans up `e2e-` users after runs
+- Browser versions come from Nix, so no manual browser install should be necessary
 
 ## Maintaining Agent Documentation
-- Subdirectory `AGENTS.md` files exist in `Web/Controller/`, `Web/View/`, and `Application/` with detailed patterns
-- When you discover a new IHP pattern, convention, or gotcha while implementing a feature, **add it to the relevant `AGENTS.md`** so future agents benefit
-- Keep entries concise and actionable — show the code pattern, not lengthy explanations
-- Always verify patterns against `IHP/Guide/` or `IHP/ihp/IHP/` source before documenting
+- Subdirectory `AGENTS.md` files exist in `Application/`, `Web/Controller/`, `Web/View/`, and `e2e/`
+- When you discover a reusable IHP pattern, add it to the relevant `AGENTS.md`
+- Keep entries concise and actionable
+- Verify patterns against the guide or framework source before documenting them

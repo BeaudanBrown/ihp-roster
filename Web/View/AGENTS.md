@@ -18,26 +18,19 @@ instance View IndexView where
         <h1>Posts</h1>
         {forEach posts renderPost}
     |]
-
-renderPost :: Post -> Html
-renderPost post = [hsx|
-    <div>
-        <h2>{post.title}</h2>
-        <a href={ShowPostAction post.id}>Show</a>
-    </div>
-|]
 ```
 
 ## HSX Rules
-- `[hsx|...|]` is the quasi-quoter — type-checked at compile time
-- Embed Haskell expressions with `{expression}`
+- `[hsx|...|]` is type-checked at compile time
+- Use `{expression}` to embed Haskell expressions
 - Use `{forEach items renderItem}` for lists
-- Action values work directly as `href` values: `href={ShowPostAction postId}`
-- Conditional rendering: `{when condition [hsx|...|]}`
-- HSX is strict about valid HTML — close all tags
+- Action values can be used directly in `href={...}`
+- Use `{when condition [hsx|...|]}` for conditional rendering
+- Keep HTML structurally valid and close all tags
 
 ## Forms
-Read `IHP/Guide/form.markdown` for full details. Basic pattern:
+Read `IHP/Guide/form.markdown`. Basic pattern:
+
 ```haskell
 renderForm :: Post -> Html
 renderForm post = formFor post [hsx|
@@ -48,6 +41,30 @@ renderForm post = formFor post [hsx|
 ```
 
 ## Key Imports
-- Always import `Web.View.Prelude` — it re-exports `IHP.ViewPrelude`, `Web.View.Layout`, `Generated.Types`, `Web.Types`, and `Application.Helper.View`
-- Shared view helpers go in `Application/Helper/View.hs`
+- Always import `Web.View.Prelude`
+- Shared view helpers belong in `Application/Helper/View.hs`
 - Layout is defined in `Web/View/Layout.hs`
+
+## Theming Pattern
+- The app uses a centralized token system in `static/app.css`
+- Root layout sets dark mode with `<html data-bs-theme="dark">`
+- Prefer semantic wrappers over ad-hoc utility combinations:
+  - page shells: `app-shell`, `app-content`, `app-page-auth`
+  - surfaces: `app-panel`, `app-auth-card`, `app-panel-body`, `app-auth-body`
+  - sizing and text helpers: `app-form-width`, `app-muted`
+- Avoid inline sizing styles in HSX when a reusable class will do
+- Avoid hardcoded light-mode utilities for new views
+
+## Global Header Pattern
+- Authenticated navigation belongs in `Web/View/Layout.hs`
+- Keep the header generic in the template so projects can customize it
+- Do not duplicate primary navigation in individual pages unless the workflow requires it
+
+## Overlay Pattern
+- Prefer HTMX-driven workflow dialog fragments over page-jump modal flows
+- Render top-level overlay hosts in `Web/View/Layout.hs`
+- Keep reusable dialog and toast helpers in `Application/Helper/View.hs`
+- Default toast placement should come from helper config, not page-specific markup
+- Dialog triggers should target the shared dialog mount
+- Validation failures should rerender the dialog fragment into the same mount
+- Successful submissions should return only the updated fragment(s) and any out-of-band overlay updates

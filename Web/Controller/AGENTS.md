@@ -1,70 +1,50 @@
 # Controller Guidelines
 
 ## Reference
-Read `IHP/Guide/controller.markdown` before implementing any controller logic.
+Read `IHP/Guide/controller.markdown` before implementing controller logic.
 
 ## Creating a New Controller
 
-Every controller requires changes in **four files** (missing any will cause compile errors):
+Every controller requires changes in four places:
 
-1. **`Web/Types.hs`** — Define the controller type:
-   ```haskell
-   data PostsController
-       = PostsAction
-       | NewPostAction
-       | ShowPostAction { postId :: !(Id Post) }
-       | CreatePostAction
-       | EditPostAction { postId :: !(Id Post) }
-       | UpdatePostAction { postId :: !(Id Post) }
-       | DeletePostAction { postId :: !(Id Post) }
-       deriving (Eq, Show, Data)
-   ```
+1. `Web/Types.hs` — define the controller type
+2. `Web/Routes.hs` — add `instance AutoRoute MyController`
+3. `Web/FrontController.hs` — add the import and `parseRoute @MyController`
+4. `Web/Controller/My.hs` — implement the actions
 
-2. **`Web/Routes.hs`** — Add AutoRoute:
-   ```haskell
-   instance AutoRoute PostsController
-   ```
+Example:
 
-3. **`Web/FrontController.hs`** — Mount the controller (add import + parseRoute):
-   ```haskell
-   import Web.Controller.Posts
-   -- ...
-   instance FrontController WebApplication where
-       controllers =
-           [ startPage WelcomeAction
-           , parseRoute @PostsController
-           ]
-   ```
-
-4. **`Web/Controller/Posts.hs`** — Implement actions:
-   ```haskell
-   module Web.Controller.Posts where
-   import Web.Controller.Prelude
-
-   instance Controller PostsController where
-       action PostsAction = do
-           posts <- query @Post |> fetch
-           render IndexView { .. }
-       action NewPostAction = do
-           let post = newRecord
-           render NewView { .. }
-       action CreatePostAction = do
-           let post = newRecord @Post
-           post
-               |> buildPost
-               |> ifValid \case
-                   Left post -> render NewView { .. }
-                   Right post -> do
-                       post <- post |> createRecord
-                       redirectTo PostsAction
-   ```
+```haskell
+data PostsController
+    = PostsAction
+    | NewPostAction
+    | ShowPostAction { postId :: !(Id Post) }
+    | CreatePostAction
+    | EditPostAction { postId :: !(Id Post) }
+    | UpdatePostAction { postId :: !(Id Post) }
+    | DeletePostAction { postId :: !(Id Post) }
+    deriving (Eq, Show, Data)
+```
 
 ## Common Patterns
+- Always import `Web.Controller.Prelude`
+- Use `param @Type "name"` for request parameters
+- Use `fetch`, `fetchOne`, and `fetchOneOrNothing` for queries
+- Redirect after successful mutations
+- Render views with `render ViewName { .. }`
+- Use builder functions for form validation and transformation
+- Access the authenticated user through `currentUser` when auth is enabled
 
-- Always import `Web.Controller.Prelude` — it re-exports everything needed
-- Use `param @Type "name"` to read request parameters
-- Use `fetch`, `fetchOne`, `fetchOneOrNothing` to run queries
-- Use `redirectTo SomeAction` after mutations
-- Use `render ViewName { .. }` with RecordWildCards to pass data to views
-- Use `buildPost` pattern for form validation (see `IHP/Guide/validation.markdown`)
-- Access current user with `currentUser` (requires auth setup)
+## State Transition Pattern
+- For status changes with related side effects, wrap the update and its side effects in `withTransaction`
+
+## Overlay Controller Pattern
+- Prefer dedicated HTMX dialog-fragment actions for in-place workflows over `setModal` plus page navigation
+- Typical shape:
+  - GET action renders the dialog fragment
+  - POST or PATCH action re-renders the dialog on validation failure
+  - success returns only the updated page fragments and any out-of-band dialog or toast updates
+- Keep `setModal` as a fallback when a workflow must support non-HTMX behavior
+- Reuse the same form helper for initial dialog render and validation rerender
+- Return the smallest updated fragment possible instead of full-page redirects
+- Only one workflow dialog should be active at a time
