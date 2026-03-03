@@ -1,7 +1,7 @@
 module Web.View.Users.New where
 import Web.View.Prelude
 
-data NewView = NewView { user :: User }
+newtype NewView = NewView { user :: User }
 
 instance View NewView where
     html NewView { .. } = [hsx|

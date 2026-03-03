@@ -102,9 +102,9 @@
                         lint.exec = ''
                             set -euo pipefail
                             if [ $# -gt 0 ]; then
-                                exec hlint "$@"
+                                exec hlint -XQuasiQuotes "$@"
                             fi
-                            hlint Main.hs Web/ Application/Helper/ Config/
+                            hlint -XQuasiQuotes Main.hs Web/ Application/Helper/ Config/
                         '';
 
                         # Format Haskell files with stylish-haskell.
