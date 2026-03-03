@@ -149,6 +149,198 @@
                         e2e-report.exec = ''
                             exec npx playwright show-report
                         '';
+
+                        # Start IHP in background for automation.
+                        # Usage: dev-start
+                        dev-start.exec = ''
+                            set -euo pipefail
+                            STATE_DIR="$PWD/.devenv/agent"
+                            PID_FILE="$STATE_DIR/devenv.pid"
+                            LOG_FILE="$STATE_DIR/devenv.log"
+
+                            mkdir -p "$STATE_DIR"
+
+                            if dev-status >/dev/null 2>&1; then
+                                echo "devenv already healthy"
+                                exit 0
+                            fi
+
+                            if [ -f "$PID_FILE" ]; then
+                                PID=$(cat "$PID_FILE")
+                                if kill -0 "$PID" 2>/dev/null; then
+                                    echo "devenv already running (pid=$PID)"
+                                    exit 0
+                                fi
+                                rm -f "$PID_FILE"
+                            fi
+
+                            : > "$LOG_FILE"
+                            # In restricted sandboxes ~/.cache can be read-only, which makes
+                            # nix/direnv evaluation fail while writing fetcher cache.
+                            export XDG_CACHE_HOME="''${XDG_CACHE_HOME:-/tmp/nix-cache}"
+                            mkdir -p "$XDG_CACHE_HOME"
+                            echo "[dev-start] launching start (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
+                            setsid nohup start </dev/null >>"$LOG_FILE" 2>&1 &
+                            PID=$!
+                            echo "$PID" > "$PID_FILE"
+                            disown "$PID" 2>/dev/null || true
+
+                            # Surface startup failures immediately (e.g. missing dependencies)
+                            for _ in $(seq 1 3); do
+                                sleep 1
+                                if ! kill -0 "$PID" 2>/dev/null; then
+                                    echo "devenv failed to start; recent log output:"
+                                    tail -n 60 "$LOG_FILE" || true
+                                    rm -f "$PID_FILE"
+                                    exit 1
+                                fi
+                            done
+
+                            echo "devenv started (pid=$PID, log=$LOG_FILE)"
+                        '';
+
+                        # Stop background server started by dev-start.
+                        # Usage: dev-stop
+                        dev-stop.exec = ''
+                            set -euo pipefail
+                            STATE_DIR="$PWD/.devenv/agent"
+                            PID_FILE="$STATE_DIR/devenv.pid"
+
+                            if [ ! -f "$PID_FILE" ]; then
+                                if dev-status >/dev/null 2>&1; then
+                                    echo "devenv is healthy but unmanaged (no pid file); not stopping"
+                                    exit 0
+                                fi
+                                echo "devenv not running (no pid file)"
+                                exit 0
+                            fi
+
+                            PID=$(cat "$PID_FILE")
+                            if ! kill -0 "$PID" 2>/dev/null; then
+                                rm -f "$PID_FILE"
+                                if dev-status >/dev/null 2>&1; then
+                                    echo "devenv is healthy but unmanaged (stale pid file removed); not stopping"
+                                    exit 0
+                                fi
+                                echo "devenv not running (stale pid file removed)"
+                                exit 0
+                            fi
+
+                            kill -TERM -"$PID" 2>/dev/null || kill -TERM "$PID" 2>/dev/null || true
+
+                            for _ in $(seq 1 20); do
+                                if ! kill -0 "$PID" 2>/dev/null; then
+                                    rm -f "$PID_FILE"
+                                    echo "devenv stopped"
+                                    exit 0
+                                fi
+                                sleep 1
+                            done
+
+                            kill -KILL -"$PID" 2>/dev/null || kill -KILL "$PID" 2>/dev/null || true
+                            rm -f "$PID_FILE"
+                            echo "devenv force-stopped"
+                        '';
+
+                        # Check health of background server.
+                        # Usage: dev-status
+                        dev-status.exec = ''
+                            set -euo pipefail
+                            STATE_DIR="$PWD/.devenv/agent"
+                            PID_FILE="$STATE_DIR/devenv.pid"
+                            SOCKET_FILE="$STATE_DIR/pc.sock"
+                            PID=""
+
+                            if [ -f "$PID_FILE" ]; then
+                                PID=$(cat "$PID_FILE")
+                                if ! kill -0 "$PID" 2>/dev/null; then
+                                    rm -f "$PID_FILE"
+                                    PID=""
+                                fi
+                            fi
+
+                            RUNNING=false
+                            if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+                                RUNNING=true
+                            fi
+
+                            SOCKET_OK=false
+                            if [ -S "$SOCKET_FILE" ] && lsof "$SOCKET_FILE" >/dev/null 2>&1; then
+                                SOCKET_OK=true
+                                RUNNING=true
+                            fi
+
+                            DB_OK=false
+                            DB_BLOCKED=false
+                            DB_ERR=""
+                            if DB_ERR=$(psql -h "$PWD/build/db" -d app -c "select 1" 2>&1); then
+                                DB_OK=true
+                            elif echo "$DB_ERR" | rg -qi "operation not permitted|permission denied"; then
+                                DB_BLOCKED=true
+                            fi
+
+                            HTTP_OK=false
+                            HTTP_BLOCKED=false
+                            HTTP_ERR=""
+                            if HTTP_ERR=$(curl -fsS "http://127.0.0.1:8000" 2>&1); then
+                                HTTP_OK=true
+                            elif echo "$HTTP_ERR" | rg -qi "operation not permitted|permission denied"; then
+                                HTTP_BLOCKED=true
+                            fi
+
+                            CHECKS_BLOCKED=false
+                            if { [ "$DB_OK" = true ] || [ "$DB_BLOCKED" = true ]; } \
+                                && { [ "$HTTP_OK" = true ] || [ "$HTTP_BLOCKED" = true ]; }; then
+                                CHECKS_BLOCKED=true
+                            fi
+
+                            MANAGED=false
+                            if [ -n "$PID" ] || [ "$SOCKET_OK" = true ]; then
+                                MANAGED=true
+                            fi
+
+                            if [ "$DB_OK" = true ] && [ "$HTTP_OK" = true ]; then
+                                RUNNING=true
+                            fi
+
+                            echo "running=$RUNNING managed=$MANAGED socket_ok=$SOCKET_OK pid=''${PID:-none} db_ok=$DB_OK http_ok=$HTTP_OK db_blocked=$DB_BLOCKED http_blocked=$HTTP_BLOCKED"
+
+                            if [ "$DB_OK" = true ] && [ "$HTTP_OK" = true ]; then
+                                exit 0
+                            fi
+
+                            if [ "$RUNNING" = true ] && [ "$CHECKS_BLOCKED" = true ]; then
+                                exit 0
+                            fi
+
+                            exit 1
+                        '';
+
+                        # Wait for background server to become healthy.
+                        # Usage: dev-wait [timeout-seconds]
+                        dev-wait.exec = ''
+                            set -euo pipefail
+                            TIMEOUT="''${1:-90}"
+                            START_TS=$(date +%s)
+
+                            while true; do
+                                if dev-status >/dev/null 2>&1; then
+                                    dev-status
+                                    exit 0
+                                fi
+
+                                NOW_TS=$(date +%s)
+                                if [ $((NOW_TS - START_TS)) -ge "$TIMEOUT" ]; then
+                                    echo "Timed out waiting for devenv health after ''${TIMEOUT}s"
+                                    dev-status || true
+                                    echo "--- recent devenv log ---"
+                                    tail -n 80 "$PWD/.devenv/agent/devenv.log" || true
+                                    exit 1
+                                fi
+
+                                sleep 1
+                            done
+                        '';
                     };
                 };
             };
