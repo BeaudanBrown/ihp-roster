@@ -150,6 +150,10 @@
                             exec npx playwright show-report
                         '';
 
+                        screenshot-page.exec = ''
+                            exec node ./e2e/screenshot-page.mjs "$@"
+                        '';
+
                         # Start IHP in background for automation.
                         # Usage: dev-start
                         dev-start.exec = ''
