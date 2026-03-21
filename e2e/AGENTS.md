@@ -96,7 +96,7 @@ test('authenticated feature', async ({ page }) => {
 ## Test Data Convention
 
 - All e2e test data uses the **`e2e-` prefix** on emails and identifiers
-- The seeded manager is `e2e-test@example.com` and the seeded worker is `e2e-worker@example.com`; both use password `test-password-123`
+- The seeded manager is `e2e-test@example.com`, the seeded venue admin is `e2e-admin@example.com`, and the seeded worker is `e2e-worker@example.com`; all use password `test-password-123`
 - Auth now also requires seeded `venues`, `venue_config`, and `venue_memberships` for the login user. A bare user row is not enough.
 - `global-teardown.ts` deletes all users with `email LIKE 'e2e-%'` after tests complete
 - If a spec creates worker-owned leave or timesheet rows, teardown must delete those rows before deleting dependent `pay_config_snapshots` or user rows
