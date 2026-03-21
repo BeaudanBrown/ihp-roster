@@ -5,6 +5,123 @@ $(document).on('ready turbolinks:load', function () {
     }
 });
 
+// Keep the minimal TurboLinks body-swap runtime app-local after removing helpers.js.
+// This preserves TurboLinks-driven page navigation without bringing back IHP's old global form transport.
+(function enableTurbolinksBodyTransitions() {
+    if (typeof window === 'undefined') return;
+    if (typeof window.morphdom !== 'function') return;
+    if (typeof window.transitionToNewPage === 'function') return;
+
+    const ihpLoadEvent = new Event('ihp:load');
+    const ihpUnloadEvent = new Event('ihp:unload');
+    let transitionLocked = false;
+
+    if (!Array.isArray(window.allIntervals)) {
+        window.allIntervals = [];
+    }
+    if (!Array.isArray(window.allTimeouts)) {
+        window.allTimeouts = [];
+    }
+
+    if (typeof window.unsafeSetInterval !== 'function') {
+        window.unsafeSetInterval = window.setInterval.bind(window);
+    }
+    if (typeof window.unsafeSetTimeout !== 'function') {
+        window.unsafeSetTimeout = window.setTimeout.bind(window);
+    }
+
+    if (window.setInterval !== trackedSetInterval) {
+        window.setInterval = trackedSetInterval;
+    }
+    if (window.setTimeout !== trackedSetTimeout) {
+        window.setTimeout = trackedSetTimeout;
+    }
+
+    if (typeof window.clearAllIntervals !== 'function') {
+        window.clearAllIntervals = function clearAllIntervals() {
+            for (const intervalId of window.allIntervals) {
+                window.clearInterval(intervalId);
+            }
+            window.allIntervals = [];
+        };
+    }
+
+    if (typeof window.clearAllTimeouts !== 'function') {
+        window.clearAllTimeouts = function clearAllTimeouts() {
+            for (const timeoutId of window.allTimeouts) {
+                window.clearTimeout(timeoutId);
+            }
+            window.allTimeouts = [];
+        };
+    }
+
+    function trackedSetInterval() {
+        const intervalId = window.unsafeSetInterval.apply(window, arguments);
+        window.allIntervals.push(intervalId);
+        return intervalId;
+    }
+
+    function trackedSetTimeout() {
+        const timeoutId = window.unsafeSetTimeout.apply(window, arguments);
+        window.allTimeouts.push(timeoutId);
+        return timeoutId;
+    }
+
+    window.transitionToNewPage = function transitionToNewPage(newHtml) {
+        if (transitionLocked) {
+            return;
+        }
+
+        document.dispatchEvent(ihpUnloadEvent);
+
+        const nextBody = newHtml && newHtml.tagName === 'BODY' ? newHtml : newHtml && newHtml.body;
+        if (!(nextBody instanceof HTMLBodyElement)) {
+            return;
+        }
+
+        const isModalOpen = document.body.classList.contains('modal-open');
+
+        window.morphdom(document.body, nextBody, {
+            childrenOnly: false,
+            onBeforeElUpdated(fromEl, toEl) {
+                if (!(fromEl instanceof HTMLElement) || !(toEl instanceof HTMLElement)) {
+                    return true;
+                }
+
+                if (isModalOpen && fromEl.id === 'main-row') {
+                    return false;
+                }
+
+                if (fromEl.classList.contains('flatpickr-input') && fromEl._flatpickr) {
+                    window.unsafeSetTimeout(function syncFlatpickrValue() {
+                        fromEl.value = toEl.value;
+                    }, 0);
+                }
+
+                return true;
+            },
+            getNodeKey(el) {
+                if (el instanceof HTMLElement && el.id) {
+                    return el.id;
+                }
+                if (el instanceof HTMLScriptElement) {
+                    return el.src;
+                }
+                return undefined;
+            },
+        });
+
+        window.clearAllIntervals();
+        window.clearAllTimeouts();
+
+        transitionLocked = true;
+        window.unsafeSetTimeout(function unlockTransition() {
+            transitionLocked = false;
+            document.dispatchEvent(ihpLoadEvent);
+        }, 1);
+    };
+})();
+
 // Keep the date/datetime picker enhancement app-local so it survives after helpers.js is removed.
 (function enableDatePickers() {
     if (typeof window === 'undefined') return;

@@ -2,6 +2,15 @@ import { test, expect } from '@playwright/test';
 import { gotoWhenReady } from './test-helpers';
 
 test.describe('Authentication', () => {
+    test('auth link navigation updates the page body', async ({ page }) => {
+        await gotoWhenReady(page, '/NewSession', '#email');
+
+        await page.click('a:has-text("Request an invitation")');
+
+        await expect(page).toHaveURL(/NewUser/, { timeout: 60000 });
+        await expect(page.locator('body')).toContainText('Invitation Required');
+    });
+
     test('login flow: sign in, view the roster, logout', async ({ page }) => {
         // Navigate to login page
         await gotoWhenReady(page, '/NewSession', '#email');

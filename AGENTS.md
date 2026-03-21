@@ -216,6 +216,7 @@ Playwright-based end-to-end tests live in `e2e/` and run against the live dev se
   - replace destructive `.js-delete` links with explicit app-owned forms using `POST` plus hidden `_method=DELETE`
   - keep only the still-useful UI helpers in app-local JS, currently the date/datetime picker enhancement
   - keep TurboLinks separate from form transport; if retained, it is for navigation lifecycle only
+  - if TurboLinks is retained with `turbolinksMorphdom.js`, `static/app.js` must still provide the body-swap runtime (`transitionToNewPage`, `ihp:load`/`ihp:unload`, and timer cleanup); removing `helpers.js` without rehoming that hook breaks link-driven navigation by changing the URL without updating the DOM
   - roster create/copy/publish stays on HTMX because those controls live inside the interactive roster surface and should keep updating in place
 
 ## Auth Model Notes
