@@ -4,21 +4,20 @@
 
 Active implementation lane created on 2026-03-21 as coordinator epic `coordinator-cdj`.
 `coordinator-cdj.4` implementation landed on 2026-03-21: the shared app-local lifecycle contract now exists in `static/app.js`, and direct feature-level `turbolinks:load` listeners are gone.
+`coordinator-cdj.5` / `coordinator-cdj.7` implementation landed on 2026-03-21: TurboLinks assets are no longer loaded, the temporary compatibility bridge is gone, and no app-runtime `data-turbolinks` fences remain.
 
 ## Current Understanding
 
 - `helpers.js` is already retired.
 - TurboLinks is now the last global navigation runtime left in the app.
-- The app currently depends on TurboLinks in two ways:
-  - script includes in `Web/View/Layout.hs`
-  - a temporary TurboLinks body-transition compatibility runtime in `static/app.js`
+- TurboLinks script includes and the app-local compatibility bridge were removed on 2026-03-21.
+- The remaining app-local runtime support that stays in place is tracked timer cleanup (`clearAllIntervals` / `clearAllTimeouts`) because `livereload.js` still expects it during dev reloads.
 
 ## Landed Lifecycle Contract
 
 - Feature code now initializes from one app-local `app:page-ready` event rather than direct `turbolinks:load` listeners.
 - `app:page-ready` is dispatched from:
   - `DOMContentLoaded`
-  - `turbolinks:load` as a temporary bridge while TurboLinks scripts remain
   - `htmx:afterSwap`
   - `htmx:oobAfterSwap`
 - Event detail shape is `{ target, source, isFullPage }`.
@@ -31,10 +30,8 @@ Active implementation lane created on 2026-03-21 as coordinator epic `coordinato
   - live-update websocket subscription sync
   - time-picker label sync
   - break-toggle sync
-- Remaining TurboLinks-specific code in `static/app.js` is intentionally narrowed to the compatibility bridge only:
-  - `transitionToNewPage`
-  - `ihp:load` / `ihp:unload`
-  - tracked timer cleanup
+- TurboLinks-specific code has been removed from `static/app.js`.
+- Tracked timer cleanup remains app-local and is not part of the TurboLinks model.
 
 ## Intended Replacement
 
@@ -45,21 +42,22 @@ Active implementation lane created on 2026-03-21 as coordinator epic `coordinato
 
 ## Initial Task Order
 
-1. Remove TurboLinks script includes and obsolete `data-turbolinks` markup.
-2. Delete the temporary `transitionToNewPage` compatibility bridge once TurboLinks is gone.
-3. Run targeted controller/E2E verification for auth, nav, profile, admin, exports, roster, leave, and timesheets.
+1. Run targeted controller/E2E verification for auth, nav, profile, admin, exports, roster, leave, and timesheets.
+2. Close the remaining TurboLinks removal tasks and the epic if verification is clean.
 
 ## Known Evidence
 
 - `rg -n "turbolinks:load|Turbolinks|data-turbolinks|turbolinks" static Web e2e` still shows:
-  - the temporary TurboLinks bridge in `static/app.js`
-  - TurboLinks assets in `Web/View/Layout.hs`
-  - TurboLinks-fencing `data-turbolinks="false"` attributes in views
+  - repo docs and the vendored TurboLinks files under `IHP/ihp/data/static/vendor/`
 - Stabilization pass on 2026-03-21 was clean after the temporary TurboLinks body-transition fix landed at commit `4c46f78`.
 - Verification for the lifecycle-contract slice on 2026-03-21:
   - `bash ./bin/in-env e2e e2e/auth.spec.ts` -> `4 passed`
   - `bash ./bin/in-env e2e e2e/live-fragment-submit-regressions.spec.ts` -> `3 passed`
   - running those two files in parallel produced the known shared-seed auth flake; treat serial reruns as canonical
+- Verification for the TurboLinks removal slice on 2026-03-21:
+  - `bash ./bin/in-env typecheck` -> passed
+  - `bash ./bin/in-env e2e e2e/auth.spec.ts` -> `4 passed`
+  - `bash ./bin/in-env e2e e2e/live-fragment-submit-regressions.spec.ts` -> `3 passed`
 
 ## Caution
 

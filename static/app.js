@@ -2,7 +2,6 @@
     if (typeof window === 'undefined') return;
 
     const pageReadyEventName = 'app:page-ready';
-    let lastTurbolinksUrl = null;
 
     function normalizeTarget(target) {
         if (target instanceof HTMLElement) return target;
@@ -42,18 +41,6 @@
         });
     });
 
-    document.addEventListener('turbolinks:load', function () {
-        const nextUrl = window.location.href;
-        if (nextUrl === lastTurbolinksUrl) return;
-        lastTurbolinksUrl = nextUrl;
-
-        dispatchPageReady({
-            source: 'turbolinks-load',
-            target: document.body,
-            isFullPage: true,
-        });
-    });
-
     document.addEventListener('htmx:afterSwap', function (event) {
         dispatchPageReady({
             source: 'htmx-after-swap',
@@ -79,16 +66,10 @@
     }
 })();
 
-// Keep the minimal TurboLinks body-swap runtime app-local after removing helpers.js.
-// This preserves TurboLinks-driven page navigation without bringing back IHP's old global form transport.
-(function enableTurbolinksBodyTransitions() {
+// Keep tracked timer cleanup app-local so dev live reload and any future re-init flows
+// can clear stale intervals/timeouts without depending on legacy framework runtime hooks.
+(function enableTrackedTimers() {
     if (typeof window === 'undefined') return;
-    if (typeof window.morphdom !== 'function') return;
-    if (typeof window.transitionToNewPage === 'function') return;
-
-    const ihpLoadEvent = new Event('ihp:load');
-    const ihpUnloadEvent = new Event('ihp:unload');
-    let transitionLocked = false;
 
     if (!Array.isArray(window.allIntervals)) {
         window.allIntervals = [];
@@ -140,60 +121,6 @@
         window.allTimeouts.push(timeoutId);
         return timeoutId;
     }
-
-    window.transitionToNewPage = function transitionToNewPage(newHtml) {
-        if (transitionLocked) {
-            return;
-        }
-
-        document.dispatchEvent(ihpUnloadEvent);
-
-        const nextBody = newHtml && newHtml.tagName === 'BODY' ? newHtml : newHtml && newHtml.body;
-        if (!(nextBody instanceof HTMLBodyElement)) {
-            return;
-        }
-
-        const isModalOpen = document.body.classList.contains('modal-open');
-
-        window.morphdom(document.body, nextBody, {
-            childrenOnly: false,
-            onBeforeElUpdated(fromEl, toEl) {
-                if (!(fromEl instanceof HTMLElement) || !(toEl instanceof HTMLElement)) {
-                    return true;
-                }
-
-                if (isModalOpen && fromEl.id === 'main-row') {
-                    return false;
-                }
-
-                if (fromEl.classList.contains('flatpickr-input') && fromEl._flatpickr) {
-                    window.unsafeSetTimeout(function syncFlatpickrValue() {
-                        fromEl.value = toEl.value;
-                    }, 0);
-                }
-
-                return true;
-            },
-            getNodeKey(el) {
-                if (el instanceof HTMLElement && el.id) {
-                    return el.id;
-                }
-                if (el instanceof HTMLScriptElement) {
-                    return el.src;
-                }
-                return undefined;
-            },
-        });
-
-        window.clearAllIntervals();
-        window.clearAllTimeouts();
-
-        transitionLocked = true;
-        window.unsafeSetTimeout(function unlockTransition() {
-            transitionLocked = false;
-            document.dispatchEvent(ihpLoadEvent);
-        }, 1);
-    };
 })();
 
 // Keep the date/datetime picker enhancement app-local so it survives after helpers.js is removed.

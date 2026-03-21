@@ -106,7 +106,7 @@ renderForm post = formFor post [hsx|
 - Use compact controls in the roster page header: `<`, `this week`, `>`.
 - `this week` should link to `RosterWeeksAction` (server-side reset to current offset), not a client-side calculation.
 - For HTMX week browsing, wrap the header + page content in a stable shell id, target that shell with `hx-get`, `hx-swap="outerHTML"`, `hx-select`, `hx-push-url="true"`, and `hx-sync="#shell-id:replace"`.
-- While TurboLinks is still loaded, keep `data-turbolinks="false"` on HTMX partial-navigation anchors so TurboLinks does not steal the click. Remove those attributes once the TurboLinks scripts are retired.
+- Do not add `data-turbolinks` attributes in new view code. TurboLinks is no longer part of the app runtime, so ordinary links should use normal browser navigation and HTMX controls should stand on their own.
 - For roster side-panel sizing on desktop, prefer CSS-only sticky layout with a viewport-capped panel and internal scroll over JS height syncing.
 - Roster create/copy/publish controls belong to the interactive roster surface. Keep them on HTMX with explicit fragment targets instead of falling back to native full-page reloads.
 
