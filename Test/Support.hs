@@ -33,6 +33,9 @@ import Web.Types
 testContext :: IO (MockContext WebApplication)
 testContext = mockContextNoDatabase WebApplication config
 
+bootstrapFounderEmail :: Text
+bootstrapFounderEmail = "beaudan.brown@gmail.com"
+
 withCleanDb :: (?modelContext :: ModelContext) => IO a -> IO a
 withCleanDb action = do
     resetDatabase
@@ -53,6 +56,25 @@ resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExec
         "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, day_names, slot_names, shift_types, pay_levels, staff, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        ()
+    seedFounderBootstrapFixture
+
+seedFounderBootstrapFixture :: (?modelContext :: ModelContext) => IO ()
+seedFounderBootstrapFixture = do
+    _ <- sqlExec
+        "INSERT INTO venues (id, name, status) VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Dev Venue', 'active') ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status"
+        ()
+    _ <- sqlExec
+        "INSERT INTO venue_config (id, venue_id, timezone, week_offset_epoch, late_to_early_min_start_gap_minutes, staff_timesheet_edit_window_days) VALUES ('b3000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'UTC', DATE '2025-01-06', 600, 7) ON CONFLICT (venue_id) DO UPDATE SET timezone = EXCLUDED.timezone, week_offset_epoch = EXCLUDED.week_offset_epoch, late_to_early_min_start_gap_minutes = EXCLUDED.late_to_early_min_start_gap_minutes, staff_timesheet_edit_window_days = EXCLUDED.staff_timesheet_edit_window_days"
+        ()
+    _ <- sqlExec
+        "INSERT INTO users (id, email, password_hash, user_role, is_profile_completed, failed_login_attempts, locked_at) VALUES ('b0000000-0000-0000-0000-000000000001', 'beaudan.brown@gmail.com', 'sha256|17|QsCg6vyI99zgdc8d6k9CAQ==|U17VHHhZnBKByPfiHkrPH16BdDQaND55Uq8Ubbku/cQ=', 'staff', true, 0, NULL) ON CONFLICT (id) DO UPDATE SET email = EXCLUDED.email, password_hash = EXCLUDED.password_hash, user_role = EXCLUDED.user_role, is_profile_completed = EXCLUDED.is_profile_completed, failed_login_attempts = EXCLUDED.failed_login_attempts, locked_at = EXCLUDED.locked_at"
+        ()
+    _ <- sqlExec
+        "INSERT INTO venue_memberships (id, venue_id, user_id, venue_role, is_active) VALUES ('b1000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'b0000000-0000-0000-0000-000000000001', 'venue_owner', true) ON CONFLICT (id) DO UPDATE SET venue_id = EXCLUDED.venue_id, user_id = EXCLUDED.user_id, venue_role = EXCLUDED.venue_role, is_active = EXCLUDED.is_active"
+        ()
+    _ <- sqlExec
+        "INSERT INTO staff (id, venue_id, user_id, first_name, last_name, is_active) VALUES ('b2000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'b0000000-0000-0000-0000-000000000001', 'Beau', 'Brown', true) ON CONFLICT (id) DO UPDATE SET venue_id = EXCLUDED.venue_id, user_id = EXCLUDED.user_id, first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, is_active = EXCLUDED.is_active"
         ()
     pure ()
 

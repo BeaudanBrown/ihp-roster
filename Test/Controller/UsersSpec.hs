@@ -68,7 +68,11 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Invitation Required"
 
                 userCount <- query @User |> fetchCount
-                userCount `shouldBe` 0
+                founder <- query @User
+                    |> filterWhere (#email, bootstrapFounderEmail)
+                    |> fetchOneOrNothing
+                userCount `shouldBe` 1
+                fmap (.email) founder `shouldBe` Just bootstrapFounderEmail
 
         it "does not redeem an invitation that has already been accepted" $ withContext do
             withCleanDb do
@@ -85,10 +89,17 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Invitation Required"
 
-                userCount <- query @User |> fetchCount
-                membershipCount <- query @VenueMembership |> fetchCount
-                userCount `shouldBe` 0
-                membershipCount `shouldBe` 0
+                acceptedUser <- query @User
+                    |> filterWhere (#email, "accepted@example.com")
+                    |> fetchOneOrNothing
+                founder <- query @User
+                    |> filterWhere (#email, bootstrapFounderEmail)
+                    |> fetchOne
+                founderMembershipCount <- query @VenueMembership
+                    |> filterWhere (#userId, unpackId founder.id)
+                    |> fetchCount
+                acceptedUser `shouldBe` Nothing
+                founderMembershipCount `shouldBe` 1
 
         it "creates a user and venue membership from a pending invitation" $ withContext do
             withCleanDb do

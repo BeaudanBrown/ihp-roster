@@ -24,6 +24,14 @@ Useful patterns:
 - `withUserAndCurrentVenue user venueId do ...` when the request needs both authenticated user session and `currentVenueId`
 - `withControllerTestContext do ...` when the test needs a real `ControllerContext`, e.g. to call `beforeLogin` and then `getSession`
 
+`withCleanDb` is not a truly empty database reset anymore. It truncates mutable tables and then restores the founder bootstrap fixture rows needed for manual auth after test runs:
+- founder user `beaudan.brown@gmail.com`
+- default dev venue + venue_config
+- active `venue_owner` membership
+- linked `staff` row
+
+When asserting counts in controller specs, prefer filtering for the records created by the example instead of assuming global table count `0`.
+
 Example shape:
 
 ```haskell
