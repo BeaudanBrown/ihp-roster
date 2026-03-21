@@ -1,9 +1,83 @@
-$(document).on('ready turbolinks:load', function () {
-    // This is called on the first page load *and* also when the page is changed by turbolinks
-    if (window.htmx && typeof window.htmx.process === 'function') {
-        window.htmx.process(document.body);
+(function enableAppPageLifecycle() {
+    if (typeof window === 'undefined') return;
+
+    const pageReadyEventName = 'app:page-ready';
+    let lastTurbolinksUrl = null;
+
+    function normalizeTarget(target) {
+        if (target instanceof HTMLElement) return target;
+        if (target instanceof Document) return document.body;
+        return document.body;
     }
-});
+
+    function dispatchPageReady(detail) {
+        const target = normalizeTarget(detail && detail.target);
+        const event = new CustomEvent(pageReadyEventName, {
+            detail: {
+                target,
+                source: detail && detail.source ? detail.source : 'unknown',
+                isFullPage: Boolean(detail && detail.isFullPage),
+            },
+        });
+        document.dispatchEvent(event);
+    }
+
+    window.appPageLifecycle = {
+        eventName: pageReadyEventName,
+        dispatchPageReady,
+    };
+
+    document.addEventListener(pageReadyEventName, function (event) {
+        const target = normalizeTarget(event.detail && event.detail.target);
+        if (window.htmx && typeof window.htmx.process === 'function') {
+            window.htmx.process(target);
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+        dispatchPageReady({
+            source: 'dom-content-loaded',
+            target: document.body,
+            isFullPage: true,
+        });
+    });
+
+    document.addEventListener('turbolinks:load', function () {
+        const nextUrl = window.location.href;
+        if (nextUrl === lastTurbolinksUrl) return;
+        lastTurbolinksUrl = nextUrl;
+
+        dispatchPageReady({
+            source: 'turbolinks-load',
+            target: document.body,
+            isFullPage: true,
+        });
+    });
+
+    document.addEventListener('htmx:afterSwap', function (event) {
+        dispatchPageReady({
+            source: 'htmx-after-swap',
+            target: event.detail && event.detail.target,
+            isFullPage: false,
+        });
+    });
+
+    document.addEventListener('htmx:oobAfterSwap', function (event) {
+        dispatchPageReady({
+            source: 'htmx-oob-after-swap',
+            target: event.detail && event.detail.target,
+            isFullPage: false,
+        });
+    });
+
+    if (document.readyState !== 'loading') {
+        dispatchPageReady({
+            source: 'document-ready',
+            target: document.body,
+            isFullPage: true,
+        });
+    }
+})();
 
 // Keep the minimal TurboLinks body-swap runtime app-local after removing helpers.js.
 // This preserves TurboLinks-driven page navigation without bringing back IHP's old global form transport.
@@ -169,22 +243,11 @@ $(document).on('ready turbolinks:load', function () {
         }
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
-        initWithin(document);
-    });
-    document.addEventListener('turbolinks:load', function () {
-        initWithin(document);
+    document.addEventListener('app:page-ready', function (event) {
+        initWithin((event.detail && event.detail.target) || document);
     });
     document.addEventListener('htmx:afterSwap', handleSwap);
     document.addEventListener('htmx:oobAfterSwap', handleSwap);
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
-            initWithin(document);
-        });
-    } else {
-        initWithin(document);
-    }
 })();
 
 // Shared workflow dialog mount for HTMX-driven form overlays.
@@ -301,13 +364,7 @@ $(document).on('ready turbolinks:load', function () {
 
     document.addEventListener('shown.bs.modal', syncDialogState);
     document.addEventListener('hidden.bs.modal', syncDialogState);
-    document.addEventListener('turbolinks:load', syncDialogState);
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', syncDialogState);
-    } else {
-        syncDialogState();
-    }
+    document.addEventListener('app:page-ready', syncDialogState);
 })();
 
 // Bottom-right toast host for redirects and HTMX-triggered transient messages.
@@ -360,15 +417,7 @@ $(document).on('ready turbolinks:load', function () {
         }
     });
 
-    document.addEventListener('htmx:afterSwap', initHostToasts);
-    document.addEventListener('htmx:oobAfterSwap', initHostToasts);
-    document.addEventListener('turbolinks:load', initHostToasts);
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initHostToasts);
-    } else {
-        initHostToasts();
-    }
+    document.addEventListener('app:page-ready', initHostToasts);
 })();
 
 // Defer auto-refresh updates for rows that are actively being edited.
@@ -1094,9 +1143,7 @@ $(document).on('ready turbolinks:load', function () {
         }, 0);
     });
 
-    document.addEventListener('DOMContentLoaded', syncConnection);
-    document.addEventListener('turbolinks:load', syncConnection);
-    document.addEventListener('htmx:afterSwap', syncConnection);
+    document.addEventListener('app:page-ready', syncConnection);
 })();
 
 // Reusable quarter-hour modal time picker.
@@ -1291,9 +1338,10 @@ $(document).on('ready turbolinks:load', function () {
         activeField = null;
     });
 
-    // Ensure labels stay in sync when rows are refreshed by AutoRefresh/HTMX.
-    document.addEventListener('turbolinks:load', function () {
-        document.querySelectorAll('[data-time-picker-field]').forEach(function (fieldEl) {
+    function syncFieldLabelsWithin(root) {
+        if (!(root instanceof Element || root instanceof Document)) return;
+
+        root.querySelectorAll('[data-time-picker-field]').forEach(function (fieldEl) {
             const inputEl = getFieldInput(fieldEl);
             if (!inputEl) return;
             const modalEl = getModalElement();
@@ -1301,6 +1349,10 @@ $(document).on('ready turbolinks:load', function () {
             const selectedLabel = selectedOption ? selectedOption.textContent.trim() : displayLabelFromValue(inputEl.value);
             updateFieldLabel(fieldEl, inputEl.value || '', selectedLabel);
         });
+    }
+
+    document.addEventListener('app:page-ready', function (event) {
+        syncFieldLabelsWithin((event.detail && event.detail.target) || document);
     });
 
 })();
@@ -1329,9 +1381,15 @@ $(document).on('ready turbolinks:load', function () {
         syncBreakToggle(checkboxEl);
     });
 
-    document.addEventListener('turbolinks:load', function () {
-        document.querySelectorAll('[data-break-toggle="true"]').forEach(function (checkboxEl) {
+    function syncAllBreakTogglesWithin(root) {
+        if (!(root instanceof Element || root instanceof Document)) return;
+
+        root.querySelectorAll('[data-break-toggle="true"]').forEach(function (checkboxEl) {
             syncBreakToggle(checkboxEl);
         });
+    }
+
+    document.addEventListener('app:page-ready', function (event) {
+        syncAllBreakTogglesWithin((event.detail && event.detail.target) || document);
     });
 })();

@@ -56,7 +56,7 @@ renderForm post = formFor post [hsx|
 - For high-frequency roster edits, avoid `hx-target="#roster-content"` full-fragment swaps on each input.
 - Prefer row-targeted updates: set stable `<tr id=... data-roster-row="true">` IDs and return only affected rows with `hx-swap-oob="outerHTML"`.
 - Keep `hx-sync` on roster inputs anchored to a stable wrapper that will not be replaced by the response (for roster week pages, use `#roster-week-shell:queue last`, not `#roster-content`).
-- When Turbolinks navigations replace page content that contains new `hx-*` markup, call `htmx.process(document.body)` on `turbolinks:load` so fresh controls are live without a manual refresh.
+- Do not wire feature/view behavior directly to `turbolinks:load`. The shared client runtime emits `app:page-ready` for full-page loads and HTMX swaps, and that runtime is responsible for re-processing any fresh `hx-*` markup.
 - When a roster shell participates in live fragments, render scope metadata on the stable shell (`#roster-week-shell`) so JS can subscribe/unsubscribe as `weekOffset` changes without guessing from the URL.
 - Live fragment refetch endpoints should return plain server-rendered fragments for the target DOM node; reserve `hx-swap-oob` variants for the actor path.
 - For viewer-side row refetches, do not return `hx-swap-oob` row wrappers from the fragment GET action; return the plain `<tr>` fragment and let JS replace the target row directly.
@@ -106,7 +106,7 @@ renderForm post = formFor post [hsx|
 - Use compact controls in the roster page header: `<`, `this week`, `>`.
 - `this week` should link to `RosterWeeksAction` (server-side reset to current offset), not a client-side calculation.
 - For HTMX week browsing, wrap the header + page content in a stable shell id, target that shell with `hx-get`, `hx-swap="outerHTML"`, `hx-select`, `hx-push-url="true"`, and `hx-sync="#shell-id:replace"`.
-- Add `data-turbolinks="false"` on HTMX partial-navigation anchors so Turbolinks does not steal the click and force a full-page visit.
+- While TurboLinks is still loaded, keep `data-turbolinks="false"` on HTMX partial-navigation anchors so TurboLinks does not steal the click. Remove those attributes once the TurboLinks scripts are retired.
 - For roster side-panel sizing on desktop, prefer CSS-only sticky layout with a viewport-capped panel and internal scroll over JS height syncing.
 - Roster create/copy/publish controls belong to the interactive roster surface. Keep them on HTMX with explicit fragment targets instead of falling back to native full-page reloads.
 

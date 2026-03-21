@@ -218,6 +218,13 @@ Playwright-based end-to-end tests live in `e2e/` and run against the live dev se
   - keep TurboLinks separate from form transport; if retained, it is for navigation lifecycle only
   - if TurboLinks is retained with `turbolinksMorphdom.js`, `static/app.js` must still provide the body-swap runtime (`transitionToNewPage`, `ihp:load`/`ihp:unload`, and timer cleanup); removing `helpers.js` without rehoming that hook breaks link-driven navigation by changing the URL without updating the DOM
   - roster create/copy/publish stays on HTMX because those controls live inside the interactive roster surface and should keep updating in place
+- App lifecycle contract for TurboLinks retirement:
+  - feature code should initialize from one app-local `app:page-ready` event, not from `turbolinks:load`
+  - `app:page-ready` fires for full-page loads (`DOMContentLoaded`, and currently TurboLinks page swaps while TurboLinks is still present) and after HTMX swaps/OOB swaps
+  - the event detail shape is `{ target, source, isFullPage }`
+  - `target` is the swapped subtree for HTMX events and `document.body` for full-page events
+  - feature init must be idempotent and scoped to `target` when possible so the same code works for first render and partial refreshes
+  - only the temporary compatibility bridge in `static/app.js` should still know about `turbolinks:load`; remove that bridge when TurboLinks scripts leave the layout
 
 ## Auth Model Notes
 - Current business authority is venue-scoped. `venue_memberships.venue_role` is what grants manager/admin access; `users.user_role = 'admin'` is not a cross-venue superuser.
