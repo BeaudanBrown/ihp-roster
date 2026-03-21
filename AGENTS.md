@@ -115,7 +115,7 @@ Available scripts:
 - **`format`** — Format app sources with stylish-haskell (config in `.stylish-haskell.yaml`).
 - **`ghci-app`** — Launch GHCi with the full app loaded for testing expressions interactively.
 - **`new-controller NAME`** — IHP code generator that scaffolds controller, views, types, and routes. Prefer this for new CRUD controllers, then customize.
-- **`e2e`** — Run Playwright end-to-end tests against the live dev server. Accepts playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). Requires `devenv up` running. This wrapper runs the repo-local Playwright test CLI inside the dev shell so automation uses the same `@playwright/test` package as the spec imports while Nix still provides the browsers and runtime.
+- **`e2e`** — Run Playwright end-to-end tests against an isolated `app_test` database and a temporary app server on the next free local IHP dev port. Accepts playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). The local Postgres socket still needs to be available, but this wrapper no longer reuses the normal dev app/database.
 - **`screenshot`** — Take a screenshot of a page. Usage: `screenshot http://localhost:8000/Dashboard dash.png`. Requires `devenv up` running.
 - **`e2e-report`** — Open the Playwright HTML test report from the last run.
 - **`dev-start`** — Start the IHP `start` script in background for automation (no PTY dependency). Writes pid/log to `.devenv/agent/` and fails fast if startup exits early.
@@ -159,13 +159,13 @@ For simple CRUD, prefer running `new-controller NAME` to scaffold all files, the
 - **After schema changes involving enums or constraints**: after `make db`, restart and wait for the dev server (`bash ./bin/in-env dev-stop`, `bash ./bin/in-env dev-start`, `bash ./bin/in-env dev-wait`) to catch startup-only schema-parser failures; this is why the earlier QC pass missed the `pg_dump`-roundtrip issue
 - The IHP schema-designer toast about `Unmigrated Changes` is not an authoritative sync check in this repo; it is driven by the IDE migration workflow state and can stay stale even after `make db`. Treat `make db` plus explicit DB/startup verification as the real source of truth.
 - **After adding/changing controllers**: `bash ./bin/in-env test` to run the test suite
-- **After UI/integration changes**: `bash ./bin/in-env e2e` to run end-to-end tests (requires `devenv up`)
+- **After UI/integration changes**: `bash ./bin/in-env e2e` to run end-to-end tests against the isolated test DB/server
 - **Before committing**: `bash ./bin/in-env lint` then `bash ./bin/in-env format`
 - **To confirm DB is in sync**: `psql -h "$PWD/build/db" app -c "\dt"` — all tables in `Schema.sql` should be present
 
 ## E2E Testing
 
-Playwright-based end-to-end tests live in `e2e/` and run against the live dev server (`http://localhost:8000`). See `e2e/AGENTS.md` for the full guide.
+Playwright-based end-to-end tests live in `e2e/` and run against an isolated temporary app server on the next free local IHP dev port, backed by `app_test`. See `e2e/AGENTS.md` for the full guide.
 
 - **Config**: `playwright.config.ts` — single chromium project, serial execution
 - **Test data**: Seeded via `e2e/fixtures/seed.sql` (manager: `e2e-test@example.com`, worker: `e2e-worker@example.com`, both with password `test-password-123`)

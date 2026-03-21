@@ -87,10 +87,54 @@
                             echo "Types regenerated in build/Generated/"
                         '';
 
+                        # Rebuild the isolated automation database from schema + fixtures.
+                        # Usage: test-db-reset
+                        test-db-reset.exec = ''
+                            set -euo pipefail
+                            DB_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            LOAD_E2E_FIXTURES="''${TEST_DB_LOAD_E2E_FIXTURES:-0}"
+                            SYSTEM_SCHEMA="$PWD/IHP/ihp-ide/data/IHPSchema.sql"
+
+                            if [ ! -f "$SYSTEM_SCHEMA" ]; then
+                                if [ -n "''${IHP:-}" ] && [ -f "$IHP/lib/IHP/IHPSchema.sql" ]; then
+                                    SYSTEM_SCHEMA="$IHP/lib/IHP/IHPSchema.sql"
+                                elif [ -f "''${IHP_LIB:-}/IHPSchema.sql" ]; then
+                                    SYSTEM_SCHEMA="$IHP_LIB/IHPSchema.sql"
+                                else
+                                    echo "Could not locate IHPSchema.sql" >&2
+                                    exit 1
+                                fi
+                            fi
+
+                            if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+                                echo "Test database reset requires the local postgres socket at $DB_SOCKET" >&2
+                                echo "Start the local environment first (e.g. bash ./bin/in-env dev-start or devenv up)." >&2
+                                exit 1
+                            fi
+
+                            psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
+DROP DATABASE IF EXISTS "$DB_NAME" WITH (FORCE);
+CREATE DATABASE "$DB_NAME";
+SQL
+
+                            psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < "$SYSTEM_SCHEMA"
+                            psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < Application/Schema.sql
+                            psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < Application/Fixtures.sql
+
+                            if [ "$LOAD_E2E_FIXTURES" = "1" ]; then
+                                psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < e2e/fixtures/seed.sql
+                            fi
+                        '';
+
                         # Run the hspec test suite.
                         # Usage: test
                         test.exec = ''
                             set -euo pipefail
+                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+                            test-db-reset
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             mkdir -p build/Test
@@ -133,10 +177,95 @@
                             exec ghci $GHC_OPTS Main.hs "$@"
                         '';
 
-                        # Run Playwright end-to-end tests.
+                        # Launch a dedicated app server for isolated E2E runs.
+                        # Usage: test-e2e-server
+                        test-e2e-server.exec = ''
+                            set -euo pipefail
+                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+                            export IHP_BROWSER="echo"
+                            exec RunDevServer
+                        '';
+
+                        # Run Playwright end-to-end tests against the isolated test DB + server.
                         # Usage: e2e [playwright-args...]
                         e2e.exec = ''
-                            exec node ./node_modules/@playwright/test/cli.js test "$@"
+                            set -euo pipefail
+                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+
+                            test-db-reset
+
+                            STATE_DIR="$PWD/.devenv/e2e"
+                            PID_FILE="$STATE_DIR/server.pid"
+                            LOG_FILE="$STATE_DIR/server.log"
+                            mkdir -p "$STATE_DIR"
+                            : > "$LOG_FILE"
+
+                            cleanup() {
+                                if [ -f "$PID_FILE" ]; then
+                                    PID=$(cat "$PID_FILE")
+                                    kill -TERM -"$PID" 2>/dev/null || kill -TERM "$PID" 2>/dev/null || true
+                                    rm -f "$PID_FILE"
+                                fi
+                            }
+                            trap cleanup EXIT
+
+                            process_group_pids() {
+                                local pgid="$1"
+                                pgrep -g "$pgid" 2>/dev/null | tr '\n' ' ' || true
+                            }
+
+                            detect_e2e_base_url() {
+                                local pgid="$1"
+                                local pids ports port
+                                pids=$(process_group_pids "$pgid")
+                                if [ -z "$pids" ]; then
+                                    return 1
+                                fi
+
+                                ports=$(
+                                    lsof -Pan -iTCP -sTCP:LISTEN $(printf ' -p %s' $pids) 2>/dev/null \
+                                        | awk 'NR > 1 { split($9, parts, ":"); print parts[length(parts)] }' \
+                                        | sort -n -u
+                                )
+
+                                for port in $ports; do
+                                    if curl -fsS "http://127.0.0.1:$port/NewSession" >/dev/null 2>&1; then
+                                        printf 'http://127.0.0.1:%s\n' "$port"
+                                        return 0
+                                    fi
+                                done
+
+                                return 1
+                            }
+
+                            setsid nohup test-e2e-server </dev/null >>"$LOG_FILE" 2>&1 &
+                            PID=$!
+                            echo "$PID" > "$PID_FILE"
+                            disown "$PID" 2>/dev/null || true
+
+                            for _ in $(seq 1 120); do
+                                if E2E_BASE_URL=$(detect_e2e_base_url "$PID"); then
+                                    export E2E_BASE_URL
+                                    echo "E2E app server ready at $E2E_BASE_URL"
+                                    node ./node_modules/@playwright/test/cli.js test "$@"
+                                    exit $?
+                                fi
+
+                                if ! kill -0 "$PID" 2>/dev/null; then
+                                    echo "E2E app server failed to start; recent log output:" >&2
+                                    tail -n 80 "$LOG_FILE" >&2 || true
+                                    exit 1
+                                fi
+
+                                sleep 1
+                            done
+
+                            echo "Timed out waiting for isolated E2E app server to become ready" >&2
+                            tail -n 80 "$LOG_FILE" >&2 || true
+                            exit 1
                         '';
 
                         # Take a screenshot of a page using Playwright.

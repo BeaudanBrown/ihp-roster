@@ -4,6 +4,7 @@ import path from 'path';
 export default function globalTeardown() {
     const projectRoot = path.resolve(__dirname, '..');
     const dbSocket = path.join(projectRoot, 'build', 'db');
+    const dbName = process.env.TEST_DATABASE_NAME ?? 'app_test';
     const cleanupSql = `
         DELETE FROM leave_requests
         WHERE staff_id IN (
@@ -45,7 +46,7 @@ export default function globalTeardown() {
 
     console.log('E2E teardown: cleaning test data...');
     execSync(
-        `psql -h "${dbSocket}" app -c "${cleanupSql}"`,
+        `psql -h "${dbSocket}" "${dbName}" -c "${cleanupSql}"`,
         { stdio: 'inherit' },
     );
     console.log('E2E teardown: done.');

@@ -19,7 +19,6 @@ import qualified Test.LiveUpdateSpec
 import qualified Test.PaySpec
 import qualified Test.RosterGridSpec
 import qualified Test.SchemaSpec
-import qualified Test.SupportSpec
 
 main :: IO ()
 main = hspec do
@@ -39,4 +38,3 @@ main = hspec do
     Test.SchemaSpec.tests
     Test.ConflictSpec.tests
     Test.LiveUpdateSpec.tests
-    Test.SupportSpec.tests

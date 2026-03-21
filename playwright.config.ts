@@ -1,5 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
+const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000';
+
 export default defineConfig({
     testDir: './e2e',
     fullyParallel: false,
@@ -11,7 +13,7 @@ export default defineConfig({
     globalTeardown: './e2e/global-teardown.ts',
 
     use: {
-        baseURL: 'http://localhost:8000',
+        baseURL,
         screenshot: 'only-on-failure',
         trace: 'on-first-retry',
     },

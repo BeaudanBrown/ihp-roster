@@ -5,7 +5,7 @@
 All commands require `bash ./bin/in-env` (or an already active devenv shell). Do not rely on bare `npx playwright ...` in Loom or other automation contexts; the repo wrapper resolves the repo-local Playwright test CLI inside the dev shell so the runner matches the `@playwright/test` package imported by the specs.
 
 ```bash
-# Run all e2e tests (requires devenv up)
+# Run all e2e tests
 bash ./bin/in-env e2e
 
 # Run a specific test file
@@ -29,13 +29,14 @@ bash ./bin/in-env e2e-report
 
 ## Prerequisites
 
-- `devenv up` must be running (provides the app server on `:8000` and the database)
-- `make db` must have been run at least once (so the database schema exists)
+- The local project Postgres socket under `build/db` must be available
+- `bash ./bin/in-env e2e` resets the isolated `app_test` database, launches a dedicated app server on the next free local IHP dev port, and points Playwright at that server
 - Test data is seeded automatically via `global-setup.ts` before tests run
 - Before blaming Playwright, verify the app is actually serving the expected page:
 
 ```bash
-curl -s http://localhost:8000/NewSession | rg 'id="email"|Is compiling'
+tail -n 80 .devenv/e2e/server.log
+ss -ltnp | rg '8000|8001|8002|8003'
 ```
 
 If you see `Is compiling`, wait for the reload to finish or restart the managed dev server before rerunning tests.
@@ -114,19 +115,12 @@ test('authenticated feature', async ({ page }) => {
 
 ## Operational Notes
 
-- `dev-status` reporting `http_ok=true` only means something answered on `:8000`; it does not guarantee the app is past the IHP compile screen
-- If Playwright keeps seeing stale compile output, check what owns port `8000`:
+- `dev-status` still reports the normal dev server on `:8000`; the E2E wrapper launches a separate temporary server on the next free IHP dev port and exports that URL to Playwright
+- If Playwright keeps seeing stale compile output, check the listening IHP ports and the temporary server log:
 
 ```bash
-ss -ltnp '( sport = :8000 )'
-```
-
-- If a stale `RunDevServer` is occupying the port, stop it and restart the managed server:
-
-```bash
-bash ./bin/in-env dev-stop
-bash ./bin/in-env dev-start
-bash ./bin/in-env dev-wait
+ss -ltnp | rg '8000|8001|8002|8003'
+tail -n 80 .devenv/e2e/server.log
 ```
 
 ## Authenticated Screenshot Helper
