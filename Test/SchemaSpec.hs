@@ -38,6 +38,8 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe PayLevel)
         let _ = (Nothing :: Maybe PayConfigSnapshot)
         let _ = (Nothing :: Maybe ShiftType)
+        let _ = (Nothing :: Maybe ReportDefinition)
+        let _ = (Nothing :: Maybe ReportDefinitionShiftTypeFilter)
         let _ = (Nothing :: Maybe SlotName)
         let _ = (Nothing :: Maybe DayName)
         let _ = (Nothing :: Maybe PayLevelDayRule)
@@ -51,6 +53,10 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe VenueMembership)
         let _ = (Nothing :: Maybe VenueInvitation)
         True `shouldBe` True
+
+    it "exposes a separate optional platform role on users" do
+        let user = newRecord @User
+        get #platformRole user `shouldBe` Nothing
 
     it "exposes venue-scoped config fields on venue config" do
         let _readConfigFields venueConfig =
@@ -70,6 +76,7 @@ tests = describe "Schema" do
         let _availabilityVenueId = get #venueId (newRecord @StaffAvailability)
         let _payLevelVenueId = get #venueId (newRecord @PayLevel)
         let _shiftTypeVenueId = get #venueId (newRecord @ShiftType)
+        let _reportDefinitionVenueId = get #venueId (newRecord @ReportDefinition)
         let _slotNameVenueId = get #venueId (newRecord @SlotName)
         let _dayNameVenueId = get #venueId (newRecord @DayName)
         let _configVenueId = get #venueId (newRecord @VenueConfig)
@@ -88,6 +95,7 @@ tests = describe "Schema" do
     it "exposes normalized legacy user roles, venue roles, and leave statuses via shared helpers" do
         allUserRoleValues `shouldBe` ["staff", "manager", "admin"]
         allVenueRoleValues `shouldBe` ["worker", "manager", "venue_admin", "venue_owner"]
+        allPlatformRoleValues `shouldBe` ["super_admin"]
         allLeaveRequestStatusValues `shouldBe` ["pending", "approved", "denied"]
         allAuditEventTypeValues `shouldBe`
             [ "timesheet_approved"
@@ -103,7 +111,8 @@ tests = describe "Schema" do
             , "support_access_granted"
             ]
         allAuditSourceChannelValues `shouldBe` ["web", "htmx", "system"]
-        allExportJobTypeValues `shouldBe` ["approved_timesheets_csv"]
+        allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip"]
+        allReportDefinitionEngineValues `shouldBe` ["staff_pay_csv", "hourly_breakdown_zip"]
         allExportJobStatusValues `shouldBe` ["pending", "ready", "expired"]
 
         parseUserRole ("staff" :: Text) `shouldBe` Just StaffRole
@@ -117,12 +126,20 @@ tests = describe "Schema" do
         parseVenueRole ("venue_owner" :: Text) `shouldBe` Just VenueOwnerRole
         parseVenueRole ("admin" :: Text) `shouldBe` Nothing
 
+        parsePlatformRole ("super_admin" :: Text) `shouldBe` Just SuperAdminRole
+        parsePlatformRole ("venue_owner" :: Text) `shouldBe` Nothing
+
         parseLeaveRequestStatus ("pending" :: Text) `shouldBe` Just LeavePending
         parseLeaveRequestStatus ("approved" :: Text) `shouldBe` Just LeaveApproved
         parseLeaveRequestStatus ("denied" :: Text) `shouldBe` Just LeaveDenied
         parseLeaveRequestStatus ("cancelled" :: Text) `shouldBe` Nothing
         parseExportJobType "approved_timesheets_csv" `shouldBe` Just ApprovedTimesheetsCsv
+        parseExportJobType "staff_pay_csv" `shouldBe` Just StaffPayCsv
+        parseExportJobType "hourly_breakdown_zip" `shouldBe` Just HourlyBreakdownZip
         parseExportJobType "leave_csv" `shouldBe` Nothing
+        parseReportDefinitionEngine "staff_pay_csv" `shouldBe` Just StaffPayCsvReport
+        parseReportDefinitionEngine "hourly_breakdown_zip" `shouldBe` Just HourlyBreakdownZipReport
+        parseReportDefinitionEngine "approved_timesheets_csv" `shouldBe` Nothing
         parseExportJobStatus "pending" `shouldBe` Just ExportPending
         parseExportJobStatus "ready" `shouldBe` Just ExportReady
         parseExportJobStatus "expired" `shouldBe` Just ExportExpired
@@ -130,8 +147,10 @@ tests = describe "Schema" do
 
         map userRoleToText [StaffRole, ManagerRole, AdminRole] `shouldBe` allUserRoleValues
         map venueRoleToText [WorkerRole, ManagerRole', VenueAdminRole, VenueOwnerRole] `shouldBe` allVenueRoleValues
+        map platformRoleToText [SuperAdminRole] `shouldBe` allPlatformRoleValues
         map leaveRequestStatusToText [LeavePending, LeaveApproved, LeaveDenied] `shouldBe` allLeaveRequestStatusValues
-        map exportJobTypeToText [ApprovedTimesheetsCsv] `shouldBe` allExportJobTypeValues
+        map exportJobTypeToText [ApprovedTimesheetsCsv, StaffPayCsv, HourlyBreakdownZip] `shouldBe` allExportJobTypeValues
+        map reportDefinitionEngineToText [StaffPayCsvReport, HourlyBreakdownZipReport] `shouldBe` allReportDefinitionEngineValues
         map exportJobStatusToText [ExportPending, ExportReady, ExportExpired] `shouldBe` allExportJobStatusValues
 
     it "avoids IN-based CHECK constraints that pg_dump rewrites into parser-hostile ANY(ARRAY ...)" do
@@ -335,7 +354,7 @@ tests = describe "Schema" do
                 , "is_profile_completed", "locked_at", "failed_login_attempts"
                 , "created_at", "updated_at", "user_id", "first_name"
                 , "last_name", "is_active", "name", "default_pay_level_id"
-                , "weekday_index", "pay_level_id", "day_name_id", "multiplier"
+                , "weekday_index", "shift_type_id", "pay_level_id", "day_name_id"
                 , "venue_id", "venue_role", "invited_by_user_id", "accepted_by_user_id"
                 , "invite_role", "accepted_at", "expires_at"
                 , "timezone", "week_offset_epoch"
@@ -374,7 +393,11 @@ tests = describe "Schema" do
             schemaSqlText `shouldSatisfy` Text.isInfixOf "'segments', sj.segments"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "'totals', jsonb_build_object"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "'paidMinutes', pw.paid_minutes"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'totalAmount', 0"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "'shiftTypeName', pw.shift_type_name"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "'payLevelName', pw.pay_level_name"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "'baseRate', sr.base_rate"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "'amount', ROUND(((sr.segment_minutes::NUMERIC / 60.0) * sr.segment_hourly_rate), 2)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "'totalAmount', st.total_amount"
 
         it "uses calculate_timesheet_pay as the canonical range payload source" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
@@ -385,7 +408,7 @@ tests = describe "Schema" do
             schemaSqlText `shouldSatisfy` Text.isInfixOf "('after_midnight'::TEXT, 0, 420, 1)"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "('ordinary'::TEXT, 420, 1140, 2)"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "('evening'::TEXT, 1140, 1440, 3)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(r.start_minute_of_day + r.paid_minutes, 1440)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(r.start_minute_of_day + r.paid_minutes, 1860)"
 
         it "builds segment minute overlaps from the break-adjusted paid window" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
@@ -394,12 +417,19 @@ tests = describe "Schema" do
             schemaSqlText `shouldSatisfy` Text.isInfixOf "- GREATEST(pw.start_minute_of_day, sw.window_start_minute)"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "FILTER (WHERE sr.segment_minutes > 0)"
 
-        it "stacks weekend multiplier with configured day-rule multiplier in pay segments" do
+        it "uses configured pay-level multipliers and rate fields in pay segments" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN EXTRACT(DOW FROM pw.worked_on)::INT IN (0, 6) THEN 1.5::NUMERIC(10,3)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "base_rate NUMERIC(10,2) DEFAULT 0 NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "evening_penalty NUMERIC(10,2) DEFAULT 0 NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "after_12_penalty NUMERIC(10,2) DEFAULT 0 NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "weekday_multiplier NUMERIC(10,3) DEFAULT 1.000 NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "saturday_multiplier NUMERIC(10,3) DEFAULT 1.000 NOT NULL"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "sunday_multiplier NUMERIC(10,3) DEFAULT 1.000 NOT NULL"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "'dayRuleMultiplier', sr.day_rule_multiplier"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "'weekendMultiplier', sr.weekend_multiplier"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'multiplier', (sr.day_rule_multiplier * sr.weekend_multiplier)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "'multiplier', sr.day_rule_multiplier"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN EXTRACT(DOW FROM pw.worked_on)::INT = 6 THEN pw.saturday_multiplier"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "ELSE pw.weekday_multiplier"
 
     describe "Timesheet validation helpers" do
         it "parseTimeParam parses valid HH:MM values" do

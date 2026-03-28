@@ -5,6 +5,7 @@ import Data.Aeson ((.:), (.:?))
 import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
 import qualified Data.Scientific as Scientific
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Calendar (Day)
@@ -17,9 +18,15 @@ import IHP.Prelude
 data PaySegment = PaySegment
     { segment           :: !Text
     , minutes           :: !Int
+    , shiftTypeId       :: !(Maybe UUID)
+    , shiftTypeName     :: !(Maybe Text)
+    , payLevelId        :: !(Maybe UUID)
+    , payLevelName      :: !(Maybe Text)
     , multiplier        :: !Scientific.Scientific
     , dayRuleMultiplier :: !(Maybe Scientific.Scientific)
     , weekendMultiplier :: !(Maybe Scientific.Scientific)
+    , baseRate          :: !Scientific.Scientific
+    , amount            :: !Scientific.Scientific
     }
     deriving (Eq, Show)
 
@@ -28,9 +35,15 @@ instance Aeson.FromJSON PaySegment where
         PaySegment
             <$> obj .: "segment"
             <*> obj .: "minutes"
+            <*> obj .:? "shiftTypeId"
+            <*> obj .:? "shiftTypeName"
+            <*> obj .:? "payLevelId"
+            <*> obj .:? "payLevelName"
             <*> obj .: "multiplier"
             <*> obj .:? "dayRuleMultiplier"
             <*> obj .:? "weekendMultiplier"
+            <*> obj .: "baseRate"
+            <*> obj .: "amount"
 
 data PayTotals = PayTotals
     { paidMinutes :: !Int
@@ -46,6 +59,10 @@ instance Aeson.FromJSON PayTotals where
 
 data TimesheetPayResult = TimesheetPayResult
     { entryId                  :: !Text
+    , shiftTypeId              :: !(Maybe UUID)
+    , shiftTypeName            :: !(Maybe Text)
+    , payLevelId               :: !(Maybe UUID)
+    , payLevelName             :: !(Maybe Text)
     , payConfigSnapshotId      :: !(Maybe UUID)
     , payConfigSnapshotVersion :: !(Maybe Text)
     , segments                 :: ![PaySegment]
@@ -57,6 +74,10 @@ instance Aeson.FromJSON TimesheetPayResult where
     parseJSON = Aeson.withObject "TimesheetPayResult" \obj ->
         TimesheetPayResult
             <$> obj .: "entryId"
+            <*> obj .:? "shiftTypeId"
+            <*> obj .:? "shiftTypeName"
+            <*> obj .:? "payLevelId"
+            <*> obj .:? "payLevelName"
             <*> obj .:? "payConfigSnapshotId"
             <*> obj .:? "payConfigSnapshotVersion"
             <*> obj .: "segments"
@@ -102,6 +123,10 @@ buildTimesheetPaySummary result =
 buildTimesheetPaySummariesByEntryId :: [TimesheetPayResult] -> Map.Map Text TimesheetPaySummary
 buildTimesheetPaySummariesByEntryId results =
     Map.fromList (map (\result -> (result.entryId, buildTimesheetPaySummary result)) results)
+
+buildTimesheetPayResultsByEntryId :: [TimesheetPayResult] -> Map.Map Text TimesheetPayResult
+buildTimesheetPayResultsByEntryId results =
+    Map.fromList (map (\result -> (result.entryId, result)) results)
 
 snapshotVersionLabel :: Int -> Text
 snapshotVersionLabel versionNumber = "v" <> tshow versionNumber
@@ -155,11 +180,11 @@ buildCurrentVenuePayConfigSnapshotPayload = do
     payLevels <- query @PayLevel |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #createdAt |> fetch
     shiftTypes <- query @ShiftType |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #createdAt |> fetch
     dayNames <- query @DayName |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #weekdayIndex |> fetch
-    let payLevelIds = map (unpackId . get #id) payLevels
+    let shiftTypeIds = map (unpackId . get #id) shiftTypes
     payLevelDayRules <-
-        if null payLevelIds
+        if null shiftTypeIds
             then pure []
-            else query @PayLevelDayRule |> filterWhereIn (#payLevelId, payLevelIds) |> orderByAsc #createdAt |> fetch
+            else query @PayLevelDayRule |> filterWhereIn (#shiftTypeId, shiftTypeIds) |> orderByAsc #createdAt |> fetch
 
     pure $
         Aeson.object
@@ -180,6 +205,12 @@ buildCurrentVenuePayConfigSnapshotPayload = do
             Aeson.object
                 [ "id" Aeson..= unpackId (get #id payLevel)
                 , "name" Aeson..= payLevel.name
+                , "baseRate" Aeson..= payLevel.baseRate
+                , "eveningPenalty" Aeson..= payLevel.eveningPenalty
+                , "after12Penalty" Aeson..= payLevel.after12Penalty
+                , "weekdayMultiplier" Aeson..= payLevel.weekdayMultiplier
+                , "saturdayMultiplier" Aeson..= payLevel.saturdayMultiplier
+                , "sundayMultiplier" Aeson..= payLevel.sundayMultiplier
                 , "isActive" Aeson..= payLevel.isActive
                 ]
 
@@ -187,6 +218,7 @@ buildCurrentVenuePayConfigSnapshotPayload = do
             Aeson.object
                 [ "id" Aeson..= unpackId (get #id shiftType)
                 , "name" Aeson..= shiftType.name
+                , "sortOrder" Aeson..= shiftType.sortOrder
                 , "defaultPayLevelId" Aeson..= shiftType.defaultPayLevelId
                 , "isActive" Aeson..= shiftType.isActive
                 ]
@@ -202,9 +234,9 @@ buildCurrentVenuePayConfigSnapshotPayload = do
         serializePayLevelDayRule rule =
             Aeson.object
                 [ "id" Aeson..= unpackId (get #id rule)
+                , "shiftTypeId" Aeson..= rule.shiftTypeId
                 , "payLevelId" Aeson..= rule.payLevelId
                 , "dayNameId" Aeson..= rule.dayNameId
-                , "multiplier" Aeson..= rule.multiplier
                 ]
 
 fetchTimesheetPay :: (?modelContext :: ModelContext) => Id TimesheetEntry -> IO (Either Text TimesheetPayResult)
@@ -216,6 +248,27 @@ fetchTimesheetPayRange :: (?modelContext :: ModelContext) => UUID -> Day -> Day 
 fetchTimesheetPayRange staffId fromDate toDate = do
     payload :: Text <- sqlQueryScalar "SELECT calculate_timesheet_pay_range(?, ?, ?)::text" (staffId, fromDate, toDate)
     pure (decodeTimesheetPayResults payload)
+
+fetchTimesheetPayResultsForEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map Text TimesheetPayResult)
+fetchTimesheetPayResultsForEntries entries = do
+    let groupedEntries = groupByStaff entries
+    resultMaps <- forM (Map.toList groupedEntries) \(staffId, staffEntries) -> do
+        let fromDate = minimum (map (.workedOn) staffEntries)
+        let toDate = maximum (map (.workedOn) staffEntries)
+        let requestedEntryIds = Set.fromList (map (timesheetEntryIdKey . get #id) staffEntries)
+        payResults <- fetchTimesheetPayRange staffId fromDate toDate
+        case payResults of
+            Left _ -> pure Map.empty
+            Right results ->
+                pure
+                    ( buildTimesheetPayResultsByEntryId results
+                        |> Map.filterWithKey (\entryId _ -> Set.member entryId requestedEntryIds)
+                    )
+    pure (Map.unions resultMaps)
+    where
+        groupByStaff :: [TimesheetEntry] -> Map.Map UUID [TimesheetEntry]
+        groupByStaff =
+            foldl' (\acc entry -> Map.insertWith (<>) entry.staffId [entry] acc) Map.empty
 
 fetchTimesheetPaySummariesForEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map Text TimesheetPaySummary)
 fetchTimesheetPaySummariesForEntries entries = do

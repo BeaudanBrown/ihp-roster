@@ -32,10 +32,12 @@
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
+                        base64-bytestring
                         cabal-install
                         base
                         wai
                         text
+                        zip-archive
                         hlint
                         stylish-haskell
                         hspec
@@ -68,6 +70,19 @@
                     };
 
                     scripts = {
+                        # Resolve a per-machine state dir for volatile dev wrapper files.
+                        # Prefer XDG runtime state so synced working trees do not race on pid/socket files.
+                        dev-agent-state-dir.exec = ''
+                            set -euo pipefail
+                            if [ -n "''${DEVENV_AGENT_STATE_DIR:-}" ]; then
+                                printf '%s\n' "$DEVENV_AGENT_STATE_DIR"
+                            elif [ -n "''${XDG_RUNTIME_DIR:-}" ]; then
+                                printf '%s\n' "$XDG_RUNTIME_DIR/ihp-roster-dev"
+                            else
+                                printf '%s\n' "$PWD/.devenv/agent"
+                            fi
+                        '';
+
                         # Fast typecheck (~2-3s) without producing binaries.
                         # Usage: typecheck [file]  (default: Main.hs)
                         typecheck.exec = ''
@@ -175,6 +190,57 @@ SQL
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             exec ghci $GHC_OPTS Main.hs "$@"
+                        '';
+
+                        # Seed the richer payroll exploration fixture into a database for manual exploration.
+                        # Usage: seed-payroll-fixture [app|app_test] [--reset]
+                        seed-payroll-fixture.exec = ''
+                            set -euo pipefail
+
+                            DB_NAME="''${1:-app}"
+                            RESET_MODE="''${2:-}"
+                            DB_SOCKET="''${PAYROLL_FIXTURE_DB_SOCKET:-$PWD/build/db}"
+
+                            if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+                                echo "Payroll fixture seeding requires the local postgres socket at $DB_SOCKET" >&2
+                                echo "Start the local environment first (e.g. dev-start or devenv up)." >&2
+                                exit 1
+                            fi
+
+                            case "$DB_NAME" in
+                                app_test)
+                                    export TEST_DATABASE_NAME="$DB_NAME"
+                                    export TEST_DB_SOCKET="$DB_SOCKET"
+                                    test-db-reset
+                                    ;;
+                                app)
+                                    if [ "$RESET_MODE" = "--reset" ]; then
+                                        make db
+                                    fi
+                                    ;;
+                                *)
+                                    echo "Unsupported database target: $DB_NAME" >&2
+                                    echo "Usage: seed-payroll-fixture [app|app_test] [--reset]" >&2
+                                    exit 1
+                                    ;;
+                            esac
+
+                            export DATABASE_URL="postgresql:///$DB_NAME?host=$DB_SOCKET"
+                            GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
+                              | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+                            mkdir -p build/Script
+                            cat > build/Script/SeedPayrollFixtureMain.hs <<'EOF'
+import qualified Application.Script.SeedPayrollFixture as Script
+import qualified Config
+import IHP.ScriptSupport
+
+main = runScript Config.config Script.run
+EOF
+                            ghc $GHC_OPTS -iTest -main-is Main build/Script/SeedPayrollFixtureMain.hs \
+                                -o build/Script/SeedPayrollFixture \
+                                -odir build/Script \
+                                -hidir build/Script
+                            exec build/Script/SeedPayrollFixture
                         '';
 
                         # Launch a dedicated app server for isolated E2E runs.
@@ -290,7 +356,7 @@ SQL
                         # Usage: dev-start
                         dev-start.exec = ''
                             set -euo pipefail
-                            STATE_DIR="$PWD/.devenv/agent"
+                            STATE_DIR="$(dev-agent-state-dir)"
                             PID_FILE="$STATE_DIR/devenv.pid"
                             LOG_FILE="$STATE_DIR/devenv.log"
 
@@ -339,7 +405,7 @@ SQL
                         # Usage: dev-stop
                         dev-stop.exec = ''
                             set -euo pipefail
-                            STATE_DIR="$PWD/.devenv/agent"
+                            STATE_DIR="$(dev-agent-state-dir)"
                             PID_FILE="$STATE_DIR/devenv.pid"
 
                             if [ ! -f "$PID_FILE" ]; then
@@ -382,7 +448,7 @@ SQL
                         # Usage: dev-status
                         dev-status.exec = ''
                             set -euo pipefail
-                            STATE_DIR="$PWD/.devenv/agent"
+                            STATE_DIR="$(dev-agent-state-dir)"
                             PID_FILE="$STATE_DIR/devenv.pid"
                             SOCKET_FILE="$STATE_DIR/pc.sock"
                             PID=""
@@ -474,7 +540,7 @@ SQL
                                     echo "Timed out waiting for devenv health after ''${TIMEOUT}s"
                                     dev-status || true
                                     echo "--- recent devenv log ---"
-                                    tail -n 80 "$PWD/.devenv/agent/devenv.log" || true
+                                    tail -n 80 "$(dev-agent-state-dir)/devenv.log" || true
                                     exit 1
                                 fi
 

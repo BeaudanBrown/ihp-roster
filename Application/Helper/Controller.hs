@@ -40,6 +40,12 @@ data VenueRole
     | VenueOwnerRole
     deriving (Eq, Ord, Show, Enum, Bounded)
 
+data PlatformRole
+    = SuperAdminRole
+    deriving (Eq, Show)
+
+newtype SupportVenueOptions = SupportVenueOptions { supportVenueOptions :: [Venue] }
+
 data LeaveRequestStatus
     = LeavePending
     | LeaveApproved
@@ -51,6 +57,9 @@ allUserRoleValues = ["staff", "manager", "admin"]
 
 allVenueRoleValues :: [Text]
 allVenueRoleValues = map inputValue (allEnumValues @VenueRoleEnum)
+
+allPlatformRoleValues :: [Text]
+allPlatformRoleValues = map inputValue (allEnumValues @PlatformRoleEnum)
 
 allLeaveRequestStatusValues :: [Text]
 allLeaveRequestStatusValues = map inputValue (allEnumValues @LeaveRequestStatusEnum)
@@ -91,6 +100,9 @@ parseUserRole value =
 parseVenueRole :: InputValue value => value -> Maybe VenueRole
 parseVenueRole value = venueRoleEnumToRole <$> enumFromText @VenueRoleEnum (inputValue value)
 
+parsePlatformRole :: InputValue value => value -> Maybe PlatformRole
+parsePlatformRole value = platformRoleEnumToRole <$> enumFromText @PlatformRoleEnum (inputValue value)
+
 parseLeaveRequestStatus :: InputValue value => value -> Maybe LeaveRequestStatus
 parseLeaveRequestStatus value = leaveRequestStatusEnumToStatus <$> enumFromText @LeaveRequestStatusEnum (inputValue value)
 
@@ -104,6 +116,9 @@ venueRoleToText WorkerRole     = "worker"
 venueRoleToText ManagerRole'   = "manager"
 venueRoleToText VenueAdminRole = "venue_admin"
 venueRoleToText VenueOwnerRole = "venue_owner"
+
+platformRoleToText :: PlatformRole -> Text
+platformRoleToText SuperAdminRole = "super_admin"
 
 leaveRequestStatusToText :: LeaveRequestStatus -> Text
 leaveRequestStatusToText LeavePending  = "pending"
@@ -121,6 +136,15 @@ venueRoleEnumToRole enumValue =
 
 venueRoleToEnum :: VenueRole -> VenueRoleEnum
 venueRoleToEnum = unsafeEnumFromText @VenueRoleEnum . venueRoleToText
+
+platformRoleEnumToRole :: PlatformRoleEnum -> PlatformRole
+platformRoleEnumToRole enumValue =
+    case inputValue enumValue of
+        "super_admin" -> SuperAdminRole
+        unexpected    -> error ("Unexpected platform role enum: " <> cs unexpected)
+
+platformRoleToEnum :: PlatformRole -> PlatformRoleEnum
+platformRoleToEnum = unsafeEnumFromText @PlatformRoleEnum . platformRoleToText
 
 leaveRequestStatusEnumToStatus :: LeaveRequestStatusEnum -> LeaveRequestStatus
 leaveRequestStatusEnumToStatus enumValue =
@@ -169,19 +193,37 @@ currentVenueRoleOrNothing :: (?context :: ControllerContext) => Maybe VenueRole
 currentVenueRoleOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe VenueRole))
 {-# NOINLINE currentVenueRoleOrNothing #-}
 
+currentSupportVenueOptionsOrNothing :: (?context :: ControllerContext) => Maybe [Venue]
+currentSupportVenueOptionsOrNothing =
+    case unsafePerformIO (maybeFromContext @SupportVenueOptions) of
+        Nothing -> Nothing
+        Just (SupportVenueOptions venues) -> Just venues
+{-# NOINLINE currentSupportVenueOptionsOrNothing #-}
+
+currentSupportVenueOptions :: (?context :: ControllerContext) => [Venue]
+currentSupportVenueOptions = fromMaybe [] currentSupportVenueOptionsOrNothing
+
 currentVenueRole :: (?context :: ControllerContext) => VenueRole
 currentVenueRole =
     fromMaybe (error "currentVenueRole: no active venue role in controller context") currentVenueRoleOrNothing
+
+currentUserPlatformRoleOrNothing :: (?context :: ControllerContext) => Maybe PlatformRole
+currentUserPlatformRoleOrNothing =
+    currentUserOrNothing >>= \user ->
+        platformRoleEnumToRole <$> user.platformRole
+
+currentUserIsSuperAdmin :: (?context :: ControllerContext) => Bool
+currentUserIsSuperAdmin = currentUserPlatformRoleOrNothing == Just SuperAdminRole
 
 hasVenueRole :: VenueRole -> VenueRole -> Bool
 hasVenueRole actualRole minimumRole = actualRole >= minimumRole
 
 hasRole :: (?context :: ControllerContext) => VenueRole -> Bool
 hasRole minimumRole =
-    maybe False (`hasVenueRole` minimumRole) currentVenueRoleOrNothing
+    currentUserIsSuperAdmin || maybe False (`hasVenueRole` minimumRole) currentVenueRoleOrNothing
 
 ensureCurrentVenue :: (?context :: ControllerContext) => IO ()
-ensureCurrentVenue = accessDeniedUnless (isJust currentVenueMembershipOrNothing)
+ensureCurrentVenue = accessDeniedUnless (isJust currentVenueOrNothing)
 
 -- | Deny access (403) unless the current user is a manager or admin.
 ensureManagerRole :: (?context :: ControllerContext) => IO ()
@@ -249,6 +291,7 @@ timesheetEntrySnapshot entry =
         [ "id" Aeson..= unpackId (get #id entry)
         , "venueId" Aeson..= entry.venueId
         , "staffId" Aeson..= entry.staffId
+        , "shiftTypeId" Aeson..= entry.shiftTypeId
         , "workedOn" Aeson..= entry.workedOn
         , "startTime" Aeson..= entry.startTime
         , "endTime" Aeson..= entry.endTime
@@ -476,25 +519,32 @@ selectCurrentVenueMembership sessionVenueId memberships =
 
 initCurrentVenueContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 initCurrentVenueContext = do
+    supportVenues <-
+        query @Venue
+            |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
+            |> orderByAsc #createdAt
+            |> fetch
+
     putContext (Nothing :: Maybe Venue)
     putContext (Nothing :: Maybe VenueMembership)
     putContext (Nothing :: Maybe VenueRole)
+    putContext (SupportVenueOptions supportVenues)
 
     forM_ currentUserOrNothing \user -> do
         sessionVenueId <- getSession @(Id Venue) currentVenueSessionKey
-        maybeVenueContext <- resolveVenueContextForUser sessionVenueId (get #id user)
+        maybeVenueContext <- resolveVenueContextForUser sessionVenueId user
         case maybeVenueContext of
             Nothing -> deleteSession currentVenueSessionKey
             Just (membership, venue, role) -> do
                 putContext (Just venue)
-                putContext (Just membership)
-                putContext (Just role)
+                putContext membership
+                putContext role
                 setSession currentVenueSessionKey (get #id venue)
 
-resolveVenueContextForUser :: (?modelContext :: ModelContext) => Maybe (Id Venue) -> Id User -> IO (Maybe (VenueMembership, Venue, VenueRole))
-resolveVenueContextForUser sessionVenueId userId = do
+resolveVenueContextForUser :: (?modelContext :: ModelContext) => Maybe (Id Venue) -> User -> IO (Maybe (Maybe VenueMembership, Venue, Maybe VenueRole))
+resolveVenueContextForUser sessionVenueId user = do
     memberships <- query @VenueMembership
-        |> filterWhere (#userId, unpackId userId)
+        |> filterWhere (#userId, unpackId (get #id user))
         |> filterWhere (#isActive, True)
         |> orderByAsc #createdAt
         |> fetch
@@ -511,8 +561,32 @@ resolveVenueContextForUser sessionVenueId userId = do
     let activeVenueIds = map (coerce . (.id)) venues
     let activeMemberships = filter (\membership -> membership.venueId `elem` activeVenueIds) memberships
 
-    pure do
-        membership <- selectCurrentVenueMembership sessionVenueId activeMemberships
-        venue <- find (\candidate -> coerce (get #id candidate) == membership.venueId) venues
-        role <- parseVenueRole membership.venueRole
-        pure (membership, venue, role)
+    let selectedMembership =
+            selectCurrentVenueMembership sessionVenueId activeMemberships
+    let selectedMembershipVenue =
+            selectedMembership >>= \membership ->
+                find (\candidate -> coerce (get #id candidate) == membership.venueId) venues
+
+    if user.platformRole == Just (platformRoleToEnum SuperAdminRole)
+        then do
+            activeVenues <- query @Venue
+                |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
+                |> orderByAsc #createdAt
+                |> fetch
+
+            let selectedVenue =
+                    (sessionVenueId >>= \venueId -> find (\candidate -> get #id candidate == venueId) activeVenues)
+                        <|> selectedMembershipVenue
+                        <|> listToMaybe activeVenues
+
+            pure do
+                venue <- selectedVenue
+                let membership = find (\candidate -> candidate.venueId == unpackId (get #id venue)) activeMemberships
+                let role = membership >>= parseVenueRole . (.venueRole)
+                pure (membership, venue, role)
+        else
+            pure do
+                membership <- selectedMembership
+                venue <- selectedMembershipVenue
+                role <- parseVenueRole membership.venueRole
+                pure (Just membership, venue, Just role)

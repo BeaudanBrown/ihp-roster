@@ -1,6 +1,7 @@
 -- Your database schema. Use the Schema Designer at http://localhost:8001/ to add some tables.
 CREATE TYPE venue_status_enum AS ENUM ('active', 'inactive');
 CREATE TYPE venue_role_enum AS ENUM ('worker', 'manager', 'venue_admin', 'venue_owner');
+CREATE TYPE platform_role_enum AS ENUM ('super_admin');
 CREATE TYPE invitation_status_enum AS ENUM ('pending', 'accepted', 'revoked');
 CREATE TYPE leave_request_status_enum AS ENUM ('pending', 'approved', 'denied');
 CREATE TYPE leave_request_event_type_enum AS ENUM ('created', 'approved', 'denied', 'deleted');
@@ -19,6 +20,7 @@ CREATE TABLE users (
     email TEXT NOT NULL,
     password_hash TEXT NOT NULL,
     user_role TEXT DEFAULT 'staff' NOT NULL,
+    platform_role platform_role_enum DEFAULT NULL,
     is_profile_completed BOOLEAN DEFAULT FALSE NOT NULL,
     locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     failed_login_attempts INT DEFAULT 0 NOT NULL,
@@ -71,6 +73,12 @@ CREATE TABLE pay_levels (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     name TEXT NOT NULL,
+    base_rate NUMERIC(10,2) DEFAULT 0 NOT NULL,
+    evening_penalty NUMERIC(10,2) DEFAULT 0 NOT NULL,
+    after_12_penalty NUMERIC(10,2) DEFAULT 0 NOT NULL,
+    weekday_multiplier NUMERIC(10,3) DEFAULT 1.000 NOT NULL,
+    saturday_multiplier NUMERIC(10,3) DEFAULT 1.000 NOT NULL,
+    sunday_multiplier NUMERIC(10,3) DEFAULT 1.000 NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
@@ -80,12 +88,38 @@ CREATE TABLE shift_types (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     name TEXT NOT NULL,
+    sort_order INT DEFAULT 0 NOT NULL,
     default_pay_level_id UUID NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
     FOREIGN KEY (default_pay_level_id) REFERENCES pay_levels (id) ON DELETE RESTRICT
+);
+CREATE TABLE report_definitions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    slug TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT,
+    engine TEXT NOT NULL,
+    sort_order INT DEFAULT 0 NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(venue_id, slug),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    CHECK ((engine = 'staff_pay_csv') OR (engine = 'hourly_breakdown_zip'))
+);
+CREATE TABLE report_definition_shift_type_filters (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    report_definition_id UUID NOT NULL,
+    shift_type_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(report_definition_id, shift_type_id),
+    FOREIGN KEY (report_definition_id) REFERENCES report_definitions (id) ON DELETE CASCADE,
+    FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE CASCADE
 );
 CREATE TABLE slot_names (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -109,14 +143,15 @@ CREATE TABLE day_names (
 );
 CREATE TABLE pay_level_day_rules (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    pay_level_id UUID NOT NULL,
+    shift_type_id UUID NOT NULL,
     day_name_id UUID NOT NULL,
-    multiplier NUMERIC(6,3) DEFAULT 1.0 NOT NULL,
+    pay_level_id UUID NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(pay_level_id, day_name_id),
-    FOREIGN KEY (pay_level_id) REFERENCES pay_levels (id) ON DELETE CASCADE,
-    FOREIGN KEY (day_name_id) REFERENCES day_names (id) ON DELETE RESTRICT
+    UNIQUE(shift_type_id, day_name_id),
+    FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE CASCADE,
+    FOREIGN KEY (day_name_id) REFERENCES day_names (id) ON DELETE RESTRICT,
+    FOREIGN KEY (pay_level_id) REFERENCES pay_levels (id) ON DELETE CASCADE
 );
 CREATE TABLE venue_config (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -245,6 +280,7 @@ CREATE TABLE export_jobs (
     generated_file_id UUID DEFAULT uuid_generate_v4() NOT NULL,
     file_name TEXT,
     content_type TEXT,
+    file_encoding TEXT DEFAULT 'utf8' NOT NULL,
     file_contents TEXT,
     download_token UUID DEFAULT uuid_generate_v4() NOT NULL,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
@@ -260,6 +296,7 @@ CREATE TABLE timesheet_entries (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     staff_id UUID NOT NULL,
+    shift_type_id UUID NOT NULL,
     worked_on DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
@@ -275,6 +312,7 @@ CREATE TABLE timesheet_entries (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE,
+    FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
     FOREIGN KEY (pay_config_snapshot_id) REFERENCES pay_config_snapshots (id) ON DELETE RESTRICT,
     FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE SET NULL
 );
@@ -309,6 +347,8 @@ CREATE INDEX idx_venue_memberships_venue_user ON venue_memberships (venue_id, us
 CREATE INDEX idx_venue_invitations_venue_status ON venue_invitations (venue_id, status);
 CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, status);
 CREATE INDEX idx_staff_venue ON staff (venue_id);
+CREATE INDEX idx_report_definitions_venue_sort ON report_definitions (venue_id, sort_order ASC, created_at ASC);
+CREATE INDEX idx_report_definition_shift_type_filters_definition ON report_definition_shift_type_filters (report_definition_id);
 CREATE INDEX idx_roster_weeks_venue_offset ON roster_weeks (venue_id, week_offset);
 CREATE INDEX idx_pay_config_snapshots_venue_version ON pay_config_snapshots (venue_id, version_number DESC);
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id);
@@ -332,11 +372,10 @@ AS $$
     SELECT
         COALESCE(
             (
-                SELECT st.default_pay_level_id
-                FROM shift_types st
-                JOIN pay_level_day_rules pldr ON pldr.pay_level_id = st.default_pay_level_id
+                SELECT pldr.pay_level_id
+                FROM pay_level_day_rules pldr
                 JOIN day_names dn ON dn.id = pldr.day_name_id
-                WHERE st.id = p_shift_type_id
+                WHERE pldr.shift_type_id = p_shift_type_id
                     AND dn.weekday_index = p_day_of_week
                 LIMIT 1
             ),
@@ -361,7 +400,7 @@ AS $$
                         FROM jsonb_array_elements(COALESCE(p_snapshot -> 'payLevelDayRules', '[]'::JSONB)) rule
                         JOIN jsonb_array_elements(COALESCE(p_snapshot -> 'dayNames', '[]'::JSONB)) day_name
                             ON (rule ->> 'dayNameId') = (day_name ->> 'id')
-                        WHERE (rule ->> 'payLevelId')::UUID = (shift_type ->> 'defaultPayLevelId')::UUID
+                        WHERE (rule ->> 'shiftTypeId')::UUID = p_shift_type_id
                             AND (day_name ->> 'weekdayIndex')::INT = p_day_of_week
                         LIMIT 1
                     ),
@@ -388,30 +427,11 @@ AS $$
         WHERE te.id = p_entry_id
         LIMIT 1
     ),
-    first_shift_type AS (
-        SELECT
-            CASE
-                WHEN e.pay_config_snapshot_id IS NOT NULL THEN (
-                    SELECT (shift_type ->> 'id')::UUID
-                    FROM jsonb_array_elements(COALESCE(e.pay_config_snapshot -> 'shiftTypes', '[]'::JSONB)) shift_type
-                    WHERE COALESCE((shift_type ->> 'isActive')::BOOLEAN, TRUE) = TRUE
-                    LIMIT 1
-                )
-                ELSE (
-                    SELECT st.id
-                    FROM shift_types st
-                    WHERE st.is_active = TRUE
-                    ORDER BY st.created_at ASC, st.id ASC
-                    LIMIT 1
-                )
-            END AS shift_type_id
-        FROM entry_data e
-        LIMIT 1
-    ),
     resolved AS (
         SELECT
             e.id,
             e.staff_id,
+            e.shift_type_id,
             e.worked_on,
             e.start_time,
             e.end_time,
@@ -441,23 +461,156 @@ AS $$
                 WHEN e.pay_config_snapshot_id IS NOT NULL THEN
                     resolve_effective_pay_level_snapshot(
                         e.pay_config_snapshot,
-                        (SELECT shift_type_id FROM first_shift_type),
+                        e.shift_type_id,
                         EXTRACT(DOW FROM e.worked_on)::INT
                     )
                 ELSE
                     resolve_effective_pay_level(
                         e.staff_id,
-                        (SELECT shift_type_id FROM first_shift_type),
+                        e.shift_type_id,
                         EXTRACT(DOW FROM e.worked_on)::INT
                     )
             END AS pay_level_id
         FROM entry_data e
     ),
+    labelled AS (
+        SELECT
+            r.*,
+            CASE
+                WHEN r.pay_config_snapshot_id IS NOT NULL THEN
+                    (
+                        SELECT shift_type ->> 'name'
+                        FROM jsonb_array_elements(COALESCE(r.pay_config_snapshot -> 'shiftTypes', '[]'::JSONB)) shift_type
+                        WHERE (shift_type ->> 'id')::UUID = r.shift_type_id
+                        LIMIT 1
+                    )
+                ELSE
+                    (
+                        SELECT st.name
+                        FROM shift_types st
+                        WHERE st.id = r.shift_type_id
+                        LIMIT 1
+                    )
+            END AS shift_type_name,
+            CASE
+                WHEN r.pay_config_snapshot_id IS NOT NULL THEN
+                    (
+                        SELECT pay_level ->> 'name'
+                        FROM jsonb_array_elements(COALESCE(r.pay_config_snapshot -> 'payLevels', '[]'::JSONB)) pay_level
+                        WHERE (pay_level ->> 'id')::UUID = r.pay_level_id
+                        LIMIT 1
+                    )
+                ELSE
+                    (
+                        SELECT pl.name
+                        FROM pay_levels pl
+                        WHERE pl.id = r.pay_level_id
+                        LIMIT 1
+                    )
+            END AS pay_level_name,
+            CASE
+                WHEN r.pay_config_snapshot_id IS NOT NULL THEN
+                    (
+                        SELECT COALESCE((pay_level ->> 'baseRate')::NUMERIC(10,2), 0)
+                        FROM jsonb_array_elements(COALESCE(r.pay_config_snapshot -> 'payLevels', '[]'::JSONB)) pay_level
+                        WHERE (pay_level ->> 'id')::UUID = r.pay_level_id
+                        LIMIT 1
+                    )
+                ELSE
+                    (
+                        SELECT pl.base_rate
+                        FROM pay_levels pl
+                        WHERE pl.id = r.pay_level_id
+                        LIMIT 1
+                    )
+            END AS base_rate,
+            CASE
+                WHEN r.pay_config_snapshot_id IS NOT NULL THEN
+                    (
+                        SELECT COALESCE((pay_level ->> 'eveningPenalty')::NUMERIC(10,2), 0)
+                        FROM jsonb_array_elements(COALESCE(r.pay_config_snapshot -> 'payLevels', '[]'::JSONB)) pay_level
+                        WHERE (pay_level ->> 'id')::UUID = r.pay_level_id
+                        LIMIT 1
+                    )
+                ELSE
+                    (
+                        SELECT pl.evening_penalty
+                        FROM pay_levels pl
+                        WHERE pl.id = r.pay_level_id
+                        LIMIT 1
+                    )
+            END AS evening_penalty,
+            CASE
+                WHEN r.pay_config_snapshot_id IS NOT NULL THEN
+                    (
+                        SELECT COALESCE((pay_level ->> 'after12Penalty')::NUMERIC(10,2), 0)
+                        FROM jsonb_array_elements(COALESCE(r.pay_config_snapshot -> 'payLevels', '[]'::JSONB)) pay_level
+                        WHERE (pay_level ->> 'id')::UUID = r.pay_level_id
+                        LIMIT 1
+                    )
+                ELSE
+                    (
+                        SELECT pl.after_12_penalty
+                        FROM pay_levels pl
+                        WHERE pl.id = r.pay_level_id
+                        LIMIT 1
+                    )
+            END AS after_12_penalty,
+            CASE
+                WHEN r.pay_config_snapshot_id IS NOT NULL THEN
+                    (
+                        SELECT COALESCE((pay_level ->> 'weekdayMultiplier')::NUMERIC(10,3), 1)
+                        FROM jsonb_array_elements(COALESCE(r.pay_config_snapshot -> 'payLevels', '[]'::JSONB)) pay_level
+                        WHERE (pay_level ->> 'id')::UUID = r.pay_level_id
+                        LIMIT 1
+                    )
+                ELSE
+                    (
+                        SELECT pl.weekday_multiplier
+                        FROM pay_levels pl
+                        WHERE pl.id = r.pay_level_id
+                        LIMIT 1
+                    )
+            END AS weekday_multiplier,
+            CASE
+                WHEN r.pay_config_snapshot_id IS NOT NULL THEN
+                    (
+                        SELECT COALESCE((pay_level ->> 'saturdayMultiplier')::NUMERIC(10,3), 1)
+                        FROM jsonb_array_elements(COALESCE(r.pay_config_snapshot -> 'payLevels', '[]'::JSONB)) pay_level
+                        WHERE (pay_level ->> 'id')::UUID = r.pay_level_id
+                        LIMIT 1
+                    )
+                ELSE
+                    (
+                        SELECT pl.saturday_multiplier
+                        FROM pay_levels pl
+                        WHERE pl.id = r.pay_level_id
+                        LIMIT 1
+                    )
+            END AS saturday_multiplier,
+            CASE
+                WHEN r.pay_config_snapshot_id IS NOT NULL THEN
+                    (
+                        SELECT COALESCE((pay_level ->> 'sundayMultiplier')::NUMERIC(10,3), 1)
+                        FROM jsonb_array_elements(COALESCE(r.pay_config_snapshot -> 'payLevels', '[]'::JSONB)) pay_level
+                        WHERE (pay_level ->> 'id')::UUID = r.pay_level_id
+                        LIMIT 1
+                    )
+                ELSE
+                    (
+                        SELECT pl.sunday_multiplier
+                        FROM pay_levels pl
+                        WHERE pl.id = r.pay_level_id
+                        LIMIT 1
+                    )
+            END AS sunday_multiplier
+        FROM resolved r
+    ),
     paid_window AS (
         SELECT
             r.*,
-            LEAST(r.start_minute_of_day + r.paid_minutes, 1440) AS paid_end_minute_of_day
-        FROM resolved r
+            LEAST(r.start_minute_of_day + r.paid_minutes, 1860) AS paid_end_minute_of_day
+        FROM labelled r
     ),
     segment_windows AS (
         SELECT *
@@ -475,34 +628,25 @@ AS $$
             pw.worked_on,
             pw.break_minutes,
             pw.paid_minutes,
+            pw.shift_type_id,
+            pw.shift_type_name,
             pw.pay_level_id,
+            pw.pay_level_name,
             pw.pay_config_snapshot_id,
             pw.pay_config_snapshot_version,
             pw.pay_config_snapshot,
             sw.segment_name,
             CASE
-                WHEN pw.pay_config_snapshot_id IS NOT NULL THEN
-                    COALESCE((
-                        SELECT (rule ->> 'multiplier')::NUMERIC(10,3)
-                        FROM jsonb_array_elements(COALESCE(pw.pay_config_snapshot -> 'payLevelDayRules', '[]'::JSONB)) rule
-                        JOIN jsonb_array_elements(COALESCE(pw.pay_config_snapshot -> 'dayNames', '[]'::JSONB)) day_name
-                            ON (rule ->> 'dayNameId') = (day_name ->> 'id')
-                        WHERE (rule ->> 'payLevelId')::UUID = pw.pay_level_id
-                            AND (day_name ->> 'weekdayIndex')::INT = EXTRACT(DOW FROM pw.worked_on)::INT
-                        LIMIT 1
-                    ), 1.0)::NUMERIC(10,3)
-                ELSE
-                    COALESCE((
-                        SELECT pldr.multiplier
-                        FROM pay_level_day_rules pldr
-                        JOIN day_names dn ON dn.id = pldr.day_name_id
-                        WHERE pldr.pay_level_id = pw.pay_level_id
-                            AND dn.weekday_index = EXTRACT(DOW FROM pw.worked_on)::INT
-                        LIMIT 1
-                    ), 1.0)::NUMERIC(10,3)
+                WHEN EXTRACT(DOW FROM pw.worked_on)::INT = 6 THEN pw.saturday_multiplier
+                WHEN EXTRACT(DOW FROM pw.worked_on)::INT = 0 THEN pw.sunday_multiplier
+                ELSE pw.weekday_multiplier
             END AS day_rule_multiplier,
             CASE
-                WHEN EXTRACT(DOW FROM pw.worked_on)::INT IN (0, 6) THEN 1.5::NUMERIC(10,3)
+                WHEN EXTRACT(DOW FROM pw.worked_on)::INT IN (0, 6) THEN
+                    CASE
+                        WHEN EXTRACT(DOW FROM pw.worked_on)::INT = 6 THEN pw.saturday_multiplier
+                        ELSE pw.sunday_multiplier
+                    END
                 ELSE 1.0::NUMERIC(10,3)
             END AS weekend_multiplier,
             GREATEST(
@@ -510,6 +654,18 @@ AS $$
                 - GREATEST(pw.start_minute_of_day, sw.window_start_minute),
                 0
             )::INT AS segment_minutes,
+            pw.base_rate,
+            CASE
+                WHEN EXTRACT(DOW FROM pw.worked_on)::INT IN (0, 6) THEN
+                    pw.base_rate
+                        * CASE
+                            WHEN EXTRACT(DOW FROM pw.worked_on)::INT = 6 THEN pw.saturday_multiplier
+                            ELSE pw.sunday_multiplier
+                          END
+                WHEN sw.segment_name = 'evening' THEN (pw.base_rate * pw.weekday_multiplier) + pw.evening_penalty
+                WHEN sw.segment_name = 'after_midnight' THEN (pw.base_rate * pw.weekday_multiplier) + pw.after_12_penalty
+                ELSE pw.base_rate * pw.weekday_multiplier
+            END AS segment_hourly_rate,
             sw.sort_index
         FROM paid_window pw
         CROSS JOIN segment_windows sw
@@ -522,12 +678,15 @@ AS $$
                     jsonb_build_object(
                         'segment', sr.segment_name,
                         'minutes', sr.segment_minutes,
+                        'shiftTypeId', sr.shift_type_id,
+                        'shiftTypeName', sr.shift_type_name,
                         'payLevelId', sr.pay_level_id,
+                        'payLevelName', sr.pay_level_name,
                         'dayRuleMultiplier', sr.day_rule_multiplier,
                         'weekendMultiplier', sr.weekend_multiplier,
-                        'multiplier', (sr.day_rule_multiplier * sr.weekend_multiplier),
-                        'baseRate', 0,
-                        'amount', 0
+                        'multiplier', sr.day_rule_multiplier,
+                        'baseRate', sr.base_rate,
+                        'amount', ROUND(((sr.segment_minutes::NUMERIC / 60.0) * sr.segment_hourly_rate), 2)
                     )
                     ORDER BY sr.sort_index ASC
                 ) FILTER (WHERE sr.segment_minutes > 0),
@@ -536,11 +695,26 @@ AS $$
         FROM segment_rows sr
         GROUP BY sr.id
     ),
+    segment_totals AS (
+        SELECT
+            sr.id,
+            COALESCE(
+                SUM(ROUND(((sr.segment_minutes::NUMERIC / 60.0) * sr.segment_hourly_rate), 2))
+                    FILTER (WHERE sr.segment_minutes > 0),
+                0::NUMERIC(12,2)
+            ) AS total_amount
+        FROM segment_rows sr
+        GROUP BY sr.id
+    ),
     payload AS (
         SELECT jsonb_build_object(
             'entryId', pw.id,
             'staffId', pw.staff_id,
             'workedOn', pw.worked_on,
+            'shiftTypeId', pw.shift_type_id,
+            'shiftTypeName', pw.shift_type_name,
+            'payLevelId', pw.pay_level_id,
+            'payLevelName', pw.pay_level_name,
             'payConfigSnapshotId', pw.pay_config_snapshot_id,
             'payConfigSnapshotVersion', pw.pay_config_snapshot_version,
             'breakMinutes', pw.break_minutes,
@@ -548,11 +722,12 @@ AS $$
             'segments', sj.segments,
             'totals', jsonb_build_object(
                 'paidMinutes', pw.paid_minutes,
-                'totalAmount', 0
+                'totalAmount', st.total_amount
             )
         ) AS pay_json
         FROM paid_window pw
         LEFT JOIN segment_json sj ON sj.id = pw.id
+        LEFT JOIN segment_totals st ON st.id = pw.id
     )
     SELECT COALESCE(
         (SELECT pay_json FROM payload),

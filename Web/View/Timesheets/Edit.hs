@@ -5,6 +5,7 @@ import Web.View.Prelude
 data EditView = EditView
     { timesheetEntry :: TimesheetEntry
     , staffMembers   :: [Staff]
+    , shiftTypes     :: [ShiftType]
     , weekOffset     :: Int
     }
 
@@ -14,14 +15,14 @@ instance View EditView where
             "Edit Timesheet Entry"
             weekOffset
             editTimesheetFormId
-            (renderTimesheetForm timesheetEntry staffMembers weekOffset (UpdateTimesheetEntryAction (get #id timesheetEntry)) editTimesheetFormId PageOverlayForm)
+            (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset (UpdateTimesheetEntryAction (get #id timesheetEntry)) editTimesheetFormId PageOverlayForm)
 
 editTimesheetFormId :: Text
 editTimesheetFormId = "timesheet-entry-edit-form"
 
-renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> Int -> Html
-renderEditTimesheetDialog timesheetEntry staffMembers weekOffset =
+renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Html
+renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset =
     renderTimesheetEntryDialog
         "Edit Timesheet Entry"
         editTimesheetFormId
-        (renderTimesheetForm timesheetEntry staffMembers weekOffset (UpdateTimesheetEntryAction (get #id timesheetEntry)) editTimesheetFormId HtmxOverlayForm)
+        (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset (UpdateTimesheetEntryAction (get #id timesheetEntry)) editTimesheetFormId HtmxOverlayForm)

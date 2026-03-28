@@ -45,33 +45,39 @@ instance Controller TimesheetsController where
     action NewTimesheetEntryAction = do
         weekOffset <- weekOffsetFromParamOrCurrent
         staffMembers <- fetchStaffForForm
+        shiftTypes <- fetchShiftTypesForForm
         currentUserStaff <- fetchCurrentUserStaff
         let maybeWorkedOn = paramOrNothing @Day "workedOn"
 
-        case (staffMembers, maybeWorkedOn) of
-            ([], _) -> do
+        case (staffMembers, shiftTypes, maybeWorkedOn) of
+            ([], _, _) -> do
                 setErrorMessage "No staff record found. Contact an administrator."
                 redirectTo ShowTimesheetWeekAction { weekOffset }
-            (_, Nothing) -> do
+            (_, [], _) -> do
+                setErrorMessage "Add at least one shift type before creating a timesheet entry."
+                redirectTo ShowTimesheetWeekAction { weekOffset }
+            (_, _, Nothing) -> do
                 setErrorMessage "Please choose a day before creating a timesheet entry."
                 redirectTo ShowTimesheetWeekAction { weekOffset }
-            (_, Just workedOn) -> do
+            (_, defaultShiftType : _, Just workedOn) -> do
                 let timesheetEntry =
                         newRecord @TimesheetEntry
                             |> set #venueId (unpackId currentVenueId)
                             |> (\entry -> maybe entry (\staff -> set #staffId (unpackId (get #id staff)) entry) currentUserStaff)
+                            |> set #shiftTypeId (unpackId (get #id defaultShiftType))
                             |> set #workedOn workedOn
                             |> set #hadBreak False
                             |> set #breakStartTime Nothing
                             |> set #breakEndTime Nothing
                             |> set #breakMinutes 0
                 if isHtmxRequest
-                    then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers weekOffset)
+                    then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset)
                     else render NewView { .. }
 
     action CreateTimesheetEntryAction = do
         weekOffset <- weekOffsetFromParamOrCurrent
         staffMembers <- fetchStaffForForm
+        shiftTypes <- fetchShiftTypesForForm
         let timesheetEntryRecord =
                 newRecord @TimesheetEntry
                     |> set #venueId (unpackId currentVenueId)
@@ -81,10 +87,11 @@ instance Controller TimesheetsController where
             |> ifValid \case
                 Left timesheetEntry -> do
                     if isHtmxRequest
-                        then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers weekOffset)
+                        then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset)
                         else render NewView { .. }
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
+                    ensureShiftTypeAllowed timesheetEntry.shiftTypeId
                     createdEntry <- withTransaction do
                         createdEntry <- timesheetEntry |> createRecord
                         void $ recordCurrentUserTimesheetEntryVersion (unsafeEnumFromText @EntryVersionActionEnum "created") createdEntry Aeson.Null
@@ -104,8 +111,9 @@ instance Controller TimesheetsController where
 
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         staffMembers <- fetchStaffForForm
+        shiftTypes <- fetchShiftTypesForForm
         if isHtmxRequest
-            then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers weekOffset)
+            then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset)
             else render EditView { .. }
 
     action UpdateTimesheetEntryAction { timesheetEntryId } = do
@@ -116,6 +124,7 @@ instance Controller TimesheetsController where
 
         weekOffset <- weekOffsetFromParamOrEntry existingEntry.workedOn
         staffMembers <- fetchStaffForForm
+        shiftTypes <- fetchShiftTypesForForm
 
         let wasApproved = existingEntry.isApproved
         existingEntry
@@ -123,10 +132,11 @@ instance Controller TimesheetsController where
             |> ifValid \case
                 Left timesheetEntry -> do
                     if isHtmxRequest
-                        then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers weekOffset)
+                        then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset)
                         else render EditView { .. }
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
+                    ensureShiftTypeAllowed timesheetEntry.shiftTypeId
                     let successMessage =
                             if wasApproved
                                 then "Timesheet entry updated (approval reset)"
@@ -305,6 +315,14 @@ fetchStaffForForm =
         then query @Staff |> filterWhere (#venueId, unpackId currentVenueId) |> filterWhere (#isActive, True) |> orderByAsc #lastName |> fetch
         else maybeToList <$> fetchCurrentUserStaff
 
+fetchShiftTypesForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [ShiftType]
+fetchShiftTypesForForm =
+    query @ShiftType
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#isActive, True)
+        |> orderByAsc #createdAt
+        |> fetch
+
 respondWithTimesheetDaySectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO ()
 respondWithTimesheetDaySectionFragment weekOffset dayOffset = do
     (entries, staffMembers, paySummariesByEntryId, today, editWindowDays, weekStartDate) <- fetchTimesheetDaySectionState weekOffset
@@ -397,6 +415,16 @@ ensureStaffAssignmentAllowed staffId =
             let isOwnStaff = maybe False (\staff -> unpackId (get #id staff) == staffId) maybeStaff
             accessDeniedUnless isOwnStaff
 
+ensureShiftTypeAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID -> IO ()
+ensureShiftTypeAllowed shiftTypeId = do
+    maybeShiftType <-
+        query @ShiftType
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#id, Id shiftTypeId)
+            |> filterWhere (#isActive, True)
+            |> fetchOneOrNothing
+    accessDeniedUnless (isJust maybeShiftType)
+
 resetApprovalOnEdit :: Bool -> TimesheetEntry -> TimesheetEntry
 resetApprovalOnEdit wasApproved entry
     | wasApproved =
@@ -411,6 +439,7 @@ buildTimesheetEntry :: (?context :: ControllerContext) => TimesheetEntry -> Time
 buildTimesheetEntry entry =
     entry
         |> fill @'["staffId", "workedOn"]
+        |> fill @'["shiftTypeId"]
         |> parseAndSetStartTime
         |> parseAndSetEndTime
         |> set #hadBreak hadBreak

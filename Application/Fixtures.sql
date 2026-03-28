@@ -32,8 +32,8 @@ INSERT INTO venue_config (venue_id, timezone, week_offset_epoch, late_to_early_m
 VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'UTC', DATE '2025-01-06', 600);
 
 -- Founder bootstrap login for manual testing after `make db`
-INSERT INTO users (id, email, password_hash, user_role, is_profile_completed, failed_login_attempts, locked_at) VALUES
-('b0000000-0000-0000-0000-000000000001', 'beaudan.brown@gmail.com', 'sha256|17|QsCg6vyI99zgdc8d6k9CAQ==|U17VHHhZnBKByPfiHkrPH16BdDQaND55Uq8Ubbku/cQ=', 'staff', true, 0, NULL);
+INSERT INTO users (id, email, password_hash, user_role, platform_role, is_profile_completed, failed_login_attempts, locked_at) VALUES
+('b0000000-0000-0000-0000-000000000001', 'beaudan.brown@gmail.com', 'sha256|17|QsCg6vyI99zgdc8d6k9CAQ==|U17VHHhZnBKByPfiHkrPH16BdDQaND55Uq8Ubbku/cQ=', 'staff', 'super_admin', true, 0, NULL);
 
 INSERT INTO venue_memberships (id, venue_id, user_id, venue_role, is_active) VALUES
 ('b1000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'b0000000-0000-0000-0000-000000000001', 'venue_owner', true);

@@ -76,6 +76,8 @@ tests = beforeAll testContext do
                 user <- createUserRecord "timesheet-form@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 _ <- createStaffRecord venue (Just user) "Tess" "Form"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- createShiftTypeRecord venue payLevel "Ordinary"
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -135,6 +137,8 @@ tests = beforeAll testContext do
                 user <- createUserRecord "timesheet-htmx-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 staff <- createStaffRecord venue (Just user) "Tess" "Create"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
                 versionBefore <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
 
@@ -146,6 +150,7 @@ tests = beforeAll testContext do
                             callActionWithParams CreateTimesheetEntryAction
                                 [ ("weekOffset", "0")
                                 , ("staffId", idToParam staff.id)
+                                , ("shiftTypeId", idToParam shiftType.id)
                                 , ("workedOn", "2025-01-07")
                                 , ("startTime", "09:15")
                                 , ("endTime", "17:15")
@@ -247,6 +252,8 @@ tests = beforeAll testContext do
                 manager <- createUserRecord "timesheet-reset@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue Nothing "Ria" "Shift"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                 entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 9)
                     >>= updateRecord
                         . set #isApproved True
@@ -255,6 +262,7 @@ tests = beforeAll testContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (UpdateTimesheetEntryAction entry.id)
                         [ ("staffId", idToParam staff.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
                         , ("workedOn", "2025-01-09")
                         , ("startTime", "09:15")
                         , ("endTime", "17:15")

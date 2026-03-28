@@ -1,6 +1,7 @@
 module Application.Helper.View where
 
-import Application.Helper.Controller (VenueRole (..), hasRole)
+import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
+                                      hasRole)
 import Data.List (sortBy)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -23,6 +24,9 @@ currentUserIsManager = hasRole ManagerRole'
 -- Use in views for conditional rendering of admin-only UI.
 currentUserIsAdmin :: (?context :: ControllerContext) => Bool
 currentUserIsAdmin = hasRole VenueAdminRole
+
+currentUserIsSupportAdmin :: (?context :: ControllerContext) => Bool
+currentUserIsSupportAdmin = currentUserIsSuperAdmin
 
 -- | True when a staff record is a trial placeholder (no linked user account).
 isTrialStaff :: Staff -> Bool
@@ -374,8 +378,8 @@ renderTimePickerOption (value, label) = [hsx|
 |]
 
 -- | Shared timesheet entry form used by New and Edit views.
-renderTimesheetForm :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> Int -> TimesheetsController -> Text -> OverlayFormMode -> Html
-renderTimesheetForm entry staffMembers weekOffset action formId formMode =
+renderTimesheetForm :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> TimesheetsController -> Text -> OverlayFormMode -> Html
+renderTimesheetForm entry staffMembers shiftTypes weekOffset action formId formMode =
     case formMode of
         HtmxOverlayForm -> [hsx|
             <form id={formId}
@@ -387,7 +391,7 @@ renderTimesheetForm entry staffMembers weekOffset action formId formMode =
                   hx-target={"#" <> dialogOverlayMountId}
                   hx-swap="innerHTML"
                   hx-push-url="false">
-                {renderTimesheetFormFields entry staffMembers weekOffset}
+                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset}
             </form>
         |]
         PageOverlayForm -> [hsx|
@@ -395,14 +399,15 @@ renderTimesheetForm entry staffMembers weekOffset action formId formMode =
                   method="POST"
                   action={action}
                   class="mt-3">
-                {renderTimesheetFormFields entry staffMembers weekOffset}
+                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset}
             </form>
         |]
 
-renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> Int -> Html
-renderTimesheetFormFields entry staffMembers weekOffset = [hsx|
+renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Html
+renderTimesheetFormFields entry staffMembers shiftTypes weekOffset = [hsx|
     <input type="hidden" name="weekOffset" value={tshow weekOffset} />
     {renderStaffField entry staffMembers}
+    {renderShiftTypeField entry shiftTypes}
     <div class="mb-3">
         <label class="form-label">Day</label>
         <input type="hidden" name="workedOn" value={dateValueIso} />
@@ -479,12 +484,33 @@ renderStaffField entry staffMembers =
             <input type="hidden" name="staffId" value={inputValue entry.staffId} />
         |]
 
+renderShiftTypeField :: TimesheetEntry -> [ShiftType] -> Html
+renderShiftTypeField entry shiftTypes = [hsx|
+    <div class="mb-3">
+        <label for="shiftTypeId" class="form-label">Shift Type</label>
+        <select name="shiftTypeId" id="shiftTypeId" class={classes [("form-select", True), ("is-invalid", hasErrorFor entry "shiftTypeId")]} required="required">
+            <option value="">Select shift type…</option>
+            {forEach shiftTypes (renderShiftTypeOption entry.shiftTypeId)}
+        </select>
+        {renderFieldError entry "shiftTypeId"}
+    </div>
+|]
+
 renderTimesheetStaffOption :: UUID -> Staff -> Html
 renderTimesheetStaffOption selectedStaffId staff =
     let isSelected = unpackId (get #id staff) == selectedStaffId
     in [hsx|
         <option value={inputValue staff.id} selected={isSelected}>
             {staff.firstName} {staff.lastName}
+        </option>
+    |]
+
+renderShiftTypeOption :: UUID -> ShiftType -> Html
+renderShiftTypeOption selectedShiftTypeId shiftType =
+    let isSelected = unpackId (get #id shiftType) == selectedShiftTypeId
+    in [hsx|
+        <option value={inputValue shiftType.id} selected={isSelected}>
+            {shiftType.name}
         </option>
     |]
 

@@ -5,6 +5,7 @@ import Web.View.Prelude
 data NewView = NewView
     { timesheetEntry :: TimesheetEntry
     , staffMembers   :: [Staff]
+    , shiftTypes     :: [ShiftType]
     , weekOffset     :: Int
     }
 
@@ -14,14 +15,14 @@ instance View NewView where
             "New Timesheet Entry"
             weekOffset
             newTimesheetFormId
-            (renderTimesheetForm timesheetEntry staffMembers weekOffset CreateTimesheetEntryAction newTimesheetFormId PageOverlayForm)
+            (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset CreateTimesheetEntryAction newTimesheetFormId PageOverlayForm)
 
 newTimesheetFormId :: Text
 newTimesheetFormId = "timesheet-entry-create-form"
 
-renderNewTimesheetDialog :: TimesheetEntry -> [Staff] -> Int -> Html
-renderNewTimesheetDialog timesheetEntry staffMembers weekOffset =
+renderNewTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Html
+renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset =
     renderTimesheetEntryDialog
         "New Timesheet Entry"
         newTimesheetFormId
-        (renderTimesheetForm timesheetEntry staffMembers weekOffset CreateTimesheetEntryAction newTimesheetFormId HtmxOverlayForm)
+        (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset CreateTimesheetEntryAction newTimesheetFormId HtmxOverlayForm)

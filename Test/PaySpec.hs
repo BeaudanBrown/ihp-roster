@@ -22,11 +22,13 @@ tests :: Spec
 tests = do
     describe "Pay helper orchestration" do
         it "decodes single-entry pay payloads" do
-            let payload = "{\"entryId\":\"11111111-1111-1111-1111-111111111111\",\"payConfigSnapshotVersion\":\"v1\",\"segments\":[{\"segment\":\"ordinary\",\"minutes\":480,\"dayRuleMultiplier\":1.25,\"weekendMultiplier\":1.5,\"multiplier\":1.875,\"baseRate\":0,\"amount\":0}],\"totals\":{\"paidMinutes\":480,\"totalAmount\":0}}"
+            let payload = "{\"entryId\":\"11111111-1111-1111-1111-111111111111\",\"shiftTypeName\":\"Ordinary\",\"payLevelName\":\"Level 1\",\"payConfigSnapshotVersion\":\"v1\",\"segments\":[{\"segment\":\"ordinary\",\"minutes\":480,\"shiftTypeName\":\"Ordinary\",\"payLevelName\":\"Level 1\",\"dayRuleMultiplier\":1.25,\"weekendMultiplier\":1.5,\"multiplier\":1.875,\"baseRate\":0,\"amount\":0}],\"totals\":{\"paidMinutes\":480,\"totalAmount\":0}}"
             case decodeTimesheetPayResult payload of
                 Left err -> expectationFailure ("Expected decode success, got: " <> Text.unpack err)
                 Right result -> do
                     result.entryId `shouldBe` "11111111-1111-1111-1111-111111111111"
+                    result.shiftTypeName `shouldBe` Just "Ordinary"
+                    result.payLevelName `shouldBe` Just "Level 1"
                     result.payConfigSnapshotVersion `shouldBe` Just "v1"
                     result.totals.paidMinutes `shouldBe` 480
                     fmap (.segment) result.segments `shouldBe` ["ordinary"]
@@ -34,15 +36,25 @@ tests = do
         it "builds summary flags for weekend and stacked multipliers" do
             let result = TimesheetPayResult
                     { entryId = "11111111-1111-1111-1111-111111111111"
+                    , shiftTypeId = Nothing
+                    , shiftTypeName = Just "Ordinary"
+                    , payLevelId = Nothing
+                    , payLevelName = Just "Level 1"
                     , payConfigSnapshotId = Nothing
                     , payConfigSnapshotVersion = Nothing
                     , segments =
                         [ PaySegment
                             { segment = "evening"
                             , minutes = 120
+                            , shiftTypeId = Nothing
+                            , shiftTypeName = Just "Ordinary"
+                            , payLevelId = Nothing
+                            , payLevelName = Just "Level 1"
                             , multiplier = 1.875
                             , dayRuleMultiplier = Just 1.25
                             , weekendMultiplier = Just 1.5
+                            , baseRate = 30
+                            , amount = 75
                             }
                         ]
                     , totals = PayTotals { paidMinutes = 120, totalAmount = 0 }
@@ -75,8 +87,10 @@ tests = do
                     payLevel <- createPayLevelRecord venue "Level 1"
                     shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
                     friday <- createDayNameRecord venue 5 "Friday"
-                    _ <- createPayLevelDayRuleRecord payLevel friday 1.25
+                    overrideLevel <- createPayLevelRecord venue "Friday Level"
+                    _ <- createPayLevelDayRuleRecord shiftType friday overrideLevel
                     entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 10)
+                        >>= updateRecord . set #shiftTypeId (unpackId shiftType.id)
 
                     _ <- withUserAndCurrentVenue admin venue.id do
                         callAction CreatePayConfigSnapshotAction
@@ -88,9 +102,9 @@ tests = do
                         |> set #defaultPayLevelId (unpackId (get #id payLevel))
                         |> updateRecord
                     _ <- query @PayLevelDayRule
-                        |> filterWhere (#payLevelId, unpackId (get #id payLevel))
+                        |> filterWhere (#shiftTypeId, unpackId (get #id shiftType))
                         |> fetchOne
-                        >>= updateRecord . set #multiplier 2.0
+                        >>= updateRecord . set #payLevelId (unpackId (get #id payLevel))
 
                     payResult <- fetchTimesheetPay entry.id
 
@@ -98,4 +112,6 @@ tests = do
                         Left err -> expectationFailure ("Expected pay result, got: " <> Text.unpack err)
                         Right result -> do
                             result.payConfigSnapshotVersion `shouldBe` Just "v1"
-                            fmap (.dayRuleMultiplier) result.segments `shouldBe` [Just 1.25]
+                            result.shiftTypeName `shouldBe` Just "Ordinary"
+                            result.payLevelName `shouldBe` Just "Friday Level"
+                            fmap (.payLevelName) result.segments `shouldBe` [Just "Friday Level"]

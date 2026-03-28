@@ -1,6 +1,8 @@
 module Test.Support where
 
-import Application.Helper.Controller (currentVenueSessionKey,
+import Application.Helper.Controller (PlatformRole (..),
+                                      currentVenueSessionKey,
+                                      platformRoleToEnum,
                                       unsafeEnumFromText)
 import Config
 import qualified Data.Aeson as Aeson
@@ -52,7 +54,7 @@ withControllerTestContext action =
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExec
-        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, day_names, slot_names, shift_types, pay_levels, staff, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, shift_types, pay_levels, staff, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
@@ -72,12 +74,17 @@ createVenueWithConfig name =
         pure venue
 
 createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> IO User
-createUserRecord emailAddress globalRole isProfileCompleted = do
+createUserRecord emailAddress globalRole isProfileCompleted =
+    createUserRecordWithPlatformRole emailAddress globalRole Nothing isProfileCompleted
+
+createUserRecordWithPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Maybe PlatformRole -> Bool -> IO User
+createUserRecordWithPlatformRole emailAddress globalRole platformRole isProfileCompleted = do
     passwordHash <- hashPassword testPassword
     newRecord @User
         |> set #email emailAddress
         |> set #passwordHash passwordHash
         |> set #userRole globalRole
+        |> set #platformRole (platformRoleToEnum <$> platformRole)
         |> set #isProfileCompleted isProfileCompleted
         |> createRecord
 
@@ -143,10 +150,12 @@ createRosterSlotRecord rosterDay slotName maybeStaff rowIndex =
         |> createRecord
 
 createTimesheetEntryRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> IO TimesheetEntry
-createTimesheetEntryRecord venue staff workedOn =
+createTimesheetEntryRecord venue staff workedOn = do
+    shiftType <- ensureVenueDefaultShiftType venue
     newRecord @TimesheetEntry
         |> set #venueId (unpackId (get #id venue))
         |> set #staffId (unpackId (get #id staff))
+        |> set #shiftTypeId (unpackId (get #id shiftType))
         |> set #workedOn workedOn
         |> set #startTime (TimeOfDay 9 0 0)
         |> set #endTime (TimeOfDay 17 0 0)
@@ -168,9 +177,29 @@ createLeaveRequestRecord venue staff startDate endDate leaveStatus =
 
 createPayLevelRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO PayLevel
 createPayLevelRecord venue levelName =
+    createPayLevelRecordWithRates venue levelName 0 0 0 1 1 1
+
+createPayLevelRecordWithRates ::
+    (?modelContext :: ModelContext) =>
+    Venue ->
+    Text ->
+    Scientific ->
+    Scientific ->
+    Scientific ->
+    Scientific ->
+    Scientific ->
+    Scientific ->
+    IO PayLevel
+createPayLevelRecordWithRates venue levelName baseRate eveningPenalty after12Penalty weekdayMultiplier saturdayMultiplier sundayMultiplier =
     newRecord @PayLevel
         |> set #venueId (unpackId (get #id venue))
         |> set #name levelName
+        |> set #baseRate baseRate
+        |> set #eveningPenalty eveningPenalty
+        |> set #after12Penalty after12Penalty
+        |> set #weekdayMultiplier weekdayMultiplier
+        |> set #saturdayMultiplier saturdayMultiplier
+        |> set #sundayMultiplier sundayMultiplier
         |> set #isActive True
         |> createRecord
 
@@ -179,6 +208,7 @@ createShiftTypeRecord venue payLevel shiftTypeName =
     newRecord @ShiftType
         |> set #venueId (unpackId (get #id venue))
         |> set #name shiftTypeName
+        |> set #sortOrder 0
         |> set #defaultPayLevelId (unpackId (get #id payLevel))
         |> set #isActive True
         |> createRecord
@@ -192,13 +222,25 @@ createDayNameRecord venue weekdayIndex dayName =
         |> set #isActive True
         |> createRecord
 
-createPayLevelDayRuleRecord :: (?modelContext :: ModelContext) => PayLevel -> DayName -> Scientific -> IO PayLevelDayRule
-createPayLevelDayRuleRecord payLevel dayName multiplier =
+createPayLevelDayRuleRecord :: (?modelContext :: ModelContext) => ShiftType -> DayName -> PayLevel -> IO PayLevelDayRule
+createPayLevelDayRuleRecord shiftType dayName payLevel =
     newRecord @PayLevelDayRule
+        |> set #shiftTypeId (unpackId (get #id shiftType))
         |> set #payLevelId (unpackId (get #id payLevel))
         |> set #dayNameId (unpackId (get #id dayName))
-        |> set #multiplier multiplier
         |> createRecord
+
+ensureVenueDefaultShiftType :: (?modelContext :: ModelContext) => Venue -> IO ShiftType
+ensureVenueDefaultShiftType venue = do
+    query @ShiftType
+        |> filterWhere (#venueId, unpackId (get #id venue))
+        |> orderByAsc #createdAt
+        |> fetchOneOrNothing
+        >>= \case
+            Just shiftType -> pure shiftType
+            Nothing -> do
+                payLevel <- createPayLevelRecord venue "Default Level"
+                createShiftTypeRecord venue payLevel "Default Shift"
 
 createPayConfigSnapshotRecord :: (?modelContext :: ModelContext) => Venue -> User -> Int -> Aeson.Value -> IO PayConfigSnapshot
 createPayConfigSnapshotRecord venue user versionNumber snapshot =
