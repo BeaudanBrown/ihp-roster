@@ -1,10 +1,13 @@
 module Web.View.Layout (defaultLayout, Html) where
 
 import Application.Helper.View
+import Application.Helper.Controller (currentSupportVenueOptions, currentVenueOrNothing)
 import Generated.Types
 import IHP.Controller.RequestContext
+import IHP.ControllerSupport (getRequestPathAndQuery)
 import IHP.Environment
 import IHP.ViewPrelude
+import qualified Data.Text.Encoding as Text
 import Web.Routes
 import Web.Types
 
@@ -42,6 +45,7 @@ renderAppHeader =
             <header class="app-header border-bottom">
                 <nav class="navbar navbar-expand-md container py-2">
                     <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Roster App</a>
+                    {when currentUserIsSupportAdmin renderSupportVenueSwitcher}
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#app-nav" aria-controls="app-nav" aria-expanded="false" aria-label="Toggle navigation">
                         <span class="navbar-toggler-icon"></span>
                     </button>
@@ -52,6 +56,7 @@ renderAppHeader =
                             <a class="btn btn-outline-secondary btn-sm" href={TimesheetsAction}>timesheets</a>
                             <a class="btn btn-outline-secondary btn-sm" href={LeaveRequestsAction}>leave</a>
                             {when currentUserIsAdmin renderAdminNavLink}
+                            {when currentUserIsSupportAdmin renderSupportNavLink}
                             <form method="POST" action={DeleteSessionAction} class="d-inline">
                                 <input type="hidden" name="_method" value="DELETE"/>
                                 <button class="btn btn-outline-danger btn-sm" type="submit">logout</button>
@@ -66,6 +71,29 @@ renderAppHeader =
 renderAdminNavLink :: Html
 renderAdminNavLink = [hsx|
     <a class="btn btn-outline-secondary btn-sm" href={AdminAction}>admin</a>
+|]
+
+renderSupportVenueSwitcher :: (?context :: ControllerContext) => Html
+renderSupportVenueSwitcher = [hsx|
+    <form class="ms-2 support-venue-switch-form" method="POST" action={SwitchSupportVenueAction}>
+        <input type="hidden" name="next" value={Text.decodeUtf8 getRequestPathAndQuery}/>
+        <label class="visually-hidden" for="support-venue-switch">Support venue</label>
+        <select id="support-venue-switch" class="form-select form-select-sm" name="venueId" onchange="this.form.submit()">
+            {forEach currentSupportVenueOptions renderSupportVenueOption}
+        </select>
+    </form>
+|]
+
+renderSupportVenueOption :: Venue -> Html
+renderSupportVenueOption venue = [hsx|
+    <option value={venue.id} selected={Just venue.id == fmap (.id) currentVenueOrNothing}>
+        {venue.name}
+    </option>
+|]
+
+renderSupportNavLink :: Html
+renderSupportNavLink = [hsx|
+    <a class="btn btn-outline-secondary btn-sm" href={SupportAction}>support</a>
 |]
 
 -- The 'assetPath' function used below appends a `?v=SOME_VERSION` to the static assets in production

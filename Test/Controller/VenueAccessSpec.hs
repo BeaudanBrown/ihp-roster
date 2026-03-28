@@ -2,7 +2,8 @@
 
 module Test.Controller.VenueAccessSpec where
 
-import Application.Helper.Controller (currentVenueSessionKey)
+import Application.Helper.Controller (PlatformRole (SuperAdminRole),
+                                      currentVenueSessionKey)
 import Config
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
@@ -12,6 +13,8 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Test.Mocking
+import qualified Network.HTTP.Types as HTTP
+import Network.Wai (responseHeaders)
 import Network.HTTP.Types.Status
 import Test.Hspec
 import Test.Support
@@ -20,6 +23,7 @@ import Web.Controller.LeaveRequests ()
 import Web.Controller.RosterWeeks ()
 import Web.Controller.Sessions ()
 import Web.Controller.Staff ()
+import Web.Controller.Support ()
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Types
@@ -121,6 +125,45 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status403
 
+        it "lets super-admin bypass venue membership for admin screens in another active venue" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                supportVenue <- createVenueWithConfig "Support Venue"
+                founder <- createUserRecordWithPlatformRole "founder-support@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+
+                response <- withUserAndCurrentVenue founder supportVenue.id do
+                    callAction AdminAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Config Table Overview"
+
+        it "denies the support page to ordinary venue admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                admin <- createUserRecord "venue-admin@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withUser admin do
+                    callAction SupportAction
+
+                response `responseStatusShouldBe` status403
+
+        it "lets super-admin open the support page and see active venues" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Alpha Venue"
+                venueB <- createVenueWithConfig "Beta Venue"
+                founder <- createUserRecordWithPlatformRole "founder-support-page@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+
+                response <- withUser founder do
+                    callAction SupportAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Switch Venue"
+                response `responseBodyShouldContain` "Alpha Venue"
+                response `responseBodyShouldContain` "Beta Venue"
+
     describe "Current venue selection" do
         it "stores the earliest active membership venue during beforeLogin" $ withContext do
             withCleanDb do
@@ -132,6 +175,18 @@ tests = beforeAll testContext do
 
                 selectedVenueId <- withControllerTestContext do
                     Sessions.beforeLogin @User user
+                    getSession @(Id Venue) currentVenueSessionKey
+
+                selectedVenueId `shouldBe` Just venueA.id
+
+        it "stores the requested active venue during beforeLogin for a super-admin without memberships" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Alpha Venue"
+                venueB <- createVenueWithConfig "Beta Venue"
+                founder <- createUserRecordWithPlatformRole "founder-login@example.com" "staff" (Just SuperAdminRole) True
+
+                selectedVenueId <- withControllerTestContext do
+                    Sessions.beforeLogin @User founder
                     getSession @(Id Venue) currentVenueSessionKey
 
                 selectedVenueId `shouldBe` Just venueA.id
@@ -168,6 +223,56 @@ tests = beforeAll testContext do
                 _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
 
                 response <- withUserAndCurrentVenue user venueB.id do
+                    callAction LeaveRequestsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Beta Person"
+                response `responseBodyShouldNotContain` "Alpha Person"
+
+        it "allows the support switch action for super-admin and redirects back to support" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Alpha Venue"
+                venueB <- createVenueWithConfig "Beta Venue"
+                founder <- createUserRecordWithPlatformRole "founder-switch@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+
+                response <- withUserAndCurrentVenue founder venueA.id do
+                    callActionWithParams SwitchSupportVenueAction
+                        [ ("venueId", cs (tshow venueB.id))
+                        , ("next", "/LeaveRequests")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/LeaveRequests"
+
+        it "falls back to support when given an unsafe redirect target" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Alpha Venue"
+                venueB <- createVenueWithConfig "Beta Venue"
+                founder <- createUserRecordWithPlatformRole "founder-switch-unsafe@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+
+                response <- withUserAndCurrentVenue founder venueA.id do
+                    callActionWithParams SwitchSupportVenueAction
+                        [ ("venueId", cs (tshow venueB.id))
+                        , ("next", "https://evil.example.com/")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/Support"
+
+        it "honors a foreign current venue session for super-admin without requiring a membership" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Alpha Venue"
+                venueB <- createVenueWithConfig "Beta Venue"
+                founder <- createUserRecordWithPlatformRole "founder-session@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                staffA <- createStaffRecord venueA Nothing "Alpha" "Person"
+                staffB <- createStaffRecord venueB Nothing "Beta" "Person"
+                _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
+                _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
+
+                response <- withUserAndCurrentVenue founder venueB.id do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200

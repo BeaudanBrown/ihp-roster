@@ -52,6 +52,8 @@ data LeaveRequestsController
 data ExportsController
     = ExportJobsAction
     | CreateExportJobAction
+    | CreateReportDefinitionAction
+    | UpdateReportDefinitionAction { reportDefinitionId :: !(Id ReportDefinition) }
     | DownloadExportJobAction { exportJobId :: !(Id ExportJob) }
     deriving (Eq, Show, Data)
 
@@ -68,6 +70,11 @@ data AdminController
     | UpdateSlotNameAction { slotNameId :: !(Id SlotName) }
     | CreateDayNameAction
     | UpdateDayNameAction { dayNameId :: !(Id DayName) }
+    deriving (Eq, Show, Data)
+
+data SupportController
+    = SupportAction
+    | SwitchSupportVenueAction
     deriving (Eq, Show, Data)
 
 data StaffController

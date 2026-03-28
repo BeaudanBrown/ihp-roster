@@ -14,7 +14,7 @@ instance Sessions.SessionsControllerConfig User where
     afterLoginRedirectPath = "/RosterWeeks"
 
     beforeLogin user = do
-        maybeVenueContext <- resolveVenueContextForUser Nothing (get #id user)
+        maybeVenueContext <- resolveVenueContextForUser Nothing user
         case maybeVenueContext of
             Just (_, venue, _) -> setSession currentVenueSessionKey (get #id venue)
             Nothing -> deleteSession currentVenueSessionKey
