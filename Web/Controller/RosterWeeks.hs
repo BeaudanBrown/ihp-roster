@@ -1,3 +1,9 @@
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TypeApplications #-}
+
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Conflict
@@ -69,82 +75,38 @@ instance Controller RosterWeeksController where
 
     action CreateRosterWeekAction { weekOffset } = do
         ensureManagerRole
+        (rosterWeek, wasCreated) <- ensureRosterWeekExists weekOffset
 
-        -- Make sure it doesn't already exist
-        existing <- query @RosterWeek
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#weekOffset, weekOffset)
-            |> fetchOneOrNothing
-        case existing of
-            Just week -> do
-                let targetAction = ShowRosterWeekAction { weekOffset = week.weekOffset }
-                if isHtmxRequest
-                    then do
-                        setHtmxPushUrl (pathTo targetAction)
-                        respondWithRosterContentUpdate week.weekOffset "Roster week already exists."
-                    else redirectTo targetAction
-            Nothing -> do
-                slotNames <- query @SlotName
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> filterWhere (#isActive, True)
-                    |> fetch
-                let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
+        when wasCreated do
+            broadcastRosterWeekInvalidation
+                weekOffset
+                [buildRosterContentFragmentRef weekOffset]
 
-                -- Create the roster week
-                rosterWeek <- newRecord @RosterWeek
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #weekOffset weekOffset
-                    |> set #isLive False
-                    |> createRecord
-
-                -- Create 7 roster days for the week with 5 default rows per day.
-                forM_ [0 .. 6] \dayOffset -> do
-                    rosterDay <- newRecord @RosterDay
-                        |> set #rosterWeekId (coerce (get #id rosterWeek))
-                        |> set #dayOffset dayOffset
-                        |> createRecord
-
-                    forM_ [0 .. 4] \rowIndex ->
-                        forM_ orderedSlotNames \slotName -> do
-                            newRecord @RosterSlot
-                                |> set #rosterDayId (coerce (get #id rosterDay))
-                                |> set #slotNameId (coerce (get #id slotName))
-                                |> set #rowIndex rowIndex
-                                |> createRecord
-
-                broadcastRosterWeekInvalidation
-                    weekOffset
-                    [buildRosterContentFragmentRef weekOffset]
-                let successMessage = "Roster week created successfully"
-                let targetAction = ShowRosterWeekAction { weekOffset }
-                if isHtmxRequest
-                    then do
-                        setHtmxPushUrl (pathTo targetAction)
-                        respondWithRosterContentUpdate weekOffset successMessage
-                    else do
-                        setSuccessMessage successMessage
-                        redirectTo targetAction
+        let successMessage =
+                if wasCreated
+                    then "Roster week created successfully"
+                    else "Roster week already exists."
+        let targetAction = ShowRosterWeekAction { weekOffset = rosterWeek.weekOffset }
+        if isHtmxRequest
+            then do
+                setHtmxPushUrl (pathTo targetAction)
+                respondWithRosterContentUpdate rosterWeek.weekOffset successMessage
+            else do
+                setSuccessMessage successMessage
+                redirectTo targetAction
 
     action CopyRosterWeekAction { sourceWeekOffset, targetWeekOffset } = do
         ensureManagerRole
 
-        -- Make sure target doesn't already exist
-        existingTarget <- query @RosterWeek
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#weekOffset, targetWeekOffset)
-            |> fetchOneOrNothing
-        case existingTarget of
-            Just week -> do
-                let errorMessage = "Target week already exists."
-                let targetAction = ShowRosterWeekAction { weekOffset = targetWeekOffset }
+        if sourceWeekOffset == targetWeekOffset
+            then do
+                let errorMessage = "Cannot copy a roster week onto itself."
                 if isHtmxRequest
-                    then do
-                        setHtmxPushUrl (pathTo targetAction)
-                        respondWithRosterContentUpdate week.weekOffset errorMessage
+                    then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
-                        redirectTo targetAction
-            Nothing -> do
+                        redirectTo ShowRosterWeekAction { weekOffset = targetWeekOffset }
+            else do
                 sourceWeekOrNothing <- query @RosterWeek
                     |> filterWhere (#venueId, unpackId currentVenueId)
                     |> filterWhere (#weekOffset, sourceWeekOffset)
@@ -158,44 +120,18 @@ instance Controller RosterWeeksController where
                                 setErrorMessage errorMessage
                                 redirectTo ShowRosterWeekAction { weekOffset = targetWeekOffset }
                     Just sourceWeek -> do
-                        -- Create the target roster week
-                        targetWeek <- newRecord @RosterWeek
-                            |> set #venueId (unpackId currentVenueId)
-                            |> set #weekOffset targetWeekOffset
-                            |> set #isLive False
-                            |> createRecord
-
-                        sourceDays <- query @RosterDay |> filterWhere (#rosterWeekId, coerce (get #id sourceWeek)) |> fetch
-
-                        -- Create 7 roster days for the week
-                        forM_ [0 .. 6] \dayOffset -> do
-                            targetDay <- newRecord @RosterDay
-                                |> set #rosterWeekId (coerce (get #id targetWeek))
-                                |> set #dayOffset dayOffset
-                                |> createRecord
-
-                            -- Find corresponding source day and copy slots
-                            let maybeSourceDay = find (\d -> d.dayOffset == dayOffset) sourceDays
-                            case maybeSourceDay of
-                                Just sourceDay -> do
-                                    sourceSlots <- query @RosterSlot |> filterWhere (#rosterDayId, coerce (get #id sourceDay)) |> fetch
-                                    forM_ sourceSlots \slot -> do
-                                        newRecord @RosterSlot
-                                            |> set #rosterDayId (coerce (get #id targetDay))
-                                            |> set #staffId slot.staffId
-                                            |> set #slotNameId slot.slotNameId
-                                            |> set #rowIndex slot.rowIndex
-                                            |> set #startTime slot.startTime
-                                            |> set #durationMinutes slot.durationMinutes
-                                            |> set #note slot.note
-                                            |> createRecord
-                                        pure ()
-                                Nothing -> pure ()
+                        withTransaction do
+                            existingTarget <- query @RosterWeek
+                                |> filterWhere (#venueId, unpackId currentVenueId)
+                                |> filterWhere (#weekOffset, targetWeekOffset)
+                                |> fetchOneOrNothing
+                            forM_ existingTarget deleteRecord
+                            copyRosterWeek sourceWeek targetWeekOffset
 
                         broadcastRosterWeekInvalidation
                             targetWeekOffset
                             [buildRosterContentFragmentRef targetWeekOffset]
-                        let successMessage = "Roster week copied successfully."
+                        let successMessage = "Roster week copied from the previous week."
                         let targetAction = ShowRosterWeekAction { weekOffset = targetWeekOffset }
                         if isHtmxRequest
                             then do
@@ -493,62 +429,44 @@ renderRosterWeekPage weekOffset = do
     let epoch = venueConfig.weekOffsetEpoch
     let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) epoch
     let weekEndDate = Calendar.addDays 6 weekStartDate
+    _ <- ensureRosterWeekExists weekOffset
 
     visibleRosterWeek <- fetchVisibleRosterWeek weekOffset
 
     case visibleRosterWeek of
-        Just rosterWeek -> do
-            rosterDays <- query @RosterDay
-                |> filterWhere (#rosterWeekId, coerce (get #id rosterWeek))
-                |> orderBy #dayOffset
-                |> fetch
-
-            allSlots <- query @RosterSlot
-                |> filterWhereIn (#rosterDayId, map (coerce . (.id)) rosterDays)
-                |> fetch
-
-            staffMembers <- query @Staff
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#isActive, True)
-                |> orderBy #lastName
-                |> fetch
-
-            panelStaff <- fetchRosterStaffPanelEntries staffMembers allSlots
-
-            slotNames <- query @SlotName
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#isActive, True)
-                |> fetch
-
-            let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
-            slotConflicts <- buildSlotConflicts venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlots staffMembers
-
-            respondWithRosterWeekView
-                ShowView
-                    { rosterWeek = Just rosterWeek
-                    , rosterDays
-                    , weekOffset
-                    , weekStartDate
-                    , weekEndDate
-                    , staffMembers
-                    , panelStaff
-                    , slotNames = orderedSlotNames
-                    , allSlots
-                    , slotConflicts
-                    , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, weekOffset })
-                    }
-        Nothing ->
+        Just _ -> do
+            rosterDataOrNothing <- fetchRosterRenderData weekOffset
+            case rosterDataOrNothing of
+                Just RosterRenderData { rosterWeek, rosterDays, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
+                    respondWithRosterWeekView
+                        ShowView
+                            { rosterWeek = Just rosterWeek
+                            , rosterDays
+                            , weekOffset
+                            , weekStartDate
+                            , weekEndDate
+                            , staffMembers
+                            , panelStaff
+                            , slotNames = orderedSlotNames
+                            , allSlots
+                            , slotConflicts
+                            , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, weekOffset })
+                            }
+                Nothing ->
+                    error "Visible roster week should exist after ensureRosterWeekExists"
+        Nothing -> do
+            (_, rosterDays, _, orderedSlotNames, maskedSlots) <- fetchHiddenRosterRenderData weekOffset
             respondWithRosterWeekView
                 ShowView
                     { rosterWeek = Nothing
-                    , rosterDays = []
+                    , rosterDays
                     , weekOffset
                     , weekStartDate
                     , weekEndDate
                     , staffMembers = []
                     , panelStaff = []
-                    , slotNames = []
-                    , allSlots = []
+                    , slotNames = orderedSlotNames
+                    , allSlots = maskedSlots
                     , slotConflicts = []
                     , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, weekOffset })
                     }
@@ -580,6 +498,7 @@ data RosterRenderData = RosterRenderData
 
 fetchRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (Maybe RosterRenderData)
 fetchRosterRenderData weekOffset = do
+    _ <- ensureRosterWeekExists weekOffset
     venueConfig <- fetchVenueConfig
     let epoch = venueConfig.weekOffsetEpoch
     let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) epoch
@@ -622,11 +541,25 @@ fetchVisibleRosterRenderData :: (?context :: ControllerContext, ?modelContext ::
 fetchVisibleRosterRenderData weekOffset = do
     visibleRosterWeek <- fetchVisibleRosterWeek weekOffset
     case visibleRosterWeek of
-        Nothing -> pure Nothing
+        Nothing -> do
+            (backingRosterWeek, rosterDays, weekStartDate, orderedSlotNames, maskedSlots) <- fetchHiddenRosterRenderData weekOffset
+            pure $
+                Just
+                    RosterRenderData
+                        { rosterWeek = backingRosterWeek
+                        , rosterDays
+                        , weekStartDate
+                        , staffMembers = []
+                        , panelStaff = []
+                        , orderedSlotNames
+                        , allSlots = maskedSlots
+                        , slotConflicts = []
+                        }
         Just _  -> fetchRosterRenderData weekOffset
 
 fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (Maybe RosterWeek)
 fetchVisibleRosterWeek weekOffset = do
+    _ <- ensureRosterWeekExists weekOffset
     rosterWeekOrNothing <-
         query @RosterWeek
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -635,7 +568,7 @@ fetchVisibleRosterWeek weekOffset = do
 
     pure $
         case rosterWeekOrNothing of
-            Just rosterWeek | rosterWeek.isLive || hasRole ManagerRole' -> Just rosterWeek
+            Just rosterWeek | get #isLive rosterWeek || hasRole ManagerRole' -> Just rosterWeek
             _ -> Nothing
 
 fetchVisibleRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (Maybe [RosterStaffPanelEntry])
@@ -726,6 +659,114 @@ fetchRosterStaffPanelEntries staffMembers allSlots = do
                     , assignedShiftCount
                     , userRole = roleText
                     }
+
+ensureRosterWeekExists :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (RosterWeek, Bool)
+ensureRosterWeekExists weekOffset = do
+    existing <- query @RosterWeek
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#weekOffset, weekOffset)
+        |> fetchOneOrNothing
+    case existing of
+        Just rosterWeek -> pure (rosterWeek, False)
+        Nothing -> do
+            rosterWeek <- createEmptyRosterWeek weekOffset
+            pure (rosterWeek, True)
+
+createEmptyRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO RosterWeek
+createEmptyRosterWeek weekOffset = do
+    slotNames <- query @SlotName
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#isActive, True)
+        |> fetch
+    let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
+
+    rosterWeek <- newRecord @RosterWeek
+        |> set #venueId (unpackId currentVenueId)
+        |> set #weekOffset weekOffset
+        |> set #isLive False
+        |> createRecord
+
+    forM_ [0 .. 6] \dayOffset -> do
+        rosterDay <- newRecord @RosterDay
+            |> set #rosterWeekId (coerce (get #id rosterWeek))
+            |> set #dayOffset dayOffset
+            |> createRecord
+
+        forM_ [0 .. 4] \rowIndex ->
+            forM_ orderedSlotNames \slotName -> do
+                newRecord @RosterSlot
+                    |> set #rosterDayId (coerce (get #id rosterDay))
+                    |> set #slotNameId (coerce (get #id slotName))
+                    |> set #rowIndex rowIndex
+                    |> createRecord
+
+    pure rosterWeek
+
+copyRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWeek -> Int -> IO RosterWeek
+copyRosterWeek sourceWeek targetWeekOffset = do
+    targetWeek <- newRecord @RosterWeek
+        |> set #venueId (unpackId currentVenueId)
+        |> set #weekOffset targetWeekOffset
+        |> set #isLive False
+        |> createRecord
+
+    sourceDays <- query @RosterDay
+        |> filterWhere (Proxy @"rosterWeekId", coerce (get #id sourceWeek))
+        |> fetch
+
+    forM_ [0 .. 6] \dayOffset -> do
+        targetDay <- newRecord @RosterDay
+            |> set #rosterWeekId (coerce (get #id targetWeek))
+            |> set #dayOffset dayOffset
+            |> createRecord
+
+        let maybeSourceDay = find (\day -> get #dayOffset day == dayOffset) sourceDays
+        case maybeSourceDay of
+            Just sourceDay -> do
+                sourceSlots <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, coerce (get #id sourceDay))
+                    |> fetch
+                forM_ sourceSlots \slot -> do
+                    newRecord @RosterSlot
+                        |> set #rosterDayId (coerce (get #id targetDay))
+                        |> set #staffId slot.staffId
+                        |> set #slotNameId slot.slotNameId
+                        |> set #rowIndex slot.rowIndex
+                        |> set #startTime slot.startTime
+                        |> set #durationMinutes slot.durationMinutes
+                        |> set #note slot.note
+                        |> createRecord
+                    pure ()
+            Nothing -> pure ()
+
+    pure targetWeek
+
+fetchHiddenRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [SlotName], [RosterSlot])
+fetchHiddenRosterRenderData weekOffset = do
+    rosterDataOrNothing <- fetchRosterRenderData weekOffset
+    case rosterDataOrNothing of
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, orderedSlotNames, allSlots } ->
+            pure (rosterWeek, rosterDays, weekStartDate, orderedSlotNames, maskRosterSlots rosterWeek allSlots)
+        Nothing -> error "Roster week should exist after ensureRosterWeekExists"
+
+fetchHiddenRosterWeekSkeleton :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (RosterWeek, [RosterDay], [SlotName], [RosterSlot])
+fetchHiddenRosterWeekSkeleton weekOffset = do
+    (rosterWeek, rosterDays, _, orderedSlotNames, maskedSlots) <- fetchHiddenRosterRenderData weekOffset
+    pure (rosterWeek, rosterDays, orderedSlotNames, maskedSlots)
+
+maskRosterSlots :: (?context :: ControllerContext) => RosterWeek -> [RosterSlot] -> [RosterSlot]
+maskRosterSlots rosterWeek slots =
+    if get #isLive rosterWeek || hasRole ManagerRole'
+        then slots
+        else map maskSlot slots
+    where
+        maskSlot slot =
+            slot
+                |> set #staffId Nothing
+                |> set #startTime Nothing
+                |> set #durationMinutes Nothing
+                |> set #note Nothing
+
 
 renderRequestedRow rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (rosterDayUuid, targetRowIndex) = do
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays

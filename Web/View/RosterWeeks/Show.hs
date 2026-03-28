@@ -56,19 +56,34 @@ renderRosterWeekShell ShowView { .. } = [hsx|
              data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
              data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
              data-live-update-week-offset={liveUpdateWeekOffsetText =<< liveUpdateScope}>
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-4">
             <div>
                 <h1 class="mb-0">Roster Starting {formatDateDisplay weekStartDate}</h1>
             </div>
-            <div class="d-flex gap-2 align-items-center">
-                {renderWeekNavigationLink "<" (pathTo (ShowRosterWeekAction (weekOffset - 1)))}
-                {renderWeekNavigationLink "this week" (pathTo RosterWeeksAction)}
-                {renderWeekNavigationLink ">" (pathTo (ShowRosterWeekAction (weekOffset + 1)))}
-            </div>
+            {renderRosterWeekControls weekOffset}
         </div>
 
         {renderRosterContentFragment rosterWeek rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts}
     </section>
+|]
+
+renderRosterWeekControls :: (?context :: ControllerContext) => Int -> Html
+renderRosterWeekControls weekOffset = [hsx|
+    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-xl-end">
+        <div class="btn-group" role="group" aria-label="Roster week navigation">
+            {renderWeekNavigationLink "<" (pathTo (ShowRosterWeekAction (weekOffset - 1)))}
+            {renderWeekNavigationLink "this week" (pathTo RosterWeeksAction)}
+            {renderWeekNavigationLink ">" (pathTo (ShowRosterWeekAction (weekOffset + 1)))}
+        </div>
+        {when currentUserIsManager (renderRosterWeekManagerControls weekOffset)}
+    </div>
+|]
+
+renderRosterWeekManagerControls :: (?context :: ControllerContext) => Int -> Html
+renderRosterWeekManagerControls weekOffset = [hsx|
+    <div class="d-flex flex-wrap gap-2 align-items-center" data-roster-week-controls="manager-actions">
+        {renderCopyPreviousWeekForm weekOffset}
+    </div>
 |]
 
 renderWeekNavigationLink :: Text -> Text -> Html
@@ -101,26 +116,20 @@ renderRosterContentFragmentWithSwap maybeSwapOob rosterWeek rosterDays weekOffse
 |]
 
 renderRosterContent :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
-renderRosterContent Nothing _ weekOffset _ _ _ _ _ _ = [hsx|
-    <div class="alert alert-info d-flex justify-content-between align-items-center shadow-sm">
-        <div>
-            <strong class="d-block mb-1">No roster exists for this week yet.</strong>
-            <p class="mb-0 app-muted small">This week is currently empty. You can create a draft to start assigning staff.</p>
-        </div>
-        {when currentUserIsManager (renderCreateForm weekOffset)}
-    </div>
-|]
+renderRosterContent Nothing rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts =
+    renderRosterGrid Nothing rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts
 
-renderRosterContent (Just rosterWeek) rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts = [hsx|
+renderRosterContent (Just rosterWeek) rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts =
+    renderRosterGrid (Just rosterWeek) rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts
+
+renderRosterGrid :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
+renderRosterGrid maybeRosterWeek rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts = [hsx|
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
             <div class="card shadow-sm mb-5 mb-xl-0">
                 <div class="card-header d-flex justify-content-between align-items-center py-3">
-                    <div class="d-flex align-items-center gap-3">
-                        <span class="fw-bold">Status:</span>
-                        {renderStatusBadge rosterWeek.isLive}
-                    </div>
-                    {when (not rosterWeek.isLive && currentUserIsManager) (renderPublishForm rosterWeek)}
+                    {renderRosterStatusSummary maybeRosterWeek}
+                    {renderPublishAction maybeRosterWeek}
                 </div>
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm mb-0 align-middle roster-grid">
@@ -143,6 +152,22 @@ renderRosterContent (Just rosterWeek) rosterDays weekOffset staffMembers panelSt
         {renderRosterStaffPanelFragment weekOffset panelStaff}
     </div>
 |]
+
+renderRosterStatusSummary :: Maybe RosterWeek -> Html
+renderRosterStatusSummary maybeRosterWeek = [hsx|
+    <div class="d-flex align-items-center gap-3">
+        <span class="fw-bold">Status:</span>
+        {renderRosterStatusBadge maybeRosterWeek}
+    </div>
+|]
+
+renderRosterStatusBadge :: Maybe RosterWeek -> Html
+renderRosterStatusBadge (Just rosterWeek) = renderStatusBadge rosterWeek.isLive
+renderRosterStatusBadge Nothing = [hsx|<span class="badge bg-secondary shadow-sm px-3 py-2">Hidden Until Published</span>|]
+
+renderPublishAction :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
+renderPublishAction (Just rosterWeek) = when (not rosterWeek.isLive && currentUserIsManager) (renderPublishForm rosterWeek)
+renderPublishAction Nothing = mempty
 
 renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragment =
@@ -439,30 +464,19 @@ renderStatusBadge isLive =
         then [hsx|<span class="badge bg-success shadow-sm px-3 py-2">Live / Published</span>|]
         else [hsx|<span class="badge bg-warning text-dark shadow-sm px-3 py-2">Draft Mode</span>|]
 
-renderCreateForm :: Int -> Html
-renderCreateForm weekOffset = [hsx|
-    <div class="d-flex gap-2">
-        <form method="POST"
-              action={CopyRosterWeekAction (weekOffset - 1) weekOffset}
-              data-disable-javascript-submission="true"
-              hx-post={CopyRosterWeekAction (weekOffset - 1) weekOffset}
-              hx-target={"#" <> rosterContentFragmentId}
-              hx-swap="outerHTML"
-              hx-push-url="false"
-              hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-            <button type="submit" class="btn btn-outline-primary px-4 py-2">Copy Previous Week</button>
-        </form>
-        <form method="POST"
-              action={CreateRosterWeekAction weekOffset}
-              data-disable-javascript-submission="true"
-              hx-post={CreateRosterWeekAction weekOffset}
-              hx-target={"#" <> rosterContentFragmentId}
-              hx-swap="outerHTML"
-              hx-push-url="false"
-              hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-            <button type="submit" class="btn btn-primary px-4 py-2">Create Draft Roster</button>
-        </form>
-    </div>
+renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Html
+renderCopyPreviousWeekForm weekOffset = [hsx|
+    <form method="POST"
+          action={CopyRosterWeekAction (weekOffset - 1) weekOffset}
+          data-disable-javascript-submission="true"
+          hx-post={CopyRosterWeekAction (weekOffset - 1) weekOffset}
+          hx-target={"#" <> rosterContentFragmentId}
+          hx-swap="outerHTML"
+          hx-push-url="false"
+          hx-sync={"#" <> rosterWeekShellId <> ":replace"}
+          hx-confirm="This will overwrite the current week with the previous week's roster. Continue?">
+        <button type="submit" class="btn btn-outline-primary">Copy Previous Week</button>
+    </form>
 |]
 
 renderPublishForm :: RosterWeek -> Html

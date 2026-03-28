@@ -64,18 +64,46 @@ tests = beforeAll testContext do
             response <- callAction (UpdateRosterSlotAction "22222222-2222-2222-2222-222222222222")
             response `responseStatusShouldBe` status302
 
-        it "staff cannot see draft weeks (treats as empty/non-existent)" $ withContext do
+        it "visiting a missing week auto-creates an empty draft roster" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-auto-create@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createSlotNameRecord venue "Early"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                createdWeek <- query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 0)
+                    |> fetchOne
+                createdWeek.isLive `shouldBe` False
+                createdDays <- query @RosterDay
+                    |> filterWhere (#rosterWeekId, unpackId createdWeek.id)
+                    |> fetch
+                length createdDays `shouldBe` 7
+                createdSlots <- query @RosterSlot
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) createdDays)
+                    |> fetch
+                length createdSlots `shouldBe` 35
+                response `responseBodyShouldNotContain` "No roster exists for this week yet."
+
+        it "staff cannot see draft weeks but still gets the roster shell" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-staff-draft@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createSlotNameRecord venue "Early"
                 _ <- createRosterWeekRecord venue 0 False
 
                 response <- withUser user do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "No roster exists for this week yet."
+                response `responseBodyShouldContain` "Hidden Until Published"
+                response `responseBodyShouldContain` "roster-grid"
                 response `responseBodyShouldNotContain` "Draft Mode"
 
         it "empty roster pages still expose live-update scope metadata" $ withContext do
@@ -83,6 +111,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-empty-live-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createSlotNameRecord venue "Early"
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -129,19 +158,22 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Crew, Alpha"
                 response `responseBodyShouldContain` "hx-post=\"/PublishRosterWeek?rosterWeekId="
 
-        it "manager empty roster pages render HTMX create controls" $ withContext do
+        it "manager roster pages render reusable week controls in the header" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createSlotNameRecord venue "Early"
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "hx-post=\"/CreateRosterWeek?weekOffset=0\""
                 response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0\""
+                response `responseBodyShouldContain` "data-roster-week-controls=\"manager-actions\""
+                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldNotContain` "Create Draft Roster"
 
         it "manager can create a draft week via HTMX without redirecting" $ withContext do
             withCleanDb do
@@ -263,7 +295,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Alpha Crew"
                 response `responseBodyShouldContain` "1"
 
-        it "staff row fragment fetch stays empty for a draft week" $ withContext do
+        it "staff row fragment fetch returns a masked row for a draft week" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 staffUser <- createUserRecord "roster-staff-row-fragment@example.com" "staff" True
@@ -281,7 +313,8 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 let rowId = cs (rosterRowDomIdText rosterDay.id 0) :: String
-                bodyText `shouldNotContain` rowId
+                bodyText `shouldContain` rowId
+                bodyText `shouldNotContain` "Crew, Alpha"
 
         it "manager can copy a week and it is created as draft with copied slots" $ withContext do
             withCleanDb do
@@ -332,6 +365,67 @@ tests = beforeAll testContext do
                 copiedSlot.startTime `shouldBe` Just (timeOfDay 9 0)
                 copiedSlot.durationMinutes `shouldBe` Just 480
                 copiedSlot.note `shouldBe` Just "Copied note"
+
+        it "manager can overwrite an existing target week with the previous roster" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-copy-overwrite@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                early <- createSlotNameRecord venue "Early"
+                late <- createSlotNameRecord venue "Late"
+                alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
+                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
+
+                sourceWeek <- createRosterWeekRecord venue 0 True
+                sourceDay <- createRosterDayRecord sourceWeek 0
+                sourceSlot <- createRosterSlotRecord sourceDay early (Just alpha) 0
+                _ <- updateRecord
+                    ( sourceSlot
+                        |> set #startTime (Just (timeOfDay 8 0))
+                        |> set #durationMinutes (Just 300)
+                        |> set #note (Just "From source")
+                    )
+
+                targetWeek <- createRosterWeekRecord venue 1 False
+                targetDay <- createRosterDayRecord targetWeek 0
+                targetSlot <- createRosterSlotRecord targetDay late (Just bravo) 0
+                _ <- updateRecord
+                    ( targetSlot
+                        |> set #startTime (Just (timeOfDay 14 0))
+                        |> set #durationMinutes (Just 180)
+                        |> set #note (Just "Old target")
+                    )
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (CopyRosterWeekAction 0 1)
+
+                response `responseStatusShouldBe` status302
+
+                targetWeeks <- query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 1)
+                    |> fetch
+                length targetWeeks `shouldBe` 1
+
+                copiedWeek <- query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 1)
+                    |> fetchOne
+                copiedDay <- query @RosterDay
+                    |> filterWhere (#rosterWeekId, unpackId copiedWeek.id)
+                    |> filterWhere (#dayOffset, 0)
+                    |> fetchOne
+                copiedSlots <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId copiedDay.id)
+                    |> fetch
+
+                length copiedSlots `shouldBe` 1
+                let copiedSlot = fromJust (head copiedSlots)
+                copiedSlot.staffId `shouldBe` Just (unpackId alpha.id)
+                copiedSlot.slotNameId `shouldBe` unpackId early.id
+                copiedSlot.startTime `shouldBe` Just (timeOfDay 8 0)
+                copiedSlot.durationMinutes `shouldBe` Just 300
+                copiedSlot.note `shouldBe` Just "From source"
 
         it "returns a roster content patch when a slot assignment changes" $ withContext do
             withCleanDb do
