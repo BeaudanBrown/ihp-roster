@@ -24,8 +24,9 @@
 
 ## App Navigation Conventions
 - Global authenticated navigation lives in `Web/View/Layout.hs` and is rendered on every authenticated page
-- Header button order is: `roster`, `profile`, `timesheets`, `leave`, `admin`, `logout`
+- Header button order is: `roster`, `profile`, `timesheets`, `leave`, `admin`, `support`, `logout`
 - `admin` is role-gated (admin-only visibility); `timesheets` and `admin` may route to placeholder pages until fully implemented
+- `support` is founder-only and should be rendered only for `currentUserIsSupportAdmin`
 - Auth pages (sign in/sign up/welcome) should not show the authenticated header
 
 ## Roster Week Navigation Conventions
@@ -114,6 +115,8 @@ Available scripts:
 - **`lint`** — Run hlint on app sources. Provides suggestions for idiomatic Haskell.
 - **`format`** — Format app sources with stylish-haskell (config in `.stylish-haskell.yaml`).
 - **`ghci-app`** — Launch GHCi with the full app loaded for testing expressions interactively.
+- **`seed-payroll-fixture [app|app_test] [--reset]`** — Seed the richer payroll exploration dataset for manual inspection, projected onto the app's current week. The low-level script still defaults to `app`; `app_test` rebuilds the isolated test DB first, and `app --reset` refreshes the dev DB before loading the fixture.
+- **`just seed-payroll`** — Human-friendly default for manual payroll exploration. This always resets `app` first, then seeds the current-week payroll fixture so the running dev app reflects the seeded venue immediately.
 - **`new-controller NAME`** — IHP code generator that scaffolds controller, views, types, and routes. Prefer this for new CRUD controllers, then customize.
 - **`e2e`** — Run Playwright end-to-end tests against an isolated `app_test` database and a temporary app server on the next free local IHP dev port. Accepts playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). The local Postgres socket still needs to be available, but this wrapper no longer reuses the normal dev app/database.
 - **`screenshot`** — Take a screenshot of a page. Usage: `screenshot http://localhost:8000/Dashboard dash.png`. Requires `devenv up` running.
@@ -122,7 +125,9 @@ Available scripts:
 - **`dev-stop`** — Stop background server started by `dev-start`. If the app is healthy but was started outside `dev-start`, it reports `healthy but unmanaged` and does not kill it.
 - **`dev-status`** — Health check for background dev server (process/socket + DB + HTTP). In restricted sandboxes it may report `*_blocked=true` and still succeed when the process is running. Permission-denied detection uses the Nix-provided `ripgrep` binary from the dev shell, so run it through `bash ./bin/in-env` unless you are already inside the shell.
 - **`dev-wait [seconds]`** — Wait until `dev-status` is healthy (default timeout: 90s). On timeout it prints `dev-status` plus recent `.devenv/agent/devenv.log` lines for debugging.
+- The background wrapper state for `dev-start`/`dev-stop`/`dev-status` now prefers `$XDG_RUNTIME_DIR/ihp-roster-dev` (or `DEVENV_AGENT_STATE_DIR` if set) instead of the repo tree. This avoids Syncthing or shared-working-tree conflicts on volatile pid/socket files. The old repo-local `.devenv/agent` path is only a fallback when no runtime dir is available.
 - The app runs via `devenv up` — it auto-reloads on file changes, so you can check the browser for runtime behavior.
+- A thin human-facing `justfile` exists for interactive use inside the already-activated dev shell. Treat it as aliases only (`just dev`, `just db`, `just test`, `just e2e`, etc.); keep the real command logic in the flake/devenv scripts instead of duplicating it in `justfile`.
 
 For reliable non-interactive automation, prefer:
 
@@ -160,6 +165,7 @@ For simple CRUD, prefer running `new-controller NAME` to scaffold all files, the
 - The IHP schema-designer toast about `Unmigrated Changes` is not an authoritative sync check in this repo; it is driven by the IDE migration workflow state and can stay stale even after `make db`. Treat `make db` plus explicit DB/startup verification as the real source of truth.
 - **After adding/changing controllers**: `bash ./bin/in-env test` to run the test suite
 - **After UI/integration changes**: `bash ./bin/in-env e2e` to run end-to-end tests against the isolated test DB/server
+- `bash ./bin/in-env test` and `bash ./bin/in-env e2e` both rebuild the shared `app_test` database. Do not run multiple test/e2e commands concurrently unless you first isolate them onto different database names.
 - **Before committing**: `bash ./bin/in-env lint` then `bash ./bin/in-env format`
 - **To confirm DB is in sync**: `psql -h "$PWD/build/db" app -c "\dt"` — all tables in `Schema.sql` should be present
 
@@ -229,4 +235,6 @@ Playwright-based end-to-end tests live in `e2e/` and run against an isolated tem
 
 ## Auth Model Notes
 - Current business authority is venue-scoped. `venue_memberships.venue_role` is what grants manager/admin access; `users.user_role = 'admin'` is not a cross-venue superuser.
-- If founder/sysadmin access across all venues is added later, model it as a separate platform-level capability such as `platform_admin` / `super_admin` instead of overloading venue roles.
+- Founder/sysadmin support access is now modelled separately on `users.platform_role = 'super_admin'`. Do not overload venue roles or create synthetic `venue_memberships` for cross-venue support access.
+- Request-scoped support mode is represented by a real `currentVenue` plus `currentVenueMembershipOrNothing = Nothing` and `currentUserIsSuperAdmin = True`. Keep that shape intact so audit/UI layers can distinguish support access from ordinary venue membership access.
+- The support switch surface lives on a dedicated `SupportController`. Keep venue switching there instead of stretching venue admin/export pages into cross-venue tooling.

@@ -95,8 +95,9 @@ renderForm post = formFor post [hsx|
 
 ## Global Header Pattern
 - Authenticated navigation is centralized in `Web/View/Layout.hs` (`renderAppHeader`) so every signed-in page gets the same header.
-- Keep nav button labels/order consistent: `roster`, `profile`, `timesheets`, `leave`, `admin`, `logout`.
+- Keep nav button labels/order consistent: `roster`, `profile`, `timesheets`, `leave`, `admin`, `support`, `logout`.
 - Keep `admin` link visibility role-gated (admin only) via `currentUserIsAdmin`.
+- Keep `support` link visibility founder-only via `currentUserIsSupportAdmin`; do not expose it to ordinary venue admins.
 - Do not duplicate primary nav in page-level views unless there is a specific workflow reason.
 - Logout and other destructive actions should be explicit forms, not `.js-delete` links. Prefer `method="POST"` plus hidden `_method="DELETE"` so the control works without `helpers.js`; add HTMX attributes only when the surrounding page already needs an in-place update.
 - For low-frequency full-page forms, prefer plain native browser submission. If a form is only serving as a full-page workflow, do not turn it into HTMX or a custom AJAX path by default.

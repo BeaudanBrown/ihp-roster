@@ -20,11 +20,31 @@ Useful patterns:
 
 - `tests = beforeAll testContext do ...`
 - `withContext do withCleanDb do ...` to reset the DB between examples
-- `createVenueWithConfig`, `createUserRecord`, `createVenueMembershipRecord`, `createStaffRecord`, and related helpers to seed only the rows the example needs
+- `createVenueWithConfig`, `createUserRecord`, `createUserRecordWithPlatformRole`, `createVenueMembershipRecord`, `createStaffRecord`, and related helpers to seed only the rows the example needs
 - `withUserAndCurrentVenue user venueId do ...` when the request needs both authenticated user session and `currentVenueId`
 - `withControllerTestContext do ...` when the test needs a real `ControllerContext`, e.g. to call `beforeLogin` and then `getSession`
 
 `withCleanDb` should leave the test database truly empty. If automation must preserve bootstrap/manual accounts, solve that by running tests against an isolated database instead of weakening `withCleanDb`.
+
+For payroll/report export correctness, prefer a dedicated parity spec with:
+
+- reusable fixture builders under `Test/Support/`
+- committed expected outputs under `Test/Fixtures/exports/`
+- exact CSV/ZIP comparisons
+
+Use browser tests only to prove the exports workflow still works. Keep detailed payroll-number validation in fast controller-level specs.
+
+Current product scope for payroll verification is one canonical payroll CSV for the primary/only venue staff group. If historical filtered variants such as `kitchen` remain in tests, keep them explicitly marked as regression-only rather than treating them as the active product target.
+
+The canonical payroll parity suite in `Test/Controller/PayrollExportParitySpec.hs` is the main correctness oracle for that export. Keep it focused on:
+
+- exact `staff_hours` CSV output
+- approved vs unapproved and trial-row inclusion boundaries
+- break-adjusted day totals and overnight bucketing
+- snapshot-pinned stability after live pay-config changes
+- mixed-snapshot export metadata when approved entries span versions
+
+For manual inspection, `seed-payroll-fixture` loads a richer exploration dataset outside the test suite. Keep the exact parity fixture stable for controller/golden tests, while the manual script projects a broader multi-user week onto the current app week for easier browser exploration. The human default is `just seed-payroll`, which now resets `app` before seeding so manual browser checks start from a known state. Keep `Test/Support/PayrollFixtures.hs` reusable from both paths without letting the manual fixture weaken deterministic parity assertions.
 
 Example shape:
 
@@ -129,6 +149,8 @@ Do not add new `pendingWith "requires real DB"` placeholders for normal controll
 `IHP.Test.Mocking.withUser` only seeds the login session key. If the app depends on additional session state, add it through `withSessionValues`/`withUserAndCurrentVenue` in `Test/Support.hs`.
 
 This matters for venue-scoped auth because `beforeLogin` writes `currentVenueId`, and request init reads that session value back on subsequent requests.
+
+For founder support-access tests, prefer `createUserRecordWithPlatformRole ... (Just SuperAdminRole)` plus `withUserAndCurrentVenue` on a foreign venue instead of creating fake cross-venue memberships. The request context should then resolve `currentVenue` with `currentVenueMembershipOrNothing = Nothing`.
 
 - For HTML scoping assertions, avoid broad `responseBodyShouldNotContain` checks on generic UI text that also appears in static controls (for example weekday names in a shared `<select>`). Prefer row-specific combined labels or unique seeded names.
 - When a spec seeds prerequisite rows and then creates more rows of the same table, query the created record by a unique field (or explicit ordering) instead of bare `fetchOne`, which may return the older fixture row.

@@ -71,6 +71,16 @@ await loginAs(page, 'e2e-test@example.com', 'test-password-123');
 ```
 
 `gotoWhenReady` retries the navigation until the expected selector appears instead of failing on the temporary `Is compiling` page. `loginAs` wraps the seeded login flow and waits for the post-login roster shell.
+`gotoWhenReady` also retries transient `ERR_CONNECTION_REFUSED` startup races from the temporary E2E app server instead of failing immediately on the first `page.goto`.
+
+For payroll/export coverage, the shared helpers in `e2e/test-helpers.ts` also provide:
+
+- `gotoExports(page)` for the exports-page shell
+- `currentReportWeek(page)` and `shiftExportWeek(page, ...)` for report-week navigation
+- `generatePayrollReport(page, reportName)` for the native report-generation forms
+- `downloadExport(page, fileName)` for the recent-exports table
+- `readDownloadText`, `listZipEntries`, and `readZipEntryText` for real file-content assertions
+- `parseCsv(text)` for simple CSV sanity checks without duplicating parsing logic in specs
 
 ### UI behavior expectations worth covering
 - For HTMX week pagers, assert both the shell swap and that no full page navigation occurred by preserving a `window` marker across clicks.
@@ -99,6 +109,10 @@ test('authenticated feature', async ({ page }) => {
 - All e2e test data uses the **`e2e-` prefix** on emails and identifiers
 - The seeded manager is `e2e-test@example.com`, the seeded venue admin is `e2e-admin@example.com`, and the seeded worker is `e2e-worker@example.com`; all use password `test-password-123`
 - Auth now also requires seeded `venues`, `venue_config`, and `venue_memberships` for the login user. A bare user row is not enough.
+- The export/payroll fixture is seeded for the current report week in `e2e/fixtures/seed.sql`:
+  - alpha venue has active `wage`, `staff_hours`, and `kitchen` report definitions
+  - alpha venue has deterministic approved entries that produce visible CSV/ZIP content for those reports
+  - beta venue has distinct payroll config for future cross-venue authorization coverage
 - `global-teardown.ts` deletes all users with `email LIKE 'e2e-%'` after tests complete
 - If a spec creates worker-owned leave or timesheet rows, teardown must delete those rows before deleting dependent `pay_config_snapshots` or user rows
 - To add more fixture data, add SQL to `e2e/fixtures/seed.sql` using the `e2e-` prefix

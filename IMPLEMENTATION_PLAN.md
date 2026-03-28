@@ -20,6 +20,8 @@ Business requirements remain canonical in `specs/`.
   - `plans/20-roster-and-conflicts.md`
   - `plans/30-timesheets-and-leave.md`
   - `plans/40-pay-config-and-admin.md`
+  - `plans/45-payroll-report-exports.md`
+  - `plans/48-super-admin-support-access.md`
   - `plans/50-release-readiness.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
@@ -41,6 +43,7 @@ The current high-priority business-logic decisions are:
 - payroll-adjacent records use correction-safe history
 - pay/config history uses immutable snapshot versions created by venue admin bulk-save actions
 - a future founder-only cross-venue `super_admin` / `platform_admin` capability should be modelled separately from venue roles, not by stretching `users.user_role` or `venue_memberships.venue_role`
+- the active founder support-access lane should reuse the existing `currentVenueId` session slot through a dedicated support surface rather than inventing synthetic venue memberships
 
 ## Status Legend
 
@@ -68,7 +71,10 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 5. Roster and conflict UX expansion
    - Plan: `plans/20-roster-and-conflicts.md`
    - Can proceed in parallel where it does not conflict with auth/scoping changes.
-6. Release readiness, hardening, and acceptance sweep
+6. Payroll report export parity
+   - Plan: `plans/45-payroll-report-exports.md`
+   - Depends on pay/config snapshot foundations and should reuse export job primitives instead of ad hoc report endpoints.
+7. Release readiness, hardening, and acceptance sweep
    - Plan: `plans/50-release-readiness.md`
    - Depends on the foundations above.
 
@@ -104,6 +110,12 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **Focus:** SQL pay engine, immutable pay/config snapshot versions, and the venue admin bulk-edit/save workflow.
 - **Progress:** A.7 and 7.1 are complete. The app now stores immutable `pay_config_snapshots`, binds approved timesheets to snapshot versions, carries snapshot version metadata on exports, keeps approved pay calculations stable after later config changes, and exposes venue-scoped admin config-table screens for pay levels, shift types, pay-level day rules, slot names, and day names. Venue configuration editing and wage/hour summaries remain open.
 
+### Pipeline 45 — Payroll Report Exports
+- **Status:** [-]
+- **File:** `plans/45-payroll-report-exports.md`
+- **Focus:** legacy Go payroll report parity on top of `export_jobs`, snapshot-pinned pay output, and a venue-scoped report-definition model.
+- **Progress:** parity inventory and SQL-fit assessment are now captured; implementation still needs the report-definition model, pay-engine fixes for actual shift-type/pay-level resolution, the first staff-pay CSV, the hourly ZIP, and admin/report configuration UI.
+
 ### Pipeline 50 — Release Readiness
 - **Status:** [ ]
 - **File:** `plans/50-release-readiness.md`
@@ -115,6 +127,7 @@ These pipelines can overlap when they respect the dependency constraints above:
 
 - `plans/20-roster-and-conflicts.md` can progress in parallel with auth/scoping work if it does not reintroduce global-role or cross-venue assumptions.
 - `plans/30-timesheets-and-leave.md` can progress alongside `plans/40-pay-config-and-admin.md` once the snapshot/version contract is fixed.
+- `plans/45-payroll-report-exports.md` can progress once the pay snapshot contract is fixed, but it should not hardcode legacy report variants into controller actions; keep the report-definition model in step with the export engine work.
 - `plans/50-release-readiness.md` should mostly trail the others, but test additions can happen incrementally.
 
 ## Read Order For Agents

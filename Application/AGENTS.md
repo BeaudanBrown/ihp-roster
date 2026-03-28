@@ -34,7 +34,12 @@ After editing the schema you must do **two things**:
 
 `make db` drops and recreates the entire database from `Schema.sql` + `Fixtures.sql`. This is safe in development. **Without running `make db` the app will crash at runtime with "relation does not exist"** even if typecheck passes.
 
-`Application/Fixtures.sql` should also keep a deterministic dev bootstrap login so a fresh `make db` always leaves at least one known manual-test account available. In this repo the intended founder/sysadmin bootstrap email is `beaudan.brown@gmail.com`; the fixture must seed an active `venue_memberships` row with `venue_role = 'venue_owner'` or `venue_role = 'venue_admin'` in the default dev venue. Do not assume `users.user_role = 'admin'` is sufficient, because runtime authorization is venue-scoped.
+`Application/Fixtures.sql` should also keep a deterministic dev bootstrap login so a fresh `make db` always leaves at least one known manual-test account available. In this repo the intended founder/sysadmin bootstrap email is `beaudan.brown@gmail.com`; the fixture must seed:
+
+- `users.platform_role = 'super_admin'` for the founder account
+- an active `venue_memberships` row with `venue_role = 'venue_owner'` or `venue_role = 'venue_admin'` in the default dev venue
+
+Do not assume `users.user_role = 'admin'` is sufficient, because runtime authorization remains venue-scoped for ordinary access.
 
 Treat fixture rows as deliberate bootstrap data, not throwaway local-only seeds. This repo's production Nix config also references `Application/Fixtures.sql`, so bootstrap accounts added here can affect any freshly initialized deployed database as well.
 
@@ -42,7 +47,7 @@ The IHP schema-designer toast `Unmigrated Changes. Your app database is not in s
 
 For schema work that adds enums or constraints, also do a real startup verification after `make db`: restart the dev server (`dev-stop`, `dev-start`, `dev-wait`) and confirm it reaches healthy status. `typecheck` and the test suite validate `Application/Schema.sql` and generated types, but they do not catch every parser failure triggered by IHP re-reading `pg_dump` output on boot.
 
-Future auth direction: if product requirements need founder-wide cross-venue support, add a separate platform-level capability such as `platform_admin` / `super_admin`. Keep that distinct from venue business roles like `manager`, `venue_admin`, and `venue_owner`.
+Current auth direction: founder-wide cross-venue support uses a separate platform-level capability on `users` (`platform_role = 'super_admin'`). Keep that distinct from venue business roles like `manager`, `venue_admin`, and `venue_owner`; do not model support access as synthetic `venue_memberships`.
 
 To verify the schema is applied, connect to the dev DB and check:
 ```bash
@@ -55,9 +60,30 @@ psql -h "$PWD/build/db" app -c "\dt"
 - These are already imported via `Web.Controller.Prelude` and `Web.View.Prelude`
 - Keep durable audit writes centralized in `Application/Helper/Controller.hs`; prefer one append-only `audit_events` helper that stores structured `JSONB` payloads and call it inside the same `withTransaction` as the sensitive mutation.
 - Keep export generation/download flow centralized in `Application/Helper/Export.hs`; controllers should delegate venue-scoped export creation, expiry checks, and audit emission there instead of hand-rolling ad hoc CSV endpoints.
+- Keep payroll report selection separate from export-job lifecycle. Venue-scoped report definitions (slug, engine, description, optional shift-type filters) should decide which report a venue can request; `export_jobs` should remain the request/generation/download/audit record for the concrete file instance.
+- Legacy payroll parity currently maps venue report definitions like this:
+  - `staff_hours` and filtered variants such as `kitchen` use `staff_pay_csv`
+  - `wage` uses `hourly_breakdown_zip`
+  - manager-role users may generate report exports, but only venue admins may create or update report definitions
+- Current product focus is narrower than the full legacy inventory:
+  - the only active payroll-export target is one canonical `staff_hours`-style CSV for the primary/only venue staff group
+  - filtered variants such as `kitchen` are historical/regression behavior, not the first-class current requirement
+  - future multiple staff-group or multiple roster-group payroll exports should be treated as a separate later product lane, not implied by the current CSV hardening work
+- `export_jobs.file_contents` remains text-backed even for binary reports. Store ZIP payloads base64-encoded with `file_encoding = "base64"` and decode them only in the download path; keep plain CSV exports at `file_encoding = "utf8"`.
 - For request-scoped business context such as `currentVenue` / `currentVenueMembership`, resolve it once in `Web/FrontController.initContext` and store `Maybe ...` values via `putContext`; views can then read them safely with frozen-context helpers instead of re-querying.
+- Support access is represented by:
+  - a real `currentVenue`
+  - `currentVenueMembershipOrNothing = Nothing`
+  - `currentUserIsSuperAdmin = True`
+  Keep that shape intact so later audit/UI layers can distinguish founder support mode from ordinary venue membership access.
 - For payroll-adjacent mutations, append provenance rows from shared helpers instead of scattering ad hoc JSON snapshots across controllers. Timesheet corrections use `timesheet_entry_versions`; leave lifecycle transitions use `leave_request_events`; venue-role assignment/change uses `venue_membership_role_events`.
 - Keep pay/config reproducibility centralized in `Application/Helper/Pay.hs`: venue-admin snapshot creation should serialize the current venue-owned config tables into `pay_config_snapshots`, and payroll-adjacent workflows should bind approved rows/exports to those immutable snapshot versions instead of trusting mutable current config.
+- Payroll report parity now depends on two persisted facts:
+  - `timesheet_entries.shift_type_id` is the authoritative shift-type input for pay resolution and report grouping
+  - `pay_level_day_rules` models `shift_type_id + day_name_id -> pay_level_id` overrides, not multiplier tweaks
+- Pay levels now carry the old-system monetary inputs directly (`base_rate`, `evening_penalty`, `after_12_penalty`, `weekday_multiplier`, `saturday_multiplier`, `sunday_multiplier`). Any payroll snapshot/export change that needs wage math should serialize and read those fields through `Application/Helper/Pay.hs` instead of recalculating them ad hoc elsewhere.
+- `day_names.weekday_index` is treated as real weekday numbering for pay resolution (`EXTRACT(DOW ...)`: Sunday `0` through Saturday `6`). When rendering week-scoped report columns, do not sort/export by raw `weekday_index`; reorder labels by the selected week start date so Monday-first (or venue-specific epoch-first) week views stay stable while the SQL pay engine still resolves overrides correctly.
+- The pay payload now exposes effective shift-type/pay-level identifiers and labels plus real monetary fields (`baseRate`, per-segment `amount`, `totals.totalAmount`) for payroll export/report shaping.
 - Keep reusable overlay helpers in `Application/Helper/View.hs`:
   - shared dialog and toast mount ids
   - declarative overlay config/button types
