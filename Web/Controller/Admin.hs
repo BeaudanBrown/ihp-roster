@@ -1,9 +1,8 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Pay
-import qualified Data.Scientific as Scientific
+import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Text.Read (readMaybe)
 import Web.Controller.Prelude
 import Web.View.Admin.Index
 
@@ -35,9 +34,16 @@ instance Controller AdminController where
             Nothing -> redirectTo AdminAction
             Just name -> do
                 let isActive = parseIsActiveParam
+                let (baseRate, eveningPenalty, after12Penalty, weekdayMultiplier, saturdayMultiplier, sundayMultiplier) = parsePayLevelRateParams
                 _ <- newRecord @PayLevel
                     |> set #venueId (unpackId currentVenueId)
                     |> set #name name
+                    |> set #baseRate baseRate
+                    |> set #eveningPenalty eveningPenalty
+                    |> set #after12Penalty after12Penalty
+                    |> set #weekdayMultiplier weekdayMultiplier
+                    |> set #saturdayMultiplier saturdayMultiplier
+                    |> set #sundayMultiplier sundayMultiplier
                     |> set #isActive isActive
                     |> createRecord
                 setSuccessMessage "Pay level added"
@@ -51,8 +57,15 @@ instance Controller AdminController where
             Nothing -> redirectTo AdminAction
             Just name -> do
                 let isActive = parseIsActiveParam
+                let (baseRate, eveningPenalty, after12Penalty, weekdayMultiplier, saturdayMultiplier, sundayMultiplier) = parsePayLevelRateParams
                 _ <- payLevel
                     |> set #name name
+                    |> set #baseRate baseRate
+                    |> set #eveningPenalty eveningPenalty
+                    |> set #after12Penalty after12Penalty
+                    |> set #weekdayMultiplier weekdayMultiplier
+                    |> set #saturdayMultiplier saturdayMultiplier
+                    |> set #sundayMultiplier sundayMultiplier
                     |> set #isActive isActive
                     |> updateRecord
                 setSuccessMessage "Pay level updated"
@@ -62,13 +75,13 @@ instance Controller AdminController where
         maybeRuleParams <- parsePayLevelDayRuleParams Nothing
         case maybeRuleParams of
             Nothing -> redirectTo AdminAction
-            Just (payLevelId, dayNameId, multiplier) -> do
+            Just (shiftTypeId, dayNameId, payLevelId) -> do
                 _ <- newRecord @PayLevelDayRule
-                    |> set #payLevelId (unpackId payLevelId)
+                    |> set #shiftTypeId (unpackId shiftTypeId)
                     |> set #dayNameId (unpackId dayNameId)
-                    |> set #multiplier multiplier
+                    |> set #payLevelId (unpackId payLevelId)
                     |> createRecord
-                setSuccessMessage "Pay level day rule added"
+                setSuccessMessage "Pay override added"
                 redirectTo AdminAction
 
     action UpdatePayLevelDayRuleAction { payLevelDayRuleId } = do
@@ -77,13 +90,13 @@ instance Controller AdminController where
         maybeRuleParams <- parsePayLevelDayRuleParams (Just payLevelDayRule)
         case maybeRuleParams of
             Nothing -> redirectTo AdminAction
-            Just (payLevelId, dayNameId, multiplier) -> do
+            Just (shiftTypeId, dayNameId, payLevelId) -> do
                 _ <- payLevelDayRule
-                    |> set #payLevelId (unpackId payLevelId)
+                    |> set #shiftTypeId (unpackId shiftTypeId)
                     |> set #dayNameId (unpackId dayNameId)
-                    |> set #multiplier multiplier
+                    |> set #payLevelId (unpackId payLevelId)
                     |> updateRecord
-                setSuccessMessage "Pay level day rule updated"
+                setSuccessMessage "Pay override updated"
                 redirectTo AdminAction
 
     action CreateShiftTypeAction = do
@@ -98,6 +111,7 @@ instance Controller AdminController where
                     Nothing -> redirectTo AdminAction
                     Just name -> do
                         let isActive = parseIsActiveParam
+                        let sortOrder = parseSortOrderParam
                         maybePayLevel <- parseDefaultPayLevelId
                         case maybePayLevel of
                             Nothing -> redirectTo AdminAction
@@ -105,6 +119,7 @@ instance Controller AdminController where
                                 _ <- newRecord @ShiftType
                                     |> set #venueId (unpackId currentVenueId)
                                     |> set #name name
+                                    |> set #sortOrder sortOrder
                                     |> set #defaultPayLevelId (unpackId defaultPayLevelId)
                                     |> set #isActive isActive
                                     |> createRecord
@@ -119,12 +134,14 @@ instance Controller AdminController where
             Nothing -> redirectTo AdminAction
             Just name -> do
                 let isActive = parseIsActiveParam
+                let sortOrder = parseSortOrderParam
                 maybePayLevel <- parseDefaultPayLevelId
                 case maybePayLevel of
                     Nothing -> redirectTo AdminAction
                     Just defaultPayLevelId -> do
                         _ <- shiftType
                             |> set #name name
+                            |> set #sortOrder sortOrder
                             |> set #defaultPayLevelId (unpackId defaultPayLevelId)
                             |> set #isActive isActive
                             |> updateRecord
@@ -200,18 +217,19 @@ fetchCurrentVenueShiftTypes :: (?context :: ControllerContext, ?modelContext :: 
 fetchCurrentVenueShiftTypes =
     query @ShiftType
         |> filterWhere (#venueId, unpackId currentVenueId)
+        |> orderByAsc #sortOrder
         |> orderByAsc #createdAt
         |> fetch
 
 fetchCurrentVenuePayLevelDayRules :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [PayLevelDayRule]
 fetchCurrentVenuePayLevelDayRules = do
-    payLevels <- fetchCurrentVenuePayLevels
-    let payLevelIds = map (unpackId . get #id) payLevels
-    if null payLevelIds
+    shiftTypes <- fetchCurrentVenueShiftTypes
+    let shiftTypeIds = map (unpackId . get #id) shiftTypes
+    if null shiftTypeIds
         then pure []
         else
             query @PayLevelDayRule
-                |> filterWhereIn (#payLevelId, payLevelIds)
+                |> filterWhereIn (#shiftTypeId, shiftTypeIds)
                 |> orderByAsc #createdAt
                 |> fetch
 
@@ -240,6 +258,21 @@ parseRequiredName paramName errorMessage =
 
 parseIsActiveParam :: (?context :: ControllerContext) => Bool
 parseIsActiveParam = paramOrDefault "true" "isActive" == ("true" :: Text)
+
+parseSortOrderParam :: (?context :: ControllerContext) => Int
+parseSortOrderParam = paramOrDefault @Int 0 "sortOrder"
+
+parsePayLevelRateParams ::
+    (?context :: ControllerContext) =>
+    (Scientific, Scientific, Scientific, Scientific, Scientific, Scientific)
+parsePayLevelRateParams =
+    ( paramOrDefault @Scientific 0 "baseRate"
+    , paramOrDefault @Scientific 0 "eveningPenalty"
+    , paramOrDefault @Scientific 0 "after12Penalty"
+    , paramOrDefault @Scientific 1 "weekdayMultiplier"
+    , paramOrDefault @Scientific 1 "saturdayMultiplier"
+    , paramOrDefault @Scientific 1 "sundayMultiplier"
+    )
 
 parseDefaultPayLevelId :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe (Id PayLevel))
 parseDefaultPayLevelId =
@@ -296,34 +329,56 @@ parseDayNameParams existingDayName = do
 parsePayLevelDayRuleParams ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Maybe PayLevelDayRule ->
-    IO (Maybe (Id PayLevel, Id DayName, Scientific.Scientific))
+    IO (Maybe (Id ShiftType, Id DayName, Id PayLevel))
 parsePayLevelDayRuleParams existingRule = do
-    maybePayLevelId <- parsePayLevelId "Choose a pay level from the current venue."
-    case maybePayLevelId of
+    maybeShiftTypeId <- parseShiftTypeId "Choose a shift type from the current venue."
+    case maybeShiftTypeId of
         Nothing -> pure Nothing
-        Just payLevelId -> do
+        Just shiftTypeId -> do
             maybeDayNameId <- parseDayNameId "Choose a day name from the current venue."
             case maybeDayNameId of
                 Nothing -> pure Nothing
                 Just dayNameId -> do
-                    maybeMultiplier <- parseMultiplierParam
-                    case maybeMultiplier of
+                    maybePayLevelId <- parsePayLevelId "Choose a pay level from the current venue."
+                    case maybePayLevelId of
                         Nothing -> pure Nothing
-                        Just multiplier -> do
+                        Just payLevelId -> do
                             payLevelDayRules <- fetchCurrentVenuePayLevelDayRules
                             let conflicts =
                                     any
                                         (\rule ->
-                                            rule.payLevelId == unpackId payLevelId
+                                            rule.shiftTypeId == unpackId shiftTypeId
                                                 && rule.dayNameId == unpackId dayNameId
                                                 && maybe True (\existing -> get #id existing /= get #id rule) existingRule
                                         )
                                         payLevelDayRules
                             if conflicts
                                 then do
-                                    setErrorMessage "That pay level already has a day rule for the selected weekday."
+                                    setErrorMessage "That shift type already has an override for the selected weekday."
                                     pure Nothing
-                                else pure (Just (payLevelId, dayNameId, multiplier))
+                                else pure (Just (shiftTypeId, dayNameId, payLevelId))
+
+parseShiftTypeId ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Text ->
+    IO (Maybe (Id ShiftType))
+parseShiftTypeId errorMessage =
+    case paramOrNothing @(Id ShiftType) "shiftTypeId" of
+        Nothing -> do
+            setErrorMessage errorMessage
+            pure Nothing
+        Just shiftTypeId -> do
+            maybeShiftType <-
+                query @ShiftType
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#id, shiftTypeId)
+                    |> fetchOneOrNothing
+            case maybeShiftType of
+                Nothing -> do
+                    setErrorMessage errorMessage
+                    pure Nothing
+                Just _ ->
+                    pure (Just shiftTypeId)
 
 parsePayLevelId ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -369,25 +424,14 @@ parseDayNameId errorMessage =
                 Just _ ->
                     pure (Just dayNameId)
 
-parseMultiplierParam :: (?context :: ControllerContext) => IO (Maybe Scientific.Scientific)
-parseMultiplierParam =
-    let rawValue = Text.strip (paramOrDefault "" "multiplier")
-     in case readMaybe (cs rawValue) of
-            Nothing -> do
-                setErrorMessage "Enter a numeric multiplier greater than 0."
-                pure Nothing
-            Just multiplier
-                | multiplier <= 0 -> do
-                    setErrorMessage "Multiplier must be greater than 0."
-                    pure Nothing
-                | otherwise -> pure (Just multiplier)
-
 ensurePayLevelDayRuleInCurrentVenue ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     PayLevelDayRule ->
     IO ()
 ensurePayLevelDayRuleInCurrentVenue payLevelDayRule = do
+    shiftType <- fetch (Id payLevelDayRule.shiftTypeId :: Id ShiftType)
     payLevel <- fetch (Id payLevelDayRule.payLevelId :: Id PayLevel)
     dayName <- fetch (Id payLevelDayRule.dayNameId :: Id DayName)
+    ensureRecordInCurrentVenue shiftType.venueId
     ensureRecordInCurrentVenue payLevel.venueId
     ensureRecordInCurrentVenue dayName.venueId
