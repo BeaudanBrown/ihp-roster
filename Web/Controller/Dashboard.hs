@@ -23,7 +23,7 @@ instance Controller DashboardController where
                 LiveFragmentRef
                     { targetId = "dashboard-live-demo-fragment"
                     , url = pathTo ShowDashboardLiveDemoContentAction
-                    , deferUntilBlur = False
+                    , deferUntilBlur = True
                     }
         liftIO $
             broadcastLiveInvalidation
@@ -33,4 +33,9 @@ instance Controller DashboardController where
 
         if isHtmxRequest
             then respondHtml (renderLiveDemoCard liveDemoCount)
+            else redirectTo DashboardAction
+
+    action ShowDashboardRuntimeDemoAction =
+        if isHtmxRequest
+            then respondHtml renderDashboardRuntimeDemoDialog
             else redirectTo DashboardAction

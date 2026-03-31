@@ -11,7 +11,7 @@ This file is the source of truth for database models. Read `IHP/Guide/database.m
 - Prefer `created_at` and `updated_at` timestamp columns on mutable tables
 
 After editing the schema:
-1. Run `direnv exec . regen-types`
+1. Run `bash ./bin/in-env regen-types`
 2. Run `make db` while the dev server and database are available
 
 Without `make db`, the app can typecheck but still fail at runtime with missing relations.
@@ -33,6 +33,7 @@ Keep reusable overlay helpers in `Application/Helper/View.hs`:
 - shared dialog and toast mount ids
 - declarative overlay config and button types
 - renderers for workflow dialogs, modal fallbacks, and toast notifications
+- reusable `renderTimePickerField` markup for the quarter-hour picker
 
 Prefer declarative config records over callback-heavy view builders.
 

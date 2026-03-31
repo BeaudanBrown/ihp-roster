@@ -61,6 +61,7 @@
                     ];
 
                     env = {
+                        IHP_TELEMETRY_DISABLED = "1";
                         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
                         PLAYWRIGHT_BROWSERS_PATH = "${inputs'.playwright.packages.playwright-driver.browsers}";
                         PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
@@ -86,10 +87,49 @@
                             echo "Types regenerated in build/Generated/"
                         '';
 
+                        # Rebuild the isolated automation database from schema + fixtures.
+                        # Usage: test-db-reset
+                        test-db-reset.exec = ''
+                            set -euo pipefail
+                            DB_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            SYSTEM_SCHEMA="$PWD/IHP/ihp-ide/data/IHPSchema.sql"
+
+                            if [ ! -f "$SYSTEM_SCHEMA" ]; then
+                                if [ -n "''${IHP:-}" ] && [ -f "$IHP/lib/IHP/IHPSchema.sql" ]; then
+                                    SYSTEM_SCHEMA="$IHP/lib/IHP/IHPSchema.sql"
+                                elif [ -f "''${IHP_LIB:-}/IHPSchema.sql" ]; then
+                                    SYSTEM_SCHEMA="$IHP_LIB/IHPSchema.sql"
+                                else
+                                    echo "Could not locate IHPSchema.sql" >&2
+                                    exit 1
+                                fi
+                            fi
+
+                            if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+                                echo "Test database reset requires the local postgres socket at $DB_SOCKET" >&2
+                                echo "Start the local environment first (e.g. bash ./bin/in-env dev-start or devenv up)." >&2
+                                exit 1
+                            fi
+
+                            psql -h "$DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL
+DROP DATABASE IF EXISTS "$DB_NAME" WITH (FORCE);
+CREATE DATABASE "$DB_NAME";
+SQL
+
+                            psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < "$SYSTEM_SCHEMA"
+                            psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < Application/Schema.sql
+                            psql -v ON_ERROR_STOP=1 -h "$DB_SOCKET" -d "$DB_NAME" < Application/Fixtures.sql
+                        '';
+
                         # Run the hspec test suite.
                         # Usage: test
                         test.exec = ''
                             set -euo pipefail
+                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+                            test-db-reset
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS=${"''"} 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             mkdir -p build/Test
@@ -135,11 +175,72 @@
                         # Run Playwright end-to-end tests.
                         # Usage: e2e [playwright-args...]
                         e2e.exec = ''
-                            if [ -z "''${BASE_URL:-}" ]; then
-                                APP_PORT=$(dev-app-port)
-                                export BASE_URL="http://127.0.0.1:$APP_PORT"
+                            set -euo pipefail
+                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+
+                            if [ -n "''${BASE_URL:-}" ]; then
+                                exec node ./node_modules/@playwright/test/cli.js test "$@"
                             fi
-                            exec node ./node_modules/@playwright/test/cli.js test "$@"
+
+                            test-db-reset
+
+                            STATE_DIR="$PWD/.devenv/e2e"
+                            PID_FILE="$STATE_DIR/server.pid"
+                            LOG_FILE="$STATE_DIR/server.log"
+                            export E2E_PORT="''${E2E_PORT:-$(node -e "const net = require('node:net'); const server = net.createServer(); server.listen(0, '127.0.0.1', () => { console.log(server.address().port); server.close(); });")}"
+                            mkdir -p "$STATE_DIR"
+                            : > "$LOG_FILE"
+
+                            cleanup() {
+                                if [ -f "$PID_FILE" ]; then
+                                    PID=$(cat "$PID_FILE")
+                                    kill -TERM -"$PID" 2>/dev/null || kill -TERM "$PID" 2>/dev/null || true
+                                    rm -f "$PID_FILE"
+                                fi
+                            }
+                            trap cleanup EXIT
+
+                            wait_for_e2e_server() {
+                                local response_body
+                                response_body=$(curl -fsS --max-time 2 "http://127.0.0.1:$E2E_PORT/NewSession" 2>/dev/null || true)
+                                if [ -z "$response_body" ]; then
+                                    return 1
+                                fi
+
+                                if printf '%s' "$response_body" | grep -q "Is compiling"; then
+                                    return 1
+                                fi
+
+                                printf '%s' "$response_body" | grep -q "Sign In"
+                            }
+
+                            setsid nohup test-e2e-server </dev/null >>"$LOG_FILE" 2>&1 &
+                            PID=$!
+                            echo "$PID" > "$PID_FILE"
+                            disown "$PID" 2>/dev/null || true
+
+                            for _ in $(seq 1 120); do
+                                if wait_for_e2e_server; then
+                                    BASE_URL="http://127.0.0.1:$E2E_PORT"
+                                    export BASE_URL
+                                    echo "E2E app server ready at $BASE_URL"
+                                    node ./node_modules/@playwright/test/cli.js test "$@"
+                                    exit $?
+                                fi
+
+                                if ! kill -0 "$PID" 2>/dev/null; then
+                                    echo "E2E app server failed to start; recent log output:" >&2
+                                    tail -n 80 "$LOG_FILE" >&2 || true
+                                    exit 1
+                                fi
+
+                                sleep 1
+                            done
+
+                            echo "Timed out waiting for isolated E2E app server to become ready" >&2
+                            tail -n 80 "$LOG_FILE" >&2 || true
+                            exit 1
                         '';
 
                         # Take a screenshot of a page using Playwright.
@@ -156,6 +257,18 @@
 
                         screenshot-page.exec = ''
                             exec node ./e2e/screenshot-page.mjs "$@"
+                        '';
+
+                        # Build and launch a compiled app server for isolated E2E runs.
+                        # Usage: test-e2e-server
+                        test-e2e-server.exec = ''
+                            set -euo pipefail
+                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+                            export PORT="''${E2E_PORT:-''${PORT:-8000}}"
+                            make build/bin/RunUnoptimizedProdServer
+                            exec build/bin/RunUnoptimizedProdServer
                         '';
 
                         # Print the app port used by the managed RunDevServer.

@@ -2,22 +2,23 @@ module Test.Controller.DashboardSpec where
 
 import Application.Helper.LiveDemo
 import Application.Helper.LiveUpdate
+import Config
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
-import Network.HTTP.Types.Status
-import IHP.Prelude
-import IHP.Test.Mocking
+import Generated.Types
+import IHP.Controller.RequestContext (RequestContext (..))
+import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Prelude
+import IHP.Test.Mocking
+import Network.HTTP.Types.Status
+import Network.Wai
 import Test.Hspec
-import Config
-import Generated.Types
-import Web.Routes
-import Web.Types
 import Web.Controller.Dashboard ()
 import Web.FrontController ()
-import Network.Wai
-import IHP.ControllerPrelude
+import Web.Routes
+import Web.Types
 
 tests :: Spec
 tests = beforeAll (mockContextNoDatabase WebApplication config) do
@@ -36,6 +37,8 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                 response `responseBodyShouldContain` "dashboard-live-shell"
                 response `responseBodyShouldContain` "Live Update Demo"
                 response `responseBodyShouldContain` "dashboard-live-demo-fragment"
+                response `responseBodyShouldContain` "data-live-fragment-defer-until-blur"
+                response `responseBodyShouldContain` "Open Runtime Dialog"
 
             it "returns the live demo fragment for HTMX refreshes" $ withContext do
                 user <- createTestUser
@@ -45,6 +48,23 @@ tests = beforeAll (mockContextNoDatabase WebApplication config) do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "dashboard-live-demo-fragment"
                 response `responseBodyShouldContain` "Live count: 0"
+                response `responseBodyShouldContain` "dashboard-live-demo-notes"
+
+            it "returns the runtime demo dialog fragment for HTMX requests" $ withContext do
+                user <- createTestUser
+                response <- withUser user do
+                    let currentRequest = ?context.request
+                    let requestWithHtmx =
+                            currentRequest
+                                { requestHeaders = ("HX-Request", "true") : currentRequest.requestHeaders
+                                }
+                    let ?context = ?context { request = requestWithHtmx }
+                    callAction ShowDashboardRuntimeDemoAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Runtime Rehydration Demo"
+                response `responseBodyShouldContain` "dashboard-runtime-demo-date"
+                response `responseBodyShouldContain` "dashboard-runtime-demo-time-field"
 
             it "increments the live demo and bumps the live update version" $ withContext do
                 user <- createTestUser

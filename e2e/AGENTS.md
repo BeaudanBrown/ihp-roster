@@ -2,27 +2,29 @@
 
 ## Running Tests
 
-All commands require `direnv exec .` unless you are already inside an activated direnv shell.
+Use `bash ./bin/in-env` as the default entrypoint for automation and worktrees. It resolves the repo-local dev shell even when `.envrc` is absent.
 
 ```bash
-direnv exec . e2e
-direnv exec . e2e e2e/auth.spec.ts
-direnv exec . e2e --headed
-direnv exec . e2e --ui
-direnv exec . screenshot http://localhost:8000/MyPage output.png
-direnv exec . screenshot-page /SomePage output.png
-direnv exec . e2e-report
+bash ./bin/in-env e2e
+bash ./bin/in-env e2e e2e/auth.spec.ts
+bash ./bin/in-env e2e --headed
+bash ./bin/in-env e2e --ui
+bash ./bin/in-env screenshot http://localhost:8000/MyPage output.png
+bash ./bin/in-env screenshot-page /SomePage output.png
+bash ./bin/in-env e2e-report
 ```
 
 ## Prerequisites
-- `devenv up` or the managed dev server must be running
-- `make db` must have been run at least once
+- The local Postgres socket at `build/db` must be available
+- `bash ./bin/in-env e2e` rebuilds the isolated `app_test` database, builds `build/bin/RunUnoptimizedProdServer`, and launches it on a temporary port automatically when `BASE_URL` is not already set
 - Seed data is prepared by `global-setup.ts`
 
 Before debugging Playwright, confirm the app is serving the expected page:
 
 ```bash
-curl -s http://localhost:8000/NewSession | rg 'id="email"|Is compiling'
+bash ./bin/in-env dev-start
+bash ./bin/in-env dev-app-port
+curl -s "http://127.0.0.1:$(bash ./bin/in-env dev-app-port)/NewSession" | rg 'id="email"|Is compiling'
 ```
 
 If you see `Is compiling`, wait or restart the managed server.
@@ -36,25 +38,25 @@ Place tests in `e2e/` with the `.spec.ts` suffix.
 
 ```typescript
 import { test, expect } from '@playwright/test';
+import { gotoWhenReady } from './test-helpers';
 
 test.describe('My Feature', () => {
     test('does something', async ({ page }) => {
-        await page.goto('/MyPage');
+        await gotoWhenReady(page, '/MyPage', '#my-page-shell');
         await expect(page.locator('body')).toContainText('Expected text');
     });
 });
 ```
 
-If a page may briefly show the IHP compile screen, prefer the shared `gotoWhenReady` helper when available.
+Prefer the shared helpers in `e2e/test-helpers.ts` for startup races, login, and live-update state.
 
 ### Logging in within a test
 
 ```typescript
+import { loginAs } from './test-helpers';
+
 test('authenticated feature', async ({ page }) => {
-    await page.goto('/NewSession');
-    await page.fill('#email', 'e2e-test@example.com');
-    await page.fill('#password', 'test-password-123');
-    await page.click('button[type="submit"]');
+    await loginAs(page, 'e2e-test@example.com', 'test-password-123');
     await expect(page).toHaveURL(/(Dashboard|MyPage|Show)/);
 });
 ```
@@ -71,20 +73,21 @@ test('authenticated feature', async ({ page }) => {
 - After login, wait for both the destination URL and a page-specific selector when the flow includes redirects or setup steps
 
 ## Operational Notes
-- `dev-status` only proves something is answering on the dev port; it does not guarantee the app is past the compile screen
+- The isolated `e2e` wrapper uses the compiled server path, so browser automation should not see the dev compile screen unless you override `BASE_URL`
+- `dev-status` only proves something is answering on the dev port; it does not guarantee the managed dev server is past the compile screen
 - If tests keep seeing stale output, stop and restart the managed server with:
 
 ```bash
-direnv exec . dev-stop
-direnv exec . dev-start
-direnv exec . dev-wait
+bash ./bin/in-env dev-stop
+bash ./bin/in-env dev-start
+bash ./bin/in-env dev-wait
 ```
 
 ## Authenticated Screenshot Helper
 Use `screenshot-page` for pages that require login or setup before rendering:
 
 ```bash
-direnv exec . screenshot-page /SomeProtectedPage test-results/page.png
+bash ./bin/in-env screenshot-page /SomeProtectedPage test-results/page.png
 ```
 
 Useful options:
@@ -97,9 +100,9 @@ Useful options:
 
 ## Common Selectors
 - Submit button: `button[type="submit"]`
-- Flash message: `.alert`
 - Toast: `.app-toast`
-- Delete/logout button: `.js-delete`
+- Dialog overlay: `[data-dialog-overlay="true"]`
+- Logout button: `button:has-text("logout")`
 - Login email: `#email`
 - Login password: `#password`
 
@@ -108,8 +111,8 @@ For `formFor`-generated forms, prefer `[name="fieldName"]` selectors.
 ## Debugging
 
 ```bash
-DEBUG=pw:api direnv exec . e2e
-direnv exec . e2e --headed --slow-mo=500
-direnv exec . e2e --trace on
+DEBUG=pw:api bash ./bin/in-env e2e
+bash ./bin/in-env e2e --headed --slow-mo=500
+bash ./bin/in-env e2e --trace on
 npx playwright show-trace test-results/*/trace.zip
 ```

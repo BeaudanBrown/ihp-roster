@@ -357,6 +357,7 @@
     let socketPath = null;
     let reconnectTimer = null;
     let activeClientId = null;
+    let reconnectPaused = false;
 
     function getOwnerElements() {
         return Array.from(document.querySelectorAll('[data-live-update-owner="true"][data-live-update-client-enabled="true"]'));
@@ -498,14 +499,21 @@
         if (!fragment || !fragment.targetId || !fragment.url) return;
         const target = document.getElementById(fragment.targetId);
         if (!(target instanceof HTMLElement)) return;
+        const deferUntilBlur = fragment.deferUntilBlur || target.dataset.liveFragmentDeferUntilBlur === 'true';
 
-        if (fragment.deferUntilBlur && hasFocusedField(target)) {
-            pendingDeferredFragments.set(fragment.targetId, fragment);
+        if (deferUntilBlur && hasFocusedField(target)) {
+            pendingDeferredFragments.set(fragment.targetId, {
+                ...fragment,
+                deferUntilBlur,
+            });
             return;
         }
 
         pendingDeferredFragments.delete(fragment.targetId);
-        queueFragment(fragment);
+        queueFragment({
+            ...fragment,
+            deferUntilBlur,
+        });
     }
 
     function flushDeferredFragments() {
@@ -521,6 +529,7 @@
     }
 
     function scheduleReconnect() {
+        if (reconnectPaused) return;
         if (reconnectTimer) return;
 
         reconnectTimer = window.setTimeout(function () {
@@ -710,7 +719,7 @@
 
         socket.onclose = function () {
             socket = null;
-            if (activeSubscriptions.size > 0) {
+            if (activeSubscriptions.size > 0 && !reconnectPaused) {
                 scheduleReconnect();
             }
         };
@@ -740,6 +749,11 @@
             activeSubscriptions.delete(subscription.scopeKey);
             clearScopeVersion(subscription.scopeKey);
         });
+
+        if (reconnectPaused) {
+            closeSocket();
+            return;
+        }
 
         if (desired.size === 0 || !nextPath) {
             closeSocket();
@@ -776,6 +790,41 @@
     document.addEventListener('focusout', function () {
         window.setTimeout(flushDeferredFragments, 0);
     });
+
+    function connectionState() {
+        if (reconnectPaused) return 'paused';
+        if (!socket) return 'closed';
+        if (socket.readyState === window.WebSocket.CONNECTING) return 'connecting';
+        if (socket.readyState === window.WebSocket.OPEN) return 'open';
+        if (socket.readyState === window.WebSocket.CLOSING) return 'closing';
+        return 'closed';
+    }
+
+    window.appLiveUpdatesDebug = {
+        pause: function () {
+            reconnectPaused = true;
+            closeSocket();
+            return connectionState();
+        },
+        resume: function () {
+            reconnectPaused = false;
+            syncConnection();
+            return connectionState();
+        },
+        forceReconnect: function () {
+            reconnectPaused = false;
+            closeSocket();
+            syncConnection();
+            return connectionState();
+        },
+        connectionState: connectionState,
+        subscribedScopes: function () {
+            return Array.from(activeSubscriptions.keys());
+        },
+        clientId: function () {
+            return ensureClientId();
+        },
+    };
 
     document.addEventListener('app:page-ready', syncConnection);
     window.addEventListener('beforeunload', closeSocket);

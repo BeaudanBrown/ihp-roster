@@ -3,11 +3,12 @@ import path from 'path';
 
 export default function globalTeardown() {
     const projectRoot = path.resolve(__dirname, '..');
-    const dbSocket = path.join(projectRoot, 'build', 'db');
+    const dbSocket = process.env.TEST_DB_SOCKET ?? path.join(projectRoot, 'build', 'db');
+    const dbName = process.env.TEST_DATABASE_NAME ?? 'app_test';
 
     console.log('E2E teardown: cleaning test data...');
     execSync(
-        `psql -h "${dbSocket}" app -c "DELETE FROM users WHERE email LIKE 'e2e-%'"`,
+        `psql -h "${dbSocket}" "${dbName}" -c "DELETE FROM users WHERE email LIKE 'e2e-%'"`,
         { stdio: 'inherit' },
     );
     console.log('E2E teardown: done.');

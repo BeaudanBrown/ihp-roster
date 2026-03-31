@@ -22,6 +22,12 @@
 - The layout shell lives in `Web/View/Layout.hs`
 - Use `assetPath` for static assets so production cache-busting works
 
+## Client Runtime
+- `static/app.js` owns the shared frontend lifecycle. Feature code should initialize from `app:page-ready`, not `turbolinks:load`
+- `app:page-ready` fires for full page loads and after HTMX swaps or out-of-band swaps
+- Live-update shells opt in with `data-live-update-owner="true"`, `data-live-update-scope`, and `data-live-updates-path`
+- Server-owned fragments can opt into blur-delayed refetch by adding `data-live-fragment-defer-until-blur="true"`
+
 ## Key Conventions
 - Every new controller needs: a type in `Web/Types.hs`, an `AutoRoute` instance in `Web/Routes.hs`, an import plus `parseRoute` in `Web/FrontController.hs`, and an implementation file under `Web/Controller/`
 - Use `Web.Controller.Prelude` in controllers and `Web.View.Prelude` in views
@@ -53,24 +59,26 @@
 
 These scripts are defined in `flake.nix` as devenv shell scripts. They are available on `PATH` only inside the activated direnv environment.
 
-Agents and CI running outside an interactive direnv shell must prefix commands with `direnv exec .`:
+Use the repo wrapper `bash ./bin/in-env` as the default entrypoint for automation, agents, CI, and worktrees. It prefers `direnv exec` when `.envrc` exists and otherwise falls back to `nix develop` with the local `devenv-root` override this repo needs.
+
+Agents and CI running outside an interactive direnv shell should prefer:
 
 ```bash
-direnv exec . regen-types
-direnv exec . typecheck
-direnv exec . test
-direnv exec . lint
-direnv exec . format
-direnv exec . e2e
-direnv exec . screenshot http://localhost:8000/MyPage output.png
-direnv exec . e2e-report
-direnv exec . dev-start
-direnv exec . dev-stop
-direnv exec . dev-status
-direnv exec . dev-wait
+bash ./bin/in-env regen-types
+bash ./bin/in-env typecheck
+bash ./bin/in-env test
+bash ./bin/in-env lint
+bash ./bin/in-env format
+bash ./bin/in-env e2e
+bash ./bin/in-env screenshot http://localhost:8000/MyPage output.png
+bash ./bin/in-env e2e-report
+bash ./bin/in-env dev-start
+bash ./bin/in-env dev-stop
+bash ./bin/in-env dev-status
+bash ./bin/in-env dev-wait
 ```
 
-Never use bare names like `typecheck` or `lint` in non-direnv shells.
+Never use bare names like `typecheck` or `lint` in non-devenv shells.
 
 If you hit `attempt to write a readonly database` or other nix fetcher cache errors, ensure `XDG_CACHE_HOME` points to a writable path. This repo defaults to `/tmp/nix-cache`.
 
@@ -82,47 +90,50 @@ Available scripts:
 - `format` — Format app sources with stylish-haskell
 - `ghci-app` — Launch GHCi with the app loaded
 - `new-controller NAME` — Scaffold a new IHP controller
-- `e2e` — Run Playwright end-to-end tests
+- `test-db-reset` — Rebuild the isolated `app_test` automation database
+- `e2e` — Run Playwright end-to-end tests against isolated `app_test` plus a compiled temporary app server on a fresh port unless `BASE_URL` is already set
 - `screenshot` — Take a screenshot of a page
 - `e2e-report` — Open the Playwright HTML report
 - `dev-start` — Start the app in background for automation
 - `dev-stop` — Stop the background server started by `dev-start`
 - `dev-status` — Check background server health
 - `dev-wait [seconds]` — Wait for the background server to become healthy
+- `dev-app-port` — Print the app port used by the managed dev server
 
 For reliable non-interactive automation, prefer:
 
 ```bash
-direnv exec . dev-start
-direnv exec . dev-wait
+bash ./bin/in-env dev-start
+bash ./bin/in-env dev-wait
 # run commands that need server + DB
-direnv exec . dev-stop
+bash ./bin/in-env dev-stop
 ```
 
 ## Adding a New Feature
 1. Update `Application/Schema.sql` if the feature needs new tables or columns
-2. Run `direnv exec . regen-types` after schema changes
+2. Run `bash ./bin/in-env regen-types` after schema changes
 3. Run `make db` while the dev server is available so the schema is applied to the dev database
 4. Add controller types, routes, controller implementation, and views
-5. Run `direnv exec . typecheck`
-6. Run `direnv exec . test` when controller logic changes
-7. Run `direnv exec . lint` and `direnv exec . format` before finishing
+5. Run `bash ./bin/in-env typecheck`
+6. Run `bash ./bin/in-env test` when controller logic changes
+7. Run `bash ./bin/in-env lint` and `bash ./bin/in-env format` before finishing
 
 For simple CRUD, prefer `new-controller NAME` and then customize the generated files.
 
 ## Verification Workflow
-- After every code change: `direnv exec . typecheck`
-- After schema changes: `direnv exec . regen-types`, then `direnv exec . typecheck`, then `make db`
-- After adding or changing controllers: `direnv exec . test`
-- After UI or integration changes: `direnv exec . e2e`
-- Before committing: `direnv exec . lint`, then `direnv exec . format`
+- After every code change: `bash ./bin/in-env typecheck`
+- After schema changes: `bash ./bin/in-env regen-types`, then `bash ./bin/in-env typecheck`, then `make db`
+- After adding or changing controllers: `bash ./bin/in-env test`
+- After UI or integration changes: `bash ./bin/in-env e2e`
+- Before committing: `bash ./bin/in-env lint`, then `bash ./bin/in-env format`
 - To confirm DB sync: `psql -h "$PWD/build/db" app -c "\dt"`
 
 ## E2E Testing
 - Playwright tests live in `e2e/`
 - The config is `playwright.config.ts`
 - Seeded test data lives in `e2e/fixtures/seed.sql`
-- `global-teardown.ts` cleans up `e2e-` users after runs
+- `global-setup.ts` and `global-teardown.ts` target `TEST_DATABASE_NAME` / `TEST_DB_SOCKET`, defaulting to the isolated `app_test` db on the local socket
+- `bash ./bin/in-env e2e` builds `build/bin/RunUnoptimizedProdServer` and launches it on a temporary port before invoking Playwright when `BASE_URL` is unset
 - Browser versions come from Nix, so no manual browser install should be necessary
 
 ## Maintaining Agent Documentation

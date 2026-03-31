@@ -103,8 +103,39 @@ function toAbsoluteUrl(target, baseUrl) {
     return new URL(normalizedPath, baseUrl).toString();
 }
 
+async function gotoWhenReady(page, targetUrl, readySelector, timeoutMs = 60000) {
+    const deadline = Date.now() + timeoutMs;
+    let lastBodyText = '';
+    let lastNavigationError = '';
+
+    while (Date.now() < deadline) {
+        try {
+            await page.goto(targetUrl, { waitUntil: 'networkidle' });
+        } catch (error) {
+            lastNavigationError = error instanceof Error ? error.message : String(error);
+            await page.waitForTimeout(1000);
+            continue;
+        }
+
+        try {
+            await page.locator(readySelector).first().waitFor({ state: 'visible', timeout: 2000 });
+            return;
+        } catch {
+            lastBodyText = (await page.locator('body').textContent().catch(() => '')) ?? '';
+            if (!lastBodyText.includes('Is compiling')) {
+                break;
+            }
+        }
+
+        await page.waitForTimeout(1000);
+    }
+
+    const failureContext = [lastBodyText, lastNavigationError].filter(Boolean).join('\n\n');
+    throw new Error(`Timed out waiting for ${readySelector} at ${targetUrl}\n\n${failureContext}`);
+}
+
 async function ensureLoggedIn(page, options) {
-    await page.goto(new URL('/NewSession', options.baseUrl).toString(), { waitUntil: 'networkidle' });
+    await gotoWhenReady(page, new URL('/NewSession', options.baseUrl).toString(), '#email');
     await page.fill('#email', options.email);
     await page.fill('#password', options.password);
     await page.locator('button[type="submit"]').first().click();
@@ -115,7 +146,7 @@ async function ensureLoggedIn(page, options) {
     }
 
     if (page.url().includes('/NewSession')) {
-        const flashText = (await page.locator('.alert').first().textContent().catch(() => null)) || 'No flash message';
+        const flashText = (await page.locator('.app-toast, body').first().textContent().catch(() => null)) || 'No flash message';
         throw new Error(`Login failed: still on /NewSession after submit. ${flashText.trim()}`);
     }
 
@@ -144,7 +175,11 @@ async function main() {
             await ensureLoggedIn(page, options);
         }
 
-        await page.goto(targetUrl, { waitUntil: 'networkidle' });
+        if (options.selector) {
+            await gotoWhenReady(page, targetUrl, options.selector);
+        } else {
+            await page.goto(targetUrl, { waitUntil: 'networkidle' });
+        }
         if (options.selector) {
             await page.locator(options.selector).first().waitFor({ state: 'visible', timeout: 10_000 });
         }

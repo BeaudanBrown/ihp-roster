@@ -68,3 +68,9 @@ renderForm post = formFor post [hsx|
 - Dialog triggers should target the shared dialog mount
 - Validation failures should rerender the dialog fragment into the same mount
 - Successful submissions should return only the updated fragment(s) and any out-of-band overlay updates
+
+## Runtime Pattern
+- Do not wire feature behavior to `turbolinks:load`. The shared client runtime emits `app:page-ready` for full-page loads and HTMX swaps
+- Live-update shells should render stable subscription metadata with `data-live-update-owner="true"`, `data-live-update-scope`, and `data-live-updates-path`
+- Server-owned fragments can opt into blur-delayed refetch with `data-live-fragment-defer-until-blur="true"`
+- Use `renderTimePickerField` for quarter-hour picker controls instead of hand-rolling the `.js-time-picker-*` markup

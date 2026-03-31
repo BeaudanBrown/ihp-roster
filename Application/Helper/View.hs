@@ -27,22 +27,22 @@ data OverlayButtonAction
     | OverlayNavigateAction !Text
 
 data OverlayButton = OverlayButton
-    { overlayButtonLabel :: !Text
-    , overlayButtonClass :: !Text
+    { overlayButtonLabel  :: !Text
+    , overlayButtonClass  :: !Text
     , overlayButtonAction :: !OverlayButtonAction
     }
 
 data DialogOverlayConfig = DialogOverlayConfig
-    { dialogOverlayTitle :: !Text
-    , dialogOverlayBody :: !Html
-    , dialogOverlayButtons :: ![OverlayButton]
+    { dialogOverlayTitle       :: !Text
+    , dialogOverlayBody        :: !Html
+    , dialogOverlayButtons     :: ![OverlayButton]
     , dialogOverlayDialogClass :: !Text
     }
 
 data ToastOverlayConfig = ToastOverlayConfig
-    { toastOverlayTitle :: !(Maybe Text)
-    , toastOverlayMessage :: !Text
-    , toastOverlayClass :: !Text
+    { toastOverlayTitle      :: !(Maybe Text)
+    , toastOverlayMessage    :: !Text
+    , toastOverlayClass      :: !Text
     , toastOverlayAutoHideMs :: !Int
     }
 
@@ -53,14 +53,14 @@ data ToastOverlayPosition
     deriving (Eq)
 
 data PartialNavigationLink = PartialNavigationLink
-    { partialNavigationLabel :: !Text
-    , partialNavigationUrl :: !Text
+    { partialNavigationLabel    :: !Text
+    , partialNavigationUrl      :: !Text
     , partialNavigationTargetId :: !Text
     , partialNavigationSelectId :: !(Maybe Text)
-    , partialNavigationClass :: !Text
-    , partialNavigationSwap :: !Text
-    , partialNavigationSync :: !(Maybe Text)
-    , partialNavigationPushUrl :: !Bool
+    , partialNavigationClass    :: !Text
+    , partialNavigationSwap     :: !Text
+    , partialNavigationSync     :: !(Maybe Text)
+    , partialNavigationPushUrl  :: !Bool
     }
 
 defaultOverlayButtons :: Text -> [OverlayButton]
@@ -264,7 +264,32 @@ storageTimeToDisplayLabel :: Text -> Text
 storageTimeToDisplayLabel rawValue =
     case parseTimeM True defaultTimeLocale "%H:%M" (cs rawValue) :: Maybe TimeOfDay of
         Just tod -> Text.pack (formatTime defaultTimeLocale "%-I:%M %p" tod)
-        Nothing -> rawValue
+        Nothing  -> rawValue
+
+renderTimePickerField :: Text -> Text -> Text -> Text -> Bool -> Html
+renderTimePickerField fieldName currentValue rangeStart rangeEnd disabled =
+    let displayLabel =
+            if Text.null currentValue || currentValue == "00:00"
+                then "Select time" :: Text
+                else storageTimeToDisplayLabel currentValue
+        isMuted = Text.null currentValue || currentValue == "00:00"
+     in [hsx|
+        <div data-time-picker-field="true"
+             data-time-picker-start={rangeStart}
+             data-time-picker-end={rangeEnd}
+             class="d-flex align-items-center">
+            <input type="hidden"
+                   name={fieldName}
+                   value={currentValue}
+                   class="js-time-picker-input"
+                   disabled={disabled} />
+            <button type="button"
+                    class="btn btn-outline-secondary js-time-picker-trigger"
+                    disabled={disabled}>
+                <span class={classes [("js-time-picker-label", True), ("app-muted", isMuted)]}>{displayLabel}</span>
+            </button>
+        </div>
+    |]
 
 renderQuarterHourTimePickerModal :: Html
 renderQuarterHourTimePickerModal = [hsx|
