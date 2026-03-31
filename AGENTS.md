@@ -120,6 +120,7 @@ Available scripts:
 - **`new-controller NAME`** — IHP code generator that scaffolds controller, views, types, and routes. Prefer this for new CRUD controllers, then customize.
 - **`e2e`** — Run Playwright end-to-end tests against an isolated `app_e2e` database and a temporary app server on the next free local IHP dev port. Accepts playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). The local Postgres socket still needs to be available, but this wrapper no longer reuses the normal dev app/database.
 - **`screenshot`** — Take a screenshot of a page. Usage: `screenshot http://localhost:8000/Dashboard dash.png`. Requires `devenv up` running.
+- **`screenshot-page`** — Authenticated Playwright screenshot helper for arbitrary app pages. Preferred over ad hoc browser scripts when the page requires seeded login/profile completion or a shell-specific wait selector. Supports `--selector`, `--base-url`, `--email`, `--password`, `--login-path`, `--login-selector`, `--post-login-url-pattern`, `--navigation-timeout-ms`, `--selector-timeout-ms`, `--wait-ms`, and `--no-login`.
 - **`e2e-report`** — Open the Playwright HTML test report from the last run.
 - **`dev-start`** — Start the IHP `start` script in background for automation (no PTY dependency). Writes pid/log to `.devenv/agent/` and fails fast if startup exits early.
 - **`dev-stop`** — Stop background server started by `dev-start`. If the app is healthy but was started outside `dev-start`, it reports `healthy but unmanaged` and does not kill it.
@@ -178,6 +179,7 @@ Playwright-based end-to-end tests live in `e2e/` and run against an isolated tem
 - **Cleanup**: `global-teardown.ts` deletes all rows with `e2e-` prefixed emails and removes worker-owned leave/timesheet rows before deleting dependent snapshots
 - **Browsers**: Provided by Nix via `playwright-web-flake` — no manual browser install needed
 - **CLI invocation**: In automation and Loom runs, prefer `bash ./bin/in-env e2e` / `screenshot` / `e2e-report` instead of bare `npx playwright ...`; the wrapper resolves the repo-local Playwright CLI inside the dev shell so the runner matches the imported test package
+- **Authenticated/manual captures**: Prefer `bash ./bin/in-env screenshot-page ... --selector '<real-shell-selector>'` for arbitrary screenshots. On cold IHP boots, increase both `--navigation-timeout-ms` and `--selector-timeout-ms` instead of cloning the helper or writing one-off screenshot scripts.
 - **npm deps**: `@playwright/test` version in `package.json` must match the `playwright-web-flake` tag in `flake.nix`
 
 ## Maintaining Agent Documentation

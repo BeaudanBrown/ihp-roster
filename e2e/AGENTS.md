@@ -23,6 +23,12 @@ bash ./bin/in-env screenshot http://localhost:8000/Dashboard dash.png
 # Take a screenshot of a protected page with reusable login flow
 bash ./bin/in-env screenshot-page /RosterWeeks roster.png --selector 'table.roster-grid'
 
+# Same flow, but tolerant of cold IHP boot/compile time
+bash ./bin/in-env screenshot-page /RosterWeeks roster.png \
+  --selector 'table.roster-grid' \
+  --navigation-timeout-ms 120000 \
+  --selector-timeout-ms 120000
+
 # View the last test report
 bash ./bin/in-env e2e-report
 ```
@@ -150,7 +156,21 @@ Useful options:
 - `--email` and `--password` to change credentials
 - `--no-login` for public pages
 - `--base-url` to target a non-default host
+- `--login-path` and `--login-selector` when the auth entrypoint is not the default `/NewSession` + `#email`
+- `--post-login-url-pattern` when the expected landing page is not one of `Dashboard|RosterWeeks|EditProfile`
+- `--navigation-timeout-ms` and `--selector-timeout-ms` for cold IHP boots or slow compile/reload windows
 - `--wait-ms` for delayed UI states
+
+Recommended pattern for arbitrary authenticated screenshots:
+
+```bash
+bash ./bin/in-env screenshot-page /SomeProtectedPage test-results/page.png \
+  --selector '#page-shell' \
+  --navigation-timeout-ms 120000 \
+  --selector-timeout-ms 120000
+```
+
+Use `--selector` for the real shell you care about, not just `body`. That keeps captures from succeeding on the temporary `Is compiling` screen or on half-rendered HTMX content.
 
 ## Common Selectors for IHP/Bootstrap Forms
 
