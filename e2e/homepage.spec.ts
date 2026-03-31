@@ -4,7 +4,7 @@ test.describe('Homepage', () => {
     test('loads the welcome page', async ({ page }) => {
         await page.goto('/');
         await expect(page).toHaveTitle(/Welcome/);
-        await expect(page.locator('body')).toContainText('Sign in to your account');
+        await expect(page.locator('body')).toContainText('Sign in with an invited account');
     });
 
     test('has sign in link', async ({ page }) => {
@@ -15,11 +15,12 @@ test.describe('Homepage', () => {
         await expect(page).toHaveURL(/NewSession/);
     });
 
-    test('has create account link', async ({ page }) => {
+    test('has request access link', async ({ page }) => {
         await page.goto('/');
-        const createLink = page.locator('a', { hasText: 'Create Account' });
-        await expect(createLink).toBeVisible();
-        await createLink.click();
+        const requestAccessLink = page.locator('a', { hasText: 'Request Access' });
+        await expect(requestAccessLink).toBeVisible();
+        await requestAccessLink.click();
         await expect(page).toHaveURL(/NewUser/);
+        await expect(page.locator('body')).toContainText('Ask the founder or support team for an invitation link');
     });
 });
