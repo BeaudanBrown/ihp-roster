@@ -5,6 +5,7 @@ import Web.View.Prelude
 data EditView = EditView
     { staff      :: Staff
     , weekOffset :: Int
+    , maybeRosterGroupId :: Maybe (Id RosterGroup)
     }
 
 instance View EditView where
@@ -12,19 +13,19 @@ instance View EditView where
         renderStaffEditPageModal
             weekOffset
             staffEditFormId
-            (renderForm PageOverlayForm staff weekOffset (UpdateStaffAction (get #id staff)))
+            (renderForm PageOverlayForm staff weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
 
-renderStaffEditModalFragment :: Staff -> Int -> Html
-renderStaffEditModalFragment staff weekOffset =
+renderStaffEditModalFragment :: Staff -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffEditModalFragment staff weekOffset maybeRosterGroupId =
     renderStaffEditDialog
         staffEditFormId
-        (renderForm HtmxOverlayForm staff weekOffset (UpdateStaffAction (get #id staff)))
+        (renderForm HtmxOverlayForm staff weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
 
-renderForm :: OverlayFormMode -> Staff -> Int -> StaffController -> Html
-renderForm formMode staff weekOffset action =
+renderForm :: OverlayFormMode -> Staff -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
+renderForm formMode staff weekOffset maybeRosterGroupId action =
     case formMode of
         HtmxOverlayForm -> [hsx|
             <form id={staffEditFormId}
@@ -36,7 +37,7 @@ renderForm formMode staff weekOffset action =
                   hx-target={"#" <> dialogOverlayMountId}
                   hx-swap="innerHTML"
                   hx-push-url="false">
-                {renderFormFields staff weekOffset}
+                {renderFormFields staff weekOffset maybeRosterGroupId}
             </form>
         |]
         PageOverlayForm -> [hsx|
@@ -44,13 +45,14 @@ renderForm formMode staff weekOffset action =
                   method="POST"
                   action={action}
                   class="mt-3">
-                {renderFormFields staff weekOffset}
+                {renderFormFields staff weekOffset maybeRosterGroupId}
             </form>
         |]
 
-renderFormFields :: Staff -> Int -> Html
-renderFormFields staff weekOffset = [hsx|
+renderFormFields :: Staff -> Int -> Maybe (Id RosterGroup) -> Html
+renderFormFields staff weekOffset maybeRosterGroupId = [hsx|
         <input type="hidden" name="weekOffset" value={tshow weekOffset} />
+        {renderRosterGroupHiddenInput maybeRosterGroupId}
         <div class="mb-3">
             <label for="firstName" class="form-label">First Name</label>
             <input
@@ -117,3 +119,9 @@ renderStaffFieldError staff fieldName =
 
 hasStaffErrorFor :: Staff -> Text -> Bool
 hasStaffErrorFor staff fieldName = isJust (lookup fieldName staff.meta.annotations)
+
+renderRosterGroupHiddenInput :: Maybe (Id RosterGroup) -> Html
+renderRosterGroupHiddenInput maybeRosterGroupId =
+    case maybeRosterGroupId of
+        Just rosterGroupId -> [hsx|<input type="hidden" name="rosterGroupId" value={tshow rosterGroupId} />|]
+        Nothing -> mempty

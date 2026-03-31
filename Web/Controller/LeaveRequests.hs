@@ -1,5 +1,6 @@
 module Web.Controller.LeaveRequests where
 
+import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroups)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentRef (..),
                                       LiveUpdateScope (..),
@@ -280,12 +281,15 @@ invalidateAffectedRosterWeeksForLeave leaveRequest = do
                 leaveRequest.startDate
                 leaveRequest.endDate
 
-    forM_ affectedOffsets \weekOffset ->
-        broadcastRosterWeekInvalidation
-            weekOffset
-            [ buildRosterContentFragmentRef weekOffset
-            , buildRosterStaffPanelFragmentRef weekOffset
-            ]
+    rosterGroups <- fetchCurrentVenueRosterGroups
+    forM_ rosterGroups \rosterGroup ->
+        forM_ affectedOffsets \weekOffset ->
+            broadcastRosterWeekInvalidation
+                rosterGroup.id
+                weekOffset
+                [ buildRosterContentFragmentRef rosterGroup.id weekOffset
+                , buildRosterStaffPanelFragmentRef rosterGroup.id weekOffset
+                ]
 
 buildLeaveRequestsScope :: Id Venue -> LiveUpdateScope
 buildLeaveRequestsScope venueId =
