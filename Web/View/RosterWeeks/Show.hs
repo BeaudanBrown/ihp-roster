@@ -70,14 +70,13 @@ renderRosterWeekShell ShowView { .. } = [hsx|
             {renderRosterWeekControls weekOffset rosterGroups currentRosterGroup}
         </div>
 
-        {renderRosterContentFragment rosterWeek rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts}
+        {renderRosterContentFragment rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts}
     </section>
 |]
 
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterWeekControls weekOffset rosterGroups currentRosterGroup = [hsx|
     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-xl-end">
-        {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
         <div class="btn-group" role="group" aria-label="Roster week navigation">
             {renderWeekNavigationLink "<" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
             {renderWeekNavigationLink "this week" (appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id)])}
@@ -89,17 +88,22 @@ renderRosterWeekControls weekOffset rosterGroups currentRosterGroup = [hsx|
 
 renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
-    <div class="btn-group" role="group" aria-label="Roster group selection">
-        {forEach rosterGroups (renderRosterGroupSwitchLink weekOffset currentRosterGroup.id)}
-    </div>
+    <form class="d-flex align-items-center gap-2 mb-0" method="GET" action={pathTo (ShowRosterWeekAction weekOffset)}>
+        <label class="visually-hidden" for="roster-group-switch">Roster group</label>
+        <select id="roster-group-switch"
+                class="form-select form-select-sm"
+                name="rosterGroupId"
+                onchange="this.form.submit()">
+            {forEach rosterGroups (renderRosterGroupSwitchOption currentRosterGroup.id)}
+        </select>
+    </form>
 |]
 
-renderRosterGroupSwitchLink :: Int -> Id RosterGroup -> RosterGroup -> Html
-renderRosterGroupSwitchLink weekOffset selectedRosterGroupId rosterGroup = [hsx|
-    <a class={classes [("btn btn-sm", True), ("btn-primary", rosterGroup.id == selectedRosterGroupId), ("btn-outline-primary", rosterGroup.id /= selectedRosterGroupId)]}
-       href={rosterWeekPath weekOffset rosterGroup.id}>
+renderRosterGroupSwitchOption :: Id RosterGroup -> RosterGroup -> Html
+renderRosterGroupSwitchOption selectedRosterGroupId rosterGroup = [hsx|
+    <option value={tshow rosterGroup.id} selected={rosterGroup.id == selectedRosterGroupId}>
         {rosterGroup.name}
-    </a>
+    </option>
 |]
 
 renderRosterWeekManagerControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Html
@@ -123,34 +127,34 @@ renderWeekNavigationLink label url =
             , partialNavigationPushUrl = True
             }
 
-renderRosterContentFragment :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
+renderRosterContentFragment :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
 renderRosterContentFragment =
     renderRosterContentFragmentWithSwap Nothing
 
-renderRosterContentFragmentOob :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
+renderRosterContentFragmentOob :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
 renderRosterContentFragmentOob =
     renderRosterContentFragmentWithSwap (Just "outerHTML")
 
-renderRosterContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Maybe RosterWeek -> [RosterDay] -> Int -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
-renderRosterContentFragmentWithSwap maybeSwapOob rosterWeek rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts = [hsx|
+renderRosterContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
+renderRosterContentFragmentWithSwap maybeSwapOob rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts = [hsx|
     <div id={rosterContentFragmentId} hx-swap-oob={maybeSwapOob}>
-        {renderRosterContent rosterWeek rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts}
+        {renderRosterContent rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts}
     </div>
 |]
 
-renderRosterContent :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
-renderRosterContent Nothing rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts =
-    renderRosterGrid Nothing rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts
+renderRosterContent :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
+renderRosterContent Nothing rosterDays weekOffset rosterGroups currentRosterGroup staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts =
+    renderRosterGrid Nothing rosterDays weekOffset rosterGroups currentRosterGroup staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts
 
-renderRosterContent (Just rosterWeek) rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts =
-    renderRosterGrid (Just rosterWeek) rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts
+renderRosterContent (Just rosterWeek) rosterDays weekOffset rosterGroups currentRosterGroup staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts =
+    renderRosterGrid (Just rosterWeek) rosterDays weekOffset rosterGroups currentRosterGroup staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts
 
-renderRosterGrid :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
-renderRosterGrid maybeRosterWeek rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts = [hsx|
+renderRosterGrid :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> [Staff] -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
+renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts = [hsx|
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
             <div class="card shadow-sm mb-5 mb-xl-0">
-                {renderRosterGridHeader maybeRosterWeek}
+                {renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup}
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm mb-0 align-middle roster-grid">
                         <thead class="text-center text-uppercase fw-bold roster-grid-head">
@@ -171,14 +175,13 @@ renderRosterGrid maybeRosterWeek rosterDays weekOffset staffMembers panelStaff s
     </div>
 |]
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
-renderRosterGridHeader maybeRosterWeek
-    | currentUserIsManager && isJust maybeRosterWeek = [hsx|
-        <div class="card-header d-flex justify-content-end align-items-center py-3">
-            {renderLiveToggle maybeRosterWeek}
-        </div>
-    |]
-    | otherwise = mempty
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> Html
+renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup = [hsx|
+    <div class="card-header d-flex justify-content-between align-items-center gap-3 py-3">
+        {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
+        {renderLiveToggle maybeRosterWeek}
+    </div>
+|]
 
 renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
 renderLiveToggle (Just rosterWeek) = renderLiveToggleForm rosterWeek

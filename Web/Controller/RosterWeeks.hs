@@ -391,6 +391,8 @@ buildSlotConflicts lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlo
 
 respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContent rosterGroupId weekOffset = do
+    rosterGroups <- fetchCurrentVenueRosterGroups
+    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
     rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx|<div id="roster-content"></div>|]
@@ -400,6 +402,8 @@ respondWithRosterContent rosterGroupId weekOffset = do
                     (Just rosterWeek)
                     rosterDays
                     weekOffset
+                    rosterGroups
+                    currentRosterGroup
                     staffMembers
                     panelStaff
                     orderedSlotNames
@@ -409,6 +413,8 @@ respondWithRosterContent rosterGroupId weekOffset = do
 
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContentOob rosterGroupId weekOffset = do
+    rosterGroups <- fetchCurrentVenueRosterGroups
+    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
     rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
@@ -418,6 +424,8 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                     (Just rosterWeek)
                     rosterDays
                     weekOffset
+                    rosterGroups
+                    currentRosterGroup
                     staffMembers
                     panelStaff
                     orderedSlotNames
@@ -427,6 +435,8 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
 
 respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
+    rosterGroups <- fetchCurrentVenueRosterGroups
+    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
     rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     respondHtml $
         mconcat
@@ -437,6 +447,8 @@ respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
                         (Just rosterWeek)
                         rosterDays
                         weekOffset
+                        rosterGroups
+                        currentRosterGroup
                         staffMembers
                         panelStaff
                         orderedSlotNames
