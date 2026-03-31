@@ -1,8 +1,8 @@
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE BlockArguments      #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Web.Controller.RosterWeeks where
 
@@ -36,8 +36,7 @@ import Web.View.RosterWeeks.Show (RosterStaffPanelEntry (..), ShowView (..),
                                   renderRosterStaffPanelFragmentOob,
                                   renderRosterWeekShell, renderRowFragment,
                                   renderRowOob, rosterContentFragmentId,
-                                  rosterDaySectionDomId,
-                                  rosterRowDomIdText,
+                                  rosterDaySectionDomId, rosterRowDomIdText,
                                   rosterStaffPanelFragmentId, rowsForDay)
 
 instance Controller RosterWeeksController where
@@ -194,6 +193,7 @@ instance Controller RosterWeeksController where
         let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
+        ensureRosterWeekIsDraftForEdit rosterWeek
 
         -- Find the current max row index for this day
         existingSlots <- query @RosterSlot |> filterWhere (#rosterDayId, coerce rosterDayId) |> fetch
@@ -234,6 +234,7 @@ instance Controller RosterWeeksController where
         let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
+        ensureRosterWeekIsDraftForEdit rosterWeek
 
         existingSlots <- query @RosterSlot
             |> filterWhere (#rosterDayId, coerce rosterDayId)
@@ -275,6 +276,7 @@ instance Controller RosterWeeksController where
         let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
+        ensureRosterWeekIsDraftForEdit rosterWeek
 
         let maybeStaffParam = paramOrNothing @Text "staffId"
         let maybeStartTimeParam = paramOrNothing @Text "startTime"
@@ -661,14 +663,14 @@ fetchVisibleRosterStaffPanelEntries rosterGroupId weekOffset = do
 fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex = do
     rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     pure do
-        RosterRenderData { rosterDays, weekStartDate, staffMembers, orderedSlotNames, allSlots, slotConflicts } <- rosterData
-        renderRequestedRowFragment rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (unpackId rosterDayId, rowIndex)
+        RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, orderedSlotNames, allSlots, slotConflicts } <- rosterData
+        renderRequestedRowFragment (hasRole ManagerRole' && not rosterWeek.isLive) rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (unpackId rosterDayId, rowIndex)
 
 fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId = do
     rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     pure do
-        RosterRenderData { rosterDays, weekStartDate, staffMembers, orderedSlotNames, allSlots, slotConflicts } <- rosterData
-        renderRequestedDaySectionFragment rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (unpackId rosterDayId)
+        RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, orderedSlotNames, allSlots, slotConflicts } <- rosterData
+        renderRequestedDaySectionFragment (hasRole ManagerRole' && not rosterWeek.isLive) rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (unpackId rosterDayId)
 
 buildRosterWeekScope :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveUpdateScope
 buildRosterWeekScope rosterGroupId weekOffset =
@@ -887,9 +889,9 @@ renderRequestedRow rosterDays weekStartDate orderedSlotNames staffMembers allSlo
     let indexedRows = zip [0 :: Int ..] dayRows
     (rowPosition, (_, rowSlots)) <- find (\(_, (rowIndex, _)) -> rowIndex == targetRowIndex) indexedRows
     let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate
-    pure (renderRowOob orderedSlotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (targetRowIndex, rowSlots)))
+    pure (renderRowOob True orderedSlotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (targetRowIndex, rowSlots)))
 
-renderRequestedRowFragment rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (rosterDayUuid, targetRowIndex) = do
+renderRequestedRowFragment isEditable rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (rosterDayUuid, targetRowIndex) = do
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
     let daySlots = filter (\slot -> slot.rosterDayId == rosterDayUuid) allSlots
     let dayRows = rowsForDay daySlots
@@ -898,15 +900,27 @@ renderRequestedRowFragment rosterDays weekStartDate orderedSlotNames staffMember
     let indexedRows = zip [0 :: Int ..] dayRows
     (rowPosition, (_, rowSlots)) <- find (\(_, (rowIndex, _)) -> rowIndex == targetRowIndex) indexedRows
     let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate
-    pure (renderRowFragment orderedSlotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (targetRowIndex, rowSlots)))
+    pure (renderRowFragment isEditable orderedSlotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (targetRowIndex, rowSlots)))
 
 renderRequestedDaySection rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts rosterDayUuid = do
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
-    pure (renderRosterDaySectionFragment orderedSlotNames staffMembers weekStartDate allSlots slotConflicts rosterDay)
+    pure (renderRosterDaySectionFragment True orderedSlotNames staffMembers weekStartDate allSlots slotConflicts rosterDay)
 
-renderRequestedDaySectionFragment rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts rosterDayUuid = do
+renderRequestedDaySectionFragment isEditable rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts rosterDayUuid = do
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
-    pure (renderRosterDaySectionFragment orderedSlotNames staffMembers weekStartDate allSlots slotConflicts rosterDay)
+    pure (renderRosterDaySectionFragment isEditable orderedSlotNames staffMembers weekStartDate allSlots slotConflicts rosterDay)
+
+ensureRosterWeekIsDraftForEdit :: (?context :: ControllerContext) => RosterWeek -> IO ()
+ensureRosterWeekIsDraftForEdit rosterWeek =
+    when rosterWeek.isLive do
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroupId
+        let errorMessage = "Live roster weeks are read-only. Move it back to draft to make changes."
+        if isHtmxRequest
+            then respondWithRosterToast errorMessage "app-toast-error"
+            else do
+                setErrorMessage errorMessage
+                redirectToPath targetPath
 
 impactedRowKeysForSlotUpdate :: Maybe UUID.UUID -> RosterSlot -> [RosterSlot] -> [(UUID.UUID, Int)]
 impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots =

@@ -252,7 +252,12 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-live-toggle-htmx@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)) |> set #note (Just "Open"))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -261,6 +266,14 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
                 response `responseBodyShouldContain` "Roster week is now live."
+                response `responseBodyShouldContain` "Crew, Alpha"
+                response `responseBodyShouldContain` "9:00 AM"
+                response `responseBodyShouldContain` "Open"
+                response `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
+                response `responseBodyShouldNotContain` "data-roster-day-remove=\"true\""
+                response `responseBodyShouldNotContain` "name=\"staffId\""
+                response `responseBodyShouldNotContain` "js-time-picker-trigger"
+                response `responseBodyShouldNotContain` "slot-note-input"
 
         it "staff can see published weeks" $ withContext do
             withCleanDb do
@@ -577,6 +590,52 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 updatedSlot <- fetch slot.id
                 updatedSlot.staffId `shouldBe` Just (unpackId alpha.id)
+
+        it "rejects adding rows to a live week via HTMX" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-live-add-row@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName Nothing 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (AddRosterRowAction rosterDay.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Live roster weeks are read-only. Move it back to draft to make changes."
+                slotsForDay <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> fetch
+                length slotsForDay `shouldBe` 1
+
+        it "rejects updating slot assignments on a live week via HTMX" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-live-update@example.com" "staff" True
+                alphaUser <- createUserRecord "roster-alpha-live-update@example.com" "staff" True
+                bravoUser <- createUserRecord "roster-bravo-live-update@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue alphaUser "worker"
+                _ <- createVenueMembershipRecord venue bravoUser "worker"
+                slotName <- fetchSlotNameRecord venue "Early"
+                alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
+                bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow bravo.id)))]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Live roster weeks are read-only. Move it back to draft to make changes."
+                unchangedSlot <- fetch slot.id
+                unchangedSlot.staffId `shouldBe` Just (unpackId alpha.id)
 
         it "rejects assigning staff who are not applicable to the slot's roster group via HTMX" $ withContext do
             withCleanDb do

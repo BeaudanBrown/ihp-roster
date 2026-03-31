@@ -167,7 +167,7 @@ renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRoste
                                 {forEach slotNames renderSlotSubHeaders}
                             </tr>
                         </thead>
-                        {forEach rosterDays (renderRosterDay slotNames staffMembers weekStartDate allSlots slotConflicts)}
+                        {forEach rosterDays (renderRosterDay (rosterWeekIsEditable maybeRosterWeek) slotNames staffMembers weekStartDate allSlots slotConflicts)}
                     </table>
                 </div>
             </div>
@@ -187,6 +187,10 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
 renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
 renderLiveToggle (Just rosterWeek) = renderLiveToggleForm rosterWeek
 renderLiveToggle Nothing           = mempty
+
+rosterWeekIsEditable :: (?context :: ControllerContext) => Maybe RosterWeek -> Bool
+rosterWeekIsEditable maybeRosterWeek =
+    currentUserIsManager && maybe False (not . (.isLive)) maybeRosterWeek
 
 renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragment =
@@ -272,24 +276,24 @@ renderSlotSubHeaders _ =
         , [hsx|<th class="py-1 roster-subhead roster-col-code roster-block-end">Note</th>|]
         ]
 
-renderRosterDay :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
-renderRosterDay slotNames staffMembers weekStartDate allSlots slotConflicts rosterDay =
-    renderRosterDaySectionFragment slotNames staffMembers weekStartDate allSlots slotConflicts rosterDay
+renderRosterDay :: (?context :: ControllerContext) => Bool -> [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
+renderRosterDay isEditable slotNames staffMembers weekStartDate allSlots slotConflicts rosterDay =
+    renderRosterDaySectionFragment isEditable slotNames staffMembers weekStartDate allSlots slotConflicts rosterDay
 
-renderRosterDaySectionFragment :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
+renderRosterDaySectionFragment :: (?context :: ControllerContext) => Bool -> [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
 renderRosterDaySectionFragment =
     renderRosterDaySectionFragmentWithSwap Nothing
 
-renderRosterDaySectionFragmentOob :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
+renderRosterDaySectionFragmentOob :: (?context :: ControllerContext) => Bool -> [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
 renderRosterDaySectionFragmentOob =
     renderRosterDaySectionFragmentWithSwap (Just "outerHTML")
 
-renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
-renderRosterDaySectionFragmentWithSwap maybeSwapOob slotNames staffMembers weekStartDate allSlots slotConflicts rosterDay = [hsx|
+renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Bool -> [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
+renderRosterDaySectionFragmentWithSwap maybeSwapOob isEditable slotNames staffMembers weekStartDate allSlots slotConflicts rosterDay = [hsx|
     <tbody id={rosterDaySectionDomId rosterDay.id}
            data-roster-day-section="true"
            hx-swap-oob={maybeSwapOob}>
-        {renderDayRows slotNames staffMembers (Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate) rosterDay daySlots slotConflicts}
+        {renderDayRows isEditable slotNames staffMembers (Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate) rosterDay daySlots slotConflicts}
     </tbody>
 |]
     where
@@ -304,9 +308,9 @@ rowsForDay slots =
 lastRowIndexForRows :: [(Int, [RosterSlot])] -> Int
 lastRowIndexForRows dayRows = maybe (-1) fst (last dayRows)
 
-renderDayRows :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> RosterDay -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
-renderDayRows slotNames staffMembers date rosterDay slots slotConflicts = [hsx|
-    {forEach indexedRows (renderRow slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts)}
+renderDayRows :: (?context :: ControllerContext) => Bool -> [SlotName] -> [Staff] -> Day -> RosterDay -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
+renderDayRows isEditable slotNames staffMembers date rosterDay slots slotConflicts = [hsx|
+    {forEach indexedRows (renderRow isEditable slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts)}
 |]
     where
         dayRows = rowsForDay slots
@@ -314,49 +318,49 @@ renderDayRows slotNames staffMembers date rosterDay slots slotConflicts = [hsx|
         lastRowIndex = lastRowIndexForRows dayRows
         indexedRows = zip [0 :: Int ..] dayRows
 
-renderRow :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Html
-renderRow slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts rowData =
-    renderRowWithAttrs slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts rowData Nothing
+renderRow :: (?context :: ControllerContext) => Bool -> [SlotName] -> [Staff] -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Html
+renderRow isEditable slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts rowData =
+    renderRowWithAttrs isEditable slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts rowData Nothing
 
-renderRowFragment :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Html
+renderRowFragment :: (?context :: ControllerContext) => Bool -> [SlotName] -> [Staff] -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Html
 renderRowFragment = renderRow
 
-renderRowOob :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Html
-renderRowOob slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts rowData =
-    [hsx|<template>{renderRowWithAttrs slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts rowData (Just "outerHTML")}</template>|]
+renderRowOob :: (?context :: ControllerContext) => Bool -> [SlotName] -> [Staff] -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Html
+renderRowOob isEditable slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts rowData =
+    [hsx|<template>{renderRowWithAttrs isEditable slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts rowData (Just "outerHTML")}</template>|]
 
-renderRowWithAttrs :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
-renderRowWithAttrs slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
+renderRowWithAttrs :: (?context :: ControllerContext) => Bool -> [SlotName] -> [Staff] -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
+renderRowWithAttrs isEditable slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
     <tr id={rosterRowDomIdText rosterDay.id rowIndex}
         data-roster-row="true"
         hx-swap-oob={maybeSwapOob}
         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rosterDay), True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
-        {when (rowPosition == 0) (renderDayLabel date rosterDay rowCount lastRowIndex)}
-        {forEach (zip [0 :: Int ..] slotNames) (renderBlockCells staffMembers rosterDay.id rowIndex rowSlots slotConflicts)}
+        {when (rowPosition == 0) (renderDayLabel isEditable date rosterDay rowCount lastRowIndex)}
+        {forEach (zip [0 :: Int ..] slotNames) (renderBlockCells isEditable staffMembers rosterDay.id rowIndex rowSlots slotConflicts)}
     </tr>
 |]
 
 rosterRowDomIdText :: Id RosterDay -> Int -> Text
 rosterRowDomIdText rosterDayId rowIndex = "roster-row-" <> tshow rosterDayId <> "-" <> tshow rowIndex
 
-renderDayLabel :: (?context :: ControllerContext) => Day -> RosterDay -> Int -> Int -> Html
-renderDayLabel date rosterDay rowCount lastRowIndex = [hsx|
+renderDayLabel :: (?context :: ControllerContext) => Bool -> Day -> RosterDay -> Int -> Int -> Html
+renderDayLabel isEditable date rosterDay rowCount lastRowIndex = [hsx|
     <td class="fw-bold day-label p-2" rowspan={tshow rowCount}>
         <div class="d-flex flex-column gap-1">
             <div class="roster-day-heading">
                 <div class="small app-muted">{Text.pack (formatTime defaultTimeLocale "%a" date)}</div>
                 <div class="roster-day-toolbar">
                     <span>{formatDateDisplay date}</span>
-                    {renderDayRowControls rosterDay lastRowIndex}
+                    {renderDayRowControls isEditable rosterDay lastRowIndex}
                 </div>
             </div>
         </div>
     </td>
 |]
 
-renderDayRowControls :: (?context :: ControllerContext) => RosterDay -> Int -> Html
-renderDayRowControls rosterDay lastRowIndex =
-    if currentUserIsManager
+renderDayRowControls :: (?context :: ControllerContext) => Bool -> RosterDay -> Int -> Html
+renderDayRowControls isEditable rosterDay lastRowIndex =
+    if isEditable
         then [hsx|
             <span class="roster-day-actions">
                 {renderAddRowButton rosterDay}
@@ -412,66 +416,26 @@ renderDeleteLastRowButton rosterDay _ =
         |]
         else [hsx|<span></span>|]
 
-renderBlockCells :: (?context :: ControllerContext) => [Staff] -> Id RosterDay -> Int -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> (Int, SlotName) -> Html
-renderBlockCells staffMembers rosterDayId rowIndex rowSlots slotConflicts (blockIndex, slotName) =
+renderBlockCells :: (?context :: ControllerContext) => Bool -> [Staff] -> Id RosterDay -> Int -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> (Int, SlotName) -> Html
+renderBlockCells isEditable staffMembers rosterDayId rowIndex rowSlots slotConflicts (blockIndex, slotName) =
     case find (\slot -> slot.slotNameId == coerce (get #id slotName)) rowSlots of
         Just slot ->
             let currentStartTime = optionalTimeOfDayToStorageValue slot.startTime
                 currentStartTimeLabel = if Text.null currentStartTime then "Select time" else storageTimeToDisplayLabel currentStartTime
                 currentNote = fromMaybe "" slot.note
                 currentPrimaryConflict = primaryConflict (lookupConflicts (get #id slot) slotConflicts)
+                currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel slot.staffId staffMembers)
              in [hsx|
                 <td class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}>
-                    <form class="m-0 d-flex align-items-center gap-1 slot-cell-form" data-time-picker-field="true">
-                        <input type="hidden"
-                               name="startTime"
-                               value={currentStartTime}
-                               class="slot-time-input slot-cell-input js-time-picker-input"
-                               hx-post={UpdateRosterSlotAction slot.id}
-                               hx-trigger="change"
-                               hx-include="closest form"
-                               hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
-                               hx-swap="none"
-                               disabled={not currentUserIsManager} />
-                        <button type="button"
-                                class="btn btn-sm slot-time-trigger js-time-picker-trigger"
-                                disabled={not currentUserIsManager}>
-                            <span class={classes [("js-time-picker-label", True), ("app-muted", Text.null currentStartTime)]}>{currentStartTimeLabel}</span>
-                        </button>
-                    </form>
+                    {if isEditable then renderEditableTimeCell slot.id currentStartTime currentStartTimeLabel else renderReadOnlyCell currentStartTimeLabel}
                 </td>
 
                 <td class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}>
-                    <form class="m-0 slot-cell-form">
-                        <select name="staffId"
-                                class="form-select form-select-sm slot-cell-input slot-staff-input"
-                                hx-post={UpdateRosterSlotAction slot.id}
-                                hx-trigger="change"
-                                hx-include="closest form"
-                                hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
-                                hx-swap="none"
-                                disabled={not currentUserIsManager}>
-                            <option value=""></option>
-                            {forEach staffMembers (renderStaffOption slot.staffId)}
-                        </select>
-                        {renderConflictBadge currentPrimaryConflict}
-                    </form>
+                    {if isEditable then renderEditableStaffCell slot.id slot.staffId staffMembers currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
                 </td>
 
                 <td class="slot-note-cell roster-block-end">
-                    <form class="m-0 slot-cell-form">
-                        <input type="text"
-                               name="note"
-                               value={currentNote}
-                               placeholder=""
-                               class="form-control form-control-sm slot-note-input slot-cell-input"
-                               hx-post={UpdateRosterSlotAction slot.id}
-                               hx-trigger="change"
-                               hx-include="closest form"
-                               hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
-                               hx-swap="none"
-                               disabled={not currentUserIsManager} />
-                    </form>
+                    {if isEditable then renderEditableNoteCell slot.id currentNote else renderReadOnlyCell currentNote}
                 </td>
             |]
         Nothing ->
@@ -487,6 +451,76 @@ renderStaffOption selectedStaffId staff = [hsx|
         {staff.lastName}, {staff.firstName}
     </option>
 |]
+
+renderEditableTimeCell :: Id RosterSlot -> Text -> Text -> Html
+renderEditableTimeCell rosterSlotId currentStartTime currentStartTimeLabel = [hsx|
+    <form class="m-0 d-flex align-items-center gap-1 slot-cell-form" data-time-picker-field="true">
+        <input type="hidden"
+               name="startTime"
+               value={currentStartTime}
+               class="slot-time-input slot-cell-input js-time-picker-input"
+               hx-post={UpdateRosterSlotAction rosterSlotId}
+               hx-trigger="change"
+               hx-include="closest form"
+               hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
+               hx-swap="none" />
+        <button type="button"
+                class="btn btn-sm slot-time-trigger js-time-picker-trigger">
+            <span class={classes [("js-time-picker-label", True), ("app-muted", Text.null currentStartTime)]}>{currentStartTimeLabel}</span>
+        </button>
+    </form>
+|]
+
+renderEditableStaffCell :: Id RosterSlot -> Maybe UUID -> [Staff] -> Maybe RosterConflict -> Html
+renderEditableStaffCell rosterSlotId selectedStaffId staffMembers currentPrimaryConflict = [hsx|
+    <form class="m-0 slot-cell-form">
+        <select name="staffId"
+                class="form-select form-select-sm slot-cell-input slot-staff-input"
+                hx-post={UpdateRosterSlotAction rosterSlotId}
+                hx-trigger="change"
+                hx-include="closest form"
+                hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
+                hx-swap="none">
+            <option value=""></option>
+            {forEach staffMembers (renderStaffOption selectedStaffId)}
+        </select>
+        {renderConflictBadge currentPrimaryConflict}
+    </form>
+|]
+
+renderReadOnlyStaffCell :: Text -> Maybe RosterConflict -> Html
+renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict =
+    mconcat
+        [ [hsx|<div class="slot-cell-static">{currentStaffLabel}</div>|]
+        , renderConflictBadge currentPrimaryConflict
+        ]
+
+renderEditableNoteCell :: Id RosterSlot -> Text -> Html
+renderEditableNoteCell rosterSlotId currentNote = [hsx|
+    <form class="m-0 slot-cell-form">
+        <input type="text"
+               name="note"
+               value={currentNote}
+               placeholder=""
+               class="form-control form-control-sm slot-note-input slot-cell-input"
+               hx-post={UpdateRosterSlotAction rosterSlotId}
+               hx-trigger="change"
+               hx-include="closest form"
+               hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
+               hx-swap="none" />
+    </form>
+|]
+
+renderReadOnlyCell :: Text -> Html
+renderReadOnlyCell value = [hsx|
+    <div class={classes [("slot-cell-static", True), ("app-muted", Text.null value)]}>{if Text.null value then " " else value}</div>
+|]
+
+renderAssignedStaffLabel :: Maybe UUID -> [Staff] -> Maybe Text
+renderAssignedStaffLabel Nothing _ = Nothing
+renderAssignedStaffLabel (Just assignedStaffId) staffMembers =
+    (\staff -> staff.lastName <> ", " <> staff.firstName)
+        <$> find (\staff -> coerce (get #id staff) == assignedStaffId) staffMembers
 
 lookupConflicts :: Id RosterSlot -> [(Id RosterSlot, [RosterConflict])] -> [RosterConflict]
 lookupConflicts slotId slotConflicts = fromMaybe [] (lookup slotId slotConflicts)

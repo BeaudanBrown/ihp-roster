@@ -27,6 +27,10 @@ html {
     scrollbar-gutter: stable;
 }
 
+body.modal-open {
+    padding-right: 0 !important;
+}
+
 body.theme-dark {
     background: radial-gradient(circle at top, #172033 0%, var(--app-bg) 46%);
     color: var(--app-text);
@@ -546,6 +550,15 @@ a:not(.btn):hover {
 
 .roster-grid .slot-staff-input {
     font-weight: 700;
+    color: var(--app-text) !important;
+    background-color: transparent !important;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.roster-grid .slot-staff-input option {
+    color: var(--app-text);
+    background-color: var(--app-surface);
 }
 
 .roster-grid tr.day-row.day-alt-dark {
