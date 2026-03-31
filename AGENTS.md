@@ -115,8 +115,8 @@ Available scripts:
 - **`lint`** — Run hlint on app sources. Provides suggestions for idiomatic Haskell.
 - **`format`** — Format app sources with stylish-haskell (config in `.stylish-haskell.yaml`).
 - **`ghci-app`** — Launch GHCi with the full app loaded for testing expressions interactively.
-- **`seed-payroll-fixture [app|app_test] [--reset]`** — Seed the richer payroll exploration dataset for manual inspection, projected onto the app's current week. The low-level script still defaults to `app`; `app_test` rebuilds the isolated test DB first, and `app --reset` refreshes the dev DB before loading the fixture.
-- **`just seed-payroll`** — Human-friendly default for manual payroll exploration. This always resets `app` first, then seeds the current-week payroll fixture so the running dev app reflects the seeded venue immediately.
+- **`seed-dev [app|app_test] [--reset]`** — Seed a broader current-week development dataset for manual inspection, including a busy multi-group roster venue plus the richer payroll parity venue. The low-level script still defaults to `app`; `app_test` rebuilds the isolated test DB first, and `app --reset` refreshes the dev DB before loading the fixture.
+- **`just seed-dev`** — Human-friendly default for manual dev exploration. This always resets `app` first, then seeds the current-week development fixture so the running dev app reflects the seeded venues immediately.
 - **`new-controller NAME`** — IHP code generator that scaffolds controller, views, types, and routes. Prefer this for new CRUD controllers, then customize.
 - **`e2e`** — Run Playwright end-to-end tests against an isolated `app_e2e` database and a temporary app server on the next free local IHP dev port. Accepts playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). The local Postgres socket still needs to be available, but this wrapper no longer reuses the normal dev app/database.
 - **`screenshot`** — Take a screenshot of a page. Usage: `screenshot http://localhost:8000/Dashboard dash.png`. Requires `devenv up` running.

@@ -16,6 +16,7 @@ import qualified Test.Controller.StaticSpec
 import qualified Test.Controller.TimesheetsSpec
 import qualified Test.Controller.UsersSpec
 import qualified Test.Controller.VenueAccessSpec
+import qualified Test.DevSeedSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.PaySpec
 import qualified Test.RosterGridSpec
@@ -30,6 +31,7 @@ main = hspec do
     Test.Controller.AdminSpec.tests
     Test.Controller.ExportsSpec.tests
     Test.Controller.PayrollExportParitySpec.tests
+    Test.DevSeedSpec.tests
     Test.Controller.ProfilesSpec.tests
     Test.Controller.LeaveRequestsSpec.tests
     Test.Controller.StaffSpec.tests

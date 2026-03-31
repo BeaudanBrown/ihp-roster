@@ -22,8 +22,8 @@ status:
 db:
     make db
 
-seed-payroll *args:
-    if [ -z "{{args}}" ]; then seed-payroll-fixture app --reset; else seed-payroll-fixture {{args}}; fi
+seed-dev *args:
+    if [ -z "{{args}}" ]; then seed-dev app --reset; else seed-dev {{args}}; fi
 
 typecheck *args:
     typecheck {{args}}

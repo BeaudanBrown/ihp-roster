@@ -192,17 +192,17 @@ SQL
                             exec ghci $GHC_OPTS Main.hs "$@"
                         '';
 
-                        # Seed the richer payroll exploration fixture into a database for manual exploration.
-                        # Usage: seed-payroll-fixture [app|app_test] [--reset]
-                        seed-payroll-fixture.exec = ''
+                        # Seed a general-purpose development fixture surface into a database for manual exploration.
+                        # Usage: seed-dev [app|app_test] [--reset]
+                        seed-dev.exec = ''
                             set -euo pipefail
 
                             DB_NAME="''${1:-app}"
                             RESET_MODE="''${2:-}"
-                            DB_SOCKET="''${PAYROLL_FIXTURE_DB_SOCKET:-$PWD/build/db}"
+                            DB_SOCKET="''${DEV_FIXTURE_DB_SOCKET:-$PWD/build/db}"
 
                             if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
-                                echo "Payroll fixture seeding requires the local postgres socket at $DB_SOCKET" >&2
+                                echo "Dev fixture seeding requires the local postgres socket at $DB_SOCKET" >&2
                                 echo "Start the local environment first (e.g. dev-start or devenv up)." >&2
                                 exit 1
                             fi
@@ -217,10 +217,10 @@ SQL
                                     if [ "$RESET_MODE" = "--reset" ]; then
                                         make db
                                     fi
-                                    ;;
+                                ;;
                                 *)
                                     echo "Unsupported database target: $DB_NAME" >&2
-                                    echo "Usage: seed-payroll-fixture [app|app_test] [--reset]" >&2
+                                    echo "Usage: seed-dev [app|app_test] [--reset]" >&2
                                     exit 1
                                     ;;
                             esac
@@ -229,18 +229,18 @@ SQL
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             mkdir -p build/Script
-                            cat > build/Script/SeedPayrollFixtureMain.hs <<'EOF'
-import qualified Application.Script.SeedPayrollFixture as Script
+                            cat > build/Script/SeedDevMain.hs <<'EOF'
+import qualified Application.Script.SeedDev as Script
 import qualified Config
 import IHP.ScriptSupport
 
 main = runScript Config.config Script.run
 EOF
-                            ghc $GHC_OPTS -iTest -main-is Main build/Script/SeedPayrollFixtureMain.hs \
-                                -o build/Script/SeedPayrollFixture \
+                            ghc $GHC_OPTS -iTest -main-is Main build/Script/SeedDevMain.hs \
+                                -o build/Script/SeedDev \
                                 -odir build/Script \
                                 -hidir build/Script
-                            exec build/Script/SeedPayrollFixture
+                            exec build/Script/SeedDev
                         '';
 
                         # Launch a dedicated app server for isolated E2E runs.
