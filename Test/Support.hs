@@ -1,5 +1,7 @@
 module Test.Support where
 
+import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
+                                        ensureVenueRosterDefaults)
 import Application.Helper.Controller (PlatformRole (..),
                                       currentVenueSessionKey,
                                       platformRoleToEnum,
@@ -54,7 +56,7 @@ withControllerTestContext action =
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExec
-        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, shift_types, pay_levels, staff, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, roster_groups, shift_types, pay_levels, staff, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
@@ -64,13 +66,7 @@ createVenueWithConfig name =
         venue <- newRecord @Venue
             |> set #name name
             |> createRecord
-        _ <- newRecord @VenueConfig
-            |> set #venueId (unpackId (get #id venue))
-            |> set #timezone "UTC"
-            |> set #weekOffsetEpoch defaultWeekEpoch
-            |> set #lateToEarlyMinStartGapMinutes 600
-            |> set #staffTimesheetEditWindowDays 7
-            |> createRecord
+        _ <- ensureVenueRosterDefaults venue
         pure venue
 
 createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> IO User
@@ -118,17 +114,28 @@ createStaffRecord venue maybeUser firstName lastName =
         |> createRecord
 
 createSlotNameRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO SlotName
-createSlotNameRecord venue slotName =
+createSlotNameRecord venue slotName = do
+    rosterGroup <- ensureVenueDefaultRosterGroup venue
     newRecord @SlotName
         |> set #venueId (unpackId (get #id venue))
+        |> set #rosterGroupId (unpackId rosterGroup.id)
         |> set #name slotName
         |> set #isActive True
         |> createRecord
 
+fetchSlotNameRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO SlotName
+fetchSlotNameRecord venue slotName =
+    query @SlotName
+        |> filterWhere (#venueId, unpackId (get #id venue))
+        |> filterWhere (#name, slotName)
+        |> fetchOne
+
 createRosterWeekRecord :: (?modelContext :: ModelContext) => Venue -> Int -> Bool -> IO RosterWeek
-createRosterWeekRecord venue weekOffset isLive =
+createRosterWeekRecord venue weekOffset isLive = do
+    rosterGroup <- ensureVenueDefaultRosterGroup venue
     newRecord @RosterWeek
         |> set #venueId (unpackId (get #id venue))
+        |> set #rosterGroupId (unpackId rosterGroup.id)
         |> set #weekOffset weekOffset
         |> set #isLive isLive
         |> createRecord
@@ -221,6 +228,13 @@ createDayNameRecord venue weekdayIndex dayName =
         |> set #name dayName
         |> set #isActive True
         |> createRecord
+
+fetchDayNameRecord :: (?modelContext :: ModelContext) => Venue -> Int -> IO DayName
+fetchDayNameRecord venue weekdayIndex =
+    query @DayName
+        |> filterWhere (#venueId, unpackId (get #id venue))
+        |> filterWhere (#weekdayIndex, weekdayIndex)
+        |> fetchOne
 
 createPayLevelDayRuleRecord :: (?modelContext :: ModelContext) => ShiftType -> DayName -> PayLevel -> IO PayLevelDayRule
 createPayLevelDayRuleRecord shiftType dayName payLevel =

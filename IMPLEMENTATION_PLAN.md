@@ -124,10 +124,10 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **Progress:** parity inventory and SQL-fit assessment are now captured; implementation still needs the report-definition model, pay-engine fixes for actual shift-type/pay-level resolution, the first staff-pay CSV, the hourly ZIP, and admin/report configuration UI.
 
 ### Pipeline 49 — Roster Groups and Venue Bootstrap Defaults
-- **Status:** [ ]
+- **Status:** [-]
 - **File:** `plans/49-roster-groups-and-venue-bootstrap.md`
 - **Focus:** move the roster domain toward group-scoped scheduling, centralize minimum roster bootstrap defaults, and add staff-to-roster-group applicability.
-- **Progress:** planning direction settled on `2026-03-31`. The target shape is: one venue can own multiple roster groups, slot definitions and roster weeks become group-scoped, a shared bootstrap path guarantees a default roster group plus default active slots, and staff eligibility can be configured per roster group.
+- **Progress:** planning direction settled on `2026-03-31`. The first foundation slice now introduces `roster_groups`, adds group foreign keys to `slot_names` and `roster_weeks`, centralizes minimum venue roster setup into one helper, and keeps the current app behavior pinned to the default roster group until explicit multi-group UI and staff applicability land.
 
 ### Pipeline 50 — Release Readiness
 - **Status:** [ ]

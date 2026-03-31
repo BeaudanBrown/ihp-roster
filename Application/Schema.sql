@@ -121,14 +121,29 @@ CREATE TABLE report_definition_shift_type_filters (
     FOREIGN KEY (report_definition_id) REFERENCES report_definitions (id) ON DELETE CASCADE,
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE CASCADE
 );
+CREATE TABLE roster_groups (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    sort_order INT DEFAULT 0 NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    is_default BOOLEAN DEFAULT FALSE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(venue_id, name),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE
+);
 CREATE TABLE slot_names (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
+    roster_group_id UUID NOT NULL,
     name TEXT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE
+    UNIQUE(roster_group_id, name),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE CASCADE
 );
 CREATE TABLE day_names (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -181,12 +196,14 @@ CREATE TABLE pay_config_snapshots (
 CREATE TABLE roster_weeks (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
+    roster_group_id UUID NOT NULL,
     week_offset INT NOT NULL,
     is_live BOOLEAN DEFAULT FALSE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(venue_id, week_offset),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE
+    UNIQUE(roster_group_id, week_offset),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE CASCADE
 );
 CREATE TABLE roster_days (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,

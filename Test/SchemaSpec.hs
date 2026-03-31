@@ -40,6 +40,7 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe ShiftType)
         let _ = (Nothing :: Maybe ReportDefinition)
         let _ = (Nothing :: Maybe ReportDefinitionShiftTypeFilter)
+        let _ = (Nothing :: Maybe RosterGroup)
         let _ = (Nothing :: Maybe SlotName)
         let _ = (Nothing :: Maybe DayName)
         let _ = (Nothing :: Maybe PayLevelDayRule)
@@ -69,7 +70,9 @@ tests = describe "Schema" do
 
     it "venue-owned tables expose venue_id field" do
         let _staffVenueId = get #venueId (newRecord @Staff)
+        let _rosterGroupVenueId = get #venueId (newRecord @RosterGroup)
         let _rosterWeekVenueId = get #venueId (newRecord @RosterWeek)
+        let _rosterWeekRosterGroupId = get #rosterGroupId (newRecord @RosterWeek)
         let _timesheetVenueId = get #venueId (newRecord @TimesheetEntry)
         let _timesheetSnapshotId = get #payConfigSnapshotId (newRecord @TimesheetEntry)
         let _leaveVenueId = get #venueId (newRecord @LeaveRequest)
@@ -78,6 +81,7 @@ tests = describe "Schema" do
         let _shiftTypeVenueId = get #venueId (newRecord @ShiftType)
         let _reportDefinitionVenueId = get #venueId (newRecord @ReportDefinition)
         let _slotNameVenueId = get #venueId (newRecord @SlotName)
+        let _slotNameRosterGroupId = get #rosterGroupId (newRecord @SlotName)
         let _dayNameVenueId = get #venueId (newRecord @DayName)
         let _configVenueId = get #venueId (newRecord @VenueConfig)
         True `shouldBe` True

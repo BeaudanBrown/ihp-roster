@@ -86,7 +86,7 @@ tests = do
                     staff <- createStaffRecord venue Nothing "Pat" "Rate"
                     payLevel <- createPayLevelRecord venue "Level 1"
                     shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
-                    friday <- createDayNameRecord venue 5 "Friday"
+                    friday <- fetchDayNameRecord venue 5
                     overrideLevel <- createPayLevelRecord venue "Friday Level"
                     _ <- createPayLevelDayRuleRecord shiftType friday overrideLevel
                     entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 10)

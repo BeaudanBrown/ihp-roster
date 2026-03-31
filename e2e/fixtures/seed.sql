@@ -369,21 +369,34 @@ ON CONFLICT (id) DO UPDATE SET
     report_definition_id = EXCLUDED.report_definition_id,
     shift_type_id = EXCLUDED.shift_type_id;
 
-INSERT INTO slot_names (id, venue_id, name, is_active)
+INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default)
 VALUES
-    ('a1000000-0000-0000-0000-000000000041', 'a1000000-0000-0000-0000-000000000001', 'Early', TRUE),
-    ('a1000000-0000-0000-0000-000000000042', 'a1000000-0000-0000-0000-000000000002', 'Late', TRUE)
+    ('a1000000-0000-0000-0000-000000000211', 'a1000000-0000-0000-0000-000000000001', 'Main', 0, TRUE, TRUE),
+    ('a1000000-0000-0000-0000-000000000212', 'a1000000-0000-0000-0000-000000000002', 'Main', 0, TRUE, TRUE)
 ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     name = EXCLUDED.name,
-    is_active = EXCLUDED.is_active;
+    sort_order = EXCLUDED.sort_order,
+    is_active = EXCLUDED.is_active,
+    is_default = EXCLUDED.is_default;
 
-INSERT INTO roster_weeks (id, venue_id, week_offset, is_live)
+INSERT INTO slot_names (id, venue_id, roster_group_id, name, is_active)
 VALUES
-    ('a1000000-0000-0000-0000-000000000051', 'a1000000-0000-0000-0000-000000000001', 0, FALSE),
-    ('a1000000-0000-0000-0000-000000000052', 'a1000000-0000-0000-0000-000000000002', 0, FALSE)
+    ('a1000000-0000-0000-0000-000000000041', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', 'Early', TRUE),
+    ('a1000000-0000-0000-0000-000000000042', 'a1000000-0000-0000-0000-000000000002', 'a1000000-0000-0000-0000-000000000212', 'Late', TRUE)
 ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
+    roster_group_id = EXCLUDED.roster_group_id,
+    name = EXCLUDED.name,
+    is_active = EXCLUDED.is_active;
+
+INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)
+VALUES
+    ('a1000000-0000-0000-0000-000000000051', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', 0, FALSE),
+    ('a1000000-0000-0000-0000-000000000052', 'a1000000-0000-0000-0000-000000000002', 'a1000000-0000-0000-0000-000000000212', 0, FALSE)
+ON CONFLICT (id) DO UPDATE SET
+    venue_id = EXCLUDED.venue_id,
+    roster_group_id = EXCLUDED.roster_group_id,
     week_offset = EXCLUDED.week_offset,
     is_live = EXCLUDED.is_live;
 

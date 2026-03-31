@@ -1,6 +1,7 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Pay
+import Application.Helper.RosterGroups
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
@@ -154,8 +155,10 @@ instance Controller AdminController where
             Nothing -> redirectTo AdminAction
             Just name -> do
                 let isActive = parseIsActiveParam
+                rosterGroup <- fetchCurrentVenueDefaultRosterGroup
                 _ <- newRecord @SlotName
                     |> set #venueId (unpackId currentVenueId)
+                    |> set #rosterGroupId (unpackId rosterGroup.id)
                     |> set #name name
                     |> set #isActive isActive
                     |> createRecord
@@ -234,11 +237,9 @@ fetchCurrentVenuePayLevelDayRules = do
                 |> fetch
 
 fetchCurrentVenueSlotNames :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [SlotName]
-fetchCurrentVenueSlotNames =
-    query @SlotName
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> orderByAsc #createdAt
-        |> fetch
+fetchCurrentVenueSlotNames = do
+    rosterGroup <- fetchCurrentVenueDefaultRosterGroup
+    fetchRosterGroupSlotNames rosterGroup.id
 
 fetchCurrentVenueDayNames :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [DayName]
 fetchCurrentVenueDayNames =

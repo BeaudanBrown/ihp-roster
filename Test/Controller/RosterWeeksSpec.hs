@@ -69,7 +69,10 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-auto-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
-                _ <- createSlotNameRecord venue "Early"
+                slotNames <- query @SlotName
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isActive, True)
+                    |> fetch
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -87,14 +90,14 @@ tests = beforeAll testContext do
                 createdSlots <- query @RosterSlot
                     |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) createdDays)
                     |> fetch
-                length createdSlots `shouldBe` 28
+                length createdSlots `shouldBe` (7 * 4 * length slotNames)
 
         it "staff cannot see draft weeks but still gets the roster shell" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-staff-draft@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
-                _ <- createSlotNameRecord venue "Early"
+                _ <- fetchSlotNameRecord venue "Early"
                 _ <- createRosterWeekRecord venue 0 False
 
                 response <- withUser user do
@@ -109,7 +112,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-empty-live-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
-                _ <- createSlotNameRecord venue "Early"
+                _ <- fetchSlotNameRecord venue "Early"
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -142,7 +145,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-draft@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                slotName <- createSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -161,7 +164,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createSlotNameRecord venue "Early"
+                _ <- fetchSlotNameRecord venue "Early"
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -178,7 +181,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-create-htmx@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createSlotNameRecord venue "Early"
+                _ <- fetchSlotNameRecord venue "Early"
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -193,7 +196,10 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-add-row@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                slotName <- createSlotNameRecord venue "Early"
+                slotNames <- query @SlotName
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isActive, True)
+                    |> fetch
 
                 _ <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
@@ -219,9 +225,10 @@ tests = beforeAll testContext do
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                     |> orderByAsc #rowIndex
                     |> fetch
-                length slotsForDay `shouldBe` 5
-                map (.rowIndex) slotsForDay `shouldBe` [0, 1, 2, 3, 4]
-                map (.slotNameId) slotsForDay `shouldBe` replicate 5 (unpackId slotName.id)
+                let slotCount = length slotNames
+                length slotsForDay `shouldBe` (5 * slotCount)
+                map (.rowIndex) slotsForDay `shouldBe` concatMap (replicate slotCount) [0, 1, 2, 3, 4]
+                map (.slotNameId) slotsForDay `shouldMatchList` map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames
 
         it "manager can toggle a draft week live via HTMX without redirecting" $ withContext do
             withCleanDb do
@@ -243,7 +250,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-staff-live@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
-                slotName <- createSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -291,7 +298,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-row-fragment@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                slotName <- createSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -309,7 +316,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-content-fragment@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                slotName <- createSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -329,7 +336,7 @@ tests = beforeAll testContext do
                 linkedUser <- createUserRecord "roster-worker-panel-fragment@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 _ <- createVenueMembershipRecord venue linkedUser "worker"
-                slotName <- createSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue (Just linkedUser) "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -348,7 +355,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 staffUser <- createUserRecord "roster-staff-row-fragment@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue staffUser "worker"
-                slotName <- createSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
@@ -369,7 +376,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-copy@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                slotName <- createSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 sourceWeek <- createRosterWeekRecord venue 0 True
                 sourceDay <- createRosterDayRecord sourceWeek 0
@@ -419,8 +426,8 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-copy-overwrite@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                early <- createSlotNameRecord venue "Early"
-                late <- createSlotNameRecord venue "Late"
+                early <- fetchSlotNameRecord venue "Early"
+                late <- fetchSlotNameRecord venue "Late"
                 alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
                 bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
 
@@ -484,7 +491,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue manager "manager"
                 _ <- createVenueMembershipRecord venue staffUserA "worker"
                 _ <- createVenueMembershipRecord venue staffUserB "worker"
-                slotName <- createSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 staffA <- createStaffRecord venue (Just staffUserA) "Alpha" "Crew"
                 staffB <- createStaffRecord venue (Just staffUserB) "Bravo" "Crew"
                 _ <- updateRecord (staffA |> set #idealShiftsPerWeek (Just 5))
@@ -515,7 +522,7 @@ tests = beforeAll testContext do
                 staffUser <- createUserRecord "roster-staff-duplicate@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 _ <- createVenueMembershipRecord venue staffUser "worker"
-                slotName <- createSlotNameRecord venue "Early"
+                slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue (Just staffUser) "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0

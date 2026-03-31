@@ -31,6 +31,9 @@ INSERT INTO venues (id, name, status) VALUES
 INSERT INTO venue_config (venue_id, timezone, week_offset_epoch, late_to_early_min_start_gap_minutes)
 VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'UTC', DATE '2025-01-06', 600);
 
+INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default) VALUES
+('a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Main', 0, true, true);
+
 -- Founder bootstrap login for manual testing after `make db`
 INSERT INTO users (id, email, password_hash, user_role, platform_role, is_profile_completed, failed_login_attempts, locked_at) VALUES
 ('b0000000-0000-0000-0000-000000000001', 'beaudan.brown@gmail.com', 'sha256|17|QsCg6vyI99zgdc8d6k9CAQ==|U17VHHhZnBKByPfiHkrPH16BdDQaND55Uq8Ubbku/cQ=', 'staff', 'super_admin', true, 0, NULL);
@@ -52,7 +55,16 @@ INSERT INTO shift_types (id, venue_id, name, default_pay_level_id, is_active) VA
 ('44444444-4444-4444-4444-444444444444', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Management', '22222222-2222-2222-2222-222222222222', true);
 
 -- Slot Names
-INSERT INTO slot_names (id, venue_id, name, is_active) VALUES
-('55555555-5555-5555-5555-555555555555', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Early', true),
-('66666666-6666-6666-6666-666666666666', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Mid', true),
-('77777777-7777-7777-7777-777777777777', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Late', true);
+INSERT INTO slot_names (id, venue_id, roster_group_id, name, is_active) VALUES
+('55555555-5555-5555-5555-555555555555', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Early', true),
+('66666666-6666-6666-6666-666666666666', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Mid', true),
+('77777777-7777-7777-7777-777777777777', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Late', true);
+
+INSERT INTO day_names (id, venue_id, weekday_index, name, is_active) VALUES
+('d1000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 1, 'Monday', true),
+('d1000000-0000-0000-0000-000000000002', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 2, 'Tuesday', true),
+('d1000000-0000-0000-0000-000000000003', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 3, 'Wednesday', true),
+('d1000000-0000-0000-0000-000000000004', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 4, 'Thursday', true),
+('d1000000-0000-0000-0000-000000000005', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 5, 'Friday', true),
+('d1000000-0000-0000-0000-000000000006', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 6, 'Saturday', true),
+('d1000000-0000-0000-0000-000000000007', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 0, 'Sunday', true);

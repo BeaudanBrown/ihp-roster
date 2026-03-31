@@ -72,6 +72,7 @@ Ordinary multi-venue switching remains a separate concern and should stay out of
 - make the future roster boundary explicit enough to support `Main`, `Front of House`, `Back of House`, or similar lanes
 - move or associate slot definitions and roster weeks with that boundary
 - define the migration/backfill path from the current single-roster venue model
+- current landed foundation: `roster_groups` exists, `slot_names` and `roster_weeks` now carry `roster_group_id`, and current app flows implicitly target the default roster group until group-aware routing/UI lands
 
 ### 2. Centralized venue roster bootstrap defaults (`coordinator-wii.3`)
 
@@ -79,6 +80,7 @@ Ordinary multi-venue switching remains a separate concern and should stay out of
 - route fixture seeding, scripts, and future venue-creation flows through it
 - guarantee venue config, day names, a default roster group, and default active slot definitions are created together
 - return explicit setup errors or warnings when invariant repair is needed
+- current landed foundation: venue/test bootstrap now converges on one helper that ensures venue config, weekday names, a default active roster group, and default slot names for fresh venues
 
 ### 3. Staff-to-roster-group applicability (`coordinator-wii.4`)
 

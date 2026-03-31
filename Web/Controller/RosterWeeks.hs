@@ -9,6 +9,7 @@ module Web.Controller.RosterWeeks where
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.LiveUpdate
+import Application.Helper.RosterGroups
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 linkedActiveStaffForRosterPanel,
@@ -104,6 +105,7 @@ instance Controller RosterWeeksController where
 
     action CopyRosterWeekAction { sourceWeekOffset, targetWeekOffset } = do
         ensureManagerRole
+        rosterGroup <- fetchCurrentVenueDefaultRosterGroup
 
         if sourceWeekOffset == targetWeekOffset
             then do
@@ -115,7 +117,7 @@ instance Controller RosterWeeksController where
                         redirectTo ShowRosterWeekAction { weekOffset = targetWeekOffset }
             else do
                 sourceWeekOrNothing <- query @RosterWeek
-                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                     |> filterWhere (#weekOffset, sourceWeekOffset)
                     |> fetchOneOrNothing
                 case sourceWeekOrNothing of
@@ -129,7 +131,7 @@ instance Controller RosterWeeksController where
                     Just sourceWeek -> do
                         withTransaction do
                             existingTarget <- query @RosterWeek
-                                |> filterWhere (#venueId, unpackId currentVenueId)
+                                |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                                 |> filterWhere (#weekOffset, targetWeekOffset)
                                 |> fetchOneOrNothing
                             forM_ existingTarget deleteRecord
@@ -185,27 +187,32 @@ instance Controller RosterWeeksController where
         existingSlots <- query @RosterSlot |> filterWhere (#rosterDayId, coerce rosterDayId) |> fetch
         let nextRowIndex = if null existingSlots then 0 else maximum (map (.rowIndex) existingSlots) + 1
 
-        -- Get slot names for Early, Mid, Late
-        slotNames <- query @SlotName
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#isActive, True)
-            |> fetch
+        rosterGroup <- fetchCurrentVenueDefaultRosterGroup
+        slotNames <- fetchActiveRosterGroupSlotNames rosterGroup.id
         let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
 
-        -- Create a slot for each slot name (column)
-        forM_ orderedSlotNames \slotName -> do
-            newRecord @RosterSlot
-                |> set #rosterDayId (coerce rosterDayId)
-                |> set #slotNameId (coerce (get #id slotName))
-                |> set #rowIndex nextRowIndex
-                |> createRecord
+        if null orderedSlotNames
+            then do
+                let errorMessage = "Add at least one active slot to the default roster group before adding roster rows."
+                if isHtmxRequest
+                    then respondWithRosterToast errorMessage "app-toast-error"
+                    else do
+                        setErrorMessage errorMessage
+                        redirectTo ShowRosterWeekAction { weekOffset = rosterWeek.weekOffset }
+            else do
+                forM_ orderedSlotNames \slotName -> do
+                    newRecord @RosterSlot
+                        |> set #rosterDayId (coerce rosterDayId)
+                        |> set #slotNameId (coerce (get #id slotName))
+                        |> set #rowIndex nextRowIndex
+                        |> createRecord
 
-        broadcastRosterWeekInvalidation
-            rosterWeek.weekOffset
-            [ buildRosterDaySectionFragmentRef rosterWeek.weekOffset (coerce rosterDay.id)
-            , buildRosterStaffPanelFragmentRef rosterWeek.weekOffset
-            ]
-        respondWithRosterContent rosterWeek.weekOffset
+                broadcastRosterWeekInvalidation
+                    rosterWeek.weekOffset
+                    [ buildRosterDaySectionFragmentRef rosterWeek.weekOffset (coerce rosterDay.id)
+                    , buildRosterStaffPanelFragmentRef rosterWeek.weekOffset
+                    ]
+                respondWithRosterContent rosterWeek.weekOffset
 
     action RemoveRosterRowAction { rosterDayId } = do
         ensureManagerRole
@@ -523,12 +530,13 @@ data RosterRenderData = RosterRenderData
 fetchRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (Maybe RosterRenderData)
 fetchRosterRenderData weekOffset = do
     _ <- ensureRosterWeekExists weekOffset
+    rosterGroup <- fetchCurrentVenueDefaultRosterGroup
     venueConfig <- fetchVenueConfig
     let epoch = venueConfig.weekOffsetEpoch
     let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) epoch
 
     rosterWeekOrNothing <- query @RosterWeek
-        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
         |> filterWhere (#weekOffset, weekOffset)
         |> fetchOneOrNothing
 
@@ -552,10 +560,7 @@ fetchRosterRenderData weekOffset = do
 
             panelStaff <- fetchRosterStaffPanelEntries staffMembers allSlots
 
-            slotNames <- query @SlotName
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#isActive, True)
-                |> fetch
+            slotNames <- fetchActiveRosterGroupSlotNames rosterGroup.id
 
             let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
             slotConflicts <- buildSlotConflicts venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlots staffMembers
@@ -584,9 +589,10 @@ fetchVisibleRosterRenderData weekOffset = do
 fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (Maybe RosterWeek)
 fetchVisibleRosterWeek weekOffset = do
     _ <- ensureRosterWeekExists weekOffset
+    rosterGroup <- fetchCurrentVenueDefaultRosterGroup
     rosterWeekOrNothing <-
         query @RosterWeek
-            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
             |> filterWhere (#weekOffset, weekOffset)
             |> fetchOneOrNothing
 
@@ -701,8 +707,9 @@ fetchRosterStaffPanelEntries staffMembers allSlots = do
 
 ensureRosterWeekExists :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (RosterWeek, Bool)
 ensureRosterWeekExists weekOffset = do
+    rosterGroup <- fetchCurrentVenueDefaultRosterGroup
     existing <- query @RosterWeek
-        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
         |> filterWhere (#weekOffset, weekOffset)
         |> fetchOneOrNothing
     case existing of
@@ -713,14 +720,13 @@ ensureRosterWeekExists weekOffset = do
 
 createEmptyRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO RosterWeek
 createEmptyRosterWeek weekOffset = do
-    slotNames <- query @SlotName
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#isActive, True)
-        |> fetch
+    rosterGroup <- fetchCurrentVenueDefaultRosterGroup
+    slotNames <- fetchActiveRosterGroupSlotNames rosterGroup.id
     let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
 
     rosterWeek <- newRecord @RosterWeek
         |> set #venueId (unpackId currentVenueId)
+        |> set #rosterGroupId (unpackId rosterGroup.id)
         |> set #weekOffset weekOffset
         |> set #isLive False
         |> createRecord
@@ -745,6 +751,7 @@ copyRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext)
 copyRosterWeek sourceWeek targetWeekOffset = do
     targetWeek <- newRecord @RosterWeek
         |> set #venueId (unpackId currentVenueId)
+        |> set #rosterGroupId sourceWeek.rosterGroupId
         |> set #weekOffset targetWeekOffset
         |> set #isLive False
         |> createRecord

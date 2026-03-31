@@ -1,6 +1,8 @@
 module Test.Support.PayrollFixtures where
 
 import qualified Codec.Archive.Zip as Zip
+import Application.Helper.RosterGroups (ensureVenueRosterDefaults,
+                                        fetchVenueDayNames)
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
@@ -45,8 +47,9 @@ data ExplorationPayrollFixture = ExplorationPayrollFixture
     }
 
 seedWeekDayNames :: (?modelContext :: ModelContext) => Venue -> IO [DayName]
-seedWeekDayNames venue =
-    forM [(1, "Monday"), (2, "Tuesday"), (3, "Wednesday"), (4, "Thursday"), (5, "Friday"), (6, "Saturday"), (0, "Sunday")] (uncurry (createDayNameRecord venue))
+seedWeekDayNames venue = do
+    _ <- ensureVenueRosterDefaults venue
+    fetchVenueDayNames venue
 
 createAndApproveEntry ::
     (?modelContext :: ModelContext) =>
