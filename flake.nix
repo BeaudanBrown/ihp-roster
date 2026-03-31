@@ -247,7 +247,7 @@ EOF
                         # Usage: test-e2e-server
                         test-e2e-server.exec = ''
                             set -euo pipefail
-                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_e2e}"
                             export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
                             export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
                             export IHP_BROWSER="echo"
@@ -258,7 +258,7 @@ EOF
                         # Usage: e2e [playwright-args...]
                         e2e.exec = ''
                             set -euo pipefail
-                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_e2e}"
                             export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
 
                             test-db-reset

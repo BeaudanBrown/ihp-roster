@@ -118,7 +118,7 @@ Available scripts:
 - **`seed-payroll-fixture [app|app_test] [--reset]`** — Seed the richer payroll exploration dataset for manual inspection, projected onto the app's current week. The low-level script still defaults to `app`; `app_test` rebuilds the isolated test DB first, and `app --reset` refreshes the dev DB before loading the fixture.
 - **`just seed-payroll`** — Human-friendly default for manual payroll exploration. This always resets `app` first, then seeds the current-week payroll fixture so the running dev app reflects the seeded venue immediately.
 - **`new-controller NAME`** — IHP code generator that scaffolds controller, views, types, and routes. Prefer this for new CRUD controllers, then customize.
-- **`e2e`** — Run Playwright end-to-end tests against an isolated `app_test` database and a temporary app server on the next free local IHP dev port. Accepts playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). The local Postgres socket still needs to be available, but this wrapper no longer reuses the normal dev app/database.
+- **`e2e`** — Run Playwright end-to-end tests against an isolated `app_e2e` database and a temporary app server on the next free local IHP dev port. Accepts playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). The local Postgres socket still needs to be available, but this wrapper no longer reuses the normal dev app/database.
 - **`screenshot`** — Take a screenshot of a page. Usage: `screenshot http://localhost:8000/Dashboard dash.png`. Requires `devenv up` running.
 - **`e2e-report`** — Open the Playwright HTML test report from the last run.
 - **`dev-start`** — Start the IHP `start` script in background for automation (no PTY dependency). Writes pid/log to `.devenv/agent/` and fails fast if startup exits early.
@@ -165,13 +165,13 @@ For simple CRUD, prefer running `new-controller NAME` to scaffold all files, the
 - The IHP schema-designer toast about `Unmigrated Changes` is not an authoritative sync check in this repo; it is driven by the IDE migration workflow state and can stay stale even after `make db`. Treat `make db` plus explicit DB/startup verification as the real source of truth.
 - **After adding/changing controllers**: `bash ./bin/in-env test` to run the test suite
 - **After UI/integration changes**: `bash ./bin/in-env e2e` to run end-to-end tests against the isolated test DB/server
-- `bash ./bin/in-env test` and `bash ./bin/in-env e2e` both rebuild the shared `app_test` database. Do not run multiple test/e2e commands concurrently unless you first isolate them onto different database names.
+- `bash ./bin/in-env test` rebuilds `app_test`, while `bash ./bin/in-env e2e` rebuilds `app_e2e`. They no longer share a database, so parallel Hspec and Playwright runs are safe as long as both use the local Postgres socket under `build/db`.
 - **Before committing**: `bash ./bin/in-env lint` then `bash ./bin/in-env format`
 - **To confirm DB is in sync**: `psql -h "$PWD/build/db" app -c "\dt"` — all tables in `Schema.sql` should be present
 
 ## E2E Testing
 
-Playwright-based end-to-end tests live in `e2e/` and run against an isolated temporary app server on the next free local IHP dev port, backed by `app_test`. See `e2e/AGENTS.md` for the full guide.
+Playwright-based end-to-end tests live in `e2e/` and run against an isolated temporary app server on the next free local IHP dev port, backed by `app_e2e`. See `e2e/AGENTS.md` for the full guide.
 
 - **Config**: `playwright.config.ts` — single chromium project, serial execution
 - **Test data**: Seeded via `e2e/fixtures/seed.sql` (manager: `e2e-test@example.com`, worker: `e2e-worker@example.com`, both with password `test-password-123`)

@@ -30,7 +30,7 @@ bash ./bin/in-env e2e-report
 ## Prerequisites
 
 - The local project Postgres socket under `build/db` must be available
-- `bash ./bin/in-env e2e` resets the isolated `app_test` database, launches a dedicated app server on the next free local IHP dev port, and points Playwright at that server
+- `bash ./bin/in-env e2e` resets the isolated `app_e2e` database, launches a dedicated app server on the next free local IHP dev port, and points Playwright at that server
 - Test data is seeded automatically via `global-setup.ts` before tests run
 - Before blaming Playwright, verify the app is actually serving the expected page:
 
