@@ -86,7 +86,7 @@ instance Controller LeaveRequestsController where
                                 pure createdLeaveRequest
                             broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
                             if isHtmxRequest
-                                then respondWithLeaveRequestsContent "Leave request submitted"
+                                then respondWithLeaveRequestsContent "Leave request submitted" True
                                 else do
                                     setSuccessMessage "Leave request submitted"
                                     redirectTo LeaveRequestsAction
@@ -126,7 +126,7 @@ instance Controller LeaveRequestsController where
             invalidateAffectedRosterWeeksForLeave savedLeaveRequest
         broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
         if isHtmxRequest
-            then respondWithLeaveRequestsContent "Leave request approved"
+            then respondWithLeaveRequestsContent "Leave request approved" False
             else do
                 setSuccessMessage "Leave request approved"
                 redirectTo LeaveRequestsAction
@@ -166,7 +166,7 @@ instance Controller LeaveRequestsController where
             invalidateAffectedRosterWeeksForLeave savedLeaveRequest
         broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
         if isHtmxRequest
-            then respondWithLeaveRequestsContent "Leave request denied"
+            then respondWithLeaveRequestsContent "Leave request denied" False
             else do
                 setSuccessMessage "Leave request denied"
                 redirectTo LeaveRequestsAction
@@ -200,7 +200,7 @@ instance Controller LeaveRequestsController where
             deleteRecord leaveRequest
         broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
         if isHtmxRequest
-            then respondWithLeaveRequestsContent "Leave request deleted"
+            then respondWithLeaveRequestsContent "Leave request deleted" False
             else do
                 setSuccessMessage "Leave request deleted"
                 redirectTo LeaveRequestsAction
@@ -228,15 +228,18 @@ fetchVisibleLeaveRequests = do
                         |> orderByDesc #startDate
                         |> fetch
 
-respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Text -> IO ()
-respondWithLeaveRequestsContent successMessage = do
+respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Text -> Bool -> IO ()
+respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
     staffMembers <- fetchStaffMembersForCurrentVenue
     leaveRequests <- fetchVisibleLeaveRequests
     currentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
+    let mainFragment =
+            if renderMainFragmentOob
+                then renderLeaveRequestsContentFragmentOob leaveRequests staffMembers currentViewerStaffId
+                else renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId
     respondHtml $
         mconcat
-            [ mempty
-            , renderLeaveRequestsContentFragmentOob leaveRequests staffMembers currentViewerStaffId
+            [ mainFragment
             , [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             , renderToastOverlayHostOob ToastBottomCenter
                 [ ToastOverlayConfig

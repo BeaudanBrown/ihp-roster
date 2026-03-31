@@ -228,6 +228,10 @@ tests = beforeAll testContext do
                         callAction ApproveLeaveRequestAction { leaveRequestId = leaveRequest.id }
 
                 response `responseStatusShouldBe` status200
+                body <- responseBody response
+                let bodyText = cs (LByteString.unpack body)
+                bodyText `shouldContain` "id=\"leave-requests-content\""
+                bodyText `shouldNotContain` "id=\"leave-requests-content\" hx-swap-oob="
                 versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore + 1
 

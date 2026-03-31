@@ -179,6 +179,8 @@ tests = beforeAll testContext do
                         callAction ApproveTimesheetEntryAction { timesheetEntryId = entry.id }
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"timesheet-day-section-1\""
+                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\" hx-swap-oob="
                 versionAfter <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
                 versionAfter `shouldBe` versionBefore + 1
 

@@ -98,7 +98,7 @@ instance Controller TimesheetsController where
                         pure createdEntry
                     broadcastTimesheetDayInvalidation weekOffset createdEntry.workedOn
                     if isHtmxRequest
-                        then respondWithTimesheetDaySectionUpdate weekOffset createdEntry.workedOn "Timesheet entry created" True
+                        then respondWithTimesheetDaySectionUpdate weekOffset createdEntry.workedOn "Timesheet entry created" True True
                         else do
                             setSuccessMessage "Timesheet entry created"
                             redirectTo ShowTimesheetWeekAction { weekOffset }
@@ -168,7 +168,7 @@ instance Controller TimesheetsController where
                                 )
                     broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
                     if isHtmxRequest
-                        then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn successMessage True
+                        then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn successMessage True True
                         else do
                             setSuccessMessage successMessage
                             redirectTo ShowTimesheetWeekAction { weekOffset }
@@ -192,7 +192,7 @@ instance Controller TimesheetsController where
                     deleteRecord timesheetEntry
                 broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
                 if isHtmxRequest
-                    then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn "Timesheet entry deleted" False
+                    then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn "Timesheet entry deleted" False False
                     else setSuccessMessage "Timesheet entry deleted"
         unless isHtmxRequest do
             redirectTo ShowTimesheetWeekAction { weekOffset }
@@ -234,7 +234,7 @@ instance Controller TimesheetsController where
                 )
         broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn "Timesheet entry approved" False
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn "Timesheet entry approved" False False
             else do
                 setSuccessMessage "Timesheet entry approved"
                 redirectTo ShowTimesheetWeekAction { weekOffset }
@@ -274,7 +274,7 @@ instance Controller TimesheetsController where
                 )
         broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn "Timesheet entry unapproved" False
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn "Timesheet entry unapproved" False False
             else do
                 setSuccessMessage "Timesheet entry unapproved"
                 redirectTo ShowTimesheetWeekAction { weekOffset }
@@ -337,21 +337,33 @@ respondWithTimesheetDaySectionFragment weekOffset dayOffset = do
             weekStartDate
             dayOffset
 
-respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Day -> Text -> Bool -> IO ()
-respondWithTimesheetDaySectionUpdate weekOffset workedOn successMessage closeDialog = do
+respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Day -> Text -> Bool -> Bool -> IO ()
+respondWithTimesheetDaySectionUpdate weekOffset workedOn successMessage closeDialog renderMainFragmentOob = do
     (entries, staffMembers, paySummariesByEntryId, today, editWindowDays, weekStartDate) <- fetchTimesheetDaySectionState weekOffset
     let dayOffset = timesheetDayOffset weekStartDate workedOn
+    let mainFragment =
+            if renderMainFragmentOob
+                then renderDaySectionOob
+                    entries
+                    staffMembers
+                    paySummariesByEntryId
+                    today
+                    editWindowDays
+                    weekOffset
+                    weekStartDate
+                    dayOffset
+                else renderDaySection
+                    entries
+                    staffMembers
+                    paySummariesByEntryId
+                    today
+                    editWindowDays
+                    weekOffset
+                    weekStartDate
+                    dayOffset
     respondHtml $
         mconcat
-            [ renderDaySectionOob
-                entries
-                staffMembers
-                paySummariesByEntryId
-                today
-                editWindowDays
-                weekOffset
-                weekStartDate
-                dayOffset
+            [ mainFragment
             , when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             , renderToastOverlayHostOob ToastBottomCenter
                 [ ToastOverlayConfig
