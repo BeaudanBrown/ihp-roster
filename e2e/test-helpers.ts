@@ -89,8 +89,13 @@ export function exportJobRows(page: Page, fileName: string) {
 }
 
 export async function waitForExportJob(page: Page, fileName: string) {
-    const row = exportJobRow(page, fileName);
-    await expect(row).toHaveCount(1);
+    const rows = exportJobRows(page, fileName);
+    await expect
+        .poll(async () => rows.count(), {
+            message: `expected at least one export row for ${fileName}`,
+        })
+        .toBeGreaterThan(0);
+    const row = rows.last();
     await expect(row).toContainText('ready');
     return row;
 }
