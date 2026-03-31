@@ -51,6 +51,12 @@ seedWeekDayNames venue = do
     _ <- ensureVenueRosterDefaults venue
     fetchVenueDayNames venue
 
+dayNameForWeekday :: HasCallStack => [DayName] -> Int -> DayName
+dayNameForWeekday dayNames weekdayIndex =
+    dayNames
+        |> find (\dayName -> dayName.weekdayIndex == weekdayIndex)
+        |> fromMaybe (error ("Missing day name for weekday index " <> tshow weekdayIndex))
+
 createAndApproveEntry ::
     (?modelContext :: ModelContext) =>
     Venue ->
@@ -172,7 +178,7 @@ seedCanonicalPayrollFixtureForWeek fixtureWeekStart = do
     barShift <- createShiftTypeRecord venue levelOne "Bar" >>= updateRecord . set #sortOrder 10
     floorShift <- createShiftTypeRecord venue levelOne "Floor" >>= updateRecord . set #sortOrder 20
     kitchenShift <- createShiftTypeRecord venue levelOne "Kitchen" >>= updateRecord . set #sortOrder 30
-    let friday = dayNames !! 4
+    let friday = dayNameForWeekday dayNames 5
     overrideRule <- createPayLevelDayRuleRecord barShift friday levelTwo
     avaUser <- createUserRecord "payroll-parity-ava@example.com" "staff" True
     kaiUser <- createUserRecord "payroll-parity-kai@example.com" "staff" True
@@ -252,8 +258,8 @@ seedExplorationPayrollFixtureForWeek fixtureWeekStart = do
     barShift <- createShiftTypeRecord venue levelOne "Bar" >>= updateRecord . set #sortOrder 10
     floorShift <- createShiftTypeRecord venue levelTwo "Floor" >>= updateRecord . set #sortOrder 20
     kitchenShift <- createShiftTypeRecord venue levelThree "Kitchen" >>= updateRecord . set #sortOrder 30
-    let friday = dayNames !! 4
-    let saturday = dayNames !! 5
+    let friday = dayNameForWeekday dayNames 5
+    let saturday = dayNameForWeekday dayNames 6
     fridayOverride <- createPayLevelDayRuleRecord barShift friday levelTwo
     saturdayOverride <- createPayLevelDayRuleRecord kitchenShift saturday levelThree
 

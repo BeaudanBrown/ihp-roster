@@ -100,7 +100,10 @@ tests = beforeAll testContext do
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 levelTwo <- createPayLevelRecord venue "LVL 2"
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
-                let friday = dayNames !! 4
+                let friday =
+                        dayNames
+                            |> find (\dayName -> dayName.weekdayIndex == 5)
+                            |> fromMaybe (error "Missing Friday day name")
                 overrideRule <- createPayLevelDayRuleRecord barShift friday levelTwo
                 staffUser <- createUserRecord "payroll-staff@example.com" "staff" True
                 staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
