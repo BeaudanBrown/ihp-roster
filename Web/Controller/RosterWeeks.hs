@@ -12,6 +12,7 @@ import Application.Helper.LiveUpdate
 import Application.Helper.RosterGroups
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
+                                appendQueryParams,
                                 linkedActiveStaffForRosterPanel,
                                 renderToastOverlayHostOob)
 import Data.Coerce (coerce)
@@ -54,58 +55,66 @@ instance Controller RosterWeeksController where
         let epoch = venueConfig.weekOffsetEpoch
         let daysSinceEpoch = diffDays today epoch
         let currentWeekOffset = fromIntegral (daysSinceEpoch `div` 7)
-        let currentWeekAction = ShowRosterWeekAction { weekOffset = currentWeekOffset }
+        currentRosterGroup <- resolveRequestedRosterGroup
+        let currentWeekPath = buildRosterWeekPath currentWeekOffset currentRosterGroup.id
 
         if isHtmxRequest
             then do
-                setHtmxPushUrl (pathTo currentWeekAction)
-                renderRosterWeekPage currentWeekOffset
-            else redirectTo currentWeekAction
+                setHtmxPushUrl currentWeekPath
+                renderRosterWeekPage currentWeekOffset currentRosterGroup.id
+            else redirectToPath currentWeekPath
 
     action ShowRosterWeekAction { weekOffset } = do
-        renderRosterWeekPage weekOffset
+        rosterGroup <- resolveRequestedRosterGroup
+        renderRosterWeekPage weekOffset rosterGroup.id
 
     action ShowRosterWeekContentFragmentAction { weekOffset } = do
-        respondWithRosterContent weekOffset
+        rosterGroup <- resolveRequestedRosterGroup
+        respondWithRosterContent rosterGroup.id weekOffset
 
     action ShowRosterWeekStaffPanelFragmentAction { weekOffset } = do
-        panelStaff <- fetchVisibleRosterStaffPanelEntries weekOffset
+        rosterGroup <- resolveRequestedRosterGroup
+        panelStaff <- fetchVisibleRosterStaffPanelEntries rosterGroup.id weekOffset
         respondHtml $
-            maybe mempty (renderRosterStaffPanelFragment weekOffset) panelStaff
+            maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id) panelStaff
 
     action ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = do
-        daySectionHtml <- fetchVisibleRosterDaySectionFragment weekOffset rosterDayId
+        rosterGroup <- resolveRequestedRosterGroup
+        daySectionHtml <- fetchVisibleRosterDaySectionFragment rosterGroup.id weekOffset rosterDayId
         respondHtml (fromMaybe mempty daySectionHtml)
 
     action ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId, rowIndex } = do
-        rowHtml <- fetchVisibleRosterRowFragment weekOffset rosterDayId rowIndex
+        rosterGroup <- resolveRequestedRosterGroup
+        rowHtml <- fetchVisibleRosterRowFragment rosterGroup.id weekOffset rosterDayId rowIndex
         respondHtml (fromMaybe mempty rowHtml)
 
     action CreateRosterWeekAction { weekOffset } = do
         ensureManagerRole
-        (rosterWeek, wasCreated) <- ensureRosterWeekExists weekOffset
+        rosterGroup <- resolveRequestedRosterGroup
+        (rosterWeek, wasCreated) <- ensureRosterWeekExists rosterGroup.id weekOffset
 
         when wasCreated do
             broadcastRosterWeekInvalidation
+                rosterGroup.id
                 weekOffset
-                [buildRosterContentFragmentRef weekOffset]
+                [buildRosterContentFragmentRef rosterGroup.id weekOffset]
 
         let successMessage =
                 if wasCreated
                     then "Roster week created successfully"
                     else "Roster week already exists."
-        let targetAction = ShowRosterWeekAction { weekOffset = rosterWeek.weekOffset }
+        let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroup.id
         if isHtmxRequest
             then do
-                setHtmxPushUrl (pathTo targetAction)
-                respondWithRosterContentUpdate rosterWeek.weekOffset successMessage
+                setHtmxPushUrl targetPath
+                respondWithRosterContentUpdate rosterGroup.id rosterWeek.weekOffset successMessage
             else do
                 setSuccessMessage successMessage
-                redirectTo targetAction
+                redirectToPath targetPath
 
     action CopyRosterWeekAction { sourceWeekOffset, targetWeekOffset } = do
         ensureManagerRole
-        rosterGroup <- fetchCurrentVenueDefaultRosterGroup
+        rosterGroup <- resolveRequestedRosterGroup
 
         if sourceWeekOffset == targetWeekOffset
             then do
@@ -114,7 +123,7 @@ instance Controller RosterWeeksController where
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
-                        redirectTo ShowRosterWeekAction { weekOffset = targetWeekOffset }
+                        redirectToPath (buildRosterWeekPath targetWeekOffset rosterGroup.id)
             else do
                 sourceWeekOrNothing <- query @RosterWeek
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
@@ -127,7 +136,7 @@ instance Controller RosterWeeksController where
                             then respondWithRosterToast errorMessage "app-toast-error"
                             else do
                                 setErrorMessage errorMessage
-                                redirectTo ShowRosterWeekAction { weekOffset = targetWeekOffset }
+                                redirectToPath (buildRosterWeekPath targetWeekOffset rosterGroup.id)
                     Just sourceWeek -> do
                         withTransaction do
                             existingTarget <- query @RosterWeek
@@ -138,17 +147,18 @@ instance Controller RosterWeeksController where
                             copyRosterWeek sourceWeek targetWeekOffset
 
                         broadcastRosterWeekInvalidation
+                            rosterGroup.id
                             targetWeekOffset
-                            [buildRosterContentFragmentRef targetWeekOffset]
+                            [buildRosterContentFragmentRef rosterGroup.id targetWeekOffset]
                         let successMessage = "Roster week copied from the previous week."
-                        let targetAction = ShowRosterWeekAction { weekOffset = targetWeekOffset }
+                        let targetPath = buildRosterWeekPath targetWeekOffset rosterGroup.id
                         if isHtmxRequest
                             then do
-                                setHtmxPushUrl (pathTo targetAction)
-                                respondWithRosterContentUpdate targetWeekOffset successMessage
+                                setHtmxPushUrl targetPath
+                                respondWithRosterContentUpdate rosterGroup.id targetWeekOffset successMessage
                             else do
                                 setSuccessMessage successMessage
-                                redirectTo targetAction
+                                redirectToPath targetPath
 
     action ToggleRosterWeekLiveStatusAction { rosterWeekId } = do
         ensureManagerRole
@@ -159,21 +169,23 @@ instance Controller RosterWeeksController where
             |> set #isLive nextLiveStatus
             |> updateRecord
 
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
         broadcastRosterWeekInvalidation
+            rosterGroupId
             rosterWeek.weekOffset
-            [buildRosterContentFragmentRef rosterWeek.weekOffset]
+            [buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset]
         let successMessage =
                 if nextLiveStatus
                     then "Roster week is now live."
                     else "Roster week moved back to draft."
-        let targetAction = ShowRosterWeekAction { weekOffset = rosterWeek.weekOffset }
+        let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroupId
         if isHtmxRequest
             then do
-                setHtmxPushUrl (pathTo targetAction)
-                respondWithRosterContentUpdate rosterWeek.weekOffset successMessage
+                setHtmxPushUrl targetPath
+                respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset successMessage
             else do
                 setSuccessMessage successMessage
-                redirectTo targetAction
+                redirectToPath targetPath
 
     action AddRosterRowAction { rosterDayId } = do
         ensureManagerRole
@@ -187,8 +199,8 @@ instance Controller RosterWeeksController where
         existingSlots <- query @RosterSlot |> filterWhere (#rosterDayId, coerce rosterDayId) |> fetch
         let nextRowIndex = if null existingSlots then 0 else maximum (map (.rowIndex) existingSlots) + 1
 
-        rosterGroup <- fetchCurrentVenueDefaultRosterGroup
-        slotNames <- fetchActiveRosterGroupSlotNames rosterGroup.id
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
         let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
 
         if null orderedSlotNames
@@ -198,7 +210,7 @@ instance Controller RosterWeeksController where
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
-                        redirectTo ShowRosterWeekAction { weekOffset = rosterWeek.weekOffset }
+                        redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
             else do
                 forM_ orderedSlotNames \slotName -> do
                     newRecord @RosterSlot
@@ -208,11 +220,12 @@ instance Controller RosterWeeksController where
                         |> createRecord
 
                 broadcastRosterWeekInvalidation
+                    rosterGroupId
                     rosterWeek.weekOffset
-                    [ buildRosterDaySectionFragmentRef rosterWeek.weekOffset (coerce rosterDay.id)
-                    , buildRosterStaffPanelFragmentRef rosterWeek.weekOffset
+                    [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+                    , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
                     ]
-                respondWithRosterContent rosterWeek.weekOffset
+                respondWithRosterContent rosterGroupId rosterWeek.weekOffset
 
     action RemoveRosterRowAction { rosterDayId } = do
         ensureManagerRole
@@ -243,12 +256,14 @@ instance Controller RosterWeeksController where
 
         deleteRecords slotsToDelete
 
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
         broadcastRosterWeekInvalidation
+            rosterGroupId
             rosterWeek.weekOffset
-            [ buildRosterDaySectionFragmentRef rosterWeek.weekOffset (coerce rosterDay.id)
-            , buildRosterStaffPanelFragmentRef rosterWeek.weekOffset
+            [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
             ]
-        respondWithRosterContent rosterWeek.weekOffset
+        respondWithRosterContent rosterGroupId rosterWeek.weekOffset
 
     action UpdateRosterSlotAction { rosterSlotId } = do
         ensureManagerRole
@@ -277,12 +292,14 @@ instance Controller RosterWeeksController where
         relatedSlots <- fetchRelatedSlotsForStaffIds (catMaybes [previousStaffId, updatedSlot.staffId])
         let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
         let shouldRefreshStaffPanel = previousStaffId /= updatedSlot.staffId
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
         broadcastRosterWeekInvalidation
+            rosterGroupId
             rosterWeek.weekOffset
-            ( buildRosterRowFragmentRefs rosterWeek.weekOffset impactedRowKeys
-                <> [buildRosterStaffPanelFragmentRef rosterWeek.weekOffset | shouldRefreshStaffPanel]
+            ( buildRosterRowFragmentRefs rosterGroupId rosterWeek.weekOffset impactedRowKeys
+                <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset | shouldRefreshStaffPanel]
             )
-        respondWithRosterContentOob rosterWeek.weekOffset
+        respondWithRosterContentOob rosterGroupId rosterWeek.weekOffset
 
 slotNameOrder :: Text -> Int
 slotNameOrder slotName =
@@ -291,6 +308,14 @@ slotNameOrder slotName =
         "mid"   -> 1
         "late"  -> 2
         _       -> 3
+
+resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO RosterGroup
+resolveRequestedRosterGroup =
+    fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
+
+buildRosterWeekPath :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Text
+buildRosterWeekPath weekOffset rosterGroupId =
+    appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
 parseOptionalStaffId :: Maybe Text -> Maybe UUID.UUID
 parseOptionalStaffId value = UUID.fromText =<< normalizeOptionalText value
@@ -350,9 +375,9 @@ buildSlotConflicts lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlo
                 then Nothing
                 else Just (get #id slot, conflicts)
 
-respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO ()
-respondWithRosterContent weekOffset = do
-    rosterData <- fetchVisibleRosterRenderData weekOffset
+respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO ()
+respondWithRosterContent rosterGroupId weekOffset = do
+    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx|<div id="roster-content"></div>|]
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
@@ -368,9 +393,9 @@ respondWithRosterContent weekOffset = do
                     allSlots
                     slotConflicts
 
-respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO ()
-respondWithRosterContentOob weekOffset = do
-    rosterData <- fetchVisibleRosterRenderData weekOffset
+respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO ()
+respondWithRosterContentOob rosterGroupId weekOffset = do
+    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
@@ -386,9 +411,9 @@ respondWithRosterContentOob weekOffset = do
                     allSlots
                     slotConflicts
 
-respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Text -> IO ()
-respondWithRosterContentUpdate weekOffset successMessage = do
-    rosterData <- fetchVisibleRosterRenderData weekOffset
+respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Text -> IO ()
+respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
+    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     respondHtml $
         mconcat
             [ case rosterData of
@@ -426,13 +451,13 @@ respondWithRosterToast message toastClass =
                 }
             ]
 
-respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> [(UUID.UUID, Int)] -> IO ()
-respondWithRosterRows weekOffset requestedRowKeys =
-    respondWithRosterPatches weekOffset requestedRowKeys False
+respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> IO ()
+respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
+    respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
 
-respondWithRosterDaySectionPatch :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterDay -> Bool -> IO ()
-respondWithRosterDaySectionPatch weekOffset rosterDayId shouldRefreshStaffPanel = do
-    rosterData <- fetchVisibleRosterRenderData weekOffset
+respondWithRosterDaySectionPatch :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Id RosterDay -> Bool -> IO ()
+respondWithRosterDaySectionPatch rosterGroupId weekOffset rosterDayId shouldRefreshStaffPanel = do
+    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx||]
         Just RosterRenderData { rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } -> do
@@ -440,33 +465,35 @@ respondWithRosterDaySectionPatch weekOffset rosterDayId shouldRefreshStaffPanel 
                     mapMaybe
                         (renderRequestedDaySection rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts)
                         [unpackId rosterDayId]
-            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset panelStaff | shouldRefreshStaffPanel]
+            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId panelStaff | shouldRefreshStaffPanel]
             respondHtml (mconcat (renderedDaySection <> renderedStaffPanel))
 
-respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
-respondWithRosterPatches weekOffset requestedRowKeys shouldRefreshStaffPanel = do
-    rosterData <- fetchVisibleRosterRenderData weekOffset
+respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefreshStaffPanel = do
+    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx||]
         Just RosterRenderData { rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } -> do
             let uniqueRowKeys = nub requestedRowKeys
             let renderedRows = mapMaybe (renderRequestedRow rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts) uniqueRowKeys
-            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset panelStaff | shouldRefreshStaffPanel]
+            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId panelStaff | shouldRefreshStaffPanel]
             respondHtml (mconcat (renderedRows <> renderedStaffPanel))
 
-renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO ()
-renderRosterWeekPage weekOffset = do
+renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterGroup -> IO ()
+renderRosterWeekPage weekOffset requestedRosterGroupId = do
     venueConfig <- fetchVenueConfig
     let epoch = venueConfig.weekOffsetEpoch
     let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) epoch
     let weekEndDate = Calendar.addDays 6 weekStartDate
-    _ <- ensureRosterWeekExists weekOffset
+    rosterGroups <- fetchCurrentVenueRosterGroups
+    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just requestedRosterGroupId)
+    _ <- ensureRosterWeekExists currentRosterGroup.id weekOffset
 
-    visibleRosterWeek <- fetchVisibleRosterWeek weekOffset
+    visibleRosterWeek <- fetchVisibleRosterWeek currentRosterGroup.id weekOffset
 
     case visibleRosterWeek of
         Just _ -> do
-            rosterDataOrNothing <- fetchRosterRenderData weekOffset
+            rosterDataOrNothing <- fetchRosterRenderData currentRosterGroup.id weekOffset
             case rosterDataOrNothing of
                 Just RosterRenderData { rosterWeek, rosterDays, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
                     respondWithRosterWeekView
@@ -474,6 +501,8 @@ renderRosterWeekPage weekOffset = do
                             { rosterWeek = Just rosterWeek
                             , rosterDays
                             , weekOffset
+                            , rosterGroups
+                            , currentRosterGroup
                             , weekStartDate
                             , weekEndDate
                             , staffMembers
@@ -481,17 +510,19 @@ renderRosterWeekPage weekOffset = do
                             , slotNames = orderedSlotNames
                             , allSlots
                             , slotConflicts
-                            , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, weekOffset })
+                            , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId = unpackId currentRosterGroup.id, weekOffset })
                             }
                 Nothing ->
                     error "Visible roster week should exist after ensureRosterWeekExists"
         Nothing -> do
-            (_, rosterDays, _, orderedSlotNames, maskedSlots) <- fetchHiddenRosterRenderData weekOffset
+            (_, rosterDays, _, orderedSlotNames, maskedSlots) <- fetchHiddenRosterRenderData currentRosterGroup.id weekOffset
             respondWithRosterWeekView
                 ShowView
                     { rosterWeek = Nothing
                     , rosterDays
                     , weekOffset
+                    , rosterGroups
+                    , currentRosterGroup
                     , weekStartDate
                     , weekEndDate
                     , staffMembers = []
@@ -499,7 +530,7 @@ renderRosterWeekPage weekOffset = do
                     , slotNames = orderedSlotNames
                     , allSlots = maskedSlots
                     , slotConflicts = []
-                    , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, weekOffset })
+                    , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId = unpackId currentRosterGroup.id, weekOffset })
                     }
 
 respondWithRosterWeekView :: (?context :: ControllerContext) => ShowView -> IO ()
@@ -527,16 +558,15 @@ data RosterRenderData = RosterRenderData
     , slotConflicts    :: [(Id RosterSlot, [RosterConflict])]
     }
 
-fetchRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (Maybe RosterRenderData)
-fetchRosterRenderData weekOffset = do
-    _ <- ensureRosterWeekExists weekOffset
-    rosterGroup <- fetchCurrentVenueDefaultRosterGroup
+fetchRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
+fetchRosterRenderData rosterGroupId weekOffset = do
+    _ <- ensureRosterWeekExists rosterGroupId weekOffset
     venueConfig <- fetchVenueConfig
     let epoch = venueConfig.weekOffsetEpoch
     let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) epoch
 
     rosterWeekOrNothing <- query @RosterWeek
-        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+        |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
         |> filterWhere (#weekOffset, weekOffset)
         |> fetchOneOrNothing
 
@@ -560,18 +590,18 @@ fetchRosterRenderData weekOffset = do
 
             panelStaff <- fetchRosterStaffPanelEntries staffMembers allSlots
 
-            slotNames <- fetchActiveRosterGroupSlotNames rosterGroup.id
+            slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
 
             let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
             slotConflicts <- buildSlotConflicts venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlots staffMembers
             pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts })
 
-fetchVisibleRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (Maybe RosterRenderData)
-fetchVisibleRosterRenderData weekOffset = do
-    visibleRosterWeek <- fetchVisibleRosterWeek weekOffset
+fetchVisibleRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
+fetchVisibleRosterRenderData rosterGroupId weekOffset = do
+    visibleRosterWeek <- fetchVisibleRosterWeek rosterGroupId weekOffset
     case visibleRosterWeek of
         Nothing -> do
-            (backingRosterWeek, rosterDays, weekStartDate, orderedSlotNames, maskedSlots) <- fetchHiddenRosterRenderData weekOffset
+            (backingRosterWeek, rosterDays, weekStartDate, orderedSlotNames, maskedSlots) <- fetchHiddenRosterRenderData rosterGroupId weekOffset
             pure $
                 Just
                     RosterRenderData
@@ -584,15 +614,14 @@ fetchVisibleRosterRenderData weekOffset = do
                         , allSlots = maskedSlots
                         , slotConflicts = []
                         }
-        Just _  -> fetchRosterRenderData weekOffset
+        Just _  -> fetchRosterRenderData rosterGroupId weekOffset
 
-fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (Maybe RosterWeek)
-fetchVisibleRosterWeek weekOffset = do
-    _ <- ensureRosterWeekExists weekOffset
-    rosterGroup <- fetchCurrentVenueDefaultRosterGroup
+fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterWeek)
+fetchVisibleRosterWeek rosterGroupId weekOffset = do
+    _ <- ensureRosterWeekExists rosterGroupId weekOffset
     rosterWeekOrNothing <-
         query @RosterWeek
-            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+            |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
             |> filterWhere (#weekOffset, weekOffset)
             |> fetchOneOrNothing
 
@@ -601,80 +630,82 @@ fetchVisibleRosterWeek weekOffset = do
             Just rosterWeek | get #isLive rosterWeek || hasRole ManagerRole' -> Just rosterWeek
             _ -> Nothing
 
-fetchVisibleRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (Maybe [RosterStaffPanelEntry])
-fetchVisibleRosterStaffPanelEntries weekOffset = do
-    rosterData <- fetchVisibleRosterRenderData weekOffset
+fetchVisibleRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe [RosterStaffPanelEntry])
+fetchVisibleRosterStaffPanelEntries rosterGroupId weekOffset = do
+    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     pure ((\RosterRenderData { panelStaff } -> panelStaff) <$> rosterData)
 
-fetchVisibleRosterRowFragment weekOffset rosterDayId rowIndex = do
-    rosterData <- fetchVisibleRosterRenderData weekOffset
+fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex = do
+    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     pure do
         RosterRenderData { rosterDays, weekStartDate, staffMembers, orderedSlotNames, allSlots, slotConflicts } <- rosterData
         renderRequestedRowFragment rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (unpackId rosterDayId, rowIndex)
 
-fetchVisibleRosterDaySectionFragment weekOffset rosterDayId = do
-    rosterData <- fetchVisibleRosterRenderData weekOffset
+fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId = do
+    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     pure do
         RosterRenderData { rosterDays, weekStartDate, staffMembers, orderedSlotNames, allSlots, slotConflicts } <- rosterData
         renderRequestedDaySectionFragment rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (unpackId rosterDayId)
 
-buildRosterWeekScope :: (?context :: ControllerContext) => Int -> LiveUpdateScope
-buildRosterWeekScope weekOffset =
+buildRosterWeekScope :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveUpdateScope
+buildRosterWeekScope rosterGroupId weekOffset =
     RosterWeekScope
         { venueId = unpackId currentVenueId
+        , rosterGroupId = unpackId rosterGroupId
         , weekOffset
         }
 
-buildRosterContentFragmentRef :: (?context :: ControllerContext) => Int -> LiveFragmentRef
-buildRosterContentFragmentRef weekOffset =
+buildRosterContentFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
+buildRosterContentFragmentRef rosterGroupId weekOffset =
     LiveFragmentRef
         { fragmentKey = RosterContentFragment
         , targetId = rosterContentFragmentId
-        , url = pathTo ShowRosterWeekContentFragmentAction { weekOffset }
+        , url = appendQueryParams (pathTo ShowRosterWeekContentFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
         , deferUntilBlur = False
         }
 
-buildRosterStaffPanelFragmentRef :: (?context :: ControllerContext) => Int -> LiveFragmentRef
-buildRosterStaffPanelFragmentRef weekOffset =
+buildRosterStaffPanelFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
+buildRosterStaffPanelFragmentRef rosterGroupId weekOffset =
     LiveFragmentRef
         { fragmentKey = RosterStaffPanelFragment
         , targetId = rosterStaffPanelFragmentId
-        , url = pathTo ShowRosterWeekStaffPanelFragmentAction { weekOffset }
+        , url = appendQueryParams (pathTo ShowRosterWeekStaffPanelFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
         , deferUntilBlur = False
         }
 
-buildRosterDaySectionFragmentRef :: (?context :: ControllerContext) => Int -> UUID.UUID -> LiveFragmentRef
-buildRosterDaySectionFragmentRef weekOffset rosterDayId =
+buildRosterDaySectionFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> UUID.UUID -> LiveFragmentRef
+buildRosterDaySectionFragmentRef rosterGroupId weekOffset rosterDayId =
     LiveFragmentRef
         { fragmentKey = RosterDaySectionFragment { rosterDayId }
         , targetId = rosterDaySectionDomId (coerce rosterDayId)
-        , url = pathTo ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId = coerce rosterDayId }
+        , url = appendQueryParams (pathTo ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId = coerce rosterDayId }) [("rosterGroupId", tshow rosterGroupId)]
         , deferUntilBlur = True
         }
 
-buildRosterRowFragmentRefs :: (?context :: ControllerContext) => Int -> [(UUID.UUID, Int)] -> [LiveFragmentRef]
-buildRosterRowFragmentRefs weekOffset =
-    map (uncurry (buildRosterRowFragmentRef weekOffset)) . nub
+buildRosterRowFragmentRefs :: (?context :: ControllerContext) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> [LiveFragmentRef]
+buildRosterRowFragmentRefs rosterGroupId weekOffset =
+    map (uncurry (buildRosterRowFragmentRef rosterGroupId weekOffset)) . nub
 
-buildRosterRowFragmentRef :: (?context :: ControllerContext) => Int -> UUID.UUID -> Int -> LiveFragmentRef
-buildRosterRowFragmentRef weekOffset rosterDayId rowIndex =
+buildRosterRowFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> UUID.UUID -> Int -> LiveFragmentRef
+buildRosterRowFragmentRef rosterGroupId weekOffset rosterDayId rowIndex =
     LiveFragmentRef
         { fragmentKey = RosterRowFragment { rosterDayId, rowIndex }
         , targetId = rosterRowDomIdText (coerce rosterDayId) rowIndex
-        , url = pathTo ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId = coerce rosterDayId, rowIndex }
+        , url = appendQueryParams (pathTo ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId = coerce rosterDayId, rowIndex }) [("rosterGroupId", tshow rosterGroupId)]
         , deferUntilBlur = True
         }
 
 broadcastRosterWeekInvalidation ::
     (?context :: ControllerContext) =>
+    Id RosterGroup ->
     Int ->
     [LiveFragmentRef] ->
     IO ()
-broadcastRosterWeekInvalidation weekOffset fragments =
+broadcastRosterWeekInvalidation rosterGroupId weekOffset fragments =
     unless (null fragments) do
         liftIO $
             broadcastLiveInvalidation
-                (buildRosterWeekScope weekOffset)
+                (buildRosterWeekScope rosterGroupId weekOffset)
                 (cs <$> getHeader "X-Live-Update-Client-Id")
                 fragments
 
@@ -705,28 +736,26 @@ fetchRosterStaffPanelEntries staffMembers allSlots = do
                     , userRole = roleText
                     }
 
-ensureRosterWeekExists :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (RosterWeek, Bool)
-ensureRosterWeekExists weekOffset = do
-    rosterGroup <- fetchCurrentVenueDefaultRosterGroup
+ensureRosterWeekExists :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (RosterWeek, Bool)
+ensureRosterWeekExists rosterGroupId weekOffset = do
     existing <- query @RosterWeek
-        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+        |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
         |> filterWhere (#weekOffset, weekOffset)
         |> fetchOneOrNothing
     case existing of
         Just rosterWeek -> pure (rosterWeek, False)
         Nothing -> do
-            rosterWeek <- createEmptyRosterWeek weekOffset
+            rosterWeek <- createEmptyRosterWeek rosterGroupId weekOffset
             pure (rosterWeek, True)
 
-createEmptyRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO RosterWeek
-createEmptyRosterWeek weekOffset = do
-    rosterGroup <- fetchCurrentVenueDefaultRosterGroup
-    slotNames <- fetchActiveRosterGroupSlotNames rosterGroup.id
+createEmptyRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO RosterWeek
+createEmptyRosterWeek rosterGroupId weekOffset = do
+    slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
     let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
 
     rosterWeek <- newRecord @RosterWeek
         |> set #venueId (unpackId currentVenueId)
-        |> set #rosterGroupId (unpackId rosterGroup.id)
+        |> set #rosterGroupId (unpackId rosterGroupId)
         |> set #weekOffset weekOffset
         |> set #isLive False
         |> createRecord
@@ -787,17 +816,17 @@ copyRosterWeek sourceWeek targetWeekOffset = do
 
     pure targetWeek
 
-fetchHiddenRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [SlotName], [RosterSlot])
-fetchHiddenRosterRenderData weekOffset = do
-    rosterDataOrNothing <- fetchRosterRenderData weekOffset
+fetchHiddenRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [SlotName], [RosterSlot])
+fetchHiddenRosterRenderData rosterGroupId weekOffset = do
+    rosterDataOrNothing <- fetchRosterRenderData rosterGroupId weekOffset
     case rosterDataOrNothing of
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, orderedSlotNames, allSlots } ->
             pure (rosterWeek, rosterDays, weekStartDate, orderedSlotNames, maskRosterSlots rosterWeek allSlots)
         Nothing -> error "Roster week should exist after ensureRosterWeekExists"
 
-fetchHiddenRosterWeekSkeleton :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO (RosterWeek, [RosterDay], [SlotName], [RosterSlot])
-fetchHiddenRosterWeekSkeleton weekOffset = do
-    (rosterWeek, rosterDays, _, orderedSlotNames, maskedSlots) <- fetchHiddenRosterRenderData weekOffset
+fetchHiddenRosterWeekSkeleton :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], [SlotName], [RosterSlot])
+fetchHiddenRosterWeekSkeleton rosterGroupId weekOffset = do
+    (rosterWeek, rosterDays, _, orderedSlotNames, maskedSlots) <- fetchHiddenRosterRenderData rosterGroupId weekOffset
     pure (rosterWeek, rosterDays, orderedSlotNames, maskedSlots)
 
 maskRosterSlots :: (?context :: ControllerContext) => RosterWeek -> [RosterSlot] -> [RosterSlot]

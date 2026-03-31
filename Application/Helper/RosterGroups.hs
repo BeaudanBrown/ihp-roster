@@ -40,6 +40,27 @@ fetchCurrentVenueDefaultRosterGroup = do
     venue <- fetch currentVenueId
     ensureVenueRosterDefaults venue
 
+fetchCurrentVenueRosterGroups :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [RosterGroup]
+fetchCurrentVenueRosterGroups =
+    query @RosterGroup
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> orderByAsc #sortOrder
+        |> orderByAsc #createdAt
+        |> fetch
+
+fetchCurrentVenueRosterGroupOrDefault :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id RosterGroup) -> IO RosterGroup
+fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId = do
+    defaultRosterGroup <- fetchCurrentVenueDefaultRosterGroup
+    case maybeRosterGroupId of
+        Nothing -> pure defaultRosterGroup
+        Just rosterGroupId -> do
+            rosterGroupOrNothing <-
+                query @RosterGroup
+                    |> filterWhere (#id, rosterGroupId)
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> fetchOneOrNothing
+            pure (fromMaybe defaultRosterGroup rosterGroupOrNothing)
+
 fetchRosterGroupSlotNames :: (?modelContext :: ModelContext) => Id RosterGroup -> IO [SlotName]
 fetchRosterGroupSlotNames rosterGroupId =
     query @SlotName

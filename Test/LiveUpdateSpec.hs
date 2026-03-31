@@ -10,8 +10,9 @@ tests :: Spec
 tests = describe "LiveUpdate runtime types" do
     it "round-trips roster, leave, and timesheet scopes through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let scopes =
-                [ RosterWeekScope { venueId, weekOffset = 0 }
+                [ RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
                 , LeaveRequestsScope { venueId }
                 , TimesheetWeekScope { venueId, weekOffset = 2 }
                 ]

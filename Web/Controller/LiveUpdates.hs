@@ -2,6 +2,7 @@ module Web.Controller.LiveUpdates where
 
 import Application.Helper.Controller
 import Application.Helper.LiveUpdate
+import Data.Coerce (coerce)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.UUID as UUID
@@ -94,12 +95,17 @@ isAuthorizedScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     LiveUpdateScope ->
     IO Bool
-isAuthorizedScope RosterWeekScope { venueId, weekOffset } = do
+isAuthorizedScope RosterWeekScope { venueId, rosterGroupId, weekOffset } = do
     if venueId /= unpackId currentVenueId
         then pure False
         else do
+            rosterGroupOrNothing <-
+                query @RosterGroup
+                    |> filterWhere (#id, coerce rosterGroupId)
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> fetchOneOrNothing
             let _ = weekOffset
-            pure True
+            pure (isJust rosterGroupOrNothing)
 isAuthorizedScope LeaveRequestsScope { venueId } =
     pure (venueId == unpackId currentVenueId)
 isAuthorizedScope TimesheetWeekScope { venueId, weekOffset } = do

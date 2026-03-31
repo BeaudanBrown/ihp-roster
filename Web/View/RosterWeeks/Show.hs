@@ -14,6 +14,8 @@ data ShowView = ShowView
     { rosterWeek      :: Maybe RosterWeek
     , rosterDays      :: [RosterDay]
     , weekOffset      :: Int
+    , rosterGroups    :: [RosterGroup]
+    , currentRosterGroup :: RosterGroup
     , weekStartDate   :: Day
     , weekEndDate     :: Day
     , staffMembers    :: [Staff]
@@ -52,40 +54,58 @@ renderRosterWeekShell ShowView { .. } = [hsx|
              data-live-update-owner="true"
              data-live-update-feature="roster"
              data-live-updates-path="/live-updates"
-             data-live-update-content-url={pathTo (ShowRosterWeekContentFragmentAction weekOffset)}
-             data-live-update-staff-panel-url={pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)}
+             data-live-update-content-url={appendQueryParams (pathTo (ShowRosterWeekContentFragmentAction weekOffset)) [("rosterGroupId", tshow currentRosterGroup.id)]}
+             data-live-update-staff-panel-url={appendQueryParams (pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)) [("rosterGroupId", tshow currentRosterGroup.id)]}
              data-live-update-client-enabled={isJust liveUpdateScope}
              data-live-update-client-id=""
              data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
              data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
+             data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< liveUpdateScope}
              data-live-update-week-offset={liveUpdateWeekOffsetText =<< liveUpdateScope}>
         <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-4">
             <div>
                 <h1 class="mb-0">Roster Starting {formatDateDisplay weekStartDate}</h1>
+                <div class="small app-muted mt-1">Roster group: <span class="fw-semibold">{currentRosterGroup.name}</span></div>
             </div>
-            {renderRosterWeekControls weekOffset}
+            {renderRosterWeekControls weekOffset rosterGroups currentRosterGroup}
         </div>
 
         {renderRosterContentFragment rosterWeek rosterDays weekOffset staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts}
     </section>
 |]
 
-renderRosterWeekControls :: (?context :: ControllerContext) => Int -> Html
-renderRosterWeekControls weekOffset = [hsx|
+renderRosterWeekControls :: (?context :: ControllerContext) => Int -> [RosterGroup] -> RosterGroup -> Html
+renderRosterWeekControls weekOffset rosterGroups currentRosterGroup = [hsx|
     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-xl-end">
+        {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
         <div class="btn-group" role="group" aria-label="Roster week navigation">
-            {renderWeekNavigationLink "<" (pathTo (ShowRosterWeekAction (weekOffset - 1)))}
-            {renderWeekNavigationLink "this week" (pathTo RosterWeeksAction)}
-            {renderWeekNavigationLink ">" (pathTo (ShowRosterWeekAction (weekOffset + 1)))}
+            {renderWeekNavigationLink "<" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
+            {renderWeekNavigationLink "this week" (appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id)])}
+            {renderWeekNavigationLink ">" (rosterWeekPath (weekOffset + 1) currentRosterGroup.id)}
         </div>
-        {when currentUserIsManager (renderRosterWeekManagerControls weekOffset)}
+        {when currentUserIsManager (renderRosterWeekManagerControls weekOffset currentRosterGroup)}
     </div>
 |]
 
-renderRosterWeekManagerControls :: (?context :: ControllerContext) => Int -> Html
-renderRosterWeekManagerControls weekOffset = [hsx|
+renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
+renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
+    <div class="btn-group" role="group" aria-label="Roster group selection">
+        {forEach rosterGroups (renderRosterGroupSwitchLink weekOffset currentRosterGroup.id)}
+    </div>
+|]
+
+renderRosterGroupSwitchLink :: Int -> Id RosterGroup -> RosterGroup -> Html
+renderRosterGroupSwitchLink weekOffset selectedRosterGroupId rosterGroup = [hsx|
+    <a class={classes [("btn btn-sm", True), ("btn-primary", rosterGroup.id == selectedRosterGroupId), ("btn-outline-primary", rosterGroup.id /= selectedRosterGroupId)]}
+       href={rosterWeekPath weekOffset rosterGroup.id}>
+        {rosterGroup.name}
+    </a>
+|]
+
+renderRosterWeekManagerControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Html
+renderRosterWeekManagerControls weekOffset currentRosterGroup = [hsx|
     <div class="d-flex flex-wrap gap-2 align-items-center" data-roster-week-controls="manager-actions">
-        {renderCopyPreviousWeekForm weekOffset}
+        {renderCopyPreviousWeekForm weekOffset currentRosterGroup.id}
     </div>
 |]
 
@@ -147,7 +167,7 @@ renderRosterGrid maybeRosterWeek rosterDays weekOffset staffMembers panelStaff s
                 </div>
             </div>
         </div>
-        {renderRosterStaffPanelFragment weekOffset panelStaff}
+        {forEach maybeRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment weekOffset (coerce rosterWeek.rosterGroupId) panelStaff)}
     </div>
 |]
 
@@ -164,28 +184,28 @@ renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
 renderLiveToggle (Just rosterWeek) = renderLiveToggleForm rosterWeek
 renderLiveToggle Nothing = mempty
 
-renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragment =
     renderRosterStaffPanelFragmentWithSwap Nothing
 
-renderRosterStaffPanelFragmentOob :: (?context :: ControllerContext) => Int -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanelFragmentOob :: (?context :: ControllerContext) => Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragmentOob =
     renderRosterStaffPanelFragmentWithSwap (Just "outerHTML")
 
-renderRosterStaffPanelFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Int -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanelFragmentWithSwap maybeSwapOob weekOffset panelStaff =
+renderRosterStaffPanelFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanelFragmentWithSwap maybeSwapOob weekOffset currentRosterGroupId panelStaff =
     if currentUserIsManager
         then [hsx|
             <div id={rosterStaffPanelFragmentId}
                  class="col-12 col-xl-4 col-xxl-3 roster-layout-side"
                  hx-swap-oob={maybeSwapOob}>
-                {renderRosterStaffPanel weekOffset panelStaff}
+                {renderRosterStaffPanel weekOffset currentRosterGroupId panelStaff}
             </div>
         |]
         else mempty
 
-renderRosterStaffPanel :: Int -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanel weekOffset panelStaff = [hsx|
+renderRosterStaffPanel :: Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanel weekOffset currentRosterGroupId panelStaff = [hsx|
     <div class="app-panel roster-staff-panel">
         <div class="app-panel-body">
             <h2 class="h5 mb-3">Staff</h2>
@@ -200,14 +220,14 @@ renderRosterStaffPanel weekOffset panelStaff = [hsx|
             </div>
 
             <div class="roster-staff-panel-list roster-staff-table-body">
-                {forEach panelStaff (renderRosterStaffPanelEntry weekOffset)}
+                {forEach panelStaff (renderRosterStaffPanelEntry weekOffset currentRosterGroupId)}
             </div>
         </div>
     </div>
 |]
 
-renderRosterStaffPanelEntry :: Int -> RosterStaffPanelEntry -> Html
-renderRosterStaffPanelEntry weekOffset entry = [hsx|
+renderRosterStaffPanelEntry :: Int -> Id RosterGroup -> RosterStaffPanelEntry -> Html
+renderRosterStaffPanelEntry weekOffset currentRosterGroupId entry = [hsx|
     <section class="roster-staff-panel-entry">
         <div class="roster-staff-cell roster-staff-name">
             <span class="roster-staff-name-primary">{entry.staff.firstName} {entry.staff.lastName}</span>
@@ -219,7 +239,7 @@ renderRosterStaffPanelEntry weekOffset entry = [hsx|
         <div class="roster-staff-cell">
             <button type="button"
                class="btn btn-sm btn-outline-secondary"
-               hx-get={appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset)]}
+               hx-get={appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]}
                hx-target={"#" <> htmxModalMountId}
                hx-swap="innerHTML"
                hx-push-url="false">
@@ -483,12 +503,12 @@ renderConflictBadge (Just conflict) = [hsx|
     </span>
 |]
 
-renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Html
-renderCopyPreviousWeekForm weekOffset = [hsx|
+renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Html
+renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
     <form method="POST"
-          action={CopyRosterWeekAction (weekOffset - 1) weekOffset}
+          action={appendQueryParams (pathTo (CopyRosterWeekAction (weekOffset - 1) weekOffset)) [("rosterGroupId", tshow rosterGroupId)]}
           data-disable-javascript-submission="true"
-          hx-post={CopyRosterWeekAction (weekOffset - 1) weekOffset}
+          hx-post={appendQueryParams (pathTo (CopyRosterWeekAction (weekOffset - 1) weekOffset)) [("rosterGroupId", tshow rosterGroupId)]}
           hx-target={"#" <> rosterContentFragmentId}
           hx-swap="outerHTML"
           hx-push-url="false"
@@ -532,7 +552,16 @@ liveUpdateVenueId RosterWeekScope { venueId }    = tshow venueId
 liveUpdateVenueId LeaveRequestsScope { venueId } = tshow venueId
 liveUpdateVenueId TimesheetWeekScope { venueId } = tshow venueId
 
+liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
+liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId } = Just (tshow rosterGroupId)
+liveUpdateRosterGroupIdText LeaveRequestsScope {} = Nothing
+liveUpdateRosterGroupIdText TimesheetWeekScope {} = Nothing
+
 liveUpdateWeekOffsetText :: LiveUpdateScope -> Maybe Text
 liveUpdateWeekOffsetText RosterWeekScope { weekOffset } = Just (tshow weekOffset)
 liveUpdateWeekOffsetText LeaveRequestsScope {} = Nothing
 liveUpdateWeekOffsetText TimesheetWeekScope { weekOffset } = Just (tshow weekOffset)
+
+rosterWeekPath :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Text
+rosterWeekPath weekOffset rosterGroupId =
+    appendQueryParams (pathTo (ShowRosterWeekAction weekOffset)) [("rosterGroupId", tshow rosterGroupId)]

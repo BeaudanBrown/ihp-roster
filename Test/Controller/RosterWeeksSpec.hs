@@ -120,6 +120,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-live-update-client-enabled=\"true\""
                 response `responseBodyShouldContain` "data-live-update-scope-kind=\"roster_week\""
+                response `responseBodyShouldContain` "data-live-update-roster-group-id=\""
                 response `responseBodyShouldContain` "data-live-update-week-offset=\"0\""
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
@@ -138,6 +139,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-live-update-client-enabled=\"true\""
                 response `responseBodyShouldContain` "data-live-update-scope-kind=\"roster_week\""
+                response `responseBodyShouldContain` "data-live-update-roster-group-id=\""
                 response `responseBodyShouldContain` "data-live-update-week-offset=\"0\""
 
         it "manager can see draft weeks" $ withContext do
@@ -170,7 +172,7 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0\""
+                response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "data-roster-week-controls=\"manager-actions\""
                 response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""

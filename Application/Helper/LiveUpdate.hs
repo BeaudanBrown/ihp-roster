@@ -24,6 +24,7 @@ import System.IO.Unsafe (unsafePerformIO)
 data LiveUpdateScope
     = RosterWeekScope
         { venueId    :: !UUID.UUID
+        , rosterGroupId :: !UUID.UUID
         , weekOffset :: !Int
         }
     | LeaveRequestsScope
@@ -88,10 +89,11 @@ data LiveUpdateMessage
     deriving (Eq, Show)
 
 instance Aeson.ToJSON LiveUpdateScope where
-    toJSON RosterWeekScope { venueId, weekOffset } =
+    toJSON RosterWeekScope { venueId, rosterGroupId, weekOffset } =
         Aeson.object
             [ "kind" Aeson..= ("roster_week" :: Text)
             , "venueId" Aeson..= UUID.toText venueId
+            , "rosterGroupId" Aeson..= UUID.toText rosterGroupId
             , "weekOffset" Aeson..= weekOffset
             ]
     toJSON LeaveRequestsScope { venueId } =
@@ -113,6 +115,7 @@ instance Aeson.FromJSON LiveUpdateScope where
             "roster_week" ->
                 RosterWeekScope
                     <$> (parseUuid =<< object Aeson..: "venueId")
+                    <*> (parseUuid =<< object Aeson..: "rosterGroupId")
                     <*> object Aeson..: "weekOffset"
             "leave_requests" ->
                 LeaveRequestsScope

@@ -701,6 +701,8 @@
 
         switch (scope.kind) {
             case 'roster_week':
+                if (!scope.rosterGroupId || !Number.isInteger(scope.weekOffset)) return null;
+                return `${scope.kind}:${scope.venueId}:${scope.rosterGroupId}:${scope.weekOffset}`;
             case 'timesheet_week':
                 if (!Number.isInteger(scope.weekOffset)) return null;
                 return `${scope.kind}:${scope.venueId}:${scope.weekOffset}`;
@@ -736,8 +738,9 @@
 
             const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
             const venueId = ownerEl.dataset.liveUpdateVenueId;
+            const rosterGroupId = ownerEl.dataset.liveUpdateRosterGroupId;
             const weekOffsetRaw = ownerEl.dataset.liveUpdateWeekOffset;
-            if (!scopeKind || !venueId || typeof weekOffsetRaw !== 'string') return null;
+            if (!scopeKind || !venueId || !rosterGroupId || typeof weekOffsetRaw !== 'string') return null;
 
             const weekOffset = Number.parseInt(weekOffsetRaw, 10);
             if (!Number.isInteger(weekOffset)) return null;
@@ -746,11 +749,13 @@
                 scope: {
                     kind: scopeKind,
                     venueId,
+                    rosterGroupId,
                     weekOffset,
                 },
                 scopeKey: buildScopeKey({
                     kind: scopeKind,
                     venueId,
+                    rosterGroupId,
                     weekOffset,
                 }),
                 path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
