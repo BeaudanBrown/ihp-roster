@@ -39,6 +39,9 @@ rosterContentFragmentId = "roster-content"
 rosterStaffPanelFragmentId :: Text
 rosterStaffPanelFragmentId = "roster-staff-panel-fragment"
 
+rosterDaySectionDomId :: Id RosterDay -> Text
+rosterDaySectionDomId rosterDayId = "roster-day-section-" <> tshow rosterDayId
+
 instance View ShowView where
     html = renderRosterWeekShell
 
@@ -127,10 +130,7 @@ renderRosterGrid maybeRosterWeek rosterDays weekOffset staffMembers panelStaff s
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
             <div class="card shadow-sm mb-5 mb-xl-0">
-                <div class="card-header d-flex justify-content-between align-items-center py-3">
-                    {renderRosterStatusSummary maybeRosterWeek}
-                    {renderPublishAction maybeRosterWeek}
-                </div>
+                {renderRosterGridHeader maybeRosterWeek}
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm mb-0 align-middle roster-grid">
                         <thead class="text-center text-uppercase fw-bold roster-grid-head">
@@ -142,9 +142,7 @@ renderRosterGrid maybeRosterWeek rosterDays weekOffset staffMembers panelStaff s
                                 {forEach slotNames renderSlotSubHeaders}
                             </tr>
                         </thead>
-                        <tbody>
-                            {forEach rosterDays (renderRosterDay slotNames staffMembers weekStartDate allSlots slotConflicts)}
-                        </tbody>
+                        {forEach rosterDays (renderRosterDay slotNames staffMembers weekStartDate allSlots slotConflicts)}
                     </table>
                 </div>
             </div>
@@ -153,21 +151,18 @@ renderRosterGrid maybeRosterWeek rosterDays weekOffset staffMembers panelStaff s
     </div>
 |]
 
-renderRosterStatusSummary :: Maybe RosterWeek -> Html
-renderRosterStatusSummary maybeRosterWeek = [hsx|
-    <div class="d-flex align-items-center gap-3">
-        <span class="fw-bold">Status:</span>
-        {renderRosterStatusBadge maybeRosterWeek}
-    </div>
-|]
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
+renderRosterGridHeader maybeRosterWeek
+    | currentUserIsManager && isJust maybeRosterWeek = [hsx|
+        <div class="card-header d-flex justify-content-end align-items-center py-3">
+            {renderLiveToggle maybeRosterWeek}
+        </div>
+    |]
+    | otherwise = mempty
 
-renderRosterStatusBadge :: Maybe RosterWeek -> Html
-renderRosterStatusBadge (Just rosterWeek) = renderStatusBadge rosterWeek.isLive
-renderRosterStatusBadge Nothing = [hsx|<span class="badge bg-secondary shadow-sm px-3 py-2">Hidden Until Published</span>|]
-
-renderPublishAction :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
-renderPublishAction (Just rosterWeek) = when (not rosterWeek.isLive && currentUserIsManager) (renderPublishForm rosterWeek)
-renderPublishAction Nothing = mempty
+renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
+renderLiveToggle (Just rosterWeek) = renderLiveToggleForm rosterWeek
+renderLiveToggle Nothing = mempty
 
 renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragment =
@@ -254,8 +249,24 @@ renderSlotSubHeaders _ =
         ]
 
 renderRosterDay :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
-renderRosterDay slotNames staffMembers weekStartDate allSlots slotConflicts rosterDay = [hsx|
-    {renderDayRows slotNames staffMembers (Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate) rosterDay daySlots slotConflicts}
+renderRosterDay slotNames staffMembers weekStartDate allSlots slotConflicts rosterDay =
+    renderRosterDaySectionFragment slotNames staffMembers weekStartDate allSlots slotConflicts rosterDay
+
+renderRosterDaySectionFragment :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
+renderRosterDaySectionFragment =
+    renderRosterDaySectionFragmentWithSwap Nothing
+
+renderRosterDaySectionFragmentOob :: (?context :: ControllerContext) => [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
+renderRosterDaySectionFragmentOob =
+    renderRosterDaySectionFragmentWithSwap (Just "outerHTML")
+
+renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
+renderRosterDaySectionFragmentWithSwap maybeSwapOob slotNames staffMembers weekStartDate allSlots slotConflicts rosterDay = [hsx|
+    <tbody id={rosterDaySectionDomId rosterDay.id}
+           data-roster-day-section="true"
+           hx-swap-oob={maybeSwapOob}>
+        {renderDayRows slotNames staffMembers (Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate) rosterDay daySlots slotConflicts}
+    </tbody>
 |]
     where
         daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) allSlots
@@ -334,15 +345,22 @@ renderAddRowButton :: (?context :: ControllerContext) => RosterDay -> Html
 renderAddRowButton rosterDay =
     if currentUserIsManager
         then [hsx|
-            <button type="button"
-                    class="btn btn-sm roster-day-action roster-day-action-add"
-                    data-roster-day-add="true"
-                    hx-post={AddRosterRowAction rosterDay.id}
-                    hx-target="#roster-content"
-                    hx-swap="outerHTML"
-                    title="Add shift row">
-                +
-            </button>
+            <form method="POST"
+                  action={AddRosterRowAction rosterDay.id}
+                  class="d-inline"
+                  data-disable-javascript-submission="true"
+                  hx-post={AddRosterRowAction rosterDay.id}
+                  hx-target={"#" <> rosterContentFragmentId}
+                  hx-swap="outerHTML"
+                  hx-push-url="false"
+                  hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+                <button type="submit"
+                        class="btn btn-sm roster-day-action roster-day-action-add"
+                        data-roster-day-add="true"
+                        title="Add shift row">
+                    +
+                </button>
+            </form>
         |]
         else [hsx|<span></span>|]
 
@@ -351,15 +369,22 @@ renderDeleteLastRowButton _ rowIndex | rowIndex < 0 = [hsx|<span></span>|]
 renderDeleteLastRowButton rosterDay _ =
     if currentUserIsManager
         then [hsx|
-            <button type="button"
-                    class="btn btn-sm roster-day-action roster-day-action-remove"
-                    data-roster-day-remove="true"
-                    hx-post={RemoveRosterRowAction rosterDay.id}
-                    hx-target="#roster-content"
-                    hx-swap="outerHTML"
-                    title="Delete last shift row">
-                -
-            </button>
+            <form method="POST"
+                  action={RemoveRosterRowAction rosterDay.id}
+                  class="d-inline"
+                  data-disable-javascript-submission="true"
+                  hx-post={RemoveRosterRowAction rosterDay.id}
+                  hx-target={"#" <> rosterContentFragmentId}
+                  hx-swap="outerHTML"
+                  hx-push-url="false"
+                  hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+                <button type="submit"
+                        class="btn btn-sm roster-day-action roster-day-action-remove"
+                        data-roster-day-remove="true"
+                        title="Delete last shift row">
+                    -
+                </button>
+            </form>
         |]
         else [hsx|<span></span>|]
 
@@ -458,12 +483,6 @@ renderConflictBadge (Just conflict) = [hsx|
     </span>
 |]
 
-renderStatusBadge :: Bool -> Html
-renderStatusBadge isLive =
-    if isLive
-        then [hsx|<span class="badge bg-success shadow-sm px-3 py-2">Live / Published</span>|]
-        else [hsx|<span class="badge bg-warning text-dark shadow-sm px-3 py-2">Draft Mode</span>|]
-
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Html
 renderCopyPreviousWeekForm weekOffset = [hsx|
     <form method="POST"
@@ -479,20 +498,29 @@ renderCopyPreviousWeekForm weekOffset = [hsx|
     </form>
 |]
 
-renderPublishForm :: RosterWeek -> Html
-renderPublishForm rosterWeek = [hsx|
+renderLiveToggleForm :: RosterWeek -> Html
+renderLiveToggleForm rosterWeek = [hsx|
     <form method="POST"
-          action={PublishRosterWeekAction rosterWeek.id}
-          class="d-inline"
-          data-disable-javascript-submission="true"
-          hx-post={PublishRosterWeekAction rosterWeek.id}
+          action={ToggleRosterWeekLiveStatusAction rosterWeek.id}
+          class="form-check form-switch d-flex align-items-center gap-2 mb-0"
+          hx-post={ToggleRosterWeekLiveStatusAction rosterWeek.id}
+          hx-trigger="change from:input"
           hx-target={"#" <> rosterContentFragmentId}
           hx-swap="outerHTML"
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-        <button type="submit" class="btn btn-success px-4 py-2 fw-bold">Publish Week</button>
+        <input type="checkbox"
+               id={liveToggleInputId rosterWeek.id}
+               class="form-check-input mt-0"
+               checked={rosterWeek.isLive} />
+        <label class="form-check-label fw-semibold" for={liveToggleInputId rosterWeek.id}>
+            Live
+        </label>
     </form>
 |]
+
+liveToggleInputId :: Id RosterWeek -> Text
+liveToggleInputId rosterWeekId = "roster-live-toggle-" <> tshow rosterWeekId
 
 liveUpdateScopeKind :: LiveUpdateScope -> Text
 liveUpdateScopeKind RosterWeekScope {}    = "roster_week"

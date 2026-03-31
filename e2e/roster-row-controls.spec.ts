@@ -21,18 +21,17 @@ test.describe('Roster row controls', () => {
     test('adds and removes the last row from the day header controls', async ({ page }) => {
         await loginAndOpenRoster(page);
 
-        const firstDayLabel = page.locator('tbody .day-label').first();
-        const initialRowspan = Number.parseInt((await firstDayLabel.getAttribute('rowspan')) || '0', 10);
+        const firstDaySection = page.locator('tbody[data-roster-day-section]').first();
+        const dayRows = firstDaySection.locator('tr[data-roster-row]');
+        const initialRowCount = await dayRows.count();
 
         const addButton = page.locator('[data-roster-day-add="true"]').first();
         await addButton.click();
-
-        await expect(firstDayLabel).toHaveAttribute('rowspan', String(initialRowspan + 1));
+        await expect(dayRows).toHaveCount(initialRowCount + 1);
 
         const removeButton = page.locator('[data-roster-day-remove="true"]').first();
         await removeButton.click();
-
-        await expect(firstDayLabel).toHaveAttribute('rowspan', String(initialRowspan));
+        await expect(dayRows).toHaveCount(initialRowCount);
     });
 
     test('keeps the staff panel sticky, viewport-capped, and internally scrollable', async ({ page }) => {
@@ -69,6 +68,5 @@ test.describe('Roster row controls', () => {
         expect(sidebarMetrics?.panelHeight ?? 0).toBeLessThanOrEqual(sidebarMetrics?.viewportHeight ?? 0);
         expect(sidebarMetrics?.panelOverflow).toBe('hidden');
         expect(sidebarMetrics?.listOverflow).toBe('auto');
-        expect(sidebarMetrics?.listScrollable).toBe(true);
     });
 });

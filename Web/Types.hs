@@ -93,10 +93,11 @@ data RosterWeeksController
     | ShowRosterWeekAction { weekOffset :: !Int }
     | ShowRosterWeekContentFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekStaffPanelFragmentAction { weekOffset :: !Int }
+    | ShowRosterWeekDaySectionFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekRowFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
     | CreateRosterWeekAction { weekOffset :: !Int }
     | CopyRosterWeekAction { sourceWeekOffset :: !Int, targetWeekOffset :: !Int }
-    | PublishRosterWeekAction { rosterWeekId :: !(Id RosterWeek) }
+    | ToggleRosterWeekLiveStatusAction { rosterWeekId :: !(Id RosterWeek) }
     | AddRosterRowAction { rosterDayId :: !(Id RosterDay) }
     | RemoveRosterRowAction { rosterDayId :: !(Id RosterDay) }
     | UpdateRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }

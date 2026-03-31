@@ -38,6 +38,9 @@ data LiveUpdateScope
 data LiveFragmentKey
     = RosterContentFragment
     | RosterStaffPanelFragment
+    | RosterDaySectionFragment
+        { rosterDayId :: !UUID.UUID
+        }
     | RosterRowFragment
         { rosterDayId :: !UUID.UUID
         , rowIndex    :: !Int
@@ -125,6 +128,11 @@ instance Aeson.ToJSON LiveFragmentKey where
         Aeson.object ["kind" Aeson..= ("roster_content" :: Text)]
     toJSON RosterStaffPanelFragment =
         Aeson.object ["kind" Aeson..= ("roster_staff_panel" :: Text)]
+    toJSON RosterDaySectionFragment { rosterDayId } =
+        Aeson.object
+            [ "kind" Aeson..= ("roster_day_section" :: Text)
+            , "rosterDayId" Aeson..= UUID.toText rosterDayId
+            ]
     toJSON RosterRowFragment { rosterDayId, rowIndex } =
         Aeson.object
             [ "kind" Aeson..= ("roster_row" :: Text)
@@ -145,6 +153,9 @@ instance Aeson.FromJSON LiveFragmentKey where
         case (kind :: Text) of
             "roster_content" -> pure RosterContentFragment
             "roster_staff_panel" -> pure RosterStaffPanelFragment
+            "roster_day_section" ->
+                RosterDaySectionFragment
+                    <$> (parseUuid =<< object Aeson..: "rosterDayId")
             "roster_row" ->
                 RosterRowFragment
                     <$> (parseUuid =<< object Aeson..: "rosterDayId")

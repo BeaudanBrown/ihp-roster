@@ -28,10 +28,13 @@ import Web.View.RosterWeeks.Show (RosterStaffPanelEntry (..), ShowView (..),
                                   lastRowIndexForRows,
                                   renderRosterContentFragment,
                                   renderRosterContentFragmentOob,
+                                  renderRosterDaySectionFragment,
+                                  renderRosterDaySectionFragmentOob,
                                   renderRosterStaffPanelFragment,
                                   renderRosterStaffPanelFragmentOob,
                                   renderRosterWeekShell, renderRowFragment,
                                   renderRowOob, rosterContentFragmentId,
+                                  rosterDaySectionDomId,
                                   rosterRowDomIdText,
                                   rosterStaffPanelFragmentId, rowsForDay)
 
@@ -68,6 +71,10 @@ instance Controller RosterWeeksController where
         panelStaff <- fetchVisibleRosterStaffPanelEntries weekOffset
         respondHtml $
             maybe mempty (renderRosterStaffPanelFragment weekOffset) panelStaff
+
+    action ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = do
+        daySectionHtml <- fetchVisibleRosterDaySectionFragment weekOffset rosterDayId
+        respondHtml (fromMaybe mempty daySectionHtml)
 
     action ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId, rowIndex } = do
         rowHtml <- fetchVisibleRosterRowFragment weekOffset rosterDayId rowIndex
@@ -141,18 +148,22 @@ instance Controller RosterWeeksController where
                                 setSuccessMessage successMessage
                                 redirectTo targetAction
 
-    action PublishRosterWeekAction { rosterWeekId } = do
+    action ToggleRosterWeekLiveStatusAction { rosterWeekId } = do
         ensureManagerRole
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
+        let nextLiveStatus = not rosterWeek.isLive
         rosterWeek
-            |> set #isLive True
+            |> set #isLive nextLiveStatus
             |> updateRecord
 
         broadcastRosterWeekInvalidation
             rosterWeek.weekOffset
             [buildRosterContentFragmentRef rosterWeek.weekOffset]
-        let successMessage = "Roster week published successfully"
+        let successMessage =
+                if nextLiveStatus
+                    then "Roster week is now live."
+                    else "Roster week moved back to draft."
         let targetAction = ShowRosterWeekAction { weekOffset = rosterWeek.weekOffset }
         if isHtmxRequest
             then do
@@ -191,7 +202,7 @@ instance Controller RosterWeeksController where
 
         broadcastRosterWeekInvalidation
             rosterWeek.weekOffset
-            [ buildRosterContentFragmentRef rosterWeek.weekOffset
+            [ buildRosterDaySectionFragmentRef rosterWeek.weekOffset (coerce rosterDay.id)
             , buildRosterStaffPanelFragmentRef rosterWeek.weekOffset
             ]
         respondWithRosterContent rosterWeek.weekOffset
@@ -227,7 +238,7 @@ instance Controller RosterWeeksController where
 
         broadcastRosterWeekInvalidation
             rosterWeek.weekOffset
-            [ buildRosterContentFragmentRef rosterWeek.weekOffset
+            [ buildRosterDaySectionFragmentRef rosterWeek.weekOffset (coerce rosterDay.id)
             , buildRosterStaffPanelFragmentRef rosterWeek.weekOffset
             ]
         respondWithRosterContent rosterWeek.weekOffset
@@ -412,6 +423,19 @@ respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelC
 respondWithRosterRows weekOffset requestedRowKeys =
     respondWithRosterPatches weekOffset requestedRowKeys False
 
+respondWithRosterDaySectionPatch :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterDay -> Bool -> IO ()
+respondWithRosterDaySectionPatch weekOffset rosterDayId shouldRefreshStaffPanel = do
+    rosterData <- fetchVisibleRosterRenderData weekOffset
+    case rosterData of
+        Nothing -> respondHtml [hsx||]
+        Just RosterRenderData { rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } -> do
+            let renderedDaySection =
+                    mapMaybe
+                        (renderRequestedDaySection rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts)
+                        [unpackId rosterDayId]
+            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset panelStaff | shouldRefreshStaffPanel]
+            respondHtml (mconcat (renderedDaySection <> renderedStaffPanel))
+
 respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondWithRosterPatches weekOffset requestedRowKeys shouldRefreshStaffPanel = do
     rosterData <- fetchVisibleRosterRenderData weekOffset
@@ -582,6 +606,12 @@ fetchVisibleRosterRowFragment weekOffset rosterDayId rowIndex = do
         RosterRenderData { rosterDays, weekStartDate, staffMembers, orderedSlotNames, allSlots, slotConflicts } <- rosterData
         renderRequestedRowFragment rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (unpackId rosterDayId, rowIndex)
 
+fetchVisibleRosterDaySectionFragment weekOffset rosterDayId = do
+    rosterData <- fetchVisibleRosterRenderData weekOffset
+    pure do
+        RosterRenderData { rosterDays, weekStartDate, staffMembers, orderedSlotNames, allSlots, slotConflicts } <- rosterData
+        renderRequestedDaySectionFragment rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (unpackId rosterDayId)
+
 buildRosterWeekScope :: (?context :: ControllerContext) => Int -> LiveUpdateScope
 buildRosterWeekScope weekOffset =
     RosterWeekScope
@@ -605,6 +635,15 @@ buildRosterStaffPanelFragmentRef weekOffset =
         , targetId = rosterStaffPanelFragmentId
         , url = pathTo ShowRosterWeekStaffPanelFragmentAction { weekOffset }
         , deferUntilBlur = False
+        }
+
+buildRosterDaySectionFragmentRef :: (?context :: ControllerContext) => Int -> UUID.UUID -> LiveFragmentRef
+buildRosterDaySectionFragmentRef weekOffset rosterDayId =
+    LiveFragmentRef
+        { fragmentKey = RosterDaySectionFragment { rosterDayId }
+        , targetId = rosterDaySectionDomId (coerce rosterDayId)
+        , url = pathTo ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId = coerce rosterDayId }
+        , deferUntilBlur = True
         }
 
 buildRosterRowFragmentRefs :: (?context :: ControllerContext) => Int -> [(UUID.UUID, Int)] -> [LiveFragmentRef]
@@ -692,7 +731,7 @@ createEmptyRosterWeek weekOffset = do
             |> set #dayOffset dayOffset
             |> createRecord
 
-        forM_ [0 .. 4] \rowIndex ->
+        forM_ [0 .. 3] \rowIndex ->
             forM_ orderedSlotNames \slotName -> do
                 newRecord @RosterSlot
                     |> set #rosterDayId (coerce (get #id rosterDay))
@@ -789,6 +828,14 @@ renderRequestedRowFragment rosterDays weekStartDate orderedSlotNames staffMember
     (rowPosition, (_, rowSlots)) <- find (\(_, (rowIndex, _)) -> rowIndex == targetRowIndex) indexedRows
     let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate
     pure (renderRowFragment orderedSlotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (targetRowIndex, rowSlots)))
+
+renderRequestedDaySection rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts rosterDayUuid = do
+    rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
+    pure (renderRosterDaySectionFragment orderedSlotNames staffMembers weekStartDate allSlots slotConflicts rosterDay)
+
+renderRequestedDaySectionFragment rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts rosterDayUuid = do
+    rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
+    pure (renderRosterDaySectionFragment orderedSlotNames staffMembers weekStartDate allSlots slotConflicts rosterDay)
 
 impactedRowKeysForSlotUpdate :: Maybe UUID.UUID -> RosterSlot -> [RosterSlot] -> [(UUID.UUID, Int)]
 impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots =

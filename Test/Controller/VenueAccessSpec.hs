@@ -72,7 +72,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status403
 
-        it "denies publishing a roster week from another venue" $ withContext do
+        it "denies toggling a roster week from another venue" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
@@ -81,7 +81,7 @@ tests = beforeAll testContext do
                 foreignWeek <- createRosterWeekRecord venueB 0 False
 
                 response <- withUser manager do
-                    callAction PublishRosterWeekAction { rosterWeekId = foreignWeek.id }
+                    callAction ToggleRosterWeekLiveStatusAction { rosterWeekId = foreignWeek.id }
 
                 response `responseStatusShouldBe` status403
 
@@ -121,7 +121,7 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
 
                 response <- withUser user do
-                    callAction PublishRosterWeekAction { rosterWeekId = rosterWeek.id }
+                    callAction ToggleRosterWeekLiveStatusAction { rosterWeekId = rosterWeek.id }
 
                 response `responseStatusShouldBe` status403
 
@@ -364,6 +364,6 @@ tests = beforeAll testContext do
                     |> filterWhereIn (#rosterDayId, map (unpackId . get #id) rosterDays)
                     |> fetch
 
-                length slots `shouldBe` 35
+                length slots `shouldBe` 28
                 map (.slotNameId) slots `shouldSatisfy` all (== unpackId slotNameA.id)
                 map (.slotNameId) slots `shouldNotContain` [unpackId slotNameB.id]

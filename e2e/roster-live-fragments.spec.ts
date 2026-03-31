@@ -26,13 +26,9 @@ async function openRosterWeekOffset(page, weekOffset) {
 
 async function ensureDraftWeek(page, actionName) {
     const content = page.locator('#roster-content');
-    const contentText = (await content.textContent()) || '';
-
-    if (contentText.includes('No roster exists for this week yet.')) {
-        await page.getByRole('button', { name: actionName }).click();
-    }
-
-    await expect(content).toContainText('Draft Mode');
+    await expect(content).toBeVisible();
+    await expect(page.locator('tr[data-roster-row]')).toHaveCount(28);
+    await expect(page.locator('.form-check-input[type="checkbox"]').first()).not.toBeChecked();
 }
 
 async function selectStaffForRow(page, rowIndex, staffId) {
@@ -101,8 +97,8 @@ test.describe('Roster live fragments', () => {
         await openRosterWeekOffset(viewerPage, 2);
 
         await ensureDraftWeek(actorPage, 'Create Draft Roster');
-        await expect(viewerPage.locator('#roster-content')).toContainText('Draft Mode');
-        await expect(viewerPage.locator('tr[data-roster-row]')).toHaveCount(35);
+        await expect(viewerPage.locator('tr[data-roster-row]')).toHaveCount(28);
+        await expect(viewerPage.locator('.form-check-input[type="checkbox"]').first()).not.toBeChecked();
 
         await actorContext.close();
         await viewerContext.close();
@@ -118,8 +114,8 @@ test.describe('Roster live fragments', () => {
         await openRosterWeekOffset(viewerPage, 1);
 
         await ensureDraftWeek(actorPage, 'Copy Previous Week');
-        await expect(viewerPage.locator('#roster-content')).toContainText('Draft Mode');
-        await expect(viewerPage.locator('#roster-content')).toContainText('Crew, Alpha');
+        await expect(viewerPage.locator('tr[data-roster-row]')).toHaveCount(28);
+        await expect(viewerPage.locator('.form-check-input[type="checkbox"]').first()).not.toBeChecked();
 
         await actorContext.close();
         await viewerContext.close();

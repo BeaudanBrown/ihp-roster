@@ -87,8 +87,7 @@ tests = beforeAll testContext do
                 createdSlots <- query @RosterSlot
                     |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) createdDays)
                     |> fetch
-                length createdSlots `shouldBe` 35
-                response `responseBodyShouldNotContain` "No roster exists for this week yet."
+                length createdSlots `shouldBe` 28
 
         it "staff cannot see draft weeks but still gets the roster shell" $ withContext do
             withCleanDb do
@@ -102,9 +101,8 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Hidden Until Published"
                 response `responseBodyShouldContain` "roster-grid"
-                response `responseBodyShouldNotContain` "Draft Mode"
+                response `responseBodyShouldNotContain` "Crew, Alpha"
 
         it "empty roster pages still expose live-update scope metadata" $ withContext do
             withCleanDb do
@@ -154,9 +152,9 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Draft Mode"
                 response `responseBodyShouldContain` "Crew, Alpha"
-                response `responseBodyShouldContain` "hx-post=\"/PublishRosterWeek?rosterWeekId="
+                response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?rosterWeekId="
+                response `responseBodyShouldContain` ">Live</label>"
 
         it "manager roster pages render reusable week controls in the header" $ withContext do
             withCleanDb do
@@ -173,7 +171,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-roster-week-controls=\"manager-actions\""
                 response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
-                response `responseBodyShouldNotContain` "Create Draft Roster"
+                response `responseBodyShouldContain` "roster-live-toggle-"
 
         it "manager can create a draft week via HTMX without redirecting" $ withContext do
             withCleanDb do
@@ -190,20 +188,55 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` cs rosterContentFragmentId
                 response `responseBodyShouldContain` "Roster week created successfully"
 
-        it "manager can publish a draft week via HTMX without redirecting" $ withContext do
+        it "manager can add a row to an auto-created draft week" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
-                manager <- createUserRecord "roster-manager-publish-htmx@example.com" "staff" True
+                manager <- createUserRecord "roster-manager-add-row@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- createSlotNameRecord venue "Early"
+
+                _ <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                rosterWeek <- query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 0)
+                    |> fetchOne
+                rosterDay <- query @RosterDay
+                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                    |> filterWhere (#dayOffset, 0)
+                    |> fetchOne
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (AddRosterRowAction rosterDay.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` cs rosterContentFragmentId
+                response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 4)
+
+                slotsForDay <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> orderByAsc #rowIndex
+                    |> fetch
+                length slotsForDay `shouldBe` 5
+                map (.rowIndex) slotsForDay `shouldBe` [0, 1, 2, 3, 4]
+                map (.slotNameId) slotsForDay `shouldBe` replicate 5 (unpackId slotName.id)
+
+        it "manager can toggle a draft week live via HTMX without redirecting" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-live-toggle-htmx@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 rosterWeek <- createRosterWeekRecord venue 0 False
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (PublishRosterWeekAction rosterWeek.id)
+                        callAction (ToggleRosterWeekLiveStatusAction rosterWeek.id)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
-                response `responseBodyShouldContain` "Roster week published successfully"
+                response `responseBodyShouldContain` "Roster week is now live."
 
         it "staff can see published weeks" $ withContext do
             withCleanDb do
@@ -223,7 +256,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Crew, Alpha"
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 
-        it "manager can publish a draft week" $ withContext do
+        it "manager can toggle a draft week live" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-publish@example.com" "staff" True
@@ -231,12 +264,27 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
 
                 response <- withUser manager do
-                    callAction (PublishRosterWeekAction rosterWeek.id)
+                    callAction (ToggleRosterWeekLiveStatusAction rosterWeek.id)
 
                 response `responseStatusShouldBe` status302
 
                 publishedWeek <- fetch rosterWeek.id
                 publishedWeek.isLive `shouldBe` True
+
+        it "manager can toggle a live week back to draft" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-draft-toggle@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+
+                response <- withUser manager do
+                    callAction (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+
+                response `responseStatusShouldBe` status302
+
+                updatedWeek <- fetch rosterWeek.id
+                updatedWeek.isLive `shouldBe` False
 
         it "manager can fetch a roster row fragment for the current venue" $ withContext do
             withCleanDb do
