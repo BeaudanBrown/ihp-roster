@@ -1207,7 +1207,11 @@
         if (previousValue === nextValue) return;
 
         inputEl.value = nextValue;
-        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        if (window.htmx && typeof window.htmx.trigger === 'function') {
+            window.htmx.trigger(inputEl, 'change');
+        } else {
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
     }
 
     document.addEventListener('click', function (event) {
