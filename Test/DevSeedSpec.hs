@@ -4,6 +4,7 @@ import Application.Helper.Controller (unsafeEnumFromText)
 import Data.List (sort)
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.ModelSupport (inputValue)
 import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
@@ -66,6 +67,11 @@ tests = beforeAll testContext do
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> filterWhere (#status, unsafeEnumFromText @LeaveRequestStatusEnum "pending")
                         |> fetchCount
+                deniedLeaveCount <-
+                    query @LeaveRequest
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhere (#status, unsafeEnumFromText @LeaveRequestStatusEnum "denied")
+                        |> fetchCount
                 mondayWeeks <-
                     query @RosterWeek
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
@@ -85,7 +91,34 @@ tests = beforeAll testContext do
                 map (.rosterGroupId) bobAssignments `shouldMatchList` [unpackId (get #id fixture.frontOfHouseGroup), unpackId (get #id fixture.backOfHouseGroup)]
                 approvedLeaveCount `shouldBe` 1
                 pendingLeaveCount `shouldBe` 1
+                deniedLeaveCount `shouldBe` 1
                 length bobMondayAssignments `shouldBe` 2
+
+        it "seeds support access, venue roles, and invitation bootstrap data" $ withContext do
+            withCleanDb do
+                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+
+                supportMemberships <-
+                    query @VenueMembership
+                        |> filterWhere (#userId, unpackId (get #id fixture.supportAdmin))
+                        |> fetch
+                managerMembership <-
+                    query @VenueMembership
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhere (#userId, unpackId (get #id fixture.sandboxManager))
+                        |> fetchOne
+                workerMembership <-
+                    query @VenueMembership
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhere (#userId, unpackId (get #id fixture.sandboxWorker))
+                        |> fetchOne
+
+                get #platformRole fixture.supportAdmin `shouldBe` Just SuperAdmin
+                supportMemberships `shouldBe` []
+                inputValue (get #venueRole managerMembership) `shouldBe` ("manager" :: Text)
+                inputValue (get #venueRole workerMembership) `shouldBe` ("worker" :: Text)
+                get #status fixture.sandboxInvitation `shouldBe` InvitationStatusEnumPending
+                get #email fixture.sandboxInvitation `shouldBe` "pending-invite@example.com"
 
         it "also seeds the payroll parity venue for current-week export testing" $ withContext do
             withCleanDb do

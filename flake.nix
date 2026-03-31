@@ -192,8 +192,8 @@ SQL
                             exec ghci $GHC_OPTS Main.hs "$@"
                         '';
 
-                        # Seed a general-purpose development fixture surface into a database for manual exploration.
-                        # Usage: seed-dev [app|app_test] [--reset]
+                        # Seed a general-purpose development fixture surface into a freshly reset database for manual exploration.
+                        # Usage: seed-dev [app|app_test] [--force]
                         seed-dev.exec = ''
                             set -euo pipefail
 
@@ -214,16 +214,20 @@ SQL
                                     test-db-reset
                                     ;;
                                 app)
-                                    if [ "$RESET_MODE" = "--reset" ]; then
-                                        make db
-                                    fi
+                                    make db
                                 ;;
                                 *)
                                     echo "Unsupported database target: $DB_NAME" >&2
-                                    echo "Usage: seed-dev [app|app_test] [--reset]" >&2
+                                    echo "Usage: seed-dev [app|app_test] [--force]" >&2
                                     exit 1
                                     ;;
                             esac
+
+                            if [ -n "$RESET_MODE" ] && [ "$RESET_MODE" != "--force" ]; then
+                                echo "Unsupported flag: $RESET_MODE" >&2
+                                echo "Usage: seed-dev [app|app_test] [--force]" >&2
+                                exit 1
+                            fi
 
                             export DATABASE_URL="postgresql:///$DB_NAME?host=$DB_SOCKET"
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \

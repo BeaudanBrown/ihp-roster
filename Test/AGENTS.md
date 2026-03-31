@@ -44,7 +44,7 @@ The canonical payroll parity suite in `Test/Controller/PayrollExportParitySpec.h
 - snapshot-pinned stability after live pay-config changes
 - mixed-snapshot export metadata when approved entries span versions
 
-For manual inspection, `seed-dev` loads a broader exploration dataset outside the test suite. Keep the exact parity fixture stable for controller/golden tests, while the manual script projects a busier multi-venue, multi-group week onto the current app week for easier browser exploration. The human default is `just seed-dev`, which resets `app` before seeding so manual browser checks start from a known state. Keep the reusable test-support fixture modules deterministic enough that the manual dev seed does not weaken parity assertions.
+For manual inspection, `seed-dev` loads a broader exploration dataset outside the test suite. Keep the exact parity fixture stable for controller/golden tests, while the manual script projects a busier multi-venue, multi-group week plus support/bootstrap scenarios onto the current app week for easier browser exploration. The human default is `just seed-dev`, which now always wipes and reseeds `app` before loading the fixture. Keep the reusable test-support fixture modules deterministic enough that the manual dev seed does not weaken parity assertions.
 
 Example shape:
 

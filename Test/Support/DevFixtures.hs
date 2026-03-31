@@ -1,5 +1,6 @@
 module Test.Support.DevFixtures where
 
+import Application.Helper.Controller (PlatformRole (..))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
                                         fetchActiveRosterGroupSlotNames,
@@ -20,6 +21,10 @@ import Test.Support.PayrollFixtures (ExplorationPayrollFixture (..),
 data DevSeedFixture = DevSeedFixture
     { sandboxVenue      :: !Venue
     , sandboxAdmin      :: !User
+    , sandboxManager    :: !User
+    , sandboxWorker     :: !User
+    , supportAdmin      :: !User
+    , sandboxInvitation :: !VenueInvitation
     , frontOfHouseGroup :: !RosterGroup
     , backOfHouseGroup  :: !RosterGroup
     , currentWeekOffset :: !Int
@@ -31,6 +36,12 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
     venue <- createVenueWithConfig "Development Sandbox Venue"
     admin <- createUserRecord "dev-admin@example.com" "admin" True
     _ <- createVenueMembershipRecord venue admin "venue_admin"
+    supportAdmin <- createUserRecordWithPlatformRole "support-admin@example.com" "admin" (Just SuperAdminRole) True
+    managerUser <- createUserRecord "dev-manager@example.com" "manager" True
+    workerUser <- createUserRecord "dev-worker@example.com" "staff" True
+    _ <- createVenueMembershipRecord venue managerUser "manager"
+    _ <- createVenueMembershipRecord venue workerUser "worker"
+    invitation <- createVenueInvitationRecord venue (Just admin) "pending-invite@example.com" "worker"
 
     frontGroup <-
         ensureVenueDefaultRosterGroup venue
@@ -56,6 +67,8 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
     eveUser <- createUserRecord "dev-eve@example.com" "staff" True
     frankUser <- createUserRecord "dev-frank@example.com" "staff" True
 
+    managerStaff <- createStaffRecord venue (Just managerUser) "Morgan" "Manager"
+    workerStaff <- createStaffRecord venue (Just workerUser) "Willa" "Worker"
     alice <- createStaffRecord venue (Just aliceUser) "Alice" "Front"
     bob <- createStaffRecord venue (Just bobUser) "Bob" "Both"
     cara <- createStaffRecord venue (Just caraUser) "Cara" "Kitchen"
@@ -64,6 +77,8 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
     frank <- createStaffRecord venue (Just frankUser) "Frank" "Prep"
     trialStaff <- createStaffRecord venue Nothing "Taylor" "Trial"
 
+    syncStaffRosterGroupAssignments managerStaff [get #id frontGroup, get #id backGroup]
+    syncStaffRosterGroupAssignments workerStaff [get #id frontGroup]
     syncStaffRosterGroupAssignments alice [get #id frontGroup]
     syncStaffRosterGroupAssignments bob [get #id frontGroup, get #id backGroup]
     syncStaffRosterGroupAssignments cara [get #id backGroup]
@@ -99,11 +114,12 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
         , ("Mid", Just bob)
         ]
     createRosterRow frontThursday frontSlots 0
-        [ ("Early", Just alice)
+        [ ("Early", Just managerStaff)
         , ("Late", Just eve)
         ]
     createRosterRow frontFriday frontSlots 0
-        [ ("Mid", Just bob)
+        [ ("Early", Just workerStaff)
+        , ("Mid", Just bob)
         , ("Late", Just eve)
         ]
     createRosterRow frontSaturday frontSlots 0
@@ -138,6 +154,7 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
 
     _ <- createLeaveRequestRecord venue dylan (dayAtOffset fixtureWeekStart 1) (dayAtOffset fixtureWeekStart 4) "approved"
     _ <- createLeaveRequestRecord venue alice (dayAtOffset fixtureWeekStart 5) (dayAtOffset fixtureWeekStart 6) "pending"
+    _ <- createLeaveRequestRecord venue workerStaff (dayAtOffset fixtureWeekStart 3) (dayAtOffset fixtureWeekStart 5) "denied"
 
     let approvedAt = UTCTime (dayAtOffset fixtureWeekStart 6) (secondsToDiffTime 3600)
     _ <-
@@ -167,6 +184,10 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
         DevSeedFixture
             { sandboxVenue = venue
             , sandboxAdmin = admin
+            , sandboxManager = managerUser
+            , sandboxWorker = workerUser
+            , supportAdmin = supportAdmin
+            , sandboxInvitation = invitation
             , frontOfHouseGroup = frontGroup
             , backOfHouseGroup = backGroup
             , currentWeekOffset = weekOffset

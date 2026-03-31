@@ -23,7 +23,7 @@ db:
     make db
 
 seed-dev *args:
-    if [ -z "{{args}}" ]; then seed-dev app --reset; else seed-dev {{args}}; fi
+    if [ -z "{{args}}" ]; then seed-dev app; else seed-dev {{args}}; fi
 
 typecheck *args:
     typecheck {{args}}
