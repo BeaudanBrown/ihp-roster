@@ -1,5 +1,6 @@
 module Test.Controller.RosterWeeksSpec where
 
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
 import Data.Maybe (fromJust)
@@ -352,6 +353,30 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Alpha Crew"
                 response `responseBodyShouldContain` "1"
 
+        it "manager roster staff panel fragment only shows staff applicable to the selected roster group" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-group-panel@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                alphaUser <- createUserRecord "roster-alpha-group-panel@example.com" "staff" True
+                bravoUser <- createUserRecord "roster-bravo-group-panel@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue alphaUser "worker"
+                _ <- createVenueMembershipRecord venue bravoUser "worker"
+                frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
+                backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
+                alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
+                bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
+                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId bravo.id) |> fetch >>= deleteRecords
+                _ <- createStaffRosterGroupRecord alpha frontOfHouse
+                _ <- createStaffRosterGroupRecord bravo backOfHouse
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowRosterWeekStaffPanelFragmentAction 0) [("rosterGroupId", idToParam frontOfHouse.id)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Alpha Crew"
+                response `responseBodyShouldNotContain` "Bravo Crew"
+
         it "staff row fragment fetch returns a masked row for a draft week" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -516,6 +541,113 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` "0 (5)"
                 bodyText `shouldContain` "Bravo Crew"
                 bodyText `shouldContain` "1 (7)"
+
+        it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-group-assign@example.com" "staff" True
+                alphaUser <- createUserRecord "roster-alpha-group-assign@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue alphaUser "worker"
+                frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
+                slotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
+                alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
+                _ <- createStaffRosterGroupRecord alpha frontOfHouse
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName Nothing 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow alpha.id)))]
+
+                response `responseStatusShouldBe` status200
+                updatedSlot <- fetch slot.id
+                updatedSlot.staffId `shouldBe` Just (unpackId alpha.id)
+
+        it "rejects assigning staff who are not applicable to the slot's roster group via HTMX" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-group-reject-htmx@example.com" "staff" True
+                alphaUser <- createUserRecord "roster-alpha-group-reject-htmx@example.com" "staff" True
+                bravoUser <- createUserRecord "roster-bravo-group-reject-htmx@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue alphaUser "worker"
+                _ <- createVenueMembershipRecord venue bravoUser "worker"
+                frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
+                backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
+                slotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
+                alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
+                bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
+                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId alpha.id) |> fetch >>= deleteRecords
+                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId bravo.id) |> fetch >>= deleteRecords
+                _ <- createStaffRosterGroupRecord alpha frontOfHouse
+                _ <- createStaffRosterGroupRecord bravo backOfHouse
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow bravo.id)))]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "That staff member is not applicable to this roster group."
+                rejectedSlot <- fetch slot.id
+                rejectedSlot.staffId `shouldBe` Just (unpackId alpha.id)
+
+        it "redirects with an error when a non-HTMX slot update tries to assign ineligible staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-group-reject@example.com" "staff" True
+                alphaUser <- createUserRecord "roster-alpha-group-reject@example.com" "staff" True
+                bravoUser <- createUserRecord "roster-bravo-group-reject@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue alphaUser "worker"
+                _ <- createVenueMembershipRecord venue bravoUser "worker"
+                frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
+                backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
+                slotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
+                alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
+                bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
+                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId alpha.id) |> fetch >>= deleteRecords
+                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId bravo.id) |> fetch >>= deleteRecords
+                _ <- createStaffRosterGroupRecord alpha frontOfHouse
+                _ <- createStaffRosterGroupRecord bravo backOfHouse
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow bravo.id)))]
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just (cs ("http://localhost/ShowRosterWeek?weekOffset=0&rosterGroupId=" <> tshow frontOfHouse.id))
+                rejectedSlot <- fetch slot.id
+                rejectedSlot.staffId `shouldBe` Just (unpackId alpha.id)
+
+        it "allows clearing a slot assignment even when the previously assigned staff is no longer applicable" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-group-clear@example.com" "staff" True
+                alphaUser <- createUserRecord "roster-alpha-group-clear@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue alphaUser "worker"
+                frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
+                backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
+                slotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
+                alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
+                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId alpha.id) |> fetch >>= deleteRecords
+                _ <- createStaffRosterGroupRecord alpha backOfHouse
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", "")]
+
+                response `responseStatusShouldBe` status200
+                clearedSlot <- fetch slot.id
+                clearedSlot.staffId `shouldBe` Nothing
 
         it "row fragment endpoint renders duplicate conflicts after a duplicate assignment is created" $ withContext do
             withCleanDb do

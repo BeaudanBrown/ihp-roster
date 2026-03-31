@@ -16,23 +16,84 @@ instance Controller AdminController where
 
     action AdminAction = do
         recentSnapshots <- fetchCurrentVenuePayConfigSnapshots
+        rosterGroups <- fetchCurrentVenueRosterGroups
+        currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         payLevels <- fetchCurrentVenuePayLevels
         payLevelDayRules <- fetchCurrentVenuePayLevelDayRules
         shiftTypes <- fetchCurrentVenueShiftTypes
-        slotNames <- fetchCurrentVenueSlotNames
+        slotNames <- fetchRosterGroupSlotNames currentRosterGroup.id
         dayNames <- fetchCurrentVenueDayNames
         let latestSnapshot = listToMaybe recentSnapshots
         render IndexView { .. }
 
+    action CreateRosterGroupAction = do
+        venue <- fetch currentVenueId
+        maybeName <- parseRequiredName "name" "Roster group name is required."
+        case maybeName of
+            Nothing -> redirectToAdminFor Nothing
+            Just name -> do
+                let isActive = parseIsActiveParam
+                let sortOrder = parseSortOrderParam
+                rosterGroup <- createVenueRosterGroupWithDefaults venue name sortOrder isActive
+                setSuccessMessage "Roster group added"
+                redirectToAdminFor (Just rosterGroup.id)
+
+    action UpdateRosterGroupAction { rosterGroupId } = do
+        venue <- fetch currentVenueId
+        rosterGroup <- fetch rosterGroupId
+        ensureRecordInCurrentVenue rosterGroup.venueId
+        maybeName <- parseRequiredName "name" "Roster group name is required."
+        case maybeName of
+            Nothing -> redirectToAdminFor (Just rosterGroup.id)
+            Just name -> do
+                let isActive = parseIsActiveParam
+                let sortOrder = parseSortOrderParam
+                rosterGroups <- fetchCurrentVenueRosterGroups
+                let otherActiveGroups = filter (\group -> group.id /= rosterGroup.id && group.isActive) rosterGroups
+                if not isActive && null otherActiveGroups
+                    then do
+                        setErrorMessage "Each venue needs at least one active roster group."
+                        redirectToAdminFor (Just rosterGroup.id)
+                    else do
+                        updatedRosterGroup <-
+                            rosterGroup
+                                |> set #name name
+                                |> set #sortOrder sortOrder
+                                |> set #isActive isActive
+                                |> updateRecord
+                        when isActive do
+                            _ <- ensureDefaultRosterSlots venue updatedRosterGroup
+                            pure ()
+                        when (rosterGroup.isDefault && not isActive) do
+                            case listToMaybe otherActiveGroups of
+                                Nothing -> pure ()
+                                Just fallbackGroup -> do
+                                    _ <- setVenueDefaultRosterGroup currentVenueId fallbackGroup.id
+                                    pure ()
+                        setSuccessMessage "Roster group updated"
+                        redirectToAdminFor (Just updatedRosterGroup.id)
+
+    action MakeDefaultRosterGroupAction { rosterGroupId } = do
+        rosterGroup <- fetch rosterGroupId
+        ensureRecordInCurrentVenue rosterGroup.venueId
+        if not rosterGroup.isActive
+            then do
+                setErrorMessage "Only active roster groups can be the default."
+                redirectToAdminFor (Just rosterGroup.id)
+            else do
+                _ <- setVenueDefaultRosterGroup currentVenueId rosterGroup.id
+                setSuccessMessage "Default roster group updated"
+                redirectToAdminFor (Just rosterGroup.id)
+
     action CreatePayConfigSnapshotAction = do
         snapshot <- createCurrentVenuePayConfigSnapshot
         setSuccessMessage ("Saved pay/config snapshot " <> snapshot.versionLabel)
-        redirectTo AdminAction
+        redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action CreatePayLevelAction = do
         maybeName <- parseRequiredName "name" "Pay level name is required."
         case maybeName of
-            Nothing -> redirectTo AdminAction
+            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just name -> do
                 let isActive = parseIsActiveParam
                 let (baseRate, eveningPenalty, after12Penalty, weekdayMultiplier, saturdayMultiplier, sundayMultiplier) = parsePayLevelRateParams
@@ -48,14 +109,14 @@ instance Controller AdminController where
                     |> set #isActive isActive
                     |> createRecord
                 setSuccessMessage "Pay level added"
-                redirectTo AdminAction
+                redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action UpdatePayLevelAction { payLevelId } = do
         payLevel <- fetch payLevelId
         ensureRecordInCurrentVenue payLevel.venueId
         maybeName <- parseRequiredName "name" "Pay level name is required."
         case maybeName of
-            Nothing -> redirectTo AdminAction
+            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just name -> do
                 let isActive = parseIsActiveParam
                 let (baseRate, eveningPenalty, after12Penalty, weekdayMultiplier, saturdayMultiplier, sundayMultiplier) = parsePayLevelRateParams
@@ -70,12 +131,12 @@ instance Controller AdminController where
                     |> set #isActive isActive
                     |> updateRecord
                 setSuccessMessage "Pay level updated"
-                redirectTo AdminAction
+                redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action CreatePayLevelDayRuleAction = do
         maybeRuleParams <- parsePayLevelDayRuleParams Nothing
         case maybeRuleParams of
-            Nothing -> redirectTo AdminAction
+            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just (shiftTypeId, dayNameId, payLevelId) -> do
                 _ <- newRecord @PayLevelDayRule
                     |> set #shiftTypeId (unpackId shiftTypeId)
@@ -83,14 +144,14 @@ instance Controller AdminController where
                     |> set #payLevelId (unpackId payLevelId)
                     |> createRecord
                 setSuccessMessage "Pay override added"
-                redirectTo AdminAction
+                redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action UpdatePayLevelDayRuleAction { payLevelDayRuleId } = do
         payLevelDayRule <- fetch payLevelDayRuleId
         ensurePayLevelDayRuleInCurrentVenue payLevelDayRule
         maybeRuleParams <- parsePayLevelDayRuleParams (Just payLevelDayRule)
         case maybeRuleParams of
-            Nothing -> redirectTo AdminAction
+            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just (shiftTypeId, dayNameId, payLevelId) -> do
                 _ <- payLevelDayRule
                     |> set #shiftTypeId (unpackId shiftTypeId)
@@ -98,24 +159,24 @@ instance Controller AdminController where
                     |> set #payLevelId (unpackId payLevelId)
                     |> updateRecord
                 setSuccessMessage "Pay override updated"
-                redirectTo AdminAction
+                redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action CreateShiftTypeAction = do
         payLevels <- fetchCurrentVenuePayLevels
         if null payLevels
             then do
                 setErrorMessage "Add at least one pay level before creating a shift type."
-                redirectTo AdminAction
+                redirectToAdminFor (paramOrNothing "rosterGroupId")
             else do
                 maybeName <- parseRequiredName "name" "Shift type name is required."
                 case maybeName of
-                    Nothing -> redirectTo AdminAction
+                    Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
                     Just name -> do
                         let isActive = parseIsActiveParam
                         let sortOrder = parseSortOrderParam
                         maybePayLevel <- parseDefaultPayLevelId
                         case maybePayLevel of
-                            Nothing -> redirectTo AdminAction
+                            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
                             Just defaultPayLevelId -> do
                                 _ <- newRecord @ShiftType
                                     |> set #venueId (unpackId currentVenueId)
@@ -125,20 +186,20 @@ instance Controller AdminController where
                                     |> set #isActive isActive
                                     |> createRecord
                                 setSuccessMessage "Shift type added"
-                                redirectTo AdminAction
+                                redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action UpdateShiftTypeAction { shiftTypeId } = do
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
         maybeName <- parseRequiredName "name" "Shift type name is required."
         case maybeName of
-            Nothing -> redirectTo AdminAction
+            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just name -> do
                 let isActive = parseIsActiveParam
                 let sortOrder = parseSortOrderParam
                 maybePayLevel <- parseDefaultPayLevelId
                 case maybePayLevel of
-                    Nothing -> redirectTo AdminAction
+                    Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
                     Just defaultPayLevelId -> do
                         _ <- shiftType
                             |> set #name name
@@ -147,15 +208,15 @@ instance Controller AdminController where
                             |> set #isActive isActive
                             |> updateRecord
                         setSuccessMessage "Shift type updated"
-                        redirectTo AdminAction
+                        redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action CreateSlotNameAction = do
         maybeName <- parseRequiredName "name" "Slot name is required."
         case maybeName of
-            Nothing -> redirectTo AdminAction
+            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just name -> do
                 let isActive = parseIsActiveParam
-                rosterGroup <- fetchCurrentVenueDefaultRosterGroup
+                rosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
                 _ <- newRecord @SlotName
                     |> set #venueId (unpackId currentVenueId)
                     |> set #rosterGroupId (unpackId rosterGroup.id)
@@ -163,14 +224,14 @@ instance Controller AdminController where
                     |> set #isActive isActive
                     |> createRecord
                 setSuccessMessage "Slot name added"
-                redirectTo AdminAction
+                redirectToAdminFor (Just rosterGroup.id)
 
     action UpdateSlotNameAction { slotNameId } = do
         slotName <- fetch slotNameId
         ensureRecordInCurrentVenue slotName.venueId
         maybeName <- parseRequiredName "name" "Slot name is required."
         case maybeName of
-            Nothing -> redirectTo AdminAction
+            Nothing -> redirectToAdminFor (Just (Id slotName.rosterGroupId :: Id RosterGroup))
             Just name -> do
                 let isActive = parseIsActiveParam
                 _ <- slotName
@@ -178,12 +239,12 @@ instance Controller AdminController where
                     |> set #isActive isActive
                     |> updateRecord
                 setSuccessMessage "Slot name updated"
-                redirectTo AdminAction
+                redirectToAdminFor (Just (Id slotName.rosterGroupId :: Id RosterGroup))
 
     action CreateDayNameAction = do
         maybeDayNameParams <- parseDayNameParams Nothing
         case maybeDayNameParams of
-            Nothing -> redirectTo AdminAction
+            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just (weekdayIndex, name, isActive) -> do
                 _ <- newRecord @DayName
                     |> set #venueId (unpackId currentVenueId)
@@ -192,14 +253,14 @@ instance Controller AdminController where
                     |> set #isActive isActive
                     |> createRecord
                 setSuccessMessage "Day name added"
-                redirectTo AdminAction
+                redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action UpdateDayNameAction { dayNameId } = do
         dayName <- fetch dayNameId
         ensureRecordInCurrentVenue dayName.venueId
         maybeDayNameParams <- parseDayNameParams (Just dayName)
         case maybeDayNameParams of
-            Nothing -> redirectTo AdminAction
+            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just (weekdayIndex, name, isActive) -> do
                 _ <- dayName
                     |> set #weekdayIndex weekdayIndex
@@ -207,7 +268,7 @@ instance Controller AdminController where
                     |> set #isActive isActive
                     |> updateRecord
                 setSuccessMessage "Day name updated"
-                redirectTo AdminAction
+                redirectToAdminFor (paramOrNothing "rosterGroupId")
 
 fetchCurrentVenuePayLevels :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [PayLevel]
 fetchCurrentVenuePayLevels =
@@ -235,11 +296,6 @@ fetchCurrentVenuePayLevelDayRules = do
                 |> filterWhereIn (#shiftTypeId, shiftTypeIds)
                 |> orderByAsc #createdAt
                 |> fetch
-
-fetchCurrentVenueSlotNames :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [SlotName]
-fetchCurrentVenueSlotNames = do
-    rosterGroup <- fetchCurrentVenueDefaultRosterGroup
-    fetchRosterGroupSlotNames rosterGroup.id
 
 fetchCurrentVenueDayNames :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [DayName]
 fetchCurrentVenueDayNames =
@@ -436,3 +492,11 @@ ensurePayLevelDayRuleInCurrentVenue payLevelDayRule = do
     ensureRecordInCurrentVenue shiftType.venueId
     ensureRecordInCurrentVenue payLevel.venueId
     ensureRecordInCurrentVenue dayName.venueId
+
+redirectToAdminFor :: (?context :: ControllerContext) => Maybe (Id RosterGroup) -> IO ()
+redirectToAdminFor maybeRosterGroupId =
+    redirectToPath $
+        maybe
+            (pathTo AdminAction)
+            (\rosterGroupId -> pathTo AdminAction <> "?rosterGroupId=" <> tshow rosterGroupId)
+            maybeRosterGroupId

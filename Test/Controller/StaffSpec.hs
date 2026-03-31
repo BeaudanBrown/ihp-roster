@@ -1,5 +1,6 @@
 module Test.Controller.StaffSpec where
 
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Config
 import Generated.Types
 import IHP.ControllerPrelude
@@ -38,6 +39,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue linkedUser "worker"
                 _ <- createRosterWeekRecord venue 0 False
                 staff <- createStaffRecord venue (Just linkedUser) "Alpha" "Crew"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
 
                 response <- withUserAndCurrentVenue manager (get #id venue) do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -48,9 +50,35 @@ tests = beforeAll testContext do
                             , ("idealShiftsPerWeek", "4")
                             , ("isActive", "on")
                             , ("weekOffset", "0")
+                            , ("rosterGroupIds", cs (tshow rosterGroup.id))
                             ]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"roster-content\""
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
                 response `responseBodyShouldContain` "Updated Crew"
+
+        it "updates explicit roster-group applicability from the staff edit form" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "staff-group-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
+                backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
+                staff <- createStaffRecord venue Nothing "Alpha" "Crew"
+
+                response <- withUserAndCurrentVenue manager (get #id venue) do
+                    callActionWithParams
+                        (UpdateStaffAction staff.id)
+                        [ ("firstName", "Alpha")
+                        , ("lastName", "Crew")
+                        , ("idealShiftsPerWeek", "4")
+                        , ("isActive", "on")
+                        , ("weekOffset", "0")
+                        , ("rosterGroupIds", cs (tshow frontOfHouse.id))
+                        , ("rosterGroupIds", cs (tshow backOfHouse.id))
+                        ]
+
+                response `responseStatusShouldBe` status302
+                assignments <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId staff.id) |> fetch
+                sort (map (.rosterGroupId) assignments) `shouldBe` sort [unpackId frontOfHouse.id, unpackId backOfHouse.id]

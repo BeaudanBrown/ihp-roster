@@ -286,20 +286,34 @@ instance Controller RosterWeeksController where
                     |> applyOptionalField #startTime (parseOptionalTime maybeStartTimeParam) maybeStartTimeParam
                     |> applyOptionalField #note (normalizeOptionalText maybeNoteParam) maybeNoteParam
 
-        ensureOptionalStaffInCurrentVenue updatedSlot.staffId
-        _ <- updatedSlot |> updateRecord
-
-        relatedSlots <- fetchRelatedSlotsForStaffIds (catMaybes [previousStaffId, updatedSlot.staffId])
-        let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-        let shouldRefreshStaffPanel = previousStaffId /= updatedSlot.staffId
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        broadcastRosterWeekInvalidation
-            rosterGroupId
-            rosterWeek.weekOffset
-            ( buildRosterRowFragmentRefs rosterGroupId rosterWeek.weekOffset impactedRowKeys
-                <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset | shouldRefreshStaffPanel]
-            )
-        respondWithRosterContentOob rosterGroupId rosterWeek.weekOffset
+        ensureOptionalStaffInCurrentVenue updatedSlot.staffId
+        isEligibleForAssignment <-
+            case updatedSlot.staffId of
+                Nothing -> pure True
+                Just staffId -> staffIsEligibleForRosterGroup (Id staffId) rosterGroupId
+
+        if not isEligibleForAssignment
+            then do
+                let errorMessage = "That staff member is not applicable to this roster group."
+                if isHtmxRequest
+                    then respondWithRosterToast errorMessage "app-toast-error"
+                    else do
+                        setErrorMessage errorMessage
+                        redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+            else do
+                _ <- updatedSlot |> updateRecord
+
+                relatedSlots <- fetchRelatedSlotsForStaffIds (catMaybes [previousStaffId, updatedSlot.staffId])
+                let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
+                let shouldRefreshStaffPanel = previousStaffId /= updatedSlot.staffId
+                broadcastRosterWeekInvalidation
+                    rosterGroupId
+                    rosterWeek.weekOffset
+                    ( buildRosterRowFragmentRefs rosterGroupId rosterWeek.weekOffset impactedRowKeys
+                        <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset | shouldRefreshStaffPanel]
+                    )
+                respondWithRosterContentOob rosterGroupId rosterWeek.weekOffset
 
 slotNameOrder :: Text -> Int
 slotNameOrder slotName =
@@ -582,13 +596,10 @@ fetchRosterRenderData rosterGroupId weekOffset = do
                 |> filterWhereIn (#rosterDayId, map (coerce . (.id)) rosterDays)
                 |> fetch
 
-            staffMembers <- query @Staff
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#isActive, True)
-                |> orderBy #lastName
-                |> fetch
-
-            panelStaff <- fetchRosterStaffPanelEntries staffMembers allSlots
+            eligibleStaffMembers <- fetchEligibleRosterGroupStaff rosterGroupId
+            assignedStaffMembers <- fetchAssignedRosterWeekStaff allSlots
+            let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
+            panelStaff <- fetchRosterStaffPanelEntries eligibleStaffMembers allSlots
 
             slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
 
@@ -735,6 +746,18 @@ fetchRosterStaffPanelEntries staffMembers allSlots = do
                     , assignedShiftCount
                     , userRole = roleText
                     }
+
+fetchAssignedRosterWeekStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [RosterSlot] -> IO [Staff]
+fetchAssignedRosterWeekStaff allSlots = do
+    let assignedStaffIds = nub (mapMaybe (.staffId) allSlots)
+    if null assignedStaffIds
+        then pure []
+        else
+            query @Staff
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhereIn (#id, map Id assignedStaffIds)
+                |> orderBy #lastName
+                |> fetch
 
 ensureRosterWeekExists :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (RosterWeek, Bool)
 ensureRosterWeekExists rosterGroupId weekOffset = do

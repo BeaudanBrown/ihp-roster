@@ -6,6 +6,8 @@ import Web.View.Prelude
 data IndexView = IndexView
     { latestSnapshot   :: Maybe PayConfigSnapshot
     , recentSnapshots  :: [PayConfigSnapshot]
+    , rosterGroups     :: [RosterGroup]
+    , currentRosterGroup :: RosterGroup
     , payLevels        :: [PayLevel]
     , payLevelDayRules :: [PayLevelDayRule]
     , shiftTypes       :: [ShiftType]
@@ -26,12 +28,19 @@ instance View IndexView where
                         <div class="alert alert-info mb-0">
                             Use these screens to keep pay levels, shift types, day names, slot names, and weekday pay overrides tidy before creating the next immutable version.
                         </div>
+                        <div class="mt-3">
+                            <div class="small text-uppercase app-muted mb-2">Selected roster group</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                {forEach rosterGroups (renderRosterGroupSelector currentRosterGroup.id)}
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="app-panel mb-3">
                     <div class="app-panel-body">
                         <h2 class="h5 mb-3">Config Table Overview</h2>
                         <div class="row g-2">
+                            {renderConfigTableCard "Roster Groups" "roster-groups" rosterGroups}
                             {renderConfigTableCard "Pay Levels" "pay-levels" payLevels}
                             {renderConfigTableCard "Shift Types" "shift-types" shiftTypes}
                             {renderCountTableCard "Pay Level Day Rules" "pay-level-day-rules" payLevelDayRules}
@@ -42,6 +51,9 @@ instance View IndexView where
                 </div>
                 <div class="row g-3">
                     <div class="col-12 col-lg-6">
+                        {renderRosterGroupsSection rosterGroups currentRosterGroup}
+                    </div>
+                    <div class="col-12 col-lg-6">
                         {renderPayLevelsSection payLevels}
                     </div>
                     <div class="col-12 col-lg-6">
@@ -51,7 +63,7 @@ instance View IndexView where
                         {renderPayLevelDayRulesSection payLevelDayRules shiftTypes payLevels dayNames}
                     </div>
                     <div class="col-12 col-lg-6">
-                        {renderSlotNamesSection slotNames}
+                        {renderSlotNamesSection currentRosterGroup slotNames}
                     </div>
                     <div class="col-12 col-lg-6">
                         {renderDayNamesSection dayNames}
@@ -125,15 +137,25 @@ renderPayLevelDayRulesSection payLevelDayRules shiftTypes payLevels dayNames =
         (renderPayLevelDayRuleCreateForm shiftTypes payLevels dayNames)
         (if null payLevelDayRules then renderEmptyState "No pay overrides yet." else forEach payLevelDayRules (renderPayLevelDayRuleRow shiftTypes payLevels dayNames))
 
-renderSlotNamesSection :: [SlotName] -> Html
-renderSlotNamesSection slotNames =
+renderRosterGroupsSection :: [RosterGroup] -> RosterGroup -> Html
+renderRosterGroupsSection rosterGroups currentRosterGroup =
+    renderConfigSection
+        "roster-groups"
+        "Roster Groups"
+        "Define the scheduling lanes inside this venue. Slot names below are edited for the selected roster group."
+        (renderRowCountSummary rosterGroups)
+        renderRosterGroupCreateForm
+        (if null rosterGroups then renderEmptyState "No roster groups yet." else forEach rosterGroups (renderRosterGroupRow currentRosterGroup.id))
+
+renderSlotNamesSection :: RosterGroup -> [SlotName] -> Html
+renderSlotNamesSection currentRosterGroup slotNames =
     renderConfigSection
         "slot-names"
         "Slot Names"
-        "These power the roster sheet block labels and remain venue-scoped."
+        ("These power the roster sheet block labels for the selected roster group: " <> currentRosterGroup.name <> ".")
         (renderRowCountSummary slotNames)
-        renderSlotNameCreateForm
-        (if null slotNames then renderEmptyState "No slot names yet." else forEach slotNames renderSlotNameRow)
+        (renderSlotNameCreateForm currentRosterGroup.id)
+        (if null slotNames then renderEmptyState "No slot names yet for this roster group." else forEach slotNames (renderSlotNameRow currentRosterGroup.id))
 
 renderDayNamesSection :: [DayName] -> Html
 renderDayNamesSection dayNames =
@@ -403,9 +425,70 @@ renderPayLevelDayRuleRow shiftTypes payLevels dayNames payLevelDayRule = [hsx|
     </form>
 |]
 
-renderSlotNameCreateForm :: Html
-renderSlotNameCreateForm = [hsx|
-    <form method="POST" action={CreateSlotNameAction} class="border rounded p-3" data-disable-javascript-submission="true">
+renderRosterGroupCreateForm :: Html
+renderRosterGroupCreateForm = [hsx|
+    <form method="POST" action={CreateRosterGroupAction} class="border rounded p-3" data-disable-javascript-submission="true">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-5">
+                <label class="form-label" for="new-roster-group-name">Name</label>
+                <input id="new-roster-group-name" class="form-control" type="text" name="name" placeholder="Front of House" />
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label" for="new-roster-group-sort-order">Sort Order</label>
+                <input id="new-roster-group-sort-order" class="form-control" type="number" name="sortOrder" value="0" />
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label" for="new-roster-group-active">Status</label>
+                <select id="new-roster-group-active" class="form-select" name="isActive">
+                    <option value="true" selected={True}>Active</option>
+                    <option value="false">Inactive</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <button class="btn btn-outline-primary w-100" type="submit">Add Group</button>
+            </div>
+        </div>
+    </form>
+|]
+
+renderRosterGroupRow :: Id RosterGroup -> RosterGroup -> Html
+renderRosterGroupRow currentRosterGroupId rosterGroup = [hsx|
+    <form method="POST" action={appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
+        <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-semibold">Roster Group</span>
+                {renderActiveBadge rosterGroup.isActive}
+                {renderRosterGroupDefaultBadge rosterGroup}
+                {renderRosterGroupSelectedBadge currentRosterGroupId rosterGroup}
+            </div>
+            {renderRosterGroupDefaultControl rosterGroup}
+        </div>
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-5">
+                <label class="form-label">Name</label>
+                <input class="form-control" type="text" name="name" value={rosterGroup.name} />
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Sort Order</label>
+                <input class="form-control" type="number" name="sortOrder" value={tshow rosterGroup.sortOrder} />
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label">Status</label>
+                <select class="form-select" name="isActive">
+                    <option value="true" selected={rosterGroup.isActive}>Active</option>
+                    <option value="false" selected={not rosterGroup.isActive}>Inactive</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <button class="btn btn-outline-secondary w-100" type="submit">Update</button>
+            </div>
+        </div>
+    </form>
+|]
+
+renderSlotNameCreateForm :: Id RosterGroup -> Html
+renderSlotNameCreateForm rosterGroupId = [hsx|
+    <form method="POST" action={appendQueryParams (pathTo CreateSlotNameAction) [("rosterGroupId", tshow rosterGroupId)]} class="border rounded p-3" data-disable-javascript-submission="true">
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-6">
                 <label class="form-label" for="new-slot-name">Name</label>
@@ -425,9 +508,9 @@ renderSlotNameCreateForm = [hsx|
     </form>
 |]
 
-renderSlotNameRow :: SlotName -> Html
-renderSlotNameRow slotName = [hsx|
-    <form method="POST" action={UpdateSlotNameAction (get #id slotName)} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
+renderSlotNameRow :: Id RosterGroup -> SlotName -> Html
+renderSlotNameRow rosterGroupId slotName = [hsx|
+    <form method="POST" action={appendQueryParams (pathTo (UpdateSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <span class="fw-semibold">Slot Name</span>
             {renderActiveBadge slotName.isActive}
@@ -592,6 +675,39 @@ renderSnapshotRow snapshot = [hsx|
         <td>{formatTimestamp snapshot.createdAt}</td>
     </tr>
 |]
+
+renderRosterGroupSelector :: Id RosterGroup -> RosterGroup -> Html
+renderRosterGroupSelector selectedRosterGroupId rosterGroup = [hsx|
+    <a
+        href={appendQueryParams (pathTo AdminAction) [("rosterGroupId", tshow rosterGroup.id)]}
+        class={rosterGroupSelectorClass selectedRosterGroupId rosterGroup}
+    >
+        {rosterGroup.name}
+    </a>
+|]
+
+renderRosterGroupDefaultBadge :: RosterGroup -> Html
+renderRosterGroupDefaultBadge rosterGroup
+    | rosterGroup.isDefault = [hsx|<span class="badge text-bg-primary">Default</span>|]
+    | otherwise = mempty
+
+renderRosterGroupSelectedBadge :: Id RosterGroup -> RosterGroup -> Html
+renderRosterGroupSelectedBadge selectedRosterGroupId rosterGroup
+    | rosterGroup.id == selectedRosterGroupId = [hsx|<span class="badge text-bg-light">Selected</span>|]
+    | otherwise = mempty
+
+renderRosterGroupDefaultControl :: RosterGroup -> Html
+renderRosterGroupDefaultControl rosterGroup
+    | rosterGroup.isDefault = [hsx|<span class="small app-muted">Used for default roster navigation.</span>|]
+    | otherwise = [hsx|
+        <button class="btn btn-sm btn-outline-primary" type="submit" formaction={appendQueryParams (pathTo (MakeDefaultRosterGroupAction rosterGroup.id)) [("rosterGroupId", tshow rosterGroup.id)]}>Make Default</button>
+    |]
+
+rosterGroupSelectorClass :: Id RosterGroup -> RosterGroup -> Text
+rosterGroupSelectorClass selectedRosterGroupId rosterGroup =
+    if rosterGroup.id == selectedRosterGroupId
+        then "btn btn-sm btn-primary"
+        else "btn btn-sm btn-outline-secondary"
 
 renderPayLevelOption :: PayLevel -> Html
 renderPayLevelOption payLevel = [hsx|

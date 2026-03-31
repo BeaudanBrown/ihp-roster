@@ -133,6 +133,16 @@ CREATE TABLE roster_groups (
     UNIQUE(venue_id, name),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE
 );
+CREATE TABLE staff_roster_groups (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    staff_id UUID NOT NULL,
+    roster_group_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(staff_id, roster_group_id),
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE CASCADE
+);
 CREATE TABLE slot_names (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,

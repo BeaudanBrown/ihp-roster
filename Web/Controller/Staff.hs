@@ -1,6 +1,10 @@
 module Web.Controller.Staff where
 
-import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup)
+import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
+                                        fetchCurrentVenueRosterGroupIds,
+                                        fetchCurrentVenueRosterGroups,
+                                        fetchStaffRosterGroupIds,
+                                        syncStaffRosterGroupAssignments)
 import Application.Helper.View (appendQueryParams)
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation,
@@ -20,8 +24,10 @@ instance Controller StaffController where
         ensureRecordInCurrentVenue staff.venueId
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
+        rosterGroups <- fetchCurrentVenueRosterGroups
+        selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff weekOffset maybeRosterGroupId)
+            then respondHtml (renderStaffEditModalFragment staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId)
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
@@ -29,34 +35,66 @@ instance Controller StaffController where
         ensureRecordInCurrentVenue staff.venueId
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
+        rosterGroups <- fetchCurrentVenueRosterGroups
+        let submittedRosterGroupIds = nub (paramList @(Id RosterGroup) "rosterGroupIds")
+        maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
+        previousRosterGroupIds <- fetchStaffRosterGroupIds staff
         staff
             |> buildStaff
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderStaffEditModalFragment staff weekOffset maybeRosterGroupId)
-                        else render EditView { .. }
-                Right staff -> do
-                    staff <- staff |> updateRecord
-                    if isHtmxRequest
-                        then do
-                            rosterGroupId <- case maybeRosterGroupId of
-                                Just rosterGroupId -> pure rosterGroupId
-                                Nothing -> (.id) <$> fetchCurrentVenueDefaultRosterGroup
-                            broadcastRosterWeekInvalidation
-                                rosterGroupId
-                                weekOffset
-                                [buildRosterContentFragmentRef rosterGroupId weekOffset]
-                            respondWithRosterContentOob rosterGroupId weekOffset
+                        then respondHtml (renderStaffEditModalFragment staff rosterGroups submittedRosterGroupIds weekOffset maybeRosterGroupId)
                         else do
-                            setSuccessMessage "Staff member updated"
-                            redirectToPath $
-                                maybe
-                                    (pathTo ShowRosterWeekAction { weekOffset })
-                                    (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
-                                    maybeRosterGroupId
+                            let selectedRosterGroupIds = submittedRosterGroupIds
+                            render EditView { .. }
+                Right staff -> do
+                    case maybeSelectedRosterGroupIds of
+                        Nothing -> do
+                            let selectedRosterGroupIds = submittedRosterGroupIds
+                            if isHtmxRequest
+                                then respondHtml (renderStaffEditModalFragment staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId)
+                                else render EditView { .. }
+                        Just selectedRosterGroupIds -> do
+                            staff <- withTransaction do
+                                updatedStaff <- staff |> updateRecord
+                                syncStaffRosterGroupAssignments updatedStaff selectedRosterGroupIds
+                                pure updatedStaff
+                            let invalidatedRosterGroupIds = nub (previousRosterGroupIds <> selectedRosterGroupIds)
+                            if isHtmxRequest
+                                then do
+                                    rosterGroupId <- case maybeRosterGroupId of
+                                        Just rosterGroupId -> pure rosterGroupId
+                                        Nothing -> (.id) <$> fetchCurrentVenueDefaultRosterGroup
+                                    forM_ invalidatedRosterGroupIds \invalidatedRosterGroupId ->
+                                        broadcastRosterWeekInvalidation
+                                            invalidatedRosterGroupId
+                                            weekOffset
+                                            [buildRosterContentFragmentRef invalidatedRosterGroupId weekOffset]
+                                    respondWithRosterContentOob rosterGroupId weekOffset
+                                else do
+                                    setSuccessMessage "Staff member updated"
+                                    redirectToPath $
+                                        maybe
+                                            (pathTo ShowRosterWeekAction { weekOffset })
+                                            (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
+                                            maybeRosterGroupId
 
 buildStaff staff = staff
     |> fill @'["firstName", "lastName", "idealShiftsPerWeek", "isActive"]
     |> validateField #firstName nonEmpty
     |> validateField #lastName nonEmpty
+
+parseStaffRosterGroupIds :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe [Id RosterGroup])
+parseStaffRosterGroupIds = do
+    let submittedRosterGroupIds = nub (paramList @(Id RosterGroup) "rosterGroupIds")
+    currentVenueRosterGroupIds <- fetchCurrentVenueRosterGroupIds
+    if null submittedRosterGroupIds
+        then do
+            setErrorMessage "Choose at least one roster group for this staff member."
+            pure Nothing
+        else if all (`elem` currentVenueRosterGroupIds) submittedRosterGroupIds
+            then pure (Just submittedRosterGroupIds)
+            else do
+                setErrorMessage "Choose roster groups from the current venue."
+                pure Nothing

@@ -56,7 +56,7 @@ withControllerTestContext action =
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExec
-        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, roster_groups, shift_types, pay_levels, staff, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
@@ -104,18 +104,31 @@ createVenueInvitationRecord venue maybeInviter emailAddress inviteRole =
         |> createRecord
 
 createStaffRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO Staff
-createStaffRecord venue maybeUser firstName lastName =
-    newRecord @Staff
+createStaffRecord venue maybeUser firstName lastName = do
+    staff <- newRecord @Staff
         |> set #venueId (unpackId (get #id venue))
         |> set #userId (fmap (unpackId . get #id) maybeUser)
         |> set #firstName firstName
         |> set #lastName lastName
         |> set #isActive True
         |> createRecord
+    _ <- createStaffRosterGroupRecord staff =<< ensureVenueDefaultRosterGroup venue
+    pure staff
+
+createStaffRosterGroupRecord :: (?modelContext :: ModelContext) => Staff -> RosterGroup -> IO StaffRosterGroup
+createStaffRosterGroupRecord staff rosterGroup =
+    newRecord @StaffRosterGroup
+        |> set #staffId (unpackId (get #id staff))
+        |> set #rosterGroupId (unpackId (get #id rosterGroup))
+        |> createRecord
 
 createSlotNameRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO SlotName
 createSlotNameRecord venue slotName = do
     rosterGroup <- ensureVenueDefaultRosterGroup venue
+    createSlotNameRecordForRosterGroup venue rosterGroup slotName
+
+createSlotNameRecordForRosterGroup :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Text -> IO SlotName
+createSlotNameRecordForRosterGroup venue rosterGroup slotName =
     newRecord @SlotName
         |> set #venueId (unpackId (get #id venue))
         |> set #rosterGroupId (unpackId rosterGroup.id)
@@ -130,9 +143,20 @@ fetchSlotNameRecord venue slotName =
         |> filterWhere (#name, slotName)
         |> fetchOne
 
+fetchSlotNameRecordForRosterGroup :: (?modelContext :: ModelContext) => RosterGroup -> Text -> IO SlotName
+fetchSlotNameRecordForRosterGroup rosterGroup slotName =
+    query @SlotName
+        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+        |> filterWhere (#name, slotName)
+        |> fetchOne
+
 createRosterWeekRecord :: (?modelContext :: ModelContext) => Venue -> Int -> Bool -> IO RosterWeek
 createRosterWeekRecord venue weekOffset isLive = do
     rosterGroup <- ensureVenueDefaultRosterGroup venue
+    createRosterWeekRecordForRosterGroup venue rosterGroup weekOffset isLive
+
+createRosterWeekRecordForRosterGroup :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Int -> Bool -> IO RosterWeek
+createRosterWeekRecordForRosterGroup venue rosterGroup weekOffset isLive =
     newRecord @RosterWeek
         |> set #venueId (unpackId (get #id venue))
         |> set #rosterGroupId (unpackId rosterGroup.id)

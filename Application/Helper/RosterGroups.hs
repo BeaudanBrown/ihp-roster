@@ -4,6 +4,7 @@
 module Application.Helper.RosterGroups where
 
 import Application.Helper.Controller (currentVenueId)
+import qualified Data.Set as Set
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -35,6 +36,21 @@ ensureVenueRosterDefaults venue =
         _ <- ensureDefaultRosterSlots venue rosterGroup
         pure rosterGroup
 
+createVenueRosterGroupWithDefaults :: (?modelContext :: ModelContext) => Venue -> Text -> Int -> Bool -> IO RosterGroup
+createVenueRosterGroupWithDefaults venue name sortOrder isActive = do
+    rosterGroup <-
+        newRecord @RosterGroup
+            |> set #venueId (unpackId venue.id)
+            |> set #name name
+            |> set #sortOrder sortOrder
+            |> set #isActive isActive
+            |> set #isDefault False
+            |> createRecord
+    when isActive do
+        _ <- ensureDefaultRosterSlots venue rosterGroup
+        pure ()
+    pure rosterGroup
+
 fetchCurrentVenueDefaultRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO RosterGroup
 fetchCurrentVenueDefaultRosterGroup = do
     venue <- fetch currentVenueId
@@ -48,6 +64,22 @@ fetchCurrentVenueRosterGroups =
         |> orderByAsc #createdAt
         |> fetch
 
+setVenueDefaultRosterGroup :: (?modelContext :: ModelContext) => Id Venue -> Id RosterGroup -> IO RosterGroup
+setVenueDefaultRosterGroup venueId rosterGroupId = do
+    rosterGroups <-
+        query @RosterGroup
+            |> filterWhere (#venueId, unpackId venueId)
+            |> fetch
+    forM_ rosterGroups \rosterGroup -> do
+        let shouldBeDefault = rosterGroup.id == rosterGroupId
+        when (rosterGroup.isDefault /= shouldBeDefault) do
+            _ <-
+                rosterGroup
+                    |> set #isDefault shouldBeDefault
+                    |> updateRecord
+            pure ()
+    fetch rosterGroupId
+
 fetchCurrentVenueRosterGroupOrDefault :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id RosterGroup) -> IO RosterGroup
 fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId = do
     defaultRosterGroup <- fetchCurrentVenueDefaultRosterGroup
@@ -60,6 +92,9 @@ fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId = do
                     |> filterWhere (#venueId, unpackId currentVenueId)
                     |> fetchOneOrNothing
             pure (fromMaybe defaultRosterGroup rosterGroupOrNothing)
+
+fetchCurrentVenueRosterGroupIds :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Id RosterGroup]
+fetchCurrentVenueRosterGroupIds = map (.id) <$> fetchCurrentVenueRosterGroups
 
 fetchRosterGroupSlotNames :: (?modelContext :: ModelContext) => Id RosterGroup -> IO [SlotName]
 fetchRosterGroupSlotNames rosterGroupId =
@@ -75,6 +110,87 @@ fetchActiveRosterGroupSlotNames rosterGroupId =
         |> filterWhere (#isActive, True)
         |> orderByAsc #createdAt
         |> fetch
+
+ensureStaffDefaultRosterGroupAssignment :: (?modelContext :: ModelContext) => Staff -> IO ()
+ensureStaffDefaultRosterGroupAssignment staff = do
+    existingAssignment <-
+        query @StaffRosterGroup
+            |> filterWhere (#staffId, unpackId staff.id)
+            |> fetchOneOrNothing
+    case existingAssignment of
+        Just _ -> pure ()
+        Nothing -> do
+            venue <- fetch (Id staff.venueId :: Id Venue)
+            rosterGroup <- ensureVenueDefaultRosterGroup venue
+            _ <-
+                newRecord @StaffRosterGroup
+                    |> set #staffId (unpackId staff.id)
+                    |> set #rosterGroupId (unpackId rosterGroup.id)
+                    |> createRecord
+            pure ()
+
+ensureVenueStaffRosterGroupAssignments :: (?modelContext :: ModelContext) => Venue -> IO ()
+ensureVenueStaffRosterGroupAssignments venue = do
+    staffMembers <-
+        query @Staff
+            |> filterWhere (#venueId, unpackId venue.id)
+            |> fetch
+    forM_ staffMembers ensureStaffDefaultRosterGroupAssignment
+
+fetchStaffRosterGroupIds :: (?modelContext :: ModelContext) => Staff -> IO [Id RosterGroup]
+fetchStaffRosterGroupIds staff = do
+    ensureStaffDefaultRosterGroupAssignment staff
+    assignments <-
+        query @StaffRosterGroup
+            |> filterWhere (#staffId, unpackId staff.id)
+            |> orderByAsc #createdAt
+            |> fetch
+    pure (map (Id . (.rosterGroupId)) assignments)
+
+syncStaffRosterGroupAssignments :: (?modelContext :: ModelContext) => Staff -> [Id RosterGroup] -> IO ()
+syncStaffRosterGroupAssignments staff desiredRosterGroupIds = do
+    existingAssignments <-
+        query @StaffRosterGroup
+            |> filterWhere (#staffId, unpackId staff.id)
+            |> fetch
+    let desiredRosterGroupUuidSet = Set.fromList (map unpackId desiredRosterGroupIds)
+    let existingRosterGroupUuidSet = Set.fromList (map (.rosterGroupId) existingAssignments)
+    forM_ existingAssignments \assignment ->
+        when (assignment.rosterGroupId `Set.notMember` desiredRosterGroupUuidSet) do
+            deleteRecord assignment
+    forM_ desiredRosterGroupIds \rosterGroupId ->
+        when (unpackId rosterGroupId `Set.notMember` existingRosterGroupUuidSet) do
+            _ <-
+                newRecord @StaffRosterGroup
+                    |> set #staffId (unpackId staff.id)
+                |> set #rosterGroupId (unpackId rosterGroupId)
+                    |> createRecord
+            pure ()
+
+staffIsEligibleForRosterGroup :: (?modelContext :: ModelContext) => Id Staff -> Id RosterGroup -> IO Bool
+staffIsEligibleForRosterGroup staffId rosterGroupId = do
+    staff <- fetch staffId
+    applicableRosterGroupIds <- fetchStaffRosterGroupIds staff
+    pure (rosterGroupId `elem` applicableRosterGroupIds)
+
+fetchEligibleRosterGroupStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
+fetchEligibleRosterGroupStaff rosterGroupId = do
+    venue <- fetch currentVenueId
+    ensureVenueStaffRosterGroupAssignments venue
+    staffRosterGroups <-
+        query @StaffRosterGroup
+            |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+            |> fetch
+    let staffIds = map (.staffId) staffRosterGroups
+    if null staffIds
+        then pure []
+        else
+            query @Staff
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#isActive, True)
+                |> filterWhereIn (#id, map Id staffIds)
+                |> orderBy #lastName
+                |> fetch
 
 fetchVenueDayNames :: (?modelContext :: ModelContext) => Venue -> IO [DayName]
 fetchVenueDayNames venue =

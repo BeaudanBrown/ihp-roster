@@ -1,5 +1,6 @@
 module Test.Controller.AdminSpec where
 
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Config
 import qualified Data.Aeson as Aeson
 import Generated.Types
@@ -35,7 +36,14 @@ tests = beforeAll testContext do
                 dayNameA <- fetchDayNameRecord venueA 1
                 shiftTypeA <- createShiftTypeRecord venueA payLevelA "Kitchen"
                 _ <- createPayLevelDayRuleRecord shiftTypeA dayNameA payLevelA
-                _ <- fetchSlotNameRecord venueA "Early"
+                _ <- createSlotNameRecord venueA "Default Only"
+                venueAGroupB <- createVenueRosterGroupWithDefaults venueA "Back of House" 10 True
+                _ <- newRecord @SlotName
+                    |> set #venueId (unpackId venueA.id)
+                    |> set #rosterGroupId (unpackId venueAGroupB.id)
+                    |> set #name "Pass"
+                    |> set #isActive True
+                    |> createRecord
                 _ <- createPayConfigSnapshotRecord venueA admin 1 (Aeson.object [])
                 _ <- createPayConfigSnapshotRecord venueA admin 2 (Aeson.object [])
 
@@ -47,9 +55,10 @@ tests = beforeAll testContext do
                 _ <- createSlotNameRecord venueB "Graveyard"
 
                 response <- withUserAndCurrentVenue admin venueA.id do
-                    callAction AdminAction
+                    callActionWithParams AdminAction [("rosterGroupId", idToParam venueAGroupB.id)]
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldContain` "Pay Levels"
                 response `responseBodyShouldContain` "Pay Level Day Rules"
                 response `responseBodyShouldContain` "Shift Types"
@@ -64,7 +73,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Level A"
                 response `responseBodyShouldContain` "Kitchen -&gt; Level A on Monday (Monday)"
                 response `responseBodyShouldContain` "Kitchen"
-                response `responseBodyShouldContain` "Early"
+                response `responseBodyShouldContain` "Back of House"
+                response `responseBodyShouldContain` "Pass"
                 response `responseBodyShouldContain` "Monday"
                 response `responseBodyShouldContain` "Active snapshot: v2"
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
@@ -73,6 +83,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Bar"
                 response `responseBodyShouldNotContain` "Graveyard"
                 response `responseBodyShouldNotContain` "Venue B Tuesday"
+                response `responseBodyShouldNotContain` "Default Only"
 
         it "rejects non-admin venue members from admin screens" $ withContext do
             withCleanDb do
@@ -105,6 +116,16 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 dayName <- fetchDayNameRecord venue 1
 
+                rosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateRosterGroupAction
+                        [ ("name", "Back of House")
+                        , ("sortOrder", "7")
+                        , ("isActive", "true")
+                        ]
+                rosterGroupResponse `responseStatusShouldBe` status302
+
+                createdRosterGroup <- query @RosterGroup |> filterWhere (#name, "Back of House") |> fetchOne
+
                 payLevelResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreatePayLevelAction
                         [ ("name", "Level 2")
@@ -116,6 +137,7 @@ tests = beforeAll testContext do
                 slotResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateSlotNameAction
                         [ ("name", "Swing")
+                        , ("rosterGroupId", idToParam createdRosterGroup.id)
                         , ("isActive", "true")
                         ]
                 slotResponse `responseStatusShouldBe` status302
@@ -141,10 +163,14 @@ tests = beforeAll testContext do
                 createdPayLevelDayRule <- query @PayLevelDayRule |> fetchOne
                 createdSlotName <- query @SlotName |> filterWhere (#name, "Swing") |> fetchOne
 
+                createdRosterGroup.venueId `shouldBe` unpackId venue.id
+                createdRosterGroup.sortOrder `shouldBe` 7
+                createdRosterGroup.isActive `shouldBe` True
                 createdPayLevel.venueId `shouldBe` unpackId venue.id
                 createdPayLevel.name `shouldBe` "Level 2"
                 createdPayLevel.isActive `shouldBe` False
                 createdSlotName.name `shouldBe` "Swing"
+                createdSlotName.rosterGroupId `shouldBe` unpackId createdRosterGroup.id
                 createdSlotName.isActive `shouldBe` True
                 createdPayLevelDayRule.shiftTypeId `shouldBe` unpackId createdShiftType.id
                 createdPayLevelDayRule.payLevelId `shouldBe` unpackId createdPayLevel.id
@@ -166,6 +192,7 @@ tests = beforeAll testContext do
                 dayName <- fetchDayNameRecord venue 1
                 nextDayName <- fetchDayNameRecord venue 5
                 payLevelDayRule <- createPayLevelDayRuleRecord shiftType dayName oldPayLevel
+                rosterGroup <- createVenueRosterGroupWithDefaults venue "Back of House" 5 True
 
                 payLevelResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdatePayLevelAction oldPayLevel.id)
@@ -173,6 +200,18 @@ tests = beforeAll testContext do
                         , ("isActive", "false")
                         ]
                 payLevelResponse `responseStatusShouldBe` status302
+
+                makeDefaultResponse <- withUserAndCurrentVenue admin venue.id do
+                    callAction (MakeDefaultRosterGroupAction rosterGroup.id)
+                makeDefaultResponse `responseStatusShouldBe` status302
+
+                rosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdateRosterGroupAction rosterGroup.id)
+                        [ ("name", "Back of House Updated")
+                        , ("sortOrder", "8")
+                        , ("isActive", "true")
+                        ]
+                rosterGroupResponse `responseStatusShouldBe` status302
 
                 shiftTypeResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateShiftTypeAction shiftType.id)
@@ -210,9 +249,15 @@ tests = beforeAll testContext do
                 updatedSlotName <- fetch slotName.id
                 updatedDayName <- fetch dayName.id
                 updatedPayLevelDayRule <- fetch payLevelDayRule.id
+                updatedRosterGroup <- fetch rosterGroup.id
+                defaultRosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
 
                 updatedPayLevel.name `shouldBe` "Level 1 Updated"
                 updatedPayLevel.isActive `shouldBe` False
+                updatedRosterGroup.name `shouldBe` "Back of House Updated"
+                updatedRosterGroup.sortOrder `shouldBe` 8
+                updatedRosterGroup.isActive `shouldBe` True
+                get #id defaultRosterGroup `shouldBe` get #id updatedRosterGroup
                 updatedShiftType.name `shouldBe` "Kitchen Updated"
                 updatedShiftType.defaultPayLevelId `shouldBe` unpackId newPayLevel.id
                 updatedShiftType.isActive `shouldBe` False

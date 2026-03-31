@@ -1111,6 +1111,34 @@
         return window.bootstrap.Modal.getOrCreateInstance(modalEl);
     }
 
+    function forceHideModal(modalEl) {
+        if (!modalEl) return;
+
+        modalEl.classList.remove('show');
+        modalEl.style.display = 'none';
+        modalEl.setAttribute('aria-hidden', 'true');
+        modalEl.removeAttribute('aria-modal');
+        document.body.classList.remove('modal-open');
+        document.body.style.removeProperty('padding-right');
+        document.querySelectorAll('.modal-backdrop').forEach(function (backdropEl) {
+            backdropEl.remove();
+        });
+        activeField = null;
+    }
+
+    function hideTimePickerModal(modalEl) {
+        if (!modalEl) return;
+
+        const bootstrapModal = getBootstrapModal(modalEl);
+        if (bootstrapModal) bootstrapModal.hide();
+
+        window.setTimeout(function () {
+            if (modalEl.classList.contains('show')) {
+                forceHideModal(modalEl);
+            }
+        }, 150);
+    }
+
     function getFieldInput(fieldEl) {
         return fieldEl ? fieldEl.querySelector('.js-time-picker-input') : null;
     }
@@ -1255,13 +1283,12 @@
         if (!activeField) return;
 
         const modalEl = getModalElement();
-        const bootstrapModal = getBootstrapModal(modalEl);
         const value = optionEl.dataset.timeValue || '';
         const labelText = optionEl.textContent ? optionEl.textContent.trim() : value;
 
         applyTimeValue(activeField, value, labelText);
         highlightSelectedOption(modalEl, value);
-        if (bootstrapModal) bootstrapModal.hide();
+        hideTimePickerModal(modalEl);
     });
 
     document.addEventListener('click', function (event) {
@@ -1270,11 +1297,10 @@
         if (!activeField) return;
 
         const modalEl = getModalElement();
-        const bootstrapModal = getBootstrapModal(modalEl);
 
         applyTimeValue(activeField, '', emptyLabel);
         highlightSelectedOption(modalEl, '');
-        if (bootstrapModal) bootstrapModal.hide();
+        hideTimePickerModal(modalEl);
     });
 
     document.addEventListener('hidden.bs.modal', function (event) {

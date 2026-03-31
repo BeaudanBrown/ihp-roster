@@ -4,6 +4,8 @@ import Web.View.Prelude
 
 data EditView = EditView
     { staff      :: Staff
+    , rosterGroups :: [RosterGroup]
+    , selectedRosterGroupIds :: [Id RosterGroup]
     , weekOffset :: Int
     , maybeRosterGroupId :: Maybe (Id RosterGroup)
     }
@@ -13,19 +15,19 @@ instance View EditView where
         renderStaffEditPageModal
             weekOffset
             staffEditFormId
-            (renderForm PageOverlayForm staff weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
+            (renderForm PageOverlayForm staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
 
-renderStaffEditModalFragment :: Staff -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffEditModalFragment staff weekOffset maybeRosterGroupId =
+renderStaffEditModalFragment :: Staff -> [RosterGroup] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffEditModalFragment staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId =
     renderStaffEditDialog
         staffEditFormId
-        (renderForm HtmxOverlayForm staff weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
+        (renderForm HtmxOverlayForm staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
 
-renderForm :: OverlayFormMode -> Staff -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
-renderForm formMode staff weekOffset maybeRosterGroupId action =
+renderForm :: OverlayFormMode -> Staff -> [RosterGroup] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
+renderForm formMode staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId action =
     case formMode of
         HtmxOverlayForm -> [hsx|
             <form id={staffEditFormId}
@@ -37,7 +39,7 @@ renderForm formMode staff weekOffset maybeRosterGroupId action =
                   hx-target={"#" <> dialogOverlayMountId}
                   hx-swap="innerHTML"
                   hx-push-url="false">
-                {renderFormFields staff weekOffset maybeRosterGroupId}
+                {renderFormFields staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId}
             </form>
         |]
         PageOverlayForm -> [hsx|
@@ -45,12 +47,12 @@ renderForm formMode staff weekOffset maybeRosterGroupId action =
                   method="POST"
                   action={action}
                   class="mt-3">
-                {renderFormFields staff weekOffset maybeRosterGroupId}
+                {renderFormFields staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId}
             </form>
         |]
 
-renderFormFields :: Staff -> Int -> Maybe (Id RosterGroup) -> Html
-renderFormFields staff weekOffset maybeRosterGroupId = [hsx|
+renderFormFields :: Staff -> [RosterGroup] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> Html
+renderFormFields staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId = [hsx|
         <input type="hidden" name="weekOffset" value={tshow weekOffset} />
         {renderRosterGroupHiddenInput maybeRosterGroupId}
         <div class="mb-3">
@@ -100,6 +102,12 @@ renderFormFields staff weekOffset maybeRosterGroupId = [hsx|
             </select>
             {renderStaffFieldError staff "isActive"}
         </div>
+        <div class="mb-3">
+            <label class="form-label d-block">Roster Groups</label>
+            <div class="row g-2">
+                {forEach rosterGroups (renderRosterGroupCheckbox selectedRosterGroupIds)}
+            </div>
+        </div>
 |]
 
 inputClass :: Staff -> Text -> Text
@@ -125,3 +133,27 @@ renderRosterGroupHiddenInput maybeRosterGroupId =
     case maybeRosterGroupId of
         Just rosterGroupId -> [hsx|<input type="hidden" name="rosterGroupId" value={tshow rosterGroupId} />|]
         Nothing -> mempty
+
+renderRosterGroupCheckbox :: [Id RosterGroup] -> RosterGroup -> Html
+renderRosterGroupCheckbox selectedRosterGroupIds rosterGroup = [hsx|
+    <div class="col-12 col-md-6">
+        <label class="form-check border rounded p-2 d-flex align-items-center gap-2">
+            <input
+                class="form-check-input mt-0"
+                type="checkbox"
+                name="rosterGroupIds"
+                value={tshow rosterGroup.id}
+                checked={rosterGroup.id `elem` selectedRosterGroupIds}
+            />
+            <span class="form-check-label">
+                {rosterGroup.name}
+                {renderRosterGroupDefaultLabel rosterGroup}
+            </span>
+        </label>
+    </div>
+|]
+
+renderRosterGroupDefaultLabel :: RosterGroup -> Html
+renderRosterGroupDefaultLabel rosterGroup
+    | rosterGroup.isDefault = [hsx|<span class="small app-muted ms-1">(default)</span>|]
+    | otherwise = mempty

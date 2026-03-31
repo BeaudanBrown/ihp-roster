@@ -1,5 +1,6 @@
 module Test.Controller.LeaveRequestsSpec where
 
+import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Config
