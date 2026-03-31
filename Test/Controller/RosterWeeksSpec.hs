@@ -179,6 +179,20 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
                 response `responseBodyShouldContain` "roster-live-toggle-"
 
+        it "roster group switcher preserves weekOffset in the submitted form" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-group-switcher@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 3)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "action=\"/ShowRosterWeek?weekOffset=3\""
+                response `responseBodyShouldContain` "type=\"hidden\" name=\"weekOffset\" value=\"3\""
+                response `responseBodyShouldContain` "name=\"rosterGroupId\""
+
         it "manager can create a draft week via HTMX without redirecting" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

@@ -11,19 +11,19 @@ import Data.UUID (UUID)
 import Web.View.Prelude
 
 data ShowView = ShowView
-    { rosterWeek      :: Maybe RosterWeek
-    , rosterDays      :: [RosterDay]
-    , weekOffset      :: Int
-    , rosterGroups    :: [RosterGroup]
+    { rosterWeek         :: Maybe RosterWeek
+    , rosterDays         :: [RosterDay]
+    , weekOffset         :: Int
+    , rosterGroups       :: [RosterGroup]
     , currentRosterGroup :: RosterGroup
-    , weekStartDate   :: Day
-    , weekEndDate     :: Day
-    , staffMembers    :: [Staff]
-    , panelStaff      :: [RosterStaffPanelEntry]
-    , slotNames       :: [SlotName]
-    , allSlots        :: [RosterSlot]
-    , slotConflicts   :: [(Id RosterSlot, [RosterConflict])]
-    , liveUpdateScope :: Maybe LiveUpdateScope
+    , weekStartDate      :: Day
+    , weekEndDate        :: Day
+    , staffMembers       :: [Staff]
+    , panelStaff         :: [RosterStaffPanelEntry]
+    , slotNames          :: [SlotName]
+    , allSlots           :: [RosterSlot]
+    , slotConflicts      :: [(Id RosterSlot, [RosterConflict])]
+    , liveUpdateScope    :: Maybe LiveUpdateScope
     }
 
 data RosterStaffPanelEntry = RosterStaffPanelEntry
@@ -90,6 +90,7 @@ renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
     <form class="d-flex align-items-center gap-2 mb-0" method="GET" action={pathTo (ShowRosterWeekAction weekOffset)}>
         <label class="visually-hidden" for="roster-group-switch">Roster group</label>
+        <input type="hidden" name="weekOffset" value={tshow weekOffset}/>
         <select id="roster-group-switch"
                 class="form-select form-select-sm"
                 name="rosterGroupId"
@@ -185,7 +186,7 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
 
 renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
 renderLiveToggle (Just rosterWeek) = renderLiveToggleForm rosterWeek
-renderLiveToggle Nothing = mempty
+renderLiveToggle Nothing           = mempty
 
 renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragment =
