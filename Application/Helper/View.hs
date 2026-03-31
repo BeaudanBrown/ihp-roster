@@ -169,7 +169,6 @@ renderPartialNavigationLink :: PartialNavigationLink -> Html
 renderPartialNavigationLink PartialNavigationLink { partialNavigationLabel, partialNavigationUrl, partialNavigationTargetId, partialNavigationSelectId, partialNavigationClass, partialNavigationSwap, partialNavigationSync, partialNavigationPushUrl } = [hsx|
     <a href={partialNavigationUrl}
        class={partialNavigationClass}
-       data-turbolinks="false"
        hx-get={partialNavigationUrl}
        hx-target={"#" <> partialNavigationTargetId}
        hx-swap={partialNavigationSwap}

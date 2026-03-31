@@ -45,7 +45,10 @@ renderAppHeader =
                 <nav class="navbar navbar-expand-md container py-2">
                     <a class="navbar-brand fw-semibold" href={WelcomeAction}>App</a>
                     <div class="navbar-nav ms-auto">
-                        <a class="btn btn-outline-danger btn-sm js-delete js-delete-no-confirm" href={DeleteSessionAction}>logout</a>
+                        <form method="POST" action={DeleteSessionAction}>
+                            <input type="hidden" name="_method" value="DELETE"/>
+                            <button class="btn btn-outline-danger btn-sm" type="submit">logout</button>
+                        </form>
                     </div>
                 </nav>
             </header>
@@ -90,11 +93,6 @@ scripts = [hsx|
         <script src={assetPath "/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js"}></script>
         <script src={assetPath "/vendor/flatpickr.js"}></script>
         <script src={assetPath "/vendor/morphdom-umd.min.js"}></script>
-        <script src={assetPath "/vendor/turbolinks.js"}></script>
-        <script src={assetPath "/vendor/turbolinksInstantClick.js"}></script>
-        <script src={assetPath "/vendor/turbolinksMorphdom.js"}></script>
-        <script src={assetPath "/helpers.js"}></script>
-        <script src={assetPath "/ihp-auto-refresh.js"}></script>
         <script src={assetPath "/app.js"}></script>
     |]
 
@@ -111,5 +109,4 @@ metaTags = [hsx|
     <meta property="og:type" content="website"/>
     <meta property="og:url" content="TODO"/>
     <meta property="og:description" content="TODO"/>
-    {autoRefreshMeta}
 |]

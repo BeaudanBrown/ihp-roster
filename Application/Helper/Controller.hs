@@ -1,5 +1,6 @@
 module Application.Helper.Controller where
 
+import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.ControllerPrelude
@@ -13,6 +14,15 @@ isHtmxRequest = getHeader "HX-Request" == Just "true"
 -- | Ask htmx to push a canonical URL after a fragment response.
 setHtmxPushUrl :: (?context :: ControllerContext) => Text -> IO ()
 setHtmxPushUrl url = setHeader ("HX-Push-Url", cs url)
+
+-- | Client id sent by the shared live-update runtime for actor-echo suppression.
+currentLiveUpdateClientId :: (?context :: ControllerContext) => Maybe Text
+currentLiveUpdateClientId = cs <$> getHeader "X-Live-Update-Client-Id"
+
+-- | Override for app-specific live-update scope authorization when needed.
+isAuthorizedLiveUpdateScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Text -> IO Bool
+isAuthorizedLiveUpdateScope scope =
+    pure (not (Text.null (Text.strip scope)))
 
 -- | Redirect to profile edit if required fields are incomplete.
 -- Customize the condition for your project's profile requirements.

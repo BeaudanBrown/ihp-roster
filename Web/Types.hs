@@ -23,6 +23,14 @@ data UsersController
 
 data DashboardController
     = DashboardAction
+    | ShowDashboardLiveDemoContentAction
+    | IncrementDashboardLiveDemoAction
+    deriving (Eq, Show, Data)
+
+newtype LiveUpdatesWSApp
+    = LiveUpdatesWSApp
+        { subscriptionIds :: [(UUID, Text)]
+        }
     deriving (Eq, Show, Data)
 
 -- Auth support: where to redirect unauthenticated users
