@@ -2,15 +2,17 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Account Registration', () => {
     test('successful account creation redirects to login', async ({ page }) => {
+        const email = `e2e-register-success-${Date.now()}@example.com`;
+
         await page.goto('/NewUser');
-        await page.fill('[name="email"]', 'e2e-register-success@example.com');
+        await page.fill('[name="email"]', email);
         await page.fill('[name="passwordHash"]', 'e2e-password-123');
         await page.fill('[name="passwordConfirmation"]', 'e2e-password-123');
         await page.click('button[type="submit"]');
 
         // Should redirect to login with success flash
         await expect(page).toHaveURL(/NewSession/);
-        await expect(page.locator('.alert-success')).toContainText('Account created');
+        await expect(page.locator('#toast-overlay-mount')).toContainText('Account created! Please log in.');
     });
 
     test('password mismatch shows validation error', async ({ page }) => {

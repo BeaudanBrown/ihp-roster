@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { chromium } from 'playwright';
 
-const DEFAULT_BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:8000';
+const DEFAULT_BASE_URL = process.env.BASE_URL || `http://127.0.0.1:${process.env.PORT || '8000'}`;
 const DEFAULT_EMAIL = process.env.SCREENSHOT_EMAIL || 'e2e-test@example.com';
 const DEFAULT_PASSWORD = process.env.SCREENSHOT_PASSWORD || 'test-password-123';
 

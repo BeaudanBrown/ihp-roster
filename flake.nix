@@ -135,23 +135,64 @@
                         # Run Playwright end-to-end tests.
                         # Usage: e2e [playwright-args...]
                         e2e.exec = ''
-                            exec npx playwright test "$@"
+                            if [ -z "''${BASE_URL:-}" ]; then
+                                APP_PORT=$(dev-app-port)
+                                export BASE_URL="http://127.0.0.1:$APP_PORT"
+                            fi
+                            exec node ./node_modules/@playwright/test/cli.js test "$@"
                         '';
 
                         # Take a screenshot of a page using Playwright.
                         # Usage: screenshot <url> <output.png>
                         screenshot.exec = ''
-                            exec npx playwright screenshot "$@"
+                            exec playwright screenshot "$@"
                         '';
 
                         # Open the Playwright HTML test report.
                         # Usage: e2e-report
                         e2e-report.exec = ''
-                            exec npx playwright show-report
+                            exec playwright show-report
                         '';
 
                         screenshot-page.exec = ''
                             exec node ./e2e/screenshot-page.mjs "$@"
+                        '';
+
+                        # Print the app port used by the managed RunDevServer.
+                        # Usage: dev-app-port
+                        dev-app-port.exec = ''
+                            set -euo pipefail
+                            STATE_DIR="$PWD/.devenv/agent"
+                            PID_FILE="$STATE_DIR/devenv.pid"
+
+                            if [ ! -f "$PID_FILE" ]; then
+                                echo "managed devenv pid file not found" >&2
+                                exit 1
+                            fi
+
+                            PID=$(cat "$PID_FILE")
+                            if ! kill -0 "$PID" 2>/dev/null; then
+                                echo "managed devenv process is not running" >&2
+                                exit 1
+                            fi
+
+                            RUN_DEV_SERVER_PID=$(pgrep -P "$PID" -f RunDevServer | head -n 1 || true)
+                            if [ -z "$RUN_DEV_SERVER_PID" ]; then
+                                echo "RunDevServer child not found" >&2
+                                exit 1
+                            fi
+
+                            APP_PORT=$(lsof -Pan -p "$RUN_DEV_SERVER_PID" -iTCP -sTCP:LISTEN \
+                                | awk '/TCP \\*:/{sub(/^.*:/, "", $9); sub(/ \\(LISTEN\\)$/, "", $9); print $9}' \
+                                | sort -n \
+                                | head -n 1)
+
+                            if [ -z "$APP_PORT" ]; then
+                                echo "app port not detected" >&2
+                                exit 1
+                            fi
+
+                            echo "$APP_PORT"
                         '';
 
                         # Start IHP in background for automation.
@@ -286,10 +327,12 @@
                             HTTP_OK=false
                             HTTP_BLOCKED=false
                             HTTP_ERR=""
-                            if HTTP_ERR=$(curl -fsS "http://127.0.0.1:8000" 2>&1); then
-                                HTTP_OK=true
-                            elif echo "$HTTP_ERR" | rg -qi "operation not permitted|permission denied"; then
-                                HTTP_BLOCKED=true
+                            if APP_PORT=$(dev-app-port 2>/dev/null); then
+                                if HTTP_ERR=$(curl -fsS "http://127.0.0.1:$APP_PORT" 2>&1); then
+                                    HTTP_OK=true
+                                elif echo "$HTTP_ERR" | rg -qi "operation not permitted|permission denied"; then
+                                    HTTP_BLOCKED=true
+                                fi
                             fi
 
                             CHECKS_BLOCKED=false
