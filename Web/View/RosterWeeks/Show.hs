@@ -335,7 +335,7 @@ renderRowWithAttrs isEditable slotNames staffMembers date rosterDay rowCount las
         data-roster-row="true"
         hx-swap-oob={maybeSwapOob}
         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rosterDay), True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
-        {when (rowPosition == 0) (renderDayLabel isEditable date rosterDay rowCount lastRowIndex)}
+        {renderDayLabel isEditable date rosterDay rowPosition lastRowIndex}
         {forEach (zip [0 :: Int ..] slotNames) (renderBlockCells isEditable staffMembers rosterDay.id rowIndex rowSlots slotConflicts)}
     </tr>
 |]
@@ -344,27 +344,33 @@ rosterRowDomIdText :: Id RosterDay -> Int -> Text
 rosterRowDomIdText rosterDayId rowIndex = "roster-row-" <> tshow rosterDayId <> "-" <> tshow rowIndex
 
 renderDayLabel :: (?context :: ControllerContext) => Bool -> Day -> RosterDay -> Int -> Int -> Html
-renderDayLabel isEditable date rosterDay rowCount lastRowIndex = [hsx|
-    <td class="fw-bold day-label p-2" rowspan={tshow rowCount}>
-        <div class="d-flex flex-column gap-1">
+renderDayLabel isEditable date rosterDay rowPosition lastRowIndex
+    | rowPosition == 0 = [hsx|
+        <td class="fw-bold day-label day-label-primary p-2">
             <div class="roster-day-heading">
                 <div class="small app-muted">{Text.pack (formatTime defaultTimeLocale "%a" date)}</div>
-                <div class="roster-day-toolbar">
-                    <span>{formatDateDisplay date}</span>
-                    {renderDayRowControls isEditable rosterDay lastRowIndex}
-                </div>
+                {renderDayRowControls isEditable rosterDay lastRowIndex}
             </div>
-        </div>
-    </td>
-|]
+        </td>
+    |]
+    | rowPosition == 1 = [hsx|
+        <td class="fw-bold day-label day-label-secondary p-2">
+            <div class="roster-day-date">{formatDateDisplay date}</div>
+        </td>
+    |]
+    | otherwise = [hsx|
+        <td class="day-label day-label-empty p-2">
+            <span class="visually-hidden">Additional shift row</span>
+        </td>
+    |]
 
 renderDayRowControls :: (?context :: ControllerContext) => Bool -> RosterDay -> Int -> Html
 renderDayRowControls isEditable rosterDay lastRowIndex =
     if isEditable
         then [hsx|
             <span class="roster-day-actions">
-                {renderAddRowButton rosterDay}
                 {renderDeleteLastRowButton rosterDay lastRowIndex}
+                {renderAddRowButton rosterDay}
             </span>
         |]
         else [hsx|<span></span>|]
@@ -430,7 +436,9 @@ renderBlockCells isEditable staffMembers rosterDayId rowIndex rowSlots slotConfl
                     {if isEditable then renderEditableTimeCell slot.id currentStartTime currentStartTimeLabel else renderReadOnlyCell currentStartTimeLabel}
                 </td>
 
-                <td class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}>
+                <td class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}
+                    title={renderConflictMessage currentPrimaryConflict}
+                    data-conflict-message={renderConflictMessage currentPrimaryConflict}>
                     {if isEditable then renderEditableStaffCell slot.id slot.staffId staffMembers currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
                 </td>
 
@@ -531,6 +539,10 @@ renderConflictClass (Just conflict) =
     case conflict.severity of
         CriticalConflict -> "conflict-critical"
         AdvisoryConflict -> "conflict-advisory"
+
+renderConflictMessage :: Maybe RosterConflict -> Text
+renderConflictMessage Nothing         = ""
+renderConflictMessage (Just conflict) = conflict.message
 
 renderConflictBadge :: Maybe RosterConflict -> Html
 renderConflictBadge Nothing = [hsx|<span></span>|]

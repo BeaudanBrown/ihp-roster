@@ -193,6 +193,24 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "type=\"hidden\" name=\"weekOffset\" value=\"3\""
                 response `responseBodyShouldContain` "name=\"rosterGroupId\""
 
+        it "splits the day label into separate day-name and date cells across the first two rows" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-day-labels@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName Nothing 0
+                _ <- createRosterSlotRecord rosterDay slotName Nothing 1
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "day-label day-label-primary"
+                response `responseBodyShouldContain` "day-label day-label-secondary"
+
         it "manager can create a draft week via HTMX without redirecting" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -756,5 +774,7 @@ tests = beforeAll testContext do
                 let secondRowText = cs secondRowBody :: String
                 firstRowText `shouldContain` "conflict-critical"
                 secondRowText `shouldContain` "conflict-critical"
+                firstRowText `shouldContain` "data-conflict-message="
+                secondRowText `shouldContain` "data-conflict-message="
     where
         timeOfDay hour minute = TimeOfDay hour minute 0

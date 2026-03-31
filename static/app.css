@@ -21,6 +21,7 @@
     --roster-empty: #101825;
     --roster-danger: #5e1e23;
     --roster-warning: #4a3a1c;
+    --roster-row-height: 1.2rem;
 }
 
 html {
@@ -404,20 +405,34 @@ a:not(.btn):hover {
 .roster-grid .day-label {
     min-width: 130px;
     border-right: 2px solid var(--app-border-strong);
-    vertical-align: top;
-    background-color: #121b28 !important;
+    vertical-align: middle;
+    text-align: center;
 }
 
 .roster-grid .roster-day-heading {
-    line-height: 1.15;
+    height: var(--roster-row-height);
+    min-height: var(--roster-row-height);
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 0.22rem;
+    line-height: 1;
+    flex-wrap: nowrap;
 }
 
-.roster-grid .roster-day-toolbar {
+.roster-grid .roster-day-date,
+.roster-grid .day-label-empty {
+    height: var(--roster-row-height);
+    min-height: var(--roster-row-height);
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-top: 0.15rem;
+    justify-content: center;
+    line-height: 1;
+}
+
+.roster-grid .day-label-empty {
+    color: transparent;
 }
 
 .roster-grid .roster-day-actions {
@@ -428,14 +443,14 @@ a:not(.btn):hover {
 }
 
 .roster-grid .roster-day-action {
-    width: 1.5rem;
-    height: 1.5rem;
+    width: 0.9rem;
+    height: 0.9rem;
     padding: 0;
     border-radius: 999px;
     border: 1px solid var(--app-border-strong);
     background: rgba(255, 255, 255, 0.04);
     color: var(--app-text);
-    font-size: 0.88rem;
+    font-size: 0.56rem;
     font-weight: 700;
     line-height: 1;
 }
@@ -493,19 +508,25 @@ a:not(.btn):hover {
 .roster-grid .slot-cell-form {
     display: flex;
     align-items: center;
+    justify-content: center;
     height: 100%;
-    min-height: 2rem;
+    min-height: var(--roster-row-height);
 }
 
 .roster-grid .slot-cell-input {
     width: 100%;
     height: 100%;
-    min-height: 2rem;
-    padding: 0.08rem 0.3rem;
+    min-height: var(--roster-row-height);
+    padding: 0 0.16rem;
     border: 0 !important;
     border-radius: 0 !important;
     background-color: transparent !important;
     box-shadow: none !important;
+    text-align: center;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .roster-grid .slot-time-input {
@@ -516,15 +537,19 @@ a:not(.btn):hover {
 .roster-grid .slot-time-trigger {
     width: 100%;
     height: 100%;
-    min-height: 2rem;
+    min-height: var(--roster-row-height);
     border: 0 !important;
     border-radius: 0 !important;
     background-color: transparent !important;
     color: var(--app-text);
     font-size: 0.7rem;
     font-weight: 700;
-    text-align: left;
-    padding: 0.08rem 0.3rem;
+    text-align: center;
+    padding: 0 0.16rem;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .roster-grid .slot-time-trigger:focus,
@@ -548,6 +573,20 @@ a:not(.btn):hover {
     font-weight: 700;
 }
 
+.roster-grid .slot-cell-static {
+    height: var(--roster-row-height);
+    min-height: var(--roster-row-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.16rem;
+    text-align: center;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .roster-grid .slot-staff-input {
     font-weight: 700;
     color: var(--app-text) !important;
@@ -566,6 +605,18 @@ a:not(.btn):hover {
 }
 
 .roster-grid tr.day-row.day-alt-light {
+    background-color: var(--roster-day-b);
+}
+
+.roster-grid tr.day-row.day-alt-dark .day-label,
+.roster-grid tr.day-row.day-alt-dark .day-label-secondary,
+.roster-grid tr.day-row.day-alt-dark .day-label-empty {
+    background-color: var(--roster-day-a);
+}
+
+.roster-grid tr.day-row.day-alt-light .day-label,
+.roster-grid tr.day-row.day-alt-light .day-label-secondary,
+.roster-grid tr.day-row.day-alt-light .day-label-empty {
     background-color: var(--roster-day-b);
 }
 
@@ -589,7 +640,8 @@ a:not(.btn):hover {
 }
 
 .roster-grid .slot-empty-cell {
-    min-height: 2rem;
+    height: var(--roster-row-height);
+    min-height: var(--roster-row-height);
 }
 
 @media print {
