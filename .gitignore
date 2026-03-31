@@ -24,6 +24,7 @@ Config/client_session_key.aes
 
 # Playwright
 test-results/
+!test-results/.gitkeep
 playwright-report/
 .playwright-cli/
 
