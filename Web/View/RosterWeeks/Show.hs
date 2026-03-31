@@ -222,8 +222,7 @@ renderRosterStaffPanel weekOffset currentRosterGroupId panelStaff = [hsx|
                 <div class="roster-staff-table-head">
                     <div>Name</div>
                     <div>Shifts (Ideal)</div>
-                    <div>Role</div>
-                    <div>Action</div>
+                    <div class="roster-staff-action-head">Action</div>
                 </div>
             </div>
 
@@ -240,11 +239,8 @@ renderRosterStaffPanelEntry weekOffset currentRosterGroupId entry = [hsx|
         <div class="roster-staff-cell roster-staff-name">
             <span class="roster-staff-name-primary">{entry.staff.firstName} {entry.staff.lastName}</span>
         </div>
-        <div class="roster-staff-cell">{renderShiftSummary entry}</div>
-        <div class="roster-staff-cell">
-            <span class="badge text-bg-secondary text-uppercase">{entry.userRole}</span>
-        </div>
-        <div class="roster-staff-cell">
+        <div class="roster-staff-cell roster-staff-shifts">{renderShiftSummary entry}</div>
+        <div class="roster-staff-cell roster-staff-action">
             <button type="button"
                class="btn btn-sm btn-outline-secondary"
                hx-get={appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]}
@@ -260,8 +256,16 @@ renderRosterStaffPanelEntry weekOffset currentRosterGroupId entry = [hsx|
 renderShiftSummary :: RosterStaffPanelEntry -> Html
 renderShiftSummary entry =
     case entry.staff.idealShiftsPerWeek of
-        Just shifts -> [hsx|{tshow entry.assignedShiftCount} ({tshow shifts})|]
-        Nothing     -> [hsx|{tshow entry.assignedShiftCount} <span class="app-muted">(-)</span>|]
+        Just shifts -> [hsx|
+            <span class="roster-shift-summary-primary">{tshow entry.assignedShiftCount}</span>
+            <span class="roster-shift-summary-divider">/</span>
+            <span class="roster-shift-summary-secondary">{tshow shifts}</span>
+        |]
+        Nothing     -> [hsx|
+            <span class="roster-shift-summary-primary">{tshow entry.assignedShiftCount}</span>
+            <span class="roster-shift-summary-divider">/</span>
+            <span class="roster-shift-summary-secondary">-</span>
+        |]
 
 renderSlotHeaderGroup :: SlotName -> Html
 renderSlotHeaderGroup slotName = [hsx|
@@ -335,7 +339,7 @@ renderRowWithAttrs isEditable slotNames staffMembers date rosterDay rowCount las
         data-roster-row="true"
         hx-swap-oob={maybeSwapOob}
         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rosterDay), True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
-        {renderDayLabel isEditable date rosterDay rowPosition lastRowIndex}
+        {renderDayLabel isEditable date rosterDay rowCount rowPosition lastRowIndex}
         {forEach (zip [0 :: Int ..] slotNames) (renderBlockCells isEditable staffMembers rosterDay.id rowIndex rowSlots slotConflicts)}
     </tr>
 |]
@@ -343,26 +347,36 @@ renderRowWithAttrs isEditable slotNames staffMembers date rosterDay rowCount las
 rosterRowDomIdText :: Id RosterDay -> Int -> Text
 rosterRowDomIdText rosterDayId rowIndex = "roster-row-" <> tshow rosterDayId <> "-" <> tshow rowIndex
 
-renderDayLabel :: (?context :: ControllerContext) => Bool -> Day -> RosterDay -> Int -> Int -> Html
-renderDayLabel isEditable date rosterDay rowPosition lastRowIndex
+renderDayLabel :: (?context :: ControllerContext) => Bool -> Day -> RosterDay -> Int -> Int -> Int -> Html
+renderDayLabel isEditable date rosterDay rowCount rowPosition lastRowIndex
     | rowPosition == 0 = [hsx|
-        <td class="fw-bold day-label day-label-primary p-2">
-            <div class="roster-day-heading">
-                <div class="small app-muted">{Text.pack (formatTime defaultTimeLocale "%a" date)}</div>
-                {renderDayRowControls isEditable rosterDay lastRowIndex}
+        <td class="fw-bold day-label day-label-stack" rowspan={tshow rowCount}>
+            <div class="roster-day-label-stack" style={"--roster-day-label-rows:" <> tshow rowCount}>
+                <div class="roster-day-label-row roster-day-label-row-primary">
+                    <div class="roster-day-heading">
+                        <div class="small app-muted">{Text.pack (formatTime defaultTimeLocale "%a" date)}</div>
+                        {renderDayRowControls isEditable rosterDay lastRowIndex}
+                    </div>
+                </div>
+                {renderSecondaryDayLabel rowCount date}
+                {renderEmptyDayLabelRows rowCount}
             </div>
         </td>
     |]
-    | rowPosition == 1 = [hsx|
-        <td class="fw-bold day-label day-label-secondary p-2">
+    | otherwise = mempty
+
+renderSecondaryDayLabel :: Int -> Day -> Html
+renderSecondaryDayLabel rowCount date
+    | rowCount > 1 = [hsx|
+        <div class="roster-day-label-row roster-day-label-row-secondary">
             <div class="roster-day-date">{formatDateDisplay date}</div>
-        </td>
+        </div>
     |]
-    | otherwise = [hsx|
-        <td class="day-label day-label-empty p-2">
-            <span class="visually-hidden">Additional shift row</span>
-        </td>
-    |]
+    | otherwise = mempty
+
+renderEmptyDayLabelRows :: Int -> Html
+renderEmptyDayLabelRows rowCount =
+    mconcat (map (\_ -> [hsx|<div class="roster-day-label-row roster-day-label-row-empty" aria-hidden="true"></div>|]) [3 .. rowCount])
 
 renderDayRowControls :: (?context :: ControllerContext) => Bool -> RosterDay -> Int -> Html
 renderDayRowControls isEditable rosterDay lastRowIndex =

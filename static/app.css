@@ -201,8 +201,8 @@ a:not(.btn):hover {
 .roster-staff-table,
 .roster-staff-panel-entry {
     display: grid;
-    grid-template-columns: minmax(0, 2.35fr) minmax(0, 1.2fr) minmax(0, 0.95fr) auto;
-    gap: 0.75rem;
+    grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.15fr) auto;
+    column-gap: 0.75rem;
     align-items: center;
 }
 
@@ -211,8 +211,8 @@ a:not(.btn):hover {
 }
 
 .roster-staff-table-head > div {
-    padding: 0 0 0.65rem;
-    border-bottom: 1px solid var(--app-border-strong);
+    padding: 0 0 0.7rem;
+    border-bottom: 1px solid rgba(124, 146, 184, 0.72);
     color: var(--app-muted);
     font-size: 0.68rem;
     font-weight: 700;
@@ -220,17 +220,26 @@ a:not(.btn):hover {
     text-transform: uppercase;
 }
 
+.roster-staff-action-head {
+    text-align: right;
+    border-left: 1px solid rgba(95, 117, 153, 0.3);
+    padding-left: 0.85rem;
+}
+
 .roster-staff-panel-list {
     min-height: 0;
 }
 
 .roster-staff-table-body {
-    margin-top: 0.4rem;
+    margin-top: 0.25rem;
+    border-top: 1px solid rgba(124, 146, 184, 0.24);
 }
 
 .roster-staff-panel-entry {
-    padding: 0.8rem 0;
-    border-bottom: 1px solid rgba(58, 70, 93, 0.65);
+    padding: 0.85rem 0;
+    border-top: 1px solid rgba(124, 146, 184, 0.16);
+    border-bottom: 1px solid rgba(32, 40, 57, 0.72);
+    background: rgba(255, 255, 255, 0.015);
 }
 
 .roster-staff-panel-entry:last-child {
@@ -242,11 +251,6 @@ a:not(.btn):hover {
     font-size: 0.82rem;
 }
 
-.roster-staff-cell .badge,
-.roster-staff-cell .btn {
-    justify-self: start;
-}
-
 .roster-staff-name-primary {
     display: block;
     font-weight: 700;
@@ -255,6 +259,35 @@ a:not(.btn):hover {
 
 .roster-staff-name {
     min-width: 0;
+}
+
+.roster-staff-shifts {
+    color: var(--app-muted);
+    font-variant-numeric: tabular-nums;
+}
+
+.roster-shift-summary-primary {
+    color: var(--app-text);
+    font-weight: 700;
+}
+
+.roster-shift-summary-divider {
+    margin: 0 0.3rem;
+    color: rgba(124, 146, 184, 0.55);
+}
+
+.roster-shift-summary-secondary {
+    color: var(--app-muted);
+}
+
+.roster-staff-action {
+    justify-self: end;
+    border-left: 1px solid rgba(95, 117, 153, 0.24);
+    padding-left: 0.85rem;
+}
+
+.roster-staff-action .btn {
+    justify-self: end;
 }
 
 @media (min-width: 1200px) {
@@ -289,7 +322,7 @@ a:not(.btn):hover {
 
     .roster-staff-table,
     .roster-staff-panel-entry {
-        grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) minmax(0, 0.9fr) auto;
+        grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) auto;
     }
 }
 
@@ -409,6 +442,26 @@ a:not(.btn):hover {
     text-align: center;
 }
 
+.roster-grid .day-label.day-label-stack {
+    padding: 0 !important;
+}
+
+.roster-grid .roster-day-label-stack {
+    --roster-day-cell-height: calc(var(--roster-row-height) + 0.65rem);
+    display: grid;
+    grid-template-rows: repeat(var(--roster-day-label-rows), minmax(0, 1fr));
+    height: 100%;
+    min-height: calc(var(--roster-day-cell-height) * var(--roster-day-label-rows));
+}
+
+.roster-grid .roster-day-label-row {
+    min-height: calc(var(--roster-row-height) + 0.65rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.5rem;
+}
+
 .roster-grid .roster-day-heading {
     height: var(--roster-row-height);
     min-height: var(--roster-row-height);
@@ -486,6 +539,11 @@ a:not(.btn):hover {
     padding: 0 !important;
 }
 
+.roster-grid tbody tr.day-row > td {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
 .roster-grid .roster-block-start {
     border-left: 2px solid var(--app-border-strong) !important;
 }
@@ -509,14 +567,14 @@ a:not(.btn):hover {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 100%;
-    min-height: var(--roster-row-height);
+    height: calc(var(--roster-row-height) + 0.65rem);
+    min-height: calc(var(--roster-row-height) + 0.65rem);
 }
 
 .roster-grid .slot-cell-input {
     width: 100%;
-    height: 100%;
-    min-height: var(--roster-row-height);
+    height: calc(var(--roster-row-height) + 0.65rem);
+    min-height: calc(var(--roster-row-height) + 0.65rem);
     padding: 0 0.16rem;
     border: 0 !important;
     border-radius: 0 !important;
@@ -536,8 +594,8 @@ a:not(.btn):hover {
 
 .roster-grid .slot-time-trigger {
     width: 100%;
-    height: 100%;
-    min-height: var(--roster-row-height);
+    height: calc(var(--roster-row-height) + 0.65rem);
+    min-height: calc(var(--roster-row-height) + 0.65rem);
     border: 0 !important;
     border-radius: 0 !important;
     background-color: transparent !important;
@@ -574,8 +632,8 @@ a:not(.btn):hover {
 }
 
 .roster-grid .slot-cell-static {
-    height: var(--roster-row-height);
-    min-height: var(--roster-row-height);
+    height: calc(var(--roster-row-height) + 0.65rem);
+    min-height: calc(var(--roster-row-height) + 0.65rem);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -598,6 +656,16 @@ a:not(.btn):hover {
 .roster-grid .slot-staff-input option {
     color: var(--app-text);
     background-color: var(--app-surface);
+}
+
+.roster-grid tr.day-row {
+    height: calc(var(--roster-row-height) + 0.65rem);
+}
+
+.roster-grid tr.day-row > td {
+    height: calc(var(--roster-row-height) + 0.65rem);
+    min-height: calc(var(--roster-row-height) + 0.65rem);
+    vertical-align: middle;
 }
 
 .roster-grid tr.day-row.day-alt-dark {
@@ -640,8 +708,8 @@ a:not(.btn):hover {
 }
 
 .roster-grid .slot-empty-cell {
-    height: var(--roster-row-height);
-    min-height: var(--roster-row-height);
+    height: calc(var(--roster-row-height) + 0.65rem);
+    min-height: calc(var(--roster-row-height) + 0.65rem);
 }
 
 @media print {
