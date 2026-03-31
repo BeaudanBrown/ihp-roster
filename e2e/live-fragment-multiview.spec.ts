@@ -43,6 +43,17 @@ async function isoToday(page: Page) {
     });
 }
 
+async function isoCurrentWeekStart(page: Page) {
+    return page.evaluate(() => {
+        const now = new Date();
+        const current = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+        const day = current.getUTCDay();
+        const mondayOffset = day === 0 ? 6 : day - 1;
+        current.setUTCDate(current.getUTCDate() - mondayOffset);
+        return current.toISOString().slice(0, 10);
+    });
+}
+
 async function createLeaveRequest(page: Page, note: string, startDate: string, endDate: string) {
     await page.getByRole('link', { name: 'New Request' }).click();
     await expect(page.locator('#leave-request-form')).toBeVisible();
@@ -82,12 +93,14 @@ async function createTimesheet(page: Page, startTime: string, endTime: string) {
 }
 
 test.describe('Live fragment multi-view coverage', () => {
+    test.setTimeout(120000);
+
     test('manager approval updates the worker leave page live', async ({ browser }) => {
         const managerContext = await browser.newContext();
         const workerContext = await browser.newContext();
         const managerPage = await managerContext.newPage();
         const workerPage = await workerContext.newPage();
-        const note = 'worker-live-leave';
+        const note = `worker-live-leave-${Date.now()}`;
 
         await loginManager(managerPage);
         await loginWorker(workerPage);
@@ -95,7 +108,7 @@ test.describe('Live fragment multi-view coverage', () => {
         await gotoWhenReady(managerPage, '/LeaveRequests', '#leave-requests-content');
         await gotoWhenReady(workerPage, '/LeaveRequests', '#leave-requests-content');
 
-        const startDate = await isoToday(workerPage);
+        const startDate = await isoCurrentWeekStart(workerPage);
         const endDate = await workerPage.evaluate((start) => {
             const next = new Date(`${start}T00:00:00Z`);
             next.setUTCDate(next.getUTCDate() + 1);
@@ -130,7 +143,7 @@ test.describe('Live fragment multi-view coverage', () => {
         const actorPage = await actorContext.newPage();
         const workerPage = await workerContext.newPage();
         const viewerPage = await viewerContext.newPage();
-        const note = 'roster-live-leave';
+        const note = `roster-live-leave-${Date.now()}`;
 
         await loginManager(actorPage);
         await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
@@ -138,7 +151,7 @@ test.describe('Live fragment multi-view coverage', () => {
 
         await loginWorker(workerPage);
         await gotoWhenReady(workerPage, '/LeaveRequests', '#leave-requests-content');
-        const startDate = await isoToday(workerPage);
+        const startDate = await isoCurrentWeekStart(workerPage);
         const endDate = await workerPage.evaluate((start) => {
             const next = new Date(`${start}T00:00:00Z`);
             next.setUTCDate(next.getUTCDate() + 1);
@@ -159,7 +172,9 @@ test.describe('Live fragment multi-view coverage', () => {
 
         await expect(leaveRow).toContainText('Approved');
         const viewerConflictCell = viewerPage.locator('.slot-staff-cell.conflict-critical').first();
-        await expect(viewerPage.locator('.slot-staff-cell.conflict-critical')).toHaveCount(1);
+        await expect
+            .poll(async () => viewerPage.locator('.slot-staff-cell.conflict-critical').count(), { timeout: 15000 })
+            .toBe(1);
         await expect(viewerConflictCell.locator('.badge')).toHaveAttribute('title', /leave/i);
 
         await actorContext.close();

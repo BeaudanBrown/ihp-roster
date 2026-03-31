@@ -25,7 +25,12 @@ export async function gotoWhenReady(page: Page, path: string, readySelector: str
         } catch {
             lastBodyText = (await page.locator('body').textContent().catch(() => '')) ?? '';
 
-            if (!lastBodyText.includes('Is compiling')) {
+            const isTransientStartupPage =
+                lastBodyText.includes('Is compiling')
+                || lastBodyText.includes('ERR_CONNECTION_REFUSED')
+                || lastBodyText.includes('refused to connect');
+
+            if (!isTransientStartupPage) {
                 break;
             }
         }

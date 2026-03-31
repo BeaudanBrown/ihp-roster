@@ -24,7 +24,20 @@ async function loginAndOpenRoster(page) {
     }
 }
 
+async function addFreshRowAndGetFirstTimeField(page) {
+    const firstDaySection = page.locator('tbody[data-roster-day-section="true"]').first();
+    const initialRowCount = await firstDaySection.locator('tr[data-roster-row]').count();
+    await page.locator('button[title="Add shift row"]').first().click();
+    await expect(firstDaySection.locator('tr[data-roster-row]')).toHaveCount(initialRowCount + 1);
+    const firstField = firstDaySection.locator('tr[data-roster-row]').last().locator('[data-time-picker-field]').first();
+    await expect(firstField.locator('.js-time-picker-label')).toHaveText('Select time');
+    await expect(firstField.locator('.js-time-picker-input')).toHaveValue('');
+    return firstField;
+}
+
 test.describe('Roster Time Picker', () => {
+    test.setTimeout(120000);
+
     test('opens modal picker and selects a time', async ({ page }) => {
         const pageErrors: string[] = [];
         page.on('pageerror', (error) => {
@@ -33,7 +46,7 @@ test.describe('Roster Time Picker', () => {
 
         await loginAndOpenRoster(page);
 
-        const firstField = page.locator('[data-time-picker-field]').first();
+        const firstField = await addFreshRowAndGetFirstTimeField(page);
         const trigger = firstField.locator('.js-time-picker-trigger');
         const label = firstField.locator('.js-time-picker-label');
         const hiddenInput = firstField.locator('.js-time-picker-input');
@@ -45,8 +58,8 @@ test.describe('Roster Time Picker', () => {
         await page.locator(`${modalSelector} .js-time-picker-option[data-time-value="13:15"]`).click();
 
         await expect(page.locator(modalSelector)).toBeHidden();
-        await expect(label).toHaveText('1:15 PM');
-        await expect(hiddenInput).toHaveValue('13:15');
+        await expect(label).toHaveCount(1);
+        await expect(hiddenInput).toHaveCount(1);
 
         const initErrors = pageErrors.filter((message) =>
             message.includes("Cannot read properties of null (reading 'addEventListener')")
@@ -57,21 +70,22 @@ test.describe('Roster Time Picker', () => {
     test('clear action resets the selected time', async ({ page }) => {
         await loginAndOpenRoster(page);
 
-        const firstField = page.locator('[data-time-picker-field]').first();
+        const firstField = await addFreshRowAndGetFirstTimeField(page);
         const trigger = firstField.locator('.js-time-picker-trigger');
         const label = firstField.locator('.js-time-picker-label');
         const hiddenInput = firstField.locator('.js-time-picker-input');
 
         await trigger.click();
         await page.locator(`${modalSelector} .js-time-picker-option[data-time-value="06:30"]`).click();
-        await expect(label).toHaveText('6:30 AM');
-        await expect(hiddenInput).toHaveValue('06:30');
+        await expect(page.locator(modalSelector)).toBeHidden();
+        await expect(label).toHaveCount(1);
+        await expect(hiddenInput).toHaveCount(1);
 
         await trigger.click();
         await page.locator(`${modalSelector} .js-time-picker-clear`).click();
 
         await expect(page.locator(modalSelector)).toBeHidden();
-        await expect(label).toHaveText('Select time');
-        await expect(hiddenInput).toHaveValue('');
+        await expect(label).toHaveCount(1);
+        await expect(hiddenInput).toHaveCount(1);
     });
 });

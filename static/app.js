@@ -359,7 +359,7 @@
         return Boolean(rowEl.querySelector('.slot-cell-input:focus'));
     }
 
-    function applyPendingRow(rowId) {
+    function applyPendingRow(rowId, preserveField) {
         const pendingMarkup = pendingRows.get(rowId);
         if (!pendingMarkup) return;
 
@@ -379,6 +379,16 @@
 
         pendingRows.delete(rowId);
         baseMorphdom(currentRow, nextRow);
+
+        if (preserveField && preserveField.name) {
+            const escapedName = window.CSS && typeof window.CSS.escape === 'function'
+                ? window.CSS.escape(preserveField.name)
+                : preserveField.name;
+            const field = currentRow.querySelector(`[name="${escapedName}"]`);
+            if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement) {
+                field.value = preserveField.value;
+            }
+        }
     }
 
     window.morphdom = function (fromNode, toNode, options) {
@@ -446,11 +456,15 @@
 
         const rowEl = target.closest('tr[data-roster-row]');
         if (!rowEl || !rowEl.id) return;
+        const preserveField = {
+            name: target.getAttribute('name'),
+            value: target.value,
+        };
 
         // Wait until focus has potentially moved to another input in the same row.
         window.setTimeout(function () {
             if (!hasActiveRosterInput(rowEl)) {
-                applyPendingRow(rowEl.id);
+                applyPendingRow(rowEl.id, preserveField);
             }
         }, 0);
     });
@@ -1207,11 +1221,8 @@
         if (previousValue === nextValue) return;
 
         inputEl.value = nextValue;
-        if (window.htmx && typeof window.htmx.trigger === 'function') {
-            window.htmx.trigger(inputEl, 'change');
-        } else {
-            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
-        }
+        inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
     document.addEventListener('click', function (event) {

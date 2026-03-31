@@ -93,7 +93,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venueA manager "manager"
                 foreignWeek <- createRosterWeekRecord venueB 0 False
                 foreignDay <- createRosterDayRecord foreignWeek 0
-                foreignSlotName <- createSlotNameRecord venueB "Late"
+                foreignSlotName <- fetchSlotNameRecord venueB "Late"
                 foreignSlot <- createRosterSlotRecord foreignDay foreignSlotName Nothing 0
 
                 response <- withUser manager do
@@ -345,8 +345,8 @@ tests = beforeAll testContext do
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-slot-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venueA manager "manager"
-                slotNameA <- createSlotNameRecord venueA "Early"
-                slotNameB <- createSlotNameRecord venueB "Late"
+                slotNamesA <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueA)
+                slotNamesB <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueB)
 
                 response <- withUser manager do
                     callAction CreateRosterWeekAction { weekOffset = 0 }
@@ -364,6 +364,9 @@ tests = beforeAll testContext do
                     |> filterWhereIn (#rosterDayId, map (unpackId . get #id) rosterDays)
                     |> fetch
 
-                length slots `shouldBe` 28
-                map (.slotNameId) slots `shouldSatisfy` all (== unpackId slotNameA.id)
-                map (.slotNameId) slots `shouldNotContain` [unpackId slotNameB.id]
+                let venueASlotIds = map (unpackId . get #id) slotNamesA
+                let venueBSlotIds = map (unpackId . get #id) slotNamesB
+
+                length slots `shouldBe` 84
+                map (.slotNameId) slots `shouldSatisfy` all (`elem` venueASlotIds)
+                map (.slotNameId) slots `shouldSatisfy` all (`notElem` venueBSlotIds)
