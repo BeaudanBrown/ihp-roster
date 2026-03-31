@@ -233,6 +233,12 @@ Playwright-based end-to-end tests live in `e2e/` and run against an isolated tem
   - do not reintroduce a TurboLinks-style body-transition bridge; ordinary full-page navigation should rely on the browser and partial updates should stay on HTMX
   - keep tracked timer cleanup (`clearAllIntervals` / `clearAllTimeouts`) app-local because dev live reload still depends on it even after TurboLinks is gone
 
+## Venue Bootstrap And Roster Defaults
+- Current roster creation depends on active `slot_names`. If a venue has none, `createEmptyRosterWeek` and `AddRosterRowAction` can leave the roster effectively unusable.
+- Treat that as a bootstrap invariant problem, not as an invitation to keep venue creation ad hoc. Venue creation, fixture seeding, and repair scripts should converge on one idempotent minimum-setup function.
+- Future roster architecture should move toward roster groups as the scheduling boundary inside a venue. The long-term invariant is: every active venue has at least one active roster group, and every active roster group has at least one active slot definition.
+- Staff applicability to roster groups should stay separate from venue membership/auth authority. Some staff may be eligible for one group, several groups, or all groups.
+
 ## Auth Model Notes
 - Current business authority is venue-scoped. `venue_memberships.venue_role` is what grants manager/admin access; `users.user_role = 'admin'` is not a cross-venue superuser.
 - Founder/sysadmin support access is now modelled separately on `users.platform_role = 'super_admin'`. Do not overload venue roles or create synthetic `venue_memberships` for cross-venue support access.

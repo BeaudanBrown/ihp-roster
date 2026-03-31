@@ -22,6 +22,7 @@ Business requirements remain canonical in `specs/`.
   - `plans/40-pay-config-and-admin.md`
   - `plans/45-payroll-report-exports.md`
   - `plans/48-super-admin-support-access.md`
+  - `plans/49-roster-groups-and-venue-bootstrap.md`
   - `plans/50-release-readiness.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
@@ -44,6 +45,9 @@ The current high-priority business-logic decisions are:
 - pay/config history uses immutable snapshot versions created by venue admin bulk-save actions
 - a future founder-only cross-venue `super_admin` / `platform_admin` capability should be modelled separately from venue roles, not by stretching `users.user_role` or `venue_memberships.venue_role`
 - the active founder support-access lane should reuse the existing `currentVenueId` session slot through a dedicated support surface rather than inventing synthetic venue memberships
+- roster scheduling should move from one venue-global roster surface toward explicit roster groups so a venue can eventually support multiple rosters such as front of house and back of house
+- venue creation and fixture seeding should converge on one idempotent roster bootstrap path that guarantees sane minimum roster defaults instead of relying on ad hoc slot-name creation
+- future roster-group staffing should allow venue staff to be applicable to one roster group, multiple roster groups, or all groups without conflating that with venue membership or ordinary multi-venue switching
 
 ## Status Legend
 
@@ -74,7 +78,10 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 6. Payroll report export parity
    - Plan: `plans/45-payroll-report-exports.md`
    - Depends on pay/config snapshot foundations and should reuse export job primitives instead of ad hoc report endpoints.
-7. Release readiness, hardening, and acceptance sweep
+7. Roster groups and venue bootstrap defaults
+   - Plan: `plans/49-roster-groups-and-venue-bootstrap.md`
+   - Depends on the venue/auth foundations and should land before release-readiness polish so new venues and richer roster shapes stop depending on ad hoc slot setup.
+8. Release readiness, hardening, and acceptance sweep
    - Plan: `plans/50-release-readiness.md`
    - Depends on the foundations above.
 
@@ -116,6 +123,12 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **Focus:** legacy Go payroll report parity on top of `export_jobs`, snapshot-pinned pay output, and a venue-scoped report-definition model.
 - **Progress:** parity inventory and SQL-fit assessment are now captured; implementation still needs the report-definition model, pay-engine fixes for actual shift-type/pay-level resolution, the first staff-pay CSV, the hourly ZIP, and admin/report configuration UI.
 
+### Pipeline 49 — Roster Groups and Venue Bootstrap Defaults
+- **Status:** [ ]
+- **File:** `plans/49-roster-groups-and-venue-bootstrap.md`
+- **Focus:** move the roster domain toward group-scoped scheduling, centralize minimum roster bootstrap defaults, and add staff-to-roster-group applicability.
+- **Progress:** planning direction settled on `2026-03-31`. The target shape is: one venue can own multiple roster groups, slot definitions and roster weeks become group-scoped, a shared bootstrap path guarantees a default roster group plus default active slots, and staff eligibility can be configured per roster group.
+
 ### Pipeline 50 — Release Readiness
 - **Status:** [ ]
 - **File:** `plans/50-release-readiness.md`
@@ -128,6 +141,7 @@ These pipelines can overlap when they respect the dependency constraints above:
 - `plans/20-roster-and-conflicts.md` can progress in parallel with auth/scoping work if it does not reintroduce global-role or cross-venue assumptions.
 - `plans/30-timesheets-and-leave.md` can progress alongside `plans/40-pay-config-and-admin.md` once the snapshot/version contract is fixed.
 - `plans/45-payroll-report-exports.md` can progress once the pay snapshot contract is fixed, but it should not hardcode legacy report variants into controller actions; keep the report-definition model in step with the export engine work.
+- `plans/49-roster-groups-and-venue-bootstrap.md` should lead any future roster UX expansion that assumes more than one roster per venue or that needs guaranteed minimum slot defaults; do not build those assumptions directly into venue-global roster code first.
 - `plans/50-release-readiness.md` should mostly trail the others, but test additions can happen incrementally.
 
 ## Read Order For Agents
