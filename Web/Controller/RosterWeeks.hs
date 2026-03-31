@@ -205,7 +205,7 @@ instance Controller RosterWeeksController where
 
         if null orderedSlotNames
             then do
-                let errorMessage = "Add at least one active slot to the default roster group before adding roster rows."
+                let errorMessage = "Add at least one active slot to the selected roster group before adding roster rows."
                 if isHtmxRequest
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
