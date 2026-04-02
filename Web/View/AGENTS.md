@@ -102,6 +102,21 @@ renderForm post = formFor post [hsx|
 - Logout and other destructive actions should be explicit forms, not `.js-delete` links. Prefer `method="POST"` plus hidden `_method="DELETE"` so the control works without `helpers.js`; add HTMX attributes only when the surrounding page already needs an in-place update.
 - For low-frequency full-page forms, prefer plain native browser submission. If a form is only serving as a full-page workflow, do not turn it into HTMX or a custom AJAX path by default.
 
+## Responsive Design Contract
+- Treat responsiveness as product-specific, not one-size-fits-all:
+  - roster creation must remain usable on phone
+  - live roster viewing is critical on both phone and desktop
+  - leave should move toward mobile-first
+  - admin can remain desktop-primary
+- Keep page-level horizontal overflow off the viewport. If a surface needs extra width, a local wrapper such as `.table-responsive` must own that overflow instead of letting `body` scroll sideways.
+- Prefer one-column stacking on smaller screens over squeezed side-by-side controls.
+- When a desktop table becomes too dense for phones, choose deliberately between:
+  - contained horizontal scroll
+  - a card/list rendering
+  - a separate mobile-specific presentation
+- Dialogs and overlays must fit within phone-sized viewports without clipped primary actions.
+- Do not rely on hover-only affordances for important actions; touch remains a first-class input mode.
+
 ## Roster Week Controls
 - Keep week browsing URL-driven via `weekOffset` action params.
 - Use compact controls in the roster page header: `<`, `this week`, `>`.

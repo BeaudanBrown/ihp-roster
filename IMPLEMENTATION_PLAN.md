@@ -24,6 +24,8 @@ Business requirements remain canonical in `specs/`.
   - `plans/48-super-admin-support-access.md`
   - `plans/49-roster-groups-and-venue-bootstrap.md`
   - `plans/50-release-readiness.md`
+  - `plans/51-mobile-responsive-foundations.md`
+  - `plans/52-roster-mobile-refactor.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
 
@@ -134,6 +136,16 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **File:** `plans/50-release-readiness.md`
 - **Focus:** testing coverage, UI polish, reporting, security hardening, and release acceptance.
 
+### Cross-Cutting Note — Mobile and Responsive Foundations
+- **Status:** [-]
+- **File:** `plans/51-mobile-responsive-foundations.md`
+- **Focus:** establish the shared cross-device design contract and automated Playwright coverage for mobile-critical surfaces before page-by-page polish diverges.
+
+### Pipeline 20A — Roster Mobile Refactor
+- **Status:** [-]
+- **File:** `plans/52-roster-mobile-refactor.md`
+- **Focus:** use the roster page as the first cross-device refactor surface and lock in the mobile/tablet behavior contract before visual restructuring.
+
 ## Parallelism Rules
 
 These pipelines can overlap when they respect the dependency constraints above:
@@ -143,6 +155,8 @@ These pipelines can overlap when they respect the dependency constraints above:
 - `plans/45-payroll-report-exports.md` can progress once the pay snapshot contract is fixed, but it should not hardcode legacy report variants into controller actions; keep the report-definition model in step with the export engine work.
 - `plans/49-roster-groups-and-venue-bootstrap.md` should lead any future roster UX expansion that assumes more than one roster per venue or that needs guaranteed minimum slot defaults; do not build those assumptions directly into venue-global roster code first.
 - `plans/50-release-readiness.md` should mostly trail the others, but test additions can happen incrementally.
+- `plans/51-mobile-responsive-foundations.md` should run alongside roster, leave, and timesheet UX work so responsive contracts land before too many new desktop-first assumptions accumulate.
+- `plans/52-roster-mobile-refactor.md` should lead any roster-page responsive restructuring so layout changes stay anchored to explicit mobile/tablet contracts rather than ad hoc CSS tweaks.
 
 ## Read Order For Agents
 
