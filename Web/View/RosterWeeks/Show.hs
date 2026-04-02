@@ -32,6 +32,12 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
     , userRole           :: Text
     }
 
+minimumOpenRosterRows :: Int
+minimumOpenRosterRows = 2
+
+closedRosterDayRows :: Int
+closedRosterDayRows = 3
+
 rosterWeekShellId :: Text
 rosterWeekShellId = "roster-week-shell"
 
@@ -303,11 +309,18 @@ renderRosterDaySectionFragmentWithSwap maybeSwapOob isEditable slotNames staffMe
     where
         daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) allSlots
 
-rowsForDay :: [RosterSlot] -> [(Int, [RosterSlot])]
-rowsForDay slots =
-    case slots |> map (.rowIndex) |> nub |> sort of
-        [] -> [(-1, [])]
-        indices -> map (\rowIndex -> (rowIndex, filter (\slot -> slot.rowIndex == rowIndex) slots)) indices
+rowsForDay :: RosterDay -> [RosterSlot] -> [(Int, [RosterSlot])]
+rowsForDay rosterDay slots =
+    map (\rowIndex -> (rowIndex, filter (\slot -> slot.rowIndex == rowIndex) slots)) visibleIndices
+    where
+        existingIndices = slots |> map (.rowIndex) |> nub |> sort
+        visibleIndices
+            | rosterDay.isClosed = [0 .. closedRosterDayRows - 1]
+            | otherwise =
+                let highestIndex = case existingIndices of
+                        [] -> minimumOpenRosterRows - 1
+                        _  -> max (minimumOpenRosterRows - 1) (fromMaybe (minimumOpenRosterRows - 1) (last existingIndices))
+                 in [0 .. highestIndex]
 
 lastRowIndexForRows :: [(Int, [RosterSlot])] -> Int
 lastRowIndexForRows dayRows = maybe (-1) fst (last dayRows)
@@ -317,7 +330,7 @@ renderDayRows isEditable slotNames staffMembers date rosterDay slots slotConflic
     {forEach indexedRows (renderRow isEditable slotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts)}
 |]
     where
-        dayRows = rowsForDay slots
+        dayRows = rowsForDay rosterDay slots
         rowCount = length dayRows
         lastRowIndex = lastRowIndexForRows dayRows
         indexedRows = zip [0 :: Int ..] dayRows
@@ -340,7 +353,7 @@ renderRowWithAttrs isEditable slotNames staffMembers date rosterDay rowCount las
         hx-swap-oob={maybeSwapOob}
         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rosterDay), True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
         {renderDayLabel isEditable date rosterDay rowCount rowPosition lastRowIndex}
-        {forEach (zip [0 :: Int ..] slotNames) (renderBlockCells isEditable staffMembers rosterDay.id rowIndex rowSlots slotConflicts)}
+        {forEach (zip [0 :: Int ..] slotNames) (renderBlockCells isEditable staffMembers rosterDay rowIndex rowSlots slotConflicts)}
     </tr>
 |]
 
@@ -358,34 +371,66 @@ renderDayLabel isEditable date rosterDay rowCount rowPosition lastRowIndex
                         {renderDayRowControls isEditable rosterDay lastRowIndex}
                     </div>
                 </div>
-                {renderSecondaryDayLabel rowCount date}
-                {renderEmptyDayLabelRows rowCount}
+                {renderSecondaryDayLabel date}
+                {renderClosedDayLabel rosterDay}
+                {renderEmptyDayLabelRows rowCount (if rosterDay.isClosed then 3 else 2)}
             </div>
         </td>
     |]
     | otherwise = mempty
 
-renderSecondaryDayLabel :: Int -> Day -> Html
-renderSecondaryDayLabel rowCount date
-    | rowCount > 1 = [hsx|
-        <div class="roster-day-label-row roster-day-label-row-secondary">
-            <div class="roster-day-date">{formatDateDisplay date}</div>
+renderSecondaryDayLabel :: Day -> Html
+renderSecondaryDayLabel date = [hsx|
+    <div class="roster-day-label-row roster-day-label-row-secondary">
+        <div class="roster-day-date">{formatDateDisplay date}</div>
+    </div>
+|]
+
+renderClosedDayLabel :: RosterDay -> Html
+renderClosedDayLabel rosterDay
+    | rosterDay.isClosed = [hsx|
+        <div class="roster-day-label-row roster-day-label-row-closed">
+            <div class="roster-day-closed-label">CLOSED</div>
         </div>
     |]
     | otherwise = mempty
 
-renderEmptyDayLabelRows :: Int -> Html
-renderEmptyDayLabelRows rowCount =
-    mconcat (map (\_ -> [hsx|<div class="roster-day-label-row roster-day-label-row-empty" aria-hidden="true"></div>|]) [3 .. rowCount])
+renderEmptyDayLabelRows :: Int -> Int -> Html
+renderEmptyDayLabelRows rowCount consumedRows =
+    mconcat (map (\_ -> [hsx|<div class="roster-day-label-row roster-day-label-row-empty" aria-hidden="true"></div>|]) [consumedRows + 1 .. rowCount])
 
 renderDayRowControls :: (?context :: ControllerContext) => Bool -> RosterDay -> Int -> Html
 renderDayRowControls isEditable rosterDay lastRowIndex =
     if isEditable
         then [hsx|
             <span class="roster-day-actions">
-                {renderDeleteLastRowButton rosterDay lastRowIndex}
-                {renderAddRowButton rosterDay}
+                {renderToggleClosedButton rosterDay}
+                {when (not rosterDay.isClosed) (renderDeleteLastRowButton rosterDay lastRowIndex)}
+                {when (not rosterDay.isClosed) (renderAddRowButton rosterDay)}
             </span>
+        |]
+        else [hsx|<span></span>|]
+
+renderToggleClosedButton :: (?context :: ControllerContext) => RosterDay -> Html
+renderToggleClosedButton rosterDay =
+    if currentUserIsManager
+        then [hsx|
+            <form method="POST"
+                  action={ToggleRosterDayClosedAction rosterDay.id}
+                  class="d-inline"
+                  data-disable-javascript-submission="true"
+                  hx-post={ToggleRosterDayClosedAction rosterDay.id}
+                  hx-target={"#" <> rosterContentFragmentId}
+                  hx-swap="outerHTML"
+                  hx-push-url="false"
+                  hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+                <button type="submit"
+                        class={classes [("btn btn-sm roster-day-action roster-day-action-toggle", True), ("is-active", rosterDay.isClosed)]}
+                        data-roster-day-closed-toggle="true"
+                        title={if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)}>
+                    {if rosterDay.isClosed then ("open" :: Text) else ("close" :: Text)}
+                </button>
+            </form>
         |]
         else [hsx|<span></span>|]
 
@@ -413,7 +458,7 @@ renderAddRowButton rosterDay =
         else [hsx|<span></span>|]
 
 renderDeleteLastRowButton :: (?context :: ControllerContext) => RosterDay -> Int -> Html
-renderDeleteLastRowButton _ rowIndex | rowIndex < 0 = [hsx|<span></span>|]
+renderDeleteLastRowButton _ rowIndex | rowIndex < minimumOpenRosterRows = [hsx|<span></span>|]
 renderDeleteLastRowButton rosterDay _ =
     if currentUserIsManager
         then [hsx|
@@ -436,8 +481,10 @@ renderDeleteLastRowButton rosterDay _ =
         |]
         else [hsx|<span></span>|]
 
-renderBlockCells :: (?context :: ControllerContext) => Bool -> [Staff] -> Id RosterDay -> Int -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> (Int, SlotName) -> Html
-renderBlockCells isEditable staffMembers rosterDayId rowIndex rowSlots slotConflicts (blockIndex, slotName) =
+renderBlockCells :: (?context :: ControllerContext) => Bool -> [Staff] -> RosterDay -> Int -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> (Int, SlotName) -> Html
+renderBlockCells isEditable staffMembers rosterDay rowIndex rowSlots slotConflicts (blockIndex, slotName)
+    | rosterDay.isClosed = renderClosedBlockCells blockIndex
+    | otherwise =
     case find (\slot -> slot.slotNameId == coerce (get #id slotName)) rowSlots of
         Just slot ->
             let currentStartTime = optionalTimeOfDayToStorageValue slot.startTime
@@ -466,6 +513,14 @@ renderBlockCells isEditable staffMembers rosterDayId rowIndex rowSlots slotConfl
                 , [hsx|<td class="slot-empty-cell"></td>|]
                 , [hsx|<td class="slot-empty-cell roster-block-end"></td>|]
                 ]
+
+renderClosedBlockCells :: Int -> Html
+renderClosedBlockCells blockIndex =
+    mconcat
+        [ [hsx|<td class={classes [("slot-closed-cell", True), ("roster-block-start", blockIndex > 0)]}></td>|]
+        , [hsx|<td class="slot-closed-cell"></td>|]
+        , [hsx|<td class="slot-closed-cell roster-block-end"></td>|]
+        ]
 
 renderStaffOption :: Maybe UUID -> Staff -> Html
 renderStaffOption selectedStaffId staff = [hsx|

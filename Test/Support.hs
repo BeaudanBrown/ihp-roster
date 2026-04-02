@@ -169,6 +169,7 @@ createRosterDayRecord rosterWeek dayOffset =
     newRecord @RosterDay
         |> set #rosterWeekId (unpackId (get #id rosterWeek))
         |> set #dayOffset dayOffset
+        |> set #isClosed False
         |> createRecord
 
 createRosterSlotRecord :: (?modelContext :: ModelContext) => RosterDay -> SlotName -> Maybe Staff -> Int -> IO RosterSlot

@@ -101,6 +101,7 @@ data RosterWeeksController
     | CreateRosterWeekAction { weekOffset :: !Int }
     | CopyRosterWeekAction { sourceWeekOffset :: !Int, targetWeekOffset :: !Int }
     | ToggleRosterWeekLiveStatusAction { rosterWeekId :: !(Id RosterWeek) }
+    | ToggleRosterDayClosedAction { rosterDayId :: !(Id RosterDay) }
     | AddRosterRowAction { rosterDayId :: !(Id RosterDay) }
     | RemoveRosterRowAction { rosterDayId :: !(Id RosterDay) }
     | UpdateRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }

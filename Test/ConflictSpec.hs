@@ -17,6 +17,7 @@ tests = describe "Conflict Engine" do
             { id = def
             , rosterWeekId = def
             , dayOffset = 0
+            , isClosed = False
             , createdAt = def
             , updatedAt = def
             , meta = def

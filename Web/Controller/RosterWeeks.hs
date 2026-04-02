@@ -186,6 +186,43 @@ instance Controller RosterWeeksController where
                 setSuccessMessage successMessage
                 redirectToPath targetPath
 
+    action ToggleRosterDayClosedAction { rosterDayId } = do
+        ensureManagerRole
+
+        rosterDay <- fetch rosterDayId
+        let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
+        rosterWeek <- fetch rosterWeekId
+        ensureRecordInCurrentVenue rosterWeek.venueId
+        ensureRosterWeekIsDraftForEdit rosterWeek
+
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        let nextClosedState = not rosterDay.isClosed
+
+        when nextClosedState do
+            ensureRosterDayHasMinimumRows rosterDay rosterGroupId closedRosterDayRows
+
+        _ <- rosterDay |> set #isClosed nextClosedState |> updateRecord
+
+        broadcastRosterWeekInvalidation
+            rosterGroupId
+            rosterWeek.weekOffset
+            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+            ]
+
+        let successMessage =
+                if nextClosedState
+                    then "Roster day marked closed."
+                    else "Roster day reopened."
+        let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroupId
+        if isHtmxRequest
+            then do
+                setHtmxPushUrl targetPath
+                respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset successMessage
+            else do
+                setSuccessMessage successMessage
+                redirectToPath targetPath
+
     action AddRosterRowAction { rosterDayId } = do
         ensureManagerRole
 
@@ -194,6 +231,15 @@ instance Controller RosterWeeksController where
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
         ensureRosterWeekIsDraftForEdit rosterWeek
+
+        when rosterDay.isClosed do
+            let rosterGroupId = coerce rosterWeek.rosterGroupId
+            let errorMessage = "Closed days stay locked at three blank rows until reopened."
+            if isHtmxRequest
+                then respondWithRosterToast errorMessage "app-toast-error"
+                else do
+                    setErrorMessage errorMessage
+                    redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
 
         -- Find the current max row index for this day
         existingSlots <- query @RosterSlot |> filterWhere (#rosterDayId, coerce rosterDayId) |> fetch
@@ -236,15 +282,32 @@ instance Controller RosterWeeksController where
         ensureRecordInCurrentVenue rosterWeek.venueId
         ensureRosterWeekIsDraftForEdit rosterWeek
 
+        when rosterDay.isClosed do
+            let rosterGroupId = coerce rosterWeek.rosterGroupId
+            let errorMessage = "Closed days stay locked at three blank rows until reopened."
+            if isHtmxRequest
+                then respondWithRosterToast errorMessage "app-toast-error"
+                else do
+                    setErrorMessage errorMessage
+                    redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+
         existingSlots <- query @RosterSlot
             |> filterWhere (#rosterDayId, coerce rosterDayId)
             |> fetch
 
+        let rowIndices = existingSlots |> map (.rowIndex) |> nub |> sort
+        let rowCount = length rowIndices
         let maybeLastRowIndex =
-                existingSlots
-                    |> map (.rowIndex)
-                    |> sort
-                    |> last
+                rowIndices |> last
+
+        when (rowCount <= minimumOpenRosterRows) do
+            let rosterGroupId = coerce rosterWeek.rosterGroupId
+            let errorMessage = "Roster days must keep at least two rows."
+            if isHtmxRequest
+                then respondWithRosterToast errorMessage "app-toast-error"
+                else do
+                    setErrorMessage errorMessage
+                    redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
 
         slotsToDelete <-
             case maybeLastRowIndex of
@@ -324,6 +387,12 @@ slotNameOrder slotName =
         "mid"   -> 1
         "late"  -> 2
         _       -> 3
+
+minimumOpenRosterRows :: Int
+minimumOpenRosterRows = 2
+
+closedRosterDayRows :: Int
+closedRosterDayRows = 3
 
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO RosterGroup
 resolveRequestedRosterGroup =
@@ -610,15 +679,16 @@ fetchRosterRenderData rosterGroupId weekOffset = do
                 |> filterWhereIn (#rosterDayId, map (coerce . (.id)) rosterDays)
                 |> fetch
 
+            let visibleSlots = filterVisibleRosterSlots rosterDays allSlots
             eligibleStaffMembers <- fetchEligibleRosterGroupStaff rosterGroupId
-            assignedStaffMembers <- fetchAssignedRosterWeekStaff allSlots
+            assignedStaffMembers <- fetchAssignedRosterWeekStaff visibleSlots
             let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
-            panelStaff <- fetchRosterStaffPanelEntries eligibleStaffMembers allSlots
+            panelStaff <- fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots
 
             slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
 
             let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
-            slotConflicts <- buildSlotConflicts venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlots staffMembers
+            slotConflicts <- buildSlotConflicts venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays visibleSlots staffMembers
             pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts })
 
 fetchVisibleRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
@@ -801,6 +871,7 @@ createEmptyRosterWeek rosterGroupId weekOffset = do
         rosterDay <- newRecord @RosterDay
             |> set #rosterWeekId (coerce (get #id rosterWeek))
             |> set #dayOffset dayOffset
+            |> set #isClosed False
             |> createRecord
 
         forM_ [0 .. 3] \rowIndex ->
@@ -827,12 +898,13 @@ copyRosterWeek sourceWeek targetWeekOffset = do
         |> fetch
 
     forM_ [0 .. 6] \dayOffset -> do
+        let maybeSourceDay = find (\day -> get #dayOffset day == dayOffset) sourceDays
         targetDay <- newRecord @RosterDay
             |> set #rosterWeekId (coerce (get #id targetWeek))
             |> set #dayOffset dayOffset
+            |> set #isClosed (maybe False (.isClosed) maybeSourceDay)
             |> createRecord
 
-        let maybeSourceDay = find (\day -> get #dayOffset day == dayOffset) sourceDays
         case maybeSourceDay of
             Just sourceDay -> do
                 sourceSlots <- query @RosterSlot
@@ -883,7 +955,7 @@ maskRosterSlots rosterWeek slots =
 renderRequestedRow rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (rosterDayUuid, targetRowIndex) = do
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
     let daySlots = filter (\slot -> slot.rosterDayId == rosterDayUuid) allSlots
-    let dayRows = rowsForDay daySlots
+    let dayRows = rowsForDay rosterDay daySlots
     let rowCount = length dayRows
     let lastRowIndex = lastRowIndexForRows dayRows
     let indexedRows = zip [0 :: Int ..] dayRows
@@ -894,7 +966,7 @@ renderRequestedRow rosterDays weekStartDate orderedSlotNames staffMembers allSlo
 renderRequestedRowFragment isEditable rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (rosterDayUuid, targetRowIndex) = do
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
     let daySlots = filter (\slot -> slot.rosterDayId == rosterDayUuid) allSlots
-    let dayRows = rowsForDay daySlots
+    let dayRows = rowsForDay rosterDay daySlots
     let rowCount = length dayRows
     let lastRowIndex = lastRowIndexForRows dayRows
     let indexedRows = zip [0 :: Int ..] dayRows
@@ -930,6 +1002,30 @@ impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots =
     where
         impactedStaffIds = catMaybes [previousStaffId, updatedSlot.staffId]
         affectedSlots = filter (\slot -> slot.staffId `elem` map Just impactedStaffIds) relatedSlots
+
+filterVisibleRosterSlots :: [RosterDay] -> [RosterSlot] -> [RosterSlot]
+filterVisibleRosterSlots rosterDays allSlots =
+    let openRosterDayIds = map (coerce . (.id)) (filter (not . (.isClosed)) rosterDays)
+     in filter (\slot -> slot.rosterDayId `elem` openRosterDayIds) allSlots
+
+ensureRosterDayHasMinimumRows :: (?modelContext :: ModelContext) => RosterDay -> Id RosterGroup -> Int -> IO ()
+ensureRosterDayHasMinimumRows rosterDay rosterGroupId minimumRowCount = do
+    existingSlots <- query @RosterSlot
+        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+        |> fetch
+
+    slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
+    let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
+
+    forM_ [0 .. minimumRowCount - 1] \rowIndex ->
+        forM_ orderedSlotNames \slotName ->
+            when (isNothing (find (\slot -> slot.rowIndex == rowIndex && slot.slotNameId == unpackId slotName.id) existingSlots)) do
+                _ <- newRecord @RosterSlot
+                    |> set #rosterDayId (unpackId rosterDay.id)
+                    |> set #slotNameId (unpackId slotName.id)
+                    |> set #rowIndex rowIndex
+                    |> createRecord
+                pure ()
 
 applyOptionalField :: forall field model value. (SetField field model value) => Proxy field -> value -> Maybe Text -> model -> model
 applyOptionalField _ parsedValue rawParam model =

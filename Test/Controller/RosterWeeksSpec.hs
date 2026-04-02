@@ -53,6 +53,10 @@ tests = beforeAll testContext do
             response <- callAction (CopyRosterWeekAction 0 1)
             response `responseStatusShouldBe` status302
 
+        it "redirects unauthenticated users from ToggleRosterDayClosedAction" $ withContext do
+            response <- callAction (ToggleRosterDayClosedAction "11111111-1111-1111-1111-111111111111")
+            response `responseStatusShouldBe` status302
+
         it "redirects unauthenticated users from AddRosterRowAction" $ withContext do
             response <- callAction (AddRosterRowAction "11111111-1111-1111-1111-111111111111")
             response `responseStatusShouldBe` status302
@@ -193,7 +197,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "type=\"hidden\" name=\"weekOffset\" value=\"3\""
                 response `responseBodyShouldContain` "name=\"rosterGroupId\""
 
-        it "splits the day label into separate day-name and date cells across the first two rows" $ withContext do
+        it "always renders separate day-name and date rows even when a day only has one roster row" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-day-labels@example.com" "staff" True
@@ -202,14 +206,65 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 _ <- createRosterSlotRecord rosterDay slotName Nothing 0
-                _ <- createRosterSlotRecord rosterDay slotName Nothing 1
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "day-label day-label-primary"
-                response `responseBodyShouldContain` "day-label day-label-secondary"
+                response `responseBodyShouldContain` "roster-day-label-row-primary"
+                response `responseBodyShouldContain` "roster-day-label-row-secondary"
+                response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 1)
+
+        it "manager can mark a draft roster day closed via HTMX without deleting existing slot content" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-close-day@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)) |> set #note (Just "Open"))
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ToggleRosterDayClosedAction rosterDay.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` cs rosterContentFragmentId
+                response `responseBodyShouldContain` "Roster day marked closed."
+                response `responseBodyShouldContain` "CLOSED"
+                response `responseBodyShouldNotContain` "Crew, Alpha"
+                response `responseBodyShouldNotContain` "9:00 AM"
+                response `responseBodyShouldNotContain` "Open"
+                response `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
+                response `responseBodyShouldNotContain` "data-roster-day-remove=\"true\""
+
+                updatedDay <- fetch rosterDay.id
+                updatedDay.isClosed `shouldBe` True
+                unchangedSlot <- fetch slot.id
+                unchangedSlot.staffId `shouldBe` Just (unpackId staffMember.id)
+                unchangedSlot.startTime `shouldBe` Just (timeOfDay 9 0)
+                unchangedSlot.note `shouldBe` Just "Open"
+
+        it "closed roster days stay locked at three rows and reject row additions" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-closed-day-add@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- updateRecord (rosterDay |> set #isClosed True)
+                _ <- createRosterSlotRecord rosterDay slotName Nothing 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (AddRosterRowAction rosterDay.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Closed days stay locked at three blank rows until reopened."
 
         it "manager can create a draft week via HTMX without redirecting" $ withContext do
             withCleanDb do
@@ -583,9 +638,9 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` contentId
                 bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
                 bodyText `shouldContain` "Alpha Crew"
-                bodyText `shouldContain` "0 (5)"
+                bodyText `shouldContain` "roster-shift-summary-primary\">0</span><span class=\"roster-shift-summary-divider\">/</span><span class=\"roster-shift-summary-secondary\">5"
                 bodyText `shouldContain` "Bravo Crew"
-                bodyText `shouldContain` "1 (7)"
+                bodyText `shouldContain` "roster-shift-summary-primary\">1</span><span class=\"roster-shift-summary-divider\">/</span><span class=\"roster-shift-summary-secondary\">7"
 
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do

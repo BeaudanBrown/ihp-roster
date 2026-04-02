@@ -219,6 +219,7 @@ CREATE TABLE roster_days (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     roster_week_id UUID NOT NULL,
     day_offset INT NOT NULL,
+    is_closed BOOLEAN DEFAULT FALSE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(roster_week_id, day_offset),
