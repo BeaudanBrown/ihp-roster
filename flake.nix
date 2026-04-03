@@ -262,25 +262,34 @@ EOF
                         # Usage: e2e [playwright-args...]
                         e2e.exec = ''
                             set -euo pipefail
-                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_e2e}"
                             export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            export E2E_RUN_ID="''${E2E_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_e2e_$E2E_RUN_ID}"
 
-                            test-db-reset
-
-                            STATE_DIR="$PWD/.devenv/e2e"
+                            STATE_ROOT="$PWD/.devenv/e2e"
+                            STATE_DIR="$STATE_ROOT/$E2E_RUN_ID"
                             PID_FILE="$STATE_DIR/server.pid"
                             LOG_FILE="$STATE_DIR/server.log"
-                            mkdir -p "$STATE_DIR"
-                            : > "$LOG_FILE"
+                            export PLAYWRIGHT_OUTPUT_DIR="$STATE_DIR/test-results"
+                            export PLAYWRIGHT_HTML_REPORT_DIR="$STATE_DIR/playwright-report"
 
                             cleanup() {
-                                if [ -f "$PID_FILE" ]; then
+                                if [ -n "''${PID_FILE:-}" ] && [ -f "$PID_FILE" ]; then
                                     PID=$(cat "$PID_FILE")
                                     kill -TERM -"$PID" 2>/dev/null || kill -TERM "$PID" 2>/dev/null || true
                                     rm -f "$PID_FILE"
                                 fi
+
+                                psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1 || true
+DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
+SQL
                             }
                             trap cleanup EXIT
+
+                            test-db-reset
+
+                            mkdir -p "$STATE_DIR"
+                            : > "$LOG_FILE"
 
                             process_group_pids() {
                                 local pgid="$1"
@@ -319,7 +328,11 @@ EOF
                             for _ in $(seq 1 120); do
                                 if E2E_BASE_URL=$(detect_e2e_base_url "$PID"); then
                                     export E2E_BASE_URL
+                                    ln -sfn "$PLAYWRIGHT_HTML_REPORT_DIR" "$STATE_ROOT/latest-report"
                                     echo "E2E app server ready at $E2E_BASE_URL"
+                                    echo "E2E run id: $E2E_RUN_ID"
+                                    echo "E2E database: $TEST_DATABASE_NAME"
+                                    echo "E2E artifacts: $STATE_DIR"
                                     node ./node_modules/@playwright/test/cli.js test "$@"
                                     exit $?
                                 fi
@@ -353,7 +366,8 @@ EOF
                         # Open the Playwright HTML test report.
                         # Usage: e2e-report
                         e2e-report.exec = ''
-                            exec playwright show-report
+                            REPORT_DIR="''${PLAYWRIGHT_HTML_REPORT_DIR:-$PWD/.devenv/e2e/latest-report}"
+                            exec playwright show-report "$REPORT_DIR"
                         '';
 
                         # Start devenv processes in background for automation.
