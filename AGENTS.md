@@ -180,6 +180,7 @@ Playwright-based end-to-end tests live in `e2e/` and run against an isolated tem
 - **Browsers**: Provided by Nix via `playwright-web-flake` — no manual browser install needed
 - **CLI invocation**: In automation and Loom runs, prefer `bash ./bin/in-env e2e` / `screenshot` / `e2e-report` instead of bare `npx playwright ...`; the wrapper resolves the repo-local Playwright CLI inside the dev shell so the runner matches the imported test package
 - **Authenticated/manual captures**: Prefer `bash ./bin/in-env screenshot-page ... --selector '<real-shell-selector>'` for arbitrary screenshots. On cold IHP boots, increase both `--navigation-timeout-ms` and `--selector-timeout-ms` instead of cloning the helper or writing one-off screenshot scripts.
+- **Exploratory browser work**: Use `bash ./bin/in-env pwcli ...` for ad hoc Playwright CLI sessions, targeted screenshots, and live selector discovery. For authenticated exploration, create role state explicitly with `bash ./bin/in-env pwcli-auth-save <manager|worker|admin|support>` and then open a pre-authenticated session with `bash ./bin/in-env pwcli-auth-open <role> <path>`.
 - **npm deps**: `@playwright/test` version in `package.json` must match the `playwright-web-flake` tag in `flake.nix`
 
 ## Maintaining Agent Documentation

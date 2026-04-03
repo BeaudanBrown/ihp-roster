@@ -357,6 +357,98 @@ SQL
                             exec playwright screenshot "$@"
                         '';
 
+                        # Run the Playwright CLI for exploratory browser automation.
+                        # Usage: pwcli <playwright-cli-args...>
+                        pwcli.exec = ''
+                            set -euo pipefail
+                            export PWCLI_VERSION="''${PWCLI_VERSION:-0.1.4}"
+                            STATE_DIR="$PWD/.devenv/playwright-cli"
+                            CONFIG_FILE="$STATE_DIR/cli.config.json"
+                            mkdir -p "$STATE_DIR"
+                            mkdir -p "$PWD/.playwright"
+
+                            PWCLI_BROWSER="$(
+                                find "$PLAYWRIGHT_BROWSERS_PATH" -maxdepth 3 -path '*/chrome-linux64/chrome' | head -n 1
+                            )"
+
+                            if [ -z "$PWCLI_BROWSER" ]; then
+                                echo "Could not locate Chromium inside PLAYWRIGHT_BROWSERS_PATH=$PLAYWRIGHT_BROWSERS_PATH" >&2
+                                exit 1
+                            fi
+
+                            cat >"$CONFIG_FILE" <<EOF
+{
+  "browser": {
+    "browserName": "chromium",
+    "launchOptions": {
+      "executablePath": "$PWCLI_BROWSER"
+    }
+  }
+}
+EOF
+
+                            HAS_CONFIG=false
+                            for arg in "$@"; do
+                                if [ "$arg" = "--config" ] || [ "''${arg#--config=}" != "$arg" ]; then
+                                    HAS_CONFIG=true
+                                    break
+                                fi
+                            done
+
+                            if [ "$HAS_CONFIG" = true ]; then
+                                exec npx --yes --package "@playwright/cli@$PWCLI_VERSION" playwright-cli "$@"
+                            fi
+
+                            exec npx --yes --package "@playwright/cli@$PWCLI_VERSION" playwright-cli --config "$CONFIG_FILE" "$@"
+                        '';
+
+                        # Save authenticated Playwright CLI storage state for a seeded dev role.
+                        # Usage: pwcli-auth-save <manager|worker|admin|support> [output-file]
+                        pwcli-auth-save.exec = ''
+                            exec node ./e2e/pwcli-auth-state.mjs "$@"
+                        '';
+
+                        # Open a Playwright CLI session with preloaded authenticated state.
+                        # Usage: pwcli-auth-open <manager|worker|admin|support> [path-or-url]
+                        pwcli-auth-open.exec = ''
+                            set -euo pipefail
+
+                            ROLE="''${1:-}"
+                            TARGET="''${2:-/RosterWeeks}"
+                            BASE_URL="''${PWCLI_BASE_URL:-http://127.0.0.1:8000}"
+
+                            if [ -z "$ROLE" ]; then
+                                echo "Usage: pwcli-auth-open <manager|worker|admin|support> [path-or-url]" >&2
+                                exit 1
+                            fi
+
+                            STATE_FILE="$PWD/.devenv/playwright-cli/$ROLE-state.json"
+                            SESSION_NAME="ihp-$ROLE"
+
+                            if [ ! -f "$STATE_FILE" ]; then
+                                echo "Missing auth state at $STATE_FILE" >&2
+                                echo "Run: bash ./bin/in-env pwcli-auth-save $ROLE" >&2
+                                exit 1
+                            fi
+
+                            case "$TARGET" in
+                                http://*|https://*)
+                                    TARGET_URL="$TARGET"
+                                    ;;
+                                *)
+                                    case "$TARGET" in
+                                        /*) ;;
+                                        *) TARGET="/$TARGET" ;;
+                                    esac
+                                    TARGET_URL="$BASE_URL$TARGET"
+                                    ;;
+                            esac
+
+                            pwcli -s="$SESSION_NAME" open "$BASE_URL"
+                            pwcli -s="$SESSION_NAME" state-load "$STATE_FILE"
+                            exec pwcli -s="$SESSION_NAME" goto "$TARGET_URL"
+                        '';
+
                         # Take a screenshot of an authenticated page with reusable login/navigation flow.
                         # Usage: screenshot-page <path-or-url> <output.png> [--selector <css>] [--email <email>] [--password <password>] [--no-login]
                         screenshot-page.exec = ''
