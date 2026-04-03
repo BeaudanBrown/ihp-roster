@@ -27,7 +27,14 @@ tests = beforeAll testContext do
 
         it "redirects unauthenticated users from update staff" $ withContext do
             response <- callActionWithParams (UpdateStaffAction sampleStaffId)
-                [("firstName", "Test"), ("lastName", "User"), ("weekOffset", "7")]
+                [ ("firstName", "Test")
+                , ("lastName", "User")
+                , ("phone", "0400000000")
+                , ("emergencyContactName", "Casey User")
+                , ("emergencyContactPhone", "0411111111")
+                , ("idealShiftsPerWeek", "3")
+                , ("weekOffset", "7")
+                ]
             response `responseStatusShouldBe` status302
 
         it "returns a roster content patch for HTMX roster-launched staff edits" $ withContext do
@@ -47,6 +54,9 @@ tests = beforeAll testContext do
                             (UpdateStaffAction staff.id)
                             [ ("firstName", "Updated")
                             , ("lastName", "Crew")
+                            , ("phone", "0400000000")
+                            , ("emergencyContactName", "Morgan Crew")
+                            , ("emergencyContactPhone", "0411111111")
                             , ("idealShiftsPerWeek", "4")
                             , ("isActive", "on")
                             , ("weekOffset", "0")
@@ -72,6 +82,9 @@ tests = beforeAll testContext do
                         (UpdateStaffAction staff.id)
                         [ ("firstName", "Alpha")
                         , ("lastName", "Crew")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Jordan Crew")
+                        , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "4")
                         , ("isActive", "on")
                         , ("weekOffset", "0")

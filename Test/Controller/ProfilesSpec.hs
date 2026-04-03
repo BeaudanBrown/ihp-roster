@@ -24,7 +24,14 @@ tests = beforeAll testContext do
             response `responseStatusShouldBe` status302
 
         it "redirects unauthenticated users away from update profile" $ withContext do
-            response <- callActionWithParams UpdateProfileAction [("firstName", "Taylor"), ("lastName", "Smith")]
+            response <- callActionWithParams UpdateProfileAction
+                [ ("firstName", "Taylor")
+                , ("lastName", "Smith")
+                , ("phone", "0400000000")
+                , ("emergencyContactName", "Casey Smith")
+                , ("emergencyContactPhone", "0411111111")
+                , ("idealShiftsPerWeek", "3")
+                ]
             response `responseStatusShouldBe` status302
 
         it "renders the profile form as a native submit form" $ withContext do
@@ -39,3 +46,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldContain` "name=\"preferredName\""
+                response `responseBodyShouldContain` "Emergency Contact Name"
+                response `responseBodyShouldContain` "Ideal Shifts Per Week"
+                response `responseBodyShouldContain` "Login email is read-only here for now."

@@ -157,9 +157,18 @@ leaveRequestStatusEnumToStatus enumValue =
 leaveRequestStatusToEnum :: LeaveRequestStatus -> LeaveRequestStatusEnum
 leaveRequestStatusToEnum = unsafeEnumFromText @LeaveRequestStatusEnum . leaveRequestStatusToText
 
-requiredProfileFieldsCompleted :: Text -> Text -> Bool
-requiredProfileFieldsCompleted firstName lastName =
-    not (any isEmpty [firstName, lastName])
+requiredProfileFieldsCompleted :: Staff -> Bool
+requiredProfileFieldsCompleted staff =
+    not
+        ( any
+            isEmpty
+            [ staff.firstName
+            , staff.lastName
+            , staff.phone
+            , staff.emergencyContactName
+            , staff.emergencyContactPhone
+            ]
+        )
 
 isOperationallyActive :: User -> Bool
 isOperationallyActive user = user.isProfileCompleted

@@ -1,11 +1,17 @@
 module Web.View.Staff.Edit where
 
+import Application.Helper.StaffShiftPreferences
+import Web.View.StaffProfileForm
 import Web.View.Prelude
 
 data EditView = EditView
     { staff      :: Staff
+    , maybeLinkedUserEmail :: Maybe Text
     , rosterGroups :: [RosterGroup]
     , selectedRosterGroupIds :: [Id RosterGroup]
+    , preferenceDayNames :: [DayName]
+    , preferenceSections :: [StaffPreferenceGroupSection]
+    , selectedShiftPreferenceKeys :: [Text]
     , weekOffset :: Int
     , maybeRosterGroupId :: Maybe (Id RosterGroup)
     }
@@ -15,19 +21,19 @@ instance View EditView where
         renderStaffEditPageModal
             weekOffset
             staffEditFormId
-            (renderForm PageOverlayForm staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
+            (renderForm PageOverlayForm staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
 
-renderStaffEditModalFragment :: Staff -> [RosterGroup] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffEditModalFragment staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId =
+renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [Id RosterGroup] -> [DayName] -> [StaffPreferenceGroupSection] -> [Text] -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId =
     renderStaffEditDialog
         staffEditFormId
-        (renderForm HtmxOverlayForm staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
+        (renderForm HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
 
-renderForm :: OverlayFormMode -> Staff -> [RosterGroup] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
-renderForm formMode staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId action =
+renderForm :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [Id RosterGroup] -> [DayName] -> [StaffPreferenceGroupSection] -> [Text] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
+renderForm formMode staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId action =
     case formMode of
         HtmxOverlayForm -> [hsx|
             <form id={staffEditFormId}
@@ -39,7 +45,7 @@ renderForm formMode staff rosterGroups selectedRosterGroupIds weekOffset maybeRo
                   hx-target={"#" <> dialogOverlayMountId}
                   hx-swap="innerHTML"
                   hx-push-url="false">
-                {renderFormFields staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId}
+                {renderFormFields staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId}
             </form>
         |]
         PageOverlayForm -> [hsx|
@@ -47,53 +53,15 @@ renderForm formMode staff rosterGroups selectedRosterGroupIds weekOffset maybeRo
                   method="POST"
                   action={action}
                   class="mt-3">
-                {renderFormFields staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId}
+                {renderFormFields staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId}
             </form>
         |]
 
-renderFormFields :: Staff -> [RosterGroup] -> [Id RosterGroup] -> Int -> Maybe (Id RosterGroup) -> Html
-renderFormFields staff rosterGroups selectedRosterGroupIds weekOffset maybeRosterGroupId = [hsx|
+renderFormFields :: Staff -> Maybe Text -> [RosterGroup] -> [Id RosterGroup] -> [DayName] -> [StaffPreferenceGroupSection] -> [Text] -> Int -> Maybe (Id RosterGroup) -> Html
+renderFormFields staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId = [hsx|
         <input type="hidden" name="weekOffset" value={tshow weekOffset} />
         {renderRosterGroupHiddenInput maybeRosterGroupId}
-        <div class="mb-3">
-            <label for="firstName" class="form-label">First Name</label>
-            <input
-                id="firstName"
-                name="firstName"
-                type="text"
-                class={inputClass staff "firstName"}
-                value={staff.firstName}
-                required="required"
-                autofocus="autofocus"
-            />
-            {renderStaffFieldError staff "firstName"}
-        </div>
-        <div class="mb-3">
-            <label for="lastName" class="form-label">Last Name</label>
-            <input
-                id="lastName"
-                name="lastName"
-                type="text"
-                class={inputClass staff "lastName"}
-                value={staff.lastName}
-                required="required"
-            />
-            {renderStaffFieldError staff "lastName"}
-        </div>
-        <div class="mb-3">
-            <label for="idealShiftsPerWeek" class="form-label">Ideal Shifts Per Week</label>
-            <input
-                id="idealShiftsPerWeek"
-                name="idealShiftsPerWeek"
-                type="number"
-                min="0"
-                max="14"
-                class={inputClass staff "idealShiftsPerWeek"}
-                value={maybe "" show staff.idealShiftsPerWeek}
-                placeholder="Optional"
-            />
-            {renderStaffFieldError staff "idealShiftsPerWeek"}
-        </div>
+        {renderPersonalProfileFields staff maybeLinkedUserEmail}
         <div class="mb-3">
             <label for="isActive" class="form-label">Status</label>
             <select name="isActive" id="isActive" class={selectClass staff "isActive"}>
@@ -108,25 +76,11 @@ renderFormFields staff rosterGroups selectedRosterGroupIds weekOffset maybeRoste
                 {forEach rosterGroups (renderRosterGroupCheckbox selectedRosterGroupIds)}
             </div>
         </div>
+        <div class="mb-3">
+            <label class="form-label d-block">Shift Preferences</label>
+            {renderShiftPreferenceSections preferenceDayNames preferenceSections selectedShiftPreferenceKeys}
+        </div>
 |]
-
-inputClass :: Staff -> Text -> Text
-inputClass staff fieldName =
-    classes [("form-control", True), ("is-invalid", hasStaffErrorFor staff fieldName)]
-
-selectClass :: Staff -> Text -> Text
-selectClass staff fieldName =
-    classes [("form-select", True), ("is-invalid", hasStaffErrorFor staff fieldName)]
-
-renderStaffFieldError :: Staff -> Text -> Html
-renderStaffFieldError staff fieldName =
-    case lookup fieldName staff.meta.annotations of
-        Just (TextViolation messageText) -> [hsx|<div class="invalid-feedback d-block">{messageText}</div>|]
-        Just (HtmlViolation messageHtml) -> [hsx|<div class="invalid-feedback d-block">{messageHtml}</div>|]
-        Nothing -> mempty
-
-hasStaffErrorFor :: Staff -> Text -> Bool
-hasStaffErrorFor staff fieldName = isJust (lookup fieldName staff.meta.annotations)
 
 renderRosterGroupHiddenInput :: Maybe (Id RosterGroup) -> Html
 renderRosterGroupHiddenInput maybeRosterGroupId =

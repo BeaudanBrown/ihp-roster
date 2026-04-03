@@ -62,7 +62,11 @@ CREATE TABLE staff (
     user_id UUID,
     first_name TEXT NOT NULL,
     last_name TEXT NOT NULL,
-    ideal_shifts_per_week INT DEFAULT NULL,
+    preferred_name TEXT DEFAULT NULL,
+    phone TEXT NOT NULL,
+    emergency_contact_name TEXT NOT NULL,
+    emergency_contact_phone TEXT NOT NULL,
+    ideal_shifts_per_week INT DEFAULT 0 NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
@@ -253,6 +257,21 @@ CREATE TABLE staff_availability (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE
 );
+CREATE TABLE staff_shift_preferences (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    staff_id UUID NOT NULL,
+    roster_group_id UUID NOT NULL,
+    slot_name_id UUID NOT NULL,
+    weekday_index INT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(staff_id, roster_group_id, slot_name_id, weekday_index),
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE CASCADE,
+    FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE CASCADE
+);
 CREATE TABLE leave_requests (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -387,6 +406,9 @@ CREATE INDEX idx_leave_requests_venue_staff ON leave_requests (venue_id, staff_i
 CREATE INDEX idx_leave_requests_venue_start_date ON leave_requests (venue_id, start_date);
 CREATE INDEX idx_leave_request_events_request_created_at ON leave_request_events (leave_request_id, created_at DESC);
 CREATE INDEX idx_staff_availability_venue ON staff_availability (venue_id);
+CREATE INDEX idx_staff_shift_preferences_venue_staff ON staff_shift_preferences (venue_id, staff_id);
+CREATE INDEX idx_staff_shift_preferences_staff ON staff_shift_preferences (staff_id);
+CREATE INDEX idx_staff_shift_preferences_group_day ON staff_shift_preferences (roster_group_id, weekday_index);
 CREATE INDEX idx_audit_events_venue_created_at ON audit_events (venue_id, created_at DESC);
 CREATE INDEX idx_audit_events_target ON audit_events (target_table, target_id);
 CREATE INDEX idx_export_jobs_venue_created_at ON export_jobs (venue_id, created_at DESC);

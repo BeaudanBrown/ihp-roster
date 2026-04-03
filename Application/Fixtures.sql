@@ -41,8 +41,8 @@ INSERT INTO users (id, email, password_hash, user_role, platform_role, is_profil
 INSERT INTO venue_memberships (id, venue_id, user_id, venue_role, is_active) VALUES
 ('b1000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'b0000000-0000-0000-0000-000000000001', 'venue_owner', true);
 
-INSERT INTO staff (id, venue_id, user_id, first_name, last_name, is_active) VALUES
-('b2000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'b0000000-0000-0000-0000-000000000001', 'Beau', 'Brown', true);
+INSERT INTO staff (id, venue_id, user_id, first_name, last_name, preferred_name, phone, emergency_contact_name, emergency_contact_phone, ideal_shifts_per_week, is_active) VALUES
+('b2000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'b0000000-0000-0000-0000-000000000001', 'Beau', 'Brown', NULL, '0400000000', 'Emergency Contact', '0411111111', 0, true);
 
 -- Pay Levels
 INSERT INTO pay_levels (id, venue_id, name, is_active) VALUES

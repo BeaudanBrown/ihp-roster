@@ -56,7 +56,7 @@ withControllerTestContext action =
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExec
-        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
@@ -110,6 +110,11 @@ createStaffRecord venue maybeUser firstName lastName = do
         |> set #userId (fmap (unpackId . get #id) maybeUser)
         |> set #firstName firstName
         |> set #lastName lastName
+        |> set #preferredName Nothing
+        |> set #phone "0400000000"
+        |> set #emergencyContactName "Emergency Contact"
+        |> set #emergencyContactPhone "0411111111"
+        |> set #idealShiftsPerWeek 0
         |> set #isActive True
         |> createRecord
     _ <- createStaffRosterGroupRecord staff =<< ensureVenueDefaultRosterGroup venue

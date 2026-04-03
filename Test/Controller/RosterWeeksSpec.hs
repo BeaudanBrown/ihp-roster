@@ -621,8 +621,8 @@ tests = beforeAll testContext do
                 slotName <- fetchSlotNameRecord venue "Early"
                 staffA <- createStaffRecord venue (Just staffUserA) "Alpha" "Crew"
                 staffB <- createStaffRecord venue (Just staffUserB) "Bravo" "Crew"
-                _ <- updateRecord (staffA |> set #idealShiftsPerWeek (Just 5))
-                _ <- updateRecord (staffB |> set #idealShiftsPerWeek (Just 7))
+                _ <- updateRecord (staffA |> set #idealShiftsPerWeek 5)
+                _ <- updateRecord (staffB |> set #idealShiftsPerWeek 7)
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffA) 0

@@ -35,6 +35,7 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe LeaveRequestEvent)
         let _ = (Nothing :: Maybe VenueConfig)
         let _ = (Nothing :: Maybe StaffAvailability)
+        let _ = (Nothing :: Maybe StaffShiftPreference)
         let _ = (Nothing :: Maybe PayLevel)
         let _ = (Nothing :: Maybe PayConfigSnapshot)
         let _ = (Nothing :: Maybe ShiftType)
@@ -77,6 +78,9 @@ tests = describe "Schema" do
         let _timesheetSnapshotId = get #payConfigSnapshotId (newRecord @TimesheetEntry)
         let _leaveVenueId = get #venueId (newRecord @LeaveRequest)
         let _availabilityVenueId = get #venueId (newRecord @StaffAvailability)
+        let _shiftPreferenceVenueId = get #venueId (newRecord @StaffShiftPreference)
+        let _shiftPreferenceRosterGroupId = get #rosterGroupId (newRecord @StaffShiftPreference)
+        let _shiftPreferenceSlotNameId = get #slotNameId (newRecord @StaffShiftPreference)
         let _payLevelVenueId = get #venueId (newRecord @PayLevel)
         let _shiftTypeVenueId = get #venueId (newRecord @ShiftType)
         let _reportDefinitionVenueId = get #venueId (newRecord @ReportDefinition)
@@ -195,10 +199,19 @@ tests = describe "Schema" do
             affectedWeekOffsetsForDateRange epoch (fromGregorian 2025 1 20) (fromGregorian 2025 1 21) `shouldBe` [2]
             affectedWeekOffsetsForDateRange epoch (fromGregorian 2025 1 21) (fromGregorian 2025 1 20) `shouldBe` []
 
-    it "requires first and last name for profile completion" do
-        requiredProfileFieldsCompleted "Taylor" "Smith" `shouldBe` True
-        requiredProfileFieldsCompleted "" "Smith" `shouldBe` False
-        requiredProfileFieldsCompleted "Taylor" "" `shouldBe` False
+    it "requires all mandatory contact fields for profile completion" do
+        let completeStaff =
+                newRecord @Staff
+                    |> set #firstName "Taylor"
+                    |> set #lastName "Smith"
+                    |> set #phone "0400000000"
+                    |> set #emergencyContactName "Jordan Smith"
+                    |> set #emergencyContactPhone "0411111111"
+                    |> set #idealShiftsPerWeek 3
+        requiredProfileFieldsCompleted completeStaff `shouldBe` True
+        requiredProfileFieldsCompleted (completeStaff |> set #phone "") `shouldBe` False
+        requiredProfileFieldsCompleted (completeStaff |> set #emergencyContactName "") `shouldBe` False
+        requiredProfileFieldsCompleted (completeStaff |> set #emergencyContactPhone "") `shouldBe` False
 
     it "marks users operational only after profile completion" do
         let incompleteUser =
@@ -355,9 +368,11 @@ tests = describe "Schema" do
         -- that only surface at runtime.
         let columnNames =
                 [ "id", "email", "password_hash", "user_role"
-                , "is_profile_completed", "locked_at", "failed_login_attempts"
+                , "platform_role", "is_profile_completed", "locked_at", "failed_login_attempts"
                 , "created_at", "updated_at", "user_id", "first_name"
-                , "last_name", "is_active", "name", "default_pay_level_id"
+                , "last_name", "preferred_name", "phone", "emergency_contact_name"
+                , "emergency_contact_phone", "ideal_shifts_per_week", "is_active"
+                , "name", "default_pay_level_id"
                 , "weekday_index", "shift_type_id", "pay_level_id", "day_name_id"
                 , "venue_id", "venue_role", "invited_by_user_id", "accepted_by_user_id"
                 , "invite_role", "accepted_at", "expires_at"
@@ -378,6 +393,7 @@ tests = describe "Schema" do
                 , "generated_file_id", "file_name", "content_type"
                 , "file_contents", "download_token", "expires_at"
                 , "downloaded_at", "downloaded_by_user_id"
+                , "roster_group_id"
                 ]
         forM_ columnNames $ \col -> do
             let fieldName = columnNameToFieldName col

@@ -1,8 +1,16 @@
 module Web.View.Profiles.Edit where
 
+import Application.Helper.StaffShiftPreferences
+import Web.View.StaffProfileForm
 import Web.View.Prelude
 
-newtype EditView = EditView { staff :: Staff }
+data EditView = EditView
+    { staff            :: Staff
+    , currentUserEmail :: Text
+    , preferenceDayNames :: [DayName]
+    , preferenceSections :: [StaffPreferenceGroupSection]
+    , selectedShiftPreferenceKeys :: [Text]
+    }
 
 instance View EditView where
     html EditView { .. } = [hsx|
@@ -11,38 +19,20 @@ instance View EditView where
                 <div class="app-auth-body">
                     <h4 class="card-title mb-3 text-center">Profile</h4>
                     <p class="app-muted text-center">Update your profile details.</p>
-                    {renderForm staff}
+                    {renderForm staff currentUserEmail}
+                    <div class="mt-4">
+                        <h5 class="mb-3">Shift Preferences</h5>
+                        {renderShiftPreferenceSections preferenceDayNames preferenceSections selectedShiftPreferenceKeys}
+                    </div>
                 </div>
             </div>
         </div>
     |]
 
-renderForm :: Staff -> Html
-renderForm staff = [hsx|
+renderForm :: Staff -> Text -> Html
+renderForm staff currentUserEmail = [hsx|
     <form method="POST" action={UpdateProfileAction} data-disable-javascript-submission="true">
-        <div class="mb-3">
-            <label for="firstName" class="form-label">First Name</label>
-            <input
-                id="firstName"
-                name="firstName"
-                type="text"
-                class="form-control"
-                value={staff.firstName}
-                required="required"
-                autofocus="autofocus"
-            />
-        </div>
-        <div class="mb-3">
-            <label for="lastName" class="form-label">Last Name</label>
-            <input
-                id="lastName"
-                name="lastName"
-                type="text"
-                class="form-control"
-                value={staff.lastName}
-                required="required"
-            />
-        </div>
+        {renderPersonalProfileFields staff (Just currentUserEmail)}
         <div class="d-grid mt-4">
             <button type="submit" class="btn btn-primary">Save</button>
         </div>
