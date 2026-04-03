@@ -260,18 +260,11 @@ renderRosterStaffPanelEntry weekOffset currentRosterGroupId entry = [hsx|
 |]
 
 renderShiftSummary :: RosterStaffPanelEntry -> Html
-renderShiftSummary entry =
-    case entry.staff.idealShiftsPerWeek of
-        Just shifts -> [hsx|
-            <span class="roster-shift-summary-primary">{tshow entry.assignedShiftCount}</span>
-            <span class="roster-shift-summary-divider">/</span>
-            <span class="roster-shift-summary-secondary">{tshow shifts}</span>
-        |]
-        Nothing     -> [hsx|
-            <span class="roster-shift-summary-primary">{tshow entry.assignedShiftCount}</span>
-            <span class="roster-shift-summary-divider">/</span>
-            <span class="roster-shift-summary-secondary">-</span>
-        |]
+renderShiftSummary entry = [hsx|
+    <span class="roster-shift-summary-primary">{tshow entry.assignedShiftCount}</span>
+    <span class="roster-shift-summary-divider">/</span>
+    <span class="roster-shift-summary-secondary">{tshow entry.staff.idealShiftsPerWeek}</span>
+|]
 
 renderSlotHeaderGroup :: SlotName -> Html
 renderSlotHeaderGroup slotName = [hsx|

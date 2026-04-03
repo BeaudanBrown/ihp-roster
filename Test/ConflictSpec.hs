@@ -40,11 +40,13 @@ tests = describe "Conflict Engine" do
     let mkContext slotOverrides =
             slotOverrides ConflictContext
                 { slot = mockSlot
+                , rosterGroupId = "00000000-0000-0000-0000-0000000000ff"
                 , weekSlots = [mockSlot]
                 , daySlots = [mockSlot]
                 , weekRosterDays = [mockRosterDay]
                 , leaveRequests = []
                 , availabilities = []
+                , shiftPreferences = []
                 , rosterDayDate = mockDate
                 , lateToEarlyMinStartGapMinutes = 600
                 , staffIdealShifts = Nothing
@@ -71,6 +73,30 @@ tests = describe "Conflict Engine" do
             , specificDate = Nothing
             , isAvailable = False
             , note = Nothing
+            , createdAt = def
+            , updatedAt = def
+            , meta = def
+            }
+
+    let mockShiftPreference = StaffShiftPreference
+            { id = def
+            , venueId = def
+            , staffId = "00000000-0000-0000-0000-0000000000aa"
+            , rosterGroupId = "00000000-0000-0000-0000-0000000000ff"
+            , slotNameId = mockSlot.slotNameId
+            , weekdayIndex = 1
+            , createdAt = def
+            , updatedAt = def
+            , meta = def
+            }
+
+    let mkShiftPreference staffUuid weekdayIndex slotNameUuid = StaffShiftPreference
+            { id = def
+            , venueId = def
+            , staffId = staffUuid
+            , rosterGroupId = "00000000-0000-0000-0000-0000000000ff"
+            , slotNameId = slotNameUuid
+            , weekdayIndex = weekdayIndex
             , createdAt = def
             , updatedAt = def
             , meta = def
@@ -119,6 +145,36 @@ tests = describe "Conflict Engine" do
         length conflicts `shouldBe` 1
         map conflictType conflicts `shouldBe` [IdealShiftThresholdExceeded]
 
+    it "warns when no preferred shifts exist for the day in the roster group" do
+        let assignedSlot =
+                (mockSlot :: RosterSlot)
+                    { staffId = Just "00000000-0000-0000-0000-0000000000aa"
+                    }
+        let ctx = mkContext \base ->
+                base
+                    { slot = assignedSlot
+                    , weekSlots = [assignedSlot]
+                    , daySlots = [assignedSlot]
+                    }
+        let conflicts = evaluateConflicts ctx
+        map conflictType conflicts `shouldBe` [ShiftPreferenceDayUnavailable]
+
+    it "warns when the assigned slot is not among the preferred slots for that day" do
+        let assignedSlot =
+                (mockSlot :: RosterSlot)
+                    { staffId = Just "00000000-0000-0000-0000-0000000000aa"
+                    , slotNameId = "00000000-0000-0000-0000-0000000000bb"
+                    }
+        let ctx = mkContext \base ->
+                base
+                    { slot = assignedSlot
+                    , weekSlots = [assignedSlot]
+                    , daySlots = [assignedSlot]
+                    , shiftPreferences = [mockShiftPreference]
+                    }
+        let conflicts = evaluateConflicts ctx
+        map conflictType conflicts `shouldBe` [ShiftPreferenceSlotMismatch]
+
     it "sorts multiple conflicts by severity/priority" do
         let ctx = mkContext \base ->
                 base
@@ -151,6 +207,10 @@ tests = describe "Conflict Engine" do
                     , weekSlots = [lateSlot, earlySlot]
                     , daySlots = [earlySlot]
                     , weekRosterDays = [day0, day1]
+                    , rosterDayDate = fromGregorian 2025 1 7
+                    , shiftPreferences =
+                        [ mkShiftPreference "00000000-0000-0000-0000-0000000000aa" 2 earlySlot.slotNameId
+                        ]
                     , lateToEarlyMinStartGapMinutes = 600
                     }
         let conflicts = evaluateConflicts ctx
@@ -177,6 +237,10 @@ tests = describe "Conflict Engine" do
                     , weekSlots = [lateSlot, earlySlot]
                     , daySlots = [earlySlot]
                     , weekRosterDays = [day0, day1]
+                    , rosterDayDate = fromGregorian 2025 1 7
+                    , shiftPreferences =
+                        [ mkShiftPreference "00000000-0000-0000-0000-0000000000bb" 2 earlySlot.slotNameId
+                        ]
                     , lateToEarlyMinStartGapMinutes = 600
                     }
         let conflicts = evaluateConflicts ctx
@@ -210,7 +274,11 @@ tests = describe "Conflict Engine" do
                     , weekSlots = [previousLateSlot, currentEarlySlot, duplicateSameDaySlot]
                     , daySlots = [currentEarlySlot, duplicateSameDaySlot]
                     , weekRosterDays = [day0, day1]
+                    , rosterDayDate = fromGregorian 2025 1 7
                     , lateToEarlyMinStartGapMinutes = 600
+                    , shiftPreferences =
+                        [ mkShiftPreference staffUuid 2 currentEarlySlot.slotNameId
+                        ]
                     , staffIdealShifts = Just 2
                     }
         let conflicts = evaluateConflicts ctx

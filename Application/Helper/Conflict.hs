@@ -19,6 +19,8 @@ data ConflictType
     | LateToEarlyConflict
     | AvailabilityRefusal
     | AvailabilityPreferenceMismatch
+    | ShiftPreferenceDayUnavailable
+    | ShiftPreferenceSlotMismatch
     | IdealShiftThresholdExceeded
     deriving (Eq, Show)
 
@@ -34,6 +36,8 @@ getConflictSeverity LeaveConflict                  = CriticalConflict
 getConflictSeverity LateToEarlyConflict            = CriticalConflict
 getConflictSeverity AvailabilityRefusal            = AdvisoryConflict
 getConflictSeverity AvailabilityPreferenceMismatch = AdvisoryConflict
+getConflictSeverity ShiftPreferenceDayUnavailable  = AdvisoryConflict
+getConflictSeverity ShiftPreferenceSlotMismatch    = AdvisoryConflict
 getConflictSeverity IdealShiftThresholdExceeded    = AdvisoryConflict
 
 conflictPriority :: ConflictType -> Int
@@ -42,7 +46,9 @@ conflictPriority LeaveConflict                  = 2
 conflictPriority LateToEarlyConflict            = 3
 conflictPriority AvailabilityRefusal            = 4
 conflictPriority AvailabilityPreferenceMismatch = 5
-conflictPriority IdealShiftThresholdExceeded    = 6
+conflictPriority ShiftPreferenceDayUnavailable  = 6
+conflictPriority ShiftPreferenceSlotMismatch    = 7
+conflictPriority IdealShiftThresholdExceeded    = 8
 
 instance Ord ConflictType where
     compare a b = compare (conflictPriority a) (conflictPriority b)
@@ -53,11 +59,13 @@ instance Ord RosterConflict where
 -- | Roster data needed to evaluate conflicts for a staff member in a given slot
 data ConflictContext = ConflictContext
     { slot                          :: RosterSlot
+    , rosterGroupId                 :: UUID
     , weekSlots                     :: [RosterSlot] -- All slots for this staff in the current week
     , daySlots                      :: [RosterSlot]  -- All slots for this staff on the current day
     , weekRosterDays                :: [RosterDay] -- All days for the current week
     , leaveRequests                 :: [LeaveRequest] -- All leave requests for this staff
     , availabilities                :: [StaffAvailability] -- All availabilities for this staff
+    , shiftPreferences              :: [StaffShiftPreference] -- All recurring shift preferences for this staff in the current roster group
     , rosterDayDate                 :: Day -- The derived date of the roster day
     , lateToEarlyMinStartGapMinutes :: Int -- venue config threshold
     , staffIdealShifts              :: Maybe Int -- staff.idealShiftsPerWeek
@@ -70,6 +78,8 @@ evaluateConflicts ctx =
         , checkLeaveConflict ctx
         , checkLateToEarlyConflict ctx
         , checkAvailabilityRefusal ctx
+        , checkShiftPreferenceDayUnavailable ctx
+        , checkShiftPreferenceSlotMismatch ctx
         , checkIdealShiftThreshold ctx
         ]
 
@@ -122,6 +132,50 @@ checkAvailabilityRefusal ctx =
             , message = "Staff is explicitly unavailable for this day."
             }
         else Nothing
+
+checkShiftPreferenceDayUnavailable :: ConflictContext -> Maybe RosterConflict
+checkShiftPreferenceDayUnavailable ctx =
+    case ctx.slot.staffId of
+        Nothing -> Nothing
+        Just _ ->
+            let dayPreferences = shiftPreferencesForDay ctx
+             in if null dayPreferences
+                    then Just RosterConflict
+                        { conflictType = ShiftPreferenceDayUnavailable
+                        , severity = getConflictSeverity ShiftPreferenceDayUnavailable
+                        , message = "Staff has no preferred shifts on this day for this roster group."
+                        }
+                    else Nothing
+
+checkShiftPreferenceSlotMismatch :: ConflictContext -> Maybe RosterConflict
+checkShiftPreferenceSlotMismatch ctx =
+    case ctx.slot.staffId of
+        Nothing -> Nothing
+        Just _ ->
+            let dayPreferences = shiftPreferencesForDay ctx
+             in if null dayPreferences
+                    then Nothing
+                    else
+                        if any (\preference -> preference.slotNameId == ctx.slot.slotNameId) dayPreferences
+                            then Nothing
+                            else Just RosterConflict
+                                { conflictType = ShiftPreferenceSlotMismatch
+                                , severity = getConflictSeverity ShiftPreferenceSlotMismatch
+                                , message = "Staff prefers other shifts on this day in this roster group."
+                                }
+
+shiftPreferencesForDay :: ConflictContext -> [StaffShiftPreference]
+shiftPreferencesForDay ctx =
+    let weekdayIndex = weekdayIndexForDay ctx.rosterDayDate
+     in filter
+            (\preference -> preference.rosterGroupId == ctx.rosterGroupId && preference.weekdayIndex == weekdayIndex)
+            ctx.shiftPreferences
+
+weekdayIndexForDay :: Day -> Int
+weekdayIndexForDay day =
+    case fromEnum (dayOfWeek day) of
+        7 -> 0
+        index -> index
 
 checkLateToEarlyConflict :: ConflictContext -> Maybe RosterConflict
 checkLateToEarlyConflict ctx

@@ -418,8 +418,8 @@ normalizeOptionalText = \case
         let trimmed = Text.strip value
          in if Text.null trimmed then Nothing else Just trimmed
 
-buildSlotConflicts :: (?modelContext :: ModelContext) => Int -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> IO [(Id RosterSlot, [RosterConflict])]
-buildSlotConflicts lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlots staffMembers = do
+buildSlotConflicts :: (?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> IO [(Id RosterSlot, [RosterConflict])]
+buildSlotConflicts rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlots staffMembers = do
     let assignedStaffIds = nub $ mapMaybe (.staffId) allSlots
     if null assignedStaffIds
         then pure []
@@ -432,26 +432,34 @@ buildSlotConflicts lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlo
                 |> filterWhereIn (#staffId, assignedStaffIds)
                 |> fetch
 
+            shiftPreferences <- query @StaffShiftPreference
+                |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+                |> filterWhereIn (#staffId, assignedStaffIds)
+                |> fetch
+
             let dayById = map (\day -> (coerce (get #id day), day)) rosterDays
-            let conflictsBySlot = mapMaybe (conflictsForSlot dayById leaveRequests availabilities) allSlots
+            let conflictsBySlot = mapMaybe (conflictsForSlot dayById leaveRequests availabilities shiftPreferences) allSlots
             pure conflictsBySlot
     where
-        conflictsForSlot dayById leaveRequests availabilities slot = do
+        conflictsForSlot dayById leaveRequests availabilities shiftPreferences slot = do
             staffUuid <- slot.staffId
             day <- lookup slot.rosterDayId dayById
             let weekSlotsForStaff = filter (\candidate -> candidate.staffId == Just staffUuid) allSlots
             let daySlotsForStaff = filter (\candidate -> candidate.rosterDayId == slot.rosterDayId && candidate.staffId == Just staffUuid) allSlots
-            let staffIdealShifts = (.idealShiftsPerWeek) =<< find (\staff -> coerce (get #id staff) == staffUuid) staffMembers
+            let staffIdealShifts = (.idealShiftsPerWeek) <$> find (\staff -> coerce (get #id staff) == staffUuid) staffMembers
             let leaveRequestsForStaff = filter (\leaveRequest -> leaveRequest.staffId == staffUuid) leaveRequests
             let availabilitiesForStaff = filter (\availability -> availability.staffId == staffUuid) availabilities
+            let shiftPreferencesForStaff = filter (\preference -> preference.staffId == staffUuid) shiftPreferences
             let rosterDayDate = Calendar.addDays (toInteger day.dayOffset) weekStartDate
             let conflicts = evaluateConflicts ConflictContext
                     { slot
+                    , rosterGroupId = unpackId rosterGroupId
                     , weekSlots = weekSlotsForStaff
                     , daySlots = daySlotsForStaff
                     , weekRosterDays = rosterDays
                     , leaveRequests = leaveRequestsForStaff
                     , availabilities = availabilitiesForStaff
+                    , shiftPreferences = shiftPreferencesForStaff
                     , rosterDayDate
                     , lateToEarlyMinStartGapMinutes
                     , staffIdealShifts
@@ -688,7 +696,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
             slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
 
             let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
-            slotConflicts <- buildSlotConflicts venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays visibleSlots staffMembers
+            slotConflicts <- buildSlotConflicts rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays visibleSlots staffMembers
             pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts })
 
 fetchVisibleRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
