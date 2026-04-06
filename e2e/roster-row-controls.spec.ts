@@ -1,41 +1,42 @@
 import { test, expect } from '@playwright/test';
-
-async function loginAndOpenRoster(page) {
-    await page.goto('/NewSession');
-    await page.fill('#email', 'e2e-test@example.com');
-    await page.fill('#password', 'test-password-123');
-    await page.click('button[type="submit"]');
-
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/);
-
-    const createDraftButton = page.locator('button:has-text("Create Draft Roster")');
-    if (await createDraftButton.isVisible()) {
-        await createDraftButton.click();
-    }
-
-    await expect(page.locator('#roster-content')).toBeVisible();
-    await expect(page.locator('table.roster-grid')).toBeVisible();
-}
+import {
+    addRowToRosterDay,
+    editableRosterRows,
+    firstEditableRosterDaySection,
+    openRoster,
+    removeRowFromRosterDay,
+    rosterDayAddButton,
+    rosterDayRemoveButton,
+} from './test-helpers';
 
 test.describe('Roster row controls', () => {
     test('adds and removes the last row from the day header controls', async ({ page }) => {
-        await loginAndOpenRoster(page);
+        await openRoster(page);
 
-        const firstDaySection = page.locator('tbody[data-roster-day-section]').first();
-        const dayRows = firstDaySection.locator('tr[data-roster-row]');
-        const initialRowCount = await dayRows.count();
+        const daySectionId = await firstEditableRosterDaySection(page).getAttribute('id');
+        expect(daySectionId).toBeTruthy();
 
-        const addButton = page.locator('[data-roster-day-add="true"]').first();
-        await addButton.click();
-        await expect(dayRows).toHaveCount(initialRowCount + 1);
+        const daySection = page.locator(`#${daySectionId}`);
+        const dayRows = editableRosterRows(daySection);
+        let baselineRowCount = await dayRows.count();
 
-        const removeButton = page.locator('[data-roster-day-remove="true"]').first();
-        await removeButton.click();
-        await expect(dayRows).toHaveCount(initialRowCount);
+        if (baselineRowCount < 2) {
+            await addRowToRosterDay(daySection);
+            await expect(dayRows).toHaveCount(baselineRowCount + 1);
+            baselineRowCount += 1;
+        }
+
+        await expect(rosterDayAddButton(daySection)).toBeVisible();
+        await addRowToRosterDay(daySection);
+        await expect(dayRows).toHaveCount(baselineRowCount + 1);
+
+        await expect(rosterDayRemoveButton(daySection)).toBeEnabled();
+        await removeRowFromRosterDay(daySection);
+        await expect(dayRows).toHaveCount(baselineRowCount);
     });
 
     test('keeps the staff panel sticky, viewport-capped, and internally scrollable', async ({ page }) => {
-        await loginAndOpenRoster(page);
+        await openRoster(page);
         await page.setViewportSize({ width: 1440, height: 900 });
 
         const sidebarMetrics = await page.evaluate(() => {

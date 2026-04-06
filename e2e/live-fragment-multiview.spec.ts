@@ -80,7 +80,7 @@ async function denyApprovedLeaveRows(page: Page) {
 }
 
 async function createTimesheet(page: Page, startTime: string, endTime: string) {
-    await page.getByRole('link', { name: 'Add Timesheet' }).first().click();
+    await page.locator('[data-timesheet-day-add="true"]').first().click();
     await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
     await page.locator('input[name="startTime"]').evaluate((input, value) => {
         (input as HTMLInputElement).value = value as string;
@@ -197,8 +197,8 @@ test.describe('Live fragment multi-view coverage', () => {
 
         await createTimesheet(workerPage, '11:15', '15:15');
 
-        const managerEntry = managerPage.locator('#timesheet-day-section-0 .border.rounded').filter({ hasText: renderedRange });
-        const workerEntry = workerPage.locator('#timesheet-day-section-0 .border.rounded').filter({ hasText: renderedRange });
+        const managerEntry = managerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: renderedRange });
+        const workerEntry = workerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: renderedRange });
 
         await expect(managerEntry).toHaveCount(1);
         await expect(managerEntry).toContainText('Pending');

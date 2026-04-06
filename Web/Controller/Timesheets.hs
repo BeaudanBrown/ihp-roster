@@ -325,11 +325,12 @@ fetchShiftTypesForForm =
 
 respondWithTimesheetDaySectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO ()
 respondWithTimesheetDaySectionFragment weekOffset dayOffset = do
-    (entries, staffMembers, paySummariesByEntryId, today, editWindowDays, weekStartDate) <- fetchTimesheetDaySectionState weekOffset
+    (entries, staffMembers, shiftTypes, paySummariesByEntryId, today, editWindowDays, weekStartDate) <- fetchTimesheetDaySectionState weekOffset
     respondHtml $
         renderDaySection
             entries
             staffMembers
+            shiftTypes
             paySummariesByEntryId
             today
             editWindowDays
@@ -339,13 +340,14 @@ respondWithTimesheetDaySectionFragment weekOffset dayOffset = do
 
 respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Day -> Text -> Bool -> Bool -> IO ()
 respondWithTimesheetDaySectionUpdate weekOffset workedOn successMessage closeDialog renderMainFragmentOob = do
-    (entries, staffMembers, paySummariesByEntryId, today, editWindowDays, weekStartDate) <- fetchTimesheetDaySectionState weekOffset
+    (entries, staffMembers, shiftTypes, paySummariesByEntryId, today, editWindowDays, weekStartDate) <- fetchTimesheetDaySectionState weekOffset
     let dayOffset = timesheetDayOffset weekStartDate workedOn
     let mainFragment =
             if renderMainFragmentOob
                 then renderDaySectionOob
                     entries
                     staffMembers
+                    shiftTypes
                     paySummariesByEntryId
                     today
                     editWindowDays
@@ -355,6 +357,7 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn successMessage closeDia
                 else renderDaySection
                     entries
                     staffMembers
+                    shiftTypes
                     paySummariesByEntryId
                     today
                     editWindowDays
@@ -375,19 +378,20 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn successMessage closeDia
                 ]
             ]
 
-fetchTimesheetDaySectionState :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO ([TimesheetEntry], [Staff], Map.Map Text TimesheetPaySummary, Day, Int, Day)
+fetchTimesheetDaySectionState :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO ([TimesheetEntry], [Staff], [ShiftType], Map.Map Text TimesheetPaySummary, Day, Int, Day)
 fetchTimesheetDaySectionState weekOffset = do
     venueConfig <- fetchVenueConfig
     let weekStartDate = addDays (toInteger (weekOffset * 7)) venueConfig.weekOffsetEpoch
     let weekEndDate = addDays 6 weekStartDate
 
     (entries, staffMembers) <- fetchTimesheetDataForWeek weekStartDate weekEndDate
+    shiftTypes <- fetchShiftTypesForForm
     paySummariesByEntryId <- fetchTimesheetPaySummariesForEntries entries
     now <- getCurrentTime
     let today = utctDay now
     let editWindowDays = venueConfig.staffTimesheetEditWindowDays
 
-    pure (entries, staffMembers, paySummariesByEntryId, today, editWindowDays, weekStartDate)
+    pure (entries, staffMembers, shiftTypes, paySummariesByEntryId, today, editWindowDays, weekStartDate)
 
 renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO ()
 renderTimesheetWeekPage weekOffset = do
@@ -396,6 +400,7 @@ renderTimesheetWeekPage weekOffset = do
     let weekEndDate = addDays 6 weekStartDate
 
     (entries, staffMembers) <- fetchTimesheetDataForWeek weekStartDate weekEndDate
+    shiftTypes <- fetchShiftTypesForForm
     paySummariesByEntryId <- fetchTimesheetPaySummariesForEntries entries
 
     now <- getCurrentTime

@@ -163,7 +163,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
-        let nextLiveStatus = not rosterWeek.isLive
+        let nextLiveStatus = isJust (paramOrNothing @Text "isLive")
         rosterWeek
             |> set #isLive nextLiveStatus
             |> updateRecord
@@ -378,7 +378,7 @@ instance Controller RosterWeeksController where
                     ( buildRosterRowFragmentRefs rosterGroupId rosterWeek.weekOffset impactedRowKeys
                         <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset | shouldRefreshStaffPanel]
                     )
-                respondWithRosterContentOob rosterGroupId rosterWeek.weekOffset
+                respondWithRosterPatches rosterGroupId rosterWeek.weekOffset impactedRowKeys shouldRefreshStaffPanel
 
 slotNameOrder :: Text -> Int
 slotNameOrder slotName =

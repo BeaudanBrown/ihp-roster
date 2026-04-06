@@ -22,6 +22,16 @@
     --roster-danger: #5e1e23;
     --roster-warning: #4a3a1c;
     --roster-row-height: 1.2rem;
+
+    --text-xs: clamp(0.68rem, 0.66rem + 0.14vw, 0.8rem);
+    --text-sm: clamp(0.8rem, 0.77rem + 0.18vw, 0.94rem);
+    --text-base: clamp(0.92rem, 0.87rem + 0.24vw, 1.06rem);
+    --text-lg: clamp(1.02rem, 0.95rem + 0.42vw, 1.3rem);
+    --text-xl: clamp(1.56rem, 1.26rem + 0.96vw, 2.45rem);
+
+    --roster-text-xs: clamp(0.58rem, 0.57rem + 0.11vw, 0.72rem);
+    --roster-text-sm: clamp(0.66rem, 0.64rem + 0.14vw, 0.8rem);
+    --roster-text-base: clamp(0.74rem, 0.71rem + 0.18vw, 0.9rem);
 }
 
 html {
@@ -35,6 +45,8 @@ body.modal-open {
 body.theme-dark {
     background: radial-gradient(circle at top, #172033 0%, var(--app-bg) 46%);
     color: var(--app-text);
+    font-size: var(--text-base);
+    line-height: 1.45;
 }
 
 a:not(.btn) {
@@ -61,6 +73,7 @@ a:not(.btn):hover {
 
 .navbar-brand {
     color: var(--app-text);
+    font-size: var(--text-lg);
 }
 
 .navbar-brand:hover {
@@ -95,6 +108,22 @@ a:not(.btn):hover {
 .app-auth-body,
 .app-panel-body {
     padding: 1.5rem;
+}
+
+h1,
+.h1 {
+    font-size: var(--text-xl);
+    line-height: 1.12;
+}
+
+h2,
+.h2 {
+    font-size: clamp(1.2rem, 1.08rem + 0.55vw, 1.55rem);
+}
+
+h5,
+.h5 {
+    font-size: var(--text-lg);
 }
 
 .app-form-width {
@@ -143,6 +172,22 @@ a:not(.btn):hover {
     --bs-table-striped-color: var(--app-text);
     --bs-table-hover-bg: rgba(139, 181, 255, 0.08);
     --bs-table-hover-color: var(--app-text);
+}
+
+.btn {
+    font-size: var(--text-sm);
+}
+
+.btn-sm,
+.form-control-sm,
+.form-select-sm,
+.small {
+    font-size: var(--text-xs);
+}
+
+.form-control,
+.form-select {
+    font-size: var(--text-sm);
 }
 
 .form-control,
@@ -198,32 +243,96 @@ a:not(.btn):hover {
     min-height: 0;
 }
 
-.roster-staff-table,
-.roster-staff-panel-entry {
-    display: grid;
-    grid-template-columns: minmax(0, 2.4fr) minmax(0, 1.15fr) auto;
-    column-gap: 0.75rem;
-    align-items: center;
+.roster-staff-panel-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
 }
 
-.roster-staff-table-head {
-    display: contents;
-}
-
-.roster-staff-table-head > div {
-    padding: 0 0 0.7rem;
-    border-bottom: 1px solid rgba(124, 146, 184, 0.72);
+.roster-staff-panel-summary {
     color: var(--app-muted);
-    font-size: 0.68rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-size: var(--roster-text-xs);
+    letter-spacing: 0.04em;
     text-transform: uppercase;
 }
 
-.roster-staff-action-head {
+.roster-staff-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+}
+
+.roster-staff-table-head th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0 0 0.55rem;
+    border-bottom: 1px solid rgba(124, 146, 184, 0.72);
+    background: rgba(24, 31, 45, 0.96);
+    color: var(--app-muted);
+    font-size: var(--roster-text-xs);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.roster-staff-table-head th:first-child {
+    width: auto;
+    text-align: left;
+}
+
+.roster-staff-role-head {
+    width: 4.6rem;
+    text-align: left;
+}
+
+.roster-staff-metric-head {
+    width: 4.25rem;
     text-align: right;
-    border-left: 1px solid rgba(95, 117, 153, 0.3);
-    padding-left: 0.85rem;
+}
+
+.roster-staff-action-head {
+    width: 3.75rem;
+    text-align: right;
+}
+
+.roster-staff-sort-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+}
+
+.roster-staff-sort-button::after {
+    content: "↕";
+    color: rgba(124, 146, 184, 0.55);
+    font-size: 0.68rem;
+    line-height: 1;
+}
+
+.roster-staff-sort-button[aria-sort="ascending"]::after {
+    content: "↑";
+    color: #a9c6f5;
+}
+
+.roster-staff-sort-button[aria-sort="descending"]::after {
+    content: "↓";
+    color: #a9c6f5;
+}
+
+.roster-staff-sort-button-metric {
+    justify-content: flex-end;
+    width: 100%;
 }
 
 .roster-staff-panel-list {
@@ -231,63 +340,71 @@ a:not(.btn):hover {
 }
 
 .roster-staff-table-body {
-    margin-top: 0.25rem;
     border-top: 1px solid rgba(124, 146, 184, 0.24);
 }
 
 .roster-staff-panel-entry {
-    padding: 0.85rem 0;
-    border-top: 1px solid rgba(124, 146, 184, 0.16);
-    border-bottom: 1px solid rgba(32, 40, 57, 0.72);
     background: rgba(255, 255, 255, 0.015);
 }
 
-.roster-staff-panel-entry:last-child {
-    border-bottom: 0;
+.roster-staff-panel-entry th,
+.roster-staff-panel-entry td {
+    padding: 0.45rem 0;
+    border-top: 1px solid rgba(124, 146, 184, 0.14);
+    border-bottom: 1px solid rgba(32, 40, 57, 0.72);
+    vertical-align: middle;
 }
 
 .roster-staff-cell {
     min-width: 0;
-    font-size: 0.82rem;
+    font-size: var(--roster-text-sm);
 }
 
 .roster-staff-name-primary {
     display: block;
     font-weight: 700;
     color: var(--app-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .roster-staff-name {
     min-width: 0;
+    padding-right: 0.55rem;
+    text-align: left;
+}
+
+.roster-staff-role {
+    color: var(--app-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: left;
+    text-transform: uppercase;
 }
 
 .roster-staff-shifts {
-    color: var(--app-muted);
-    font-variant-numeric: tabular-nums;
-}
-
-.roster-shift-summary-primary {
     color: var(--app-text);
+    font-variant-numeric: tabular-nums;
     font-weight: 700;
+    text-align: right;
 }
 
-.roster-shift-summary-divider {
-    margin: 0 0.3rem;
-    color: rgba(124, 146, 184, 0.55);
-}
-
-.roster-shift-summary-secondary {
+.roster-staff-shifts-ideal {
     color: var(--app-muted);
+    margin-left: 0.28rem;
 }
 
 .roster-staff-action {
-    justify-self: end;
-    border-left: 1px solid rgba(95, 117, 153, 0.24);
-    padding-left: 0.85rem;
+    text-align: right;
 }
 
-.roster-staff-action .btn {
-    justify-self: end;
+.roster-staff-edit-button {
+    min-width: 2.5rem;
+    padding: 0.18rem 0.45rem;
+    font-size: 0.68rem;
+    line-height: 1.15;
 }
 
 @media (min-width: 1200px) {
@@ -320,9 +437,16 @@ a:not(.btn):hover {
         display: block;
     }
 
-    .roster-staff-table,
-    .roster-staff-panel-entry {
-        grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr) auto;
+    .roster-staff-role-head {
+        width: 4rem;
+    }
+
+    .roster-staff-metric-head {
+        width: 3.8rem;
+    }
+
+    .roster-staff-action-head {
+        width: 3.35rem;
     }
 }
 
@@ -406,8 +530,18 @@ a:not(.btn):hover {
 }
 
 .roster-grid {
-    font-size: 0.72rem;
+    --roster-day-share: 18%;
+    --roster-block-share: calc((100% - var(--roster-day-share)) / var(--roster-slot-count));
+    --roster-time-share: calc(var(--roster-block-share) * (2 / 6));
+    --roster-staff-share: calc(var(--roster-block-share) * (3 / 6));
+    --roster-note-share: calc(var(--roster-block-share) * (1 / 6));
+    font-size: var(--roster-text-sm);
+    width: 100%;
     table-layout: fixed;
+}
+
+.roster-layout .table-responsive {
+    overflow-x: hidden;
 }
 
 .roster-grid th,
@@ -422,7 +556,7 @@ a:not(.btn):hover {
 }
 
 .roster-grid .roster-day-column {
-    width: 170px;
+    width: var(--roster-day-share);
 }
 
 .roster-grid .roster-block-header {
@@ -432,11 +566,23 @@ a:not(.btn):hover {
 
 .roster-grid .roster-subhead {
     background-color: var(--roster-subhead);
-    font-size: 0.64rem;
+    font-size: var(--roster-text-xs);
+}
+
+.roster-grid .roster-col-time {
+    width: var(--roster-time-share);
+}
+
+.roster-grid .roster-col-staff {
+    width: var(--roster-staff-share);
+}
+
+.roster-grid .roster-col-code {
+    width: var(--roster-note-share);
 }
 
 .roster-grid .day-label {
-    min-width: 130px;
+    min-width: 0;
     border-right: 2px solid var(--app-border-strong);
     vertical-align: middle;
     text-align: center;
@@ -484,10 +630,6 @@ a:not(.btn):hover {
     line-height: 1;
 }
 
-.roster-grid .day-label-empty {
-    color: transparent;
-}
-
 .roster-grid .roster-day-label-row-closed {
     color: #f0c572;
 }
@@ -496,6 +638,10 @@ a:not(.btn):hover {
     font-size: 0.64rem;
     font-weight: 800;
     letter-spacing: 0.12em;
+}
+
+.roster-grid .day-label-empty {
+    color: transparent;
 }
 
 .roster-grid .roster-day-actions {
@@ -508,14 +654,14 @@ a:not(.btn):hover {
 }
 
 .roster-grid .roster-day-action {
-    width: 0.9rem;
+    min-width: 0.9rem;
     height: 0.9rem;
     padding: 0;
     border-radius: 999px;
     border: 1px solid var(--app-border-strong);
     background: rgba(255, 255, 255, 0.04);
     color: var(--app-text);
-    font-size: 0.56rem;
+    font-size: var(--roster-text-xs);
     font-weight: 700;
     line-height: 1;
 }
@@ -551,17 +697,17 @@ a:not(.btn):hover {
 }
 
 .roster-grid .slot-time-cell {
-    min-width: 108px;
+    min-width: 0;
     padding: 0 !important;
 }
 
 .roster-grid .slot-staff-cell {
-    min-width: 165px;
+    min-width: 0;
     padding: 0 !important;
 }
 
 .roster-grid .slot-note-cell {
-    min-width: 82px;
+    min-width: 0;
     padding: 0 !important;
 }
 
@@ -588,7 +734,7 @@ a:not(.btn):hover {
 
 .roster-grid .form-control-sm,
 .roster-grid .form-select-sm {
-    font-size: 0.7rem;
+    font-size: var(--roster-text-sm);
     border-color: transparent;
     border-radius: 0;
 }
@@ -619,18 +765,19 @@ a:not(.btn):hover {
 
 .roster-grid .slot-time-input {
     font-weight: 700;
-    min-width: 4.5rem;
+    min-width: 0;
 }
 
 .roster-grid .slot-time-trigger {
     width: 100%;
+    flex: 1 1 auto;
     height: calc(var(--roster-row-height) + 0.65rem);
     min-height: calc(var(--roster-row-height) + 0.65rem);
     border: 0 !important;
     border-radius: 0 !important;
     background-color: transparent !important;
     color: var(--app-text);
-    font-size: 0.7rem;
+    font-size: var(--roster-text-sm);
     font-weight: 700;
     text-align: center;
     padding: 0 0.16rem;
@@ -640,10 +787,141 @@ a:not(.btn):hover {
     text-overflow: ellipsis;
 }
 
-.roster-grid .slot-time-trigger:focus,
-.roster-grid .slot-time-trigger:hover {
+.roster-grid .slot-time-step {
+    width: 23%;
+    min-width: 0;
+    flex: 0 0 23%;
+    height: calc(var(--roster-row-height) + 0.65rem);
+    min-height: calc(var(--roster-row-height) + 0.65rem);
+    border: 0 !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    color: var(--app-text-muted);
+    font-size: var(--roster-text-sm);
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+}
+
+@media (max-width: 575.98px) {
+    .app-content {
+        padding-left: 0.85rem;
+        padding-right: 0.85rem;
+    }
+
+    .app-panel-body,
+    .app-auth-body {
+        padding: 1.1rem;
+    }
+
+    .roster-staff-panel .app-panel-body {
+        padding: 1rem;
+    }
+
+    .roster-staff-table-head th {
+        padding-bottom: 0.45rem;
+        font-size: 0.62rem;
+    }
+
+    .roster-staff-panel-entry th,
+    .roster-staff-panel-entry td {
+        padding-top: 0.38rem;
+        padding-bottom: 0.38rem;
+    }
+
+    .roster-staff-role {
+        font-size: 0.62rem;
+    }
+
+    .roster-grid {
+        --roster-day-share: 16%;
+        font-size: var(--roster-text-xs);
+    }
+
+    .roster-grid .roster-day-label-row {
+        padding: 0 0.25rem;
+    }
+
+    .roster-grid .slot-cell-input,
+    .roster-grid .slot-time-trigger {
+        padding-left: 0.08rem;
+        padding-right: 0.08rem;
+        font-size: var(--roster-text-xs);
+    }
+
+    .roster-grid .slot-time-step {
+        width: 20%;
+        flex-basis: 20%;
+        font-size: var(--roster-text-xs);
+    }
+}
+
+.roster-grid .slot-time-trigger:hover,
+.roster-grid .slot-time-step:hover {
     background-color: var(--app-accent-soft) !important;
     color: var(--app-text);
+}
+
+.roster-grid .slot-time-trigger:focus,
+.roster-grid .slot-time-step:focus {
+    background-color: transparent !important;
+    color: inherit;
+    box-shadow: none !important;
+    outline: none;
+}
+
+.roster-grid .slot-time-trigger:focus-visible,
+.roster-grid .slot-time-step:focus-visible {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 45%, transparent) !important;
+}
+
+.roster-grid .slot-time-step:disabled,
+.roster-grid .slot-time-trigger:disabled {
+    background-color: transparent !important;
+    color: var(--app-text-muted);
+    opacity: 0.55;
+}
+
+.time-picker-field {
+    width: 100%;
+}
+
+.time-picker-control {
+    display: inline-flex;
+    width: 100%;
+    align-items: stretch;
+    border-radius: var(--bs-border-radius);
+}
+
+.time-picker-control .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.time-picker-step-button {
+    flex: 0 0 auto;
+    min-width: 2.4rem;
+}
+
+.time-picker-trigger-button {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.time-picker-trigger-button .js-time-picker-label {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.time-picker-step-button:disabled {
+    opacity: 0.55;
+}
+
+.roster-grid .roster-time-picker-control {
+    width: 100%;
 }
 
 .time-picker-grid {
@@ -659,6 +937,12 @@ a:not(.btn):hover {
 .roster-grid .slot-note-input {
     width: 100%;
     font-weight: 700;
+}
+
+.roster-grid .roster-col-code,
+.roster-grid .slot-note-cell {
+    min-width: 0;
+    white-space: nowrap;
 }
 
 .roster-grid .slot-cell-static {
@@ -761,5 +1045,186 @@ a:not(.btn):hover {
     .roster-grid th,
     .roster-grid td {
         padding: 0.15rem !important;
+    }
+}
+
+.timesheet-day-panel .app-panel-body {
+    padding: 0.7rem;
+}
+
+.timesheet-day-add-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    margin-bottom: 0.65rem;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid rgba(73, 181, 126, 0.55);
+    border-radius: 0.6rem;
+    background: linear-gradient(180deg, #0e6944, #0d593b);
+    color: #eefcf5 !important;
+    font-size: var(--text-base);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.timesheet-day-add-bar:hover {
+    color: #ffffff !important;
+    background: linear-gradient(180deg, #12774e, #0f6342);
+}
+
+.timesheet-day-add-plus {
+    font-size: 1.1em;
+    line-height: 1;
+}
+
+.timesheet-day-empty {
+    padding: 0.2rem 0.15rem 0.05rem;
+}
+
+.timesheet-entry-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.timesheet-entry-card {
+    border: 1px solid var(--app-border);
+    border-radius: 0.7rem;
+    background: linear-gradient(180deg, rgba(44, 56, 77, 0.86), rgba(30, 39, 55, 0.96));
+    padding: 0.65rem 0.7rem;
+}
+
+.timesheet-entry-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.timesheet-entry-identity,
+.timesheet-entry-time,
+.timesheet-entry-actions {
+    min-width: 0;
+}
+
+.timesheet-entry-shift-type {
+    color: var(--app-text);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.timesheet-entry-staff-name {
+    color: #f4f7fd;
+    font-size: var(--text-sm);
+    line-height: 1.2;
+}
+
+.timesheet-entry-time-range {
+    color: #f0f4fb;
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+}
+
+.timesheet-entry-meta {
+    color: var(--app-muted);
+    font-size: var(--text-xs);
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+
+.timesheet-entry-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.28rem;
+}
+
+.timesheet-entry-actions .btn,
+.timesheet-entry-actions .badge,
+.timesheet-entry-action-form {
+    width: 100%;
+}
+
+.timesheet-entry-actions .btn {
+    padding: 0.2rem 0.5rem;
+}
+
+.timesheet-entry-status-badge {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 1.5rem;
+}
+
+.timesheet-shape-bar {
+    position: relative;
+    height: 0.7rem;
+    margin-top: 0.55rem;
+    border-radius: 999px;
+}
+
+.timesheet-shape-track {
+    position: absolute;
+    inset: 0;
+    border: 1px solid rgba(154, 168, 192, 0.22);
+    border-radius: 999px;
+    background: rgba(10, 15, 24, 0.72);
+}
+
+.timesheet-shape-midnight-marker {
+    position: absolute;
+    top: -0.12rem;
+    bottom: -0.12rem;
+    width: 2px;
+    margin-left: -1px;
+    background: rgba(255, 255, 255, 0.42);
+    border-radius: 999px;
+    z-index: 2;
+}
+
+.timesheet-shape-segment {
+    position: absolute;
+    top: 0.11rem;
+    height: 0.48rem;
+    border-radius: 999px;
+    z-index: 1;
+}
+
+.timesheet-shape-segment-shift {
+    background: linear-gradient(180deg, #7fb4ff, #5290df);
+    box-shadow: 0 0 0 1px rgba(27, 52, 87, 0.22);
+}
+
+.timesheet-shape-segment-break {
+    background: linear-gradient(180deg, #f1d27d, #d3a84c);
+    z-index: 3;
+}
+
+@media (max-width: 575.98px) {
+    .timesheet-entry-main {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "identity actions"
+            "time actions";
+        gap: 0.5rem 0.65rem;
+    }
+
+    .timesheet-entry-identity {
+        grid-area: identity;
+    }
+
+    .timesheet-entry-time {
+        grid-area: time;
+    }
+
+    .timesheet-entry-actions {
+        grid-area: actions;
+        min-width: 4.8rem;
     }
 }

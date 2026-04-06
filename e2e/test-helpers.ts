@@ -3,7 +3,7 @@ import { mkdtempSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Download, expect, Page } from '@playwright/test';
+import { Download, expect, Locator, Page } from '@playwright/test';
 
 export async function gotoWhenReady(page: Page, path: string, readySelector: string, timeoutMs = 60000) {
     const deadline = Date.now() + timeoutMs;
@@ -49,6 +49,211 @@ export async function loginAs(page: Page, email: string, password: string) {
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+}
+
+type OpenRosterOptions = {
+    email?: string;
+    password?: string;
+    maxWeekAdvances?: number;
+    ensureDraft?: boolean;
+    ensureEditable?: boolean;
+};
+
+export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
+    const {
+        email = 'e2e-test@example.com',
+        password = 'test-password-123',
+        maxWeekAdvances = 4,
+        ensureDraft = true,
+        ensureEditable = true,
+    } = options;
+
+    await loginAs(page, email, password);
+    await expect(page.locator('#roster-week-shell')).toBeVisible();
+
+    for (let step = 0; step <= maxWeekAdvances; step += 1) {
+        if (ensureDraft) {
+            const createDraftButton = page.getByRole('button', { name: 'Create Draft Roster' });
+            if (await createDraftButton.isVisible().catch(() => false)) {
+                await createDraftButton.click();
+                await expect(page.locator('#roster-week-shell')).toBeVisible();
+            }
+        }
+
+        await expect(page.locator('table.roster-grid')).toBeVisible();
+
+        if (!ensureEditable) {
+            return;
+        }
+
+        const hasEditableRows = (await editableRosterRows(page).count()) > 0;
+        const hasAddRowControl = await firstRosterDayAddButton(page).isVisible().catch(() => false);
+        if (hasEditableRows || hasAddRowControl || step === maxWeekAdvances) {
+            return;
+        }
+
+        await page.getByRole('link', { name: '>' }).click();
+        await expect(page.locator('#roster-week-shell')).toBeVisible();
+    }
+}
+
+export function rosterDaySections(scope: Page | Locator) {
+    return scope.locator('tbody[data-roster-day-section]');
+}
+
+export function firstRosterDaySection(scope: Page | Locator) {
+    return rosterDaySections(scope).first();
+}
+
+export function editableRosterDaySections(scope: Page | Locator) {
+    return scope.locator('tbody[data-roster-day-section]:has(select[name="staffId"])');
+}
+
+export function firstEditableRosterDaySection(scope: Page | Locator) {
+    return editableRosterDaySections(scope).first();
+}
+
+export function removableRosterDaySections(scope: Page | Locator) {
+    return scope.locator('tbody[data-roster-day-section]:has(button[data-roster-day-remove="true"]:not([disabled]))');
+}
+
+export function firstRemovableRosterDaySection(scope: Page | Locator) {
+    return removableRosterDaySections(scope).first();
+}
+
+export function editableRosterRows(scope: Page | Locator) {
+    return scope.locator('tr[data-roster-row]:has(select[name="staffId"])');
+}
+
+export function rosterDayAddButton(scope: Page | Locator) {
+    return scope.locator('[data-roster-day-add="true"]').first();
+}
+
+export function firstRosterDayAddButton(page: Page) {
+    return rosterDayAddButton(page);
+}
+
+export function rosterDayRemoveButton(scope: Page | Locator) {
+    return scope.locator('[data-roster-day-remove="true"]').first();
+}
+
+export function firstRosterDayRemoveButton(page: Page) {
+    return rosterDayRemoveButton(page);
+}
+
+async function submitRosterDayAction(button: Locator) {
+    await button.evaluate((element) => {
+        if (!(element instanceof HTMLElement)) {
+            throw new Error('Expected roster day action button to be an HTMLElement');
+        }
+
+        element.click();
+    });
+}
+
+export async function addRowToRosterDay(scope: Page | Locator) {
+    await submitRosterDayAction(rosterDayAddButton(scope));
+}
+
+export async function addRowToFirstRosterDay(page: Page) {
+    await addRowToRosterDay(page);
+}
+
+export async function removeRowFromRosterDay(scope: Page | Locator) {
+    await submitRosterDayAction(rosterDayRemoveButton(scope));
+}
+
+export async function removeRowFromFirstRosterDay(page: Page) {
+    await removeRowFromRosterDay(page);
+}
+
+export async function openAuthenticatedNavIfCollapsed(page: Page) {
+    const navToggle = page.locator('.navbar-toggler');
+    if (!await navToggle.isVisible()) {
+        return;
+    }
+
+    const expanded = await navToggle.getAttribute('aria-expanded');
+    if (expanded !== 'true') {
+        await navToggle.click();
+    }
+
+    await expect(page.locator('#app-nav')).toBeVisible();
+}
+
+export async function expectNoHorizontalViewportOverflow(page: Page, slackPx = 2) {
+    await expect
+        .poll(async () => {
+            return page.evaluate(() => {
+                const root = document.documentElement;
+                return {
+                    viewportWidth: window.innerWidth,
+                    rootScrollWidth: root.scrollWidth,
+                    bodyScrollWidth: document.body.scrollWidth,
+                };
+            });
+        })
+        .toMatchObject({
+            viewportWidth: expect.any(Number),
+            rootScrollWidth: expect.any(Number),
+            bodyScrollWidth: expect.any(Number),
+        });
+
+    const metrics = await page.evaluate(() => {
+        const root = document.documentElement;
+        return {
+            viewportWidth: window.innerWidth,
+            rootScrollWidth: root.scrollWidth,
+            bodyScrollWidth: document.body.scrollWidth,
+        };
+    });
+
+    expect(metrics.rootScrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + slackPx);
+    expect(metrics.bodyScrollWidth).toBeLessThanOrEqual(metrics.viewportWidth + slackPx);
+}
+
+export async function expectContainerToManageHorizontalOverflow(page: Page, selector: string) {
+    const metrics = await page.locator(selector).first().evaluate((element) => {
+        if (!(element instanceof HTMLElement)) {
+            throw new Error(`Expected HTMLElement for ${selector}`);
+        }
+
+        const style = getComputedStyle(element);
+        return {
+            clientWidth: element.clientWidth,
+            scrollWidth: element.scrollWidth,
+            overflowX: style.overflowX,
+            rectRight: Math.round(element.getBoundingClientRect().right),
+            viewportWidth: window.innerWidth,
+        };
+    });
+
+    expect(metrics.rectRight).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+    expect(metrics.scrollWidth).toBeGreaterThanOrEqual(metrics.clientWidth);
+    expect(['auto', 'scroll', 'hidden']).toContain(metrics.overflowX);
+}
+
+export async function expectDialogToFitViewport(page: Page, selector: string) {
+    const dialog = page.locator(selector).first();
+    await expect(dialog).toBeVisible();
+
+    const metrics = await dialog.evaluate((element) => {
+        if (!(element instanceof HTMLElement)) {
+            throw new Error(`Expected HTMLElement for ${selector}`);
+        }
+
+        const rect = element.getBoundingClientRect();
+        return {
+            left: Math.round(rect.left),
+            right: Math.round(rect.right),
+            width: Math.round(rect.width),
+            viewportWidth: window.innerWidth,
+        };
+    });
+
+    expect(metrics.left).toBeGreaterThanOrEqual(0);
+    expect(metrics.right).toBeLessThanOrEqual(metrics.viewportWidth + 1);
+    expect(metrics.width).toBeLessThanOrEqual(metrics.viewportWidth);
 }
 
 export async function gotoExports(page: Page) {

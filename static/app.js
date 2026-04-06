@@ -555,6 +555,14 @@
         if (window.htmx && typeof window.htmx.process === 'function') {
             window.htmx.process(document.body);
         }
+
+        if (window.appPageLifecycle && typeof window.appPageLifecycle.dispatchPageReady === 'function') {
+            window.appPageLifecycle.dispatchPageReady({
+                source: 'live-fragment-refetch',
+                target: nextNode,
+                isFullPage: false,
+            });
+        }
     }
 
     async function refetchFragment(fragment) {
@@ -662,6 +670,15 @@
 
         pendingDeferredFragments.delete(targetId);
         queueFragment(fragment);
+    }
+
+    function flushDeferredFragmentsWithoutActiveInputs() {
+        Array.from(pendingDeferredFragments.entries()).forEach(function ([targetId]) {
+            const target = document.getElementById(targetId);
+            if (!target || !hasActiveRosterInput(target)) {
+                flushDeferredFragment(targetId);
+            }
+        });
     }
 
     function scheduleReconnect() {
@@ -1083,9 +1100,7 @@
         if (!(rowEl instanceof HTMLElement) || !rowEl.id) return;
 
         window.setTimeout(function () {
-            if (!hasActiveRosterInput(rowEl)) {
-                flushDeferredFragment(rowEl.id);
-            }
+            flushDeferredFragmentsWithoutActiveInputs();
         }, 0);
     });
 
@@ -1099,7 +1114,7 @@
     if (typeof window === 'undefined') return;
 
     const modalId = 'quarter-hour-time-picker-modal';
-    const emptyLabel = 'Select time';
+    const defaultEmptyLabel = 'Time';
     let activeField = null;
 
     function getModalElement() {
@@ -1147,6 +1162,19 @@
         return fieldEl ? fieldEl.querySelector('.js-time-picker-label') : null;
     }
 
+    function getStepDownButton(fieldEl) {
+        return fieldEl ? fieldEl.querySelector('.js-time-picker-step-down') : null;
+    }
+
+    function getStepUpButton(fieldEl) {
+        return fieldEl ? fieldEl.querySelector('.js-time-picker-step-up') : null;
+    }
+
+    function emptyLabelForField(fieldEl) {
+        if (!(fieldEl instanceof HTMLElement)) return defaultEmptyLabel;
+        return fieldEl.dataset.timePickerEmptyLabel || defaultEmptyLabel;
+    }
+
     function findOptionByValue(modalEl, value) {
         if (!modalEl) return null;
         return modalEl.querySelector(`.js-time-picker-option[data-time-value="${value}"]`);
@@ -1188,11 +1216,22 @@
         return { startMinute, endMinute };
     }
 
+    function stepMinutesForField(fieldEl) {
+        const rawValue = fieldEl && fieldEl.dataset.timePickerStepMinutes;
+        const parsed = Number(rawValue || '15');
+        if (!Number.isInteger(parsed) || parsed <= 0) return 15;
+        return parsed;
+    }
+
     function buildTimeOptions(range) {
+        return buildTimeOptionsWithStep(range, 15);
+    }
+
+    function buildTimeOptionsWithStep(range, stepMinutes) {
         if (!range) return [];
 
         const options = [];
-        for (let minute = range.startMinute; minute <= range.endMinute; minute += 15) {
+        for (let minute = range.startMinute; minute <= range.endMinute; minute += stepMinutes) {
             const minuteOfDay = minute % (24 * 60);
             const hour = Math.floor(minuteOfDay / 60);
             const minutePart = minuteOfDay % 60;
@@ -1202,12 +1241,18 @@
         return options;
     }
 
-    function renderOptions(modalEl, range) {
+    function buildFieldOptions(fieldEl, modalEl) {
+        const range = resolveRange(fieldEl, modalEl);
+        if (!range) return [];
+        return buildTimeOptionsWithStep(range, stepMinutesForField(fieldEl));
+    }
+
+    function renderOptions(modalEl, fieldEl) {
         if (!modalEl) return;
         const gridEl = modalEl.querySelector('.js-time-picker-grid');
         if (!gridEl) return;
 
-        const options = buildTimeOptions(range);
+        const options = buildFieldOptions(fieldEl, modalEl);
         gridEl.innerHTML = options
             .map(function (option) {
                 return (
@@ -1223,7 +1268,7 @@
         if (!labelEl) return;
 
         if (!value) {
-            labelEl.textContent = emptyLabel;
+            labelEl.textContent = emptyLabelForField(fieldEl);
             labelEl.classList.add('app-muted');
             return;
         }
@@ -1255,7 +1300,60 @@
 
         inputEl.value = nextValue;
         inputEl.dispatchEvent(new Event('input', { bubbles: true }));
-        inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        if (window.htmx && typeof window.htmx.trigger === 'function') {
+            window.htmx.trigger(inputEl, 'change');
+        } else {
+            inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+    }
+
+    function syncFieldControls(fieldEl) {
+        if (!(fieldEl instanceof HTMLElement)) return;
+
+        const inputEl = getFieldInput(fieldEl);
+        if (!inputEl) return;
+
+        const triggerEl = fieldEl.querySelector('.js-time-picker-trigger');
+        const stepDownEl = getStepDownButton(fieldEl);
+        const stepUpEl = getStepUpButton(fieldEl);
+        const isFieldDisabled = Boolean(inputEl.disabled);
+        const options = buildFieldOptions(fieldEl, getModalElement());
+        const currentValue = inputEl.value || '';
+        const selectedIndex = options.findIndex(function (option) {
+            return option.value === currentValue;
+        });
+        const hasSelection = selectedIndex >= 0;
+
+        if (triggerEl) triggerEl.disabled = isFieldDisabled;
+        if (stepDownEl) stepDownEl.disabled = isFieldDisabled || !hasSelection || selectedIndex === 0;
+        if (stepUpEl) stepUpEl.disabled = isFieldDisabled || !hasSelection || selectedIndex === options.length - 1;
+    }
+
+    function stepFieldValue(fieldEl, direction) {
+        if (!(fieldEl instanceof HTMLElement)) return;
+
+        const inputEl = getFieldInput(fieldEl);
+        if (!inputEl || inputEl.disabled) return;
+
+        const options = buildFieldOptions(fieldEl, getModalElement());
+        const currentValue = inputEl.value || '';
+        const selectedIndex = options.findIndex(function (option) {
+            return option.value === currentValue;
+        });
+        if (selectedIndex < 0) {
+            syncFieldControls(fieldEl);
+            return;
+        }
+
+        const nextIndex = selectedIndex + direction;
+        if (nextIndex < 0 || nextIndex >= options.length) {
+            syncFieldControls(fieldEl);
+            return;
+        }
+
+        const nextOption = options[nextIndex];
+        applyTimeValue(fieldEl, nextOption.value, nextOption.label);
+        syncFieldControls(fieldEl);
     }
 
     document.addEventListener('click', function (event) {
@@ -1272,9 +1370,27 @@
         if (!modalEl || !bootstrapModal) return;
 
         activeField = fieldEl;
-        renderOptions(modalEl, resolveRange(fieldEl, modalEl));
+        renderOptions(modalEl, fieldEl);
         highlightSelectedOption(modalEl, inputEl.value || '');
         bootstrapModal.show();
+    });
+
+    document.addEventListener('click', function (event) {
+        const stepDownEl = event.target.closest('.js-time-picker-step-down');
+        if (!stepDownEl) return;
+        if (stepDownEl.disabled) return;
+
+        const fieldEl = stepDownEl.closest('[data-time-picker-field]');
+        stepFieldValue(fieldEl, -1);
+    });
+
+    document.addEventListener('click', function (event) {
+        const stepUpEl = event.target.closest('.js-time-picker-step-up');
+        if (!stepUpEl) return;
+        if (stepUpEl.disabled) return;
+
+        const fieldEl = stepUpEl.closest('[data-time-picker-field]');
+        stepFieldValue(fieldEl, 1);
     });
 
     document.addEventListener('click', function (event) {
@@ -1288,6 +1404,7 @@
 
         applyTimeValue(activeField, value, labelText);
         highlightSelectedOption(modalEl, value);
+        syncFieldControls(activeField);
         hideTimePickerModal(modalEl);
     });
 
@@ -1298,8 +1415,9 @@
 
         const modalEl = getModalElement();
 
-        applyTimeValue(activeField, '', emptyLabel);
+        applyTimeValue(activeField, '', emptyLabelForField(activeField));
         highlightSelectedOption(modalEl, '');
+        syncFieldControls(activeField);
         hideTimePickerModal(modalEl);
     });
 
@@ -1314,13 +1432,31 @@
     function syncFieldLabelsWithin(root) {
         if (!(root instanceof Element || root instanceof Document)) return;
 
+        const fieldsToSync = new Set();
+
+        if (root instanceof Element) {
+            if (root.matches('[data-time-picker-field]')) {
+                fieldsToSync.add(root);
+            }
+
+            const closestField = root.closest('[data-time-picker-field]');
+            if (closestField instanceof HTMLElement) {
+                fieldsToSync.add(closestField);
+            }
+        }
+
         root.querySelectorAll('[data-time-picker-field]').forEach(function (fieldEl) {
+            fieldsToSync.add(fieldEl);
+        });
+
+        fieldsToSync.forEach(function (fieldEl) {
             const inputEl = getFieldInput(fieldEl);
             if (!inputEl) return;
             const modalEl = getModalElement();
             const selectedOption = findOptionByValue(modalEl, inputEl.value || '');
             const selectedLabel = selectedOption ? selectedOption.textContent.trim() : displayLabelFromValue(inputEl.value);
             updateFieldLabel(fieldEl, inputEl.value || '', selectedLabel);
+            syncFieldControls(fieldEl);
         });
     }
 
@@ -1328,6 +1464,142 @@
         syncFieldLabelsWithin((event.detail && event.detail.target) || document);
     });
 
+    document.addEventListener('time-picker:sync', function (event) {
+        syncFieldLabelsWithin((event.detail && event.detail.target) || document);
+    });
+
+})();
+
+// Client-side sorting for the compact roster staff table.
+(function enableRosterStaffPanelSorting() {
+    if (typeof window === 'undefined') return;
+
+    function compareText(leftValue, rightValue) {
+        return leftValue.localeCompare(rightValue, undefined, { sensitivity: 'base' });
+    }
+
+    function compareNumber(leftValue, rightValue) {
+        return leftValue - rightValue;
+    }
+
+    function parseNumber(value) {
+        const parsed = Number.parseInt(value || '0', 10);
+        return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function compareRows(leftRow, rightRow, key, direction) {
+        const directionMultiplier = direction === 'descending' ? -1 : 1;
+
+        if (key === 'shifts') {
+            const assignedResult =
+                compareNumber(
+                    parseNumber(leftRow.dataset.rosterStaffAssigned),
+                    parseNumber(rightRow.dataset.rosterStaffAssigned),
+                ) * directionMultiplier;
+            if (assignedResult !== 0) return assignedResult;
+
+            const idealResult =
+                compareNumber(
+                    parseNumber(leftRow.dataset.rosterStaffIdeal),
+                    parseNumber(rightRow.dataset.rosterStaffIdeal),
+                ) * directionMultiplier;
+            if (idealResult !== 0) return idealResult;
+
+            return compareText(
+                leftRow.dataset.rosterStaffName || '',
+                rightRow.dataset.rosterStaffName || '',
+            );
+        }
+
+        if (key === 'role') {
+            const roleResult =
+                compareText(
+                    leftRow.dataset.rosterStaffRole || '',
+                    rightRow.dataset.rosterStaffRole || '',
+                ) * directionMultiplier;
+            if (roleResult !== 0) return roleResult;
+
+            return compareText(
+                leftRow.dataset.rosterStaffName || '',
+                rightRow.dataset.rosterStaffName || '',
+            );
+        }
+
+        return compareText(
+            leftRow.dataset.rosterStaffName || '',
+            rightRow.dataset.rosterStaffName || '',
+        ) * directionMultiplier;
+    }
+
+    function syncSortButtonStates(tableEl, activeKey, direction) {
+        tableEl.querySelectorAll('[data-roster-staff-sort-key]').forEach(function (buttonEl) {
+            if (!(buttonEl instanceof HTMLButtonElement)) return;
+
+            const isActive = buttonEl.dataset.rosterStaffSortKey === activeKey;
+            buttonEl.setAttribute('aria-sort', isActive ? direction : 'none');
+
+            const headerCell = buttonEl.closest('th');
+            if (headerCell instanceof HTMLTableCellElement) {
+                headerCell.setAttribute('aria-sort', isActive ? direction : 'none');
+            }
+        });
+    }
+
+    function sortRosterStaffTable(tableEl, key, direction) {
+        const tbodyEl = tableEl.querySelector('.roster-staff-table-body');
+        if (!(tbodyEl instanceof HTMLTableSectionElement)) return;
+
+        const rows = Array.from(tbodyEl.querySelectorAll('.roster-staff-panel-entry'));
+        rows.sort(function (leftRow, rightRow) {
+            return compareRows(leftRow, rightRow, key, direction);
+        });
+        rows.forEach(function (rowEl) {
+            tbodyEl.appendChild(rowEl);
+        });
+
+        tableEl.dataset.rosterStaffSortKey = key;
+        tableEl.dataset.rosterStaffSortDirection = direction;
+        syncSortButtonStates(tableEl, key, direction);
+    }
+
+    function nextDirection(tableEl, key) {
+        const currentKey = tableEl.dataset.rosterStaffSortKey || '';
+        const currentDirection = tableEl.dataset.rosterStaffSortDirection || 'none';
+
+        if (currentKey === key && currentDirection === 'ascending') {
+            return 'descending';
+        }
+
+        return 'ascending';
+    }
+
+    function initRosterStaffPanelSortingWithin(root) {
+        if (!(root instanceof Element || root instanceof Document)) return;
+
+        root.querySelectorAll('.roster-staff-table').forEach(function (tableEl) {
+            if (!(tableEl instanceof HTMLTableElement)) return;
+
+            const defaultKey = tableEl.dataset.rosterStaffSortKey || 'name';
+            const defaultDirection = tableEl.dataset.rosterStaffSortDirection || 'ascending';
+            sortRosterStaffTable(tableEl, defaultKey, defaultDirection);
+        });
+    }
+
+    document.addEventListener('click', function (event) {
+        const buttonEl = event.target.closest('[data-roster-staff-sort-key]');
+        if (!(buttonEl instanceof HTMLButtonElement)) return;
+
+        const tableEl = buttonEl.closest('.roster-staff-table');
+        if (!(tableEl instanceof HTMLTableElement)) return;
+
+        const key = buttonEl.dataset.rosterStaffSortKey || 'name';
+        const direction = nextDirection(tableEl, key);
+        sortRosterStaffTable(tableEl, key, direction);
+    });
+
+    document.addEventListener('app:page-ready', function (event) {
+        initRosterStaffPanelSortingWithin((event.detail && event.detail.target) || document);
+    });
 })();
 
 // Toggle break-time controls based on the "Had break" checkbox.
@@ -1343,9 +1615,10 @@
 
         const isEnabled = checkboxEl.checked;
         targetEl.hidden = !isEnabled;
-        targetEl.querySelectorAll('.js-time-picker-input, .js-time-picker-trigger').forEach(function (element) {
+        targetEl.querySelectorAll('.js-time-picker-input, .js-time-picker-trigger, .js-time-picker-step-down, .js-time-picker-step-up').forEach(function (element) {
             element.disabled = !isEnabled;
         });
+        document.dispatchEvent(new CustomEvent('time-picker:sync', { detail: { target: targetEl } }));
     }
 
     document.addEventListener('change', function (event) {

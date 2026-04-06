@@ -334,7 +334,9 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                        callActionWithParams
+                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            [("isLive", "on")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
@@ -374,7 +376,9 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
 
                 response <- withUser manager do
-                    callAction (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                    callActionWithParams
+                        (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                        [("isLive", "on")]
 
                 response `responseStatusShouldBe` status302
 
@@ -638,9 +642,9 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` contentId
                 bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
                 bodyText `shouldContain` "Alpha Crew"
-                bodyText `shouldContain` "roster-shift-summary-primary\">0</span><span class=\"roster-shift-summary-divider\">/</span><span class=\"roster-shift-summary-secondary\">5"
+                bodyText `shouldContain` "roster-staff-shifts-actual\">0</span><span class=\"roster-staff-shifts-ideal\">(5)"
                 bodyText `shouldContain` "Bravo Crew"
-                bodyText `shouldContain` "roster-shift-summary-primary\">1</span><span class=\"roster-shift-summary-divider\">/</span><span class=\"roster-shift-summary-secondary\">7"
+                bodyText `shouldContain` "roster-staff-shifts-actual\">1</span><span class=\"roster-staff-shifts-ideal\">(7)"
 
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do

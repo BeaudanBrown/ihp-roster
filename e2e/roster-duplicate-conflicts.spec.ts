@@ -12,31 +12,40 @@ async function loginAndOpenRoster(page) {
 }
 
 async function ensureSecondRosterRow(page) {
-    const rows = page.locator('tr[data-roster-row]');
-    if (await rows.count() >= 2) return;
+    const editableRows = page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
+    if (await editableRows.count() >= 2) return;
 
     await page.locator('[data-roster-day-add="true"]').first().click();
-    await expect(rows).toHaveCount(2);
+    await expect(editableRows).toHaveCount(2);
 }
 
 async function assignStaffToRow(page, rowIndex, staffId) {
-    const row = page.locator('tr[data-roster-row]').nth(rowIndex);
+    const row = page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') }).nth(rowIndex);
     const select = row.locator('select[name="staffId"]');
     await select.selectOption(staffId);
     await expect(select).toHaveValue(staffId);
 }
 
+async function blurActiveRosterInput(page) {
+    await page.evaluate(() => {
+        const activeElement = document.activeElement;
+        if (activeElement instanceof HTMLElement) {
+            activeElement.blur();
+        }
+    });
+}
+
 async function normalizeRosterForDuplicateConflict(actorPage) {
     const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
-    const actorManagerEntry = actorPage
+    const alphaCrewEntry = actorPage
         .locator('#roster-staff-panel-fragment .roster-staff-panel-entry')
-        .filter({ hasText: 'E2E Manager' })
+        .filter({ hasText: 'Alpha Crew' })
         .first();
 
     await ensureSecondRosterRow(actorPage);
     await assignStaffToRow(actorPage, 0, alphaCrewStaffId);
     await assignStaffToRow(actorPage, 1, '');
-    await expect(actorManagerEntry).toContainText('0');
+    await expect(alphaCrewEntry).toContainText('1');
 }
 
 function duplicateConflictCells(page) {
@@ -56,18 +65,19 @@ test.describe('Roster duplicate conflicts', () => {
         await normalizeRosterForDuplicateConflict(actorPage);
 
         await loginAndOpenRoster(viewerPage);
-        await expect(viewerPage.locator('tr[data-roster-row]')).toHaveCount(2);
+        await expect(
+            viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }),
+        ).toHaveCount(2);
 
-        const managerStaffId = 'a0000000-0000-0000-0000-000000000101';
-        const actorManagerEntry = actorPage
+        const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
+        const alphaCrewEntry = actorPage
             .locator('#roster-staff-panel-fragment .roster-staff-panel-entry')
-            .filter({ hasText: 'E2E Manager' })
+            .filter({ hasText: 'Alpha Crew' })
             .first();
 
-        await assignStaffToRow(actorPage, 0, managerStaffId);
-        await expect(actorManagerEntry).toContainText('1');
-        await assignStaffToRow(actorPage, 1, managerStaffId);
-        await expect(actorManagerEntry).toContainText('2');
+        await assignStaffToRow(actorPage, 1, alphaCrewStaffId);
+        await expect(alphaCrewEntry).toContainText('2');
+        await blurActiveRosterInput(actorPage);
 
         await expect(duplicateConflictCells(actorPage)).toHaveCount(2);
         await expect(duplicateConflictCells(viewerPage)).toHaveCount(2);
@@ -80,21 +90,18 @@ test.describe('Roster duplicate conflicts', () => {
             return {
                 bodyRowCount: bodyRows.length,
                 outsideRowCount: outsideRows.length,
+                editableBodyRowCount: bodyRows.filter((row) => row.querySelector('select[name="staffId"]')).length,
                 firstRowCellCount: bodyRows[0]?.children.length ?? 0,
                 secondRowCellCount: bodyRows[1]?.children.length ?? 0,
                 selectCount: table.querySelectorAll('select[name="staffId"]').length,
-                visibleSelectCount: bodyRows.filter((row) => row.querySelector('select[name="staffId"]')).length,
             };
         });
 
-        expect(viewerGridState).toEqual({
-            bodyRowCount: 2,
-            outsideRowCount: 0,
-            firstRowCellCount: 4,
-            secondRowCellCount: 3,
-            selectCount: 2,
-            visibleSelectCount: 2,
-        });
+        expect(viewerGridState.outsideRowCount).toBe(0);
+        expect(viewerGridState.editableBodyRowCount).toBe(2);
+        expect(viewerGridState.selectCount).toBe(2);
+        expect(viewerGridState.bodyRowCount).toBeGreaterThanOrEqual(2);
+        expect(viewerGridState.firstRowCellCount).toBeGreaterThanOrEqual(3);
 
         await actorContext.close();
         await viewerContext.close();

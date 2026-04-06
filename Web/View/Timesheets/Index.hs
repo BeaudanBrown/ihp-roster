@@ -3,15 +3,18 @@ module Web.View.Timesheets.Index where
 import Application.Helper.Controller (isWithinEditWindow, shiftDurationMinutes)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.Pay (TimesheetPaySummary (..), timesheetEntryIdKey)
+import Data.Fixed (Pico)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.LocalTime (TimeOfDay (..))
 import Web.View.Prelude
 
 data IndexView = IndexView
     { entries               :: [TimesheetEntry]
     , staffMembers          :: [Staff]
+    , shiftTypes            :: [ShiftType]
     , paySummariesByEntryId :: Map.Map Text TimesheetPaySummary
     , today                 :: Day
     , editWindowDays        :: Int
@@ -39,7 +42,7 @@ renderTimesheetWeekShell IndexView { .. } = [hsx|
              data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
              data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
              data-live-update-week-offset={liveUpdateWeekOffsetText =<< liveUpdateScope}>
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="d-flex justify-content-between align-items-center mb-4 gap-2 flex-wrap">
             <div>
                 <h1 class="mb-0">Timesheets</h1>
                 <p class="app-muted mb-0">{formatDateDisplay weekStartDate} to {formatDateDisplay weekEndDate}</p>
@@ -52,7 +55,7 @@ renderTimesheetWeekShell IndexView { .. } = [hsx|
         </div>
 
         <div class="d-flex flex-column gap-3">
-            {forEach [0 .. 6] (renderDaySection entries staffMembers paySummariesByEntryId today editWindowDays weekOffset weekStartDate)}
+            {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate)}
         </div>
     </section>
 |]
@@ -71,38 +74,34 @@ renderTimesheetWeekNavigationLink label url =
             , partialNavigationPushUrl = True
             }
 
-renderDaySection :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Int -> Html
+renderDaySection :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Int -> Html
 renderDaySection =
     renderDaySectionWithSwap Nothing
 
-renderDaySectionOob :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Int -> Html
+renderDaySectionOob :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Int -> Html
 renderDaySectionOob =
     renderDaySectionWithSwap (Just "outerHTML")
 
-renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> [TimesheetEntry] -> [Staff] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Int -> Html
-renderDaySectionWithSwap maybeSwapOob entries staffMembers paySummariesByEntryId today editWindowDays weekOffset weekStartDate dayOffset = [hsx|
+renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Int -> Html
+renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate dayOffset = [hsx|
     <section id={timesheetDaySectionDomId dayOffset}
-             class="app-panel"
+             class="app-panel timesheet-day-panel"
              data-timesheet-day-offset={tshow dayOffset}
              data-live-update-url={daySectionUrl}
              hx-swap-oob={maybeSwapOob}>
         <div class="app-panel-body">
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <div>
-                    <h2 class="h5 mb-0">{weekdayLabel}</h2>
-                    <p class="app-muted mb-0">{formatDateDisplay dayDate}</p>
-                </div>
-                <a href={newEntryUrl}
-                   class="btn btn-sm btn-primary"
-                   hx-get={newEntryUrl}
-                   hx-target={"#" <> dialogOverlayMountId}
-                   hx-swap="innerHTML"
-                   hx-push-url="false">
-                    Add Timesheet
-                </a>
-            </div>
+            <a href={newEntryUrl}
+               class="timesheet-day-add-bar"
+               data-timesheet-day-add="true"
+               hx-get={newEntryUrl}
+               hx-target={"#" <> dialogOverlayMountId}
+               hx-swap="innerHTML"
+               hx-push-url="false">
+                <span class="timesheet-day-add-plus">+</span>
+                <span class="timesheet-day-add-label">{weekdayLabel} {formatDateCompact dayDate}</span>
+            </a>
 
-            {renderDayEntries dayOffset dayEntries staffMembers paySummariesByEntryId today editWindowDays weekOffset}
+            {renderDayEntries dayOffset dayEntries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset}
         </div>
     </section>
 |]
@@ -127,41 +126,50 @@ renderDaySectionWithSwap maybeSwapOob entries staffMembers paySummariesByEntryId
 timesheetDaySectionDomId :: Int -> Text
 timesheetDaySectionDomId dayOffset = "timesheet-day-section-" <> tshow dayOffset
 
-renderDayEntries :: (?context :: ControllerContext) => Int -> [TimesheetEntry] -> [Staff] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Html
-renderDayEntries dayOffset dayEntries staffMembers paySummariesByEntryId today editWindowDays weekOffset
-    | null dayEntries = [hsx|<p class="app-muted mb-0">No entries for this day.</p>|]
+renderDayEntries :: (?context :: ControllerContext) => Int -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Html
+renderDayEntries dayOffset dayEntries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset
+    | null dayEntries = [hsx|<p class="timesheet-day-empty app-muted mb-0">No entries for this day.</p>|]
     | otherwise = [hsx|
-        <div class="d-flex flex-column gap-2">
-            {forEach dayEntries (renderEntryCard dayOffset staffMembers paySummariesByEntryId today editWindowDays weekOffset)}
+        <div class="timesheet-entry-list">
+            {forEach dayEntries (renderEntryCard dayOffset staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset)}
         </div>
     |]
 
-renderEntryCard :: (?context :: ControllerContext) => Int -> [Staff] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> TimesheetEntry -> Html
-renderEntryCard dayOffset staffMembers paySummariesByEntryId today editWindowDays weekOffset entry = [hsx|
-    <div class="border rounded p-3">
-        <div class="d-flex justify-content-between align-items-start gap-3">
-            <div>
-                <div class="fw-semibold">{staffName}</div>
-                <div class="small app-muted">
-                    {storageTimeToDisplayLabel (timeOfDayToStorageValue entry.startTime)} - {storageTimeToDisplayLabel (timeOfDayToStorageValue entry.endTime)}
-                </div>
-                <div class="small app-muted">Break: {renderBreakSummary entry}</div>
-                <div class="small">Duration: {renderDuration entry}</div>
-                <div class="small">Pay: {renderPaySummary paySummary}</div>
+renderEntryCard :: (?context :: ControllerContext) => Int -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> TimesheetEntry -> Html
+renderEntryCard dayOffset staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset entry = [hsx|
+    <article class="timesheet-entry-card" data-timesheet-entry-approved={boolText entry.isApproved}>
+        <div class="timesheet-entry-main">
+            <div class="timesheet-entry-identity">
+                <div class="timesheet-entry-shift-type">{shiftTypeLabel}</div>
+                <div class="timesheet-entry-staff-name">{staffName}</div>
             </div>
 
-            <div class="text-end">
-                <div class="mb-2">{renderApprovalBadge entry}</div>
+            <div class="timesheet-entry-time">
+                <div class="timesheet-entry-time-range">
+                    {storageTimeToDisplayLabel (timeOfDayToStorageValue entry.startTime)} - {storageTimeToDisplayLabel (timeOfDayToStorageValue entry.endTime)}
+                </div>
+                <div class="timesheet-entry-meta">Shift: {renderDuration entry}</div>
+                <div class="timesheet-entry-meta">Break: {renderBreakSummary entry}</div>
+                <div class="timesheet-entry-meta">Pay: {renderPaySummary paySummary}</div>
+            </div>
+
+            <div class="timesheet-entry-actions">
+                {renderApprovalBadge entry}
                 {renderApprovalAction dayOffset entry weekOffset}
                 {renderEditActions dayOffset entry canEdit weekOffset}
             </div>
         </div>
-    </div>
+
+        {renderTimesheetShapeBar defaultTimesheetTimelineScale entry}
+    </article>
 |]
     where
         staffName = case find (\s -> unpackId (get #id s) == entry.staffId) staffMembers of
             Just staff -> staff.firstName <> " " <> staff.lastName
             Nothing    -> "Unknown" :: Text
+        shiftTypeLabel = case find (\shiftType -> unpackId (get #id shiftType) == entry.shiftTypeId) shiftTypes of
+            Just shiftType -> shiftType.name
+            Nothing        -> "Shift"
         paySummary = Map.lookup (timesheetEntryIdKey (get #id entry)) paySummariesByEntryId
         canEdit = currentUserIsManager || isWithinEditWindow today entry.workedOn editWindowDays
 
@@ -185,16 +193,16 @@ renderPaySummary maybeSummary =
 
 renderEditActions :: Int -> TimesheetEntry -> Bool -> Int -> Html
 renderEditActions dayOffset entry canEdit weekOffset
-    | canEdit = [hsx|
+    | canEdit && not entry.isApproved = [hsx|
         <a href={editUrl}
-           class="btn btn-sm btn-outline-secondary me-1"
+           class="btn btn-sm btn-outline-secondary"
            hx-get={editUrl}
            hx-target={"#" <> dialogOverlayMountId}
            hx-swap="innerHTML"
            hx-push-url="false">
             Edit
         </a>
-        {when (not entry.isApproved) renderDeleteButton}
+        {renderDeleteButton}
     |]
     | otherwise = mempty
     where
@@ -204,7 +212,7 @@ renderEditActions dayOffset entry canEdit weekOffset
         renderDeleteButton = [hsx|
             <form method="POST"
                   action={deleteUrl}
-                  class="d-inline"
+                  class="timesheet-entry-action-form"
                   hx-delete={deleteUrl}
                   hx-target={deleteTarget}
                   hx-swap="outerHTML"
@@ -221,7 +229,7 @@ renderApprovalAction dayOffset entry weekOffset
     | entry.isApproved = [hsx|
         <form method="POST"
               action={UnapproveTimesheetEntryAction entry.id}
-              class="d-inline me-1"
+              class="timesheet-entry-action-form"
               data-disable-javascript-submission="true"
               hx-post={UnapproveTimesheetEntryAction entry.id}
               hx-target={"#" <> timesheetDaySectionDomId dayOffset}
@@ -234,7 +242,7 @@ renderApprovalAction dayOffset entry weekOffset
     | otherwise = [hsx|
         <form method="POST"
               action={ApproveTimesheetEntryAction entry.id}
-              class="d-inline me-1"
+              class="timesheet-entry-action-form"
               data-disable-javascript-submission="true"
               hx-post={ApproveTimesheetEntryAction entry.id}
               hx-target={"#" <> timesheetDaySectionDomId dayOffset}
@@ -265,8 +273,106 @@ renderDuration entry =
 
 renderApprovalBadge :: TimesheetEntry -> Html
 renderApprovalBadge entry
-    | entry.isApproved = [hsx|<span class="badge bg-success">Approved</span>|]
-    | otherwise = [hsx|<span class="badge bg-warning text-dark">Pending</span>|]
+    | entry.isApproved = [hsx|<span class="badge bg-success timesheet-entry-status-badge">Approved</span>|]
+    | otherwise = [hsx|<span class="badge bg-warning text-dark timesheet-entry-status-badge">Pending</span>|]
+
+formatDateCompact :: Day -> Text
+formatDateCompact day =
+    Text.pack (formatTime defaultTimeLocale "%d/%m" day)
+
+boolText :: Bool -> Text
+boolText True = "true"
+boolText False = "false"
+
+data TimesheetTimelineScale = TimesheetTimelineScale
+    { scaleStartMinutes :: Int
+    , scaleEndMinutes   :: Int
+    , midnightOffset    :: Int
+    }
+
+data TimesheetShapeSegment = TimesheetShapeSegment
+    { segmentLeft  :: Double
+    , segmentWidth :: Double
+    , segmentClass :: Text
+    }
+
+defaultTimesheetTimelineScale :: TimesheetTimelineScale
+defaultTimesheetTimelineScale =
+    TimesheetTimelineScale
+        { scaleStartMinutes = 6 * 60
+        , scaleEndMinutes = 30 * 60
+        , midnightOffset = 24 * 60
+        }
+
+renderTimesheetShapeBar :: TimesheetTimelineScale -> TimesheetEntry -> Html
+renderTimesheetShapeBar scale entry =
+    let segments = timesheetShapeSegments scale entry
+    in if null segments
+        then mempty
+        else [hsx|
+            <div class="timesheet-shape-bar">
+                <div class="timesheet-shape-track"></div>
+                <div class="timesheet-shape-midnight-marker" style={timesheetMidnightStyle scale}></div>
+                {forEach segments renderTimesheetShapeSegment}
+            </div>
+        |]
+
+timesheetShapeSegments :: TimesheetTimelineScale -> TimesheetEntry -> [TimesheetShapeSegment]
+timesheetShapeSegments scale entry =
+    let shiftSegments = buildSegments "timesheet-shape-segment-shift" scale (scaledSpan scale entry.startTime entry.endTime)
+        breakSegments =
+            case (entry.breakStartTime, entry.breakEndTime) of
+                (Just breakStart, Just breakEnd) | entry.hadBreak ->
+                    buildSegments "timesheet-shape-segment-break" scale (scaledSpan scale breakStart breakEnd)
+                _ -> []
+     in shiftSegments <> breakSegments
+
+buildSegments :: Text -> TimesheetTimelineScale -> (Int, Int) -> [TimesheetShapeSegment]
+buildSegments cssClass scale (startMinutes, endMinutes)
+    | endMinutes <= startMinutes = []
+    | endMinutes <= scaleEndMinutes scale = [mkSegment cssClass scale startMinutes endMinutes]
+    | otherwise =
+        [ mkSegment cssClass scale startMinutes (scaleEndMinutes scale)
+        , mkSegment cssClass scale (scaleStartMinutes scale) (endMinutes - 1440)
+        ]
+
+mkSegment :: Text -> TimesheetTimelineScale -> Int -> Int -> TimesheetShapeSegment
+mkSegment cssClass scale startMinutes endMinutes =
+    let total = fromIntegral (scaleEndMinutes scale - scaleStartMinutes scale) :: Double
+        left = (fromIntegral (startMinutes - scaleStartMinutes scale) / total) * 100
+        width = (fromIntegral (endMinutes - startMinutes) / total) * 100
+    in TimesheetShapeSegment { segmentLeft = left, segmentWidth = width, segmentClass = cssClass }
+
+scaledSpan :: TimesheetTimelineScale -> TimeOfDay -> TimeOfDay -> (Int, Int)
+scaledSpan scale startTime endTime =
+    let startMinutes = scaleMinuteValue scale startTime
+        endBase = timeOfDayToMinutes endTime
+        endMinutes =
+            if endBase <= timeOfDayToMinutes startTime
+                then endBase + 1440
+                else endBase
+    in (startMinutes, endMinutes)
+
+scaleMinuteValue :: TimesheetTimelineScale -> TimeOfDay -> Int
+scaleMinuteValue scale timeOfDay =
+    let minuteValue = timeOfDayToMinutes timeOfDay
+    in if minuteValue < scaleStartMinutes scale then minuteValue + 1440 else minuteValue
+
+timeOfDayToMinutes :: TimeOfDay -> Int
+timeOfDayToMinutes TimeOfDay { todHour, todMin, todSec } =
+    todHour * 60 + todMin + floor (realToFrac todSec :: Pico) `div` 60
+
+timesheetMidnightStyle :: TimesheetTimelineScale -> Text
+timesheetMidnightStyle scale =
+    let total = fromIntegral (scaleEndMinutes scale - scaleStartMinutes scale) :: Double
+        left = (fromIntegral (midnightOffset scale - scaleStartMinutes scale) / total) * 100
+    in "left:" <> tshow left <> "%;"
+
+renderTimesheetShapeSegment :: TimesheetShapeSegment -> Html
+renderTimesheetShapeSegment segment = [hsx|
+    <div class={"timesheet-shape-segment " <> segmentClass segment}
+         style={"left:" <> tshow (segmentLeft segment) <> "%;width:" <> tshow (segmentWidth segment) <> "%;"}></div>
+|]
 
 liveUpdateScopeKind :: LiveUpdateScope -> Text
 liveUpdateScopeKind LeaveRequestsScope {} = "leave_requests"

@@ -79,6 +79,8 @@ renderForm post = formFor post [hsx|
   - open picker via `.js-time-picker-trigger`
   - render text in `.js-time-picker-label` (12-hour with AM/PM)
   - optional range override per field: `data-time-picker-start="HH:MM"` + `data-time-picker-end="HH:MM"` (end may wrap past midnight)
+  - optional empty-label override per field: `data-time-picker-empty-label="Time"`
+  - step buttons are optional; when omitted, the shared picker should still use the same wrapper/input/trigger contract
 - Render `renderQuarterHourTimePickerModal` once in the global layout so it stays in the picker lane and can open above a workflow dialog without competing for the shared dialog mount.
 - Keep HTMX autosave on the hidden input (`hx-trigger="change"`), and let JS dispatch `change` after selecting/clearing a modal option.
 

@@ -188,7 +188,7 @@ ON CONFLICT (id) DO UPDATE SET
     created_at = EXCLUDED.created_at,
     updated_at = EXCLUDED.updated_at;
 
-INSERT INTO staff (id, venue_id, user_id, first_name, last_name, is_active)
+INSERT INTO staff (id, venue_id, user_id, first_name, last_name, phone, emergency_contact_name, emergency_contact_phone, ideal_shifts_per_week, is_active)
 VALUES
     (
         'a0000000-0000-0000-0000-000000000101',
@@ -196,6 +196,10 @@ VALUES
         'a0000000-0000-0000-0000-000000000001',
         'E2E',
         'Manager',
+        '0400000001',
+        'Emergency Manager',
+        '0400000101',
+        0,
         TRUE
     ),
     (
@@ -204,6 +208,10 @@ VALUES
         'a0000000-0000-0000-0000-000000000002',
         'Alpha',
         'Crew',
+        '0400000002',
+        'Emergency Alpha',
+        '0400000102',
+        0,
         TRUE
     ),
     (
@@ -212,6 +220,10 @@ VALUES
         'a0000000-0000-0000-0000-000000000003',
         'Admin',
         'Crew',
+        '0400000003',
+        'Emergency Admin',
+        '0400000103',
+        0,
         TRUE
     ),
     (
@@ -220,6 +232,10 @@ VALUES
         NULL,
         'Beta',
         'Crew',
+        '0400000004',
+        'Emergency Beta',
+        '0400000104',
+        0,
         TRUE
     )
 ON CONFLICT (id) DO UPDATE SET
@@ -227,6 +243,10 @@ ON CONFLICT (id) DO UPDATE SET
     user_id = EXCLUDED.user_id,
     first_name = EXCLUDED.first_name,
     last_name = EXCLUDED.last_name,
+    phone = EXCLUDED.phone,
+    emergency_contact_name = EXCLUDED.emergency_contact_name,
+    emergency_contact_phone = EXCLUDED.emergency_contact_phone,
+    ideal_shifts_per_week = EXCLUDED.ideal_shifts_per_week,
     is_active = EXCLUDED.is_active;
 
 INSERT INTO pay_levels (
@@ -543,6 +563,21 @@ VALUES
         TRUE,
         '2025-01-12 01:15:00+00',
         'a0000000-0000-0000-0000-000000000003'
+    ),
+    (
+        'a1000000-0000-0000-0000-000000000096',
+        'a1000000-0000-0000-0000-000000000001',
+        'a1000000-0000-0000-0000-000000000031',
+        'a1000000-0000-0000-0000-000000000133',
+        (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)) + 2,
+        '12:00',
+        '15:00',
+        FALSE,
+        0,
+        NULL,
+        FALSE,
+        NULL,
+        NULL
     ),
     (
         'a1000000-0000-0000-0000-000000000095',

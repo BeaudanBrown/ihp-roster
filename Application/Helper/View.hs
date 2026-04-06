@@ -2,7 +2,7 @@ module Application.Helper.View where
 
 import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
                                       hasRole)
-import Data.List (sortBy)
+import Data.List (elemIndex, sortBy)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
@@ -93,6 +93,21 @@ data PartialNavigationLink = PartialNavigationLink
     , partialNavigationSwap     :: !Text
     , partialNavigationSync     :: !(Maybe Text)
     , partialNavigationPushUrl  :: !Bool
+    }
+
+data TimePickerConfig = TimePickerConfig
+    { timePickerFieldName      :: !Text
+    , timePickerCurrentValue   :: !Text
+    , timePickerRangeStart     :: !Text
+    , timePickerRangeEnd       :: !Text
+    , timePickerDisabled       :: !Bool
+    , timePickerShowStepButtons :: !Bool
+    , timePickerEmptyLabel     :: !Text
+    , timePickerFieldClasses   :: ![Text]
+    , timePickerControlClasses :: ![Text]
+    , timePickerInputClasses   :: ![Text]
+    , timePickerTriggerClasses :: ![Text]
+    , timePickerAriaLabel      :: !Text
     }
 
 defaultOverlayButtons :: Text -> [OverlayButton]
@@ -339,6 +354,50 @@ storageTimeToDisplayLabel rawValue =
         Just tod -> Text.pack (formatTime defaultTimeLocale "%-I:%M %p" tod)
         Nothing  -> rawValue
 
+minuteOfDayFromStorageValue :: Text -> Maybe Int
+minuteOfDayFromStorageValue value = do
+    tod <- parseTimeM True defaultTimeLocale "%H:%M" (cs value) :: Maybe TimeOfDay
+    pure (todHour tod * 60 + todMin tod)
+
+resolveTimePickerRange :: Text -> Text -> Maybe (Int, Int)
+resolveTimePickerRange rangeStart rangeEnd = do
+    startMinute <- minuteOfDayFromStorageValue rangeStart
+    endMinuteRaw <- minuteOfDayFromStorageValue rangeEnd
+    let endMinute =
+            if endMinuteRaw < startMinute
+                then endMinuteRaw + (24 * 60)
+                else endMinuteRaw
+    pure (startMinute, endMinute)
+
+buildTimePickerOptions :: Text -> Text -> Int -> [Text]
+buildTimePickerOptions rangeStart rangeEnd stepMinutes =
+    case resolveTimePickerRange rangeStart rangeEnd of
+        Nothing -> []
+        Just (startMinute, endMinute) ->
+            [ timeOfDayToStorageValue (TimeOfDay hour minute 0)
+            | minuteOfDay <- [startMinute, startMinute + stepMinutes .. endMinute]
+            , let normalizedMinuteOfDay = minuteOfDay `mod` (24 * 60)
+            , let hour = normalizedMinuteOfDay `div` 60
+            , let minute = normalizedMinuteOfDay `mod` 60
+            ]
+
+timePickerStepButtonStates :: Text -> Text -> Text -> Int -> Bool -> (Bool, Bool)
+timePickerStepButtonStates currentValue rangeStart rangeEnd stepMinutes disabled
+    | disabled = (True, True)
+    | Text.null currentValue = (True, True)
+    | otherwise =
+        case elemIndex currentValue options of
+            Nothing -> (True, True)
+            Just selectedIndex -> (selectedIndex == 0, selectedIndex == optionCount - 1)
+    where
+        options = buildTimePickerOptions rangeStart rangeEnd stepMinutes
+        optionCount = length options
+
+renderTimePickerDisplayLabel :: Text -> Text -> Text
+renderTimePickerDisplayLabel emptyLabel currentValue
+    | Text.null currentValue || currentValue == "00:00" = emptyLabel
+    | otherwise = storageTimeToDisplayLabel currentValue
+
 renderQuarterHourTimePickerModal :: Html
 renderQuarterHourTimePickerModal = [hsx|
     <div class="modal fade"
@@ -418,12 +477,12 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset = [hsx|
     <div class="row mb-3">
         <div class="col">
             <label class="form-label">Shift Start</label>
-            {renderTimePickerField "startTime" startTimeValue "06:00" "04:45" False}
+            {renderTimePickerField (defaultTimePickerConfig "startTime" startTimeValue "06:00" "04:45" False)}
             {renderFieldError entry "startTime"}
         </div>
         <div class="col">
             <label class="form-label">Shift End</label>
-            {renderTimePickerField "endTime" endTimeValue "06:00" "04:45" False}
+            {renderTimePickerField (defaultTimePickerConfig "endTime" endTimeValue "06:00" "04:45" False)}
             {renderFieldError entry "endTime"}
         </div>
     </div>
@@ -448,12 +507,12 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset = [hsx|
     <div id="timesheet-break-time-fields" class="row mb-3" hidden={not entry.hadBreak}>
         <div class="col">
             <label class="form-label">Break Start</label>
-            {renderTimePickerField "breakStartTime" breakStartTimeValue "06:00" "04:45" (not entry.hadBreak)}
+            {renderTimePickerField (defaultTimePickerConfig "breakStartTime" breakStartTimeValue "06:00" "04:45" (not entry.hadBreak))}
             {renderFieldError entry "breakStartTime"}
         </div>
         <div class="col">
             <label class="form-label">Break End</label>
-            {renderTimePickerField "breakEndTime" breakEndTimeValue "06:00" "04:45" (not entry.hadBreak)}
+            {renderTimePickerField (defaultTimePickerConfig "breakEndTime" breakEndTimeValue "06:00" "04:45" (not entry.hadBreak))}
             {renderFieldError entry "breakEndTime"}
         </div>
     </div>
@@ -514,25 +573,84 @@ renderShiftTypeOption selectedShiftTypeId shiftType =
         </option>
     |]
 
-renderTimePickerField :: Text -> Text -> Text -> Text -> Bool -> Html
-renderTimePickerField fieldName currentValue rangeStart rangeEnd disabled =
-    let displayLabel = if Text.null currentValue || currentValue == "00:00"
-            then "Select time" :: Text
-            else storageTimeToDisplayLabel currentValue
-        isMuted = Text.null currentValue || currentValue == "00:00"
+defaultTimePickerConfig :: Text -> Text -> Text -> Text -> Bool -> TimePickerConfig
+defaultTimePickerConfig fieldName currentValue rangeStart rangeEnd disabled =
+    TimePickerConfig
+        { timePickerFieldName = fieldName
+        , timePickerCurrentValue = currentValue
+        , timePickerRangeStart = rangeStart
+        , timePickerRangeEnd = rangeEnd
+        , timePickerDisabled = disabled
+        , timePickerShowStepButtons = True
+        , timePickerEmptyLabel = "Time"
+        , timePickerFieldClasses = []
+        , timePickerControlClasses = []
+        , timePickerInputClasses = []
+        , timePickerTriggerClasses = []
+        , timePickerAriaLabel = "Select time"
+        }
+
+renderTimePickerField :: TimePickerConfig -> Html
+renderTimePickerField config@TimePickerConfig { timePickerFieldName, timePickerCurrentValue, timePickerDisabled, timePickerInputClasses } =
+    renderTimePickerFieldWithInput config [hsx|
+        <input type="hidden"
+               name={timePickerFieldName}
+               value={timePickerCurrentValue}
+               class={classes (("js-time-picker-input", True) : map (\className -> (className, True)) timePickerInputClasses)}
+               disabled={timePickerDisabled} />
+    |]
+
+renderTimePickerFieldWithInput :: TimePickerConfig -> Html -> Html
+renderTimePickerFieldWithInput config@TimePickerConfig { timePickerRangeStart, timePickerRangeEnd, timePickerEmptyLabel, timePickerFieldClasses } inputHtml = [hsx|
+    <div data-time-picker-field="true"
+         data-time-picker-start={timePickerRangeStart}
+         data-time-picker-end={timePickerRangeEnd}
+         data-time-picker-step-minutes="15"
+         data-time-picker-empty-label={timePickerEmptyLabel}
+         class={classes (("time-picker-field", True) : map (\className -> (className, True)) timePickerFieldClasses)}>
+        {inputHtml}
+        {renderTimePickerControl config}
+    </div>
+|]
+
+renderTimePickerControl :: TimePickerConfig -> Html
+renderTimePickerControl TimePickerConfig { timePickerCurrentValue, timePickerRangeStart, timePickerRangeEnd, timePickerDisabled, timePickerShowStepButtons, timePickerEmptyLabel, timePickerControlClasses, timePickerTriggerClasses, timePickerAriaLabel } =
+    let displayLabel = renderTimePickerDisplayLabel timePickerEmptyLabel timePickerCurrentValue
+        isMuted = Text.null timePickerCurrentValue || timePickerCurrentValue == "00:00"
+        (stepDownDisabled, stepUpDisabled) = timePickerStepButtonStates timePickerCurrentValue timePickerRangeStart timePickerRangeEnd 15 timePickerDisabled
+        controlClasses =
+            ("btn-group", True)
+                : ("time-picker-control", True)
+                : ("time-picker-control-no-steps", not timePickerShowStepButtons)
+                : map (\className -> (className, True)) timePickerControlClasses
+        triggerClasses =
+            ("btn", True)
+                : ("btn-outline-secondary", True)
+                : ("time-picker-trigger-button", True)
+                : ("js-time-picker-trigger", True)
+                : map (\className -> (className, True)) timePickerTriggerClasses
     in [hsx|
-        <div data-time-picker-field="true" data-time-picker-start={rangeStart} data-time-picker-end={rangeEnd} class="d-flex align-items-center">
-            <input type="hidden"
-                   name={fieldName}
-                   value={currentValue}
-                   class="js-time-picker-input"
-                   disabled={disabled} />
+        <div class={classes controlClasses} role="group" aria-label={timePickerAriaLabel}>
+            {renderTimePickerStepButton timePickerShowStepButtons "js-time-picker-step-down" "Select previous time" stepDownDisabled "-"}
             <button type="button"
-                    class="btn btn-outline-secondary js-time-picker-trigger"
-                    disabled={disabled}>
+                    class={classes triggerClasses}
+                    disabled={timePickerDisabled}>
                 <span class={classes [("js-time-picker-label", True), ("app-muted", isMuted)]}>{displayLabel}</span>
             </button>
+            {renderTimePickerStepButton timePickerShowStepButtons "js-time-picker-step-up" "Select next time" stepUpDisabled "+"}
         </div>
+    |]
+
+renderTimePickerStepButton :: Bool -> Text -> Text -> Bool -> Text -> Html
+renderTimePickerStepButton showButton buttonClass ariaLabel disabled label
+    | not showButton = mempty
+    | otherwise = [hsx|
+        <button type="button"
+                class={"btn btn-outline-secondary time-picker-step-button " <> buttonClass}
+                aria-label={ariaLabel}
+                disabled={disabled}>
+            {label}
+        </button>
     |]
 
 renderFieldError :: TimesheetEntry -> Text -> Html

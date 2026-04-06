@@ -68,7 +68,7 @@ test.describe('HTMX submit regressions', () => {
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
-        await page.getByRole('link', { name: 'Add Timesheet' }).first().click();
+        await page.locator('[data-timesheet-day-add="true"]').first().click();
         await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
         await page.selectOption('#staffId', { label: 'E2E Manager' });
         await page.locator('input[name="startTime"]').evaluate((input, value) => {
@@ -82,7 +82,7 @@ test.describe('HTMX submit regressions', () => {
         await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
         await expect(page.locator('#timesheet-day-section-0')).toContainText(renderedRange);
         await expect(
-            page.locator(`#timesheet-day-section-0 .border.rounded:has-text("E2E Manager"):has-text("${renderedRange}")`)
+            page.locator(`#timesheet-day-section-0 .timesheet-entry-card:has-text("E2E Manager"):has-text("${renderedRange}")`)
         ).toHaveCount(1);
     });
 });

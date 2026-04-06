@@ -163,7 +163,9 @@ renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRoste
             <div class="card shadow-sm mb-5 mb-xl-0">
                 {renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup}
                 <div class="table-responsive">
-                    <table class="table table-bordered table-sm mb-0 align-middle roster-grid">
+                    <table class="table table-bordered table-sm mb-0 align-middle roster-grid"
+                           style={"--roster-slot-count:" <> tshow (max 1 (length slotNames)) <> ";"}>
+                        {renderRosterGridColGroup slotNames}
                         <thead class="text-center text-uppercase fw-bold roster-grid-head">
                             <tr>
                                 <th rowspan="2" class="py-2 roster-day-column">Day / Date</th>
@@ -181,6 +183,22 @@ renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRoste
         {forEach maybeRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment weekOffset (coerce rosterWeek.rosterGroupId) panelStaff)}
     </div>
 |]
+
+renderRosterGridColGroup :: [SlotName] -> Html
+renderRosterGridColGroup slotNames = [hsx|
+    <colgroup>
+        <col style={("width: var(--roster-day-share);" :: Text)} />
+        {forEach slotNames renderRosterBlockColGroup}
+    </colgroup>
+|]
+
+renderRosterBlockColGroup :: SlotName -> Html
+renderRosterBlockColGroup _ =
+    mconcat
+        [ [hsx|<col style={("width: var(--roster-time-share);" :: Text)} />|]
+        , [hsx|<col style={("width: var(--roster-staff-share);" :: Text)} />|]
+        , [hsx|<col style={("width: var(--roster-note-share);" :: Text)} />|]
+        ]
 
 renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup = [hsx|
@@ -222,48 +240,85 @@ renderRosterStaffPanel :: Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Ht
 renderRosterStaffPanel weekOffset currentRosterGroupId panelStaff = [hsx|
     <div class="app-panel roster-staff-panel">
         <div class="app-panel-body">
-            <h2 class="h5 mb-3">Staff</h2>
-
-            <div class="roster-staff-table">
-                <div class="roster-staff-table-head">
-                    <div>Name</div>
-                    <div>Shifts (Ideal)</div>
-                    <div class="roster-staff-action-head">Action</div>
+            <div class="roster-staff-panel-header">
+                <div>
+                    <h2 class="h5 mb-1">Staff</h2>
+                    <div class="roster-staff-panel-summary">{tshow (length panelStaff)} active staff</div>
                 </div>
             </div>
 
-            <div class="roster-staff-panel-list roster-staff-table-body">
-                {forEach panelStaff (renderRosterStaffPanelEntry weekOffset currentRosterGroupId)}
+            <div class="roster-staff-panel-list">
+                <table class="roster-staff-table">
+                    <thead class="roster-staff-table-head">
+                        <tr>
+                            <th scope="col" aria-sort="none">
+                                <button type="button" class="roster-staff-sort-button" data-roster-staff-sort-key="name">
+                                    Name
+                                </button>
+                            </th>
+                            <th scope="col" class="roster-staff-role-head" aria-sort="none">
+                                <button type="button" class="roster-staff-sort-button" data-roster-staff-sort-key="role">
+                                    Role
+                                </button>
+                            </th>
+                            <th scope="col" class="roster-staff-metric-head" aria-sort="none">
+                                <button type="button" class="roster-staff-sort-button roster-staff-sort-button-metric" data-roster-staff-sort-key="shifts">
+                                    Shifts
+                                </button>
+                            </th>
+                            <th scope="col" class="roster-staff-action-head">Edit</th>
+                        </tr>
+                    </thead>
+                    <tbody class="roster-staff-table-body">
+                        {forEach panelStaff (renderRosterStaffPanelEntry weekOffset currentRosterGroupId)}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 |]
 
 renderRosterStaffPanelEntry :: Int -> Id RosterGroup -> RosterStaffPanelEntry -> Html
-renderRosterStaffPanelEntry weekOffset currentRosterGroupId entry = [hsx|
-    <section class="roster-staff-panel-entry">
-        <div class="roster-staff-cell roster-staff-name">
-            <span class="roster-staff-name-primary">{entry.staff.firstName} {entry.staff.lastName}</span>
-        </div>
-        <div class="roster-staff-cell roster-staff-shifts">{renderShiftSummary entry}</div>
-        <div class="roster-staff-cell roster-staff-action">
-            <button type="button"
-               class="btn btn-sm btn-outline-secondary"
-               hx-get={appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]}
-               hx-target={"#" <> htmxModalMountId}
-               hx-swap="innerHTML"
-               hx-push-url="false">
-                Edit
-            </button>
-        </div>
-    </section>
-|]
+renderRosterStaffPanelEntry weekOffset currentRosterGroupId entry =
+    let
+        staffDisplayName = entry.staff.firstName <> " " <> entry.staff.lastName
+        staffRoleLabel = humanizeStaffRole entry.userRole
+     in
+        [hsx|
+            <tr class="roster-staff-panel-entry"
+                data-roster-staff-name={staffDisplayName}
+                data-roster-staff-role={staffRoleLabel}
+                data-roster-staff-assigned={tshow entry.assignedShiftCount}
+                data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}>
+                <th scope="row" class="roster-staff-cell roster-staff-name">
+                    <div class="roster-staff-name-primary">{staffDisplayName}</div>
+                </th>
+                <td class="roster-staff-cell roster-staff-role">{staffRoleLabel}</td>
+                <td class="roster-staff-cell roster-staff-shifts">{renderShiftSummary entry}</td>
+                <td class="roster-staff-cell roster-staff-action">
+                    <button type="button"
+                       class="btn btn-sm btn-outline-secondary roster-staff-edit-button"
+                       hx-get={appendQueryParams (pathTo (EditStaffAction entry.staff.id)) [("weekOffset", tshow weekOffset), ("rosterGroupId", tshow currentRosterGroupId)]}
+                       hx-target={"#" <> htmxModalMountId}
+                       hx-swap="innerHTML"
+                       hx-push-url="false">
+                        Edit
+                    </button>
+                </td>
+            </tr>
+        |]
+
+humanizeStaffRole :: Text -> Text
+humanizeStaffRole "venue_admin" = "Venue Admin"
+humanizeStaffRole "venue_owner" = "Venue Owner"
+humanizeStaffRole "manager" = "Manager"
+humanizeStaffRole "worker" = "Worker"
+humanizeStaffRole other = Text.toTitle (Text.replace "_" " " other)
 
 renderShiftSummary :: RosterStaffPanelEntry -> Html
 renderShiftSummary entry = [hsx|
-    <span class="roster-shift-summary-primary">{tshow entry.assignedShiftCount}</span>
-    <span class="roster-shift-summary-divider">/</span>
-    <span class="roster-shift-summary-secondary">{tshow entry.staff.idealShiftsPerWeek}</span>
+    <span class="roster-staff-shifts-actual">{tshow entry.assignedShiftCount}</span>
+    <span class="roster-staff-shifts-ideal">({tshow entry.staff.idealShiftsPerWeek})</span>
 |]
 
 renderSlotHeaderGroup :: SlotName -> Html
@@ -451,10 +506,11 @@ renderAddRowButton rosterDay =
         else [hsx|<span></span>|]
 
 renderDeleteLastRowButton :: (?context :: ControllerContext) => RosterDay -> Int -> Html
-renderDeleteLastRowButton _ rowIndex | rowIndex < minimumOpenRosterRows = [hsx|<span></span>|]
-renderDeleteLastRowButton rosterDay _ =
+renderDeleteLastRowButton rosterDay rowIndex =
     if currentUserIsManager
-        then [hsx|
+        then
+            let canDelete = rowIndex >= minimumOpenRosterRows
+             in [hsx|
             <form method="POST"
                   action={RemoveRosterRowAction rosterDay.id}
                   class="d-inline"
@@ -467,7 +523,8 @@ renderDeleteLastRowButton rosterDay _ =
                 <button type="submit"
                         class="btn btn-sm roster-day-action roster-day-action-remove"
                         data-roster-day-remove="true"
-                        title="Delete last shift row">
+                        title={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}
+                        disabled={not canDelete}>
                     -
                 </button>
             </form>
@@ -481,13 +538,12 @@ renderBlockCells isEditable staffMembers rosterDay rowIndex rowSlots slotConflic
     case find (\slot -> slot.slotNameId == coerce (get #id slotName)) rowSlots of
         Just slot ->
             let currentStartTime = optionalTimeOfDayToStorageValue slot.startTime
-                currentStartTimeLabel = if Text.null currentStartTime then "Select time" else storageTimeToDisplayLabel currentStartTime
                 currentNote = fromMaybe "" slot.note
                 currentPrimaryConflict = primaryConflict (lookupConflicts (get #id slot) slotConflicts)
                 currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel slot.staffId staffMembers)
              in [hsx|
                 <td class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}>
-                    {if isEditable then renderEditableTimeCell slot.id currentStartTime currentStartTimeLabel else renderReadOnlyCell currentStartTimeLabel}
+                    {if isEditable then renderEditableTimeCell slot.id currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Time" currentStartTime)}
                 </td>
 
                 <td class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}
@@ -522,22 +578,31 @@ renderStaffOption selectedStaffId staff = [hsx|
     </option>
 |]
 
-renderEditableTimeCell :: Id RosterSlot -> Text -> Text -> Html
-renderEditableTimeCell rosterSlotId currentStartTime currentStartTimeLabel = [hsx|
-    <form class="m-0 d-flex align-items-center gap-1 slot-cell-form" data-time-picker-field="true">
-        <input type="hidden"
-               name="startTime"
-               value={currentStartTime}
-               class="slot-time-input slot-cell-input js-time-picker-input"
-               hx-post={UpdateRosterSlotAction rosterSlotId}
-               hx-trigger="change"
-               hx-include="closest form"
-               hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
-               hx-swap="none" />
-        <button type="button"
-                class="btn btn-sm slot-time-trigger js-time-picker-trigger">
-            <span class={classes [("js-time-picker-label", True), ("app-muted", Text.null currentStartTime)]}>{currentStartTimeLabel}</span>
-        </button>
+renderEditableTimeCell :: Id RosterSlot -> Text -> Html
+renderEditableTimeCell rosterSlotId currentStartTime =
+    let pickerConfig =
+            (defaultTimePickerConfig "startTime" currentStartTime "06:00" "23:45" False)
+                { timePickerShowStepButtons = False
+                , timePickerEmptyLabel = "Time"
+                , timePickerFieldClasses = ["m-0", "d-flex", "align-items-center", "slot-cell-form"]
+                , timePickerControlClasses = ["roster-time-picker-control"]
+                , timePickerTriggerClasses = ["btn-sm", "slot-time-trigger"]
+                , timePickerAriaLabel = "Select roster slot time"
+                }
+        inputHtml = [hsx|
+            <input type="hidden"
+                   name="startTime"
+                   value={currentStartTime}
+                   class="slot-time-input slot-cell-input js-time-picker-input"
+                   hx-post={UpdateRosterSlotAction rosterSlotId}
+                   hx-trigger="change"
+                   hx-include="closest form"
+                   hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
+                   hx-swap="none" />
+        |]
+    in [hsx|
+    <form class="m-0">
+        {renderTimePickerFieldWithInput pickerConfig inputHtml}
     </form>
 |]
 
@@ -574,7 +639,7 @@ renderEditableNoteCell rosterSlotId currentNote = [hsx|
                placeholder=""
                class="form-control form-control-sm slot-note-input slot-cell-input"
                hx-post={UpdateRosterSlotAction rosterSlotId}
-               hx-trigger="change"
+               hx-trigger="input changed delay:1200ms"
                hx-include="closest form"
                hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
                hx-swap="none" />
@@ -634,16 +699,19 @@ renderLiveToggleForm :: RosterWeek -> Html
 renderLiveToggleForm rosterWeek = [hsx|
     <form method="POST"
           action={ToggleRosterWeekLiveStatusAction rosterWeek.id}
-          class="form-check form-switch d-flex align-items-center gap-2 mb-0"
-          hx-post={ToggleRosterWeekLiveStatusAction rosterWeek.id}
-          hx-trigger="change from:input"
-          hx-target={"#" <> rosterContentFragmentId}
-          hx-swap="outerHTML"
-          hx-push-url="false"
-          hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+          class="form-check form-switch d-flex align-items-center gap-2 mb-0">
         <input type="checkbox"
                id={liveToggleInputId rosterWeek.id}
+               name="isLive"
+               value="true"
                class="form-check-input mt-0"
+               hx-post={ToggleRosterWeekLiveStatusAction rosterWeek.id}
+               hx-trigger="change"
+               hx-include="closest form"
+               hx-target={"#" <> rosterContentFragmentId}
+               hx-swap="outerHTML"
+               hx-push-url="false"
+               hx-sync={"#" <> rosterWeekShellId <> ":replace"}
                checked={rosterWeek.isLive} />
         <label class="form-check-label fw-semibold" for={liveToggleInputId rosterWeek.id}>
             Live

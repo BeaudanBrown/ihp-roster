@@ -29,8 +29,17 @@ bash ./bin/in-env screenshot-page /RosterWeeks roster.png \
   --navigation-timeout-ms 120000 \
   --selector-timeout-ms 120000
 
+# Run the dedicated mobile/tablet experience checks
+bash ./bin/in-env e2e e2e/mobile-experience.spec.ts
+
+# Run the roster-specific mobile/tablet baseline
+bash ./bin/in-env e2e e2e/roster-mobile.spec.ts
+
 # View the last test report
 bash ./bin/in-env e2e-report
+
+# Use Playwright CLI for exploratory browser automation
+bash ./bin/in-env pwcli --help
 ```
 
 ## Prerequisites
@@ -91,6 +100,11 @@ For payroll/export coverage, the shared helpers in `e2e/test-helpers.ts` also pr
 ### UI behavior expectations worth covering
 - For HTMX week pagers, assert both the shell swap and that no full page navigation occurred by preserving a `window` marker across clicks.
 - For roster sidebar layout, prefer checking computed CSS (`position: sticky`, capped height, internal scroll container) over brittle pixel-perfect comparisons against neighboring panels.
+- For responsive work, prefer structural assertions over screenshots first:
+  - page-level horizontal overflow stays off the viewport
+  - dense tables keep overflow contained inside `.table-responsive`
+  - authenticated mobile nav expands and exposes the expected links
+  - workflow dialogs fit inside the viewport width
 
 ### Logging in within a test
 ```typescript
@@ -142,6 +156,43 @@ test('authenticated feature', async ({ page }) => {
 ss -ltnp | rg '8000|8001|8002|8003'
 tail -n 80 .devenv/e2e/server.log
 ```
+
+## Playwright CLI
+
+- Use `bash ./bin/in-env pwcli ...` for exploratory browser work: reproductions, selector discovery, ad hoc flows, and targeted screenshots before writing a durable spec
+- Keep `bash ./bin/in-env e2e ...` as the canonical regression path for automated tests
+- Keep `bash ./bin/in-env screenshot-page ...` for deterministic one-shot authenticated screenshots when you already know the target path and selector
+- The wrapper currently pins `@playwright/cli` `0.1.4` via `npx` instead of adding it to `package.json`; this avoids mixing the repo's stable `@playwright/test` dependency with the CLI package's current alpha `playwright` runtime dependency
+- `pwcli` sessions are repo-scoped through a local `.playwright/` workspace marker, so named sessions such as `ihp-manager` can be reused across separate `bash ./bin/in-env pwcli ...` calls
+- Common first steps:
+
+```bash
+bash ./bin/in-env pwcli open http://127.0.0.1:8000 --headed
+bash ./bin/in-env pwcli snapshot
+bash ./bin/in-env pwcli screenshot
+```
+
+- Authentication state can be saved and restored with Playwright CLI's built-in storage commands:
+
+```bash
+bash ./bin/in-env pwcli state-save .devenv/playwright-cli/manager-state.json
+bash ./bin/in-env pwcli state-load .devenv/playwright-cli/manager-state.json
+```
+
+- For authenticated `ihp-roster` pages, the recommended near-term pattern is:
+  - create seeded dev auth state with `bash ./bin/in-env pwcli-auth-save manager` (or `worker`, `admin`, `support`)
+  - `pwcli-auth-save` verifies a concrete post-login page for the chosen role before writing the state file
+  - open a pre-authenticated session with `bash ./bin/in-env pwcli-auth-open manager /RosterWeeks`
+  - reuse the named session with `bash ./bin/in-env pwcli -s=ihp-manager snapshot`
+  - if state is missing or stale, regenerate it explicitly instead of expecting `pwcli-auth-open` to do it implicitly
+
+## Responsive Project Split
+
+- `desktop-chromium` runs the existing desktop-oriented suite
+- `mobile-chromium` and `tablet-chromium` run `e2e/mobile-experience.spec.ts`
+- `mobile-chromium` and `tablet-chromium` also run `e2e/roster-mobile.spec.ts`
+- Keep mobile assertions focused on layout contracts and core flows, not on pixel-perfect matching
+- If a spec assumes desktop-expanded navigation or sticky sidebars, keep it in the desktop suite unless the interaction is being made explicitly cross-device
 
 ## Authenticated Screenshot Helper
 
