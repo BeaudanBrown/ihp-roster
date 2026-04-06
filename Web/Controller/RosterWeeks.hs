@@ -17,9 +17,8 @@ import Application.Helper.View (ToastOverlayConfig (..),
                                 renderToastOverlayHostOob)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
-import Data.List (find, nub, sortBy)
+import Data.List (find, nub)
 import Data.Maybe (catMaybes, mapMaybe)
-import Data.Ord (comparing)
 import qualified Data.Text as Text
 import Data.Time (diffDays, getCurrentTime, utctDay)
 import qualified Data.Time.Calendar as Calendar
@@ -247,8 +246,7 @@ instance Controller RosterWeeksController where
         let nextRowIndex = if null existingSlots then 0 else maximum (map (.rowIndex) existingSlots) + 1
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
-        let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
+        orderedSlotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
 
         if null orderedSlotNames
             then do
@@ -380,14 +378,6 @@ instance Controller RosterWeeksController where
                     rosterWeek.weekOffset
                     actorFragments
                 respondWithActorRosterFragmentRefresh actorFragments
-
-slotNameOrder :: Text -> Int
-slotNameOrder slotName =
-    case Text.toLower slotName of
-        "early" -> 0
-        "mid"   -> 1
-        "late"  -> 2
-        _       -> 3
 
 minimumOpenRosterRows :: Int
 minimumOpenRosterRows = 2
@@ -707,9 +697,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
             let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
             panelStaff <- fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots
 
-            slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
-
-            let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
+            orderedSlotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
             slotConflicts <- buildSlotConflicts rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays visibleSlots staffMembers
             pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts })
 
@@ -879,8 +867,7 @@ ensureRosterWeekExists rosterGroupId weekOffset = do
 
 createEmptyRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO RosterWeek
 createEmptyRosterWeek rosterGroupId weekOffset = do
-    slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
-    let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
+    orderedSlotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
 
     rosterWeek <- newRecord @RosterWeek
         |> set #venueId (unpackId currentVenueId)
@@ -1036,8 +1023,7 @@ ensureRosterDayHasMinimumRows rosterDay rosterGroupId minimumRowCount = do
         |> filterWhere (#rosterDayId, unpackId rosterDay.id)
         |> fetch
 
-    slotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
-    let orderedSlotNames = sortBy (comparing (slotNameOrder . (.name))) slotNames
+    orderedSlotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
 
     forM_ [0 .. minimumRowCount - 1] \rowIndex ->
         forM_ orderedSlotNames \slotName ->

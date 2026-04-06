@@ -55,10 +55,10 @@ INSERT INTO shift_types (id, venue_id, name, default_pay_level_id, is_active) VA
 ('44444444-4444-4444-4444-444444444444', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Management', '22222222-2222-2222-2222-222222222222', true);
 
 -- Slot Names
-INSERT INTO slot_names (id, venue_id, roster_group_id, name, is_active) VALUES
-('55555555-5555-5555-5555-555555555555', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Early', true),
-('66666666-6666-6666-6666-666666666666', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Mid', true),
-('77777777-7777-7777-7777-777777777777', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Late', true);
+INSERT INTO slot_names (id, venue_id, roster_group_id, name, sort_order, is_active) VALUES
+('55555555-5555-5555-5555-555555555555', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Early', 0, true),
+('66666666-6666-6666-6666-666666666666', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Mid', 1, true),
+('77777777-7777-7777-7777-777777777777', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Late', 2, true);
 
 INSERT INTO day_names (id, venue_id, weekday_index, name, is_active) VALUES
 ('d1000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 1, 'Monday', true),

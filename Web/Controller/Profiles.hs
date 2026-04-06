@@ -13,7 +13,7 @@ instance Controller ProfilesController where
         maybeExistingStaff <- fetchCurrentUserStaff
         staff <- pure (fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff)
         let currentUserEmail = currentUser.email
-        (preferenceDayNames, preferenceSections, selectedShiftPreferenceKeys) <- profilePreferenceViewData maybeExistingStaff
+        (preferenceWeekdays, preferenceSections, selectedShiftPreferenceKeys) <- profilePreferenceViewData maybeExistingStaff
         render EditView { .. }
 
     action UpdateProfileAction = do
@@ -21,7 +21,7 @@ instance Controller ProfilesController where
         let submittedShiftPreferenceKeys = nub (paramList @Text "shiftPreferenceKeys")
         staff <- pure (fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff)
         let currentUserEmail = currentUser.email
-        (preferenceDayNames, preferenceSections, selectedShiftPreferenceKeys) <-
+        (preferenceWeekdays, preferenceSections, selectedShiftPreferenceKeys) <-
             profilePreferenceViewDataWithSubmitted maybeExistingStaff submittedShiftPreferenceKeys
         staff
             |> fill @'["firstName", "lastName", "preferredName", "phone", "emergencyContactName", "emergencyContactPhone", "idealShiftsPerWeek"]
@@ -36,12 +36,12 @@ instance Controller ProfilesController where
                     render EditView { .. }
                 Right staff -> do
                     staff <- upsertCurrentUserStaff staff
-                    case parseShiftPreferenceSelections preferenceSections preferenceDayNames submittedShiftPreferenceKeys of
+                    case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
                         Left preferenceError -> do
                             setErrorMessage preferenceError
                             let selectedShiftPreferenceKeys = submittedShiftPreferenceKeys
                             let currentUserEmail = currentUser.email
-                            preferenceDayNames <- fetchCurrentVenueActiveDayNames
+                            let preferenceWeekdays = allPreferenceWeekdays
                             preferenceSections <- fetchStaffPreferenceGroupSections staff
                             render EditView { .. }
                         Right submittedSelections -> do
@@ -88,21 +88,21 @@ upsertCurrentUserStaff staff = do
                 _ <- fetchStaffPreferenceGroupSections createdStaff
                 pure createdStaff
 
-profilePreferenceViewData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> IO ([DayName], [StaffPreferenceGroupSection], [Text])
+profilePreferenceViewData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> IO ([PreferenceWeekday], [StaffPreferenceGroupSection], [Text])
 profilePreferenceViewData maybeStaff =
     case maybeStaff of
         Nothing -> pure ([], [], [])
         Just staff -> do
-            preferenceDayNames <- fetchCurrentVenueActiveDayNames
+            let preferenceWeekdays = allPreferenceWeekdays
             preferenceSections <- fetchStaffPreferenceGroupSections staff
             selectedShiftPreferenceKeys <- fetchStaffShiftPreferenceKeyTexts staff (map (.rosterGroup.id) preferenceSections)
-            pure (preferenceDayNames, preferenceSections, selectedShiftPreferenceKeys)
+            pure (preferenceWeekdays, preferenceSections, selectedShiftPreferenceKeys)
 
-profilePreferenceViewDataWithSubmitted :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> [Text] -> IO ([DayName], [StaffPreferenceGroupSection], [Text])
+profilePreferenceViewDataWithSubmitted :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> [Text] -> IO ([PreferenceWeekday], [StaffPreferenceGroupSection], [Text])
 profilePreferenceViewDataWithSubmitted maybeStaff submittedShiftPreferenceKeys =
     case maybeStaff of
         Nothing -> pure ([], [], submittedShiftPreferenceKeys)
         Just staff -> do
-            preferenceDayNames <- fetchCurrentVenueActiveDayNames
+            let preferenceWeekdays = allPreferenceWeekdays
             preferenceSections <- fetchStaffPreferenceGroupSections staff
-            pure (preferenceDayNames, preferenceSections, submittedShiftPreferenceKeys)
+            pure (preferenceWeekdays, preferenceSections, submittedShiftPreferenceKeys)

@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
 module Application.Helper.RosterGroups where
@@ -100,6 +100,7 @@ fetchRosterGroupSlotNames :: (?modelContext :: ModelContext) => Id RosterGroup -
 fetchRosterGroupSlotNames rosterGroupId =
     query @SlotName
         |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+        |> orderByAsc #sortOrder
         |> orderByAsc #createdAt
         |> fetch
 
@@ -108,6 +109,7 @@ fetchActiveRosterGroupSlotNames rosterGroupId =
     query @SlotName
         |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
         |> filterWhere (#isActive, True)
+        |> orderByAsc #sortOrder
         |> orderByAsc #createdAt
         |> fetch
 
@@ -272,11 +274,12 @@ ensureDefaultRosterSlots venue rosterGroup = do
     existingSlotNames <- fetchRosterGroupSlotNames rosterGroup.id
     if null existingSlotNames
         then
-            forM defaultRosterSlotNames \slotName ->
+            forM (zip [0 :: Int ..] defaultRosterSlotNames) \(sortOrder, slotName) ->
                 newRecord @SlotName
                     |> set #venueId (unpackId venue.id)
                     |> set #rosterGroupId (unpackId rosterGroup.id)
                     |> set #name slotName
+                    |> set #sortOrder sortOrder
                     |> set #isActive True
                     |> createRecord
         else pure existingSlotNames

@@ -1,58 +1,44 @@
 module Web.View.Admin.Index where
 
+import Application.Helper.Export (ReportWeekSelection (..),
+                                  VenueReportDefinition (..))
+import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 data IndexView = IndexView
-    { latestSnapshot   :: Maybe PayConfigSnapshot
-    , recentSnapshots  :: [PayConfigSnapshot]
-    , rosterGroups     :: [RosterGroup]
-    , currentRosterGroup :: RosterGroup
-    , payLevels        :: [PayLevel]
-    , payLevelDayRules :: [PayLevelDayRule]
-    , shiftTypes       :: [ShiftType]
-    , slotNames        :: [SlotName]
-    , dayNames         :: [DayName]
+    { latestSnapshot                  :: Maybe PayConfigSnapshot
+    , recentSnapshots                 :: [PayConfigSnapshot]
+    , rosterGroups                    :: [RosterGroup]
+    , currentRosterGroup              :: RosterGroup
+    , payLevels                       :: [PayLevel]
+    , payLevelDayRules                :: [PayLevelDayRule]
+    , shiftTypes                      :: [ShiftType]
+    , slotNames                       :: [SlotName]
+    , weekdays                        :: [DayName]
+    , staffPayReportDefinition        :: Maybe VenueReportDefinition
+    , hourlyBreakdownReportDefinition :: Maybe VenueReportDefinition
+    , reportWeekSelection             :: ReportWeekSelection
+    , slotNamesLiveUpdateScope        :: Maybe LiveUpdateScope
     }
 
 instance View IndexView where
     html IndexView { .. } = [hsx|
         <div class="row g-3">
-            <div class="col-12 col-xl-8">
-                {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames dayNames}
-            </div>
-            <div class="col-12 col-xl-4">
-                <div class="app-panel mb-3">
-                    <div class="app-panel-body">
-                        <h2 class="h5 mb-2">Pay/Config Snapshots</h2>
-                        <p class="app-muted mb-3">
-                            Payroll-relevant config changes are versioned automatically so approvals and exports remain historically explainable.
-                        </p>
-                        <div class="small app-muted mb-3">
-                            Historical approvals and exports stay pinned to the snapshot version they were bound to when the work happened.
-                        </div>
-                        {renderSnapshotSummary latestSnapshot}
-                    </div>
-                </div>
-                <div class="app-panel">
-                    <div class="app-panel-body">
-                        <h2 class="h5 mb-2">Exports</h2>
-                        <p class="app-muted mb-3">
-                            Generate approved-timesheet CSV exports with explicit scope, expiry, and audit logging.
-                        </p>
-                        <a href={ExportJobsAction} class="btn btn-primary">Manage Exports</a>
-                    </div>
-                </div>
-            </div>
             <div class="col-12">
-                <div class="app-panel">
-                    <div class="app-panel-body">
-                        <h2 class="h5 mb-3">Recent Versions</h2>
-                        {renderSnapshotTable recentSnapshots}
-                    </div>
-                </div>
+                {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
             </div>
         </div>
+        <div data-live-update-owner="true"
+             data-live-update-feature="roster-group-config"
+             data-live-updates-path="/live-updates"
+             data-live-update-content-url={appendQueryParams (pathTo ShowAdminSlotNamesFragmentAction) [("rosterGroupId", tshow currentRosterGroup.id)]}
+             data-live-update-client-enabled={isJust slotNamesLiveUpdateScope}
+             data-live-update-client-id=""
+             data-live-update-scope-kind={liveUpdateScopeKind <$> slotNamesLiveUpdateScope}
+             data-live-update-venue-id={liveUpdateVenueId <$> slotNamesLiveUpdateScope}
+             data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< slotNamesLiveUpdateScope}
+             hidden="hidden"></div>
     |]
 
 renderPayLevelsSection :: [PayLevel] -> Html
@@ -111,27 +97,74 @@ renderSlotNamesSection currentRosterGroup slotNames =
         ("These power the roster sheet block labels for the selected roster group: " <> currentRosterGroup.name <> ".")
         (renderRowCountSummary slotNames)
         (renderSlotNameCreateForm currentRosterGroup.id)
-        (if null slotNames then renderEmptyState "No slot names yet for this roster group." else forEach slotNames (renderSlotNameRow currentRosterGroup.id))
+        (if null slotNames then renderEmptyState "No slot names yet for this roster group." else [hsx|
+            <div class="d-flex flex-column gap-2">
+                {forEach (zip [0 :: Int ..] slotNames) (renderSlotNameRow currentRosterGroup.id (length slotNames))}
+            </div>
+        |])
 
-renderDayNamesSection :: [DayName] -> Html
-renderDayNamesSection dayNames =
+renderSlotNamesSectionFragment :: RosterGroup -> [SlotName] -> Html
+renderSlotNamesSectionFragment currentRosterGroup slotNames = [hsx|
+    <div id="admin-slot-names-fragment">
+        {renderSlotNamesSection currentRosterGroup slotNames}
+    </div>
+|]
+
+renderExportsSection :: Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
+renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection =
     renderConfigSection
-        "day-names"
-        "Day Names"
-        "Weekday labels can be customised per venue and toggled active/inactive."
-        (renderRowCountSummary dayNames)
-        renderDayNameCreateForm
-        (if null dayNames then renderEmptyState "No day names yet." else forEach dayNames renderDayNameRow)
+        "exports"
+        "Exports"
+        ("Generate the built-in payroll exports for the current report week: " <> tshow reportWeekSelection.weekStart <> " to " <> tshow reportWeekSelection.weekEnd <> ".")
+        (renderExportSummary staffPayReportDefinition hourlyBreakdownReportDefinition)
+        mempty
+        [hsx|
+            <div class="d-flex flex-wrap gap-2">
+                {renderExportButton staffPayReportDefinition reportWeekSelection "Generate Staff Pay CSV"}
+                {renderExportButton hourlyBreakdownReportDefinition reportWeekSelection "Generate Hourly Breakdown ZIP"}
+                <a href={ExportJobsAction} class="btn btn-outline-secondary">Export History</a>
+            </div>
+        |]
 
-renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> [PayLevel] -> [ShiftType] -> [PayLevelDayRule] -> [SlotName] -> [DayName] -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames dayNames = [hsx|
+renderExportSummary :: Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Html
+renderExportSummary staffPayReportDefinition hourlyBreakdownReportDefinition = [hsx|
+    <div class="small app-muted mb-3">
+        {availableCount} of 2 built-in exports are currently available for this venue.
+    </div>
+|]
+    where
+        availableCount =
+            length
+                (filter
+                    isJust
+                    [ staffPayReportDefinition
+                    , hourlyBreakdownReportDefinition
+                    ]
+                )
+
+renderExportButton :: Maybe VenueReportDefinition -> ReportWeekSelection -> Text -> Html
+renderExportButton maybeReportDefinition reportWeekSelection label =
+    case maybeReportDefinition of
+        Just reportDefinition -> [hsx|
+            <form method="POST" action={CreateExportJobAction} class="d-inline" data-disable-javascript-submission="true">
+                <input type="hidden" name="reportSlug" value={reportDefinition.definition.slug} />
+                <input type="hidden" name="weekOffset" value={tshow reportWeekSelection.weekOffset} />
+                <button class="btn btn-outline-primary" type="submit">{label}</button>
+            </form>
+        |]
+        Nothing -> [hsx|
+            <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
+        |]
+
+renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> [PayLevel] -> [ShiftType] -> [PayLevelDayRule] -> [SlotName] -> [DayName] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
+renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "roster-groups" "Roster Groups" True (renderRosterGroupsSection rosterGroups currentRosterGroup)}
         {renderAccordionItem "pay-levels" "Pay Levels" False (renderPayLevelsSection payLevels)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes payLevels)}
-        {renderAccordionItem "pay-level-day-rules" "Pay Level Day Rules" False (renderPayLevelDayRulesSection payLevelDayRules shiftTypes payLevels dayNames)}
-        {renderAccordionItem "slot-names" "Slot Names" False (renderSlotNamesSection currentRosterGroup slotNames)}
-        {renderAccordionItem "day-names" "Day Names" False (renderDayNamesSection dayNames)}
+        {renderAccordionItem "pay-level-day-rules" "Pay Level Day Rules" False (renderPayLevelDayRulesSection payLevelDayRules shiftTypes payLevels weekdays)}
+        {renderAccordionItem "slot-names" "Slot Names" False (renderSlotNamesSectionFragment currentRosterGroup slotNames)}
+        {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection)}
     </div>
 |]
 
@@ -481,111 +514,75 @@ renderRosterGroupRow currentRosterGroupId rosterGroup = [hsx|
 
 renderSlotNameCreateForm :: Id RosterGroup -> Html
 renderSlotNameCreateForm rosterGroupId = [hsx|
-    <form method="POST" action={appendQueryParams (pathTo CreateSlotNameAction) [("rosterGroupId", tshow rosterGroupId)]} class="border rounded p-3" data-disable-javascript-submission="true">
+    <form method="POST"
+          action={appendQueryParams (pathTo CreateSlotNameAction) [("rosterGroupId", tshow rosterGroupId)]}
+          class="border rounded p-3"
+          data-disable-javascript-submission="true"
+          hx-post={appendQueryParams (pathTo CreateSlotNameAction) [("rosterGroupId", tshow rosterGroupId)]}
+          hx-target="#admin-slot-names-fragment"
+          hx-swap="outerHTML">
         <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-6">
+            <div class="col-12 col-md-8">
                 <label class="form-label" for="new-slot-name">Name</label>
                 <input id="new-slot-name" class="form-control" type="text" name="name" placeholder="Early" />
             </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label" for="new-slot-active">Status</label>
-                <select id="new-slot-active" class="form-select" name="isActive">
-                    <option value="true" selected={True}>Active</option>
-                    <option value="false">Inactive</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-3">
+            <div class="col-12 col-md-4">
                 <button class="btn btn-outline-primary w-100" type="submit">Add Slot</button>
             </div>
         </div>
     </form>
 |]
 
-renderSlotNameRow :: Id RosterGroup -> SlotName -> Html
-renderSlotNameRow rosterGroupId slotName = [hsx|
-    <form method="POST" action={appendQueryParams (pathTo (UpdateSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-semibold">Slot Name</span>
-            {renderActiveBadge slotName.isActive}
+renderSlotNameRow :: Id RosterGroup -> Int -> (Int, SlotName) -> Html
+renderSlotNameRow rosterGroupId slotCount (slotIndex, slotName) = [hsx|
+    <div class="border rounded p-2">
+        <div class="d-flex flex-column flex-md-row gap-2 align-items-stretch align-items-md-center">
+            <div class="btn-group" role="group" aria-label="Reorder slot">
+                {renderSlotMoveButton (slotIndex == 0) (appendQueryParams (pathTo (MoveSlotNameUpAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]) "Up"}
+                {renderSlotMoveButton (slotIndex == slotCount - 1) (appendQueryParams (pathTo (MoveSlotNameDownAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]) "Down"}
+            </div>
+            <form class="m-0 flex-grow-1" data-disable-javascript-submission="true">
+                <input class="form-control"
+                       type="text"
+                       name="name"
+                       value={slotName.name}
+                       aria-label="Slot name"
+                       hx-post={appendQueryParams (pathTo (UpdateSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]}
+                       hx-trigger="input changed delay:1200ms"
+                       hx-include="closest form"
+                       hx-sync="#admin-config-sections:queue last"
+                       hx-swap="none" />
+            </form>
+            <form method="POST"
+                  action={appendQueryParams (pathTo (DeleteSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]}
+                  class="m-0"
+                  data-disable-javascript-submission="true"
+                  hx-post={appendQueryParams (pathTo (DeleteSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]}
+                  hx-target="#admin-slot-names-fragment"
+                  hx-swap="outerHTML">
+                <button class="btn btn-outline-danger w-100" type="submit">Delete</button>
+            </form>
         </div>
-        <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-6">
-                <label class="form-label">Name</label>
-                <input class="form-control" type="text" name="name" value={slotName.name} />
-            </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label">Status</label>
-                <select class="form-select" name="isActive">
-                    <option value="true" selected={slotName.isActive}>Active</option>
-                    <option value="false" selected={not slotName.isActive}>Inactive</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-3">
-                <button class="btn btn-outline-secondary w-100" type="submit">Update</button>
-            </div>
-        </div>
-    </form>
+    </div>
 |]
 
-renderDayNameCreateForm :: Html
-renderDayNameCreateForm = [hsx|
-    <form method="POST" action={CreateDayNameAction} class="border rounded p-3" data-disable-javascript-submission="true">
-        <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-4">
-                <label class="form-label" for="new-day-weekday">Weekday</label>
-                <select id="new-day-weekday" class="form-select" name="weekdayIndex">
-                    {forEach weekdayOptions renderWeekdayOption}
-                </select>
-            </div>
-            <div class="col-12 col-md-4">
-                <label class="form-label" for="new-day-name">Name</label>
-                <input id="new-day-name" class="form-control" type="text" name="name" placeholder="Monday" />
-            </div>
-            <div class="col-12 col-md-2">
-                <label class="form-label" for="new-day-active">Status</label>
-                <select id="new-day-active" class="form-select" name="isActive">
-                    <option value="true" selected={True}>Active</option>
-                    <option value="false">Inactive</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-2">
-                <button class="btn btn-outline-primary w-100" type="submit">Add</button>
-            </div>
-        </div>
-    </form>
-|]
-
-renderDayNameRow :: DayName -> Html
-renderDayNameRow dayName = [hsx|
-    <form method="POST" action={UpdateDayNameAction (get #id dayName)} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-semibold">Day Name</span>
-            {renderActiveBadge dayName.isActive}
-        </div>
-        <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-4">
-                <label class="form-label">Weekday</label>
-                <select class="form-select" name="weekdayIndex">
-                    {forEach weekdayOptions (renderSelectedWeekdayOption dayName.weekdayIndex)}
-                </select>
-            </div>
-            <div class="col-12 col-md-4">
-                <label class="form-label">Name</label>
-                <input class="form-control" type="text" name="name" value={dayName.name} />
-            </div>
-            <div class="col-12 col-md-2">
-                <label class="form-label">Status</label>
-                <select class="form-select" name="isActive">
-                    <option value="true" selected={dayName.isActive}>Active</option>
-                    <option value="false" selected={not dayName.isActive}>Inactive</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-2">
-                <button class="btn btn-outline-secondary w-100" type="submit">Update</button>
-            </div>
-        </div>
-    </form>
-|]
+renderSlotMoveButton :: Bool -> Text -> Text -> Html
+renderSlotMoveButton isDisabled action label =
+    if isDisabled
+        then [hsx|
+            <button class="btn btn-outline-secondary" type="button" disabled={True}>{label}</button>
+        |]
+        else [hsx|
+            <form method="POST"
+                  action={action}
+                  class="m-0"
+                  data-disable-javascript-submission="true"
+                  hx-post={action}
+                  hx-target="#admin-slot-names-fragment"
+                  hx-swap="outerHTML">
+                <button class="btn btn-outline-secondary" type="submit">{label}</button>
+            </form>
+        |]
 
 renderSnapshotSummary :: Maybe PayConfigSnapshot -> Html
 renderSnapshotSummary maybeSnapshot =
@@ -722,16 +719,6 @@ renderSelectedShiftTypeRuleOption selectedShiftTypeId shiftType = [hsx|
     <option value={tshow (unpackId (get #id shiftType))} selected={unpackId (get #id shiftType) == selectedShiftTypeId}>{renderShiftTypeLabel shiftType}</option>
 |]
 
-renderWeekdayOption :: (Int, Text) -> Html
-renderWeekdayOption (weekdayIndex, label) = [hsx|
-    <option value={tshow weekdayIndex}>{label}</option>
-|]
-
-renderSelectedWeekdayOption :: Int -> (Int, Text) -> Html
-renderSelectedWeekdayOption selectedWeekdayIndex (weekdayIndex, label) = [hsx|
-    <option value={tshow weekdayIndex} selected={weekdayIndex == selectedWeekdayIndex}>{label}</option>
-|]
-
 renderDayNameOption :: DayName -> Html
 renderDayNameOption dayName = [hsx|
     <option value={tshow (unpackId (get #id dayName))}>{renderDayNameLabel dayName}</option>
@@ -750,10 +737,7 @@ renderPayLevelLabel payLevel =
 
 renderDayNameLabel :: DayName -> Text
 renderDayNameLabel dayName =
-    let baseLabel = dayName.name <> " (" <> renderWeekdayName dayName.weekdayIndex <> ")"
-     in if dayName.isActive
-            then baseLabel
-            else baseLabel <> " (inactive)"
+    renderWeekdayName dayName.weekdayIndex
 
 renderPayLevelDayRuleHeading :: [ShiftType] -> [PayLevel] -> [DayName] -> PayLevelDayRule -> Text
 renderPayLevelDayRuleHeading shiftTypes payLevels dayNames payLevelDayRule =
@@ -807,6 +791,24 @@ weekdayOptions =
 renderWeekdayName :: Int -> Text
 renderWeekdayName weekdayIndex =
     fromMaybe ("Weekday " <> tshow weekdayIndex) (lookup weekdayIndex weekdayOptions)
+
+liveUpdateScopeKind :: LiveUpdateScope -> Text
+liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
+liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
+liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
+liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
+
+liveUpdateVenueId :: LiveUpdateScope -> Text
+liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
+liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
+liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
+liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
+
+liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
+liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId }        = Just (tshow rosterGroupId)
+liveUpdateRosterGroupIdText RosterGroupConfigScope { rosterGroupId } = Just (tshow rosterGroupId)
+liveUpdateRosterGroupIdText LeaveRequestsScope {}                    = Nothing
+liveUpdateRosterGroupIdText TimesheetWeekScope {}                    = Nothing
 
 formatTimestamp :: UTCTime -> Text
 formatTimestamp = cs . formatTime defaultTimeLocale "%Y-%m-%d %H:%M UTC"

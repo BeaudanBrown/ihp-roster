@@ -106,18 +106,18 @@ renderPersonalProfileFields staff maybeEmail = [hsx|
     </div>
 |]
 
-renderShiftPreferenceSections :: [DayName] -> [StaffPreferenceGroupSection] -> [Text] -> Html
-renderShiftPreferenceSections dayNames sections selectedShiftPreferenceKeys =
+renderShiftPreferenceSections :: [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [Text] -> Html
+renderShiftPreferenceSections weekdays sections selectedShiftPreferenceKeys =
     if null sections
         then [hsx|<p class="app-muted mb-0">Shift preferences will appear once this staff member is assigned to at least one roster group.</p>|]
         else [hsx|
             <div class="vstack gap-3">
-                {forEach sections (renderShiftPreferenceSection dayNames selectedShiftPreferenceKeys)}
+                {forEach sections (renderShiftPreferenceSection weekdays selectedShiftPreferenceKeys)}
             </div>
         |]
 
-renderShiftPreferenceSection :: [DayName] -> [Text] -> StaffPreferenceGroupSection -> Html
-renderShiftPreferenceSection dayNames selectedShiftPreferenceKeys StaffPreferenceGroupSection { rosterGroup, slotNames } = [hsx|
+renderShiftPreferenceSection :: [PreferenceWeekday] -> [Text] -> StaffPreferenceGroupSection -> Html
+renderShiftPreferenceSection weekdays selectedShiftPreferenceKeys StaffPreferenceGroupSection { rosterGroup, slotNames } = [hsx|
     <section class="border rounded p-3">
         <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
             <div>
@@ -125,12 +125,12 @@ renderShiftPreferenceSection dayNames selectedShiftPreferenceKeys StaffPreferenc
                 <p class="app-muted mb-0 small">Tick the shifts this staff member is happy to work. A day with no selected slots counts as a hard cannot-do-day warning for roster highlights.</p>
             </div>
         </div>
-        {renderShiftPreferenceMatrix rosterGroup.id dayNames slotNames selectedShiftPreferenceKeys}
+        {renderShiftPreferenceMatrix rosterGroup.id weekdays slotNames selectedShiftPreferenceKeys}
     </section>
 |]
 
-renderShiftPreferenceMatrix :: Id RosterGroup -> [DayName] -> [SlotName] -> [Text] -> Html
-renderShiftPreferenceMatrix rosterGroupId dayNames slotNames selectedShiftPreferenceKeys
+renderShiftPreferenceMatrix :: Id RosterGroup -> [PreferenceWeekday] -> [SlotName] -> [Text] -> Html
+renderShiftPreferenceMatrix rosterGroupId weekdays slotNames selectedShiftPreferenceKeys
     | null slotNames = [hsx|<p class="app-muted mb-0">This roster group has no active slots yet.</p>|]
     | otherwise = [hsx|
         <div class="table-responsive">
@@ -142,7 +142,7 @@ renderShiftPreferenceMatrix rosterGroupId dayNames slotNames selectedShiftPrefer
                     </tr>
                 </thead>
                 <tbody>
-                    {forEach dayNames (renderShiftPreferenceDayRow rosterGroupId slotNames selectedShiftPreferenceKeys)}
+                    {forEach weekdays (renderShiftPreferenceDayRow rosterGroupId slotNames selectedShiftPreferenceKeys)}
                 </tbody>
             </table>
         </div>
@@ -151,11 +151,11 @@ renderShiftPreferenceMatrix rosterGroupId dayNames slotNames selectedShiftPrefer
 renderShiftPreferenceSlotHeader :: SlotName -> Html
 renderShiftPreferenceSlotHeader slotName = [hsx|<th class="text-center">{slotName.name}</th>|]
 
-renderShiftPreferenceDayRow :: Id RosterGroup -> [SlotName] -> [Text] -> DayName -> Html
-renderShiftPreferenceDayRow rosterGroupId slotNames selectedShiftPreferenceKeys dayName = [hsx|
+renderShiftPreferenceDayRow :: Id RosterGroup -> [SlotName] -> [Text] -> PreferenceWeekday -> Html
+renderShiftPreferenceDayRow rosterGroupId slotNames selectedShiftPreferenceKeys weekday = [hsx|
     <tr>
-        <th scope="row" class="fw-semibold">{dayName.name}</th>
-        {forEach slotNames (renderShiftPreferenceCheckbox rosterGroupId dayName.weekdayIndex selectedShiftPreferenceKeys)}
+        <th scope="row" class="fw-semibold">{weekday.label}</th>
+        {forEach slotNames (renderShiftPreferenceCheckbox rosterGroupId weekday.weekdayIndex selectedShiftPreferenceKeys)}
     </tr>
 |]
 

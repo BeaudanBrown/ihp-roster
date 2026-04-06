@@ -1,15 +1,15 @@
 module Test.Support.PayrollFixtures where
 
-import qualified Codec.Archive.Zip as Zip
 import Application.Helper.RosterGroups (ensureVenueRosterDefaults,
                                         fetchVenueDayNames)
+import qualified Codec.Archive.Zip as Zip
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
-import qualified Data.Text.IO as TextIO
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
+import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -24,26 +24,26 @@ import Web.Routes
 import Web.Types
 
 data CanonicalPayrollFixture = CanonicalPayrollFixture
-    { venue :: !Venue
-    , admin :: !User
-    , dayNames :: ![DayName]
-    , levelOne :: !PayLevel
-    , levelTwo :: !PayLevel
-    , barShift :: !ShiftType
-    , floorShift :: !ShiftType
+    { venue        :: !Venue
+    , admin        :: !User
+    , dayNames     :: ![DayName]
+    , levelOne     :: !PayLevel
+    , levelTwo     :: !PayLevel
+    , barShift     :: !ShiftType
+    , floorShift   :: !ShiftType
     , kitchenShift :: !ShiftType
-    , avaStaff :: !Staff
-    , kaiStaff :: !Staff
-    , trialStaff :: !Staff
-    , snapshot :: !PayConfigSnapshot
-    , approvedAt :: !UTCTime
+    , avaStaff     :: !Staff
+    , kaiStaff     :: !Staff
+    , trialStaff   :: !Staff
+    , snapshot     :: !PayConfigSnapshot
+    , approvedAt   :: !UTCTime
     }
 
 data ExplorationPayrollFixture = ExplorationPayrollFixture
-    { explorationVenue :: !Venue
-    , explorationAdmin :: !User
+    { explorationVenue           :: !Venue
+    , explorationAdmin           :: !User
     , explorationApprovedEntries :: ![TimesheetEntry]
-    , explorationPendingEntries :: ![TimesheetEntry]
+    , explorationPendingEntries  :: ![TimesheetEntry]
     }
 
 seedWeekDayNames :: (?modelContext :: ModelContext) => Venue -> IO [DayName]
@@ -121,8 +121,7 @@ createPayrollSnapshotWithVersion venue admin versionNumber payLevels shiftTypes 
                 ]
             , "payLevels" Aeson..= map serializePayLevel payLevels
             , "shiftTypes" Aeson..= map serializeShiftType shiftTypes
-            , "dayNames" Aeson..= map serializeDayName dayNames
-            , "payLevelDayRules" Aeson..= map serializePayLevelDayRule rules
+            , "payLevelDayRules" Aeson..= map (serializePayLevelDayRule dayNames) rules
             ]
     where
         serializePayLevel payLevel =
@@ -147,20 +146,13 @@ createPayrollSnapshotWithVersion venue admin versionNumber payLevels shiftTypes 
                 , "isActive" Aeson..= shiftType.isActive
                 ]
 
-        serializeDayName dayName =
-            Aeson.object
-                [ "id" Aeson..= unpackId dayName.id
-                , "weekdayIndex" Aeson..= dayName.weekdayIndex
-                , "name" Aeson..= dayName.name
-                , "isActive" Aeson..= dayName.isActive
-                ]
-
-        serializePayLevelDayRule rule =
+        serializePayLevelDayRule currentDayNames rule =
             Aeson.object
                 [ "id" Aeson..= unpackId rule.id
                 , "shiftTypeId" Aeson..= rule.shiftTypeId
                 , "payLevelId" Aeson..= rule.payLevelId
                 , "dayNameId" Aeson..= rule.dayNameId
+                , "weekdayIndex" Aeson..= fmap (.weekdayIndex) (find (\dayName -> unpackId dayName.id == rule.dayNameId) currentDayNames)
                 ]
 
 seedCanonicalPayrollFixture :: (?modelContext :: ModelContext) => IO CanonicalPayrollFixture

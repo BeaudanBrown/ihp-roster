@@ -106,6 +106,16 @@ isAuthorizedScope RosterWeekScope { venueId, rosterGroupId, weekOffset } = do
                     |> fetchOneOrNothing
             let _ = weekOffset
             pure (isJust rosterGroupOrNothing)
+isAuthorizedScope RosterGroupConfigScope { venueId, rosterGroupId } = do
+    if venueId /= unpackId currentVenueId
+        then pure False
+        else do
+            rosterGroupOrNothing <-
+                query @RosterGroup
+                    |> filterWhere (#id, coerce rosterGroupId)
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> fetchOneOrNothing
+            pure (isJust rosterGroupOrNothing)
 isAuthorizedScope LeaveRequestsScope { venueId } =
     pure (venueId == unpackId currentVenueId)
 isAuthorizedScope TimesheetWeekScope { venueId, weekOffset } = do

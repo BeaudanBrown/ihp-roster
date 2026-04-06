@@ -152,10 +152,10 @@ CREATE TABLE slot_names (
     venue_id UUID NOT NULL,
     roster_group_id UUID NOT NULL,
     name TEXT NOT NULL,
+    sort_order INT DEFAULT 0 NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(roster_group_id, name),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
     FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE CASCADE
 );
@@ -396,6 +396,8 @@ CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, sta
 CREATE INDEX idx_staff_venue ON staff (venue_id);
 CREATE INDEX idx_report_definitions_venue_sort ON report_definitions (venue_id, sort_order ASC, created_at ASC);
 CREATE INDEX idx_report_definition_shift_type_filters_definition ON report_definition_shift_type_filters (report_definition_id);
+CREATE INDEX idx_slot_names_group_sort ON slot_names (roster_group_id, sort_order ASC, created_at ASC);
+CREATE UNIQUE INDEX idx_slot_names_active_name ON slot_names (roster_group_id, name) WHERE is_active = TRUE;
 CREATE INDEX idx_roster_weeks_venue_offset ON roster_weeks (venue_id, week_offset);
 CREATE INDEX idx_pay_config_snapshots_venue_version ON pay_config_snapshots (venue_id, version_number DESC);
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id);
@@ -448,10 +450,16 @@ AS $$
                     (
                         SELECT (rule ->> 'payLevelId')::UUID
                         FROM jsonb_array_elements(COALESCE(p_snapshot -> 'payLevelDayRules', '[]'::JSONB)) rule
-                        JOIN jsonb_array_elements(COALESCE(p_snapshot -> 'dayNames', '[]'::JSONB)) day_name
-                            ON (rule ->> 'dayNameId') = (day_name ->> 'id')
                         WHERE (rule ->> 'shiftTypeId')::UUID = p_shift_type_id
-                            AND (day_name ->> 'weekdayIndex')::INT = p_day_of_week
+                            AND COALESCE(
+                                (rule ->> 'weekdayIndex')::INT,
+                                (
+                                    SELECT (day_name ->> 'weekdayIndex')::INT
+                                    FROM jsonb_array_elements(COALESCE(p_snapshot -> 'dayNames', '[]'::JSONB)) day_name
+                                    WHERE (rule ->> 'dayNameId') = (day_name ->> 'id')
+                                    LIMIT 1
+                                )
+                            ) = p_day_of_week
                         LIMIT 1
                     ),
                     (shift_type ->> 'defaultPayLevelId')::UUID

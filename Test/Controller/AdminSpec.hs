@@ -1,6 +1,7 @@
 module Test.Controller.AdminSpec where
 
-import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
+                                        fetchActiveRosterGroupSlotNames)
 import Config
 import qualified Data.Aeson as Aeson
 import Generated.Types
@@ -42,6 +43,7 @@ tests = beforeAll testContext do
                     |> set #venueId (unpackId venueA.id)
                     |> set #rosterGroupId (unpackId venueAGroupB.id)
                     |> set #name "Pass"
+                    |> set #sortOrder 3
                     |> set #isActive True
                     |> createRecord
                 _ <- createPayConfigSnapshotRecord venueA admin 1 (Aeson.object [])
@@ -63,24 +65,27 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Pay Level Day Rules"
                 response `responseBodyShouldContain` "Shift Types"
                 response `responseBodyShouldContain` "Slot Names"
-                response `responseBodyShouldContain` "Day Names"
-                response `responseBodyShouldContain` "Payroll-relevant config changes are versioned automatically"
-                response `responseBodyShouldContain` "Historical approvals and exports stay pinned to the snapshot version"
+                response `responseBodyShouldContain` "Exports"
+                response `responseBodyShouldContain` "Generate Staff Pay CSV"
+                response `responseBodyShouldContain` "Generate Hourly Breakdown ZIP"
+                response `responseBodyShouldContain` "Export History"
+                response `responseBodyShouldContain` "data-live-update-feature=\"roster-group-config\""
+                response `responseBodyShouldContain` "admin-slot-names-fragment"
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldNotContain` "ihp-auto-refresh-id"
                 response `responseBodyShouldContain` "Level A"
-                response `responseBodyShouldContain` "Kitchen -&gt; Level A on Monday (Monday)"
+                response `responseBodyShouldContain` "Kitchen -&gt; Level A on Monday"
                 response `responseBodyShouldContain` "Kitchen"
                 response `responseBodyShouldContain` "Back of House"
                 response `responseBodyShouldContain` "Pass"
                 response `responseBodyShouldContain` "Monday"
-                response `responseBodyShouldContain` "Active snapshot: v2"
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
                 response `responseBodyShouldNotContain` "Config Table Overview"
+                response `responseBodyShouldNotContain` "Pay/Config Snapshots"
                 response `responseBodyShouldNotContain` "Save Snapshot"
                 response `responseBodyShouldNotContain` "Level B"
-                response `responseBodyShouldNotContain` "Bar -&gt; Level B on Venue B Tuesday (Tuesday)"
+                response `responseBodyShouldNotContain` "Bar -&gt; Level B on Tuesday"
                 response `responseBodyShouldNotContain` "Bar"
                 response `responseBodyShouldNotContain` "Graveyard"
                 response `responseBodyShouldNotContain` "Venue B Tuesday"
@@ -107,8 +112,8 @@ tests = beforeAll testContext do
                     callAction AdminAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Pay/Config Snapshots"
                 response `responseBodyShouldContain` "Roster Groups"
+                response `responseBodyShouldContain` "Exports"
 
         it "creates venue-scoped config table rows from the admin page" $ withContext do
             withCleanDb do
@@ -139,7 +144,6 @@ tests = beforeAll testContext do
                     callActionWithParams CreateSlotNameAction
                         [ ("name", "Swing")
                         , ("rosterGroupId", idToParam createdRosterGroup.id)
-                        , ("isActive", "true")
                         ]
                 slotResponse `responseStatusShouldBe` status302
 
@@ -173,6 +177,7 @@ tests = beforeAll testContext do
                 createdSlotName.name `shouldBe` "Swing"
                 createdSlotName.rosterGroupId `shouldBe` unpackId createdRosterGroup.id
                 createdSlotName.isActive `shouldBe` True
+                createdSlotName.sortOrder `shouldBe` 3
                 createdPayLevelDayRule.shiftTypeId `shouldBe` unpackId createdShiftType.id
                 createdPayLevelDayRule.payLevelId `shouldBe` unpackId createdPayLevel.id
                 createdPayLevelDayRule.dayNameId `shouldBe` unpackId dayName.id
@@ -190,6 +195,8 @@ tests = beforeAll testContext do
                 newPayLevel <- createPayLevelRecord venue "Level 2"
                 shiftType <- createShiftTypeRecord venue oldPayLevel "Kitchen"
                 slotName <- fetchSlotNameRecord venue "Early"
+                middleSlotName <- fetchSlotNameRecord venue "Mid"
+                lastSlotName <- fetchSlotNameRecord venue "Late"
                 dayName <- fetchDayNameRecord venue 1
                 nextDayName <- fetchDayNameRecord venue 5
                 payLevelDayRule <- createPayLevelDayRuleRecord shiftType dayName oldPayLevel
@@ -225,17 +232,20 @@ tests = beforeAll testContext do
                 slotResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateSlotNameAction slotName.id)
                         [ ("name", "Early Updated")
-                        , ("isActive", "false")
                         ]
                 slotResponse `responseStatusShouldBe` status302
 
-                dayResponse <- withUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (UpdateDayNameAction dayName.id)
-                        [ ("weekdayIndex", "1")
-                        , ("name", "Thursday Updated")
-                        , ("isActive", "false")
-                        ]
-                dayResponse `responseStatusShouldBe` status302
+                moveDownResponse <- withUserAndCurrentVenue admin venue.id do
+                    callAction (MoveSlotNameDownAction slotName.id)
+                moveDownResponse `responseStatusShouldBe` status302
+
+                moveUpResponse <- withUserAndCurrentVenue admin venue.id do
+                    callAction (MoveSlotNameUpAction lastSlotName.id)
+                moveUpResponse `responseStatusShouldBe` status302
+
+                deleteSlotResponse <- withUserAndCurrentVenue admin venue.id do
+                    callAction (DeleteSlotNameAction middleSlotName.id)
+                deleteSlotResponse `responseStatusShouldBe` status302
 
                 dayRuleResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdatePayLevelDayRuleAction payLevelDayRule.id)
@@ -248,7 +258,6 @@ tests = beforeAll testContext do
                 updatedPayLevel <- fetch oldPayLevel.id
                 updatedShiftType <- fetch shiftType.id
                 updatedSlotName <- fetch slotName.id
-                updatedDayName <- fetch dayName.id
                 updatedPayLevelDayRule <- fetch payLevelDayRule.id
                 updatedRosterGroup <- fetch rosterGroup.id
                 defaultRosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
@@ -263,13 +272,68 @@ tests = beforeAll testContext do
                 updatedShiftType.defaultPayLevelId `shouldBe` unpackId newPayLevel.id
                 updatedShiftType.isActive `shouldBe` False
                 updatedSlotName.name `shouldBe` "Early Updated"
-                updatedSlotName.isActive `shouldBe` False
-                updatedDayName.weekdayIndex `shouldBe` 1
-                updatedDayName.name `shouldBe` "Thursday Updated"
-                updatedDayName.isActive `shouldBe` False
+                updatedSlotName.isActive `shouldBe` True
+                updatedSlotName.sortOrder `shouldBe` 2
+                (fmap (get #isActive) (fetch middleSlotName.id)) `shouldReturn` False
+                (fmap (get #sortOrder) (fetch lastSlotName.id)) `shouldReturn` 1
+                (fmap (map (.name)) (fetchActiveRosterGroupSlotNames (Id updatedSlotName.rosterGroupId :: Id RosterGroup))) `shouldReturn` ["Late", "Early Updated"]
                 updatedPayLevelDayRule.shiftTypeId `shouldBe` unpackId shiftType.id
                 updatedPayLevelDayRule.payLevelId `shouldBe` unpackId newPayLevel.id
                 updatedPayLevelDayRule.dayNameId `shouldBe` unpackId nextDayName.id
+
+        it "allows recreating a deleted slot name with the same name" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-slot-recreate@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                slotName <- fetchSlotNameRecord venue "Early"
+
+                deleteResponse <- withUserAndCurrentVenue admin venue.id do
+                    callAction (DeleteSlotNameAction slotName.id)
+                deleteResponse `responseStatusShouldBe` status302
+
+                createResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateSlotNameAction
+                        [ ("name", "Early")
+                        , ("rosterGroupId", idToParam rosterGroup.id)
+                        ]
+                createResponse `responseStatusShouldBe` status302
+
+                activeEarlySlots <-
+                    query @SlotName
+                        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                        |> filterWhere (#name, "Early")
+                        |> filterWhere (#isActive, True)
+                        |> fetch
+                inactiveEarlySlots <-
+                    query @SlotName
+                        |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                        |> filterWhere (#name, "Early")
+                        |> filterWhere (#isActive, False)
+                        |> fetch
+
+                length activeEarlySlots `shouldBe` 1
+                length inactiveEarlySlots `shouldBe` 1
+
+        it "returns the slot-names fragment for HTMX slot actions" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-slot-fragment@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                slotName <- fetchSlotNameRecord venue "Early"
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "admin-slot-client")] do
+                        callAction (MoveSlotNameDownAction slotName.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "admin-slot-names-fragment"
+                response `responseBodyShouldContain` "Delete"
+                response `responseBodyShouldContain` "hx-target=\"#admin-slot-names-fragment\""
+                response `responseBodyShouldContain` cs (idToParam rosterGroup.id)
 
         it "rejects updates to config rows outside the current venue" $ withContext do
             withCleanDb do
@@ -394,7 +458,6 @@ tests = beforeAll testContext do
                     callActionWithParams CreateSlotNameAction
                         [ ("name", "Swing")
                         , ("rosterGroupId", idToParam createdRosterGroup.id)
-                        , ("isActive", "true")
                         ]
                 slotResponse `responseStatusShouldBe` status302
                 (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v3", "v2", "v1"]
@@ -418,14 +481,6 @@ tests = beforeAll testContext do
                         ]
                 updateShiftTypeResponse `responseStatusShouldBe` status302
 
-                updateDayResponse <- withUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (UpdateDayNameAction dayName.id)
-                        [ ("weekdayIndex", "1")
-                        , ("name", "Monday Updated")
-                        , ("isActive", "true")
-                        ]
-                updateDayResponse `responseStatusShouldBe` status302
-
                 updateDayRuleResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdatePayLevelDayRuleAction payLevelDayRule.id)
                         [ ("shiftTypeId", idToParam shiftType.id)
@@ -434,13 +489,11 @@ tests = beforeAll testContext do
                         ]
                 updateDayRuleResponse `responseStatusShouldBe` status302
 
-                (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v6", "v5", "v4", "v3", "v2", "v1"]
+                (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v5", "v4", "v3", "v2", "v1"]
 
                 updateSlotResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateSlotNameAction slotName.id)
-                        [ ("name", "Swing Updated")
-                        , ("isActive", "false")
-                        ]
+                        [ ("name", "Swing Updated") ]
                 updateSlotResponse `responseStatusShouldBe` status302
 
                 updateRosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
@@ -452,8 +505,8 @@ tests = beforeAll testContext do
                 updateRosterGroupResponse `responseStatusShouldBe` status302
 
                 snapshots <- query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch
-                map (.versionLabel) snapshots `shouldBe` ["v6", "v5", "v4", "v3", "v2", "v1"]
-                map (.createdByUserId) snapshots `shouldBe` replicate 6 (unpackId admin.id)
+                map (.versionLabel) snapshots `shouldBe` ["v5", "v4", "v3", "v2", "v1"]
+                map (.createdByUserId) snapshots `shouldBe` replicate 5 (unpackId admin.id)
 
         it "does not create a new snapshot when a payroll config update leaves the snapshot payload unchanged" $ withContext do
             withCleanDb do

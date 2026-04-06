@@ -1,11 +1,9 @@
 module Test.Support where
 
+import Application.Helper.Controller (PlatformRole (..), currentVenueSessionKey,
+                                      platformRoleToEnum, unsafeEnumFromText)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
-import Application.Helper.Controller (PlatformRole (..),
-                                      currentVenueSessionKey,
-                                      platformRoleToEnum,
-                                      unsafeEnumFromText)
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as ByteString
@@ -133,11 +131,19 @@ createSlotNameRecord venue slotName = do
     createSlotNameRecordForRosterGroup venue rosterGroup slotName
 
 createSlotNameRecordForRosterGroup :: (?modelContext :: ModelContext) => Venue -> RosterGroup -> Text -> IO SlotName
-createSlotNameRecordForRosterGroup venue rosterGroup slotName =
+createSlotNameRecordForRosterGroup venue rosterGroup slotName = do
+    nextSortOrder <-
+        query @SlotName
+            |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+            |> orderByDesc #sortOrder
+            |> fetchOneOrNothing
+            >>= pure . maybe 0 ((+ 1) . get #sortOrder)
+
     newRecord @SlotName
         |> set #venueId (unpackId (get #id venue))
         |> set #rosterGroupId (unpackId rosterGroup.id)
         |> set #name slotName
+        |> set #sortOrder nextSortOrder
         |> set #isActive True
         |> createRecord
 

@@ -1,14 +1,14 @@
 module Web.View.Profiles.Edit where
 
 import Application.Helper.StaffShiftPreferences
-import Web.View.StaffProfileForm
 import Web.View.Prelude
+import Web.View.StaffProfileForm
 
 data EditView = EditView
-    { staff            :: Staff
-    , currentUserEmail :: Text
-    , preferenceDayNames :: [DayName]
-    , preferenceSections :: [StaffPreferenceGroupSection]
+    { staff                       :: Staff
+    , currentUserEmail            :: Text
+    , preferenceWeekdays          :: [PreferenceWeekday]
+    , preferenceSections          :: [StaffPreferenceGroupSection]
     , selectedShiftPreferenceKeys :: [Text]
     }
 
@@ -22,7 +22,7 @@ instance View EditView where
                     {renderForm staff currentUserEmail}
                     <div class="mt-4">
                         <h5 class="mb-3">Shift Preferences</h5>
-                        {renderShiftPreferenceSections preferenceDayNames preferenceSections selectedShiftPreferenceKeys}
+                        {renderShiftPreferenceSections preferenceWeekdays preferenceSections selectedShiftPreferenceKeys}
                     </div>
                 </div>
             </div>

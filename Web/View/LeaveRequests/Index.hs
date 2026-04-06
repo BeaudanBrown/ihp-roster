@@ -206,9 +206,11 @@ isCurrentUsersLeaveRequest currentViewerStaffId leaveRequest =
 liveUpdateScopeKind :: LiveUpdateScope -> Text
 liveUpdateScopeKind LeaveRequestsScope {} = "leave_requests"
 liveUpdateScopeKind RosterWeekScope {}    = "roster_week"
+liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
 liveUpdateScopeKind TimesheetWeekScope {} = "timesheet_week"
 
 liveUpdateVenueId :: LiveUpdateScope -> Text
 liveUpdateVenueId LeaveRequestsScope { venueId } = tshow venueId
 liveUpdateVenueId RosterWeekScope { venueId }    = tshow venueId
+liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
 liveUpdateVenueId TimesheetWeekScope { venueId } = tshow venueId

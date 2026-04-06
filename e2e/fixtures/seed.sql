@@ -400,14 +400,15 @@ ON CONFLICT (id) DO UPDATE SET
     is_active = EXCLUDED.is_active,
     is_default = EXCLUDED.is_default;
 
-INSERT INTO slot_names (id, venue_id, roster_group_id, name, is_active)
+INSERT INTO slot_names (id, venue_id, roster_group_id, name, sort_order, is_active)
 VALUES
-    ('a1000000-0000-0000-0000-000000000041', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', 'Early', TRUE),
-    ('a1000000-0000-0000-0000-000000000042', 'a1000000-0000-0000-0000-000000000002', 'a1000000-0000-0000-0000-000000000212', 'Late', TRUE)
+    ('a1000000-0000-0000-0000-000000000041', 'a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000211', 'Early', 0, TRUE),
+    ('a1000000-0000-0000-0000-000000000042', 'a1000000-0000-0000-0000-000000000002', 'a1000000-0000-0000-0000-000000000212', 'Late', 0, TRUE)
 ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     roster_group_id = EXCLUDED.roster_group_id,
     name = EXCLUDED.name,
+    sort_order = EXCLUDED.sort_order,
     is_active = EXCLUDED.is_active;
 
 INSERT INTO roster_weeks (id, venue_id, roster_group_id, week_offset, is_live)

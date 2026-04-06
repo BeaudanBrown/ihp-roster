@@ -1,15 +1,15 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeApplications    #-}
 
 module Application.Helper.StaffShiftPreferences where
 
 import Application.Helper.Controller (currentVenueId)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import qualified Data.Text as Text
-import Text.Read (readMaybe)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
+import Text.Read (readMaybe)
 
 data StaffPreferenceGroupSection = StaffPreferenceGroupSection
     { rosterGroup :: RosterGroup
@@ -23,13 +23,22 @@ data ShiftPreferenceSelection = ShiftPreferenceSelection
     }
     deriving (Eq, Show)
 
-fetchCurrentVenueActiveDayNames :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [DayName]
-fetchCurrentVenueActiveDayNames =
-    query @DayName
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#isActive, True)
-        |> fetch
-        >>= pure . sortOn (displayWeekdayOrder . (.weekdayIndex))
+data PreferenceWeekday = PreferenceWeekday
+    { weekdayIndex :: Int
+    , label        :: Text
+    }
+    deriving (Eq, Show)
+
+allPreferenceWeekdays :: [PreferenceWeekday]
+allPreferenceWeekdays =
+    [ PreferenceWeekday { weekdayIndex = 1, label = "Monday" }
+    , PreferenceWeekday { weekdayIndex = 2, label = "Tuesday" }
+    , PreferenceWeekday { weekdayIndex = 3, label = "Wednesday" }
+    , PreferenceWeekday { weekdayIndex = 4, label = "Thursday" }
+    , PreferenceWeekday { weekdayIndex = 5, label = "Friday" }
+    , PreferenceWeekday { weekdayIndex = 6, label = "Saturday" }
+    , PreferenceWeekday { weekdayIndex = 0, label = "Sunday" }
+    ]
 
 fetchStaffPreferenceGroupSections :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO [StaffPreferenceGroupSection]
 fetchStaffPreferenceGroupSections staff = do
@@ -51,6 +60,7 @@ fetchPreferenceSectionsForRosterGroups rosterGroupIds = do
             query @SlotName
                 |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                 |> filterWhere (#isActive, True)
+                |> orderByAsc #sortOrder
                 |> orderByAsc #createdAt
                 |> fetch
         pure StaffPreferenceGroupSection { rosterGroup, slotNames }
@@ -89,11 +99,11 @@ replaceStaffShiftPreferences staff rosterGroupIds selections = do
                 |> createRecord
         pure ()
 
-parseShiftPreferenceSelections :: [StaffPreferenceGroupSection] -> [DayName] -> [Text] -> Either Text [ShiftPreferenceSelection]
-parseShiftPreferenceSelections sections dayNames rawKeys =
+parseShiftPreferenceSelections :: [StaffPreferenceGroupSection] -> [PreferenceWeekday] -> [Text] -> Either Text [ShiftPreferenceSelection]
+parseShiftPreferenceSelections sections weekdays rawKeys =
     forM (nub rawKeys) decodeAndValidate
     where
-        allowedWeekdayIndexes = map (.weekdayIndex) dayNames
+        allowedWeekdayIndexes = map (.weekdayIndex) weekdays
         allowedSlotPairs =
             [ (rosterGroup.id, slotName.id)
             | section <- sections
@@ -134,8 +144,3 @@ decodeShiftPreferenceKey rawKey =
             weekdayIndex <- readMaybe (cs weekdayIndexText)
             pure ShiftPreferenceSelection { rosterGroupId, weekdayIndex, slotNameId }
         _ -> Nothing
-
-displayWeekdayOrder :: Int -> Int
-displayWeekdayOrder weekdayIndex
-    | weekdayIndex == 0 = 7
-    | otherwise = weekdayIndex

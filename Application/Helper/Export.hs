@@ -151,21 +151,8 @@ fetchReportWeekSelection ::
 fetchReportWeekSelection selectedWeekOffset = do
     venueConfig <- fetchVenueConfig
     let reportWeekStart = addDays (toInteger (selectedWeekOffset * 7)) venueConfig.weekOffsetEpoch
-    storedDayNames <- query @DayName
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#isActive, True)
-        |> fetch
-    let storedDayNamesByIndex = Map.fromList (map (\dayName -> (dayName.weekdayIndex, dayName.name)) storedDayNames)
-    let labels =
-            if null storedDayNames
-                then fallbackReportDayLabels reportWeekStart
-                else
-                    [ fromMaybe
-                        (fallbackReportDayLabel reportWeekStart dayOffset)
-                        (Map.lookup (weekdayIndexForDay (addDays (toInteger dayOffset) reportWeekStart)) storedDayNamesByIndex)
-                    | dayOffset <- [0 .. length storedDayNames - 1]
-                    ]
-    let reportWeekEnd = addDays (toInteger (max 1 (length labels) - 1)) reportWeekStart
+    let labels = fallbackReportDayLabels reportWeekStart
+    let reportWeekEnd = addDays 6 reportWeekStart
     pure
         ReportWeekSelection
             { weekOffset = selectedWeekOffset

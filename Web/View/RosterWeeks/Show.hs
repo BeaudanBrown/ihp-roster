@@ -68,6 +68,16 @@ renderRosterWeekShell ShowView { .. } = [hsx|
              data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
              data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< liveUpdateScope}
              data-live-update-week-offset={liveUpdateWeekOffsetText =<< liveUpdateScope}>
+        <div data-live-update-owner="true"
+             data-live-update-feature="roster-group-config"
+             data-live-updates-path="/live-updates"
+             data-live-update-content-url={appendQueryParams (pathTo (ShowRosterWeekContentFragmentAction weekOffset)) [("rosterGroupId", tshow currentRosterGroup.id)]}
+             data-live-update-client-enabled={isJust liveUpdateScope}
+             data-live-update-client-id=""
+             data-live-update-scope-kind={liveUpdateRosterGroupScopeKind <$> liveUpdateScope}
+             data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
+             data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< liveUpdateScope}
+             hidden="hidden"></div>
         <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-4">
             <div>
                 <h1 class="mb-0">Roster Starting {formatDateDisplay weekStartDate}</h1>
@@ -724,21 +734,31 @@ liveToggleInputId rosterWeekId = "roster-live-toggle-" <> tshow rosterWeekId
 
 liveUpdateScopeKind :: LiveUpdateScope -> Text
 liveUpdateScopeKind RosterWeekScope {}    = "roster_week"
+liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
 liveUpdateScopeKind LeaveRequestsScope {} = "leave_requests"
 liveUpdateScopeKind TimesheetWeekScope {} = "timesheet_week"
 
+liveUpdateRosterGroupScopeKind :: LiveUpdateScope -> Maybe Text
+liveUpdateRosterGroupScopeKind RosterWeekScope {}        = Just "roster_group_config"
+liveUpdateRosterGroupScopeKind RosterGroupConfigScope {} = Just "roster_group_config"
+liveUpdateRosterGroupScopeKind LeaveRequestsScope {}     = Nothing
+liveUpdateRosterGroupScopeKind TimesheetWeekScope {}     = Nothing
+
 liveUpdateVenueId :: LiveUpdateScope -> Text
 liveUpdateVenueId RosterWeekScope { venueId }    = tshow venueId
+liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
 liveUpdateVenueId LeaveRequestsScope { venueId } = tshow venueId
 liveUpdateVenueId TimesheetWeekScope { venueId } = tshow venueId
 
 liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId } = Just (tshow rosterGroupId)
+liveUpdateRosterGroupIdText RosterGroupConfigScope { rosterGroupId } = Just (tshow rosterGroupId)
 liveUpdateRosterGroupIdText LeaveRequestsScope {} = Nothing
 liveUpdateRosterGroupIdText TimesheetWeekScope {} = Nothing
 
 liveUpdateWeekOffsetText :: LiveUpdateScope -> Maybe Text
 liveUpdateWeekOffsetText RosterWeekScope { weekOffset } = Just (tshow weekOffset)
+liveUpdateWeekOffsetText RosterGroupConfigScope {} = Nothing
 liveUpdateWeekOffsetText LeaveRequestsScope {} = Nothing
 liveUpdateWeekOffsetText TimesheetWeekScope { weekOffset } = Just (tshow weekOffset)
 

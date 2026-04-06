@@ -28,11 +28,11 @@ instance Controller StaffController where
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         rosterGroups <- fetchCurrentVenueRosterGroups
         selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
-        preferenceDayNames <- fetchCurrentVenueActiveDayNames
+        let preferenceWeekdays = allPreferenceWeekdays
         preferenceSections <- fetchPreferenceSectionsForRosterGroups selectedRosterGroupIds
         selectedShiftPreferenceKeys <- fetchStaffShiftPreferenceKeyTexts staff selectedRosterGroupIds
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
@@ -46,7 +46,7 @@ instance Controller StaffController where
         let submittedRosterGroupIds = nub (paramList @(Id RosterGroup) "rosterGroupIds")
         maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
         previousRosterGroupIds <- fetchStaffRosterGroupIds staff
-        preferenceDayNames <- fetchCurrentVenueActiveDayNames
+        let preferenceWeekdays = allPreferenceWeekdays
         preferenceSections <- fetchPreferenceSectionsForRosterGroups submittedRosterGroupIds
         let selectedShiftPreferenceKeys = submittedShiftPreferenceKeys
         staff
@@ -54,7 +54,7 @@ instance Controller StaffController where
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups submittedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups submittedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                         else do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             render EditView { .. }
@@ -63,14 +63,14 @@ instance Controller StaffController where
                         Nothing -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
                         Just selectedRosterGroupIds -> do
-                            case parseShiftPreferenceSelections preferenceSections preferenceDayNames submittedShiftPreferenceKeys of
+                            case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
                                 Left preferenceError -> do
                                     setErrorMessage preferenceError
                                     if isHtmxRequest
-                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceDayNames preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                                         else render EditView { .. }
                                 Right submittedSelections -> do
                                     staff <- withTransaction do
@@ -110,7 +110,7 @@ buildStaff staff = staff
 fetchStaffLinkedUserEmail :: (?modelContext :: ModelContext) => Staff -> IO (Maybe Text)
 fetchStaffLinkedUserEmail staff =
     case staff.userId of
-        Nothing -> pure Nothing
+        Nothing     -> pure Nothing
         Just userId -> Just . (.email) <$> fetch (Id userId :: Id User)
 
 parseStaffRosterGroupIds :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe [Id RosterGroup])

@@ -59,6 +59,7 @@ data ExportsController
 
 data AdminController
     = AdminAction
+    | ShowAdminSlotNamesFragmentAction
     | CreateRosterGroupAction
     | UpdateRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
     | MakeDefaultRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
@@ -70,8 +71,9 @@ data AdminController
     | UpdateShiftTypeAction { shiftTypeId :: !(Id ShiftType) }
     | CreateSlotNameAction
     | UpdateSlotNameAction { slotNameId :: !(Id SlotName) }
-    | CreateDayNameAction
-    | UpdateDayNameAction { dayNameId :: !(Id DayName) }
+    | MoveSlotNameUpAction { slotNameId :: !(Id SlotName) }
+    | MoveSlotNameDownAction { slotNameId :: !(Id SlotName) }
+    | DeleteSlotNameAction { slotNameId :: !(Id SlotName) }
     deriving (Eq, Show, Data)
 
 data SupportController

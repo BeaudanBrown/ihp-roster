@@ -27,6 +27,10 @@ data LiveUpdateScope
         , rosterGroupId :: !UUID.UUID
         , weekOffset :: !Int
         }
+    | RosterGroupConfigScope
+        { venueId       :: !UUID.UUID
+        , rosterGroupId :: !UUID.UUID
+        }
     | LeaveRequestsScope
         { venueId :: !UUID.UUID
         }
@@ -96,6 +100,12 @@ instance Aeson.ToJSON LiveUpdateScope where
             , "rosterGroupId" Aeson..= UUID.toText rosterGroupId
             , "weekOffset" Aeson..= weekOffset
             ]
+    toJSON RosterGroupConfigScope { venueId, rosterGroupId } =
+        Aeson.object
+            [ "kind" Aeson..= ("roster_group_config" :: Text)
+            , "venueId" Aeson..= UUID.toText venueId
+            , "rosterGroupId" Aeson..= UUID.toText rosterGroupId
+            ]
     toJSON LeaveRequestsScope { venueId } =
         Aeson.object
             [ "kind" Aeson..= ("leave_requests" :: Text)
@@ -117,6 +127,10 @@ instance Aeson.FromJSON LiveUpdateScope where
                     <$> (parseUuid =<< object Aeson..: "venueId")
                     <*> (parseUuid =<< object Aeson..: "rosterGroupId")
                     <*> object Aeson..: "weekOffset"
+            "roster_group_config" ->
+                RosterGroupConfigScope
+                    <$> (parseUuid =<< object Aeson..: "venueId")
+                    <*> (parseUuid =<< object Aeson..: "rosterGroupId")
             "leave_requests" ->
                 LeaveRequestsScope
                     <$> (parseUuid =<< object Aeson..: "venueId")

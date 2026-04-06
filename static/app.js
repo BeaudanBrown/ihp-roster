@@ -769,6 +769,9 @@
             case 'roster_week':
                 if (!scope.rosterGroupId || !Number.isInteger(scope.weekOffset)) return null;
                 return `${scope.kind}:${scope.venueId}:${scope.rosterGroupId}:${scope.weekOffset}`;
+            case 'roster_group_config':
+                if (!scope.rosterGroupId) return null;
+                return `${scope.kind}:${scope.venueId}:${scope.rosterGroupId}`;
             case 'timesheet_week':
                 if (!Number.isInteger(scope.weekOffset)) return null;
                 return `${scope.kind}:${scope.venueId}:${scope.weekOffset}`;
@@ -977,7 +980,63 @@
         };
     }
 
-    const adapters = [rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter()];
+    function rosterGroupConfigAdapter() {
+        function readScope(ownerEl) {
+            if (!(ownerEl instanceof HTMLElement)) return null;
+            if (ownerEl.dataset.liveUpdateFeature !== 'roster-group-config') return null;
+            if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
+
+            const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
+            const venueId = ownerEl.dataset.liveUpdateVenueId;
+            const rosterGroupId = ownerEl.dataset.liveUpdateRosterGroupId;
+            if (!scopeKind || !venueId || !rosterGroupId) return null;
+
+            return {
+                scope: {
+                    kind: scopeKind,
+                    venueId,
+                    rosterGroupId,
+                },
+                scopeKey: buildScopeKey({
+                    kind: scopeKind,
+                    venueId,
+                    rosterGroupId,
+                }),
+                path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
+                resync: function () {
+                    const contentUrl = ownerEl.dataset.liveUpdateContentUrl;
+                    if (contentUrl) {
+                        const targetId = ownerEl.closest('[data-live-update-feature="roster"]')
+                            ? 'roster-content'
+                            : 'admin-slot-names-fragment';
+                        handleFragmentRefreshRequest({
+                            targetId,
+                            url: contentUrl,
+                            deferUntilBlur: false,
+                        });
+                    }
+                },
+            };
+        }
+
+        return {
+            collectSubscriptions: function () {
+                const subscriptions = [];
+                document.querySelectorAll('[data-live-update-owner="true"]').forEach(function (ownerEl) {
+                    const scopeInfo = readScope(ownerEl);
+                    if (!scopeInfo || !scopeInfo.scopeKey) return;
+                    subscriptions.push({ ...scopeInfo, ownerEl });
+                });
+                return subscriptions;
+            },
+            shouldDecorateRequest: function (event) {
+                const sourceEl = event.detail && event.detail.elt;
+                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="roster-group-config"]') || sourceEl.closest('#admin-slot-names-fragment'));
+            },
+        };
+    }
+
+    const adapters = [rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter(), rosterGroupConfigAdapter()];
 
     function desiredSubscriptions() {
         const desired = new Map();
@@ -1037,6 +1096,11 @@
             }
 
             setScopeVersion(scopeKey, nextVersion);
+        }
+
+        if (message.fragments.length === 0 && typeof subscription.resync === 'function') {
+            subscription.resync(subscription);
+            return;
         }
 
         message.fragments.forEach(handleFragmentRefreshRequest);

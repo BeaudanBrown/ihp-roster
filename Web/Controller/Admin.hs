@@ -1,7 +1,10 @@
 module Web.Controller.Admin where
 
+import Application.Helper.Export
+import Application.Helper.LiveUpdate
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
+import qualified Data.List as List
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
@@ -21,10 +24,21 @@ instance Controller AdminController where
         payLevels <- fetchCurrentVenuePayLevels
         payLevelDayRules <- fetchCurrentVenuePayLevelDayRules
         shiftTypes <- fetchCurrentVenueShiftTypes
-        slotNames <- fetchRosterGroupSlotNames currentRosterGroup.id
-        dayNames <- fetchCurrentVenueDayNames
+        slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
+        weekdays <- fetchCurrentVenueDayNames
+        activeReportDefinitions <- fetchCurrentVenueReportDefinitions
+        currentWeekOffset <- currentReportWeekOffset
+        reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
+        let staffPayReportDefinition = findReportDefinitionByEngine StaffPayCsvReport activeReportDefinitions
+        let hourlyBreakdownReportDefinition = findReportDefinitionByEngine HourlyBreakdownZipReport activeReportDefinitions
         let latestSnapshot = listToMaybe recentSnapshots
+        let slotNamesLiveUpdateScope = Just (slotNamesScope currentRosterGroup.id)
         render IndexView { .. }
+
+    action ShowAdminSlotNamesFragmentAction = do
+        currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
+        slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
+        respondHtml (renderSlotNamesSectionFragment currentRosterGroup slotNames)
 
     action CreateRosterGroupAction = do
         venue <- fetch currentVenueId
@@ -234,16 +248,17 @@ instance Controller AdminController where
         case maybeName of
             Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just name -> do
-                let isActive = parseIsActiveParam
                 rosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
+                nextSortOrder <- nextSlotNameSortOrder rosterGroup.id
                 _ <- newRecord @SlotName
                     |> set #venueId (unpackId currentVenueId)
                     |> set #rosterGroupId (unpackId rosterGroup.id)
                     |> set #name name
-                    |> set #isActive isActive
+                    |> set #sortOrder nextSortOrder
+                    |> set #isActive True
                     |> createRecord
-                setSuccessMessage "Slot name added"
-                redirectToAdminFor (Just rosterGroup.id)
+                broadcastSlotNameInvalidation rosterGroup.id
+                respondToSlotNameSectionMutation "Slot name added" rosterGroup.id
 
     action UpdateSlotNameAction { slotNameId } = do
         slotName <- fetch slotNameId
@@ -252,50 +267,39 @@ instance Controller AdminController where
         case maybeName of
             Nothing -> redirectToAdminFor (Just (Id slotName.rosterGroupId :: Id RosterGroup))
             Just name -> do
-                let isActive = parseIsActiveParam
                 _ <- slotName
                     |> set #name name
-                    |> set #isActive isActive
                     |> updateRecord
-                setSuccessMessage "Slot name updated"
-                redirectToAdminFor (Just (Id slotName.rosterGroupId :: Id RosterGroup))
+                broadcastSlotNameInvalidation (Id slotName.rosterGroupId :: Id RosterGroup)
+                respondToSlotNameMutation "Slot name updated" (Id slotName.rosterGroupId :: Id RosterGroup)
 
-    action CreateDayNameAction = do
-        maybeDayNameParams <- parseDayNameParams Nothing
-        case maybeDayNameParams of
-            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
-            Just (weekdayIndex, name, isActive) -> do
-                _ <- withTransaction do
-                    dayName <-
-                        newRecord @DayName
-                            |> set #venueId (unpackId currentVenueId)
-                            |> set #weekdayIndex weekdayIndex
-                            |> set #name name
-                            |> set #isActive isActive
-                            |> createRecord
-                    _ <- syncCurrentVenuePayConfigSnapshot
-                    pure dayName
-                setSuccessMessage "Day name added"
-                redirectToAdminFor (paramOrNothing "rosterGroupId")
+    action MoveSlotNameUpAction { slotNameId } = do
+        slotName <- fetch slotNameId
+        ensureRecordInCurrentVenue slotName.venueId
+        let rosterGroupId = Id slotName.rosterGroupId :: Id RosterGroup
+        withTransaction do
+            reorderActiveSlotNames rosterGroupId slotName.id (-1)
+        broadcastSlotNameInvalidation rosterGroupId
+        respondToSlotNameSectionMutation "Slot order updated" rosterGroupId
 
-    action UpdateDayNameAction { dayNameId } = do
-        dayName <- fetch dayNameId
-        ensureRecordInCurrentVenue dayName.venueId
-        maybeDayNameParams <- parseDayNameParams (Just dayName)
-        case maybeDayNameParams of
-            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
-            Just (weekdayIndex, name, isActive) -> do
-                _ <- withTransaction do
-                    updatedDayName <-
-                        dayName
-                            |> set #weekdayIndex weekdayIndex
-                            |> set #name name
-                            |> set #isActive isActive
-                            |> updateRecord
-                    _ <- syncCurrentVenuePayConfigSnapshot
-                    pure updatedDayName
-                setSuccessMessage "Day name updated"
-                redirectToAdminFor (paramOrNothing "rosterGroupId")
+    action MoveSlotNameDownAction { slotNameId } = do
+        slotName <- fetch slotNameId
+        ensureRecordInCurrentVenue slotName.venueId
+        let rosterGroupId = Id slotName.rosterGroupId :: Id RosterGroup
+        withTransaction do
+            reorderActiveSlotNames rosterGroupId slotName.id 1
+        broadcastSlotNameInvalidation rosterGroupId
+        respondToSlotNameSectionMutation "Slot order updated" rosterGroupId
+
+    action DeleteSlotNameAction { slotNameId } = do
+        slotName <- fetch slotNameId
+        ensureRecordInCurrentVenue slotName.venueId
+        let rosterGroupId = Id slotName.rosterGroupId :: Id RosterGroup
+        _ <- slotName
+            |> set #isActive False
+            |> updateRecord
+        broadcastSlotNameInvalidation rosterGroupId
+        respondToSlotNameSectionMutation "Slot deleted" rosterGroupId
 
 fetchCurrentVenuePayLevels :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [PayLevel]
 fetchCurrentVenuePayLevels =
@@ -323,6 +327,84 @@ fetchCurrentVenuePayLevelDayRules = do
                 |> filterWhereIn (#shiftTypeId, shiftTypeIds)
                 |> orderByAsc #createdAt
                 |> fetch
+
+nextSlotNameSortOrder :: (?modelContext :: ModelContext) => Id RosterGroup -> IO Int
+nextSlotNameSortOrder rosterGroupId =
+    query @SlotName
+        |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+        |> orderByDesc #sortOrder
+        |> fetchOneOrNothing
+        >>= pure . maybe 0 ((+ 1) . get #sortOrder)
+
+respondToSlotNameMutation :: (?context :: ControllerContext) => Text -> Id RosterGroup -> IO ()
+respondToSlotNameMutation successMessage rosterGroupId =
+    if isHtmxRequest
+        then renderPlain ""
+        else do
+            setSuccessMessage successMessage
+            redirectToAdminFor (Just rosterGroupId)
+
+respondToSlotNameSectionMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Text ->
+    Id RosterGroup ->
+    IO ()
+respondToSlotNameSectionMutation successMessage rosterGroupId =
+    if isHtmxRequest
+        then do
+            currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
+            slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
+            respondHtml (renderSlotNamesSectionFragment currentRosterGroup slotNames)
+        else do
+            setSuccessMessage successMessage
+            redirectToAdminFor (Just rosterGroupId)
+
+broadcastSlotNameInvalidation ::
+    (?context :: ControllerContext) =>
+    Id RosterGroup ->
+    IO ()
+broadcastSlotNameInvalidation rosterGroupId =
+    broadcastLiveInvalidation
+        (slotNamesScope rosterGroupId)
+        (cs <$> getHeader "X-Live-Update-Client-Id")
+        []
+
+slotNamesScope :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope
+slotNamesScope rosterGroupId =
+    RosterGroupConfigScope
+        { venueId = unpackId currentVenueId
+        , rosterGroupId = unpackId rosterGroupId
+        }
+
+reorderActiveSlotNames :: (?modelContext :: ModelContext) => Id RosterGroup -> Id SlotName -> Int -> IO ()
+reorderActiveSlotNames rosterGroupId slotNameId direction = do
+    activeSlotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
+    let currentIndex = List.findIndex (\slotName -> slotName.id == slotNameId) activeSlotNames
+    case currentIndex of
+        Nothing -> pure ()
+        Just index -> do
+            let targetIndex = index + direction
+            if targetIndex < 0 || targetIndex >= length activeSlotNames
+                then pure ()
+                else do
+                    let reordered = moveListItem index targetIndex activeSlotNames
+                    forM_ (zip [0 :: Int ..] reordered) \(sortOrder, slotName) ->
+                        when (slotName.sortOrder /= sortOrder) do
+                            _ <- slotName
+                                |> set #sortOrder sortOrder
+                                |> updateRecord
+                            pure ()
+
+moveListItem :: Int -> Int -> [a] -> [a]
+moveListItem sourceIndex targetIndex items
+    | sourceIndex == targetIndex = items
+    | otherwise =
+        case List.splitAt sourceIndex items of
+            (before, item : after) ->
+                let remaining = before <> after
+                    (insertBefore, insertAfter) = List.splitAt targetIndex remaining
+                 in insertBefore <> [item] <> insertAfter
+            _ -> items
 
 fetchCurrentVenueDayNames :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [DayName]
 fetchCurrentVenueDayNames =
@@ -376,39 +458,6 @@ parseDefaultPayLevelId =
                     pure Nothing
                 Just _ ->
                     pure (Just payLevelId)
-
-parseDayNameParams ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    Maybe DayName ->
-    IO (Maybe (Int, Text, Bool))
-parseDayNameParams existingDayName = do
-    let maybeWeekdayIndex = paramOrNothing @Int "weekdayIndex"
-    case maybeWeekdayIndex of
-        Nothing -> do
-            setErrorMessage "Choose a weekday."
-            pure Nothing
-        Just weekdayIndex
-            | weekdayIndex < 0 || weekdayIndex > 6 -> do
-                setErrorMessage "Weekday must be between 0 and 6."
-                pure Nothing
-            | otherwise -> do
-                maybeName <- parseRequiredName "name" "Day name is required."
-                case maybeName of
-                    Nothing -> pure Nothing
-                    Just name -> do
-                        dayNames <- fetchCurrentVenueDayNames
-                        let conflicts =
-                                any
-                                    (\dayName ->
-                                        dayName.weekdayIndex == weekdayIndex
-                                            && maybe True (\existing -> get #id existing /= get #id dayName) existingDayName
-                                    )
-                                    dayNames
-                        if conflicts
-                            then do
-                                setErrorMessage "That weekday already has a configured day name for this venue."
-                                pure Nothing
-                            else pure (Just (weekdayIndex, name, parseIsActiveParam))
 
 parsePayLevelDayRuleParams ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -527,3 +576,7 @@ redirectToAdminFor maybeRosterGroupId =
             (pathTo AdminAction)
             (\rosterGroupId -> pathTo AdminAction <> "?rosterGroupId=" <> tshow rosterGroupId)
             maybeRosterGroupId
+
+findReportDefinitionByEngine :: ReportDefinitionEngine -> [VenueReportDefinition] -> Maybe VenueReportDefinition
+findReportDefinitionByEngine engine reportDefinitions =
+    List.find (\reportDefinition -> reportDefinition.engine == engine) reportDefinitions

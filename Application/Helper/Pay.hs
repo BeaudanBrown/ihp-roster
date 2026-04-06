@@ -200,12 +200,22 @@ buildCurrentVenuePayConfigSnapshotPayload = do
     venueConfig <- fetchVenueConfig
     payLevels <- query @PayLevel |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #createdAt |> fetch
     shiftTypes <- query @ShiftType |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #createdAt |> fetch
-    dayNames <- query @DayName |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #weekdayIndex |> fetch
     let shiftTypeIds = map (unpackId . get #id) shiftTypes
     payLevelDayRules <-
         if null shiftTypeIds
             then pure []
-            else query @PayLevelDayRule |> filterWhereIn (#shiftTypeId, shiftTypeIds) |> orderByAsc #createdAt |> fetch
+            else query @PayLevelDayRule
+                |> filterWhereIn (#shiftTypeId, shiftTypeIds)
+                |> orderByAsc #createdAt
+                |> fetch
+                >>= \rules -> do
+                    let dayNameIds = map (Id . (.dayNameId)) rules
+                    dayNames <-
+                        if null dayNameIds
+                            then pure []
+                            else query @DayName |> filterWhereIn (#id, dayNameIds) |> fetch
+                    let dayNamesById = Map.fromList (map (\dayName -> (unpackId (get #id dayName), dayName)) dayNames)
+                    pure (map (serializePayLevelDayRule dayNamesById) rules)
 
     pure $
         Aeson.object
@@ -218,8 +228,7 @@ buildCurrentVenuePayConfigSnapshotPayload = do
                 ]
             , "payLevels" Aeson..= map serializePayLevel payLevels
             , "shiftTypes" Aeson..= map serializeShiftType shiftTypes
-            , "dayNames" Aeson..= map serializeDayName dayNames
-            , "payLevelDayRules" Aeson..= map serializePayLevelDayRule payLevelDayRules
+            , "payLevelDayRules" Aeson..= payLevelDayRules
             ]
     where
         serializePayLevel payLevel =
@@ -244,20 +253,13 @@ buildCurrentVenuePayConfigSnapshotPayload = do
                 , "isActive" Aeson..= shiftType.isActive
                 ]
 
-        serializeDayName dayName =
-            Aeson.object
-                [ "id" Aeson..= unpackId (get #id dayName)
-                , "weekdayIndex" Aeson..= dayName.weekdayIndex
-                , "name" Aeson..= dayName.name
-                , "isActive" Aeson..= dayName.isActive
-                ]
-
-        serializePayLevelDayRule rule =
+        serializePayLevelDayRule dayNamesById rule =
             Aeson.object
                 [ "id" Aeson..= unpackId (get #id rule)
                 , "shiftTypeId" Aeson..= rule.shiftTypeId
                 , "payLevelId" Aeson..= rule.payLevelId
                 , "dayNameId" Aeson..= rule.dayNameId
+                , "weekdayIndex" Aeson..= fmap (.weekdayIndex) (Map.lookup rule.dayNameId dayNamesById)
                 ]
 
 fetchTimesheetPay :: (?modelContext :: ModelContext) => Id TimesheetEntry -> IO (Either Text TimesheetPayResult)
