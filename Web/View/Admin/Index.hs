@@ -30,7 +30,7 @@ instance View IndexView where
             </div>
         </div>
         <div data-live-update-owner="true"
-             data-live-update-feature="roster-group-config"
+             data-live-update-feature="admin-slot-names"
              data-live-updates-path="/live-updates"
              data-live-update-content-url={appendQueryParams (pathTo ShowAdminSlotNamesFragmentAction) [("rosterGroupId", tshow currentRosterGroup.id)]}
              data-live-update-client-enabled={isJust slotNamesLiveUpdateScope}
@@ -557,10 +557,11 @@ renderSlotNameRow rosterGroupId slotCount (slotIndex, slotName) = [hsx|
                   action={appendQueryParams (pathTo (DeleteSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]}
                   class="m-0"
                   data-disable-javascript-submission="true"
-                  hx-post={appendQueryParams (pathTo (DeleteSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]}
+                  hx-delete={appendQueryParams (pathTo (DeleteSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]}
                   hx-target="#admin-slot-names-fragment"
                   hx-swap="outerHTML">
-                <button class="btn btn-outline-danger w-100" type="submit">Delete</button>
+                <input type="hidden" name="_method" value="DELETE" />
+                <button class="btn btn-outline-danger" type="submit">Delete</button>
             </form>
         </div>
     </div>
@@ -795,18 +796,21 @@ renderWeekdayName weekdayIndex =
 liveUpdateScopeKind :: LiveUpdateScope -> Text
 liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
 liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
+liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
 liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
 liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
 
 liveUpdateVenueId :: LiveUpdateScope -> Text
 liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
 liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
+liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
 liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
 liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
 
 liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId }        = Just (tshow rosterGroupId)
 liveUpdateRosterGroupIdText RosterGroupConfigScope { rosterGroupId } = Just (tshow rosterGroupId)
+liveUpdateRosterGroupIdText AdminSlotNamesScope { rosterGroupId }    = Just (tshow rosterGroupId)
 liveUpdateRosterGroupIdText LeaveRequestsScope {}                    = Nothing
 liveUpdateRosterGroupIdText TimesheetWeekScope {}                    = Nothing
 

@@ -69,7 +69,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Generate Staff Pay CSV"
                 response `responseBodyShouldContain` "Generate Hourly Breakdown ZIP"
                 response `responseBodyShouldContain` "Export History"
-                response `responseBodyShouldContain` "data-live-update-feature=\"roster-group-config\""
+                response `responseBodyShouldContain` "data-live-update-feature=\"admin-slot-names\""
                 response `responseBodyShouldContain` "admin-slot-names-fragment"
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
@@ -317,7 +317,38 @@ tests = beforeAll testContext do
                 length activeEarlySlots `shouldBe` 1
                 length inactiveEarlySlots `shouldBe` 1
 
-        it "returns the slot-names fragment for HTMX slot actions" $ withContext do
+        it "does not backfill existing roster rows when creating a new slot name" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-slot-backfill@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                early <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord rosterDay early Nothing 0
+                _ <- createRosterSlotRecord rosterDay early Nothing 1
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateSlotNameAction
+                        [ ("name", "Graveyard")
+                        , ("rosterGroupId", idToParam rosterGroup.id)
+                        ]
+
+                response `responseStatusShouldBe` status302
+
+                graveyard <- fetchSlotNameRecordForRosterGroup rosterGroup "Graveyard"
+                graveyardSlots <-
+                    query @RosterSlot
+                        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                        |> filterWhere (#slotNameId, unpackId graveyard.id)
+                        |> orderByAsc #rowIndex
+                        |> fetch
+
+                graveyardSlots `shouldBe` []
+
+        it "returns the slot-names fragment for HTMX slot move actions" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-slot-fragment@example.com" "staff" True
@@ -333,6 +364,26 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "admin-slot-names-fragment"
                 response `responseBodyShouldContain` "Delete"
                 response `responseBodyShouldContain` "hx-target=\"#admin-slot-names-fragment\""
+                response `responseBodyShouldContain` cs (idToParam rosterGroup.id)
+
+        it "returns the updated slot-names fragment for HTMX slot deletes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-slot-delete-fragment@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                slotName <- fetchSlotNameRecord venue "Mid"
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "admin-slot-client")] do
+                        callAction (DeleteSlotNameAction slotName.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "admin-slot-names-fragment"
+                response `responseBodyShouldContain` "Early"
+                response `responseBodyShouldContain` "Late"
+                response `responseBodyShouldNotContain` "Mid"
+                response `responseBodyShouldContain` "hx-delete=\"/DeleteSlotName"
                 response `responseBodyShouldContain` cs (idToParam rosterGroup.id)
 
         it "rejects updates to config rows outside the current venue" $ withContext do

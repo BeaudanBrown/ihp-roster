@@ -320,6 +320,51 @@ tests = beforeAll testContext do
                 map (.rowIndex) slotsForDay `shouldBe` concatMap (replicate slotCount) [0, 1, 2, 3, 4]
                 map (.slotNameId) slotsForDay `shouldMatchList` map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames
 
+        it "syncs a draft week to the current slot template only when explicitly requested" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-sync-slots@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                early <- fetchSlotNameRecord venue "Early"
+                mid <- fetchSlotNameRecord venue "Mid"
+                late <- fetchSlotNameRecord venue "Late"
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue rosterGroup 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                earlySlot <- createRosterSlotRecord rosterDay early Nothing 0
+                _ <- createRosterSlotRecord rosterDay mid Nothing 0
+                _ <- createRosterSlotRecord rosterDay late Nothing 0
+                _ <- updateRecord (earlySlot |> set #note (Just "Keep me"))
+
+                _ <- updateRecord (mid |> set #isActive False)
+                _ <- updateRecord (late |> set #sortOrder 1)
+                _ <- updateRecord (early |> set #sortOrder 2)
+                graveyard <- createSlotNameRecordForRosterGroup venue rosterGroup "Graveyard" >>= updateRecord . set #sortOrder 0
+
+                beforeSyncSlots <-
+                    query @RosterSlot
+                        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                        |> orderByAsc #slotSortOrder
+                        |> fetch
+
+                map (.slotNameId) beforeSyncSlots `shouldBe` [unpackId early.id, unpackId mid.id, unpackId late.id]
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (SyncRosterWeekSlotStructureAction rosterWeek.id)
+
+                response `responseStatusShouldBe` status302
+
+                afterSyncSlots <-
+                    query @RosterSlot
+                        |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                        |> orderByAsc #slotSortOrder
+                        |> fetch
+
+                map (.slotNameId) afterSyncSlots `shouldBe` [unpackId graveyard.id, unpackId late.id, unpackId early.id]
+                map (.slotSortOrder) afterSyncSlots `shouldBe` [0, 1, 2]
+                map (.note) afterSyncSlots `shouldBe` [Nothing, Nothing, Just "Keep me"]
+
         it "manager can toggle a draft week live via HTMX without redirecting" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

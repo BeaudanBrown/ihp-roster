@@ -770,6 +770,7 @@
                 if (!scope.rosterGroupId || !Number.isInteger(scope.weekOffset)) return null;
                 return `${scope.kind}:${scope.venueId}:${scope.rosterGroupId}:${scope.weekOffset}`;
             case 'roster_group_config':
+            case 'admin_slot_names':
                 if (!scope.rosterGroupId) return null;
                 return `${scope.kind}:${scope.venueId}:${scope.rosterGroupId}`;
             case 'timesheet_week':
@@ -980,10 +981,10 @@
         };
     }
 
-    function rosterGroupConfigAdapter() {
+    function adminSlotNamesAdapter() {
         function readScope(ownerEl) {
             if (!(ownerEl instanceof HTMLElement)) return null;
-            if (ownerEl.dataset.liveUpdateFeature !== 'roster-group-config') return null;
+            if (ownerEl.dataset.liveUpdateFeature !== 'admin-slot-names') return null;
             if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
 
             const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
@@ -1006,11 +1007,8 @@
                 resync: function () {
                     const contentUrl = ownerEl.dataset.liveUpdateContentUrl;
                     if (contentUrl) {
-                        const targetId = ownerEl.closest('[data-live-update-feature="roster"]')
-                            ? 'roster-content'
-                            : 'admin-slot-names-fragment';
                         handleFragmentRefreshRequest({
-                            targetId,
+                            targetId: 'admin-slot-names-fragment',
                             url: contentUrl,
                             deferUntilBlur: false,
                         });
@@ -1031,12 +1029,12 @@
             },
             shouldDecorateRequest: function (event) {
                 const sourceEl = event.detail && event.detail.elt;
-                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="roster-group-config"]') || sourceEl.closest('#admin-slot-names-fragment'));
+                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="admin-slot-names"]') || sourceEl.closest('#admin-slot-names-fragment'));
             },
         };
     }
 
-    const adapters = [rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter(), rosterGroupConfigAdapter()];
+    const adapters = [rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter(), adminSlotNamesAdapter()];
 
     function desiredSubscriptions() {
         const desired = new Map();

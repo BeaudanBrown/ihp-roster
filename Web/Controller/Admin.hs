@@ -32,7 +32,7 @@ instance Controller AdminController where
         let staffPayReportDefinition = findReportDefinitionByEngine StaffPayCsvReport activeReportDefinitions
         let hourlyBreakdownReportDefinition = findReportDefinitionByEngine HourlyBreakdownZipReport activeReportDefinitions
         let latestSnapshot = listToMaybe recentSnapshots
-        let slotNamesLiveUpdateScope = Just (slotNamesScope currentRosterGroup.id)
+        let slotNamesLiveUpdateScope = Just (adminSlotNamesScope currentRosterGroup.id)
         render IndexView { .. }
 
     action ShowAdminSlotNamesFragmentAction = do
@@ -249,15 +249,16 @@ instance Controller AdminController where
             Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just name -> do
                 rosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
-                nextSortOrder <- nextSlotNameSortOrder rosterGroup.id
-                _ <- newRecord @SlotName
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #rosterGroupId (unpackId rosterGroup.id)
-                    |> set #name name
-                    |> set #sortOrder nextSortOrder
-                    |> set #isActive True
-                    |> createRecord
-                broadcastSlotNameInvalidation rosterGroup.id
+                _ <- do
+                    nextSortOrder <- nextSlotNameSortOrder rosterGroup.id
+                    newRecord @SlotName
+                        |> set #venueId (unpackId currentVenueId)
+                        |> set #rosterGroupId (unpackId rosterGroup.id)
+                        |> set #name name
+                        |> set #sortOrder nextSortOrder
+                        |> set #isActive True
+                        |> createRecord
+                broadcastAdminSlotNamesInvalidation rosterGroup.id
                 respondToSlotNameSectionMutation "Slot name added" rosterGroup.id
 
     action UpdateSlotNameAction { slotNameId } = do
@@ -270,6 +271,7 @@ instance Controller AdminController where
                 _ <- slotName
                     |> set #name name
                     |> updateRecord
+                broadcastAdminSlotNamesInvalidation (Id slotName.rosterGroupId :: Id RosterGroup)
                 broadcastSlotNameInvalidation (Id slotName.rosterGroupId :: Id RosterGroup)
                 respondToSlotNameMutation "Slot name updated" (Id slotName.rosterGroupId :: Id RosterGroup)
 
@@ -279,7 +281,7 @@ instance Controller AdminController where
         let rosterGroupId = Id slotName.rosterGroupId :: Id RosterGroup
         withTransaction do
             reorderActiveSlotNames rosterGroupId slotName.id (-1)
-        broadcastSlotNameInvalidation rosterGroupId
+        broadcastAdminSlotNamesInvalidation rosterGroupId
         respondToSlotNameSectionMutation "Slot order updated" rosterGroupId
 
     action MoveSlotNameDownAction { slotNameId } = do
@@ -288,7 +290,7 @@ instance Controller AdminController where
         let rosterGroupId = Id slotName.rosterGroupId :: Id RosterGroup
         withTransaction do
             reorderActiveSlotNames rosterGroupId slotName.id 1
-        broadcastSlotNameInvalidation rosterGroupId
+        broadcastAdminSlotNamesInvalidation rosterGroupId
         respondToSlotNameSectionMutation "Slot order updated" rosterGroupId
 
     action DeleteSlotNameAction { slotNameId } = do
@@ -298,7 +300,7 @@ instance Controller AdminController where
         _ <- slotName
             |> set #isActive False
             |> updateRecord
-        broadcastSlotNameInvalidation rosterGroupId
+        broadcastAdminSlotNamesInvalidation rosterGroupId
         respondToSlotNameSectionMutation "Slot deleted" rosterGroupId
 
 fetchCurrentVenuePayLevels :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [PayLevel]
@@ -369,9 +371,26 @@ broadcastSlotNameInvalidation rosterGroupId =
         (cs <$> getHeader "X-Live-Update-Client-Id")
         []
 
+broadcastAdminSlotNamesInvalidation ::
+    (?context :: ControllerContext) =>
+    Id RosterGroup ->
+    IO ()
+broadcastAdminSlotNamesInvalidation rosterGroupId =
+    broadcastLiveInvalidation
+        (adminSlotNamesScope rosterGroupId)
+        (cs <$> getHeader "X-Live-Update-Client-Id")
+        []
+
 slotNamesScope :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope
 slotNamesScope rosterGroupId =
     RosterGroupConfigScope
+        { venueId = unpackId currentVenueId
+        , rosterGroupId = unpackId rosterGroupId
+        }
+
+adminSlotNamesScope :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope
+adminSlotNamesScope rosterGroupId =
+    AdminSlotNamesScope
         { venueId = unpackId currentVenueId
         , rosterGroupId = unpackId rosterGroupId
         }

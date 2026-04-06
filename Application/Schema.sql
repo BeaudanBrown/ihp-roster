@@ -234,6 +234,7 @@ CREATE TABLE roster_slots (
     roster_day_id UUID NOT NULL,
     staff_id UUID,
     slot_name_id UUID NOT NULL,
+    slot_sort_order INT DEFAULT 0 NOT NULL,
     row_index INT NOT NULL,
     start_time TIME,
     duration_minutes INT,

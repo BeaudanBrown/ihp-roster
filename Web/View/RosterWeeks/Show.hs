@@ -214,7 +214,10 @@ renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek ->
 renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup = [hsx|
     <div class="card-header d-flex justify-content-between align-items-center gap-3 py-3">
         {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
-        {renderLiveToggle maybeRosterWeek}
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            {renderSyncSlotStructureButton maybeRosterWeek}
+            {renderLiveToggle maybeRosterWeek}
+        </div>
     </div>
 |]
 
@@ -705,6 +708,24 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
     </form>
 |]
 
+renderSyncSlotStructureButton :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
+renderSyncSlotStructureButton maybeRosterWeek =
+    case maybeRosterWeek of
+        Just rosterWeek | currentUserIsManager && not rosterWeek.isLive -> [hsx|
+            <form method="POST"
+                  action={SyncRosterWeekSlotStructureAction rosterWeek.id}
+                  data-disable-javascript-submission="true"
+                  hx-post={SyncRosterWeekSlotStructureAction rosterWeek.id}
+                  hx-target={"#" <> rosterContentFragmentId}
+                  hx-swap="outerHTML"
+                  hx-push-url="false"
+                  hx-sync={"#" <> rosterWeekShellId <> ":replace"}
+                  hx-confirm="Sync this draft week to the current slot template? Existing matching slots keep their data; removed slots are dropped and new slots start empty.">
+                <button type="submit" class="btn btn-outline-secondary">Sync Slots</button>
+            </form>
+        |]
+        _ -> mempty
+
 renderLiveToggleForm :: RosterWeek -> Html
 renderLiveToggleForm rosterWeek = [hsx|
     <form method="POST"
@@ -735,30 +756,35 @@ liveToggleInputId rosterWeekId = "roster-live-toggle-" <> tshow rosterWeekId
 liveUpdateScopeKind :: LiveUpdateScope -> Text
 liveUpdateScopeKind RosterWeekScope {}    = "roster_week"
 liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
+liveUpdateScopeKind AdminSlotNamesScope {} = "admin_slot_names"
 liveUpdateScopeKind LeaveRequestsScope {} = "leave_requests"
 liveUpdateScopeKind TimesheetWeekScope {} = "timesheet_week"
 
 liveUpdateRosterGroupScopeKind :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupScopeKind RosterWeekScope {}        = Just "roster_group_config"
 liveUpdateRosterGroupScopeKind RosterGroupConfigScope {} = Just "roster_group_config"
+liveUpdateRosterGroupScopeKind AdminSlotNamesScope {}    = Nothing
 liveUpdateRosterGroupScopeKind LeaveRequestsScope {}     = Nothing
 liveUpdateRosterGroupScopeKind TimesheetWeekScope {}     = Nothing
 
 liveUpdateVenueId :: LiveUpdateScope -> Text
 liveUpdateVenueId RosterWeekScope { venueId }    = tshow venueId
 liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
+liveUpdateVenueId AdminSlotNamesScope { venueId } = tshow venueId
 liveUpdateVenueId LeaveRequestsScope { venueId } = tshow venueId
 liveUpdateVenueId TimesheetWeekScope { venueId } = tshow venueId
 
 liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId } = Just (tshow rosterGroupId)
 liveUpdateRosterGroupIdText RosterGroupConfigScope { rosterGroupId } = Just (tshow rosterGroupId)
+liveUpdateRosterGroupIdText AdminSlotNamesScope { rosterGroupId } = Just (tshow rosterGroupId)
 liveUpdateRosterGroupIdText LeaveRequestsScope {} = Nothing
 liveUpdateRosterGroupIdText TimesheetWeekScope {} = Nothing
 
 liveUpdateWeekOffsetText :: LiveUpdateScope -> Maybe Text
 liveUpdateWeekOffsetText RosterWeekScope { weekOffset } = Just (tshow weekOffset)
 liveUpdateWeekOffsetText RosterGroupConfigScope {} = Nothing
+liveUpdateWeekOffsetText AdminSlotNamesScope {} = Nothing
 liveUpdateWeekOffsetText LeaveRequestsScope {} = Nothing
 liveUpdateWeekOffsetText TimesheetWeekScope { weekOffset } = Just (tshow weekOffset)
 

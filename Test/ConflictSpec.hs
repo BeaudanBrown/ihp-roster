@@ -28,6 +28,7 @@ tests = describe "Conflict Engine" do
             , rosterDayId = def
             , staffId = Nothing
             , slotNameId = def
+            , slotSortOrder = 0
             , rowIndex = 0
             , startTime = def
             , durationMinutes = Nothing

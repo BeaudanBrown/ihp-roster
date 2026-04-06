@@ -17,7 +17,8 @@ import Application.Helper.View (ToastOverlayConfig (..),
                                 renderToastOverlayHostOob)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
-import Data.List (find, nub)
+import Data.List (find, nub, nubBy, sortOn)
+import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, mapMaybe)
 import qualified Data.Text as Text
 import Data.Time (diffDays, getCurrentTime, utctDay)
@@ -186,6 +187,30 @@ instance Controller RosterWeeksController where
                 setSuccessMessage successMessage
                 redirectToPath targetPath
 
+    action SyncRosterWeekSlotStructureAction { rosterWeekId } = do
+        ensureManagerRole
+        rosterWeek <- fetch rosterWeekId
+        ensureRecordInCurrentVenue rosterWeek.venueId
+        ensureRosterWeekIsDraftForEdit rosterWeek
+
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
+
+        withTransaction do
+            syncRosterWeekSlotStructure rosterWeek
+
+        broadcastRosterWeekInvalidation
+            rosterGroupId
+            rosterWeek.weekOffset
+            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+            ]
+
+        if isHtmxRequest
+            then respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset "Slot structure synced."
+            else do
+                setSuccessMessage "Slot structure synced."
+                redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+
     action ToggleRosterDayClosedAction { rosterDayId } = do
         ensureManagerRole
 
@@ -246,9 +271,9 @@ instance Controller RosterWeeksController where
         let nextRowIndex = if null existingSlots then 0 else maximum (map (.rowIndex) existingSlots) + 1
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        orderedSlotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
+        slotTemplate <- fetchRosterWeekSlotTemplate rosterWeek
 
-        if null orderedSlotNames
+        if null slotTemplate
             then do
                 let errorMessage = "Add at least one active slot to the selected roster group before adding roster rows."
                 if isHtmxRequest
@@ -257,10 +282,11 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
             else do
-                forM_ orderedSlotNames \slotName -> do
+                forM_ slotTemplate \(slotName, slotSortOrder) -> do
                     newRecord @RosterSlot
                         |> set #rosterDayId (coerce rosterDayId)
                         |> set #slotNameId (coerce (get #id slotName))
+                        |> set #slotSortOrder slotSortOrder
                         |> set #rowIndex nextRowIndex
                         |> createRecord
 
@@ -697,7 +723,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
             let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
             panelStaff <- fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots
 
-            orderedSlotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
+            orderedSlotNames <- fetchRosterWeekOrderedSlotNamesFromSlots allSlots
             slotConflicts <- buildSlotConflicts rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays visibleSlots staffMembers
             pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts })
 
@@ -853,6 +879,100 @@ fetchAssignedRosterWeekStaff allSlots = do
                 |> orderBy #lastName
                 |> fetch
 
+type RosterWeekSlotTemplate = (SlotName, Int)
+
+fetchRosterWeekSlotTemplate :: (?modelContext :: ModelContext) => RosterWeek -> IO [RosterWeekSlotTemplate]
+fetchRosterWeekSlotTemplate rosterWeek = do
+    rosterDays <-
+        query @RosterDay
+            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+            |> fetch
+    if null rosterDays
+        then pure []
+        else do
+            allSlots <-
+                query @RosterSlot
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                    |> fetch
+            fetchRosterWeekSlotTemplateFromSlots allSlots
+
+fetchRosterWeekSlotTemplateFromSlots :: (?modelContext :: ModelContext) => [RosterSlot] -> IO [RosterWeekSlotTemplate]
+fetchRosterWeekSlotTemplateFromSlots allSlots = do
+    let orderedSlotPairs =
+            allSlots
+                |> map (\slot -> (slot.slotNameId, slot.slotSortOrder))
+                |> Map.fromListWith min
+                |> Map.toList
+                |> sortOn snd
+    let orderedSlotIds = map fst orderedSlotPairs
+    if null orderedSlotIds
+        then pure []
+        else do
+            slotNames <-
+                query @SlotName
+                    |> filterWhereIn (#id, map Id orderedSlotIds)
+                    |> fetch
+            let slotNameById = Map.fromList (map (\slotName -> (unpackId slotName.id, slotName)) slotNames)
+            pure
+                [ (slotName, slotSortOrder)
+                | (slotNameId, slotSortOrder) <- orderedSlotPairs
+                , Just slotName <- [Map.lookup slotNameId slotNameById]
+                ]
+
+fetchRosterWeekOrderedSlotNames :: (?modelContext :: ModelContext) => RosterWeek -> IO [SlotName]
+fetchRosterWeekOrderedSlotNames rosterWeek =
+    map fst <$> fetchRosterWeekSlotTemplate rosterWeek
+
+fetchRosterWeekOrderedSlotNamesFromSlots :: (?modelContext :: ModelContext) => [RosterSlot] -> IO [SlotName]
+fetchRosterWeekOrderedSlotNamesFromSlots allSlots =
+    map fst <$> fetchRosterWeekSlotTemplateFromSlots allSlots
+
+syncRosterWeekSlotStructure :: (?modelContext :: ModelContext) => RosterWeek -> IO ()
+syncRosterWeekSlotStructure rosterWeek = do
+    currentSlotTemplate <- fetchActiveRosterGroupSlotNames (Id rosterWeek.rosterGroupId :: Id RosterGroup)
+    rosterDays <-
+        query @RosterDay
+            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+            |> fetch
+
+    let currentSlotIds = map (unpackId . (.id)) currentSlotTemplate
+    let sortOrderBySlotId = Map.fromList (map (\slotName -> (unpackId slotName.id, slotName.sortOrder)) currentSlotTemplate)
+
+    forM_ rosterDays \rosterDay -> do
+        existingSlots <-
+            query @RosterSlot
+                |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                |> fetch
+
+        let existingRowIndexes = nub (map (.rowIndex) existingSlots)
+        let obsoleteSlots = filter (\slot -> slot.slotNameId `notElem` currentSlotIds) existingSlots
+        unless (null obsoleteSlots) do
+            deleteRecords obsoleteSlots
+
+        forM_ existingSlots \slot ->
+            case Map.lookup slot.slotNameId sortOrderBySlotId of
+                Just slotSortOrder | slot.slotSortOrder /= slotSortOrder -> do
+                    _ <- slot |> set #slotSortOrder slotSortOrder |> updateRecord
+                    pure ()
+                _ -> pure ()
+
+        let retainedSlotPairs =
+                [ (rowIndex, slotName)
+                | rowIndex <- existingRowIndexes
+                , slotName <- currentSlotTemplate
+                ]
+
+        forM_ retainedSlotPairs \(rowIndex, slotName) ->
+            when (isNothing (find (\slot -> slot.rowIndex == rowIndex && slot.slotNameId == unpackId slotName.id) existingSlots)) do
+                _ <-
+                    newRecord @RosterSlot
+                        |> set #rosterDayId (unpackId rosterDay.id)
+                        |> set #slotNameId (unpackId slotName.id)
+                        |> set #slotSortOrder slotName.sortOrder
+                        |> set #rowIndex rowIndex
+                        |> createRecord
+                pure ()
+
 ensureRosterWeekExists :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (RosterWeek, Bool)
 ensureRosterWeekExists rosterGroupId weekOffset = do
     existing <- query @RosterWeek
@@ -888,6 +1008,7 @@ createEmptyRosterWeek rosterGroupId weekOffset = do
                 newRecord @RosterSlot
                     |> set #rosterDayId (coerce (get #id rosterDay))
                     |> set #slotNameId (coerce (get #id slotName))
+                    |> set #slotSortOrder slotName.sortOrder
                     |> set #rowIndex rowIndex
                     |> createRecord
 
@@ -924,6 +1045,7 @@ copyRosterWeek sourceWeek targetWeekOffset = do
                         |> set #rosterDayId (coerce (get #id targetDay))
                         |> set #staffId slot.staffId
                         |> set #slotNameId slot.slotNameId
+                        |> set #slotSortOrder slot.slotSortOrder
                         |> set #rowIndex slot.rowIndex
                         |> set #startTime slot.startTime
                         |> set #durationMinutes slot.durationMinutes
@@ -1019,18 +1141,20 @@ filterVisibleRosterSlots rosterDays allSlots =
 
 ensureRosterDayHasMinimumRows :: (?modelContext :: ModelContext) => RosterDay -> Id RosterGroup -> Int -> IO ()
 ensureRosterDayHasMinimumRows rosterDay rosterGroupId minimumRowCount = do
+    rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
     existingSlots <- query @RosterSlot
         |> filterWhere (#rosterDayId, unpackId rosterDay.id)
         |> fetch
 
-    orderedSlotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
+    slotTemplate <- fetchRosterWeekSlotTemplate rosterWeek
 
     forM_ [0 .. minimumRowCount - 1] \rowIndex ->
-        forM_ orderedSlotNames \slotName ->
+        forM_ slotTemplate \(slotName, slotSortOrder) ->
             when (isNothing (find (\slot -> slot.rowIndex == rowIndex && slot.slotNameId == unpackId slotName.id) existingSlots)) do
                 _ <- newRecord @RosterSlot
                     |> set #rosterDayId (unpackId rosterDay.id)
                     |> set #slotNameId (unpackId slotName.id)
+                    |> set #slotSortOrder slotSortOrder
                     |> set #rowIndex rowIndex
                     |> createRecord
                 pure ()

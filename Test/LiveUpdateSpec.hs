@@ -8,12 +8,13 @@ import Test.Hspec
 
 tests :: Spec
 tests = describe "LiveUpdate runtime types" do
-    it "round-trips roster, roster-group-config, leave, and timesheet scopes through JSON" do
+    it "round-trips roster, roster-group-config, admin-slot-names, leave, and timesheet scopes through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let scopes =
                 [ RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
                 , RosterGroupConfigScope { venueId, rosterGroupId }
+                , AdminSlotNamesScope { venueId, rosterGroupId }
                 , LeaveRequestsScope { venueId }
                 , TimesheetWeekScope { venueId, weekOffset = 2 }
                 ]

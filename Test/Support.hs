@@ -188,6 +188,7 @@ createRosterSlotRecord rosterDay slotName maybeStaff rowIndex =
     newRecord @RosterSlot
         |> set #rosterDayId (unpackId (get #id rosterDay))
         |> set #slotNameId (unpackId (get #id slotName))
+        |> set #slotSortOrder slotName.sortOrder
         |> set #staffId (fmap (unpackId . get #id) maybeStaff)
         |> set #rowIndex rowIndex
         |> createRecord
