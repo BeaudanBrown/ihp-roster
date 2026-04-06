@@ -474,6 +474,7 @@
 (function enableLiveUpdates() {
     if (typeof window === 'undefined') return;
 
+    const actorFragmentRefreshEventName = 'app-roster-fragments-refresh';
     const pendingDeferredFragments = new Map();
     const inFlightFragments = new Map();
     const activeSubscriptions = new Map();
@@ -579,7 +580,7 @@
 
         const html = await response.text();
         await swapFragmentHtml(fragment.targetId, html);
-        restoreDeferredFieldState(fragment);
+        restoreDeferredState(fragment);
     }
 
     function queueFragment(fragment) {
@@ -604,60 +605,107 @@
             });
     }
 
-    function hasActiveRosterInput(rowEl) {
-        return Boolean(rowEl && rowEl.querySelector('.slot-cell-input:focus'));
-    }
+    function rosterFragmentProtection() {
+        function findActiveInput(target) {
+            if (!(target instanceof HTMLElement)) return null;
 
-    function captureDeferredFieldState(target, fragment) {
-        if (!(target instanceof HTMLElement)) return fragment;
+            const activeInput = target.querySelector('.slot-cell-input:focus');
+            if (activeInput instanceof HTMLInputElement || activeInput instanceof HTMLSelectElement || activeInput instanceof HTMLTextAreaElement) {
+                return activeInput;
+            }
 
-        const activeInput = target.querySelector('.slot-cell-input:focus');
-        if (!(activeInput instanceof HTMLInputElement || activeInput instanceof HTMLSelectElement || activeInput instanceof HTMLTextAreaElement)) {
-            return fragment;
+            return null;
         }
 
-        const name = activeInput.getAttribute('name');
-        if (!name) return fragment;
-
-        const rowEl = activeInput.closest('tr[data-roster-row]');
         return {
-            ...fragment,
-            preserveField: {
-                rowId: rowEl instanceof HTMLElement ? rowEl.id : null,
-                name,
-                value: activeInput.value,
+            matches: function (fragment, target) {
+                return Boolean(
+                    fragment &&
+                    fragment.deferUntilBlur &&
+                    target instanceof HTMLElement &&
+                    target.closest('[data-live-update-feature="roster"]')
+                );
+            },
+            hasActiveInput: function (target) {
+                return Boolean(findActiveInput(target));
+            },
+            captureState: function (target, fragment) {
+                if (!(target instanceof HTMLElement)) return fragment;
+
+                const activeInput = findActiveInput(target);
+                if (!activeInput) return fragment;
+
+                const name = activeInput.getAttribute('name');
+                if (!name) return fragment;
+
+                const rowEl = activeInput.closest('tr[data-roster-row]');
+                return {
+                    ...fragment,
+                    preserveField: {
+                        rowId: rowEl instanceof HTMLElement ? rowEl.id : null,
+                        name,
+                        value: activeInput.value,
+                    },
+                };
+            },
+            restoreState: function (target, fragment) {
+                if (!fragment || !fragment.preserveField) return;
+
+                const { rowId, name, value } = fragment.preserveField;
+                if (!name) return;
+
+                const root = rowId ? document.getElementById(rowId) : target;
+                if (!(root instanceof HTMLElement)) return;
+
+                const escapedName = window.CSS && typeof window.CSS.escape === 'function'
+                    ? window.CSS.escape(name)
+                    : name;
+                const field = root.querySelector(`[name="${escapedName}"]`);
+                if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement) {
+                    field.value = value;
+                }
             },
         };
     }
 
-    function restoreDeferredFieldState(fragment) {
-        if (!fragment || !fragment.preserveField) return;
+    const fragmentProtectionAdapters = [rosterFragmentProtection()];
 
-        const { rowId, name, value } = fragment.preserveField;
-        if (!name) return;
-
-        const root = rowId ? document.getElementById(rowId) : document.getElementById(fragment.targetId);
-        if (!(root instanceof HTMLElement)) return;
-
-        const escapedName = window.CSS && typeof window.CSS.escape === 'function'
-            ? window.CSS.escape(name)
-            : name;
-        const field = root.querySelector(`[name="${escapedName}"]`);
-        if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement) {
-            field.value = value;
-        }
+    function matchingFragmentProtection(fragment, target) {
+        return fragmentProtectionAdapters.find(function (adapter) {
+            return adapter.matches(fragment, target);
+        }) || null;
     }
 
-    function handleInvalidatedFragment(fragment) {
-        if (!fragment || !fragment.targetId || !fragment.url) return;
-        if (!document.getElementById(fragment.targetId)) return;
+    function hasProtectedActiveInput(target, fragment) {
+        const adapter = matchingFragmentProtection(fragment, target);
+        return Boolean(adapter && adapter.hasActiveInput(target));
+    }
 
-        if (fragment.deferUntilBlur) {
-            const target = document.getElementById(fragment.targetId);
-            if (hasActiveRosterInput(target)) {
-                pendingDeferredFragments.set(fragment.targetId, captureDeferredFieldState(target, fragment));
-                return;
-            }
+    function captureDeferredState(target, fragment) {
+        const adapter = matchingFragmentProtection(fragment, target);
+        if (!adapter) return fragment;
+        return adapter.captureState(target, fragment);
+    }
+
+    function restoreDeferredState(fragment) {
+        if (!fragment || !fragment.targetId) return;
+
+        const target = document.getElementById(fragment.targetId);
+        if (!(target instanceof HTMLElement)) return;
+
+        const adapter = matchingFragmentProtection(fragment, target);
+        if (!adapter) return;
+        adapter.restoreState(target, fragment);
+    }
+
+    function handleFragmentRefreshRequest(fragment) {
+        if (!fragment || !fragment.targetId || !fragment.url) return;
+        const target = document.getElementById(fragment.targetId);
+        if (!(target instanceof HTMLElement)) return;
+
+        if (fragment.deferUntilBlur && hasProtectedActiveInput(target, fragment)) {
+            pendingDeferredFragments.set(fragment.targetId, captureDeferredState(target, fragment));
+            return;
         }
 
         pendingDeferredFragments.delete(fragment.targetId);
@@ -675,7 +723,8 @@
     function flushDeferredFragmentsWithoutActiveInputs() {
         Array.from(pendingDeferredFragments.entries()).forEach(function ([targetId]) {
             const target = document.getElementById(targetId);
-            if (!target || !hasActiveRosterInput(target)) {
+            const fragment = pendingDeferredFragments.get(targetId);
+            if (!target || !hasProtectedActiveInput(target, fragment)) {
                 flushDeferredFragment(targetId);
             }
         });
@@ -781,7 +830,7 @@
                     const staffPanelUrl = ownerEl.dataset.liveUpdateStaffPanelUrl;
 
                     if (contentUrl) {
-                        handleInvalidatedFragment({
+                        handleFragmentRefreshRequest({
                             targetId: 'roster-content',
                             url: contentUrl,
                             deferUntilBlur: true,
@@ -789,7 +838,7 @@
                     }
 
                     if (staffPanelUrl) {
-                        handleInvalidatedFragment({
+                        handleFragmentRefreshRequest({
                             targetId: 'roster-staff-panel-fragment',
                             url: staffPanelUrl,
                             deferUntilBlur: false,
@@ -843,7 +892,7 @@
                 resync: function () {
                     const contentUrl = ownerEl.dataset.liveUpdateContentUrl;
                     if (contentUrl) {
-                        handleInvalidatedFragment({
+                        handleFragmentRefreshRequest({
                             targetId: 'leave-requests-content',
                             url: contentUrl,
                             deferUntilBlur: false,
@@ -901,7 +950,7 @@
                         if (!(sectionEl instanceof HTMLElement)) return;
                         const url = sectionEl.dataset.liveUpdateUrl;
                         if (!url || !sectionEl.id) return;
-                        handleInvalidatedFragment({
+                        handleFragmentRefreshRequest({
                             targetId: sectionEl.id,
                             url,
                             deferUntilBlur: false,
@@ -990,7 +1039,7 @@
             setScopeVersion(scopeKey, nextVersion);
         }
 
-        message.fragments.forEach(handleInvalidatedFragment);
+        message.fragments.forEach(handleFragmentRefreshRequest);
     }
 
     function openSocket(path) {
@@ -1089,6 +1138,12 @@
         if (!shouldDecorate) return;
         const clientId = ensureClientId();
         event.detail.headers['X-Live-Update-Client-Id'] = clientId;
+    });
+
+    document.addEventListener(actorFragmentRefreshEventName, function (event) {
+        const detail = event.detail;
+        const fragments = Array.isArray(detail && detail.fragments) ? detail.fragments : [];
+        fragments.forEach(handleFragmentRefreshRequest);
     });
 
     document.addEventListener('focusout', function (event) {

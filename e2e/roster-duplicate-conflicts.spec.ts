@@ -35,6 +35,11 @@ async function blurActiveRosterInput(page) {
     });
 }
 
+async function commitRosterEdit(page) {
+    await blurActiveRosterInput(page);
+    await page.waitForTimeout(300);
+}
+
 async function normalizeRosterForDuplicateConflict(actorPage) {
     const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
     const alphaCrewEntry = actorPage
@@ -44,7 +49,9 @@ async function normalizeRosterForDuplicateConflict(actorPage) {
 
     await ensureSecondRosterRow(actorPage);
     await assignStaffToRow(actorPage, 0, alphaCrewStaffId);
+    await commitRosterEdit(actorPage);
     await assignStaffToRow(actorPage, 1, '');
+    await commitRosterEdit(actorPage);
     await expect(alphaCrewEntry).toContainText('1');
 }
 
@@ -76,11 +83,14 @@ test.describe('Roster duplicate conflicts', () => {
             .first();
 
         await assignStaffToRow(actorPage, 1, alphaCrewStaffId);
+        await commitRosterEdit(actorPage);
         await expect(alphaCrewEntry).toContainText('2');
-        await blurActiveRosterInput(actorPage);
-
-        await expect(duplicateConflictCells(actorPage)).toHaveCount(2);
-        await expect(duplicateConflictCells(viewerPage)).toHaveCount(2);
+        await expect
+            .poll(async () => duplicateConflictCells(actorPage).count(), { timeout: 15000 })
+            .toBe(2);
+        await expect
+            .poll(async () => duplicateConflictCells(viewerPage).count(), { timeout: 15000 })
+            .toBe(2);
 
         const viewerGridState = await viewerPage.locator('table.roster-grid').evaluate((table) => {
             const bodyRows = Array.from(table.querySelectorAll('tbody > tr[data-roster-row]'));

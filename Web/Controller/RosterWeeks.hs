@@ -15,6 +15,7 @@ import Application.Helper.View (ToastOverlayConfig (..),
                                 appendQueryParams,
                                 linkedActiveStaffForRosterPanel,
                                 renderToastOverlayHostOob)
+import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import Data.List (find, nub, sortBy)
 import Data.Maybe (catMaybes, mapMaybe)
@@ -371,14 +372,14 @@ instance Controller RosterWeeksController where
 
                 relatedSlots <- fetchRelatedSlotsForStaffIds (catMaybes [previousStaffId, updatedSlot.staffId])
                 let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-                let shouldRefreshStaffPanel = previousStaffId /= updatedSlot.staffId
+                let actorFragments =
+                        buildRosterRowFragmentRefs rosterGroupId rosterWeek.weekOffset impactedRowKeys
+                            <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset]
                 broadcastRosterWeekInvalidation
                     rosterGroupId
                     rosterWeek.weekOffset
-                    ( buildRosterRowFragmentRefs rosterGroupId rosterWeek.weekOffset impactedRowKeys
-                        <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset | shouldRefreshStaffPanel]
-                    )
-                respondWithRosterPatches rosterGroupId rosterWeek.weekOffset impactedRowKeys shouldRefreshStaffPanel
+                    actorFragments
+                respondWithActorRosterFragmentRefresh actorFragments
 
 slotNameOrder :: Text -> Int
 slotNameOrder slotName =
@@ -559,6 +560,19 @@ respondWithRosterToast message toastClass =
 respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> IO ()
 respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
     respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
+
+respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext) => [LiveFragmentRef] -> IO ()
+respondWithActorRosterFragmentRefresh fragments = do
+    setHeader ("HX-Trigger", cs (Aeson.encode payload))
+    respondHtml [hsx||]
+    where
+        payload =
+            Aeson.object
+                [ "app-roster-fragments-refresh" Aeson..=
+                    Aeson.object
+                        [ "fragments" Aeson..= fragments
+                        ]
+                ]
 
 respondWithRosterDaySectionPatch :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Id RosterDay -> Bool -> IO ()
 respondWithRosterDaySectionPatch rosterGroupId weekOffset rosterDayId shouldRefreshStaffPanel = do

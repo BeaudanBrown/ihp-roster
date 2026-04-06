@@ -613,7 +613,7 @@ tests = beforeAll testContext do
                 copiedSlot.durationMinutes `shouldBe` Just 300
                 copiedSlot.note `shouldBe` Just "From source"
 
-        it "returns a roster content patch when a slot assignment changes" $ withContext do
+        it "returns fragment refresh instructions when a slot assignment changes" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-update@example.com" "staff" True
@@ -638,13 +638,16 @@ tests = beforeAll testContext do
 
                 body <- responseBody response
                 let bodyText = cs body :: String
-                let contentId = cs rosterContentFragmentId :: String
-                bodyText `shouldContain` contentId
-                bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
-                bodyText `shouldContain` "Alpha Crew"
-                bodyText `shouldContain` "roster-staff-shifts-actual\">0</span><span class=\"roster-staff-shifts-ideal\">(5)"
-                bodyText `shouldContain` "Bravo Crew"
-                bodyText `shouldContain` "roster-staff-shifts-actual\">1</span><span class=\"roster-staff-shifts-ideal\">(7)"
+                bodyText `shouldBe` ""
+
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                let staffPanelTarget = cs rosterStaffPanelFragmentId :: String
+                let updatedRowTarget = cs (rosterRowDomIdText rosterDay.id 0) :: String
+                fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
+                fromJust triggerHeader `shouldContain` staffPanelTarget
+                fromJust triggerHeader `shouldContain` updatedRowTarget
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekRowFragment"
 
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do
