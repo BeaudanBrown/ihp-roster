@@ -59,7 +59,6 @@ data ExportsController
 
 data AdminController
     = AdminAction
-    | CreatePayConfigSnapshotAction
     | CreateRosterGroupAction
     | UpdateRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
     | MakeDefaultRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }

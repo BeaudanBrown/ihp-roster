@@ -64,9 +64,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Shift Types"
                 response `responseBodyShouldContain` "Slot Names"
                 response `responseBodyShouldContain` "Day Names"
-                response `responseBodyShouldContain` "Config Table Overview"
-                response `responseBodyShouldContain` "Edits change the current venue draft state only until you save a new pay/config snapshot."
-                response `responseBodyShouldContain` "Draft edits on this page do not rewrite historical approvals or exports."
+                response `responseBodyShouldContain` "Payroll-relevant config changes are versioned automatically"
+                response `responseBodyShouldContain` "Historical approvals and exports stay pinned to the snapshot version"
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldNotContain` "ihp-auto-refresh-id"
@@ -78,6 +77,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Monday"
                 response `responseBodyShouldContain` "Active snapshot: v2"
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldNotContain` "Config Table Overview"
+                response `responseBodyShouldNotContain` "Save Snapshot"
                 response `responseBodyShouldNotContain` "Level B"
                 response `responseBodyShouldNotContain` "Bar -&gt; Level B on Venue B Tuesday (Tuesday)"
                 response `responseBodyShouldNotContain` "Bar"
@@ -106,8 +107,8 @@ tests = beforeAll testContext do
                     callAction AdminAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Config Table Overview"
                 response `responseBodyShouldContain` "Pay/Config Snapshots"
+                response `responseBodyShouldContain` "Roster Groups"
 
         it "creates venue-scoped config table rows from the admin page" $ withContext do
             withCleanDb do
@@ -340,18 +341,148 @@ tests = beforeAll testContext do
                 unchangedRule.payLevelId `shouldBe` unpackId payLevelA.id
                 unchangedRule.dayNameId `shouldBe` unpackId dayNameA.id
 
-        it "creates a new pay/config snapshot version from the admin page" $ withContext do
+        it "automatically snapshots payroll-relevant admin config changes while skipping roster-only edits" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-save@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
+                dayName <- fetchDayNameRecord venue 1
 
-                response <- withUserAndCurrentVenue admin venue.id do
-                    callAction CreatePayConfigSnapshotAction
+                rosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateRosterGroupAction
+                        [ ("name", "Back of House")
+                        , ("sortOrder", "7")
+                        , ("isActive", "true")
+                        ]
+                rosterGroupResponse `responseStatusShouldBe` status302
+                query @PayConfigSnapshot |> fetch `shouldReturn` []
 
-                response `responseStatusShouldBe` status302
+                createdRosterGroup <- query @RosterGroup |> filterWhere (#name, "Back of House") |> fetchOne
 
-                snapshot <- query @PayConfigSnapshot |> fetchOne
-                snapshot.versionNumber `shouldBe` 1
-                snapshot.versionLabel `shouldBe` "v1"
-                snapshot.createdByUserId `shouldBe` unpackId admin.id
+                payLevelResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreatePayLevelAction
+                        [ ("name", "Level 2")
+                        , ("baseRate", "31.50")
+                        , ("isActive", "true")
+                        ]
+                payLevelResponse `responseStatusShouldBe` status302
+                (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v1"]
+
+                payLevel <- query @PayLevel |> filterWhere (#name, "Level 2") |> fetchOne
+
+                shiftTypeResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateShiftTypeAction
+                        [ ("name", "Supervisor")
+                        , ("defaultPayLevelId", idToParam payLevel.id)
+                        , ("isActive", "true")
+                        ]
+                shiftTypeResponse `responseStatusShouldBe` status302
+                (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v2", "v1"]
+
+                shiftType <- query @ShiftType |> filterWhere (#name, "Supervisor") |> fetchOne
+
+                dayRuleResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreatePayLevelDayRuleAction
+                        [ ("shiftTypeId", idToParam shiftType.id)
+                        , ("dayNameId", idToParam dayName.id)
+                        , ("payLevelId", idToParam payLevel.id)
+                        ]
+                dayRuleResponse `responseStatusShouldBe` status302
+                (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v3", "v2", "v1"]
+
+                slotResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateSlotNameAction
+                        [ ("name", "Swing")
+                        , ("rosterGroupId", idToParam createdRosterGroup.id)
+                        , ("isActive", "true")
+                        ]
+                slotResponse `responseStatusShouldBe` status302
+                (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v3", "v2", "v1"]
+
+                slotName <- query @SlotName |> filterWhere (#name, "Swing") |> fetchOne
+                payLevelDayRule <- query @PayLevelDayRule |> fetchOne
+
+                updatePayLevelResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdatePayLevelAction payLevel.id)
+                        [ ("name", "Level 2 Updated")
+                        , ("baseRate", "33.00")
+                        , ("isActive", "true")
+                        ]
+                updatePayLevelResponse `responseStatusShouldBe` status302
+
+                updateShiftTypeResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdateShiftTypeAction shiftType.id)
+                        [ ("name", "Supervisor Updated")
+                        , ("defaultPayLevelId", idToParam payLevel.id)
+                        , ("isActive", "false")
+                        ]
+                updateShiftTypeResponse `responseStatusShouldBe` status302
+
+                updateDayResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdateDayNameAction dayName.id)
+                        [ ("weekdayIndex", "1")
+                        , ("name", "Monday Updated")
+                        , ("isActive", "true")
+                        ]
+                updateDayResponse `responseStatusShouldBe` status302
+
+                updateDayRuleResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdatePayLevelDayRuleAction payLevelDayRule.id)
+                        [ ("shiftTypeId", idToParam shiftType.id)
+                        , ("dayNameId", idToParam dayName.id)
+                        , ("payLevelId", idToParam payLevel.id)
+                        ]
+                updateDayRuleResponse `responseStatusShouldBe` status302
+
+                (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v6", "v5", "v4", "v3", "v2", "v1"]
+
+                updateSlotResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdateSlotNameAction slotName.id)
+                        [ ("name", "Swing Updated")
+                        , ("isActive", "false")
+                        ]
+                updateSlotResponse `responseStatusShouldBe` status302
+
+                updateRosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdateRosterGroupAction createdRosterGroup.id)
+                        [ ("name", "Back of House Updated")
+                        , ("sortOrder", "8")
+                        , ("isActive", "true")
+                        ]
+                updateRosterGroupResponse `responseStatusShouldBe` status302
+
+                snapshots <- query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch
+                map (.versionLabel) snapshots `shouldBe` ["v6", "v5", "v4", "v3", "v2", "v1"]
+                map (.createdByUserId) snapshots `shouldBe` replicate 6 (unpackId admin.id)
+
+        it "does not create a new snapshot when a payroll config update leaves the snapshot payload unchanged" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-no-churn@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                createResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreatePayLevelAction
+                        [ ("name", "Level 2")
+                        , ("baseRate", "31.50")
+                        , ("isActive", "true")
+                        ]
+                createResponse `responseStatusShouldBe` status302
+
+                payLevel <- query @PayLevel |> filterWhere (#name, "Level 2") |> fetchOne
+
+                unchangedUpdateResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdatePayLevelAction payLevel.id)
+                        [ ("name", "Level 2")
+                        , ("baseRate", "31.50")
+                        , ("eveningPenalty", "0")
+                        , ("after12Penalty", "0")
+                        , ("weekdayMultiplier", "1")
+                        , ("saturdayMultiplier", "1")
+                        , ("sundayMultiplier", "1")
+                        , ("isActive", "true")
+                        ]
+                unchangedUpdateResponse `responseStatusShouldBe` status302
+
+                snapshots <- query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch
+                map (.versionLabel) snapshots `shouldBe` ["v1"]

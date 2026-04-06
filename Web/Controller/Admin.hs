@@ -85,11 +85,6 @@ instance Controller AdminController where
                 setSuccessMessage "Default roster group updated"
                 redirectToAdminFor (Just rosterGroup.id)
 
-    action CreatePayConfigSnapshotAction = do
-        snapshot <- createCurrentVenuePayConfigSnapshot
-        setSuccessMessage ("Saved pay/config snapshot " <> snapshot.versionLabel)
-        redirectToAdminFor (paramOrNothing "rosterGroupId")
-
     action CreatePayLevelAction = do
         maybeName <- parseRequiredName "name" "Pay level name is required."
         case maybeName of
@@ -97,17 +92,21 @@ instance Controller AdminController where
             Just name -> do
                 let isActive = parseIsActiveParam
                 let (baseRate, eveningPenalty, after12Penalty, weekdayMultiplier, saturdayMultiplier, sundayMultiplier) = parsePayLevelRateParams
-                _ <- newRecord @PayLevel
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #name name
-                    |> set #baseRate baseRate
-                    |> set #eveningPenalty eveningPenalty
-                    |> set #after12Penalty after12Penalty
-                    |> set #weekdayMultiplier weekdayMultiplier
-                    |> set #saturdayMultiplier saturdayMultiplier
-                    |> set #sundayMultiplier sundayMultiplier
-                    |> set #isActive isActive
-                    |> createRecord
+                _ <- withTransaction do
+                    payLevel <-
+                        newRecord @PayLevel
+                            |> set #venueId (unpackId currentVenueId)
+                            |> set #name name
+                            |> set #baseRate baseRate
+                            |> set #eveningPenalty eveningPenalty
+                            |> set #after12Penalty after12Penalty
+                            |> set #weekdayMultiplier weekdayMultiplier
+                            |> set #saturdayMultiplier saturdayMultiplier
+                            |> set #sundayMultiplier sundayMultiplier
+                            |> set #isActive isActive
+                            |> createRecord
+                    _ <- syncCurrentVenuePayConfigSnapshot
+                    pure payLevel
                 setSuccessMessage "Pay level added"
                 redirectToAdminFor (paramOrNothing "rosterGroupId")
 
@@ -120,16 +119,20 @@ instance Controller AdminController where
             Just name -> do
                 let isActive = parseIsActiveParam
                 let (baseRate, eveningPenalty, after12Penalty, weekdayMultiplier, saturdayMultiplier, sundayMultiplier) = parsePayLevelRateParams
-                _ <- payLevel
-                    |> set #name name
-                    |> set #baseRate baseRate
-                    |> set #eveningPenalty eveningPenalty
-                    |> set #after12Penalty after12Penalty
-                    |> set #weekdayMultiplier weekdayMultiplier
-                    |> set #saturdayMultiplier saturdayMultiplier
-                    |> set #sundayMultiplier sundayMultiplier
-                    |> set #isActive isActive
-                    |> updateRecord
+                _ <- withTransaction do
+                    updatedPayLevel <-
+                        payLevel
+                            |> set #name name
+                            |> set #baseRate baseRate
+                            |> set #eveningPenalty eveningPenalty
+                            |> set #after12Penalty after12Penalty
+                            |> set #weekdayMultiplier weekdayMultiplier
+                            |> set #saturdayMultiplier saturdayMultiplier
+                            |> set #sundayMultiplier sundayMultiplier
+                            |> set #isActive isActive
+                            |> updateRecord
+                    _ <- syncCurrentVenuePayConfigSnapshot
+                    pure updatedPayLevel
                 setSuccessMessage "Pay level updated"
                 redirectToAdminFor (paramOrNothing "rosterGroupId")
 
@@ -138,11 +141,15 @@ instance Controller AdminController where
         case maybeRuleParams of
             Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just (shiftTypeId, dayNameId, payLevelId) -> do
-                _ <- newRecord @PayLevelDayRule
-                    |> set #shiftTypeId (unpackId shiftTypeId)
-                    |> set #dayNameId (unpackId dayNameId)
-                    |> set #payLevelId (unpackId payLevelId)
-                    |> createRecord
+                _ <- withTransaction do
+                    payLevelDayRule <-
+                        newRecord @PayLevelDayRule
+                            |> set #shiftTypeId (unpackId shiftTypeId)
+                            |> set #dayNameId (unpackId dayNameId)
+                            |> set #payLevelId (unpackId payLevelId)
+                            |> createRecord
+                    _ <- syncCurrentVenuePayConfigSnapshot
+                    pure payLevelDayRule
                 setSuccessMessage "Pay override added"
                 redirectToAdminFor (paramOrNothing "rosterGroupId")
 
@@ -153,11 +160,15 @@ instance Controller AdminController where
         case maybeRuleParams of
             Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just (shiftTypeId, dayNameId, payLevelId) -> do
-                _ <- payLevelDayRule
-                    |> set #shiftTypeId (unpackId shiftTypeId)
-                    |> set #dayNameId (unpackId dayNameId)
-                    |> set #payLevelId (unpackId payLevelId)
-                    |> updateRecord
+                _ <- withTransaction do
+                    updatedRule <-
+                        payLevelDayRule
+                            |> set #shiftTypeId (unpackId shiftTypeId)
+                            |> set #dayNameId (unpackId dayNameId)
+                            |> set #payLevelId (unpackId payLevelId)
+                            |> updateRecord
+                    _ <- syncCurrentVenuePayConfigSnapshot
+                    pure updatedRule
                 setSuccessMessage "Pay override updated"
                 redirectToAdminFor (paramOrNothing "rosterGroupId")
 
@@ -178,13 +189,17 @@ instance Controller AdminController where
                         case maybePayLevel of
                             Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
                             Just defaultPayLevelId -> do
-                                _ <- newRecord @ShiftType
-                                    |> set #venueId (unpackId currentVenueId)
-                                    |> set #name name
-                                    |> set #sortOrder sortOrder
-                                    |> set #defaultPayLevelId (unpackId defaultPayLevelId)
-                                    |> set #isActive isActive
-                                    |> createRecord
+                                _ <- withTransaction do
+                                    shiftType <-
+                                        newRecord @ShiftType
+                                            |> set #venueId (unpackId currentVenueId)
+                                            |> set #name name
+                                            |> set #sortOrder sortOrder
+                                            |> set #defaultPayLevelId (unpackId defaultPayLevelId)
+                                            |> set #isActive isActive
+                                            |> createRecord
+                                    _ <- syncCurrentVenuePayConfigSnapshot
+                                    pure shiftType
                                 setSuccessMessage "Shift type added"
                                 redirectToAdminFor (paramOrNothing "rosterGroupId")
 
@@ -201,12 +216,16 @@ instance Controller AdminController where
                 case maybePayLevel of
                     Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
                     Just defaultPayLevelId -> do
-                        _ <- shiftType
-                            |> set #name name
-                            |> set #sortOrder sortOrder
-                            |> set #defaultPayLevelId (unpackId defaultPayLevelId)
-                            |> set #isActive isActive
-                            |> updateRecord
+                        _ <- withTransaction do
+                            updatedShiftType <-
+                                shiftType
+                                    |> set #name name
+                                    |> set #sortOrder sortOrder
+                                    |> set #defaultPayLevelId (unpackId defaultPayLevelId)
+                                    |> set #isActive isActive
+                                    |> updateRecord
+                            _ <- syncCurrentVenuePayConfigSnapshot
+                            pure updatedShiftType
                         setSuccessMessage "Shift type updated"
                         redirectToAdminFor (paramOrNothing "rosterGroupId")
 
@@ -246,12 +265,16 @@ instance Controller AdminController where
         case maybeDayNameParams of
             Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just (weekdayIndex, name, isActive) -> do
-                _ <- newRecord @DayName
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #weekdayIndex weekdayIndex
-                    |> set #name name
-                    |> set #isActive isActive
-                    |> createRecord
+                _ <- withTransaction do
+                    dayName <-
+                        newRecord @DayName
+                            |> set #venueId (unpackId currentVenueId)
+                            |> set #weekdayIndex weekdayIndex
+                            |> set #name name
+                            |> set #isActive isActive
+                            |> createRecord
+                    _ <- syncCurrentVenuePayConfigSnapshot
+                    pure dayName
                 setSuccessMessage "Day name added"
                 redirectToAdminFor (paramOrNothing "rosterGroupId")
 
@@ -262,11 +285,15 @@ instance Controller AdminController where
         case maybeDayNameParams of
             Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just (weekdayIndex, name, isActive) -> do
-                _ <- dayName
-                    |> set #weekdayIndex weekdayIndex
-                    |> set #name name
-                    |> set #isActive isActive
-                    |> updateRecord
+                _ <- withTransaction do
+                    updatedDayName <-
+                        dayName
+                            |> set #weekdayIndex weekdayIndex
+                            |> set #name name
+                            |> set #isActive isActive
+                            |> updateRecord
+                    _ <- syncCurrentVenuePayConfigSnapshot
+                    pure updatedDayName
                 setSuccessMessage "Day name updated"
                 redirectToAdminFor (paramOrNothing "rosterGroupId")
 

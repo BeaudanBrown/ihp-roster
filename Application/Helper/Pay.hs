@@ -152,7 +152,7 @@ fetchLatestCurrentVenuePayConfigSnapshot =
 createCurrentVenuePayConfigSnapshot ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     IO PayConfigSnapshot
-createCurrentVenuePayConfigSnapshot = withTransaction do
+createCurrentVenuePayConfigSnapshot = do
     latestSnapshot <- fetchLatestCurrentVenuePayConfigSnapshot
     snapshotPayload <- buildCurrentVenuePayConfigSnapshotPayload
     let versionNumber = maybe 1 ((+ 1) . (.versionNumber)) latestSnapshot
@@ -163,6 +163,27 @@ createCurrentVenuePayConfigSnapshot = withTransaction do
         |> set #createdByUserId (unpackId (get #id currentUser))
         |> set #snapshot snapshotPayload
         |> createRecord
+
+syncCurrentVenuePayConfigSnapshot ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    IO PayConfigSnapshot
+syncCurrentVenuePayConfigSnapshot = do
+    latestSnapshot <- fetchLatestCurrentVenuePayConfigSnapshot
+    snapshotPayload <- buildCurrentVenuePayConfigSnapshotPayload
+
+    case latestSnapshot of
+        Just snapshot
+            | snapshot.snapshot == snapshotPayload ->
+                pure snapshot
+        _ -> do
+            let versionNumber = maybe 1 ((+ 1) . (.versionNumber)) latestSnapshot
+            newRecord @PayConfigSnapshot
+                |> set #venueId (unpackId currentVenueId)
+                |> set #versionNumber versionNumber
+                |> set #versionLabel (snapshotVersionLabel versionNumber)
+                |> set #createdByUserId (unpackId (get #id currentUser))
+                |> set #snapshot snapshotPayload
+                |> createRecord
 
 ensureCurrentVenuePayConfigSnapshot ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

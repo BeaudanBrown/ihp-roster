@@ -19,36 +19,6 @@ instance View IndexView where
     html IndexView { .. } = [hsx|
         <div class="row g-3">
             <div class="col-12 col-xl-8">
-                <div class="app-panel mb-3">
-                    <div class="app-panel-body">
-                        <h1 class="h4 mb-2">Admin</h1>
-                        <p class="app-muted mb-3">
-                            Manage venue-owned config tables here. Edits change the current venue draft state only until you save a new pay/config snapshot.
-                        </p>
-                        <div class="alert alert-info mb-0">
-                            Use these screens to keep pay levels, shift types, day names, slot names, and weekday pay overrides tidy before creating the next immutable version.
-                        </div>
-                        <div class="mt-3">
-                            <div class="small text-uppercase app-muted mb-2">Selected roster group</div>
-                            <div class="d-flex flex-wrap gap-2">
-                                {forEach rosterGroups (renderRosterGroupSelector currentRosterGroup.id)}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="app-panel mb-3">
-                    <div class="app-panel-body">
-                        <h2 class="h5 mb-3">Config Table Overview</h2>
-                        <div class="row g-2">
-                            {renderConfigTableCard "Roster Groups" "roster-groups" rosterGroups}
-                            {renderConfigTableCard "Pay Levels" "pay-levels" payLevels}
-                            {renderConfigTableCard "Shift Types" "shift-types" shiftTypes}
-                            {renderCountTableCard "Pay Level Day Rules" "pay-level-day-rules" payLevelDayRules}
-                            {renderConfigTableCard "Slot Names" "slot-names" slotNames}
-                            {renderConfigTableCard "Day Names" "day-names" dayNames}
-                        </div>
-                    </div>
-                </div>
                 {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames dayNames}
             </div>
             <div class="col-12 col-xl-4">
@@ -56,15 +26,12 @@ instance View IndexView where
                     <div class="app-panel-body">
                         <h2 class="h5 mb-2">Pay/Config Snapshots</h2>
                         <p class="app-muted mb-3">
-                            Save immutable versions before or between payroll-adjacent approval cycles so historical outputs stay explainable.
+                            Payroll-relevant config changes are versioned automatically so approvals and exports remain historically explainable.
                         </p>
                         <div class="small app-muted mb-3">
-                            Draft edits on this page do not rewrite historical approvals or exports. Those remain pinned to the snapshot version they were created with.
+                            Historical approvals and exports stay pinned to the snapshot version they were bound to when the work happened.
                         </div>
                         {renderSnapshotSummary latestSnapshot}
-                        <form method="POST" action={CreatePayConfigSnapshotAction} class="mt-3" data-disable-javascript-submission="true">
-                            <button class="btn btn-primary" type="submit">Save Snapshot</button>
-                        </form>
                     </div>
                 </div>
                 <div class="app-panel">
@@ -125,7 +92,15 @@ renderRosterGroupsSection rosterGroups currentRosterGroup =
         "Roster Groups"
         "Define the scheduling lanes inside this venue. Slot names below are edited for the selected roster group."
         (renderRowCountSummary rosterGroups)
-        renderRosterGroupCreateForm
+        [hsx|
+            <div class="mb-3">
+                <div class="small text-uppercase app-muted mb-2">Selected roster group</div>
+                <div class="d-flex flex-wrap gap-2">
+                    {forEach rosterGroups (renderRosterGroupSelector currentRosterGroup.id)}
+                </div>
+            </div>
+            {renderRosterGroupCreateForm}
+        |]
         (if null rosterGroups then renderEmptyState "No roster groups yet." else forEach rosterGroups (renderRosterGroupRow currentRosterGroup.id))
 
 renderSlotNamesSection :: RosterGroup -> [SlotName] -> Html
@@ -192,12 +167,9 @@ renderConfigSection :: Text -> Text -> Text -> Html -> Html -> Html -> Html
 renderConfigSection anchorId title description summary createForm rows = [hsx|
     <div id={anchorId} class="app-panel h-100">
         <div class="app-panel-body">
-            <div class="d-flex justify-content-between align-items-start gap-3 mb-2">
-                <div>
-                    <h2 class="h5 mb-2">{title}</h2>
-                    <p class="app-muted mb-2">{description}</p>
-                </div>
-                <a class="btn btn-sm btn-outline-secondary" href={"#" <> anchorId}>Link</a>
+            <div class="mb-2">
+                <h2 class="h5 mb-2">{title}</h2>
+                <p class="app-muted mb-2">{description}</p>
             </div>
             {summary}
             {createForm}
@@ -620,7 +592,7 @@ renderSnapshotSummary maybeSnapshot =
     case maybeSnapshot of
         Nothing -> [hsx|
             <div class="alert alert-warning mb-0">
-                No pay/config snapshot has been saved yet. The first snapshot will be created from the venue's current config tables.
+                No pay/config snapshots exist yet. The first one will be created automatically when payroll-relevant config is saved or when payroll flow first requires it.
             </div>
         |]
         Just snapshot -> [hsx|

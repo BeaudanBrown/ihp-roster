@@ -13,7 +13,7 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
-import Web.Controller.Admin ()
+import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
@@ -93,10 +93,9 @@ tests = do
                         >>= updateRecord . set #shiftTypeId (unpackId shiftType.id)
 
                     _ <- withUserAndCurrentVenue admin venue.id do
-                        callAction CreatePayConfigSnapshotAction
-
-                    _ <- withUserAndCurrentVenue admin venue.id do
                         callAction (ApproveTimesheetEntryAction entry.id)
+
+                    snapshots <- query @PayConfigSnapshot |> orderByAsc #versionNumber |> fetch
 
                     _ <- shiftType
                         |> set #defaultPayLevelId (unpackId (get #id payLevel))
@@ -111,6 +110,7 @@ tests = do
                     case payResult of
                         Left err -> expectationFailure ("Expected pay result, got: " <> Text.unpack err)
                         Right result -> do
+                            map (.versionLabel) snapshots `shouldBe` ["v1"]
                             result.payConfigSnapshotVersion `shouldBe` Just "v1"
                             result.shiftTypeName `shouldBe` Just "Ordinary"
                             result.payLevelName `shouldBe` Just "Friday Level"
