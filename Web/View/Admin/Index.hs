@@ -49,26 +49,7 @@ instance View IndexView where
                         </div>
                     </div>
                 </div>
-                <div class="row g-3">
-                    <div class="col-12 col-lg-6">
-                        {renderRosterGroupsSection rosterGroups currentRosterGroup}
-                    </div>
-                    <div class="col-12 col-lg-6">
-                        {renderPayLevelsSection payLevels}
-                    </div>
-                    <div class="col-12 col-lg-6">
-                        {renderShiftTypesSection shiftTypes payLevels}
-                    </div>
-                    <div class="col-12 col-lg-6">
-                        {renderPayLevelDayRulesSection payLevelDayRules shiftTypes payLevels dayNames}
-                    </div>
-                    <div class="col-12 col-lg-6">
-                        {renderSlotNamesSection currentRosterGroup slotNames}
-                    </div>
-                    <div class="col-12 col-lg-6">
-                        {renderDayNamesSection dayNames}
-                    </div>
-                </div>
+                {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames dayNames}
             </div>
             <div class="col-12 col-xl-4">
                 <div class="app-panel mb-3">
@@ -166,6 +147,46 @@ renderDayNamesSection dayNames =
         (renderRowCountSummary dayNames)
         renderDayNameCreateForm
         (if null dayNames then renderEmptyState "No day names yet." else forEach dayNames renderDayNameRow)
+
+renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> [PayLevel] -> [ShiftType] -> [PayLevelDayRule] -> [SlotName] -> [DayName] -> Html
+renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames dayNames = [hsx|
+    <div class="accordion admin-config-accordion" id="admin-config-sections">
+        {renderAccordionItem "roster-groups" "Roster Groups" True (renderRosterGroupsSection rosterGroups currentRosterGroup)}
+        {renderAccordionItem "pay-levels" "Pay Levels" False (renderPayLevelsSection payLevels)}
+        {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes payLevels)}
+        {renderAccordionItem "pay-level-day-rules" "Pay Level Day Rules" False (renderPayLevelDayRulesSection payLevelDayRules shiftTypes payLevels dayNames)}
+        {renderAccordionItem "slot-names" "Slot Names" False (renderSlotNamesSection currentRosterGroup slotNames)}
+        {renderAccordionItem "day-names" "Day Names" False (renderDayNamesSection dayNames)}
+    </div>
+|]
+
+renderAccordionItem :: Text -> Text -> Bool -> Html -> Html
+renderAccordionItem sectionId title isOpen content = [hsx|
+    <div class="accordion-item app-panel mb-3">
+        <h2 class="accordion-header" id={sectionId <> "-heading"}>
+            <button
+                class={accordionButtonClass isOpen}
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target={"#" <> sectionId <> "-collapse"}
+                aria-expanded={if isOpen then ("true" :: Text) else "false"}
+                aria-controls={sectionId <> "-collapse"}
+            >
+                {title}
+            </button>
+        </h2>
+        <div
+            id={sectionId <> "-collapse"}
+            class={accordionCollapseClass isOpen}
+            aria-labelledby={sectionId <> "-heading"}
+            data-bs-parent="#admin-config-sections"
+        >
+            <div class="accordion-body p-0">
+                {content}
+            </div>
+        </div>
+    </div>
+|]
 
 renderConfigSection :: Text -> Text -> Text -> Html -> Html -> Html -> Html
 renderConfigSection anchorId title description summary createForm rows = [hsx|
@@ -781,6 +802,18 @@ renderActiveBadge isActive =
     if isActive
         then [hsx|<span class="badge text-bg-success">active</span>|]
         else [hsx|<span class="badge text-bg-secondary">inactive</span>|]
+
+accordionButtonClass :: Bool -> Text
+accordionButtonClass isOpen =
+    if isOpen
+        then "accordion-button"
+        else "accordion-button collapsed"
+
+accordionCollapseClass :: Bool -> Text
+accordionCollapseClass isOpen =
+    if isOpen
+        then "accordion-collapse collapse show"
+        else "accordion-collapse collapse"
 
 renderEmptyState :: Text -> Html
 renderEmptyState message = [hsx|<p class="app-muted mb-0">{message}</p>|]
