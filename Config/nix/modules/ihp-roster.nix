@@ -238,7 +238,8 @@ in
             systemd.services.loadSchema = {
                 wantedBy = [ "multi-user.target" ];
                 before = [ "migrate.service" "app.service" "worker.service" ];
-                script = ''
+                path = [ pkgs.postgresql pkgs.gnugrep ];
+                script = mkForce ''
                     DB_URL=''${DATABASE_URL:-''${DEFAULT_DATABASE_URL}}
                     if ${pkgs.postgresql}/bin/psql "$DB_URL" -tAc "SELECT to_regtype('public.venue_status_enum') IS NOT NULL" | grep -q t; then
                         exit 0
