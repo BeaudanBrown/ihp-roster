@@ -1,7 +1,12 @@
 module Web.FrontController where
 
+import Control.Exception (SomeException, try)
+import IHP.Controller.Context (putContext)
+import IHP.Controller.Session (deleteSession)
+import IHP.LoginSupport.Helper.Controller (sessionKey)
 import IHP.LoginSupport.Middleware
 import IHP.RouterPrelude
+import Application.Helper.Controller (currentVenueSessionKey)
 import Web.Controller.Prelude
 import Web.View.Layout (defaultLayout)
 
@@ -39,5 +44,11 @@ instance FrontController WebApplication where
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
-        initAuthentication @User
+        authenticationResult <- try (initAuthentication @User) :: IO (Either SomeException ())
+        case authenticationResult of
+            Right () -> pure ()
+            Left _ -> do
+                deleteSession (sessionKey @User)
+                deleteSession currentVenueSessionKey
+                putContext (Nothing :: Maybe User)
         initCurrentVenueContext
