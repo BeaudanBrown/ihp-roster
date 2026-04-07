@@ -1,8 +1,7 @@
 {
     inputs = {
         self.submodules = true;
-        ihp.url = ./IHP;
-        # ihp.url = "github:digitallyinduced/ihp/v1.4";
+        ihp.url = "git+https://github.com/digitallyinduced/ihp.git?rev=df3922d1a7166b131674efa3d3555ed7195ddf70&submodules=1";
         nixpkgs.follows = "ihp/nixpkgs";
         flake-parts.follows = "ihp/flake-parts";
         devenv.follows = "ihp/devenv";
