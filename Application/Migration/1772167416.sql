@@ -19,15 +19,35 @@ ALTER TABLE timesheet_entries DROP CONSTRAINT IF EXISTS timesheet_entries_staff_
 
 DO $$
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_role_valid') THEN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'role'
+    ) AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'users_role_valid') THEN
         ALTER TABLE users ADD CONSTRAINT users_role_valid CHECK (role IN ('staff', 'manager', 'admin'));
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leave_requests_status_valid') THEN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'leave_requests' AND column_name = 'status'
+    ) AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'leave_requests_status_valid') THEN
         ALTER TABLE leave_requests ADD CONSTRAINT leave_requests_status_valid CHECK (status IN ('pending', 'approved', 'denied'));
     END IF;
 
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'timesheet_entries_approval_consistency') THEN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'timesheet_entries' AND column_name = 'is_approved'
+    ) AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'timesheet_entries' AND column_name = 'approved_at'
+    ) AND EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'timesheet_entries' AND column_name = 'approved_by_user_id'
+    ) AND NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'timesheet_entries_approval_consistency') THEN
         ALTER TABLE timesheet_entries ADD CONSTRAINT timesheet_entries_approval_consistency CHECK (((NOT is_approved) AND approved_at IS NULL AND approved_by_user_id IS NULL) OR (is_approved AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL));
     END IF;
 END
