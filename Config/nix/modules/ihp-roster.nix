@@ -58,6 +58,11 @@ in
                 inherit config pkgs modulesPath lib self;
             }
         )
+        ({ config, pkgs, ihp, ... }:
+            import "${ihp}/NixSupport/nixosModules/services/loadSchema.nix" {
+                inherit self config pkgs ihp;
+            }
+        )
         ({ config, pkgs, modulesPath, lib, ... }:
             import "${ihp}/NixSupport/nixosModules/services/migrate.nix" {
                 inherit config pkgs lib ihp;
@@ -230,6 +235,32 @@ in
             systemd.services.worker.serviceConfig.EnvironmentFile =
                 optional (cfg.environmentFile != null) cfg.environmentFile;
             systemd.services.worker.enable = mkForce hasJobRunner;
+            systemd.services.loadSchema = {
+                wantedBy = [ "multi-user.target" ];
+                before = [ "migrate.service" "app.service" "worker.service" ];
+                script = ''
+                    DB_URL=''${DATABASE_URL:-''${DEFAULT_DATABASE_URL}}
+                    if ${pkgs.postgresql}/bin/psql "$DB_URL" -tAc "SELECT to_regtype('public.venue_status_enum') IS NOT NULL" | grep -q t; then
+                        exit 0
+                    fi
+
+                    ${pkgs.postgresql}/bin/psql "$DB_URL" < ${self.packages.${pkgs.system}.ihp-schema}/IHPSchema.sql
+                    ${pkgs.postgresql}/bin/psql "$DB_URL" < ${self.packages.${pkgs.system}.schema}/Schema.sql
+                '';
+            };
+            systemd.services.migrate = {
+                after = [ "loadSchema.service" ];
+                requires = [ "loadSchema.service" ];
+                before = [ "app.service" "worker.service" ];
+            };
+            systemd.services.app = {
+                after = [ "migrate.service" ];
+                requires = [ "migrate.service" ];
+            };
+            systemd.services.worker = {
+                after = [ "migrate.service" ];
+                requires = [ "migrate.service" ];
+            };
         }
         (mkIf cfg.managePostgres {
             services.postgresql = {
