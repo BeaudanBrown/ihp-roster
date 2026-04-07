@@ -1,7 +1,17 @@
 module Web.Controller.Profiles where
 
+import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
+import Application.Helper.LiveUpdate (LiveFragmentRef)
+import Application.Helper.View (ToastOverlayConfig (..),
+                                ToastOverlayPosition (ToastBottomCenter),
+                                renderToastOverlayHostOob)
+import qualified Data.Map.Strict as Map
+import qualified Data.UUID as UUID
 import Web.Controller.Prelude
+import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation,
+                                   buildRosterRowFragmentRefs,
+                                   buildRosterStaffPanelFragmentRef)
 import Web.View.Profiles.Edit
 
 instance Controller ProfilesController where
@@ -33,7 +43,9 @@ instance Controller ProfilesController where
             |> validateField #idealShiftsPerWeek (isInRange (0, 7))
             |> ifValid \case
                 Left staff -> do
-                    render EditView { .. }
+                    if isHtmxRequest
+                        then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys)
+                        else render EditView { .. }
                 Right staff -> do
                     staff <- upsertCurrentUserStaff staff
                     case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
@@ -43,19 +55,40 @@ instance Controller ProfilesController where
                             let currentUserEmail = currentUser.email
                             let preferenceWeekdays = allPreferenceWeekdays
                             preferenceSections <- fetchStaffPreferenceGroupSections staff
-                            render EditView { .. }
+                            if isHtmxRequest
+                                then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys)
+                                else render EditView { .. }
                         Right submittedSelections -> do
                             rosterGroupIds <- map (.rosterGroup.id) <$> fetchStaffPreferenceGroupSections staff
                             replaceStaffShiftPreferences staff rosterGroupIds submittedSelections
+                            invalidationTargets <- fetchProfileRosterInvalidationTargets currentVenueId staff
+                            let invalidations = buildProfileRosterInvalidations invalidationTargets
+                            forM_ invalidations \(rosterGroupId, weekOffset, fragments) ->
+                                broadcastRosterWeekInvalidation rosterGroupId weekOffset fragments
                             let isProfileCompleted = requiredProfileFieldsCompleted staff
                             let wasProfileCompleted = currentUser.isProfileCompleted
                             currentUser
                                 |> set #isProfileCompleted isProfileCompleted
                                 |> updateRecord
-                            setSuccessMessage "Profile updated"
                             if not wasProfileCompleted && isProfileCompleted
                                 then redirectTo RosterWeeksAction
-                                else redirectTo EditProfileAction
+                                else if isHtmxRequest
+                                    then
+                                        respondHtml $
+                                            mconcat
+                                                [ renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys
+                                                , renderToastOverlayHostOob ToastBottomCenter
+                                                    [ ToastOverlayConfig
+                                                        { toastOverlayTitle = Just "Success"
+                                                        , toastOverlayMessage = "Profile updated"
+                                                        , toastOverlayClass = "app-toast-success"
+                                                        , toastOverlayAutoHideMs = 3200
+                                                        }
+                                                    ]
+                                                ]
+                                    else do
+                                        setSuccessMessage "Profile updated"
+                                        redirectTo EditProfileAction
 
 buildNewCurrentUserStaff :: (?context :: ControllerContext) => User -> Staff
 buildNewCurrentUserStaff user =
@@ -106,3 +139,56 @@ profilePreferenceViewDataWithSubmitted maybeStaff submittedShiftPreferenceKeys =
             let preferenceWeekdays = allPreferenceWeekdays
             preferenceSections <- fetchStaffPreferenceGroupSections staff
             pure (preferenceWeekdays, preferenceSections, submittedShiftPreferenceKeys)
+
+fetchProfileRosterInvalidationTargets :: (?modelContext :: ModelContext) => Id Venue -> Staff -> IO [(Id RosterGroup, Int, [(UUID.UUID, Int)])]
+fetchProfileRosterInvalidationTargets venueId staff = do
+    rosterGroupIds <- fetchStaffRosterGroupIds staff
+    if null rosterGroupIds
+        then pure []
+        else do
+            rosterWeeks <-
+                query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venueId)
+                    |> filterWhereIn (#rosterGroupId, map unpackId rosterGroupIds)
+                    |> fetch
+            rosterDays <-
+                if null rosterWeeks
+                    then pure []
+                    else query @RosterDay
+                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+                        |> fetch
+            assignedSlots <-
+                if null rosterDays
+                    then pure []
+                    else query @RosterSlot
+                        |> filterWhere (#staffId, Just (unpackId staff.id))
+                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                        |> fetch
+
+            let rosterWeekById = Map.fromList (map (\rosterWeek -> (unpackId rosterWeek.id, rosterWeek)) rosterWeeks)
+            let rosterDayById = Map.fromList (map (\rosterDay -> (unpackId rosterDay.id, rosterDay)) rosterDays)
+            let assignedRowKeysByWeek =
+                    Map.fromListWith (<>)
+                        [ ((Id rosterWeek.rosterGroupId :: Id RosterGroup, rosterWeek.weekOffset), [(rosterSlot.rosterDayId, rosterSlot.rowIndex)])
+                        | rosterSlot <- assignedSlots
+                        , Just rosterDay <- [Map.lookup rosterSlot.rosterDayId rosterDayById]
+                        , Just rosterWeek <- [Map.lookup rosterDay.rosterWeekId rosterWeekById]
+                        ]
+
+            pure
+                [ let rosterGroupId = Id rosterWeek.rosterGroupId :: Id RosterGroup
+                   in ( rosterGroupId
+                      , rosterWeek.weekOffset
+                      , Map.findWithDefault [] (rosterGroupId, rosterWeek.weekOffset) assignedRowKeysByWeek
+                      )
+                | rosterWeek <- rosterWeeks
+                ]
+
+buildProfileRosterInvalidations :: (?context :: ControllerContext) => [(Id RosterGroup, Int, [(UUID.UUID, Int)])] -> [(Id RosterGroup, Int, [LiveFragmentRef])]
+buildProfileRosterInvalidations =
+    map \(rosterGroupId, weekOffset, rowKeys) ->
+        ( rosterGroupId
+        , weekOffset
+        , buildRosterRowFragmentRefs rosterGroupId weekOffset rowKeys
+            <> [buildRosterStaffPanelFragmentRef rosterGroupId weekOffset]
+        )
