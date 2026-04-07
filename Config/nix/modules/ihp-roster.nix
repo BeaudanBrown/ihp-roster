@@ -184,6 +184,32 @@ in
             default = null;
             description = "Contact email used for ACME when configureNginx is enabled.";
         };
+
+        bootstrap = {
+            enable = mkOption {
+                type = types.bool;
+                default = false;
+                description = "Whether to seed a bootstrap super-admin account on deploy.";
+            };
+
+            email = mkOption {
+                type = types.str;
+                default = "admin@example.com";
+                description = "Email address for the bootstrap account.";
+            };
+
+            passwordFile = mkOption {
+                type = types.nullOr types.path;
+                default = null;
+                description = "Path to a file containing the bootstrap account password, suitable for sops-nix secrets.";
+            };
+
+            venueName = mkOption {
+                type = types.str;
+                default = "Bootstrap Venue";
+                description = "Venue name created or claimed for the bootstrap account.";
+            };
+        };
     };
 
     config = mkIf cfg.enable (mkMerge [
@@ -196,6 +222,10 @@ in
                 {
                     assertion = !(cfg.configureNginx && cfg.httpsEnabled) || cfg.acmeEmail != null;
                     message = "services.ihpRoster.acmeEmail is required when configureNginx and httpsEnabled are enabled.";
+                }
+                {
+                    assertion = !cfg.bootstrap.enable || cfg.bootstrap.passwordFile != null;
+                    message = "services.ihpRoster.bootstrap.passwordFile is required when bootstrap.enable is true.";
                 }
             ];
             services.ihp = {
@@ -261,6 +291,34 @@ in
             systemd.services.worker = {
                 after = [ "migrate.service" ];
                 requires = [ "migrate.service" ];
+            };
+            systemd.services.bootstrap-account = mkIf cfg.bootstrap.enable {
+                description = "Seed bootstrap account for ihp-roster";
+                wantedBy = [ "multi-user.target" ];
+                after = [ "migrate.service" ];
+                requires = [ "migrate.service" ];
+                before = [ "app.service" "worker.service" ];
+                serviceConfig = {
+                    Type = "oneshot";
+                    ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/BootstrapAccount";
+                };
+                environment = {
+                    DATABASE_URL =
+                        if cfg.databaseUrl != null
+                            then cfg.databaseUrl
+                            else "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+                    BOOTSTRAP_ACCOUNT_EMAIL = cfg.bootstrap.email;
+                    BOOTSTRAP_ACCOUNT_PASSWORD_FILE = toString cfg.bootstrap.passwordFile;
+                    BOOTSTRAP_ACCOUNT_VENUE_NAME = cfg.bootstrap.venueName;
+                };
+            };
+            systemd.services.app = mkIf cfg.bootstrap.enable {
+                after = [ "bootstrap-account.service" ];
+                requires = [ "bootstrap-account.service" ];
+            };
+            systemd.services.worker = mkIf cfg.bootstrap.enable {
+                after = [ "bootstrap-account.service" ];
+                requires = [ "bootstrap-account.service" ];
             };
         }
         (mkIf cfg.managePostgres {
