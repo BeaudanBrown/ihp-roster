@@ -130,7 +130,7 @@ applyReportDefinitionParams reportParams reportDefinition =
         |> set #isActive reportParams.isActive
 
 parseReportDefinitionParams ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Maybe ReportDefinition ->
     IO (Maybe ReportDefinitionParams)
 parseReportDefinitionParams existingDefinition = do

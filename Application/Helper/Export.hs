@@ -290,7 +290,7 @@ requestStaffPayCsvExport reportDefinition selectedWeekOffset = do
                 exportJob <-
                     newRecord @ExportJob
                         |> set #venueId (unpackId currentVenueId)
-                        |> set #requestedByUserId (unpackId (get #id currentUser))
+                        |> set #requestedByUserId (unpackId (get #id authenticatedCurrentUser))
                         |> set #exportType exportType
                         |> set #status (exportJobStatusToText ExportPending)
                         |> set #schemaVersion exportSchemaVersion
@@ -353,7 +353,7 @@ requestHourlyBreakdownZipExport reportDefinition selectedWeekOffset = do
                 exportJob <-
                     newRecord @ExportJob
                         |> set #venueId (unpackId currentVenueId)
-                        |> set #requestedByUserId (unpackId (get #id currentUser))
+                        |> set #requestedByUserId (unpackId (get #id authenticatedCurrentUser))
                         |> set #exportType exportType
                         |> set #status (exportJobStatusToText ExportPending)
                         |> set #schemaVersion exportSchemaVersion
@@ -751,7 +751,7 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = withTransaction do
     exportJob <-
         newRecord @ExportJob
             |> set #venueId (unpackId currentVenueId)
-            |> set #requestedByUserId (unpackId (get #id currentUser))
+            |> set #requestedByUserId (unpackId (get #id authenticatedCurrentUser))
             |> set #exportType exportType
             |> set #status (exportJobStatusToText ExportPending)
             |> set #schemaVersion exportSchemaVersion
@@ -861,7 +861,7 @@ recordExportDownload exportJob = withTransaction do
     exportJob <-
         exportJob
             |> set #downloadedAt (Just now)
-            |> set #downloadedByUserId (Just (unpackId (get #id currentUser)))
+            |> set #downloadedByUserId (Just (unpackId (get #id authenticatedCurrentUser)))
             |> updateRecord
 
     void $ recordCurrentUserAuditEvent

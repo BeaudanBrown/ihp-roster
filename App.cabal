@@ -26,6 +26,7 @@ executable App
   -- other-extensions:
   build-depends:
   	ihp,
+  	ihp-mail,
   	base,
   	wai,
     text

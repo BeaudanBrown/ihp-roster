@@ -229,7 +229,7 @@ fetchVisibleLeaveRequests = do
                         |> orderByDesc #startDate
                         |> fetch
 
-respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Text -> Bool -> IO ()
+respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> Bool -> IO ()
 respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
     staffMembers <- fetchStaffMembersForCurrentVenue
     leaveRequests <- fetchVisibleLeaveRequests
@@ -261,7 +261,7 @@ ensureLeaveDeleteAllowed leaveRequest =
             let canDeleteOwn = maybe False (\staff -> coerce (get #id staff) == leaveRequest.staffId) maybeStaff
             accessDeniedUnless canDeleteOwn
 
-buildLeaveRequest :: (?context :: ControllerContext) => LeaveRequest -> LeaveRequest
+buildLeaveRequest :: (?context :: ControllerContext, ?request :: Request) => LeaveRequest -> LeaveRequest
 buildLeaveRequest leaveRequest =
     leaveRequest
         |> fill @'["startDate", "endDate", "notes"]
@@ -272,7 +272,7 @@ buildLeaveRequest leaveRequest =
                 then Success
                 else Failure "Available again must be at least one day after unavailable from"
 
-invalidateAffectedRosterWeeksForLeave :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LeaveRequest -> IO ()
+invalidateAffectedRosterWeeksForLeave :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO ()
 invalidateAffectedRosterWeeksForLeave leaveRequest = do
     venueConfig <- fetchVenueConfig
     let affectedOffsets =
@@ -307,7 +307,7 @@ buildLeaveRequestsContentFragmentRef =
         }
 
 broadcastLeaveRequestsInvalidation ::
-    (?context :: ControllerContext) =>
+    (?context :: ControllerContext, ?request :: Request) =>
     [LiveFragmentRef] ->
     IO ()
 broadcastLeaveRequestsInvalidation fragments =

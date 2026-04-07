@@ -160,7 +160,7 @@ createCurrentVenuePayConfigSnapshot = do
         |> set #venueId (unpackId currentVenueId)
         |> set #versionNumber versionNumber
         |> set #versionLabel (snapshotVersionLabel versionNumber)
-        |> set #createdByUserId (unpackId (get #id currentUser))
+        |> set #createdByUserId (unpackId (get #id authenticatedCurrentUser))
         |> set #snapshot snapshotPayload
         |> createRecord
 
@@ -181,7 +181,7 @@ syncCurrentVenuePayConfigSnapshot = do
                 |> set #venueId (unpackId currentVenueId)
                 |> set #versionNumber versionNumber
                 |> set #versionLabel (snapshotVersionLabel versionNumber)
-                |> set #createdByUserId (unpackId (get #id currentUser))
+                |> set #createdByUserId (unpackId (get #id authenticatedCurrentUser))
                 |> set #snapshot snapshotPayload
                 |> createRecord
 

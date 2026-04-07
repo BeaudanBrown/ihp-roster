@@ -96,7 +96,7 @@ buildNewCurrentUserStaff user =
         |> set #venueId (unpackId currentVenueId)
         |> set #userId (Just (unpackId (get #id user)))
 
-upsertCurrentUserStaff :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Staff -> IO Staff
+upsertCurrentUserStaff :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Staff -> IO Staff
 upsertCurrentUserStaff staff = do
     existingStaff <- fetchCurrentUserStaff
 

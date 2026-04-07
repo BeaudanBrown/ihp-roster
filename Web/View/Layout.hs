@@ -3,7 +3,6 @@ module Web.View.Layout (defaultLayout, Html) where
 import Application.Helper.View
 import Application.Helper.Controller (currentSupportVenueOptions, currentVenueOrNothing)
 import Generated.Types
-import IHP.Controller.RequestContext
 import IHP.ControllerSupport (getRequestPathAndQuery)
 import IHP.Environment
 import IHP.ViewPrelude

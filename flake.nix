@@ -65,15 +65,15 @@
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
                         p.ihp
+                        p.ihp-mail
                         p.ihp-hspec
                         base64-bytestring
                         base
+                        ip
                         wai
                         text
                         zip-archive
                         hspec
-                        # ihp-mail
-                        # See https://ihp.digitallyinduced.com/Guide/mail.html
                     ];
                     devHaskellPackages = p: with p; [
                         stylish-haskell

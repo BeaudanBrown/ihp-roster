@@ -113,7 +113,7 @@ fetchStaffLinkedUserEmail staff =
         Nothing     -> pure Nothing
         Just userId -> Just . (.email) <$> fetch (Id userId :: Id User)
 
-parseStaffRosterGroupIds :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe [Id RosterGroup])
+parseStaffRosterGroupIds :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe [Id RosterGroup])
 parseStaffRosterGroupIds = do
     let submittedRosterGroupIds = nub (paramList @(Id RosterGroup) "rosterGroupIds")
     currentVenueRosterGroupIds <- fetchCurrentVenueRosterGroupIds

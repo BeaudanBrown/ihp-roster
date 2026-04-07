@@ -364,7 +364,7 @@ nextSlotNameSortOrder rosterGroupId =
         |> fetchOneOrNothing
         >>= pure . maybe 0 ((+ 1) . get #sortOrder)
 
-respondToSlotNameMutation :: (?context :: ControllerContext) => Text -> Id RosterGroup -> IO ()
+respondToSlotNameMutation :: (?context :: ControllerContext, ?request :: Request) => Text -> Id RosterGroup -> IO ()
 respondToSlotNameMutation successMessage rosterGroupId =
     if isHtmxRequest
         then renderPlain ""
@@ -373,7 +373,7 @@ respondToSlotNameMutation successMessage rosterGroupId =
             redirectToAdminFor (Just rosterGroupId)
 
 respondToSlotNameSectionMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
     Id RosterGroup ->
     IO ()
@@ -388,7 +388,7 @@ respondToSlotNameSectionMutation successMessage rosterGroupId =
             redirectToAdminFor (Just rosterGroupId)
 
 respondToInvitesSectionMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
     Id RosterGroup ->
     IO ()
@@ -403,7 +403,7 @@ respondToInvitesSectionMutation successMessage rosterGroupId =
             redirectToAdminFor (Just rosterGroupId)
 
 broadcastSlotNameInvalidation ::
-    (?context :: ControllerContext) =>
+    (?context :: ControllerContext, ?request :: Request) =>
     Id RosterGroup ->
     IO ()
 broadcastSlotNameInvalidation rosterGroupId =
@@ -413,7 +413,7 @@ broadcastSlotNameInvalidation rosterGroupId =
         []
 
 broadcastAdminSlotNamesInvalidation ::
-    (?context :: ControllerContext) =>
+    (?context :: ControllerContext, ?request :: Request) =>
     Id RosterGroup ->
     IO ()
 broadcastAdminSlotNamesInvalidation rosterGroupId =
@@ -483,7 +483,7 @@ fetchCurrentVenuePendingInvitations = do
         |> fetch
     pure (filter (\invitation -> maybe False (> now) invitation.expiresAt) invitations)
 
-parseRequiredName :: (?context :: ControllerContext) => ByteString -> Text -> IO (Maybe Text)
+parseRequiredName :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Text -> IO (Maybe Text)
 parseRequiredName paramName errorMessage =
     let value = Text.strip (paramOrDefault "" paramName)
      in if Text.null value
@@ -492,7 +492,7 @@ parseRequiredName paramName errorMessage =
                 pure Nothing
             else pure (Just value)
 
-parseRequiredEmail :: (?context :: ControllerContext) => ByteString -> Text -> IO (Maybe Text)
+parseRequiredEmail :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Text -> IO (Maybe Text)
 parseRequiredEmail paramName emptyMessage =
     case Text.strip (paramOrDefault "" paramName) of
         value | Text.null value -> do
@@ -508,10 +508,10 @@ parseRequiredEmail paramName emptyMessage =
                     setErrorMessage "Enter a valid email address."
                     pure Nothing
 
-parseIsActiveParam :: (?context :: ControllerContext) => Bool
+parseIsActiveParam :: (?context :: ControllerContext, ?request :: Request) => Bool
 parseIsActiveParam = paramOrDefault "true" "isActive" == ("true" :: Text)
 
-parseSortOrderParam :: (?context :: ControllerContext) => Int
+parseSortOrderParam :: (?context :: ControllerContext, ?request :: Request) => Int
 parseSortOrderParam = paramOrDefault @Int 0 "sortOrder"
 
 venueRoleLabel :: VenueRole -> Text
@@ -521,7 +521,7 @@ venueRoleLabel VenueAdminRole = "Venue Admin"
 venueRoleLabel VenueOwnerRole = "Venue Owner"
 
 parsePayLevelRateParams ::
-    (?context :: ControllerContext) =>
+    (?context :: ControllerContext, ?request :: Request) =>
     (Scientific, Scientific, Scientific, Scientific, Scientific, Scientific)
 parsePayLevelRateParams =
     ( paramOrDefault @Scientific 0 "baseRate"
@@ -532,7 +532,7 @@ parsePayLevelRateParams =
     , paramOrDefault @Scientific 1 "sundayMultiplier"
     )
 
-parseDefaultPayLevelId :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe (Id PayLevel))
+parseDefaultPayLevelId :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe (Id PayLevel))
 parseDefaultPayLevelId =
     case paramOrNothing @(Id PayLevel) "defaultPayLevelId" of
         Nothing -> do
@@ -552,7 +552,7 @@ parseDefaultPayLevelId =
                     pure (Just payLevelId)
 
 parsePayLevelDayRuleParams ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Maybe PayLevelDayRule ->
     IO (Maybe (Id ShiftType, Id DayName, Id PayLevel))
 parsePayLevelDayRuleParams existingRule = do
@@ -584,7 +584,7 @@ parsePayLevelDayRuleParams existingRule = do
                                 else pure (Just (shiftTypeId, dayNameId, payLevelId))
 
 parseShiftTypeId ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
     IO (Maybe (Id ShiftType))
 parseShiftTypeId errorMessage =
@@ -606,7 +606,7 @@ parseShiftTypeId errorMessage =
                     pure (Just shiftTypeId)
 
 parsePayLevelId ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
     IO (Maybe (Id PayLevel))
 parsePayLevelId errorMessage =
@@ -628,7 +628,7 @@ parsePayLevelId errorMessage =
                     pure (Just payLevelId)
 
 parseDayNameId ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
     IO (Maybe (Id DayName))
 parseDayNameId errorMessage =
@@ -661,7 +661,7 @@ ensurePayLevelDayRuleInCurrentVenue payLevelDayRule = do
     ensureRecordInCurrentVenue payLevel.venueId
     ensureRecordInCurrentVenue dayName.venueId
 
-redirectToAdminFor :: (?context :: ControllerContext) => Maybe (Id RosterGroup) -> IO ()
+redirectToAdminFor :: (?context :: ControllerContext, ?request :: Request) => Maybe (Id RosterGroup) -> IO ()
 redirectToAdminFor maybeRosterGroupId =
     redirectToPath $
         maybe

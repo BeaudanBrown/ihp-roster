@@ -12,6 +12,7 @@ import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.Controller.Context (maybeFromContext, putContext)
 import IHP.ControllerPrelude
+import Network.Wai (Request)
 import System.IO.Unsafe (unsafePerformIO)
 import Web.Routes ()
 import Web.Types (ProfilesController (EditProfileAction))
@@ -20,6 +21,19 @@ import Web.Types (ProfilesController (EditProfileAction))
 
 currentVenueSessionKey :: ByteString
 currentVenueSessionKey = "currentVenueId"
+
+withRequestContext :: (?context :: ControllerContext) => ((?request :: Request) => value) -> value
+withRequestContext action =
+    let ?request = ?context.request
+    in action
+{-# INLINE withRequestContext #-}
+
+authenticatedCurrentUser :: (?context :: ControllerContext) => User
+authenticatedCurrentUser =
+    fromMaybe
+        (error "authenticatedCurrentUser: initAuthentication has not populated the current user")
+        (currentUserOrNothing @User)
+{-# INLINE authenticatedCurrentUser #-}
 
 fetchVenueConfig :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO VenueConfig
 fetchVenueConfig =
@@ -176,9 +190,10 @@ isOperationallyActive user = user.isProfileCompleted
 
 ensureProfileCompleted :: (?context :: ControllerContext) => IO ()
 ensureProfileCompleted =
-    unless (isOperationallyActive currentUser) do
-        setErrorMessage "Please complete your profile to continue."
-        redirectTo EditProfileAction
+    unless (isOperationallyActive authenticatedCurrentUser) do
+        withRequestContext do
+            setErrorMessage "Please complete your profile to continue."
+            redirectTo EditProfileAction
 
 currentVenueOrNothing :: (?context :: ControllerContext) => Maybe Venue
 currentVenueOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe Venue))
@@ -245,11 +260,11 @@ ensureAdminRole = accessDeniedUnless (hasRole VenueAdminRole)
 
 -- | True when the current request came from htmx.
 isHtmxRequest :: (?context :: ControllerContext) => Bool
-isHtmxRequest = getHeader "HX-Request" == Just "true"
+isHtmxRequest = withRequestContext (getHeader "HX-Request" == Just "true")
 
 -- | Ask htmx to push a canonical URL after a fragment response.
 setHtmxPushUrl :: (?context :: ControllerContext) => Text -> IO ()
-setHtmxPushUrl url = setHeader ("HX-Push-Url", cs url)
+setHtmxPushUrl url = withRequestContext (setHeader ("HX-Push-Url", cs url))
 
 requestAuditSourceChannel :: (?context :: ControllerContext) => Text
 requestAuditSourceChannel =
@@ -288,7 +303,7 @@ recordCurrentUserAuditEvent ::
 recordCurrentUserAuditEvent eventType targetTable targetId payload =
     recordAuditEvent
         (unpackId currentVenueId)
-        (unpackId (get #id currentUser))
+        (unpackId (get #id authenticatedCurrentUser))
         eventType
         targetTable
         targetId
@@ -341,7 +356,7 @@ recordCurrentUserTimesheetEntryVersion ::
 recordCurrentUserTimesheetEntryVersion =
     recordTimesheetEntryVersion
         (unpackId currentVenueId)
-        (unpackId (get #id currentUser))
+        (unpackId (get #id authenticatedCurrentUser))
 
 recordLeaveRequestEvent ::
     (?modelContext :: ModelContext) =>
@@ -375,7 +390,7 @@ recordCurrentUserLeaveRequestEvent ::
 recordCurrentUserLeaveRequestEvent leaveRequest =
     recordLeaveRequestEvent
         (unpackId currentVenueId)
-        (unpackId (get #id currentUser))
+        (unpackId (get #id authenticatedCurrentUser))
         (unpackId (get #id leaveRequest))
 
 recordVenueMembershipRoleEvent ::
@@ -500,7 +515,7 @@ fetchCurrentUserStaff :: (?context :: ControllerContext, ?modelContext :: ModelC
 fetchCurrentUserStaff =
     query @Staff
         |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#userId, Just (coerce (get #id currentUser)))
+        |> filterWhere (#userId, Just (coerce (get #id authenticatedCurrentUser)))
         |> fetchOneOrNothing
 
 staffInCurrentVenueOrNothing :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID -> IO (Maybe Staff)
@@ -541,15 +556,15 @@ initCurrentVenueContext = do
     putContext (SupportVenueOptions supportVenues)
 
     forM_ currentUserOrNothing \user -> do
-        sessionVenueId <- getSession @(Id Venue) currentVenueSessionKey
+        sessionVenueId <- withRequestContext (getSession @(Id Venue) currentVenueSessionKey)
         maybeVenueContext <- resolveVenueContextForUser sessionVenueId user
         case maybeVenueContext of
-            Nothing -> deleteSession currentVenueSessionKey
+            Nothing -> withRequestContext (deleteSession currentVenueSessionKey)
             Just (membership, venue, role) -> do
                 putContext (Just venue)
                 putContext membership
                 putContext role
-                setSession currentVenueSessionKey (get #id venue)
+                withRequestContext (setSession currentVenueSessionKey (get #id venue))
 
 resolveVenueContextForUser :: (?modelContext :: ModelContext) => Maybe (Id Venue) -> User -> IO (Maybe (Maybe VenueMembership, Venue, Maybe VenueRole))
 resolveVenueContextForUser sessionVenueId user = do

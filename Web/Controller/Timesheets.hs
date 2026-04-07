@@ -323,7 +323,7 @@ fetchShiftTypesForForm =
         |> orderByAsc #createdAt
         |> fetch
 
-respondWithTimesheetDaySectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Int -> IO ()
+respondWithTimesheetDaySectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Int -> IO ()
 respondWithTimesheetDaySectionFragment weekOffset dayOffset = do
     (entries, staffMembers, shiftTypes, paySummariesByEntryId, today, editWindowDays, weekStartDate) <- fetchTimesheetDaySectionState weekOffset
     respondHtml $
@@ -338,7 +338,7 @@ respondWithTimesheetDaySectionFragment weekOffset dayOffset = do
             weekStartDate
             dayOffset
 
-respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Day -> Text -> Bool -> Bool -> IO ()
+respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Text -> Bool -> Bool -> IO ()
 respondWithTimesheetDaySectionUpdate weekOffset workedOn successMessage closeDialog renderMainFragmentOob = do
     (entries, staffMembers, shiftTypes, paySummariesByEntryId, today, editWindowDays, weekStartDate) <- fetchTimesheetDaySectionState weekOffset
     let dayOffset = timesheetDayOffset weekStartDate workedOn
@@ -393,7 +393,7 @@ fetchTimesheetDaySectionState weekOffset = do
 
     pure (entries, staffMembers, shiftTypes, paySummariesByEntryId, today, editWindowDays, weekStartDate)
 
-renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO ()
+renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> IO ()
 renderTimesheetWeekPage weekOffset = do
     venueConfig <- fetchVenueConfig
     let weekStartDate = addDays (toInteger (weekOffset * 7)) venueConfig.weekOffsetEpoch
@@ -410,7 +410,7 @@ renderTimesheetWeekPage weekOffset = do
 
     respondWithTimesheetWeekView IndexView { .. }
 
-respondWithTimesheetWeekView :: (?context :: ControllerContext) => IndexView -> IO ()
+respondWithTimesheetWeekView :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IndexView -> IO ()
 respondWithTimesheetWeekView indexView =
     if isHtmxRequest
         then respondHtml (renderTimesheetWeekShell indexView)
@@ -452,7 +452,7 @@ resetApprovalOnEdit wasApproved entry
             |> set #approvedByUserId Nothing
     | otherwise = entry
 
-buildTimesheetEntry :: (?context :: ControllerContext) => TimesheetEntry -> TimesheetEntry
+buildTimesheetEntry :: (?context :: ControllerContext, ?request :: Request) => TimesheetEntry -> TimesheetEntry
 buildTimesheetEntry entry =
     entry
         |> fill @'["staffId", "workedOn"]
@@ -584,12 +584,12 @@ buildTimesheetEntry entry =
                                 else withContainmentValidation
                     _ -> record
 
-weekOffsetFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
+weekOffsetFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Int
 weekOffsetFromParamOrCurrent = do
     currentOffset <- currentTimesheetWeekOffset
     pure (paramOrDefault currentOffset "weekOffset")
 
-weekOffsetFromParamOrEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> IO Int
+weekOffsetFromParamOrEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> IO Int
 weekOffsetFromParamOrEntry workedOnDate = do
     venueConfig <- fetchVenueConfig
     let entryOffset = weekOffsetForDay venueConfig.weekOffsetEpoch workedOnDate
@@ -623,7 +623,7 @@ buildTimesheetDaySectionFragmentRef weekOffset dayOffset =
         , deferUntilBlur = False
         }
 
-broadcastTimesheetDayInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Day -> IO ()
+broadcastTimesheetDayInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> IO ()
 broadcastTimesheetDayInvalidation weekOffset workedOn = do
     venueConfig <- fetchVenueConfig
     let weekStartDate = addDays (toInteger (weekOffset * 7)) venueConfig.weekOffsetEpoch

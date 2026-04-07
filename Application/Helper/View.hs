@@ -8,8 +8,8 @@ import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
-import IHP.FlashMessages.Types (FlashMessage (..))
 import IHP.ViewPrelude
+import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
 import Web.Routes ()
 import Web.Types
 

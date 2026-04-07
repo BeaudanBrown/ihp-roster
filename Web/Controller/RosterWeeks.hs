@@ -419,7 +419,7 @@ minimumOpenRosterRows = 2
 closedRosterDayRows :: Int
 closedRosterDayRows = 3
 
-resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO RosterGroup
+resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
 resolveRequestedRosterGroup =
     fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
 
@@ -500,7 +500,7 @@ buildSlotConflicts rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate ros
                 then Nothing
                 else Just (get #id slot, conflicts)
 
-respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO ()
+respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContent rosterGroupId weekOffset = do
     rosterGroups <- fetchCurrentVenueRosterGroups
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
@@ -522,7 +522,7 @@ respondWithRosterContent rosterGroupId weekOffset = do
                     allSlots
                     slotConflicts
 
-respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO ()
+respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContentOob rosterGroupId weekOffset = do
     rosterGroups <- fetchCurrentVenueRosterGroups
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
@@ -544,7 +544,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                     allSlots
                     slotConflicts
 
-respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Text -> IO ()
+respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
     rosterGroups <- fetchCurrentVenueRosterGroups
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
@@ -576,7 +576,7 @@ respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
                 ]
             ]
 
-respondWithRosterToast :: (?context :: ControllerContext) => Text -> Text -> IO ()
+respondWithRosterToast :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> IO ()
 respondWithRosterToast message toastClass =
     respondHtml $
         renderToastOverlayHostOob ToastBottomCenter
@@ -588,11 +588,11 @@ respondWithRosterToast message toastClass =
                 }
             ]
 
-respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> IO ()
+respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> IO ()
 respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
     respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
 
-respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext) => [LiveFragmentRef] -> IO ()
+respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?request :: Request) => [LiveFragmentRef] -> IO ()
 respondWithActorRosterFragmentRefresh fragments = do
     setHeader ("HX-Trigger", cs (Aeson.encode payload))
     respondHtml [hsx||]
@@ -605,7 +605,7 @@ respondWithActorRosterFragmentRefresh fragments = do
                         ]
                 ]
 
-respondWithRosterDaySectionPatch :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Id RosterDay -> Bool -> IO ()
+respondWithRosterDaySectionPatch :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> Bool -> IO ()
 respondWithRosterDaySectionPatch rosterGroupId weekOffset rosterDayId shouldRefreshStaffPanel = do
     rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     case rosterData of
@@ -618,7 +618,7 @@ respondWithRosterDaySectionPatch rosterGroupId weekOffset rosterDayId shouldRefr
             let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId panelStaff | shouldRefreshStaffPanel]
             respondHtml (mconcat (renderedDaySection <> renderedStaffPanel))
 
-respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefreshStaffPanel = do
     rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
     case rosterData of
@@ -629,7 +629,7 @@ respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefresh
             let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId panelStaff | shouldRefreshStaffPanel]
             respondHtml (mconcat (renderedRows <> renderedStaffPanel))
 
-renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> Id RosterGroup -> IO ()
+renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
 renderRosterWeekPage weekOffset requestedRosterGroupId = do
     venueConfig <- fetchVenueConfig
     let epoch = venueConfig.weekOffsetEpoch
@@ -683,7 +683,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
                     , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId = unpackId currentRosterGroup.id, weekOffset })
                     }
 
-respondWithRosterWeekView :: (?context :: ControllerContext) => ShowView -> IO ()
+respondWithRosterWeekView :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => ShowView -> IO ()
 respondWithRosterWeekView showView =
     if isHtmxRequest
         then respondHtml (renderRosterWeekShell showView)
@@ -845,7 +845,7 @@ buildRosterRowFragmentRef rosterGroupId weekOffset rosterDayId rowIndex =
         }
 
 broadcastRosterWeekInvalidation ::
-    (?context :: ControllerContext) =>
+    (?context :: ControllerContext, ?request :: Request) =>
     Id RosterGroup ->
     Int ->
     [LiveFragmentRef] ->
@@ -1131,7 +1131,7 @@ renderRequestedDaySectionFragment isEditable rosterDays weekStartDate orderedSlo
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
     pure (renderRosterDaySectionFragment isEditable orderedSlotNames staffMembers weekStartDate allSlots slotConflicts rosterDay)
 
-ensureRosterWeekIsDraftForEdit :: (?context :: ControllerContext) => RosterWeek -> IO ()
+ensureRosterWeekIsDraftForEdit :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> IO ()
 ensureRosterWeekIsDraftForEdit rosterWeek =
     when rosterWeek.isLive do
         let rosterGroupId = coerce rosterWeek.rosterGroupId
