@@ -1,6 +1,5 @@
 {
     inputs = {
-        self.submodules = true;
         ihp.url = "git+https://github.com/digitallyinduced/ihp.git?rev=df3922d1a7166b131674efa3d3555ed7195ddf70&submodules=1";
         nixpkgs.follows = "ihp/nixpkgs";
         flake-parts.follows = "ihp/flake-parts";
@@ -19,12 +18,47 @@
             systems = import systems;
             imports = [ ihp.flakeModules.default ];
 
-            perSystem = { pkgs, inputs', ... }: {
+            perSystem = { pkgs, inputs', ... }:
+                let
+                    projectSource =
+                        builtins.path {
+                            path = ./.;
+                            name = "ihp-roster-source";
+                            filter =
+                                path: type:
+                                let
+                                    root = toString ./.;
+                                    pathStr = toString path;
+                                    rel =
+                                        if pathStr == root
+                                        then ""
+                                        else pkgs.lib.removePrefix "${root}/" pathStr;
+                                    excluded =
+                                        rel == "IHP"
+                                        || pkgs.lib.hasPrefix "IHP/" rel
+                                        || rel == "build"
+                                        || pkgs.lib.hasPrefix "build/" rel
+                                        || rel == ".devenv"
+                                        || pkgs.lib.hasPrefix ".devenv/" rel
+                                        || rel == ".direnv"
+                                        || pkgs.lib.hasPrefix ".direnv/" rel
+                                        || rel == ".claude"
+                                        || pkgs.lib.hasPrefix ".claude/" rel
+                                        || rel == "notes"
+                                        || pkgs.lib.hasPrefix "notes/" rel
+                                        || rel == "output"
+                                        || pkgs.lib.hasPrefix "output/" rel;
+                                in
+                                    !excluded;
+                        };
+                in {
                 ihp = {
                     appName = "app"; # Change this to your project name
                     enable = true;
                     withHoogle = true;
-                    projectPath = ./.;
+                    # Use a filtered project source so local dev artifacts do not leak into
+                    # production packaging or generated app-lib.cabal module discovery.
+                    projectPath = projectSource;
                     packages = with pkgs; [
                         # Native dependencies, e.g. imagemagick
                     ];
@@ -68,6 +102,7 @@
 
                     env = {
                         IHP_TELEMETRY_DISABLED = "1";
+                        IHP_DEV_CHECKOUT = "/home/beau/documents/projects/ihp";
                         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
                         PLAYWRIGHT_BROWSERS_PATH = "${inputs'.playwright.packages.playwright-driver.browsers}";
                         PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
@@ -152,7 +187,7 @@
                             DB_NAME="''${TEST_DATABASE_NAME:-app_test}"
                             DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
                             LOAD_E2E_FIXTURES="''${TEST_DB_LOAD_E2E_FIXTURES:-0}"
-                            SYSTEM_SCHEMA="$PWD/IHP/ihp-ide/data/IHPSchema.sql"
+                            SYSTEM_SCHEMA="''${IHP_DEV_CHECKOUT:-$PWD/IHP}/ihp-ide/data/IHPSchema.sql"
 
                             if [ ! -f "$SYSTEM_SCHEMA" ]; then
                                 if [ -n "''${IHP:-}" ] && [ -f "$IHP/lib/IHP/IHPSchema.sql" ]; then

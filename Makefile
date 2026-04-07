@@ -16,7 +16,7 @@ JS_FILES += ${IHP}/static/vendor/turbolinksMorphdom.js
 # Some environments expose IHP_LIB without IHPSchema.sql (e.g. env-var compatibility wrapper).
 IHP_LIB_FALLBACK := $(firstword \
 	$(wildcard ${IHP}/lib/IHP) \
-	$(wildcard ${PWD}/IHP/ihp-ide/data))
+	$(wildcard ${IHP_DEV_CHECKOUT}/ihp-ide/data))
 
 ifeq ($(wildcard ${IHP_LIB}/IHPSchema.sql),)
 ifneq (${IHP_LIB_FALLBACK},)

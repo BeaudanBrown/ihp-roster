@@ -1,7 +1,7 @@
 # Test Guidelines
 
 ## Reference
-Read `IHP/Guide/testing.markdown` for full IHP testing documentation.
+Read `/home/beau/documents/projects/ihp/Guide/testing.markdown` for full IHP testing documentation.
 
 ## Running Tests
 

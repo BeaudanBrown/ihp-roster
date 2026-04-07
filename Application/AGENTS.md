@@ -1,7 +1,7 @@
 # Application Guidelines
 
 ## Schema (`Application/Schema.sql`)
-This is the **source of truth** for all database models. Read `IHP/Guide/database.markdown`.
+This is the **source of truth** for all database models. Read `/home/beau/documents/projects/ihp/Guide/database.markdown`.
 
 - Edit this file to add/modify tables — IHP auto-generates `build/Generated/Types.hs` from it
 - Use `snake_case` for table and column names — IHP converts to `camelCase` in Haskell
@@ -93,7 +93,7 @@ psql -h "$PWD/build/db" app -c "\dt"
 - Shared form helpers should usually render only fields plus the `<form>` wrapper. Put submit/cancel controls in the overlay footer so the same form body can be used by both HTMX dialogs and `setModal` fallback views.
 
 ## Database Queries
-Read `IHP/Guide/querybuilder.markdown`. Key patterns:
+Read `/home/beau/documents/projects/ihp/Guide/querybuilder.markdown`. Key patterns:
 ```haskell
 -- Fetch all
 posts <- query @Post |> fetch

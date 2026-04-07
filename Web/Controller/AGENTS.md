@@ -1,7 +1,7 @@
 # Controller Guidelines
 
 ## Reference
-Read `IHP/Guide/controller.markdown` before implementing any controller logic.
+Read `/home/beau/documents/projects/ihp/Guide/controller.markdown` before implementing any controller logic.
 
 ## Creating a New Controller
 
@@ -66,7 +66,7 @@ Every controller requires changes in **four files** (missing any will cause comp
 - Use `fetch`, `fetchOne`, `fetchOneOrNothing` to run queries
 - Use `redirectTo SomeAction` after mutations
 - Use `render ViewName { .. }` with RecordWildCards to pass data to views
-- Use `buildPost` pattern for form validation (see `IHP/Guide/validation.markdown`)
+- Use `buildPost` pattern for form validation (see `/home/beau/documents/projects/ihp/Guide/validation.markdown`)
 - Access current user with `currentUser` (requires auth setup)
 
 ## Navigation Controller Pattern

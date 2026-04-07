@@ -19,8 +19,9 @@ del
 static/prod.*
 Config/client_session_key.aes
 
-# Ignore locally checked out IHP version
-# IHP
+# Ignore any accidental in-repo IHP checkout; the local framework source now lives at
+# /home/beau/documents/projects/ihp instead.
+IHP
 
 # Playwright
 test-results/

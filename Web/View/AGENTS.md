@@ -1,7 +1,7 @@
 # View Guidelines
 
 ## Reference
-Read `IHP/Guide/view.markdown` and `IHP/Guide/hsx.markdown` before creating views.
+Read `/home/beau/documents/projects/ihp/Guide/view.markdown` and `/home/beau/documents/projects/ihp/Guide/hsx.markdown` before creating views.
 
 ## Creating a View
 
@@ -37,7 +37,7 @@ renderPost post = [hsx|
 - HSX is strict about valid HTML — close all tags
 
 ## Forms
-Read `IHP/Guide/form.markdown` for full details. Basic pattern:
+Read `/home/beau/documents/projects/ihp/Guide/form.markdown` for full details. Basic pattern:
 ```haskell
 renderForm :: Post -> Html
 renderForm post = formFor post [hsx|

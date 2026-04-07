@@ -1,6 +1,6 @@
 #!/bin/sh
 # Custom hie-bios wrapper for HLS.
-# Filters out IHP submodule source paths to avoid conflicts with -package ihp.
+# Filters out any in-repo IHP source paths to avoid conflicts with -package ihp.
 make print-ghc-options GHC_RTS_FLAGS='' \
   | tr ' ' '\n' \
   | grep -vE '^-iIHP(/|$)' \

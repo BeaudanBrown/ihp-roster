@@ -31,28 +31,28 @@ in
 {
     imports = [
         ({ config, pkgs, modulesPath, lib, ... }:
-            import ../../../IHP/NixSupport/nixosModules/options.nix {
+            import "${ihp}/NixSupport/nixosModules/options.nix" {
                 inherit self config pkgs modulesPath lib;
             }
         )
         ({ config, pkgs, modulesPath, lib, ... }:
-            import ../../../IHP/NixSupport/nixosModules/binaryCache.nix {
+            import "${ihp}/NixSupport/nixosModules/binaryCache.nix" {
                 inherit config pkgs modulesPath lib ihp;
                 nixpkgs = pkgs.path;
             }
         )
         ({ config, pkgs, modulesPath, lib, ... }:
-            import ../../../IHP/NixSupport/nixosModules/services/app.nix {
+            import "${ihp}/NixSupport/nixosModules/services/app.nix" {
                 inherit config pkgs modulesPath lib self;
             }
         )
         ({ config, pkgs, modulesPath, lib, ... }:
-            import ../../../IHP/NixSupport/nixosModules/services/worker.nix {
+            import "${ihp}/NixSupport/nixosModules/services/worker.nix" {
                 inherit config pkgs lib self;
             }
         )
         ({ config, pkgs, modulesPath, lib, ... }:
-            import ../../../IHP/NixSupport/nixosModules/services/migrate.nix {
+            import "${ihp}/NixSupport/nixosModules/services/migrate.nix" {
                 inherit config pkgs lib ihp;
             }
         )

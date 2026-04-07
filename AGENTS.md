@@ -1,8 +1,8 @@
 # IHP Project — Agent Guidelines
 
 ## Framework Reference (in priority order)
-1. **IHP Guide** — `IHP/Guide/*.markdown` covers controllers, views, routing, forms, database, auth, HSX, validation, etc. Read the relevant guide FIRST before implementing any feature.
-2. **IHP Source** — `IHP/ihp/IHP/` contains the full framework source. Use grep/find here to understand type signatures, available functions, and implementation details.
+1. **IHP Guide** — `/home/beau/documents/projects/ihp/Guide/*.markdown` covers controllers, views, routing, forms, database, auth, HSX, validation, etc. Read the relevant guide FIRST before implementing any feature.
+2. **IHP Source** — `/home/beau/documents/projects/ihp/ihp/IHP/` contains the full framework source. Use grep/find there to understand type signatures, available functions, and implementation details.
 3. **Generated Types** — `build/Generated/Types.hs` contains types generated from `Application/Schema.sql`. Regenerated automatically.
 
 ## Project Structure
@@ -39,8 +39,8 @@
 - Every new controller needs: type in `Web/Types.hs`, AutoRoute in `Web/Routes.hs`, import+mount in `Web/FrontController.hs`, implementation in `Web/Controller/`
 - Use `Web.Controller.Prelude` in controllers, `Web.View.Prelude` in views — these re-export everything needed
 - HSX uses `[hsx|...|]` quasi-quotes — it's like JSX but type-checked at compile time
-- Database queries use IHP's QueryBuilder, not raw SQL — see `IHP/Guide/querybuilder.markdown`
-- Form handling uses IHP's form helpers — see `IHP/Guide/form.markdown`
+- Database queries use IHP's QueryBuilder, not raw SQL — see `/home/beau/documents/projects/ihp/Guide/querybuilder.markdown`
+- Form handling uses IHP's form helpers — see `/home/beau/documents/projects/ihp/Guide/form.markdown`
 
 ## Planning Files
 - `IMPLEMENTATION_PLAN.md` is the canonical roadmap for global ordering and cross-pipeline dependencies.
@@ -187,7 +187,7 @@ Playwright-based end-to-end tests live in `e2e/` and run against an isolated tem
 - Subdirectory `AGENTS.md` files exist in `Web/Controller/`, `Web/View/`, and `Application/` with detailed patterns
 - When you discover a new IHP pattern, convention, or gotcha while implementing a feature, **add it to the relevant `AGENTS.md`** so future agents benefit
 - Keep entries concise and actionable — show the code pattern, not lengthy explanations
-- Always verify patterns against `IHP/Guide/` or `IHP/ihp/IHP/` source before documenting
+- Always verify patterns against `/home/beau/documents/projects/ihp/Guide/` or `/home/beau/documents/projects/ihp/ihp/IHP/` source before documenting
 
 ## Current UI Patterns
 - Roster and timesheet week pagers use HTMX shell swaps with pushed canonical URLs instead of full-page week navigations
