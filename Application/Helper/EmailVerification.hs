@@ -1,0 +1,48 @@
+module Application.Helper.EmailVerification where
+
+import Application.Helper.View (appendQueryParams)
+import qualified Data.UUID as UUID
+import qualified Data.UUID.V4 as UUIDv4
+import IHP.EnvVar
+import IHP.Mail
+import Web.Mail.Users.EmailVerification
+import Web.Types
+import Web.Controller.Prelude
+
+verificationTokenLifetime :: NominalDiffTime
+verificationTokenLifetime = 60 * 60 * 24
+
+issueEmailVerification :: (?context :: ControllerContext, ?modelContext :: ModelContext) => User -> IO EmailVerificationToken
+issueEmailVerification user = do
+    token <- UUID.toText <$> UUIDv4.nextRandom
+    now <- getCurrentTime
+    let expiresAt = addUTCTime verificationTokenLifetime now
+    let verificationToken =
+            newRecord @EmailVerificationToken
+                |> set #userId (unpackId user.id)
+                |> set #token token
+                |> set #sentToEmail user.email
+                |> set #expiresAt expiresAt
+    verificationToken |> createRecord
+
+sendEmailVerification :: (?context :: ControllerContext, ?modelContext :: ModelContext) => User -> IO EmailVerificationToken
+sendEmailVerification user = do
+    verificationToken <- issueEmailVerification user
+    fromAddress :: Text <- envOrDefault "MAIL_FROM" "noreply@dev.local"
+    appBaseUrl :: Text <- envOrDefault "APP_BASE_URL" "http://localhost:8000"
+    let verificationUrl =
+            appBaseUrl <> appendQueryParams (pathTo VerifyEmailAction) [("token", verificationToken.token)]
+    sendMail EmailVerificationMail
+        { user = user
+        , verificationUrl = verificationUrl
+        , fromAddress = fromAddress
+        }
+    pure verificationToken
+
+findActiveVerificationTokenByToken :: (?modelContext :: ModelContext) => Text -> IO (Maybe EmailVerificationToken)
+findActiveVerificationTokenByToken token =
+    query @EmailVerificationToken
+        |> filterWhere (#token, token)
+        |> filterWhere (#consumedAt, Nothing)
+        |> filterWhereFuture #expiresAt
+        |> fetchOneOrNothing

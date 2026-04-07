@@ -101,7 +101,8 @@ tests = beforeAll testContext do
                     , ("passwordConfirmation", "test-password-123")
                     ]
 
-                response `responseStatusShouldBe` status302
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Verify Your Email"
 
                 user <- query @User
                     |> filterWhere (#email, "owner@example.com")
@@ -110,12 +111,17 @@ tests = beforeAll testContext do
                     |> filterWhere (#userId, unpackId user.id)
                     |> fetchOne
                 updatedInvitation <- fetch invitation.id
+                verificationToken <- query @EmailVerificationToken |> fetchOne
 
                 membership.venueId `shouldBe` unpackId venue.id
                 inputValue membership.venueRole `shouldBe` "venue_owner"
                 inputValue user.userRole `shouldBe` "staff"
+                user.emailVerifiedAt `shouldBe` Nothing
                 inputValue updatedInvitation.status `shouldBe` "accepted"
                 updatedInvitation.acceptedByUserId `shouldBe` Just (unpackId user.id)
+                verificationToken.userId `shouldBe` unpackId user.id
+                verificationToken.sentToEmail `shouldBe` user.email
+                verificationToken.consumedAt `shouldBe` Nothing
 
                 auditEvent <- query @AuditEvent |> fetchOne
                 auditEvent.venueId `shouldBe` unpackId venue.id

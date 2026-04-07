@@ -75,7 +75,7 @@ VALUES
     (
         'a1000000-0000-0000-0000-000000000011',
         'a1000000-0000-0000-0000-000000000001',
-        'UTC',
+        'Australia/Melbourne',
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
         600,
         7
@@ -83,7 +83,7 @@ VALUES
     (
         'a1000000-0000-0000-0000-000000000012',
         'a1000000-0000-0000-0000-000000000002',
-        'UTC',
+        'Australia/Melbourne',
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
         600,
         7
@@ -95,7 +95,7 @@ ON CONFLICT (id) DO UPDATE SET
     late_to_early_min_start_gap_minutes = EXCLUDED.late_to_early_min_start_gap_minutes,
     staff_timesheet_edit_window_days = EXCLUDED.staff_timesheet_edit_window_days;
 
-INSERT INTO users (id, email, password_hash, user_role, platform_role, is_profile_completed, failed_login_attempts)
+INSERT INTO users (id, email, password_hash, user_role, platform_role, is_profile_completed, email_verified_at, failed_login_attempts)
 VALUES
     (
         'a0000000-0000-0000-0000-000000000001',
@@ -104,6 +104,7 @@ VALUES
         'manager',
         NULL,
         TRUE,
+        NOW(),
         0
     ),
     (
@@ -113,6 +114,7 @@ VALUES
         'admin',
         NULL,
         TRUE,
+        NOW(),
         0
     ),
     (
@@ -122,6 +124,7 @@ VALUES
         'staff',
         NULL,
         TRUE,
+        NOW(),
         0
     ),
     (
@@ -131,6 +134,7 @@ VALUES
         'manager',
         'super_admin',
         TRUE,
+        NOW(),
         0
     )
 ON CONFLICT (id) DO UPDATE SET
@@ -139,6 +143,7 @@ ON CONFLICT (id) DO UPDATE SET
     user_role = EXCLUDED.user_role,
     platform_role = EXCLUDED.platform_role,
     is_profile_completed = EXCLUDED.is_profile_completed,
+    email_verified_at = EXCLUDED.email_verified_at,
     failed_login_attempts = EXCLUDED.failed_login_attempts,
     locked_at = NULL;
 
@@ -331,7 +336,7 @@ VALUES
         jsonb_build_object(
             'venueConfig', jsonb_build_object(
                 'id', 'a1000000-0000-0000-0000-000000000011',
-                'timezone', 'UTC',
+                'timezone', 'Australia/Melbourne',
                 'weekOffsetEpoch', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)),
                 'lateToEarlyMinStartGapMinutes', 600,
                 'staffTimesheetEditWindowDays', 7

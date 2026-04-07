@@ -1,13 +1,18 @@
 module Web.View.Sessions.New where
-import IHP.AuthSupport.View.Sessions.New
 import Web.View.Prelude
 
-instance View (NewView User) where
+data NewView = NewView
+    { user :: User
+    , pendingVerificationEmail :: Maybe Text
+    }
+
+instance View NewView where
     html NewView { .. } = [hsx|
         <div class="app-page-auth">
             <div class="app-auth-card">
                 <div class="app-auth-body">
                     <h4 class="card-title mb-4 text-center">Sign In</h4>
+                    {renderPendingVerification pendingVerificationEmail}
                     {renderForm user}
                     <hr/>
                     <p class="text-center mb-0 app-muted small">
@@ -50,4 +55,17 @@ renderForm user = [hsx|
             <button type="submit" class="btn btn-primary">Sign In</button>
         </div>
     </form>
+|]
+
+renderPendingVerification :: Maybe Text -> Html
+renderPendingVerification Nothing = mempty
+renderPendingVerification (Just email) = [hsx|
+    <div class="alert alert-warning mb-4">
+        <div class="mb-2">Verify your email before signing in.</div>
+        <form method="POST" action={ResendVerificationAction} class="d-flex gap-2 align-items-center">
+            <input type="hidden" name="email" value={email} />
+            <span class="small text-muted flex-grow-1">{email}</span>
+            <button type="submit" class="btn btn-sm btn-outline-primary">Resend email</button>
+        </form>
+    </div>
 |]

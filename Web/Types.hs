@@ -14,6 +14,8 @@ data SessionsController
     = NewSessionAction
     | CreateSessionAction
     | DeleteSessionAction
+    | VerifyEmailAction
+    | ResendVerificationAction
     deriving (Eq, Show, Data)
 
 data UsersController

@@ -1,5 +1,6 @@
 module Web.Controller.Users where
 
+import Application.Helper.EmailVerification (sendEmailVerification)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Web.Controller.Prelude
@@ -51,7 +52,7 @@ instance Controller UsersController where
                                     render InvitationSignupView { .. }
                                 Right user -> do
                                     hashed <- hashPassword user.passwordHash
-                                    withTransaction do
+                                    user <- withTransaction do
                                         user <- user
                                             |> set #passwordHash hashed
                                             |> createRecord
@@ -91,8 +92,10 @@ instance Controller UsersController where
                                                 , "invitationId" Aeson..= unpackId (get #id invitation)
                                                 ]
                                             )
-                                    setSuccessMessage "Account created from invitation. Please sign in."
-                                    redirectTo NewSessionAction
+                                        pure user
+                                    void (sendEmailVerification user)
+                                    setTitle "Verify Your Email"
+                                    render VerificationSentView { email = user.email }
                     _ -> do
                         setErrorMessage "That invitation is no longer valid. Contact support for a new bootstrap invite."
                         setTitle "Request Access"

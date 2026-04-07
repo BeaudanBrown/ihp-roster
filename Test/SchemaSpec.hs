@@ -54,11 +54,13 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe Venue)
         let _ = (Nothing :: Maybe VenueMembership)
         let _ = (Nothing :: Maybe VenueInvitation)
+        let _ = (Nothing :: Maybe EmailVerificationToken)
         True `shouldBe` True
 
     it "exposes a separate optional platform role on users" do
         let user = newRecord @User
         get #platformRole user `shouldBe` Nothing
+        get #emailVerifiedAt user `shouldBe` Nothing
 
     it "exposes venue-scoped config fields on venue config" do
         let _readConfigFields venueConfig =
@@ -114,6 +116,7 @@ tests = describe "Schema" do
             , "leave_deleted"
             , "venue_role_assigned"
             , "venue_role_changed"
+            , "venue_bootstrapped"
             , "export_generated"
             , "export_downloaded"
             , "support_access_granted"
@@ -369,7 +372,7 @@ tests = describe "Schema" do
         -- that only surface at runtime.
         let columnNames =
                 [ "id", "email", "password_hash", "user_role"
-                , "platform_role", "is_profile_completed", "locked_at", "failed_login_attempts"
+                , "platform_role", "is_profile_completed", "email_verified_at", "locked_at", "failed_login_attempts"
                 , "created_at", "updated_at", "user_id", "first_name"
                 , "last_name", "preferred_name", "phone", "emergency_contact_name"
                 , "emergency_contact_phone", "ideal_shifts_per_week", "is_active"

@@ -22,11 +22,24 @@ CREATE TABLE users (
     user_role TEXT DEFAULT 'staff' NOT NULL,
     platform_role platform_role_enum DEFAULT NULL,
     is_profile_completed BOOLEAN DEFAULT FALSE NOT NULL,
+    email_verified_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     failed_login_attempts INT DEFAULT 0 NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     CHECK ((user_role = 'staff') OR (user_role = 'manager') OR (user_role = 'admin'))
+);
+CREATE TABLE email_verification_tokens (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    user_id UUID NOT NULL,
+    token TEXT NOT NULL,
+    sent_to_email TEXT NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    consumed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(token),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 CREATE TABLE venue_memberships (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
