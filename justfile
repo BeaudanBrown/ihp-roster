@@ -10,8 +10,7 @@ start:
     start
 
 dev:
-    dev-start
-    dev-wait
+    dev-foreground
 
 stop:
     dev-stop

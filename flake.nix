@@ -48,11 +48,15 @@
 
                 # Custom configuration that will start with `devenv up`
                 devenv.shells.default = {
-                    # Start Mailhog on local development to catch outgoing emails
-                    # services.mailhog.enable = true;
-
                     # Custom processes that don't appear in https://devenv.sh/reference/options/
                     processes = {
+                        mailhog.exec = ''
+                            exec ${pkgs.mailhog}/bin/MailHog \
+                                -smtp-bind-addr 127.0.0.1:1025 \
+                                -ui-bind-addr 127.0.0.1:8025 \
+                                -api-bind-addr 127.0.0.1:8025
+                        '';
+
                         # Uncomment if you use tailwindcss.
                         # tailwind.exec = "tailwindcss -c tailwind/tailwind.config.js -i ./tailwind/app.css -o static/app.css --watch=always";
                     };
@@ -60,6 +64,7 @@
                     packages = [
                         inputs'.playwright.packages.playwright-test
                         pkgs.nodejs_22
+                        pkgs.mailhog
                     ];
 
                     env = {
@@ -67,6 +72,13 @@
                         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
                         PLAYWRIGHT_BROWSERS_PATH = "${inputs'.playwright.packages.playwright-driver.browsers}";
                         PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
+                        SMTP_HOST = "127.0.0.1";
+                        SMTP_PORT = "1025";
+                        SMTP_ENCRYPTION = "Unencrypted";
+                        SMTP_USER = "";
+                        SMTP_PASSWORD = "";
+                        MAIL_FROM = "noreply@dev.local";
+                        APP_BASE_URL = "http://localhost:8000";
                     };
 
                     scripts = {
@@ -80,6 +92,38 @@
                                 printf '%s\n' "$XDG_RUNTIME_DIR/ihp-roster-dev"
                             else
                                 printf '%s\n' "$PWD/.devenv/agent"
+                            fi
+                        '';
+
+                        # Start the app server in the foreground with MailHog alongside it.
+                        # Usage: dev-foreground
+                        dev-foreground.exec = ''
+                            set -euo pipefail
+
+                            MAILHOG="$(command -v MailHog || command -v mailhog)"
+                            "$MAILHOG" \
+                                -smtp-bind-addr 127.0.0.1:1025 \
+                                -ui-bind-addr 127.0.0.1:8025 \
+                                -api-bind-addr 127.0.0.1:8025 &
+                            MAILHOG_PID=$!
+                            APP_PID=""
+
+                            cleanup() {
+                                if [ -n "$APP_PID" ]; then
+                                    kill "$APP_PID" 2>/dev/null || true
+                                fi
+                                kill "$MAILHOG_PID" 2>/dev/null || true
+                            }
+                            trap cleanup EXIT INT TERM
+
+                            if curl -fsS http://127.0.0.1:8000 >/dev/null 2>&1; then
+                                echo "App server already running; MailHog available at http://127.0.0.1:8025"
+                                wait "$MAILHOG_PID"
+                            else
+                                echo "Starting app server and MailHog..."
+                                start &
+                                APP_PID=$!
+                                wait "$APP_PID"
                             fi
                         '';
 
@@ -659,6 +703,11 @@ EOF
                         '';
                     };
                 };
+            };
+
+            flake.nixosModules.default = import ./Config/nix/modules/ihp-roster.nix {
+                inherit self;
+                ihp = inputs.ihp;
             };
 
             # Adding the new NixOS configuration for "production"
