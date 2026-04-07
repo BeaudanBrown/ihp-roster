@@ -62,6 +62,8 @@ data ExportsController
 data AdminController
     = AdminAction
     | ShowAdminSlotNamesFragmentAction
+    | ShowAdminInvitesFragmentAction
+    | CreateVenueInvitationAction
     | CreateRosterGroupAction
     | UpdateRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
     | MakeDefaultRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }

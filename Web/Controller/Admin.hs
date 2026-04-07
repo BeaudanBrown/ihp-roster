@@ -4,6 +4,7 @@ import Application.Helper.Export
 import Application.Helper.LiveUpdate
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
+import Application.Helper.VenueInvitation
 import qualified Data.List as List
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
@@ -32,6 +33,7 @@ instance Controller AdminController where
         let staffPayReportDefinition = findReportDefinitionByEngine StaffPayCsvReport activeReportDefinitions
         let hourlyBreakdownReportDefinition = findReportDefinitionByEngine HourlyBreakdownZipReport activeReportDefinitions
         let latestSnapshot = listToMaybe recentSnapshots
+        pendingInvitations <- fetchCurrentVenuePendingInvitations
         let slotNamesLiveUpdateScope = Just (adminSlotNamesScope currentRosterGroup.id)
         render IndexView { .. }
 
@@ -39,6 +41,30 @@ instance Controller AdminController where
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
         respondHtml (renderSlotNamesSectionFragment currentRosterGroup slotNames)
+
+    action ShowAdminInvitesFragmentAction = do
+        currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
+        pendingInvitations <- fetchCurrentVenuePendingInvitations
+        respondHtml (renderInvitesSectionFragment pendingInvitations currentRosterGroup.id)
+
+    action CreateVenueInvitationAction = do
+        currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
+        maybeEmail <- parseRequiredEmail "email" "Invite email is required."
+        case maybeEmail of
+            Just email -> do
+                now <- getCurrentTime
+                invitation <- newRecord @VenueInvitation
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #invitedByUserId (Just (unpackId currentUser.id))
+                    |> set #email email
+                    |> set #inviteRole (venueRoleToEnum WorkerRole)
+                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
+                    |> createRecord
+                sendVenueInvitationEmail invitation
+                respondToInvitesSectionMutation ("Invitation email sent to " <> email) currentRosterGroup.id
+            _ ->
+                respondToInvitesSectionMutation "" currentRosterGroup.id
 
     action CreateRosterGroupAction = do
         venue <- fetch currentVenueId
@@ -361,6 +387,21 @@ respondToSlotNameSectionMutation successMessage rosterGroupId =
             setSuccessMessage successMessage
             redirectToAdminFor (Just rosterGroupId)
 
+respondToInvitesSectionMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Text ->
+    Id RosterGroup ->
+    IO ()
+respondToInvitesSectionMutation successMessage rosterGroupId =
+    if isHtmxRequest
+        then do
+            unless (Text.null successMessage) (setSuccessMessage successMessage)
+            pendingInvitations <- fetchCurrentVenuePendingInvitations
+            respondHtml (renderInvitesSectionFragment pendingInvitations rosterGroupId)
+        else do
+            unless (Text.null successMessage) (setSuccessMessage successMessage)
+            redirectToAdminFor (Just rosterGroupId)
+
 broadcastSlotNameInvalidation ::
     (?context :: ControllerContext) =>
     Id RosterGroup ->
@@ -432,6 +473,16 @@ fetchCurrentVenueDayNames =
         |> orderByAsc #weekdayIndex
         |> fetch
 
+fetchCurrentVenuePendingInvitations :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [VenueInvitation]
+fetchCurrentVenuePendingInvitations = do
+    now <- getCurrentTime
+    invitations <- query @VenueInvitation
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> orderByDesc #createdAt
+        |> fetch
+    pure (filter (\invitation -> maybe False (> now) invitation.expiresAt) invitations)
+
 parseRequiredName :: (?context :: ControllerContext) => ByteString -> Text -> IO (Maybe Text)
 parseRequiredName paramName errorMessage =
     let value = Text.strip (paramOrDefault "" paramName)
@@ -441,11 +492,33 @@ parseRequiredName paramName errorMessage =
                 pure Nothing
             else pure (Just value)
 
+parseRequiredEmail :: (?context :: ControllerContext) => ByteString -> Text -> IO (Maybe Text)
+parseRequiredEmail paramName emptyMessage =
+    case Text.strip (paramOrDefault "" paramName) of
+        value | Text.null value -> do
+            setErrorMessage emptyMessage
+            pure Nothing
+        value ->
+            case isEmail value of
+                Success -> pure (Just value)
+                Failure _ -> do
+                    setErrorMessage "Enter a valid email address."
+                    pure Nothing
+                FailureHtml _ -> do
+                    setErrorMessage "Enter a valid email address."
+                    pure Nothing
+
 parseIsActiveParam :: (?context :: ControllerContext) => Bool
 parseIsActiveParam = paramOrDefault "true" "isActive" == ("true" :: Text)
 
 parseSortOrderParam :: (?context :: ControllerContext) => Int
 parseSortOrderParam = paramOrDefault @Int 0 "sortOrder"
+
+venueRoleLabel :: VenueRole -> Text
+venueRoleLabel WorkerRole = "Worker"
+venueRoleLabel ManagerRole' = "Manager"
+venueRoleLabel VenueAdminRole = "Venue Admin"
+venueRoleLabel VenueOwnerRole = "Venue Owner"
 
 parsePayLevelRateParams ::
     (?context :: ControllerContext) =>

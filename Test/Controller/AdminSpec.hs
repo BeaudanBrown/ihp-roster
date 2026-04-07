@@ -4,6 +4,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
 import Config
 import qualified Data.Aeson as Aeson
+import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -65,12 +66,15 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Pay Level Day Rules"
                 response `responseBodyShouldContain` "Shift Types"
                 response `responseBodyShouldContain` "Slot Names"
+                response `responseBodyShouldContain` "Invites"
+                response `responseBodyShouldContain` "Send Invite Email"
                 response `responseBodyShouldContain` "Exports"
                 response `responseBodyShouldContain` "Generate Staff Pay CSV"
                 response `responseBodyShouldContain` "Generate Hourly Breakdown ZIP"
                 response `responseBodyShouldContain` "Export History"
                 response `responseBodyShouldContain` "data-live-update-feature=\"admin-slot-names\""
                 response `responseBodyShouldContain` "admin-slot-names-fragment"
+                response `responseBodyShouldContain` "admin-invites-fragment"
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldNotContain` "ihp-auto-refresh-id"
@@ -84,6 +88,11 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Config Table Overview"
                 response `responseBodyShouldNotContain` "Pay/Config Snapshots"
                 response `responseBodyShouldNotContain` "Save Snapshot"
+                response `responseBodyShouldNotContain` "new-invite-role"
+                response `responseBodyShouldNotContain` "Invite link created"
+                response `responseBodyShouldNotContain` "<th>Link</th>"
+                response `responseBodyShouldContain` "hx-post=\"/CreateVenueInvitation"
+                response `responseBodyShouldContain` "hx-target=\"#admin-invites-fragment\""
                 response `responseBodyShouldNotContain` "Level B"
                 response `responseBodyShouldNotContain` "Bar -&gt; Level B on Tuesday"
                 response `responseBodyShouldNotContain` "Bar"
@@ -121,6 +130,7 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "admin-create@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 dayName <- fetchDayNameRecord venue 1
+                inviteNow <- getCurrentTime
 
                 rosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateRosterGroupAction
@@ -156,6 +166,13 @@ tests = beforeAll testContext do
                 shiftTypeResponse `responseStatusShouldBe` status302
                 createdShiftType <- query @ShiftType |> filterWhere (#name, "Supervisor") |> fetchOne
 
+                inviteResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateVenueInvitationAction
+                        [ ("email", "new-worker@example.com")
+                        , ("rosterGroupId", idToParam createdRosterGroup.id)
+                        ]
+                inviteResponse `responseStatusShouldBe` status302
+
                 dayRuleResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreatePayLevelDayRuleAction
                         [ ("shiftTypeId", idToParam createdShiftType.id)
@@ -167,6 +184,8 @@ tests = beforeAll testContext do
                 createdPayLevel <- query @PayLevel |> filterWhere (#name, "Level 2") |> fetchOne
                 createdPayLevelDayRule <- query @PayLevelDayRule |> fetchOne
                 createdSlotName <- query @SlotName |> filterWhere (#name, "Swing") |> fetchOne
+                createdInvitation <- query @VenueInvitation |> filterWhere (#email, "new-worker@example.com") |> fetchOne
+                let inviteExpiryDeltaSeconds = diffUTCTime (fromMaybe inviteNow createdInvitation.expiresAt) inviteNow
 
                 createdRosterGroup.venueId `shouldBe` unpackId venue.id
                 createdRosterGroup.sortOrder `shouldBe` 7
@@ -184,6 +203,87 @@ tests = beforeAll testContext do
                 createdShiftType.name `shouldBe` "Supervisor"
                 createdShiftType.defaultPayLevelId `shouldBe` unpackId createdPayLevel.id
                 createdShiftType.isActive `shouldBe` True
+                createdInvitation.venueId `shouldBe` unpackId venue.id
+                createdInvitation.invitedByUserId `shouldBe` Just (unpackId admin.id)
+                createdInvitation.acceptedAt `shouldBe` Nothing
+                inputValue createdInvitation.inviteRole `shouldBe` "worker"
+                inputValue createdInvitation.status `shouldBe` "pending"
+                inviteExpiryDeltaSeconds `shouldSatisfy` (\seconds -> seconds > 86000 && seconds < 87000)
+
+        it "redeems an admin-created invitation through the signup flow" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Invite Venue"
+                admin <- createUserRecord "admin-invite@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateVenueInvitationAction
+                        [ ("email", "redeem-me@example.com")
+                        ]
+
+                response `responseStatusShouldBe` status302
+
+                invitation <- query @VenueInvitation |> filterWhere (#email, "redeem-me@example.com") |> fetchOne
+
+                showResponse <- callActionWithParams NewUserAction [("invitationId", idToParam invitation.id)]
+                showResponse `responseStatusShouldBe` status200
+                showResponse `responseBodyShouldContain` "Accept Invitation"
+                showResponse `responseBodyShouldContain` "redeem-me@example.com"
+
+                createResponse <- callActionWithParams CreateUserAction
+                    [ ("invitationId", idToParam invitation.id)
+                    , ("passwordHash", "test-password-123")
+                    , ("passwordConfirmation", "test-password-123")
+                    ]
+
+                createResponse `responseStatusShouldBe` status200
+                createResponse `responseBodyShouldContain` "Verify Your Email"
+
+                createdUser <- query @User |> filterWhere (#email, "redeem-me@example.com") |> fetchOne
+                membership <- query @VenueMembership |> filterWhere (#userId, unpackId createdUser.id) |> fetchOne
+                updatedInvitation <- fetch invitation.id
+
+                membership.venueId `shouldBe` unpackId venue.id
+                inputValue membership.venueRole `shouldBe` "worker"
+                inputValue updatedInvitation.status `shouldBe` "accepted"
+                updatedInvitation.acceptedByUserId `shouldBe` Just (unpackId createdUser.id)
+
+        it "ignores any submitted inviteRole and always creates worker invitations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-invite-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateVenueInvitationAction
+                        [ ("email", "blocked-owner@example.com")
+                        , ("inviteRole", "venue_owner")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                invitation <- query @VenueInvitation |> filterWhere (#email, "blocked-owner@example.com") |> fetchOne
+                inputValue invitation.inviteRole `shouldBe` "worker"
+
+        it "returns the updated invites fragment for HTMX invite creation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-invite-fragment@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateVenueInvitationAction
+                            [ ("email", "htmx-invite@example.com")
+                            , ("rosterGroupId", idToParam rosterGroup.id)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "admin-invites-fragment"
+                response `responseBodyShouldContain` "htmx-invite@example.com"
+                response `responseBodyShouldContain` "Worker"
+                response `responseBodyShouldContain` "hx-target=\"#admin-invites-fragment\""
+                response `responseBodyShouldContain` "hx-post=\"/CreateVenueInvitation"
 
         it "updates config table rows from the admin page" $ withContext do
             withCleanDb do

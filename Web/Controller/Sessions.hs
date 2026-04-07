@@ -76,8 +76,11 @@ instance Controller SessionsController where
                         verificationToken
                             |> set #consumedAt (Just now)
                             |> updateRecord
-                setSuccessMessage "Email verified. You can sign in now."
-                redirectTo NewSessionAction
+                let verifiedUser = user |> set #emailVerifiedAt (Just now)
+                Sessions.beforeLogin verifiedUser
+                LoginSupport.login verifiedUser
+                setSuccessMessage "Email verified."
+                redirectTo EditProfileAction
 
     action ResendVerificationAction = do
         let submittedEmail = param @Text "email"

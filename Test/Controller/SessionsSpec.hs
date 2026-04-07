@@ -38,10 +38,12 @@ tests = beforeAll testContext do
         it "redirects successful logins to the roster week flow" $ withContext do
             Sessions.afterLoginRedirectPath @User `shouldBe` pathTo RosterWeeksAction
 
-        it "verifies a user and consumes the token" $ withContext do
+        it "verifies a user, signs them in, and redirects to profile editing" $ withContext do
             withCleanDb do
-                user <- createUserRecord "verify-me@example.com" "staff" True
+                venue <- createVenueWithConfig "Verify Venue"
+                user <- createUserRecord "verify-me@example.com" "staff" False
                     >>= updateRecord . set #emailVerifiedAt Nothing
+                _ <- createVenueMembershipRecord venue user "worker"
                 now <- getCurrentTime
                 tokenRecord <- newRecord @EmailVerificationToken
                     |> set #userId (unpackId user.id)
@@ -50,15 +52,21 @@ tests = beforeAll testContext do
                     |> set #expiresAt (addUTCTime 3600 now)
                     |> createRecord
 
-                response <- callActionWithParams VerifyEmailAction [("token", cs tokenRecord.token)]
+                withSessionValues [] do
+                    response <- callActionWithParams VerifyEmailAction [("token", cs tokenRecord.token)]
 
-                response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/NewSession"
+                    response `responseStatusShouldBe` status302
+                    lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile"
 
-                verifiedUser <- fetch user.id
-                consumedToken <- fetch tokenRecord.id
-                verifiedUser.emailVerifiedAt `shouldSatisfy` isJust
-                consumedToken.consumedAt `shouldSatisfy` isJust
+                    verifiedUser <- fetch user.id
+                    consumedToken <- fetch tokenRecord.id
+                    verifiedUser.emailVerifiedAt `shouldSatisfy` isJust
+                    consumedToken.consumedAt `shouldSatisfy` isJust
+
+                    editProfileResponse <- callAction EditProfileAction
+                    editProfileResponse `responseStatusShouldBe` status200
+                    editProfileResponse `responseBodyShouldContain` "Profile"
+                    editProfileResponse `responseBodyShouldContain` user.email
 
         it "rejects invalid verification tokens" $ withContext do
             withCleanDb do

@@ -228,6 +228,30 @@ h5,
     color: #a9c6f5;
 }
 
+.accordion-item.app-panel {
+    overflow: hidden;
+}
+
+.accordion-item.app-panel .accordion-header,
+.accordion-item.app-panel .accordion-button,
+.accordion-item.app-panel .accordion-collapse {
+    border-radius: inherit;
+}
+
+.accordion-item.app-panel .accordion-button {
+    border-radius: calc(0.9rem - 1px);
+}
+
+.accordion-item.app-panel .accordion-button:not(.collapsed) {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    box-shadow: none;
+}
+
+.accordion-item.app-panel .accordion-body {
+    border-top: 1px solid rgba(42, 52, 70, 0.7);
+}
+
 .leave-requests-toolbar {
     display: flex;
     align-items: flex-start;

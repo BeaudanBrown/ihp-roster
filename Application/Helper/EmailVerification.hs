@@ -5,6 +5,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import IHP.EnvVar
 import IHP.Mail
+import System.Environment (lookupEnv)
 import Web.Mail.Users.EmailVerification
 import Web.Types
 import Web.Controller.Prelude
@@ -30,13 +31,15 @@ sendEmailVerification user = do
     verificationToken <- issueEmailVerification user
     fromAddress :: Text <- envOrDefault "MAIL_FROM" "noreply@dev.local"
     appBaseUrl :: Text <- envOrDefault "APP_BASE_URL" "http://localhost:8000"
+    emailDeliveryDisabled <- isEmailDeliveryDisabled
     let verificationUrl =
             appBaseUrl <> appendQueryParams (pathTo VerifyEmailAction) [("token", verificationToken.token)]
-    sendMail EmailVerificationMail
-        { user = user
-        , verificationUrl = verificationUrl
-        , fromAddress = fromAddress
-        }
+    unless emailDeliveryDisabled do
+        sendMail EmailVerificationMail
+            { user = user
+            , verificationUrl = verificationUrl
+            , fromAddress = fromAddress
+            }
     pure verificationToken
 
 findActiveVerificationTokenByToken :: (?modelContext :: ModelContext) => Text -> IO (Maybe EmailVerificationToken)
@@ -46,3 +49,11 @@ findActiveVerificationTokenByToken token =
         |> filterWhere (#consumedAt, Nothing)
         |> filterWhereFuture #expiresAt
         |> fetchOneOrNothing
+
+isEmailDeliveryDisabled :: IO Bool
+isEmailDeliveryDisabled =
+    lookupEnv "DISABLE_EMAIL_DELIVERY" >>= \case
+        Just "1" -> pure True
+        Just "true" -> pure True
+        Just "TRUE" -> pure True
+        _ -> pure False
