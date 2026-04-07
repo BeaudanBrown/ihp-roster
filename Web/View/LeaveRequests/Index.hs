@@ -5,6 +5,10 @@ import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Data.Coerce (coerce)
+import Data.List (sortOn)
+import Data.Ord (Down (..))
+import qualified Data.Text as Text
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -31,8 +35,8 @@ instance View IndexView where
                  data-live-update-client-id=""
                  data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
                  data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}>
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <h1>Leave Requests</h1>
+            <div class="leave-requests-toolbar">
+                <h1 class="mb-0">Leave Requests</h1>
                 <a href={NewLeaveRequestAction}
                    class="btn btn-primary"
                    hx-get={NewLeaveRequestAction}
@@ -60,7 +64,9 @@ renderLeaveRequestsContentFragmentWithSwap maybeSwapOob leaveRequests staffMembe
     <div id={leaveRequestsContentFragmentId} hx-swap-oob={maybeSwapOob}>
         {if null leaveRequests
             then renderEmptyState
-            else renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId
+            else if currentUserIsManager
+                then renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId
+                else renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId
         }
     </div>
 |]
@@ -94,6 +100,113 @@ renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId = [hsx|
         </table>
     </div>
 |]
+
+renderManagerLeaveRequests :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
+renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId = [hsx|
+    <div class="accordion leave-request-accordion" id="leave-request-manager-sections">
+        {renderManagerSection "leave-pending" "Pending" "Needs a decision" pendingRequests staffMembers currentViewerStaffId True}
+        {renderManagerSection "leave-approved" "Approved" "Already confirmed" approvedRequests staffMembers currentViewerStaffId False}
+        {renderManagerSection "leave-denied" "Denied" "Rejected requests" deniedRequests staffMembers currentViewerStaffId False}
+    </div>
+|]
+    where
+        pendingRequests = sortOn (Down . (.startDate)) (filter ((== Just LeavePending) . parseLeaveRequestStatus . (.status)) leaveRequests)
+        approvedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveApproved) . parseLeaveRequestStatus . (.status)) leaveRequests)
+        deniedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveDenied) . parseLeaveRequestStatus . (.status)) leaveRequests)
+
+renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
+renderManagerSection sectionId title subtitle requests staffMembers currentViewerStaffId isOpen = [hsx|
+    <div class="accordion-item app-panel mb-3 leave-request-section">
+        <h2 class="accordion-header" id={sectionId <> "-heading"}>
+            <button
+                class={accordionButtonClass isOpen}
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target={"#" <> sectionId <> "-collapse"}
+                aria-expanded={if isOpen then ("true" :: Text) else "false"}
+                aria-controls={sectionId <> "-collapse"}
+            >
+                <span class="leave-request-accordion-title">{title}</span>
+                <span class="leave-request-accordion-count">{tshow (length requests)}</span>
+            </button>
+        </h2>
+        <div
+            id={sectionId <> "-collapse"}
+            class={accordionCollapseClass isOpen}
+            aria-labelledby={sectionId <> "-heading"}
+            data-bs-parent="#leave-request-manager-sections"
+        >
+            <div class="accordion-body">
+                <p class="app-muted mb-3">{subtitle}</p>
+                {sectionBody}
+            </div>
+        </div>
+    </div>
+|]
+    where
+        sectionBody
+            | null requests =
+                [hsx|
+                    <div class="app-panel">
+                        <div class="app-panel-body">
+                            <p class="app-muted mb-0">No requests in this section.</p>
+                        </div>
+                    </div>
+                |]
+            | otherwise =
+                [hsx|
+                    <div class="leave-request-list">
+                        <div class="leave-request-list-head">
+                            <div>Staff</div>
+                            <div>Dates</div>
+                            <div>Notes</div>
+                            <div>Actions</div>
+                        </div>
+                        <div class="leave-request-list-body">
+                            {forEach requests (renderManagerLeaveRequestRow staffMembers currentViewerStaffId)}
+                        </div>
+                    </div>
+                |]
+
+renderManagerLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> LeaveRequest -> Html
+renderManagerLeaveRequestRow staffMembers currentViewerStaffId leaveRequest = [hsx|
+    <article class="leave-request-row">
+        <div class="leave-request-row-staff">
+            <div class="leave-request-row-name">{resolveStaffName leaveRequest.staffId staffMembers}</div>
+            <div class="leave-request-row-status">{renderStatusBadge leaveRequest.status}</div>
+        </div>
+        <div class="leave-request-row-dates">{renderDateRangeText leaveRequest}</div>
+        <div class="leave-request-row-notes">{fromMaybe "No notes" (leaveRequest.notes >>= nonEmptyText)}</div>
+        <div class="leave-request-row-actions">{renderActions currentViewerStaffId leaveRequest}</div>
+    </article>
+|]
+
+accordionButtonClass :: Bool -> Text
+accordionButtonClass isOpen =
+    if isOpen
+        then "accordion-button"
+        else "accordion-button collapsed"
+
+accordionCollapseClass :: Bool -> Text
+accordionCollapseClass isOpen =
+    if isOpen
+        then "accordion-collapse collapse show"
+        else "accordion-collapse collapse"
+
+nonEmptyText :: Text -> Maybe Text
+nonEmptyText text =
+    let trimmed = Text.strip text
+     in if trimmed == ""
+            then Nothing
+            else Just trimmed
+
+renderDateRangeText :: LeaveRequest -> Text
+renderDateRangeText leaveRequest =
+    renderShortDate leaveRequest.startDate <> " to " <> renderShortDate leaveRequest.endDate
+
+renderShortDate :: Day -> Text
+renderShortDate day =
+    cs (formatTime defaultTimeLocale "%d/%m/%y" day)
 
 renderLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> LeaveRequest -> Html
 renderLeaveRequestRow staffMembers currentViewerStaffId leaveRequest = [hsx|
