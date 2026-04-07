@@ -279,9 +279,9 @@ renderToastCopy toast =
             </div>
         |]
 
-renderFlashOverlayToasts :: (?context :: ControllerContext) => Html
+renderFlashOverlayToasts :: (?context :: ControllerContext, ?request :: Request) => Html
 renderFlashOverlayToasts =
-    renderToastOverlayHost ToastBottomCenter (map flashMessageToToast (fromFrozenContext :: [FlashMessage]))
+    renderToastOverlayHost ToastBottomCenter (map flashMessageToToast (requestFlashMessages ?request))
 
 flashMessageToToast :: FlashMessage -> ToastOverlayConfig
 flashMessageToToast = \case
