@@ -53,7 +53,7 @@ in
         )
         ({ config, pkgs, modulesPath, lib, ... }:
             import ../../../IHP/NixSupport/nixosModules/services/migrate.nix {
-                inherit config pkgs ihp;
+                inherit config pkgs lib ihp;
             }
         )
     ];
