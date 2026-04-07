@@ -19,12 +19,11 @@ run = do
     when (Text.null password) do
         error "BOOTSTRAP_ACCOUNT_PASSWORD_FILE is empty"
 
-    withTransaction do
-        venue <- findOrCreateBootstrapVenue venueName
-        user <- findOrCreateBootstrapUser email password
-        _ <- ensureBootstrapMembership venue user
-        _ <- ensureBootstrapStaff venue user
-        pure ()
+    venue <- findOrCreateBootstrapVenue venueName
+    user <- findOrCreateBootstrapUser email password
+    _ <- ensureBootstrapMembership venue user
+    _ <- ensureBootstrapStaff venue user
+    pure ()
 
 requireEnvText :: String -> IO Text
 requireEnvText name =
