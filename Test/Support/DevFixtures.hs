@@ -18,6 +18,12 @@ import Test.Support.PayrollFixtures (ExplorationPayrollFixture (..),
                                      createPayrollSnapshot, dayNameForWeekday,
                                      seedExplorationPayrollFixtureForWeek)
 
+data DevRosterSlotSeed = DevRosterSlotSeed
+    { slotStaff     :: !(Maybe Staff)
+    , slotStartTime :: !(Maybe TimeOfDay)
+    , slotNote      :: !(Maybe Text)
+    }
+
 data DevSeedFixture = DevSeedFixture
     { sandboxVenue      :: !Venue
     , sandboxAdmin      :: !User
@@ -67,15 +73,15 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
     eveUser <- createUserRecord "dev-eve@example.com" "staff" True
     frankUser <- createUserRecord "dev-frank@example.com" "staff" True
 
-    managerStaff <- createStaffRecord venue (Just managerUser) "Morgan" "Manager"
-    workerStaff <- createStaffRecord venue (Just workerUser) "Willa" "Worker"
-    alice <- createStaffRecord venue (Just aliceUser) "Alice" "Front"
-    bob <- createStaffRecord venue (Just bobUser) "Bob" "Both"
-    cara <- createStaffRecord venue (Just caraUser) "Cara" "Kitchen"
-    dylan <- createStaffRecord venue (Just dylanUser) "Dylan" "Leave"
-    eve <- createStaffRecord venue (Just eveUser) "Eve" "Closer"
-    frank <- createStaffRecord venue (Just frankUser) "Frank" "Prep"
-    trialStaff <- createStaffRecord venue Nothing "Taylor" "Trial"
+    managerStaff <- createStaffRecord venue (Just managerUser) "Morgan" "Manager" >>= updateRecord . set #idealShiftsPerWeek 4
+    workerStaff <- createStaffRecord venue (Just workerUser) "Willa" "Worker" >>= updateRecord . set #idealShiftsPerWeek 3
+    alice <- createStaffRecord venue (Just aliceUser) "Alice" "Front" >>= updateRecord . set #idealShiftsPerWeek 5
+    bob <- createStaffRecord venue (Just bobUser) "Bob" "Both" >>= updateRecord . set #idealShiftsPerWeek 4
+    cara <- createStaffRecord venue (Just caraUser) "Cara" "Kitchen" >>= updateRecord . set #idealShiftsPerWeek 4
+    dylan <- createStaffRecord venue (Just dylanUser) "Dylan" "Leave" >>= updateRecord . set #idealShiftsPerWeek 2
+    eve <- createStaffRecord venue (Just eveUser) "Eve" "Closer" >>= updateRecord . set #idealShiftsPerWeek 5
+    frank <- createStaffRecord venue (Just frankUser) "Frank" "Prep" >>= updateRecord . set #idealShiftsPerWeek 3
+    trialStaff <- createStaffRecord venue Nothing "Taylor" "Trial" >>= updateRecord . set #idealShiftsPerWeek 1
 
     syncStaffRosterGroupAssignments managerStaff [get #id frontGroup, get #id backGroup]
     syncStaffRosterGroupAssignments workerStaff [get #id frontGroup]
@@ -97,59 +103,59 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
     let [backMonday, backTuesday, backWednesday, _, backFriday, backSaturday, _] = backDays
 
     createRosterRow frontMonday frontSlots 0
-        [ ("Early", Just alice)
-        , ("Mid", Just bob)
-        , ("Late", Just dylan)
+        [ ("Early", seededRosterSlot (Just alice) (TimeOfDay 7 0 0) "OP")
+        , ("Mid", seededRosterSlot (Just bob) (TimeOfDay 11 0 0) "LU")
+        , ("Late", seededRosterSlot (Just dylan) (TimeOfDay 16 0 0) "CL")
         ]
     createRosterRow frontMonday frontSlots 1
-        [ ("Mid", Just eve)
+        [ ("Mid", seededRosterSlot (Just eve) (TimeOfDay 12 0 0) "EX")
         ]
     createRosterRow frontTuesday frontSlots 0
-        [ ("Early", Just dylan)
-        , ("Mid", Just alice)
-        , ("Late", Just eve)
+        [ ("Early", seededRosterSlot (Just dylan) (TimeOfDay 7 30 0) "SR")
+        , ("Mid", seededRosterSlot (Just alice) (TimeOfDay 11 30 0) "TR")
+        , ("Late", seededRosterSlot (Just eve) (TimeOfDay 17 0 0) "EV")
         ]
     createRosterRow frontWednesday frontSlots 0
-        [ ("Early", Just trialStaff)
-        , ("Mid", Just bob)
+        [ ("Early", seededRosterSlot (Just trialStaff) (TimeOfDay 8 0 0) "SH")
+        , ("Mid", seededRosterSlot (Just bob) (TimeOfDay 12 0 0) "CV")
         ]
     createRosterRow frontThursday frontSlots 0
-        [ ("Early", Just managerStaff)
-        , ("Late", Just eve)
+        [ ("Early", seededRosterSlot (Just managerStaff) (TimeOfDay 6 30 0) "ST")
+        , ("Late", seededRosterSlot (Just eve) (TimeOfDay 16 30 0) "FN")
         ]
     createRosterRow frontFriday frontSlots 0
-        [ ("Early", Just workerStaff)
-        , ("Mid", Just bob)
-        , ("Late", Just eve)
+        [ ("Early", seededRosterSlot (Just workerStaff) (TimeOfDay 7 0 0) "PP")
+        , ("Mid", seededRosterSlot (Just bob) (TimeOfDay 11 0 0) "FP")
+        , ("Late", seededRosterSlot (Just eve) (TimeOfDay 17 30 0) "LK")
         ]
     createRosterRow frontSaturday frontSlots 0
-        [ ("Early", Just eve)
-        , ("Mid", Just alice)
+        [ ("Early", seededRosterSlot (Just eve) (TimeOfDay 8 0 0) "WE")
+        , ("Mid", seededRosterSlot (Just alice) (TimeOfDay 12 30 0) "BR")
         ]
     createRosterRow frontSunday frontSlots 0
-        [ ("Mid", Just trialStaff)
+        [ ("Mid", seededRosterSlot (Just trialStaff) (TimeOfDay 11 0 0) "TS")
         ]
 
     createRosterRow backMonday backSlots 0
-        [ ("Early", Just cara)
-        , ("Mid", Just bob)
-        , ("Late", Just frank)
+        [ ("Early", seededRosterSlot (Just cara) (TimeOfDay 6 0 0) "PR")
+        , ("Mid", seededRosterSlot (Just bob) (TimeOfDay 11 0 0) "XO")
+        , ("Late", seededRosterSlot (Just frank) (TimeOfDay 16 0 0) "KC")
         ]
     createRosterRow backTuesday backSlots 0
-        [ ("Early", Just cara)
-        , ("Mid", Just frank)
+        [ ("Early", seededRosterSlot (Just cara) (TimeOfDay 6 30 0) "MP")
+        , ("Mid", seededRosterSlot (Just frank) (TimeOfDay 12 0 0) "SV")
         ]
     createRosterRow backWednesday backSlots 0
-        [ ("Mid", Just bob)
-        , ("Late", Just cara)
+        [ ("Mid", seededRosterSlot (Just bob) (TimeOfDay 11 30 0) "SC")
+        , ("Late", seededRosterSlot (Just cara) (TimeOfDay 17 0 0) "CK")
         ]
     createRosterRow backFriday backSlots 0
-        [ ("Early", Just frank)
-        , ("Mid", Just cara)
+        [ ("Early", seededRosterSlot (Just frank) (TimeOfDay 6 0 0) "GR")
+        , ("Mid", seededRosterSlot (Just cara) (TimeOfDay 12 0 0) "FS")
         ]
     createRosterRow backSaturday backSlots 0
-        [ ("Early", Just bob)
-        , ("Late", Just cara)
+        [ ("Early", seededRosterSlot (Just bob) (TimeOfDay 7 30 0) "WC")
+        , ("Late", seededRosterSlot (Just cara) (TimeOfDay 17 30 0) "SA")
         ]
 
     _ <- createLeaveRequestRecord venue dylan (dayAtOffset fixtureWeekStart 1) (dayAtOffset fixtureWeekStart 4) "approved"
@@ -199,13 +205,27 @@ createRosterRow ::
     RosterDay ->
     [SlotName] ->
     Int ->
-    [(Text, Maybe Staff)] ->
+    [(Text, DevRosterSlotSeed)] ->
     IO ()
 createRosterRow rosterDay slotNames rowIndex assignments =
     forM_ slotNames \slotName -> do
-        let assignedStaff = lookup (get #name slotName) assignments |> join
-        _ <- createRosterSlotRecord rosterDay slotName assignedStaff rowIndex
+        let slotSeed = fromMaybe emptySeed (lookup (get #name slotName) assignments)
+        _ <-
+            createRosterSlotRecord rosterDay slotName slotSeed.slotStaff rowIndex
+                >>= updateRecord
+                    . set #startTime slotSeed.slotStartTime
+                    . set #note slotSeed.slotNote
         pure ()
+    where
+        emptySeed = DevRosterSlotSeed { slotStaff = Nothing, slotStartTime = Nothing, slotNote = Nothing }
+
+seededRosterSlot :: Maybe Staff -> TimeOfDay -> Text -> DevRosterSlotSeed
+seededRosterSlot maybeStaff startTime note =
+    DevRosterSlotSeed
+        { slotStaff = maybeStaff
+        , slotStartTime = Just startTime
+        , slotNote = Just note
+        }
 
 dayAtOffset :: Day -> Integer -> Day
 dayAtOffset weekStart offset = addDays offset weekStart

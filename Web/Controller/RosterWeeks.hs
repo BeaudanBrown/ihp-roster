@@ -368,42 +368,50 @@ instance Controller RosterWeeksController where
 
         let maybeStaffParam = paramOrNothing @Text "staffId"
         let maybeStartTimeParam = paramOrNothing @Text "startTime"
-        let maybeNoteParam = paramOrNothing @Text "note"
-
-        let updatedSlot =
-                rosterSlot
-                    |> applyOptionalField #staffId (parseOptionalStaffId maybeStaffParam) maybeStaffParam
-                    |> applyOptionalField #startTime (parseOptionalTime maybeStartTimeParam) maybeStartTimeParam
-                    |> applyOptionalField #note (normalizeOptionalText maybeNoteParam) maybeNoteParam
+        let maybeFlagParam = paramOrNothing @Text "note"
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        ensureOptionalStaffInCurrentVenue updatedSlot.staffId
-        isEligibleForAssignment <-
-            case updatedSlot.staffId of
-                Nothing -> pure True
-                Just staffId -> staffIsEligibleForRosterGroup (Id staffId) rosterGroupId
-
-        if not isEligibleForAssignment
-            then do
-                let errorMessage = "That staff member is not applicable to this roster group."
+        case normalizeOptionalSlotFlag maybeFlagParam of
+            Left errorMessage ->
                 if isHtmxRequest
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
                         redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
-            else do
-                _ <- updatedSlot |> updateRecord
+            Right normalizedFlag -> do
+                let updatedSlot =
+                        rosterSlot
+                            |> applyOptionalField #staffId (parseOptionalStaffId maybeStaffParam) maybeStaffParam
+                            |> applyOptionalField #startTime (parseOptionalTime maybeStartTimeParam) maybeStartTimeParam
+                            |> applyOptionalField #note normalizedFlag maybeFlagParam
 
-                relatedSlots <- fetchRelatedSlotsForStaffIds (catMaybes [previousStaffId, updatedSlot.staffId])
-                let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-                let actorFragments =
-                        buildRosterRowFragmentRefs rosterGroupId rosterWeek.weekOffset impactedRowKeys
-                            <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset]
-                broadcastRosterWeekInvalidation
-                    rosterGroupId
-                    rosterWeek.weekOffset
-                    actorFragments
-                respondWithActorRosterFragmentRefresh actorFragments
+                ensureOptionalStaffInCurrentVenue updatedSlot.staffId
+                isEligibleForAssignment <-
+                    case updatedSlot.staffId of
+                        Nothing -> pure True
+                        Just staffId -> staffIsEligibleForRosterGroup (Id staffId) rosterGroupId
+
+                if not isEligibleForAssignment
+                    then do
+                        let errorMessage = "That staff member is not applicable to this roster group."
+                        if isHtmxRequest
+                            then respondWithRosterToast errorMessage "app-toast-error"
+                            else do
+                                setErrorMessage errorMessage
+                                redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+                    else do
+                        _ <- updatedSlot |> updateRecord
+
+                        relatedSlots <- fetchRelatedSlotsForStaffIds (catMaybes [previousStaffId, updatedSlot.staffId])
+                        let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
+                        let actorFragments =
+                                buildRosterRowFragmentRefs rosterGroupId rosterWeek.weekOffset impactedRowKeys
+                                    <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset]
+                        broadcastRosterWeekInvalidation
+                            rosterGroupId
+                            rosterWeek.weekOffset
+                            actorFragments
+                        respondWithActorRosterFragmentRefresh actorFragments
 
 minimumOpenRosterRows :: Int
 minimumOpenRosterRows = 2
@@ -434,6 +442,13 @@ normalizeOptionalText = \case
     Just value ->
         let trimmed = Text.strip value
          in if Text.null trimmed then Nothing else Just trimmed
+
+normalizeOptionalSlotFlag :: Maybe Text -> Either Text (Maybe Text)
+normalizeOptionalSlotFlag value =
+    case Text.toUpper <$> normalizeOptionalText value of
+        Just normalized | Text.length normalized > 2 ->
+            Left "Flags can only be 1 or 2 characters."
+        normalized -> Right normalized
 
 buildSlotConflicts :: (?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> IO [(Id RosterSlot, [RosterConflict])]
 buildSlotConflicts rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlots staffMembers = do
@@ -724,7 +739,10 @@ fetchRosterRenderData rosterGroupId weekOffset = do
             panelStaff <- fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots
 
             orderedSlotNames <- fetchRosterWeekOrderedSlotNamesFromSlots allSlots
-            slotConflicts <- buildSlotConflicts rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays visibleSlots staffMembers
+            slotConflicts <-
+                if rosterWeek.isLive
+                    then pure []
+                    else buildSlotConflicts rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays visibleSlots staffMembers
             pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts })
 
 fetchVisibleRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)

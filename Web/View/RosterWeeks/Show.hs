@@ -344,7 +344,7 @@ renderSlotSubHeaders _ =
     mconcat
         [ [hsx|<th class="py-1 roster-subhead roster-col-time">Time</th>|]
         , [hsx|<th class="py-1 roster-subhead roster-col-staff">Staff</th>|]
-        , [hsx|<th class="py-1 roster-subhead roster-col-code roster-block-end">Note</th>|]
+        , [hsx|<th class="py-1 roster-subhead roster-col-code roster-block-end">Flag</th>|]
         ]
 
 renderRosterDay :: (?context :: ControllerContext) => Bool -> [SlotName] -> [Staff] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
@@ -651,6 +651,7 @@ renderEditableNoteCell rosterSlotId currentNote = [hsx|
                value={currentNote}
                placeholder=""
                class="form-control form-control-sm slot-note-input slot-cell-input"
+               maxlength="2"
                hx-post={UpdateRosterSlotAction rosterSlotId}
                hx-trigger="input changed delay:1200ms"
                hx-include="closest form"

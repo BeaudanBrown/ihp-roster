@@ -241,6 +241,7 @@ CREATE TABLE roster_slots (
     note TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    CHECK (note IS NULL OR char_length(note) <= 2),
     FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE CASCADE,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE SET NULL,
     FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE RESTRICT

@@ -2,6 +2,7 @@ module Test.DevSeedSpec where
 
 import Application.Helper.Controller (unsafeEnumFromText)
 import Data.List (sort)
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport (inputValue)
@@ -37,12 +38,22 @@ tests = beforeAll testContext do
                     query @RosterSlot
                         |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
                         |> fetch
+                seededStaff <-
+                    query @Staff
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> orderByAsc #firstName
+                        |> fetch
 
                 map (.name) rosterGroups `shouldBe` ["Front of House", "Back of House"]
                 length rosterWeeks `shouldBe` 2
                 length rosterDays `shouldBe` 14
                 length rosterSlots `shouldSatisfy` (> 30)
                 sort (map (.isLive) rosterWeeks) `shouldBe` [False, True]
+                length (filter (isJust . (.startTime)) rosterSlots) `shouldSatisfy` (> 10)
+                length (filter (isJust . (.note)) rosterSlots) `shouldSatisfy` (> 10)
+                let noteLengths = map Text.length (mapMaybe (.note) rosterSlots)
+                noteLengths `shouldSatisfy` (all (<= 2))
+                sort (nub (map (.idealShiftsPerWeek) seededStaff)) `shouldBe` [1, 2, 3, 4, 5]
 
         it "seeds staff applicability, approved leave, pending leave, and cross-group conflicts" $ withContext do
             withCleanDb do

@@ -4,6 +4,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
 import Data.Maybe (fromJust)
+import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -166,6 +167,27 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?rosterWeekId="
                 response `responseBodyShouldContain` ">Live</label>"
 
+        it "does not render conflict highlights on live roster weeks" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-live-no-conflicts@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <-
+                    createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                        >>= updateRecord . set #startTime (Just (TimeOfDay 8 0 0))
+                _ <- createLeaveRequestRecord venue staffMember defaultWeekEpoch (addDays 1 defaultWeekEpoch) "approved"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` "conflict-critical"
+                response `responseBodyShouldNotContain` "Staff member is on approved leave."
+
         it "manager roster pages render reusable week controls in the header" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -225,7 +247,7 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)) |> set #note (Just "Open"))
+                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)) |> set #note (Just "OP"))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -237,7 +259,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "CLOSED"
                 response `responseBodyShouldNotContain` "Crew, Alpha"
                 response `responseBodyShouldNotContain` "9:00 AM"
-                response `responseBodyShouldNotContain` "Open"
+                response `responseBodyShouldNotContain` "OP"
                 response `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
                 response `responseBodyShouldNotContain` "data-roster-day-remove=\"true\""
 
@@ -246,7 +268,7 @@ tests = beforeAll testContext do
                 unchangedSlot <- fetch slot.id
                 unchangedSlot.staffId `shouldBe` Just (unpackId staffMember.id)
                 unchangedSlot.startTime `shouldBe` Just (timeOfDay 9 0)
-                unchangedSlot.note `shouldBe` Just "Open"
+                unchangedSlot.note `shouldBe` Just "OP"
 
         it "closed roster days stay locked at three rows and reject row additions" $ withContext do
             withCleanDb do
@@ -335,7 +357,7 @@ tests = beforeAll testContext do
                 earlySlot <- createRosterSlotRecord rosterDay early Nothing 0
                 _ <- createRosterSlotRecord rosterDay mid Nothing 0
                 _ <- createRosterSlotRecord rosterDay late Nothing 0
-                _ <- updateRecord (earlySlot |> set #note (Just "Keep me"))
+                _ <- updateRecord (earlySlot |> set #note (Just "KM"))
 
                 _ <- updateRecord (mid |> set #isActive False)
                 _ <- updateRecord (late |> set #sortOrder 1)
@@ -363,7 +385,7 @@ tests = beforeAll testContext do
 
                 map (.slotNameId) afterSyncSlots `shouldBe` [unpackId graveyard.id, unpackId late.id, unpackId early.id]
                 map (.slotSortOrder) afterSyncSlots `shouldBe` [0, 1, 2]
-                map (.note) afterSyncSlots `shouldBe` [Nothing, Nothing, Just "Keep me"]
+                map (.note) afterSyncSlots `shouldBe` [Nothing, Nothing, Just "KM"]
 
         it "manager can toggle a draft week live via HTMX without redirecting" $ withContext do
             withCleanDb do
@@ -375,7 +397,7 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)) |> set #note (Just "Open"))
+                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)) |> set #note (Just "OP"))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -388,7 +410,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Roster week is now live."
                 response `responseBodyShouldContain` "Crew, Alpha"
                 response `responseBodyShouldContain` "9:00 AM"
-                response `responseBodyShouldContain` "Open"
+                response `responseBodyShouldContain` "OP"
                 response `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
                 response `responseBodyShouldNotContain` "data-roster-day-remove=\"true\""
                 response `responseBodyShouldNotContain` "name=\"staffId\""
@@ -561,7 +583,7 @@ tests = beforeAll testContext do
                         sourceSlot
                             |> set #startTime (Just (timeOfDay 9 0))
                             |> set #durationMinutes (Just 480)
-                            |> set #note (Just "Copied note")
+                            |> set #note (Just "CP")
                 _ <- updateRecord sourceSlotWithFields
 
                 response <- withUser manager do
@@ -595,7 +617,7 @@ tests = beforeAll testContext do
                 copiedSlot.rowIndex `shouldBe` 0
                 copiedSlot.startTime `shouldBe` Just (timeOfDay 9 0)
                 copiedSlot.durationMinutes `shouldBe` Just 480
-                copiedSlot.note `shouldBe` Just "Copied note"
+                copiedSlot.note `shouldBe` Just "CP"
 
         it "manager can overwrite an existing target week with the previous roster" $ withContext do
             withCleanDb do
@@ -614,7 +636,7 @@ tests = beforeAll testContext do
                     ( sourceSlot
                         |> set #startTime (Just (timeOfDay 8 0))
                         |> set #durationMinutes (Just 300)
-                        |> set #note (Just "From source")
+                        |> set #note (Just "FS")
                     )
 
                 targetWeek <- createRosterWeekRecord venue 1 False
@@ -624,7 +646,7 @@ tests = beforeAll testContext do
                     ( targetSlot
                         |> set #startTime (Just (timeOfDay 14 0))
                         |> set #durationMinutes (Just 180)
-                        |> set #note (Just "Old target")
+                        |> set #note (Just "OT")
                     )
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -656,7 +678,7 @@ tests = beforeAll testContext do
                 copiedSlot.slotNameId `shouldBe` unpackId early.id
                 copiedSlot.startTime `shouldBe` Just (timeOfDay 8 0)
                 copiedSlot.durationMinutes `shouldBe` Just 300
-                copiedSlot.note `shouldBe` Just "From source"
+                copiedSlot.note `shouldBe` Just "FS"
 
         it "returns fragment refresh instructions when a slot assignment changes" $ withContext do
             withCleanDb do
@@ -761,6 +783,42 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Live roster weeks are read-only. Move it back to draft to make changes."
                 unchangedSlot <- fetch slot.id
                 unchangedSlot.staffId `shouldBe` Just (unpackId alpha.id)
+
+        it "rejects overlong slot flags via HTMX and leaves the saved value unchanged" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-flag-htmx@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName Nothing 0 >>= updateRecord . set #note (Just "OP")
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterSlotAction slot.id) [("note", "LONG")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Flags can only be 1 or 2 characters."
+                unchangedSlot <- fetch slot.id
+                unchangedSlot.note `shouldBe` Just "OP"
+
+        it "normalizes slot flags to uppercase when saved" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-flag-uppercase@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName Nothing 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateRosterSlotAction slot.id) [("note", "pm")]
+
+                response `responseStatusShouldBe` status200
+                updatedSlot <- fetch slot.id
+                updatedSlot.note `shouldBe` Just "PM"
 
         it "rejects assigning staff who are not applicable to the slot's roster group via HTMX" $ withContext do
             withCleanDb do
