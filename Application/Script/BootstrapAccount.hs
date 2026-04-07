@@ -22,14 +22,15 @@ run = do
     withTransaction do
         venue <- findOrCreateBootstrapVenue venueName
         user <- findOrCreateBootstrapUser email password
-        void (ensureBootstrapMembership venue user)
-        void (ensureBootstrapStaff venue user)
+        _ <- ensureBootstrapMembership venue user
+        _ <- ensureBootstrapStaff venue user
+        pure ()
 
 requireEnvText :: String -> IO Text
 requireEnvText name =
     lookupEnv name >>= \case
         Just value -> pure (cs value)
-        Nothing -> error ("Missing required environment variable: " <> name)
+        Nothing -> error ("Missing required environment variable: " <> cs name)
 
 findOrCreateBootstrapVenue :: (?modelContext :: ModelContext) => Text -> IO Venue
 findOrCreateBootstrapVenue venueName =
