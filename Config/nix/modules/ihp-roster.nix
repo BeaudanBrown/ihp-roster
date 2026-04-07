@@ -284,14 +284,18 @@ in
                 requires = [ "loadSchema.service" ];
                 before = [ "app.service" "worker.service" ];
             };
-            systemd.services.app = {
-                after = [ "migrate.service" ];
-                requires = [ "migrate.service" ];
-            };
-            systemd.services.worker = {
-                after = [ "migrate.service" ];
-                requires = [ "migrate.service" ];
-            };
+            systemd.services.app.after =
+                [ "migrate.service" ]
+                ++ optional cfg.bootstrap.enable "bootstrap-account.service";
+            systemd.services.app.requires =
+                [ "migrate.service" ]
+                ++ optional cfg.bootstrap.enable "bootstrap-account.service";
+            systemd.services.worker.after =
+                [ "migrate.service" ]
+                ++ optional cfg.bootstrap.enable "bootstrap-account.service";
+            systemd.services.worker.requires =
+                [ "migrate.service" ]
+                ++ optional cfg.bootstrap.enable "bootstrap-account.service";
             systemd.services.bootstrap-account = mkIf cfg.bootstrap.enable {
                 description = "Seed bootstrap account for ihp-roster";
                 wantedBy = [ "multi-user.target" ];
@@ -311,14 +315,6 @@ in
                     BOOTSTRAP_ACCOUNT_PASSWORD_FILE = toString cfg.bootstrap.passwordFile;
                     BOOTSTRAP_ACCOUNT_VENUE_NAME = cfg.bootstrap.venueName;
                 };
-            };
-            systemd.services.app = mkIf cfg.bootstrap.enable {
-                after = [ "bootstrap-account.service" ];
-                requires = [ "bootstrap-account.service" ];
-            };
-            systemd.services.worker = mkIf cfg.bootstrap.enable {
-                after = [ "bootstrap-account.service" ];
-                requires = [ "bootstrap-account.service" ];
             };
         }
         (mkIf cfg.managePostgres {
