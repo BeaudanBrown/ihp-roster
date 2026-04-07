@@ -1,6 +1,6 @@
 module Web.FrontController where
 
-import Control.Exception (SomeException, try)
+import qualified Control.Exception as Exception
 import IHP.Controller.Context (putContext)
 import IHP.Controller.Session (deleteSession)
 import IHP.LoginSupport.Helper.Controller (sessionKey)
@@ -44,7 +44,7 @@ instance FrontController WebApplication where
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
-        authenticationResult <- try (initAuthentication @User) :: IO (Either SomeException ())
+        authenticationResult <- Exception.try (initAuthentication @User) :: IO (Either Exception.SomeException ())
         case authenticationResult of
             Right () -> pure ()
             Left _ -> do
