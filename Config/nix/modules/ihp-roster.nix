@@ -18,6 +18,7 @@ let
         ;
 
     cfg = config.services.ihpRoster;
+    hasJobRunner = builtins.pathExists ../../../Application/Job;
 
     defaultPackage =
         if cfg.optimized
@@ -49,6 +50,11 @@ in
         ({ config, pkgs, modulesPath, lib, ... }:
             import "${ihp}/NixSupport/nixosModules/services/worker.nix" {
                 inherit config pkgs lib self;
+            }
+        )
+        ({ config, pkgs, modulesPath, lib, ... }:
+            import "${ihp}/NixSupport/nixosModules/services/app-keygen.nix" {
+                inherit config pkgs modulesPath lib self;
             }
         )
         ({ config, pkgs, modulesPath, lib, ... }:
@@ -228,6 +234,7 @@ in
                 optional (cfg.environmentFile != null) cfg.environmentFile;
             systemd.services.worker.serviceConfig.EnvironmentFile =
                 optional (cfg.environmentFile != null) cfg.environmentFile;
+            systemd.services.worker.enable = !hasJobRunner;
         }
         (mkIf cfg.managePostgres {
             services.postgresql = {
