@@ -211,7 +211,7 @@ ensureVenueConfigRecord venue =
             Nothing ->
                 newRecord @VenueConfig
                     |> set #venueId (unpackId venue.id)
-                    |> set #timezone "UTC"
+                    |> set #timezone "Australia/Melbourne"
                     |> set #weekOffsetEpoch (fromGregorian 2025 1 6)
                     |> set #lateToEarlyMinStartGapMinutes 600
                     |> set #staffTimesheetEditWindowDays 7

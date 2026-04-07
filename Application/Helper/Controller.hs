@@ -74,6 +74,7 @@ allAuditEventTypeValues =
     , "leave_deleted"
     , "venue_role_assigned"
     , "venue_role_changed"
+    , "venue_bootstrapped"
     , "export_generated"
     , "export_downloaded"
     , "support_access_granted"

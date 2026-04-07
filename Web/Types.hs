@@ -78,6 +78,7 @@ data AdminController
 
 data SupportController
     = SupportAction
+    | CreateSupportVenueAction
     | SwitchSupportVenueAction
     deriving (Eq, Show, Data)
 

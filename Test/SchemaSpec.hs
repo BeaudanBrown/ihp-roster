@@ -220,6 +220,7 @@ tests = describe "Schema" do
                     |> set #passwordHash "hashed"
                     |> set #userRole "staff"
                     |> set #isProfileCompleted False
+                    |> set #emailVerifiedAt (Just def)
         let completeUser = incompleteUser |> set #isProfileCompleted True
 
         isOperationallyActive incompleteUser `shouldBe` False
