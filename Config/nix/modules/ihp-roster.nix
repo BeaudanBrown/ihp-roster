@@ -184,10 +184,6 @@ in
         {
             assertions = [
                 {
-                    assertion = cfg.sessionSecret != "" || cfg.environmentFile != null;
-                    message = "services.ihpRoster requires either sessionSecret or environmentFile.";
-                }
-                {
                     assertion = cfg.databaseUrl != null || cfg.managePostgres;
                     message = "services.ihpRoster requires databaseUrl unless managePostgres is enabled.";
                 }
@@ -211,9 +207,7 @@ in
                         then cfg.databaseUrl
                         else "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
                 sessionSecret =
-                    if cfg.sessionSecret != ""
-                        then cfg.sessionSecret
-                        else "__SET_VIA_ENV_FILE__";
+                    cfg.sessionSecret;
                 additionalEnvVars =
                     {
                         IHP_TELEMETRY_DISABLED = "1";
@@ -234,7 +228,7 @@ in
                 optional (cfg.environmentFile != null) cfg.environmentFile;
             systemd.services.worker.serviceConfig.EnvironmentFile =
                 optional (cfg.environmentFile != null) cfg.environmentFile;
-            systemd.services.worker.enable = !hasJobRunner;
+            systemd.services.worker.enable = hasJobRunner;
         }
         (mkIf cfg.managePostgres {
             services.postgresql = {

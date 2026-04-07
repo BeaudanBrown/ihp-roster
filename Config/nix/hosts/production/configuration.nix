@@ -39,7 +39,9 @@
         configureNginx = true;
         httpsEnabled = true;
         acmeEmail = "CHANGE-ME@example.com";
-        sessionSecret = "CHANGE-ME";
+        # Leave this empty to generate a secret on first boot.
+        # Put a base64-encoded 96-byte secret here for deterministic login sessions.
+        sessionSecret = "";
         additionalEnvVars = {
             SMTP_HOST = "email-smtp.eu-west-1.amazonaws.com";
             SMTP_PORT = "587";
