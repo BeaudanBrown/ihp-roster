@@ -58,7 +58,7 @@ in
                 inherit config pkgs modulesPath lib self;
             }
         )
-        ({ config, pkgs, ihp, ... }:
+        ({ config, pkgs, ... }:
             import "${ihp}/NixSupport/nixosModules/services/loadSchema.nix" {
                 inherit self config pkgs ihp;
             }
