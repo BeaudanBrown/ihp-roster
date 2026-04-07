@@ -12,6 +12,7 @@ let
         mkMerge
         mkOption
         mkDefault
+        mkForce
         optional
         optionalAttrs
         types
@@ -228,7 +229,7 @@ in
                 optional (cfg.environmentFile != null) cfg.environmentFile;
             systemd.services.worker.serviceConfig.EnvironmentFile =
                 optional (cfg.environmentFile != null) cfg.environmentFile;
-            systemd.services.worker.enable = hasJobRunner;
+            systemd.services.worker.enable = mkForce hasJobRunner;
         }
         (mkIf cfg.managePostgres {
             services.postgresql = {
