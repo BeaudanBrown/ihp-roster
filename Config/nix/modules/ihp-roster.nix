@@ -2,7 +2,6 @@
 {
     config,
     lib,
-    nixpkgs,
     pkgs,
     ...
 }:
@@ -31,27 +30,28 @@ let
 in
 {
     imports = [
-        ({ config, pkgs, modulesPath, lib, nixpkgs, ... }:
+        ({ config, pkgs, modulesPath, lib, ... }:
             import ../../../IHP/NixSupport/nixosModules/options.nix {
                 inherit self config pkgs modulesPath lib;
             }
         )
-        ({ config, pkgs, modulesPath, lib, nixpkgs, ... }:
+        ({ config, pkgs, modulesPath, lib, ... }:
             import ../../../IHP/NixSupport/nixosModules/binaryCache.nix {
-                inherit config pkgs modulesPath lib nixpkgs ihp;
+                inherit config pkgs modulesPath lib ihp;
+                nixpkgs = pkgs.path;
             }
         )
-        ({ config, pkgs, modulesPath, lib, nixpkgs, ... }:
+        ({ config, pkgs, modulesPath, lib, ... }:
             import ../../../IHP/NixSupport/nixosModules/services/app.nix {
                 inherit config pkgs modulesPath lib self;
             }
         )
-        ({ config, pkgs, modulesPath, lib, nixpkgs, ... }:
+        ({ config, pkgs, modulesPath, lib, ... }:
             import ../../../IHP/NixSupport/nixosModules/services/worker.nix {
                 inherit config pkgs lib self;
             }
         )
-        ({ config, pkgs, modulesPath, lib, nixpkgs, ... }:
+        ({ config, pkgs, modulesPath, lib, ... }:
             import ../../../IHP/NixSupport/nixosModules/services/migrate.nix {
                 inherit config pkgs ihp;
             }
@@ -190,9 +190,6 @@ in
                     message = "services.ihpRoster.acmeEmail is required when configureNginx and httpsEnabled are enabled.";
                 }
             ];
-
-            nix.registry.nixpkgs.flake = nixpkgs;
-
             services.ihp = {
                 enable = true;
                 domain = cfg.domain;
