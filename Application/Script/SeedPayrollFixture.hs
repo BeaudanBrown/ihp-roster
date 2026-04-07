@@ -6,9 +6,9 @@ import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import System.Exit (exitFailure)
-import Test.Support (defaultWeekEpoch)
-import Test.Support.PayrollFixtures (ExplorationPayrollFixture (..),
-                                     seedExplorationPayrollFixtureForWeek)
+import Application.Support (defaultWeekEpoch)
+import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..),
+                                            seedExplorationPayrollFixtureForWeek)
 
 run :: Script
 run = do

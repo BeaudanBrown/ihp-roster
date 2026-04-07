@@ -4,10 +4,10 @@ import Application.Script.Prelude
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
-import Test.Support (defaultWeekEpoch, testPassword)
-import Test.Support.DevFixtures (DevSeedFixture (..),
-                                 seedDevelopmentFixtureForWeek)
-import Test.Support.PayrollFixtures (ExplorationPayrollFixture (..))
+import Application.Support (defaultWeekEpoch, testPassword)
+import Application.Support.DevFixtures (DevSeedFixture (..),
+                                        seedDevelopmentFixtureForWeek)
+import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..))
 
 run :: Script
 run = do
