@@ -61,6 +61,8 @@ renderForm post = formFor post [hsx|
 - Live fragment refetch endpoints should return plain server-rendered fragments for the target DOM node; reserve `hx-swap-oob` variants for the actor path.
 - For viewer-side row refetches, do not return `hx-swap-oob` row wrappers from the fragment GET action; return the plain `<tr>` fragment and let JS replace the target row directly.
 - Mark row fragments as blur-deferred on the client when remote updates should not overwrite focused `.slot-cell-input` controls.
+- If a blur-deferred row contains repeated field names across slot columns (`staffId`, `note`, `startTime`), render a stable per-control key such as `data-roster-field-key` from the slot id. Client-side restore logic must target that key instead of the first matching `[name=...]` in the row.
+- Keep blur deferral narrow. On the roster grid it should protect the delayed flag input (`.slot-note-input`), not discrete controls like staff selects or committed time-picker changes.
 
 ## Shared Live Shell Pattern
 - Treat the page shell as the subscription owner. Render scope metadata on a stable shell element so the shared client can subscribe/unsubscribe as HTMX navigation swaps shells in and out.

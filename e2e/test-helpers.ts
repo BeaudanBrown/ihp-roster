@@ -35,7 +35,15 @@ function mailhogMessageRecipients(message: MailHogMessage) {
 }
 
 function mailhogMessageBody(message: MailHogMessage) {
-    return message.Content?.Body ?? message.Raw?.Data ?? '';
+    const rawBody = message.Content?.Body ?? message.Raw?.Data ?? '';
+
+    return rawBody
+        // Quoted-printable soft wraps join onto the next line.
+        .replace(/=\r?\n/g, '')
+        // Decode quoted-printable byte escapes used in MailHog payloads.
+        .replace(/=([0-9A-F]{2})/gi, (_match, hex: string) =>
+            String.fromCharCode(Number.parseInt(hex, 16)),
+        );
 }
 
 export function extractFirstUrl(text: string) {
@@ -184,8 +192,13 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
     for (let step = 0; step <= maxWeekAdvances; step += 1) {
         if (ensureDraft) {
             const createDraftButton = page.getByRole('button', { name: 'Create Draft Roster' });
+            const copyPreviousWeekButton = page.getByRole('button', { name: 'Copy Previous Week' });
             if (await createDraftButton.isVisible().catch(() => false)) {
                 await createDraftButton.click();
+                await expect(page.locator('#roster-week-shell')).toBeVisible();
+            } else if (await copyPreviousWeekButton.isVisible().catch(() => false)) {
+                page.once('dialog', (dialog) => dialog.accept());
+                await copyPreviousWeekButton.click();
                 await expect(page.locator('#roster-week-shell')).toBeVisible();
             }
         }

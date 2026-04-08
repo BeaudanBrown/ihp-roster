@@ -355,8 +355,35 @@
     const pendingRows = new Map();
     const baseMorphdom = window.morphdom;
 
-    function hasActiveRosterInput(rowEl) {
-        return Boolean(rowEl.querySelector('.slot-cell-input:focus'));
+    function hasActiveDeferredRosterInput(rowEl) {
+        return Boolean(rowEl.querySelector('.slot-note-input:focus'));
+    }
+
+    function findPreservedField(root, preserveField) {
+        if (!(root instanceof HTMLElement) || !preserveField) return null;
+
+        const fieldKey = preserveField.fieldKey;
+        if (fieldKey) {
+            const escapedKey = window.CSS && typeof window.CSS.escape === 'function'
+                ? window.CSS.escape(fieldKey)
+                : fieldKey;
+            const keyedField = root.querySelector(`[data-roster-field-key="${escapedKey}"]`);
+            if (keyedField instanceof HTMLInputElement || keyedField instanceof HTMLSelectElement || keyedField instanceof HTMLTextAreaElement) {
+                return keyedField;
+            }
+        }
+
+        const name = preserveField.name;
+        if (!name) return null;
+        const escapedName = window.CSS && typeof window.CSS.escape === 'function'
+            ? window.CSS.escape(name)
+            : name;
+        const namedField = root.querySelector(`[name="${escapedName}"]`);
+        if (namedField instanceof HTMLInputElement || namedField instanceof HTMLSelectElement || namedField instanceof HTMLTextAreaElement) {
+            return namedField;
+        }
+
+        return null;
     }
 
     function applyPendingRow(rowId, preserveField) {
@@ -380,14 +407,9 @@
         pendingRows.delete(rowId);
         baseMorphdom(currentRow, nextRow);
 
-        if (preserveField && preserveField.name) {
-            const escapedName = window.CSS && typeof window.CSS.escape === 'function'
-                ? window.CSS.escape(preserveField.name)
-                : preserveField.name;
-            const field = currentRow.querySelector(`[name="${escapedName}"]`);
-            if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement) {
-                field.value = preserveField.value;
-            }
+        const field = findPreservedField(currentRow, preserveField);
+        if (field) {
+            field.value = preserveField.value;
         }
     }
 
@@ -433,7 +455,7 @@
                         fromEl.matches('tr[data-roster-row]') &&
                         toEl.matches('tr[data-roster-row]');
 
-                    if (isRosterRow && hasActiveRosterInput(fromEl)) {
+                    if (isRosterRow && hasActiveDeferredRosterInput(fromEl)) {
                         const rowId = fromEl.id;
                         if (rowId) {
                             pendingRows.set(rowId, toEl.outerHTML);
@@ -452,18 +474,19 @@
     document.addEventListener('focusout', function (event) {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        if (!target.classList.contains('slot-cell-input')) return;
+        if (!target.classList.contains('slot-note-input')) return;
 
         const rowEl = target.closest('tr[data-roster-row]');
         if (!rowEl || !rowEl.id) return;
         const preserveField = {
+            fieldKey: target.dataset.rosterFieldKey || null,
             name: target.getAttribute('name'),
             value: target.value,
         };
 
         // Wait until focus has potentially moved to another input in the same row.
         window.setTimeout(function () {
-            if (!hasActiveRosterInput(rowEl)) {
+            if (!hasActiveDeferredRosterInput(rowEl)) {
                 applyPendingRow(rowEl.id, preserveField);
             }
         }, 0);
@@ -609,7 +632,7 @@
         function findActiveInput(target) {
             if (!(target instanceof HTMLElement)) return null;
 
-            const activeInput = target.querySelector('.slot-cell-input:focus');
+            const activeInput = target.querySelector('.slot-note-input:focus');
             if (activeInput instanceof HTMLInputElement || activeInput instanceof HTMLSelectElement || activeInput instanceof HTMLTextAreaElement) {
                 return activeInput;
             }
@@ -643,6 +666,7 @@
                     ...fragment,
                     preserveField: {
                         rowId: rowEl instanceof HTMLElement ? rowEl.id : null,
+                        fieldKey: activeInput.dataset.rosterFieldKey || null,
                         name,
                         value: activeInput.value,
                     },
@@ -651,17 +675,11 @@
             restoreState: function (target, fragment) {
                 if (!fragment || !fragment.preserveField) return;
 
-                const { rowId, name, value } = fragment.preserveField;
-                if (!name) return;
+                const { rowId, value } = fragment.preserveField;
 
                 const root = rowId ? document.getElementById(rowId) : target;
-                if (!(root instanceof HTMLElement)) return;
-
-                const escapedName = window.CSS && typeof window.CSS.escape === 'function'
-                    ? window.CSS.escape(name)
-                    : name;
-                const field = root.querySelector(`[name="${escapedName}"]`);
-                if (field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement) {
+                const field = findPreservedField(root, fragment.preserveField);
+                if (field) {
                     field.value = value;
                 }
             },
@@ -1261,7 +1279,7 @@
     document.addEventListener('focusout', function (event) {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        if (!target.classList.contains('slot-cell-input')) return;
+        if (!target.classList.contains('slot-note-input')) return;
 
         const rowEl = target.closest('tr[data-roster-row]');
         if (!(rowEl instanceof HTMLElement) || !rowEl.id) return;

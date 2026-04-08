@@ -445,7 +445,7 @@ VALUES
         0,
         '09:00',
         480,
-        'Alpha coverage'
+        'AC'
     ),
     (
         'a1000000-0000-0000-0000-000000000072',
@@ -455,7 +455,7 @@ VALUES
         0,
         '09:00',
         480,
-        'Beta coverage'
+        'BC'
     )
 ON CONFLICT (id) DO UPDATE SET
     roster_day_id = EXCLUDED.roster_day_id,
