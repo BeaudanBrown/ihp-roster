@@ -201,7 +201,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "data-roster-week-controls=\"manager-actions\""
-                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
+                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's schedule. Continue?\""
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
                 response `responseBodyShouldContain` "roster-live-toggle-"
 
@@ -255,7 +255,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
-                response `responseBodyShouldContain` "Roster day marked closed."
+                response `responseBodyShouldContain` "Schedule day marked closed."
                 response `responseBodyShouldContain` "CLOSED"
                 response `responseBodyShouldNotContain` "Crew, Alpha"
                 response `responseBodyShouldNotContain` "9:00 AM"
@@ -301,7 +301,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
-                response `responseBodyShouldContain` "Roster week created successfully"
+                response `responseBodyShouldContain` "Schedule week created successfully"
 
         it "manager can add a row to an auto-created draft week" $ withContext do
             withCleanDb do
@@ -407,7 +407,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
-                response `responseBodyShouldContain` "Roster week is now live."
+                response `responseBodyShouldContain` "Schedule week is now live."
                 response `responseBodyShouldContain` "Crew, Alpha"
                 response `responseBodyShouldContain` "9:00 AM"
                 response `responseBodyShouldContain` "OP"
@@ -782,7 +782,7 @@ tests = beforeAll testContext do
                         callAction (AddRosterRowAction rosterDay.id)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Live roster weeks are read-only. Move it back to draft to make changes."
+                response `responseBodyShouldContain` "Live schedule weeks are read-only. Move it back to draft to make changes."
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                     |> fetch
@@ -809,7 +809,7 @@ tests = beforeAll testContext do
                         callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow bravo.id)))]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Live roster weeks are read-only. Move it back to draft to make changes."
+                response `responseBodyShouldContain` "Live schedule weeks are read-only. Move it back to draft to make changes."
                 unchangedSlot <- fetch slot.id
                 unchangedSlot.staffId `shouldBe` Just (unpackId alpha.id)
 
@@ -876,7 +876,7 @@ tests = beforeAll testContext do
                         callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow bravo.id)))]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "That staff member is not applicable to this roster group."
+                response `responseBodyShouldContain` "That staff member is not applicable to this schedule group."
                 rejectedSlot <- fetch slot.id
                 rejectedSlot.staffId `shouldBe` Just (unpackId alpha.id)
 

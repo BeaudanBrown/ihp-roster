@@ -62,7 +62,7 @@ tests = beforeAll testContext do
                     callActionWithParams AdminAction [("rosterGroupId", idToParam venueAGroupB.id)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Roster Groups"
+                response `responseBodyShouldContain` "Schedule Groups"
                 response `responseBodyShouldContain` "Pay Levels"
                 response `responseBodyShouldContain` "Pay Level Day Rules"
                 response `responseBodyShouldContain` "Shift Types"
@@ -120,7 +120,7 @@ tests = beforeAll testContext do
                     callAction AdminAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Roster Groups"
+                response `responseBodyShouldContain` "Schedule Groups"
                 response `responseBodyShouldContain` "Exports"
 
         it "creates venue-scoped config table rows from the admin page" $ withContext do
