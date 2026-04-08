@@ -80,8 +80,8 @@ renderRosterWeekShell ShowView { .. } = [hsx|
              hidden="hidden"></div>
         <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-4">
             <div>
-                <h1 class="mb-0">Schedule Starting {formatDateDisplay weekStartDate}</h1>
-                <div class="small app-muted mt-1">Schedule group: <span class="fw-semibold">{currentRosterGroup.name}</span></div>
+                <h1 class="mb-0">Roster Starting {formatDateDisplay weekStartDate}</h1>
+                <div class="small app-muted mt-1">Roster group: <span class="fw-semibold">{currentRosterGroup.name}</span></div>
             </div>
             {renderRosterWeekControls weekOffset rosterGroups currentRosterGroup}
         </div>
@@ -93,7 +93,7 @@ renderRosterWeekShell ShowView { .. } = [hsx|
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterWeekControls weekOffset rosterGroups currentRosterGroup = [hsx|
     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-xl-end">
-        <div class="btn-group" role="group" aria-label="Schedule week navigation">
+        <div class="btn-group" role="group" aria-label="Roster week navigation">
             {renderWeekNavigationLink "<" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
             {renderWeekNavigationLink "this week" (appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id)])}
             {renderWeekNavigationLink ">" (rosterWeekPath (weekOffset + 1) currentRosterGroup.id)}
@@ -105,7 +105,7 @@ renderRosterWeekControls weekOffset rosterGroups currentRosterGroup = [hsx|
 renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
     <form class="d-flex align-items-center gap-2 mb-0" method="GET" action={pathTo (ShowRosterWeekAction weekOffset)}>
-        <label class="visually-hidden" for="roster-group-switch">Schedule group</label>
+        <label class="visually-hidden" for="roster-group-switch">Roster group</label>
         <input type="hidden" name="weekOffset" value={tshow weekOffset}/>
         <select id="roster-group-switch"
                 class="form-select form-select-sm"
