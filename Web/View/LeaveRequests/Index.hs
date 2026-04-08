@@ -25,7 +25,10 @@ leaveRequestsContentFragmentId :: Text
 leaveRequestsContentFragmentId = "leave-requests-content"
 
 instance View IndexView where
-    html IndexView { .. } = [hsx|
+    html = renderLeaveRequestsShell
+
+renderLeaveRequestsShell :: IndexView -> Html
+renderLeaveRequestsShell IndexView { .. } = [hsx|
         <section id={leaveRequestsShellId}
                  data-live-update-owner="true"
                  data-live-update-feature="leave-requests"

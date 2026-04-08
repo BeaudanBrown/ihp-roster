@@ -4,7 +4,9 @@ import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroups)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentRef (..),
                                       LiveUpdateScope (..),
-                                      broadcastLiveInvalidation)
+                                      broadcastLiveInvalidation,
+                                      currentLiveUpdateVersion)
+import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
                                 renderToastOverlayHostOob)
@@ -12,6 +14,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import Data.Time.Calendar (addDays)
+import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation,
                                    buildRosterContentFragmentRef,
@@ -26,17 +29,10 @@ instance Controller LeaveRequestsController where
         ensureProfileCompleted
 
     action LeaveRequestsAction = do
-        staffMembers <- fetchStaffMembersForCurrentVenue
-        leaveRequests <- fetchVisibleLeaveRequests
-        currentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
-        let liveUpdateScope = Just (buildLeaveRequestsScope currentVenueId)
-        render IndexView { .. }
+        render . leaveRequestsIndexView =<< fetchLeaveRequestsProjectionCached
 
     action ShowLeaveRequestsContentFragmentAction = do
-        staffMembers <- fetchStaffMembersForCurrentVenue
-        leaveRequests <- fetchVisibleLeaveRequests
-        currentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
-        respondHtml (renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId)
+        respondHtml . fromMaybe mempty =<< renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
 
     action NewLeaveRequestAction = do
         maybeStaff <- fetchCurrentUserStaff
@@ -229,6 +225,70 @@ fetchVisibleLeaveRequests = do
                         |> orderByDesc #startDate
                         |> fetch
 
+data LeaveRequestsProjection = LeaveRequestsProjection
+    { leaveProjectionRequests :: [LeaveRequest]
+    , leaveProjectionStaffMembers :: [Staff]
+    , leaveProjectionCurrentViewerStaffId :: Maybe UUID
+    }
+
+data LeaveRequestsProjectionFragment
+    = LeaveRequestsProjectionPage
+    | LeaveRequestsProjectionContent
+    deriving (Eq, Show)
+
+leaveRequestsProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => SurfaceProjectionDefinition () LeaveRequestsProjection LeaveRequestsProjectionFragment
+leaveRequestsProjectionDefinition =
+    SurfaceProjectionDefinition
+        { surfaceName = "leave-requests"
+        , cachePolicy = defaultSurfaceProjectionCachePolicy
+        , scopeKey = const (tshow currentVenueId)
+        , viewerKey = pure (tshow currentUser.id)
+        , currentVersion = const (currentLiveUpdateVersion (buildLeaveRequestsScope currentVenueId))
+        , loadProjection = const fetchLeaveRequestsProjection
+        , renderFragment = renderLeaveRequestsProjectionHtml
+        , buildFragmentRef = \() fragment ->
+            case fragment of
+                LeaveRequestsProjectionPage -> buildLeaveRequestsPageFragmentRef
+                LeaveRequestsProjectionContent -> buildLeaveRequestsContentFragmentRef
+        }
+
+fetchLeaveRequestsProjectionCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO LeaveRequestsProjection
+fetchLeaveRequestsProjectionCached =
+    loadSurfaceProjection leaveRequestsProjectionDefinition ()
+
+renderLeaveRequestsProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequestsProjectionFragment -> IO (Maybe Blaze.Html)
+renderLeaveRequestsProjectionFragment fragment =
+    renderSurfaceProjectionFragment leaveRequestsProjectionDefinition () fragment
+
+fetchLeaveRequestsProjection :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO LeaveRequestsProjection
+fetchLeaveRequestsProjection = do
+    leaveProjectionStaffMembers <- fetchStaffMembersForCurrentVenue
+    leaveProjectionRequests <- fetchVisibleLeaveRequests
+    leaveProjectionCurrentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
+    pure LeaveRequestsProjection { .. }
+
+renderLeaveRequestsProjectionHtml :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsProjection -> LeaveRequestsProjectionFragment -> Maybe Blaze.Html
+renderLeaveRequestsProjectionHtml projection fragment =
+    case fragment of
+        LeaveRequestsProjectionPage ->
+            Just (renderLeaveRequestsShell (leaveRequestsIndexView projection))
+        LeaveRequestsProjectionContent ->
+            Just
+                (renderLeaveRequestsContentFragment
+                    projection.leaveProjectionRequests
+                    projection.leaveProjectionStaffMembers
+                    projection.leaveProjectionCurrentViewerStaffId
+                )
+
+leaveRequestsIndexView :: (?context :: ControllerContext) => LeaveRequestsProjection -> IndexView
+leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveProjectionStaffMembers, leaveProjectionCurrentViewerStaffId } =
+    IndexView
+        { leaveRequests = leaveProjectionRequests
+        , staffMembers = leaveProjectionStaffMembers
+        , currentViewerStaffId = leaveProjectionCurrentViewerStaffId
+        , liveUpdateScope = Just (buildLeaveRequestsScope currentVenueId)
+        }
+
 respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> Bool -> IO ()
 respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
     staffMembers <- fetchStaffMembersForCurrentVenue
@@ -303,6 +363,15 @@ buildLeaveRequestsContentFragmentRef =
         { fragmentKey = LeaveRequestsContentFragment
         , targetId = leaveRequestsContentFragmentId
         , url = pathTo ShowLeaveRequestsContentFragmentAction
+        , deferUntilBlur = False
+        }
+
+buildLeaveRequestsPageFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
+buildLeaveRequestsPageFragmentRef =
+    LiveFragmentRef
+        { fragmentKey = LeaveRequestsContentFragment
+        , targetId = leaveRequestsShellId
+        , url = pathTo LeaveRequestsAction
         , deferUntilBlur = False
         }
 
