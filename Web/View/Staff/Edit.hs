@@ -71,7 +71,7 @@ renderFormFields staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds 
             {renderStaffFieldError staff "isActive"}
         </div>
         <div class="mb-3">
-            <label class="form-label d-block">Roster Groups</label>
+            <label class="form-label d-block">Schedule Groups</label>
             <div class="row g-2">
                 {forEach rosterGroups (renderRosterGroupCheckbox selectedRosterGroupIds)}
             </div>

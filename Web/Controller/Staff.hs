@@ -119,10 +119,10 @@ parseStaffRosterGroupIds = do
     currentVenueRosterGroupIds <- fetchCurrentVenueRosterGroupIds
     if null submittedRosterGroupIds
         then do
-            setErrorMessage "Choose at least one roster group for this staff member."
+            setErrorMessage "Choose at least one schedule group for this staff member."
             pure Nothing
         else if all (`elem` currentVenueRosterGroupIds) submittedRosterGroupIds
             then pure (Just submittedRosterGroupIds)
             else do
-                setErrorMessage "Choose roster groups from the current venue."
+                setErrorMessage "Choose schedule groups from the current venue."
                 pure Nothing

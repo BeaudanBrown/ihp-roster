@@ -10,7 +10,7 @@ data VenueInvitationMail = VenueInvitationMail
     }
 
 instance BuildMail VenueInvitationMail where
-    subject = "You're invited to join IHP Roster"
+    subject = "You're invited to join Bepis"
 
     to VenueInvitationMail { invitation } =
         Address
@@ -20,7 +20,7 @@ instance BuildMail VenueInvitationMail where
 
     from =
         Address
-            { addressName = Just "IHP Roster"
+            { addressName = Just "Bepis"
             , addressEmail = ?mail.fromAddress
             }
 

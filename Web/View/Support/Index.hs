@@ -43,7 +43,7 @@ instance View IndexView where
                     <div class="app-panel-body">
                         <h2 class="h5 mb-2">Create Venue</h2>
                         <p class="app-muted mb-4">
-                            Create a new active venue and apply the minimum roster defaults. Customer invitations happen later, after any founder-side setup is complete.
+                            Create a new active venue and apply the minimum Bepis schedule defaults. Customer invitations happen later, after any founder-side setup is complete.
                         </p>
                         <form method="POST" action={CreateSupportVenueAction} class="row g-3" data-disable-javascript-submission="true">
                             <div class="col-12">
@@ -83,7 +83,7 @@ renderCreatedVenueBanner maybeVenue =
             <div class="alert alert-success d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3" role="alert">
                 <div>
                     <div class="fw-semibold">Venue ready for founder setup</div>
-                    <div>{venue.name} was created with minimum roster defaults. You can switch into it now and invite users later.</div>
+                    <div>{venue.name} was created with minimum Bepis schedule defaults. You can switch into it now and invite users later.</div>
                 </div>
                 <form method="POST" action={SwitchSupportVenueAction} class="m-0">
                     <input type="hidden" name="venueId" value={tshow venue.id} />

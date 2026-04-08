@@ -20,7 +20,7 @@ defaultLayout inner = [hsx|
         {stylesheets}
         {scripts}
 
-        <title>{pageTitleOrDefault "App"}</title>
+        <title>{pageTitleOrDefault "Bepis"}</title>
     </head>
     <body class="theme-dark">
         <div class="app-shell">
@@ -43,14 +43,14 @@ renderAppHeader =
         Just _ -> [hsx|
             <header class="app-header border-bottom">
                 <nav class="navbar navbar-expand-md container py-2">
-                    <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Roster App</a>
+                    <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Bepis</a>
                     {when currentUserIsSupportAdmin renderSupportVenueSwitcher}
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#app-nav" aria-controls="app-nav" aria-expanded="false" aria-label="Toggle navigation">
                         <span class="navbar-toggler-icon"></span>
                     </button>
                     <div class="collapse navbar-collapse" id="app-nav">
                         <div class="navbar-nav ms-auto d-flex gap-1 align-items-md-center">
-                            <a class="btn btn-outline-secondary btn-sm" href={RosterWeeksAction}>roster</a>
+                            <a class="btn btn-outline-secondary btn-sm" href={RosterWeeksAction}>schedule</a>
                             <a class="btn btn-outline-secondary btn-sm" href={EditProfileAction}>profile</a>
                             <a class="btn btn-outline-secondary btn-sm" href={TimesheetsAction}>timesheets</a>
                             <a class="btn btn-outline-secondary btn-sm" href={LeaveRequestsAction}>leave</a>
@@ -128,8 +128,8 @@ metaTags :: Html
 metaTags = [hsx|
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no"/>
-    <meta property="og:title" content="App"/>
+    <meta property="og:title" content="Bepis"/>
     <meta property="og:type" content="website"/>
     <meta property="og:url" content="TODO"/>
-    <meta property="og:description" content="TODO"/>
+    <meta property="og:description" content="Bepis scheduling and venue operations."/>
 |]

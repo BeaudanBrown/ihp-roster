@@ -109,7 +109,7 @@ renderPersonalProfileFields staff maybeEmail = [hsx|
 renderShiftPreferenceSections :: [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [Text] -> Html
 renderShiftPreferenceSections weekdays sections selectedShiftPreferenceKeys =
     if null sections
-        then [hsx|<p class="app-muted mb-0">Shift preferences will appear once this staff member is assigned to at least one roster group.</p>|]
+        then [hsx|<p class="app-muted mb-0">Shift preferences will appear once this staff member is assigned to at least one schedule group.</p>|]
         else [hsx|
             <div class="vstack gap-3">
                 {forEach sections (renderShiftPreferenceSection weekdays selectedShiftPreferenceKeys)}
@@ -122,7 +122,7 @@ renderShiftPreferenceSection weekdays selectedShiftPreferenceKeys StaffPreferenc
         <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
             <div>
                 <h5 class="mb-1">{rosterGroup.name}</h5>
-                <p class="app-muted mb-0 small">Tick the shifts this staff member is happy to work. A day with no selected slots counts as a hard cannot-do-day warning for roster highlights.</p>
+                <p class="app-muted mb-0 small">Tick the shifts this staff member is happy to work. A day with no selected slots counts as a hard cannot-do-day warning for Bepis schedule highlights.</p>
             </div>
         </div>
         {renderShiftPreferenceMatrix rosterGroup.id weekdays slotNames selectedShiftPreferenceKeys}
@@ -131,7 +131,7 @@ renderShiftPreferenceSection weekdays selectedShiftPreferenceKeys StaffPreferenc
 
 renderShiftPreferenceMatrix :: Id RosterGroup -> [PreferenceWeekday] -> [SlotName] -> [Text] -> Html
 renderShiftPreferenceMatrix rosterGroupId weekdays slotNames selectedShiftPreferenceKeys
-    | null slotNames = [hsx|<p class="app-muted mb-0">This roster group has no active slots yet.</p>|]
+    | null slotNames = [hsx|<p class="app-muted mb-0">This schedule group has no active slots yet.</p>|]
     | otherwise = [hsx|
         <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">

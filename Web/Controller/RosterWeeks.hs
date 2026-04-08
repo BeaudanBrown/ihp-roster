@@ -101,8 +101,8 @@ instance Controller RosterWeeksController where
 
         let successMessage =
                 if wasCreated
-                    then "Roster week created successfully"
-                    else "Roster week already exists."
+                    then "Schedule week created successfully"
+                    else "Schedule week already exists."
         let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroup.id
         if isHtmxRequest
             then do
@@ -118,7 +118,7 @@ instance Controller RosterWeeksController where
 
         if sourceWeekOffset == targetWeekOffset
             then do
-                let errorMessage = "Cannot copy a roster week onto itself."
+                let errorMessage = "Cannot copy a schedule week onto itself."
                 if isHtmxRequest
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
@@ -150,7 +150,7 @@ instance Controller RosterWeeksController where
                             rosterGroup.id
                             targetWeekOffset
                             [buildRosterContentFragmentRef rosterGroup.id targetWeekOffset]
-                        let successMessage = "Roster week copied from the previous week."
+                        let successMessage = "Schedule week copied from the previous week."
                         let targetPath = buildRosterWeekPath targetWeekOffset rosterGroup.id
                         if isHtmxRequest
                             then do
@@ -176,8 +176,8 @@ instance Controller RosterWeeksController where
             [buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset]
         let successMessage =
                 if nextLiveStatus
-                    then "Roster week is now live."
-                    else "Roster week moved back to draft."
+                    then "Schedule week is now live."
+                    else "Schedule week moved back to draft."
         let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroupId
         if isHtmxRequest
             then do
@@ -237,8 +237,8 @@ instance Controller RosterWeeksController where
 
         let successMessage =
                 if nextClosedState
-                    then "Roster day marked closed."
-                    else "Roster day reopened."
+                    then "Schedule day marked closed."
+                    else "Schedule day reopened."
         let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroupId
         if isHtmxRequest
             then do
@@ -275,7 +275,7 @@ instance Controller RosterWeeksController where
 
         if null slotTemplate
             then do
-                let errorMessage = "Add at least one active slot to the selected roster group before adding roster rows."
+                let errorMessage = "Add at least one active slot to the selected schedule group before adding schedule rows."
                 if isHtmxRequest
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
@@ -327,7 +327,7 @@ instance Controller RosterWeeksController where
 
         when (rowCount <= minimumOpenRosterRows) do
             let rosterGroupId = coerce rosterWeek.rosterGroupId
-            let errorMessage = "Roster days must keep at least two rows."
+            let errorMessage = "Schedule days must keep at least two rows."
             if isHtmxRequest
                 then respondWithRosterToast errorMessage "app-toast-error"
                 else do
@@ -393,7 +393,7 @@ instance Controller RosterWeeksController where
 
                 if not isEligibleForAssignment
                     then do
-                        let errorMessage = "That staff member is not applicable to this roster group."
+                        let errorMessage = "That staff member is not applicable to this schedule group."
                         if isHtmxRequest
                             then respondWithRosterToast errorMessage "app-toast-error"
                             else do
@@ -405,7 +405,7 @@ instance Controller RosterWeeksController where
                         relatedSlots <- fetchRelatedSlotsForStaffIds (catMaybes [previousStaffId, updatedSlot.staffId])
                         let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
                         let actorFragments =
-                                buildRosterRowFragmentRefs rosterGroupId rosterWeek.weekOffset impactedRowKeys
+                                buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset impactedRowKeys
                                     <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset]
                         broadcastRosterWeekInvalidation
                             rosterGroupId
@@ -835,6 +835,13 @@ buildRosterRowFragmentRefs :: (?context :: ControllerContext) => Id RosterGroup 
 buildRosterRowFragmentRefs rosterGroupId weekOffset =
     map (uncurry (buildRosterRowFragmentRef rosterGroupId weekOffset)) . nub
 
+buildActorRosterRowFragmentRefs :: (?context :: ControllerContext) => Maybe Text -> Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> [LiveFragmentRef]
+buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId weekOffset rowKeys =
+    let refs = buildRosterRowFragmentRefs rosterGroupId weekOffset rowKeys
+     in if isJust maybeStaffParam
+            then map disableFragmentBlurDeferral refs
+            else refs
+
 buildRosterRowFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> UUID.UUID -> Int -> LiveFragmentRef
 buildRosterRowFragmentRef rosterGroupId weekOffset rosterDayId rowIndex =
     LiveFragmentRef
@@ -843,6 +850,9 @@ buildRosterRowFragmentRef rosterGroupId weekOffset rosterDayId rowIndex =
         , url = appendQueryParams (pathTo ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId = coerce rosterDayId, rowIndex }) [("rosterGroupId", tshow rosterGroupId)]
         , deferUntilBlur = True
         }
+
+disableFragmentBlurDeferral :: LiveFragmentRef -> LiveFragmentRef
+disableFragmentBlurDeferral fragment = fragment { deferUntilBlur = False }
 
 broadcastRosterWeekInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -1136,7 +1146,7 @@ ensureRosterWeekIsDraftForEdit rosterWeek =
     when rosterWeek.isLive do
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroupId
-        let errorMessage = "Live roster weeks are read-only. Move it back to draft to make changes."
+        let errorMessage = "Live schedule weeks are read-only. Move it back to draft to make changes."
         if isHtmxRequest
             then respondWithRosterToast errorMessage "app-toast-error"
             else do

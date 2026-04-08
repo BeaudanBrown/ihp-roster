@@ -20,7 +20,7 @@ instance BuildMail EmailVerificationMail where
 
     from =
         Address
-            { addressName = Just "IHP Roster"
+            { addressName = Just "Bepis"
             , addressEmail = ?mail.fromAddress
             }
 

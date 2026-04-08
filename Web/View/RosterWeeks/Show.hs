@@ -80,8 +80,8 @@ renderRosterWeekShell ShowView { .. } = [hsx|
              hidden="hidden"></div>
         <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-4">
             <div>
-                <h1 class="mb-0">Roster Starting {formatDateDisplay weekStartDate}</h1>
-                <div class="small app-muted mt-1">Roster group: <span class="fw-semibold">{currentRosterGroup.name}</span></div>
+                <h1 class="mb-0">Schedule Starting {formatDateDisplay weekStartDate}</h1>
+                <div class="small app-muted mt-1">Schedule group: <span class="fw-semibold">{currentRosterGroup.name}</span></div>
             </div>
             {renderRosterWeekControls weekOffset rosterGroups currentRosterGroup}
         </div>
@@ -93,7 +93,7 @@ renderRosterWeekShell ShowView { .. } = [hsx|
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterWeekControls weekOffset rosterGroups currentRosterGroup = [hsx|
     <div class="d-flex flex-wrap gap-2 align-items-center justify-content-xl-end">
-        <div class="btn-group" role="group" aria-label="Roster week navigation">
+        <div class="btn-group" role="group" aria-label="Schedule week navigation">
             {renderWeekNavigationLink "<" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
             {renderWeekNavigationLink "this week" (appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id)])}
             {renderWeekNavigationLink ">" (rosterWeekPath (weekOffset + 1) currentRosterGroup.id)}
@@ -105,7 +105,7 @@ renderRosterWeekControls weekOffset rosterGroups currentRosterGroup = [hsx|
 renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
     <form class="d-flex align-items-center gap-2 mb-0" method="GET" action={pathTo (ShowRosterWeekAction weekOffset)}>
-        <label class="visually-hidden" for="roster-group-switch">Roster group</label>
+        <label class="visually-hidden" for="roster-group-switch">Schedule group</label>
         <input type="hidden" name="weekOffset" value={tshow weekOffset}/>
         <select id="roster-group-switch"
                 class="form-select form-select-sm"
@@ -600,13 +600,14 @@ renderEditableTimeCell rosterSlotId currentStartTime =
                 , timePickerFieldClasses = ["m-0", "d-flex", "align-items-center", "slot-cell-form"]
                 , timePickerControlClasses = ["roster-time-picker-control"]
                 , timePickerTriggerClasses = ["btn-sm", "slot-time-trigger"]
-                , timePickerAriaLabel = "Select roster slot time"
+                , timePickerAriaLabel = "Select schedule slot time"
                 }
         inputHtml = [hsx|
             <input type="hidden"
                    name="startTime"
                    value={currentStartTime}
                    class="slot-time-input slot-cell-input js-time-picker-input"
+                   data-roster-field-key={rosterFieldKey rosterSlotId "startTime"}
                    hx-post={UpdateRosterSlotAction rosterSlotId}
                    hx-trigger="change"
                    hx-include="closest form"
@@ -624,6 +625,7 @@ renderEditableStaffCell rosterSlotId selectedStaffId staffMembers currentPrimary
     <form class="m-0 slot-cell-form">
         <select name="staffId"
                 class="form-select form-select-sm slot-cell-input slot-staff-input"
+                data-roster-field-key={rosterFieldKey rosterSlotId "staffId"}
                 hx-post={UpdateRosterSlotAction rosterSlotId}
                 hx-trigger="change"
                 hx-include="closest form"
@@ -652,6 +654,7 @@ renderEditableNoteCell rosterSlotId currentNote = [hsx|
                placeholder=""
                class="form-control form-control-sm slot-note-input slot-cell-input"
                maxlength="2"
+               data-roster-field-key={rosterFieldKey rosterSlotId "note"}
                hx-post={UpdateRosterSlotAction rosterSlotId}
                hx-trigger="input changed delay:1200ms"
                hx-include="closest form"
@@ -659,6 +662,9 @@ renderEditableNoteCell rosterSlotId currentNote = [hsx|
                hx-swap="none" />
     </form>
 |]
+
+rosterFieldKey :: Id RosterSlot -> Text -> Text
+rosterFieldKey rosterSlotId fieldName = tshow rosterSlotId <> ":" <> fieldName
 
 renderReadOnlyCell :: Text -> Html
 renderReadOnlyCell value = [hsx|
@@ -704,7 +710,7 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
           hx-swap="outerHTML"
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}
-          hx-confirm="This will overwrite the current week with the previous week's roster. Continue?">
+          hx-confirm="This will overwrite the current week with the previous week's schedule. Continue?">
         <button type="submit" class="btn btn-outline-primary">Copy Previous Week</button>
     </form>
 |]
