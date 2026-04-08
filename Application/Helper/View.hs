@@ -2,6 +2,7 @@ module Application.Helper.View where
 
 import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
                                       hasRole)
+import qualified Data.Char as Char
 import Data.List (elemIndex, sortBy)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -39,6 +40,37 @@ linkedActiveStaffForRosterPanel =
     where
         sortStaff left right =
             compare left.firstName right.firstName <> compare left.lastName right.lastName
+
+staffDisplayName :: [Staff] -> Staff -> Text
+staffDisplayName staffMembers staff =
+    let
+        baseName = staffDisplayBaseName staff
+        needsLastInitial =
+            any
+                (\other -> other.id /= staff.id && normalizedStaffDisplayBaseName other == normalizedStaffDisplayBaseName staff)
+                staffMembers
+     in
+        if needsLastInitial
+            then baseName <> renderStaffLastInitial staff
+            else baseName
+
+staffDisplayBaseName :: Staff -> Text
+staffDisplayBaseName staff =
+    fromMaybe staff.firstName (nonBlankText =<< staff.preferredName)
+
+normalizedStaffDisplayBaseName :: Staff -> Text
+normalizedStaffDisplayBaseName = Text.toCaseFold . staffDisplayBaseName
+
+renderStaffLastInitial :: Staff -> Text
+renderStaffLastInitial staff =
+    case Text.find (not . Char.isSpace) (Text.strip staff.lastName) of
+        Just char -> " " <> Text.singleton (Char.toUpper char) <> "."
+        Nothing -> ""
+
+nonBlankText :: Text -> Maybe Text
+nonBlankText text =
+    let stripped = Text.strip text
+     in if Text.null stripped then Nothing else Just stripped
 
 dialogOverlayMountId :: Text
 dialogOverlayMountId = "dialog-overlay-mount"

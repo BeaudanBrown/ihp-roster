@@ -1,6 +1,7 @@
 module Web.View.RosterWeeks.Show where
 
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.View (staffDisplayName)
 import Data.Coerce (coerce)
 import Data.List (find, nub, sort)
 import qualified Data.Text as Text
@@ -283,28 +284,30 @@ renderRosterStaffPanel weekOffset currentRosterGroupId panelStaff = [hsx|
                         </tr>
                     </thead>
                     <tbody class="roster-staff-table-body">
-                        {forEach panelStaff (renderRosterStaffPanelEntry weekOffset currentRosterGroupId)}
+                        {forEach panelStaff (renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId)}
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
 |]
+    where
+        panelStaffMembers = map (.staff) panelStaff
 
-renderRosterStaffPanelEntry :: Int -> Id RosterGroup -> RosterStaffPanelEntry -> Html
-renderRosterStaffPanelEntry weekOffset currentRosterGroupId entry =
+renderRosterStaffPanelEntry :: [Staff] -> Int -> Id RosterGroup -> RosterStaffPanelEntry -> Html
+renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId entry =
     let
-        staffDisplayName = entry.staff.firstName <> " " <> entry.staff.lastName
+        staffDisplayLabel = staffDisplayName panelStaffMembers entry.staff
         staffRoleLabel = humanizeStaffRole entry.userRole
      in
         [hsx|
             <tr class="roster-staff-panel-entry"
-                data-roster-staff-name={staffDisplayName}
+                data-roster-staff-name={staffDisplayLabel}
                 data-roster-staff-role={staffRoleLabel}
                 data-roster-staff-assigned={tshow entry.assignedShiftCount}
                 data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}>
                 <th scope="row" class="roster-staff-cell roster-staff-name">
-                    <div class="roster-staff-name-primary">{staffDisplayName}</div>
+                    <div class="roster-staff-name-primary">{staffDisplayLabel}</div>
                 </th>
                 <td class="roster-staff-cell roster-staff-role">{staffRoleLabel}</td>
                 <td class="roster-staff-cell roster-staff-shifts">{renderShiftSummary entry}</td>
@@ -584,10 +587,10 @@ renderClosedBlockCells blockIndex =
         , [hsx|<td class="slot-closed-cell roster-block-end"></td>|]
         ]
 
-renderStaffOption :: Maybe UUID -> Staff -> Html
-renderStaffOption selectedStaffId staff = [hsx|
+renderStaffOption :: [Staff] -> Maybe UUID -> Staff -> Html
+renderStaffOption staffMembers selectedStaffId staff = [hsx|
     <option value={tshow (get #id staff)} selected={Just (coerce (get #id staff)) == selectedStaffId}>
-        {staff.lastName}, {staff.firstName}
+        {staffDisplayName staffMembers staff}
     </option>
 |]
 
@@ -632,7 +635,7 @@ renderEditableStaffCell rosterSlotId selectedStaffId staffMembers currentPrimary
                 hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
                 hx-swap="none">
             <option value=""></option>
-            {forEach staffMembers (renderStaffOption selectedStaffId)}
+            {forEach staffMembers (renderStaffOption staffMembers selectedStaffId)}
         </select>
         {renderConflictBadge currentPrimaryConflict}
     </form>
@@ -674,7 +677,7 @@ renderReadOnlyCell value = [hsx|
 renderAssignedStaffLabel :: Maybe UUID -> [Staff] -> Maybe Text
 renderAssignedStaffLabel Nothing _ = Nothing
 renderAssignedStaffLabel (Just assignedStaffId) staffMembers =
-    (\staff -> staff.lastName <> ", " <> staff.firstName)
+    (\staff -> staffDisplayName staffMembers staff)
         <$> find (\staff -> coerce (get #id staff) == assignedStaffId) staffMembers
 
 lookupConflicts :: Id RosterSlot -> [(Id RosterSlot, [RosterConflict])] -> [RosterConflict]

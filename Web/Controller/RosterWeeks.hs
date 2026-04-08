@@ -613,6 +613,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
     let epoch = venueConfig.weekOffsetEpoch
     let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) epoch
     let weekEndDate = Calendar.addDays 6 weekStartDate
+    setTitle "Roster"
     rosterGroups <- fetchCurrentVenueRosterGroups
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just requestedRosterGroupId)
     _ <- ensureRosterWeekExists currentRosterGroup.id weekOffset
