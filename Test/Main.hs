@@ -22,6 +22,7 @@ import qualified Test.LiveUpdateSpec
 import qualified Test.PaySpec
 import qualified Test.RosterGridSpec
 import qualified Test.SchemaSpec
+import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
 
 main :: IO ()
@@ -47,3 +48,4 @@ main = do
         Test.VenueInvitationSpec.tests
         Test.ConflictSpec.tests
         Test.LiveUpdateSpec.tests
+        Test.SurfaceProjectionSpec.tests
