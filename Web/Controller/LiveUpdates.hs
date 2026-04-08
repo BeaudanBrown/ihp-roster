@@ -126,6 +126,8 @@ isAuthorizedScope AdminSlotNamesScope { venueId, rosterGroupId } = do
                     |> filterWhere (#venueId, unpackId currentVenueId)
                     |> fetchOneOrNothing
             pure (isJust rosterGroupOrNothing)
+isAuthorizedScope AdminInvitesScope { venueId } =
+    pure (venueId == unpackId currentVenueId)
 isAuthorizedScope LeaveRequestsScope { venueId } =
     pure (venueId == unpackId currentVenueId)
 isAuthorizedScope TimesheetWeekScope { venueId, weekOffset } = do

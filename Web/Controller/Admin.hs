@@ -5,6 +5,8 @@ import Application.Helper.LiveUpdate
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
 import Application.Helper.VenueInvitation
+import Control.Concurrent (forkIO)
+import Control.Monad (void)
 import qualified Data.List as List
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
@@ -33,8 +35,9 @@ instance Controller AdminController where
         let staffPayReportDefinition = findReportDefinitionByEngine StaffPayCsvReport activeReportDefinitions
         let hourlyBreakdownReportDefinition = findReportDefinitionByEngine HourlyBreakdownZipReport activeReportDefinitions
         let latestSnapshot = listToMaybe recentSnapshots
-        pendingInvitations <- fetchCurrentVenuePendingInvitations
+        invitations <- fetchCurrentVenueInvitations
         let slotNamesLiveUpdateScope = Just (adminSlotNamesScope currentRosterGroup.id)
+        let invitesLiveUpdateScope = Just (adminInvitesScope currentVenueId)
         render IndexView { .. }
 
     action ShowAdminSlotNamesFragmentAction = do
@@ -44,8 +47,8 @@ instance Controller AdminController where
 
     action ShowAdminInvitesFragmentAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
-        pendingInvitations <- fetchCurrentVenuePendingInvitations
-        respondHtml (renderInvitesSectionFragment pendingInvitations currentRosterGroup.id)
+        invitations <- fetchCurrentVenueInvitations
+        respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
 
     action CreateVenueInvitationAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
@@ -59,12 +62,34 @@ instance Controller AdminController where
                     |> set #email email
                     |> set #inviteRole (venueRoleToEnum WorkerRole)
                     |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
                     |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
                     |> createRecord
-                sendVenueInvitationEmail invitation
-                respondToInvitesSectionMutation ("Invitation email sent to " <> email) currentRosterGroup.id
+                broadcastAdminInvitesInvalidation currentVenueId
+                if isHtmxRequest
+                    then do
+                        invitations <- fetchCurrentVenueInvitations
+                        queueVenueInvitationDelivery invitation
+                        setSuccessMessage ("Invitation queued for " <> email)
+                        respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
+                    else do
+                        queueVenueInvitationDelivery invitation
+                        respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
             _ ->
                 respondToInvitesSectionMutation "" currentRosterGroup.id
+
+    action RevokeVenueInvitationAction { venueInvitationId } = do
+        currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
+        invitation <- fetch venueInvitationId
+        ensureRecordInCurrentVenue invitation.venueId
+        if invitation.status /= unsafeEnumFromText @InvitationStatusEnum "pending"
+            then respondToInvitesSectionMutation "Only pending invitations can be revoked." currentRosterGroup.id
+            else do
+                _ <- invitation
+                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                    |> updateRecord
+                broadcastAdminInvitesInvalidation currentVenueId
+                respondToInvitesSectionMutation "Invitation revoked." currentRosterGroup.id
 
     action CreateRosterGroupAction = do
         venue <- fetch currentVenueId
@@ -396,8 +421,8 @@ respondToInvitesSectionMutation successMessage rosterGroupId =
     if isHtmxRequest
         then do
             unless (Text.null successMessage) (setSuccessMessage successMessage)
-            pendingInvitations <- fetchCurrentVenuePendingInvitations
-            respondHtml (renderInvitesSectionFragment pendingInvitations rosterGroupId)
+            invitations <- fetchCurrentVenueInvitations
+            respondHtml (renderInvitesSectionFragment invitations rosterGroupId)
         else do
             unless (Text.null successMessage) (setSuccessMessage successMessage)
             redirectToAdminFor (Just rosterGroupId)
@@ -422,6 +447,16 @@ broadcastAdminSlotNamesInvalidation rosterGroupId =
         (cs <$> getHeader "X-Live-Update-Client-Id")
         []
 
+broadcastAdminInvitesInvalidation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Id Venue ->
+    IO ()
+broadcastAdminInvitesInvalidation venueId =
+    broadcastLiveInvalidation
+        (adminInvitesScope venueId)
+        (cs <$> getHeader "X-Live-Update-Client-Id")
+        []
+
 slotNamesScope :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope
 slotNamesScope rosterGroupId =
     RosterGroupConfigScope
@@ -435,6 +470,29 @@ adminSlotNamesScope rosterGroupId =
         { venueId = unpackId currentVenueId
         , rosterGroupId = unpackId rosterGroupId
         }
+
+adminInvitesScope :: Id Venue -> LiveUpdateScope
+adminInvitesScope venueId =
+    AdminInvitesScope
+        { venueId = unpackId venueId
+        }
+
+queueVenueInvitationDelivery ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    VenueInvitation ->
+    IO ()
+queueVenueInvitationDelivery invitation = do
+    let currentContext = ?context
+    let currentModelContext = ?modelContext
+    let currentRequest = ?request
+    void $
+        forkIO do
+            let ?context = currentContext
+            let ?modelContext = currentModelContext
+            let ?request = currentRequest
+            _ <- deliverVenueInvitationEmail invitation
+            broadcastAdminInvitesInvalidation (Id invitation.venueId :: Id Venue)
+            pure ()
 
 reorderActiveSlotNames :: (?modelContext :: ModelContext) => Id RosterGroup -> Id SlotName -> Int -> IO ()
 reorderActiveSlotNames rosterGroupId slotNameId direction = do
@@ -473,15 +531,12 @@ fetchCurrentVenueDayNames =
         |> orderByAsc #weekdayIndex
         |> fetch
 
-fetchCurrentVenuePendingInvitations :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [VenueInvitation]
-fetchCurrentVenuePendingInvitations = do
-    now <- getCurrentTime
-    invitations <- query @VenueInvitation
+fetchCurrentVenueInvitations :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [VenueInvitation]
+fetchCurrentVenueInvitations =
+    query @VenueInvitation
         |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#status, unsafeEnumFromText @InvitationStatusEnum "pending")
         |> orderByDesc #createdAt
         |> fetch
-    pure (filter (\invitation -> maybe False (> now) invitation.expiresAt) invitations)
 
 parseRequiredName :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Text -> IO (Maybe Text)
 parseRequiredName paramName errorMessage =

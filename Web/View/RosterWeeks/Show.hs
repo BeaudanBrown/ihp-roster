@@ -758,6 +758,7 @@ liveUpdateScopeKind :: LiveUpdateScope -> Text
 liveUpdateScopeKind RosterWeekScope {}    = "roster_week"
 liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
 liveUpdateScopeKind AdminSlotNamesScope {} = "admin_slot_names"
+liveUpdateScopeKind AdminInvitesScope {} = "admin_invites"
 liveUpdateScopeKind LeaveRequestsScope {} = "leave_requests"
 liveUpdateScopeKind TimesheetWeekScope {} = "timesheet_week"
 
@@ -765,6 +766,7 @@ liveUpdateRosterGroupScopeKind :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupScopeKind RosterWeekScope {}        = Just "roster_group_config"
 liveUpdateRosterGroupScopeKind RosterGroupConfigScope {} = Just "roster_group_config"
 liveUpdateRosterGroupScopeKind AdminSlotNamesScope {}    = Nothing
+liveUpdateRosterGroupScopeKind AdminInvitesScope {}      = Nothing
 liveUpdateRosterGroupScopeKind LeaveRequestsScope {}     = Nothing
 liveUpdateRosterGroupScopeKind TimesheetWeekScope {}     = Nothing
 
@@ -772,6 +774,7 @@ liveUpdateVenueId :: LiveUpdateScope -> Text
 liveUpdateVenueId RosterWeekScope { venueId }    = tshow venueId
 liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
 liveUpdateVenueId AdminSlotNamesScope { venueId } = tshow venueId
+liveUpdateVenueId AdminInvitesScope { venueId } = tshow venueId
 liveUpdateVenueId LeaveRequestsScope { venueId } = tshow venueId
 liveUpdateVenueId TimesheetWeekScope { venueId } = tshow venueId
 
@@ -779,6 +782,7 @@ liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId } = Just (tshow rosterGroupId)
 liveUpdateRosterGroupIdText RosterGroupConfigScope { rosterGroupId } = Just (tshow rosterGroupId)
 liveUpdateRosterGroupIdText AdminSlotNamesScope { rosterGroupId } = Just (tshow rosterGroupId)
+liveUpdateRosterGroupIdText AdminInvitesScope {} = Nothing
 liveUpdateRosterGroupIdText LeaveRequestsScope {} = Nothing
 liveUpdateRosterGroupIdText TimesheetWeekScope {} = Nothing
 
@@ -786,6 +790,7 @@ liveUpdateWeekOffsetText :: LiveUpdateScope -> Maybe Text
 liveUpdateWeekOffsetText RosterWeekScope { weekOffset } = Just (tshow weekOffset)
 liveUpdateWeekOffsetText RosterGroupConfigScope {} = Nothing
 liveUpdateWeekOffsetText AdminSlotNamesScope {} = Nothing
+liveUpdateWeekOffsetText AdminInvitesScope {} = Nothing
 liveUpdateWeekOffsetText LeaveRequestsScope {} = Nothing
 liveUpdateWeekOffsetText TimesheetWeekScope { weekOffset } = Just (tshow weekOffset)
 

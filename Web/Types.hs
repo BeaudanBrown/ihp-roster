@@ -64,6 +64,7 @@ data AdminController
     | ShowAdminSlotNamesFragmentAction
     | ShowAdminInvitesFragmentAction
     | CreateVenueInvitationAction
+    | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | CreateRosterGroupAction
     | UpdateRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
     | MakeDefaultRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }

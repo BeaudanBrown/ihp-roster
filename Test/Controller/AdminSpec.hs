@@ -67,7 +67,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Shift Types"
                 response `responseBodyShouldContain` "Slot Names"
                 response `responseBodyShouldContain` "Invites"
-                response `responseBodyShouldContain` "Send Invite Email"
+                response `responseBodyShouldContain` "Queue Invite Email"
                 response `responseBodyShouldContain` "Exports"
                 response `responseBodyShouldContain` "Generate Staff Pay CSV"
                 response `responseBodyShouldContain` "Generate Hourly Breakdown ZIP"
@@ -75,6 +75,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-live-update-feature=\"admin-slot-names\""
                 response `responseBodyShouldContain` "admin-slot-names-fragment"
                 response `responseBodyShouldContain` "admin-invites-fragment"
+                response `responseBodyShouldContain` "data-live-update-feature=\"admin-invites\""
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldNotContain` "ihp-auto-refresh-id"
@@ -93,6 +94,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "<th>Link</th>"
                 response `responseBodyShouldContain` "hx-post=\"/CreateVenueInvitation"
                 response `responseBodyShouldContain` "hx-target=\"#admin-invites-fragment\""
+                response `responseBodyShouldContain` "<th>Status</th>"
                 response `responseBodyShouldNotContain` "Level B"
                 response `responseBodyShouldNotContain` "Bar -&gt; Level B on Tuesday"
                 response `responseBodyShouldNotContain` "Bar"
@@ -208,6 +210,7 @@ tests = beforeAll testContext do
                 createdInvitation.acceptedAt `shouldBe` Nothing
                 inputValue createdInvitation.inviteRole `shouldBe` "worker"
                 inputValue createdInvitation.status `shouldBe` "pending"
+                inputValue createdInvitation.deliveryStatus `shouldSatisfy` (`elem` ["queued", "sent", "failed"])
                 inviteExpiryDeltaSeconds `shouldSatisfy` (\seconds -> seconds > 86000 && seconds < 87000)
 
         it "redeems an admin-created invitation through the signup flow" $ withContext do
@@ -236,8 +239,7 @@ tests = beforeAll testContext do
                     , ("passwordConfirmation", "test-password-123")
                     ]
 
-                createResponse `responseStatusShouldBe` status200
-                createResponse `responseBodyShouldContain` "Verify Your Email"
+                createResponse `responseStatusShouldBe` status302
 
                 createdUser <- query @User |> filterWhere (#email, "redeem-me@example.com") |> fetchOne
                 membership <- query @VenueMembership |> filterWhere (#userId, unpackId createdUser.id) |> fetchOne
@@ -282,8 +284,28 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "admin-invites-fragment"
                 response `responseBodyShouldContain` "htmx-invite@example.com"
                 response `responseBodyShouldContain` "Worker"
+                response `responseBodyShouldContain` "Queued"
                 response `responseBodyShouldContain` "hx-target=\"#admin-invites-fragment\""
                 response `responseBodyShouldContain` "hx-post=\"/CreateVenueInvitation"
+
+        it "revokes a pending invitation from the admin invites table" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Invite Revoke Venue"
+                admin <- createUserRecord "admin-invite-revoke@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                invitation <- createVenueInvitationRecord venue (Just admin) "revoke-me@example.com" "worker"
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (RevokeVenueInvitationAction invitation.id)
+                            [("rosterGroupId", idToParam rosterGroup.id)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Revoked"
+
+                updatedInvitation <- fetch invitation.id
+                inputValue updatedInvitation.status `shouldBe` "revoked"
 
         it "updates config table rows from the admin page" $ withContext do
             withCleanDb do

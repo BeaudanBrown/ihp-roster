@@ -1,6 +1,7 @@
 module Application.Helper.VenueInvitation where
 
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
+import qualified Control.Exception.Safe as Exception
 import Application.Helper.View (appendQueryParams)
 import IHP.EnvVar
 import IHP.Mail
@@ -26,3 +27,25 @@ sendVenueInvitationEmail invitation = do
             , inviteUrl = venueInvitationUrl appBaseUrl invitation
             , fromAddress = fromAddress
             }
+
+deliverVenueInvitationEmail :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueInvitation -> IO (Either Text VenueInvitation)
+deliverVenueInvitationEmail invitation = do
+    result <- Exception.tryAny (sendVenueInvitationEmail invitation)
+    now <- getCurrentTime
+    case result of
+        Right () ->
+            Right <$>
+                ( invitation
+                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "sent")
+                    |> set #deliveryError Nothing
+                    |> set #deliveredAt (Just now)
+                    |> updateRecord
+                )
+        Left exception -> do
+            let errorMessage = cs (displayException exception)
+            _ <-
+                invitation
+                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "failed")
+                    |> set #deliveryError (Just errorMessage)
+                    |> updateRecord
+            pure (Left errorMessage)

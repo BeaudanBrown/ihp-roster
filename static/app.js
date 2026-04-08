@@ -1034,7 +1034,57 @@
         };
     }
 
-    const adapters = [rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter(), adminSlotNamesAdapter()];
+    function adminInvitesAdapter() {
+        function readScope(ownerEl) {
+            if (!(ownerEl instanceof HTMLElement)) return null;
+            if (ownerEl.dataset.liveUpdateFeature !== 'admin-invites') return null;
+            if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
+
+            const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
+            const venueId = ownerEl.dataset.liveUpdateVenueId;
+            if (!scopeKind || !venueId) return null;
+
+            return {
+                scope: {
+                    kind: scopeKind,
+                    venueId,
+                },
+                scopeKey: buildScopeKey({
+                    kind: scopeKind,
+                    venueId,
+                }),
+                path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
+                resync: function () {
+                    const contentUrl = ownerEl.dataset.liveUpdateContentUrl;
+                    if (contentUrl) {
+                        handleFragmentRefreshRequest({
+                            targetId: 'admin-invites-fragment',
+                            url: contentUrl,
+                            deferUntilBlur: false,
+                        });
+                    }
+                },
+            };
+        }
+
+        return {
+            collectSubscriptions: function () {
+                const subscriptions = [];
+                document.querySelectorAll('[data-live-update-owner="true"]').forEach(function (ownerEl) {
+                    const scopeInfo = readScope(ownerEl);
+                    if (!scopeInfo || !scopeInfo.scopeKey) return;
+                    subscriptions.push({ ...scopeInfo, ownerEl });
+                });
+                return subscriptions;
+            },
+            shouldDecorateRequest: function (event) {
+                const sourceEl = event.detail && event.detail.elt;
+                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="admin-invites"]') || sourceEl.closest('#admin-invites-fragment'));
+            },
+        };
+    }
+
+    const adapters = [rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter(), adminSlotNamesAdapter(), adminInvitesAdapter()];
 
     function desiredSubscriptions() {
         const desired = new Map();

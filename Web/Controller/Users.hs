@@ -4,6 +4,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
+import Application.Helper.LiveUpdate (LiveUpdateScope (..), broadcastLiveInvalidation)
 import Web.Controller.Prelude
 import Web.Controller.Sessions ()
 import Web.View.Users.New
@@ -99,6 +100,10 @@ instance Controller UsersController where
                                         pure user
                                     Sessions.beforeLogin user
                                     LoginSupport.login user
+                                    broadcastLiveInvalidation
+                                        (AdminInvitesScope { venueId = invitation.venueId })
+                                        (cs <$> getHeader "X-Live-Update-Client-Id")
+                                        []
                                     setSuccessMessage "Invitation accepted."
                                     redirectTo EditProfileAction
                     _ -> do

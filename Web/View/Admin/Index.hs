@@ -19,15 +19,16 @@ data IndexView = IndexView
     , staffPayReportDefinition        :: Maybe VenueReportDefinition
     , hourlyBreakdownReportDefinition :: Maybe VenueReportDefinition
     , reportWeekSelection             :: ReportWeekSelection
-    , pendingInvitations              :: [VenueInvitation]
+    , invitations                     :: [VenueInvitation]
     , slotNamesLiveUpdateScope        :: Maybe LiveUpdateScope
+    , invitesLiveUpdateScope          :: Maybe LiveUpdateScope
     }
 
 instance View IndexView where
     html IndexView { .. } = [hsx|
         <div class="row g-3">
             <div class="col-12">
-                {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays pendingInvitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
+                {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
             </div>
         </div>
         <div data-live-update-owner="true"
@@ -39,6 +40,15 @@ instance View IndexView where
              data-live-update-scope-kind={liveUpdateScopeKind <$> slotNamesLiveUpdateScope}
              data-live-update-venue-id={liveUpdateVenueId <$> slotNamesLiveUpdateScope}
              data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< slotNamesLiveUpdateScope}
+             hidden="hidden"></div>
+        <div data-live-update-owner="true"
+             data-live-update-feature="admin-invites"
+             data-live-updates-path="/live-updates"
+             data-live-update-content-url={appendQueryParams (pathTo ShowAdminInvitesFragmentAction) [("rosterGroupId", tshow currentRosterGroup.id)]}
+             data-live-update-client-enabled={isJust invitesLiveUpdateScope}
+             data-live-update-client-id=""
+             data-live-update-scope-kind={liveUpdateScopeKind <$> invitesLiveUpdateScope}
+             data-live-update-venue-id={liveUpdateVenueId <$> invitesLiveUpdateScope}
              hidden="hidden"></div>
     |]
 
@@ -112,27 +122,30 @@ renderSlotNamesSectionFragment currentRosterGroup slotNames = [hsx|
 |]
 
 renderInvitesSection :: [VenueInvitation] -> Id RosterGroup -> Html
-renderInvitesSection pendingInvitations rosterGroupId =
+renderInvitesSection invitations rosterGroupId =
     renderConfigSection
         "invites"
         "Invites"
-        "Email a 24-hour invitation to a new staff member so they can create an account and join this venue."
-        (renderInviteSummary pendingInvitations)
+        "Queue an invitation immediately, track delivery status, revoke pending invites, and see when they are accepted."
+        (renderInviteSummary invitations)
         (renderInviteCreateForm rosterGroupId)
         [hsx|
-            {if null pendingInvitations then renderEmptyState "No active invites right now." else renderInviteTable pendingInvitations}
+            {if null invitations then renderEmptyState "No invites yet." else renderInviteTable invitations rosterGroupId}
         |]
 
 renderInviteSummary :: [VenueInvitation] -> Html
-renderInviteSummary pendingInvitations = [hsx|
+renderInviteSummary invitations = [hsx|
     <p class="small app-muted mb-3">
-        {tshow (length pendingInvitations)} active pending {inviteLabel} for this venue.
+        {tshow activePendingCount} active pending {inviteLabel}; {tshow sentCount} sent and {tshow acceptedCount} accepted.
     </p>
 |]
     where
+        activePendingCount = length (filter invitationIsActivePending invitations)
+        sentCount = length (filter invitationWasSent invitations)
+        acceptedCount = length (filter invitationWasAccepted invitations)
         inviteLabel :: Text
         inviteLabel =
-            if length pendingInvitations == 1
+            if activePendingCount == 1
                 then "invite"
                 else "invites"
 
@@ -153,43 +166,47 @@ renderInviteCreateForm rosterGroupId = [hsx|
                 <input id="new-invite-email" class="form-control" type="email" name="email" placeholder="new-user@example.com" required="required" />
             </div>
             <div class="col-12 col-md-3">
-                <button class="btn btn-outline-primary w-100" type="submit">Send Invite Email</button>
+                <button class="btn btn-outline-primary w-100" type="submit">Queue Invite Email</button>
             </div>
         </div>
     </form>
 |]
 
 renderInvitesSectionFragment :: [VenueInvitation] -> Id RosterGroup -> Html
-renderInvitesSectionFragment pendingInvitations rosterGroupId = [hsx|
+renderInvitesSectionFragment invitations rosterGroupId = [hsx|
     <div id="admin-invites-fragment">
-        {renderInvitesSection pendingInvitations rosterGroupId}
+        {renderInvitesSection invitations rosterGroupId}
     </div>
 |]
 
-renderInviteTable :: [VenueInvitation] -> Html
-renderInviteTable pendingInvitations = [hsx|
+renderInviteTable :: [VenueInvitation] -> Id RosterGroup -> Html
+renderInviteTable invitations rosterGroupId = [hsx|
     <div class="table-responsive">
         <table class="table table-striped align-middle mb-0">
             <thead>
                 <tr>
                     <th>Email</th>
                     <th>Role</th>
+                    <th>Status</th>
                     <th>Expires</th>
+                    <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {forEach pendingInvitations renderInviteRow}
+                {forEach invitations (renderInviteRow rosterGroupId)}
             </tbody>
         </table>
     </div>
 |]
 
-renderInviteRow :: VenueInvitation -> Html
-renderInviteRow invitation = [hsx|
-    <tr>
+renderInviteRow :: Id RosterGroup -> VenueInvitation -> Html
+renderInviteRow rosterGroupId invitation = [hsx|
+    <tr id={inviteRowId invitation.id}>
         <td>{invitation.email}</td>
         <td>{invitationRoleLabel invitation.inviteRole}</td>
+        <td>{renderInvitationStatusBadge invitation}</td>
         <td>{formatTimestamp (fromMaybe invitation.createdAt invitation.expiresAt)}</td>
+        <td class="text-end">{renderInviteRowActions rosterGroupId invitation}</td>
     </tr>
 |]
 
@@ -240,10 +257,10 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
         |]
 
 renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> [PayLevel] -> [ShiftType] -> [PayLevelDayRule] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays pendingInvitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
+renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "roster-groups" "Roster Groups" True (renderRosterGroupsSection rosterGroups currentRosterGroup)}
-        {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment pendingInvitations currentRosterGroup.id)}
+        {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "pay-levels" "Pay Levels" False (renderPayLevelsSection payLevels)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes payLevels)}
         {renderAccordionItem "pay-level-day-rules" "Pay Level Day Rules" False (renderPayLevelDayRulesSection payLevelDayRules shiftTypes payLevels weekdays)}
@@ -251,6 +268,51 @@ renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTyp
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection)}
     </div>
 |]
+
+inviteRowId :: Id VenueInvitation -> Text
+inviteRowId invitationId = "invite-row-" <> tshow invitationId
+
+invitationIsActivePending :: VenueInvitation -> Bool
+invitationIsActivePending invitation =
+    inputValue invitation.status == "pending" && not (invitationWasAccepted invitation)
+
+invitationWasAccepted :: VenueInvitation -> Bool
+invitationWasAccepted invitation = inputValue invitation.status == "accepted"
+
+invitationWasSent :: VenueInvitation -> Bool
+invitationWasSent invitation = inputValue invitation.deliveryStatus == "sent"
+
+renderInvitationStatusBadge :: VenueInvitation -> Html
+renderInvitationStatusBadge invitation = [hsx|
+    <span class={badgeClass}>{label}</span>
+|]
+    where
+        (label, badgeClass) =
+            case inputValue invitation.status of
+                "accepted" -> ("Accepted" :: Text, "badge text-bg-success" :: Text)
+                "revoked" -> ("Revoked", "badge text-bg-secondary" :: Text)
+                _ ->
+                    case inputValue invitation.deliveryStatus of
+                        "sent" -> ("Sent", "badge text-bg-success" :: Text)
+                        "failed" -> ("Send Failed", "badge text-bg-danger" :: Text)
+                        _ -> ("Queued", "badge text-bg-warning text-dark" :: Text)
+
+renderInviteRowActions :: Id RosterGroup -> VenueInvitation -> Html
+renderInviteRowActions rosterGroupId invitation
+    | inputValue invitation.status /= "pending" = mempty
+    | otherwise = [hsx|
+        <form
+            method="POST"
+            action={appendQueryParams (pathTo (RevokeVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]}
+            class="d-inline"
+            data-disable-javascript-submission="true"
+            hx-post={appendQueryParams (pathTo (RevokeVenueInvitationAction invitation.id)) [("rosterGroupId", tshow rosterGroupId)]}
+            hx-target="#admin-invites-fragment"
+            hx-swap="outerHTML"
+        >
+            <button class="btn btn-sm btn-outline-danger" type="submit">Revoke</button>
+        </form>
+    |]
 
 renderAccordionItem :: Text -> Text -> Bool -> Html -> Html
 renderAccordionItem sectionId title isOpen content = [hsx|
@@ -881,6 +943,7 @@ liveUpdateScopeKind :: LiveUpdateScope -> Text
 liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
 liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
 liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
+liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
 liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
 liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
 
@@ -888,6 +951,7 @@ liveUpdateVenueId :: LiveUpdateScope -> Text
 liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
 liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
 liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
+liveUpdateVenueId AdminInvitesScope { venueId }      = tshow venueId
 liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
 liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
 
@@ -895,6 +959,7 @@ liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId }        = Just (tshow rosterGroupId)
 liveUpdateRosterGroupIdText RosterGroupConfigScope { rosterGroupId } = Just (tshow rosterGroupId)
 liveUpdateRosterGroupIdText AdminSlotNamesScope { rosterGroupId }    = Just (tshow rosterGroupId)
+liveUpdateRosterGroupIdText AdminInvitesScope {}                     = Nothing
 liveUpdateRosterGroupIdText LeaveRequestsScope {}                    = Nothing
 liveUpdateRosterGroupIdText TimesheetWeekScope {}                    = Nothing
 

@@ -3,6 +3,7 @@ CREATE TYPE venue_status_enum AS ENUM ('active', 'inactive');
 CREATE TYPE venue_role_enum AS ENUM ('worker', 'manager', 'venue_admin', 'venue_owner');
 CREATE TYPE platform_role_enum AS ENUM ('super_admin');
 CREATE TYPE invitation_status_enum AS ENUM ('pending', 'accepted', 'revoked');
+CREATE TYPE invitation_delivery_status_enum AS ENUM ('queued', 'sent', 'failed');
 CREATE TYPE leave_request_status_enum AS ENUM ('pending', 'approved', 'denied');
 CREATE TYPE leave_request_event_type_enum AS ENUM ('created', 'approved', 'denied', 'deleted');
 CREATE TYPE entry_version_action_enum AS ENUM ('created', 'updated', 'approved', 'unapproved', 'approval_reset', 'deleted');
@@ -61,6 +62,9 @@ CREATE TABLE venue_invitations (
     email TEXT NOT NULL,
     invite_role venue_role_enum DEFAULT 'worker' NOT NULL,
     status invitation_status_enum DEFAULT 'pending' NOT NULL,
+    delivery_status invitation_delivery_status_enum DEFAULT 'queued' NOT NULL,
+    delivery_error TEXT DEFAULT NULL,
+    delivered_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     accepted_at TIMESTAMP WITH TIME ZONE,
     expires_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
