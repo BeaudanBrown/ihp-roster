@@ -3,10 +3,12 @@ module Web.Controller.Timesheets where
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentRef (..),
                                       LiveUpdateScope (..),
-                                      broadcastLiveInvalidation)
+                                      broadcastLiveInvalidation,
+                                      currentLiveUpdateVersion)
 import Application.Helper.Pay (TimesheetPaySummary,
                                ensureCurrentVenuePayConfigSnapshot,
                                fetchTimesheetPaySummariesForEntries)
+import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
                                 renderToastOverlayHostOob)
@@ -16,6 +18,7 @@ import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
+import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.Timesheets.Edit
 import Web.View.Timesheets.Index
@@ -324,19 +327,8 @@ fetchShiftTypesForForm =
         |> fetch
 
 respondWithTimesheetDaySectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Int -> IO ()
-respondWithTimesheetDaySectionFragment weekOffset dayOffset = do
-    (entries, staffMembers, shiftTypes, paySummariesByEntryId, today, editWindowDays, weekStartDate) <- fetchTimesheetDaySectionState weekOffset
-    respondHtml $
-        renderDaySection
-            entries
-            staffMembers
-            shiftTypes
-            paySummariesByEntryId
-            today
-            editWindowDays
-            weekOffset
-            weekStartDate
-            dayOffset
+respondWithTimesheetDaySectionFragment weekOffset dayOffset =
+    respondHtml . fromMaybe mempty =<< renderTimesheetProjectionFragment weekOffset (TimesheetProjectionDaySection dayOffset)
 
 respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Text -> Bool -> Bool -> IO ()
 respondWithTimesheetDaySectionUpdate weekOffset workedOn successMessage closeDialog renderMainFragmentOob = do
@@ -393,8 +385,8 @@ fetchTimesheetDaySectionState weekOffset = do
 
     pure (entries, staffMembers, shiftTypes, paySummariesByEntryId, today, editWindowDays, weekStartDate)
 
-renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> IO ()
-renderTimesheetWeekPage weekOffset = do
+fetchTimesheetWeekProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO TimesheetWeekProjection
+fetchTimesheetWeekProjection weekOffset = do
     venueConfig <- fetchVenueConfig
     let weekStartDate = addDays (toInteger (weekOffset * 7)) venueConfig.weekOffsetEpoch
     let weekEndDate = addDays 6 weekStartDate
@@ -402,19 +394,108 @@ renderTimesheetWeekPage weekOffset = do
     (entries, staffMembers) <- fetchTimesheetDataForWeek weekStartDate weekEndDate
     shiftTypes <- fetchShiftTypesForForm
     paySummariesByEntryId <- fetchTimesheetPaySummariesForEntries entries
-
-    now <- getCurrentTime
-    let today = utctDay now
+    today <- utctDay <$> getCurrentTime
     let editWindowDays = venueConfig.staffTimesheetEditWindowDays
-    let liveUpdateScope = Just (buildTimesheetWeekScope currentVenueId weekOffset)
 
-    respondWithTimesheetWeekView IndexView { .. }
+    pure
+        TimesheetWeekProjection
+            { timesheetEntries = entries
+            , timesheetStaffMembers = staffMembers
+            , timesheetShiftTypes = shiftTypes
+            , timesheetPaySummariesByEntryId = paySummariesByEntryId
+            , timesheetToday = today
+            , timesheetEditWindowDays = editWindowDays
+            , timesheetWeekOffset = weekOffset
+            , timesheetWeekStartDate = weekStartDate
+            , timesheetWeekEndDate = weekEndDate
+            }
+
+renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> IO ()
+renderTimesheetWeekPage weekOffset =
+    respondWithTimesheetWeekView . timesheetIndexView =<< fetchTimesheetWeekProjectionCached weekOffset
 
 respondWithTimesheetWeekView :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IndexView -> IO ()
 respondWithTimesheetWeekView indexView =
     if isHtmxRequest
         then respondHtml (renderTimesheetWeekShell indexView)
         else render indexView
+
+data TimesheetWeekProjection = TimesheetWeekProjection
+    { timesheetEntries :: [TimesheetEntry]
+    , timesheetStaffMembers :: [Staff]
+    , timesheetShiftTypes :: [ShiftType]
+    , timesheetPaySummariesByEntryId :: Map.Map Text TimesheetPaySummary
+    , timesheetToday :: Day
+    , timesheetEditWindowDays :: Int
+    , timesheetWeekOffset :: Int
+    , timesheetWeekStartDate :: Day
+    , timesheetWeekEndDate :: Day
+    }
+
+data TimesheetProjectionFragment
+    = TimesheetProjectionPage
+    | TimesheetProjectionDaySection !Int
+    deriving (Eq, Show)
+
+timesheetProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => SurfaceProjectionDefinition Int TimesheetWeekProjection TimesheetProjectionFragment
+timesheetProjectionDefinition =
+    SurfaceProjectionDefinition
+        { surfaceName = "timesheet-week"
+        , cachePolicy = defaultSurfaceProjectionCachePolicy
+        , scopeKey = \weekOffset -> tshow currentVenueId <> ":" <> tshow weekOffset
+        , viewerKey = pure (tshow currentUser.id)
+        , currentVersion = \weekOffset -> currentLiveUpdateVersion (buildTimesheetWeekScope currentVenueId weekOffset)
+        , loadProjection = fetchTimesheetWeekProjection
+        , renderFragment = renderTimesheetWeekProjectionFragment
+        , buildFragmentRef = \weekOffset fragment ->
+            case fragment of
+                TimesheetProjectionPage ->
+                    buildTimesheetWeekPageFragmentRef weekOffset
+                TimesheetProjectionDaySection dayOffset ->
+                    buildTimesheetDaySectionFragmentRef weekOffset dayOffset
+        }
+
+fetchTimesheetWeekProjectionCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> IO TimesheetWeekProjection
+fetchTimesheetWeekProjectionCached weekOffset =
+    loadSurfaceProjection timesheetProjectionDefinition weekOffset
+
+renderTimesheetProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetProjectionFragment -> IO (Maybe Blaze.Html)
+renderTimesheetProjectionFragment weekOffset fragment =
+    renderSurfaceProjectionFragment timesheetProjectionDefinition weekOffset fragment
+
+renderTimesheetWeekProjectionFragment :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
+renderTimesheetWeekProjectionFragment projection fragment =
+    case fragment of
+        TimesheetProjectionPage ->
+            Just (renderTimesheetWeekShell (timesheetIndexView projection))
+        TimesheetProjectionDaySection dayOffset ->
+            Just
+                (renderDaySection
+                    projection.timesheetEntries
+                    projection.timesheetStaffMembers
+                    projection.timesheetShiftTypes
+                    projection.timesheetPaySummariesByEntryId
+                    projection.timesheetToday
+                    projection.timesheetEditWindowDays
+                    projection.timesheetWeekOffset
+                    projection.timesheetWeekStartDate
+                    dayOffset
+                )
+
+timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMembers, timesheetShiftTypes, timesheetPaySummariesByEntryId, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate } =
+    IndexView
+        { entries = timesheetEntries
+        , staffMembers = timesheetStaffMembers
+        , shiftTypes = timesheetShiftTypes
+        , paySummariesByEntryId = timesheetPaySummariesByEntryId
+        , today = timesheetToday
+        , editWindowDays = timesheetEditWindowDays
+        , weekOffset = timesheetWeekOffset
+        , weekStartDate = timesheetWeekStartDate
+        , weekEndDate = timesheetWeekEndDate
+        , liveUpdateScope = Just (buildTimesheetWeekScope currentVenueId timesheetWeekOffset)
+        }
 
 ensureTimesheetVisibility :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> IO ()
 ensureTimesheetVisibility entry =
@@ -620,6 +701,15 @@ buildTimesheetDaySectionFragmentRef weekOffset dayOffset =
         { fragmentKey = TimesheetDaySectionFragment { dayOffset }
         , targetId = timesheetDaySectionDomId dayOffset
         , url = pathTo ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset }
+        , deferUntilBlur = False
+        }
+
+buildTimesheetWeekPageFragmentRef :: (?context :: ControllerContext) => Int -> LiveFragmentRef
+buildTimesheetWeekPageFragmentRef weekOffset =
+    LiveFragmentRef
+        { fragmentKey = TimesheetDaySectionFragment { dayOffset = 0 }
+        , targetId = timesheetWeekShellId
+        , url = pathTo ShowTimesheetWeekAction { weekOffset }
         , deferUntilBlur = False
         }
 
