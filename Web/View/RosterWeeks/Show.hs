@@ -79,14 +79,6 @@ renderRosterWeekShell ShowView { .. } = [hsx|
              data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
              data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< liveUpdateScope}
              hidden="hidden"></div>
-        <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-center gap-3 mb-4">
-            <div>
-                <h1 class="mb-0">Roster Starting {formatDateDisplay weekStartDate}</h1>
-                <div class="small app-muted mt-1">Roster group: <span class="fw-semibold">{currentRosterGroup.name}</span></div>
-            </div>
-            {renderRosterWeekControls weekOffset rosterGroups currentRosterGroup}
-        </div>
-
         {renderRosterContentFragment rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup staffMembers panelStaff slotNames weekStartDate allSlots slotConflicts}
     </section>
 |]
@@ -172,14 +164,14 @@ renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRoste
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
             <div class="card shadow-sm mb-5 mb-xl-0">
-                {renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup}
+                {renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup weekStartDate}
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm mb-0 align-middle roster-grid"
                            style={"--roster-slot-count:" <> tshow (max 1 (length slotNames)) <> ";"}>
                         {renderRosterGridColGroup slotNames}
                         <thead class="text-center text-uppercase fw-bold roster-grid-head">
                             <tr>
-                                <th rowspan="2" class="py-2 roster-day-column">Day / Date</th>
+                                <th rowspan="2" class="py-2 roster-day-column">Day</th>
                                 {forEach slotNames renderSlotHeaderGroup}
                             </tr>
                             <tr>
@@ -211,13 +203,17 @@ renderRosterBlockColGroup _ =
         , [hsx|<col style={("width: var(--roster-note-share);" :: Text)} />|]
         ]
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> Html
-renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup = [hsx|
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> Day -> Html
+renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup weekStartDate = [hsx|
     <div class="card-header d-flex justify-content-between align-items-center gap-3 py-3">
-        {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
         <div class="d-flex flex-wrap gap-2 align-items-center">
-            {renderSyncSlotStructureButton maybeRosterWeek}
             {renderLiveToggle maybeRosterWeek}
+        </div>
+        <div class="text-center flex-fill">
+            <h1 class="h4 mb-0">Roster Starting {formatDateDisplay weekStartDate}</h1>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center ms-auto">
+            {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup}
         </div>
     </div>
 |]
@@ -225,6 +221,33 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
 renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
 renderLiveToggle (Just rosterWeek) = renderLiveToggleForm rosterWeek
 renderLiveToggle Nothing           = mempty
+
+renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> Html
+renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup =
+    let divider = [hsx|<div class="dropdown-divider my-1"></div>|]
+     in [hsx|
+    <div class="dropdown">
+        <button class="btn btn-outline-secondary"
+                type="button"
+                id={rosterWeekMoreMenuId maybeRosterWeek currentRosterGroup.id}
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+                aria-label="Roster actions">
+            <i class="bi bi-three-dots-vertical"></i>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end p-2" aria-labelledby={rosterWeekMoreMenuId maybeRosterWeek currentRosterGroup.id}>
+            <div class="px-1 pb-2">
+                {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
+            </div>
+            {when (shouldShowRosterWeekMenuDivider maybeRosterWeek) divider}
+            {renderSyncSlotStructureButton maybeRosterWeek}
+        </div>
+    </div>
+|]
+
+shouldShowRosterWeekMenuDivider :: (?context :: ControllerContext) => Maybe RosterWeek -> Bool
+shouldShowRosterWeekMenuDivider (Just rosterWeek) = currentUserIsManager && not rosterWeek.isLive
+shouldShowRosterWeekMenuDivider Nothing = False
 
 rosterWeekIsEditable :: (?context :: ControllerContext) => Maybe RosterWeek -> Bool
 rosterWeekIsEditable maybeRosterWeek =
@@ -430,12 +453,11 @@ renderDayLabel isEditable date rosterDay rowCount rowPosition lastRowIndex
         <td class="fw-bold day-label day-label-stack" rowspan={tshow rowCount}>
             <div class="roster-day-label-stack" style={"--roster-day-label-rows:" <> tshow rowCount}>
                 <div class="roster-day-label-row roster-day-label-row-primary">
-                    <div class="roster-day-heading">
-                        <div class="small app-muted">{Text.pack (formatTime defaultTimeLocale "%a" date)}</div>
-                        {renderDayRowControls isEditable rosterDay lastRowIndex}
-                    </div>
+                    <div class="roster-day-heading">{renderPrimaryDayLabel date}</div>
                 </div>
-                {renderSecondaryDayLabel date}
+                <div class="roster-day-label-row roster-day-label-row-controls">
+                    {renderDayRowControls isEditable rosterDay lastRowIndex}
+                </div>
                 {renderClosedDayLabel rosterDay}
                 {renderEmptyDayLabelRows rowCount (if rosterDay.isClosed then 3 else 2)}
             </div>
@@ -443,11 +465,9 @@ renderDayLabel isEditable date rosterDay rowCount rowPosition lastRowIndex
     |]
     | otherwise = mempty
 
-renderSecondaryDayLabel :: Day -> Html
-renderSecondaryDayLabel date = [hsx|
-    <div class="roster-day-label-row roster-day-label-row-secondary">
-        <div class="roster-day-date">{formatDateDisplay date}</div>
-    </div>
+renderPrimaryDayLabel :: Day -> Html
+renderPrimaryDayLabel date = [hsx|
+    <div class="roster-day-date">{Text.pack (formatTime defaultTimeLocale "%a" date)} {Text.pack (formatTime defaultTimeLocale "%d/%m" date)}</div>
 |]
 
 renderClosedDayLabel :: RosterDay -> Html
@@ -473,7 +493,7 @@ renderDayRowControls isEditable rosterDay lastRowIndex =
                 {when (not rosterDay.isClosed) (renderAddRowButton rosterDay)}
             </span>
         |]
-        else [hsx|<span></span>|]
+        else [hsx|<span class="roster-day-actions-placeholder"></span>|]
 
 renderToggleClosedButton :: (?context :: ControllerContext) => RosterDay -> Html
 renderToggleClosedButton rosterDay =
@@ -731,7 +751,7 @@ renderSyncSlotStructureButton maybeRosterWeek =
                   hx-push-url="false"
                   hx-sync={"#" <> rosterWeekShellId <> ":replace"}
                   hx-confirm="Sync this draft week to the current slot template? Existing matching slots keep their data; removed slots are dropped and new slots start empty.">
-                <button type="submit" class="btn btn-outline-secondary">Sync Slots</button>
+                <button type="submit" class="btn btn-outline-secondary w-100 text-start">Sync Slots</button>
             </form>
         |]
         _ -> mempty
@@ -762,6 +782,12 @@ renderLiveToggleForm rosterWeek = [hsx|
 
 liveToggleInputId :: Id RosterWeek -> Text
 liveToggleInputId rosterWeekId = "roster-live-toggle-" <> tshow rosterWeekId
+
+rosterWeekMoreMenuId :: Maybe RosterWeek -> Id RosterGroup -> Text
+rosterWeekMoreMenuId maybeRosterWeek rosterGroupId =
+    case maybeRosterWeek of
+        Just rosterWeek -> "roster-week-more-menu-" <> tshow rosterWeek.id
+        Nothing -> "roster-week-more-menu-group-" <> tshow rosterGroupId
 
 liveUpdateScopeKind :: LiveUpdateScope -> Text
 liveUpdateScopeKind RosterWeekScope {}    = "roster_week"

@@ -49,16 +49,16 @@ renderAppHeader =
                         <span class="navbar-toggler-icon"></span>
                     </button>
                     <div class="collapse navbar-collapse" id="app-nav">
-                        <div class="navbar-nav ms-auto d-flex gap-1 align-items-md-center">
-                            <a class="btn btn-outline-secondary btn-sm" href={RosterWeeksAction}>schedule</a>
-                            <a class="btn btn-outline-secondary btn-sm" href={EditProfileAction}>profile</a>
-                            <a class="btn btn-outline-secondary btn-sm" href={TimesheetsAction}>timesheets</a>
-                            <a class="btn btn-outline-secondary btn-sm" href={LeaveRequestsAction}>leave</a>
+                        <div class="navbar-nav app-header-nav ms-auto d-flex gap-1 align-items-md-center">
+                            <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={RosterWeeksAction}>roster</a>
+                            <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={EditProfileAction}>profile</a>
+                            <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={TimesheetsAction}>timesheets</a>
+                            <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={LeaveRequestsAction}>leave</a>
                             {when currentUserIsAdmin renderAdminNavLink}
                             {when currentUserIsSupportAdmin renderSupportNavLink}
-                            <form method="POST" action={DeleteSessionAction} class="d-inline">
+                            <form method="POST" action={DeleteSessionAction} class="d-inline app-header-logout-form">
                                 <input type="hidden" name="_method" value="DELETE"/>
-                                <button class="btn btn-outline-danger btn-sm" type="submit">logout</button>
+                                <button class="btn btn-outline-danger btn-sm app-header-nav-item" type="submit">logout</button>
                             </form>
                         </div>
                     </div>
@@ -69,7 +69,7 @@ renderAppHeader =
 
 renderAdminNavLink :: Html
 renderAdminNavLink = [hsx|
-    <a class="btn btn-outline-secondary btn-sm" href={AdminAction}>admin</a>
+    <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={AdminAction}>admin</a>
 |]
 
 renderSupportVenueSwitcher :: (?context :: ControllerContext) => Html
@@ -92,7 +92,7 @@ renderSupportVenueOption venue = [hsx|
 
 renderSupportNavLink :: Html
 renderSupportNavLink = [hsx|
-    <a class="btn btn-outline-secondary btn-sm" href={SupportAction}>support</a>
+    <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={SupportAction}>support</a>
 |]
 
 -- The 'assetPath' function used below appends a `?v=SOME_VERSION` to the static assets in production

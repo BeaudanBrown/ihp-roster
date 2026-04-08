@@ -18,7 +18,7 @@ data EditView = EditView
 instance View EditView where
     html EditView { .. } = [hsx|
         <div class="app-page-auth">
-            <div class="app-auth-card app-auth-card-wide">
+            <div class="app-auth-card app-auth-card-wide app-auth-card-profile">
                 {renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys}
             </div>
         </div>

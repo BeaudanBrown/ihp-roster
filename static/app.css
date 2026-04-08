@@ -105,9 +105,18 @@ a:not(.btn):hover {
     max-width: 30rem;
 }
 
+.app-auth-card.app-auth-card-profile {
+    max-width: 58rem;
+}
+
 .app-auth-body,
 .app-panel-body {
     padding: 1.5rem;
+}
+
+.profile-field-grid .form-control,
+.profile-field-grid .form-select {
+    height: calc(2.75rem + 2px);
 }
 
 h1,
@@ -176,6 +185,14 @@ h5,
 
 .btn {
     font-size: var(--text-sm);
+}
+
+.app-header-nav-item {
+    justify-content: center;
+}
+
+.app-header-logout-form {
+    margin: 0;
 }
 
 .btn-sm,
@@ -725,29 +742,38 @@ h5,
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 0 0.5rem;
+    padding: 0.18rem 0.45rem;
 }
 
 .roster-grid .roster-day-heading {
-    height: var(--roster-row-height);
     min-height: var(--roster-row-height);
     display: flex;
-    flex-direction: row;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.22rem;
+    gap: 0.14rem;
     line-height: 1;
-    flex-wrap: nowrap;
+    width: 100%;
 }
 
 .roster-grid .roster-day-date,
 .roster-grid .day-label-empty {
-    height: var(--roster-row-height);
-    min-height: var(--roster-row-height);
     display: flex;
     align-items: center;
     justify-content: center;
     line-height: 1;
+}
+
+.roster-grid .roster-day-date {
+    font-size: var(--roster-text-sm);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.roster-grid .roster-day-label-row-controls {
+    padding-top: 0.1rem;
+    padding-bottom: 0.22rem;
 }
 
 .roster-grid .roster-day-label-row-closed {
@@ -767,31 +793,33 @@ h5,
 .roster-grid .roster-day-actions {
     display: inline-flex;
     align-items: center;
-    gap: 0.3rem;
+    gap: 0.36rem;
     flex-shrink: 0;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
 }
 
 .roster-grid .roster-day-action {
-    min-width: 0.9rem;
-    height: 0.9rem;
-    padding: 0;
-    border-radius: 999px;
-    border: 1px solid var(--app-border-strong);
-    background: rgba(255, 255, 255, 0.04);
+    min-width: 1.7rem;
+    min-height: 1.7rem;
+    padding: 0 0.4rem;
+    border-radius: 0.55rem;
+    border: 1px solid #64748a;
+    background: rgba(255, 255, 255, 0.05);
     color: var(--app-text);
-    font-size: var(--roster-text-xs);
+    font-size: 0.9rem;
     font-weight: 700;
     line-height: 1;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .roster-grid .roster-day-action-toggle {
     width: auto;
-    min-width: 2.5rem;
-    padding: 0 0.35rem;
-    border-radius: 999px;
-    text-transform: lowercase;
+    min-width: 4.6rem;
+    padding: 0 0.65rem;
+    border-radius: 0.55rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
 }
 
 .roster-grid .roster-day-action-toggle.is-active {
@@ -814,6 +842,11 @@ h5,
 
 .roster-grid .roster-day-action-remove {
     color: #f1a5b0;
+}
+
+.roster-day-actions-placeholder {
+    display: block;
+    min-height: 1.7rem;
 }
 
 .roster-grid .slot-time-cell {
@@ -905,6 +938,7 @@ h5,
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
 }
 
 .roster-grid .slot-time-step {
@@ -921,6 +955,31 @@ h5,
     font-weight: 700;
     line-height: 1;
     padding: 0;
+}
+
+@media (max-width: 767.98px) {
+    .app-header .navbar-collapse {
+        padding-top: 0.85rem;
+    }
+
+    .app-header-nav {
+        align-items: flex-start;
+        width: auto;
+    }
+
+    .app-header-nav-item {
+        width: auto;
+        min-width: 7.5rem;
+        justify-content: center;
+    }
+
+    .app-header-logout-form {
+        display: block;
+    }
+
+    .app-header-logout-form .btn {
+        width: 100%;
+    }
 }
 
 @media (max-width: 575.98px) {
@@ -993,6 +1052,22 @@ h5,
         padding: 0 0.25rem;
     }
 
+    .roster-grid .roster-day-actions {
+        gap: 0.22rem;
+    }
+
+    .roster-grid .roster-day-action {
+        min-width: 1.45rem;
+        min-height: 1.45rem;
+        padding: 0 0.22rem;
+        font-size: 0.8rem;
+    }
+
+    .roster-grid .roster-day-action-toggle {
+        min-width: 4rem;
+        font-size: 0.62rem;
+    }
+
     .roster-grid .slot-cell-input,
     .roster-grid .slot-time-trigger {
         padding-left: 0.08rem;
@@ -1053,6 +1128,7 @@ h5,
 .time-picker-step-button {
     flex: 0 0 auto;
     min-width: 2.4rem;
+    font-size: 1rem;
 }
 
 .time-picker-trigger-button {

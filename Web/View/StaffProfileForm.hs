@@ -5,104 +5,106 @@ import Web.View.Prelude
 
 renderPersonalProfileFields :: Staff -> Maybe Text -> Html
 renderPersonalProfileFields staff maybeEmail = [hsx|
-    <div class="mb-3">
-        <label for="firstName" class="form-label">First Name</label>
-        <input
-            id="firstName"
-            name="firstName"
-            type="text"
-            class={inputClass staff "firstName"}
-            value={staff.firstName}
-            required="required"
-            autofocus="autofocus"
-        />
-        {renderStaffFieldError staff "firstName"}
-    </div>
-    <div class="mb-3">
-        <label for="lastName" class="form-label">Last Name</label>
-        <input
-            id="lastName"
-            name="lastName"
-            type="text"
-            class={inputClass staff "lastName"}
-            value={staff.lastName}
-            required="required"
-        />
-        {renderStaffFieldError staff "lastName"}
-    </div>
-    <div class="mb-3">
-        <label for="preferredName" class="form-label">Preferred Name</label>
-        <input
-            id="preferredName"
-            name="preferredName"
-            type="text"
-            class={inputClass staff "preferredName"}
-            value={fromMaybe "" staff.preferredName}
-            placeholder="Optional"
-        />
-        {renderStaffFieldError staff "preferredName"}
-    </div>
-    <div class="mb-3">
-        <label for="email" class="form-label">Email</label>
-        <input
-            id="email"
-            type="email"
-            class="form-control"
-            value={fromMaybe "" maybeEmail}
-            readonly="readonly"
-            disabled="disabled"
-        />
-        <div class="form-text">Login email is read-only here for now.</div>
-    </div>
-    <div class="mb-3">
-        <label for="phone" class="form-label">Phone</label>
-        <input
-            id="phone"
-            name="phone"
-            type="text"
-            class={inputClass staff "phone"}
-            value={staff.phone}
-            required="required"
-        />
-        {renderStaffFieldError staff "phone"}
-    </div>
-    <div class="mb-3">
-        <label for="emergencyContactName" class="form-label">Emergency Contact Name</label>
-        <input
-            id="emergencyContactName"
-            name="emergencyContactName"
-            type="text"
-            class={inputClass staff "emergencyContactName"}
-            value={staff.emergencyContactName}
-            required="required"
-        />
-        {renderStaffFieldError staff "emergencyContactName"}
-    </div>
-    <div class="mb-3">
-        <label for="emergencyContactPhone" class="form-label">Emergency Contact Number</label>
-        <input
-            id="emergencyContactPhone"
-            name="emergencyContactPhone"
-            type="text"
-            class={inputClass staff "emergencyContactPhone"}
-            value={staff.emergencyContactPhone}
-            required="required"
-        />
-        {renderStaffFieldError staff "emergencyContactPhone"}
-    </div>
-    <div class="mb-3">
-        <label for="idealShiftsPerWeek" class="form-label">Ideal Shifts Per Week</label>
-        <input
-            id="idealShiftsPerWeek"
-            name="idealShiftsPerWeek"
-            type="number"
-            min="0"
-            max="7"
-            class={inputClass staff "idealShiftsPerWeek"}
-            value={tshow staff.idealShiftsPerWeek}
-            required="required"
-        />
-        {renderStaffFieldError staff "idealShiftsPerWeek"}
+    <div class="row g-3 profile-field-grid">
+        <div class="col-12 col-lg-6">
+            <label for="firstName" class="form-label">First Name</label>
+            <input
+                id="firstName"
+                name="firstName"
+                type="text"
+                class={inputClass staff "firstName"}
+                value={staff.firstName}
+                required="required"
+                autofocus="autofocus"
+            />
+            {renderStaffFieldError staff "firstName"}
+        </div>
+        <div class="col-12 col-lg-6">
+            <label for="lastName" class="form-label">Last Name</label>
+            <input
+                id="lastName"
+                name="lastName"
+                type="text"
+                class={inputClass staff "lastName"}
+                value={staff.lastName}
+                required="required"
+            />
+            {renderStaffFieldError staff "lastName"}
+        </div>
+        <div class="col-12 col-lg-6">
+            <label for="preferredName" class="form-label">Preferred Name</label>
+            <input
+                id="preferredName"
+                name="preferredName"
+                type="text"
+                class={inputClass staff "preferredName"}
+                value={fromMaybe "" staff.preferredName}
+                placeholder="Optional"
+            />
+            {renderStaffFieldError staff "preferredName"}
+        </div>
+        <div class="col-12 col-lg-6">
+            <label for="email" class="form-label">Email</label>
+            <input
+                id="email"
+                type="email"
+                class="form-control"
+                value={fromMaybe "" maybeEmail}
+                readonly="readonly"
+                disabled="disabled"
+            />
+            <div class="form-text">Login email is read-only here for now.</div>
+        </div>
+        <div class="col-12 col-lg-6">
+            <label for="phone" class="form-label">Phone</label>
+            <input
+                id="phone"
+                name="phone"
+                type="text"
+                class={inputClass staff "phone"}
+                value={staff.phone}
+                required="required"
+            />
+            {renderStaffFieldError staff "phone"}
+        </div>
+        <div class="col-12 col-lg-6">
+            <label for="idealShiftsPerWeek" class="form-label">Ideal Shifts Per Week</label>
+            <input
+                id="idealShiftsPerWeek"
+                name="idealShiftsPerWeek"
+                type="number"
+                min="0"
+                max="7"
+                class={inputClass staff "idealShiftsPerWeek"}
+                value={tshow staff.idealShiftsPerWeek}
+                required="required"
+            />
+            {renderStaffFieldError staff "idealShiftsPerWeek"}
+        </div>
+        <div class="col-12 col-lg-6">
+            <label for="emergencyContactName" class="form-label">Emergency Contact Name</label>
+            <input
+                id="emergencyContactName"
+                name="emergencyContactName"
+                type="text"
+                class={inputClass staff "emergencyContactName"}
+                value={staff.emergencyContactName}
+                required="required"
+            />
+            {renderStaffFieldError staff "emergencyContactName"}
+        </div>
+        <div class="col-12 col-lg-6">
+            <label for="emergencyContactPhone" class="form-label">Emergency Contact Number</label>
+            <input
+                id="emergencyContactPhone"
+                name="emergencyContactPhone"
+                type="text"
+                class={inputClass staff "emergencyContactPhone"}
+                value={staff.emergencyContactPhone}
+                required="required"
+            />
+            {renderStaffFieldError staff "emergencyContactPhone"}
+        </div>
     </div>
 |]
 
