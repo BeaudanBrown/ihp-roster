@@ -332,27 +332,28 @@ respondWithTimesheetDaySectionFragment weekOffset dayOffset =
 
 respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Text -> Bool -> Bool -> IO ()
 respondWithTimesheetDaySectionUpdate weekOffset workedOn successMessage closeDialog renderMainFragmentOob = do
-    (entries, staffMembers, shiftTypes, paySummariesByEntryId, today, editWindowDays, weekStartDate) <- fetchTimesheetDaySectionState weekOffset
+    projection <- fetchTimesheetWeekProjectionCached weekOffset
+    let weekStartDate = projection.timesheetWeekStartDate
     let dayOffset = timesheetDayOffset weekStartDate workedOn
     let mainFragment =
             if renderMainFragmentOob
                 then renderDaySectionOob
-                    entries
-                    staffMembers
-                    shiftTypes
-                    paySummariesByEntryId
-                    today
-                    editWindowDays
+                    projection.timesheetEntries
+                    projection.timesheetStaffMembers
+                    projection.timesheetShiftTypes
+                    projection.timesheetPaySummariesByEntryId
+                    projection.timesheetToday
+                    projection.timesheetEditWindowDays
                     weekOffset
                     weekStartDate
                     dayOffset
                 else renderDaySection
-                    entries
-                    staffMembers
-                    shiftTypes
-                    paySummariesByEntryId
-                    today
-                    editWindowDays
+                    projection.timesheetEntries
+                    projection.timesheetStaffMembers
+                    projection.timesheetShiftTypes
+                    projection.timesheetPaySummariesByEntryId
+                    projection.timesheetToday
+                    projection.timesheetEditWindowDays
                     weekOffset
                     weekStartDate
                     dayOffset

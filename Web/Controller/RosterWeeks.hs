@@ -504,7 +504,7 @@ respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: 
 respondWithRosterContentOob rosterGroupId weekOffset = do
     rosterGroups <- fetchCurrentVenueRosterGroups
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
+    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
@@ -526,7 +526,7 @@ respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext 
 respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
     rosterGroups <- fetchCurrentVenueRosterGroups
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
+    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
     respondHtml $
         mconcat
             [ case rosterData of
@@ -585,7 +585,7 @@ respondWithActorRosterFragmentRefresh fragments = do
 
 respondWithRosterDaySectionPatch :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> Bool -> IO ()
 respondWithRosterDaySectionPatch rosterGroupId weekOffset rosterDayId shouldRefreshStaffPanel = do
-    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
+    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx||]
         Just RosterRenderData { rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } -> do
@@ -598,7 +598,7 @@ respondWithRosterDaySectionPatch rosterGroupId weekOffset rosterDayId shouldRefr
 
 respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefreshStaffPanel = do
-    rosterData <- fetchVisibleRosterRenderData rosterGroupId weekOffset
+    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx||]
         Just RosterRenderData { rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } -> do

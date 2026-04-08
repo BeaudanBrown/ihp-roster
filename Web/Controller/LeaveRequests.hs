@@ -291,13 +291,11 @@ leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveP
 
 respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> Bool -> IO ()
 respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
-    staffMembers <- fetchStaffMembersForCurrentVenue
-    leaveRequests <- fetchVisibleLeaveRequests
-    currentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
+    projection <- fetchLeaveRequestsProjectionCached
     let mainFragment =
             if renderMainFragmentOob
-                then renderLeaveRequestsContentFragmentOob leaveRequests staffMembers currentViewerStaffId
-                else renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId
+                then renderLeaveRequestsContentFragmentOob projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId
+                else renderLeaveRequestsContentFragment projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId
     respondHtml $
         mconcat
             [ mainFragment
