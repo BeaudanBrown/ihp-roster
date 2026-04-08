@@ -715,6 +715,35 @@ tests = beforeAll testContext do
                 fromJust triggerHeader `shouldContain` updatedRowTarget
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekRowFragment"
+                fromJust triggerHeader `shouldContain` "\"deferUntilBlur\":false"
+
+        it "renders unique roster field keys for each editable control in a multi-slot row fragment" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-field-keys@example.com" "staff" True
+                staffUser <- createUserRecord "roster-staff-field-keys@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue staffUser "worker"
+                early <- fetchSlotNameRecord venue "Early"
+                late <- fetchSlotNameRecord venue "Late"
+                staffMember <- createStaffRecord venue (Just staffUser) "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                firstSlot <- createRosterSlotRecord rosterDay early (Just staffMember) 0
+                secondSlot <- createRosterSlotRecord rosterDay late Nothing 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+
+                response `responseStatusShouldBe` status200
+                body <- responseBody response
+                let bodyText = cs body :: String
+                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow firstSlot.id) <> ":startTime\"")
+                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow firstSlot.id) <> ":staffId\"")
+                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow firstSlot.id) <> ":note\"")
+                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow secondSlot.id) <> ":startTime\"")
+                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow secondSlot.id) <> ":staffId\"")
+                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow secondSlot.id) <> ":note\"")
 
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do

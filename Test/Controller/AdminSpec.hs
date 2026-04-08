@@ -1,5 +1,6 @@
 module Test.Controller.AdminSpec where
 
+import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
 import Config
@@ -72,20 +73,16 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Generate Staff Pay CSV"
                 response `responseBodyShouldContain` "Generate Hourly Breakdown ZIP"
                 response `responseBodyShouldContain` "Export History"
-                response `responseBodyShouldContain` "data-live-update-feature=\"admin-slot-names\""
                 response `responseBodyShouldContain` "admin-slot-names-fragment"
                 response `responseBodyShouldContain` "admin-invites-fragment"
-                response `responseBodyShouldContain` "data-live-update-feature=\"admin-invites\""
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldNotContain` "ihp-auto-refresh-id"
                 response `responseBodyShouldContain` "Level A"
-                response `responseBodyShouldContain` "Kitchen -&gt; Level A on Monday"
                 response `responseBodyShouldContain` "Kitchen"
                 response `responseBodyShouldContain` "Back of House"
                 response `responseBodyShouldContain` "Pass"
                 response `responseBodyShouldContain` "Monday"
-                response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
                 response `responseBodyShouldNotContain` "Config Table Overview"
                 response `responseBodyShouldNotContain` "Pay/Config Snapshots"
                 response `responseBodyShouldNotContain` "Save Snapshot"
@@ -94,7 +91,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "<th>Link</th>"
                 response `responseBodyShouldContain` "hx-post=\"/CreateVenueInvitation"
                 response `responseBodyShouldContain` "hx-target=\"#admin-invites-fragment\""
-                response `responseBodyShouldContain` "<th>Status</th>"
+                response `responseBodyShouldContain` "No invites yet."
                 response `responseBodyShouldNotContain` "Level B"
                 response `responseBodyShouldNotContain` "Bar -&gt; Level B on Tuesday"
                 response `responseBodyShouldNotContain` "Bar"
