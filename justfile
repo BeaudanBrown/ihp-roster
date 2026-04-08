@@ -24,6 +24,12 @@ db:
 seed-dev *args:
     if [ -z "{{args}}" ]; then seed-dev app; else seed-dev {{args}}; fi
 
+demo-reset:
+    bash ./bin/demo-reset
+
+demo-reset-local:
+    bash ./bin/demo-reset-local
+
 typecheck *args:
     typecheck {{args}}
 

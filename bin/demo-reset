@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+TARGET_HOST="${IHP_ROSTER_DEMO_HOST:-nas}"
+TARGET_REPO="${IHP_ROSTER_DEMO_REPO:-/home/beau/documents/projects/ihp-roster}"
+CURRENT_HOST="$(hostname -s 2>/dev/null || hostname)"
+
+if [ "${1:-}" = "--help" ]; then
+    cat <<EOF
+Usage: just demo-reset
+
+Runs the demo database reset locally when already on ${TARGET_HOST},
+or SSHes to ${TARGET_HOST} and runs the same reset there.
+
+Overrides:
+  IHP_ROSTER_DEMO_HOST  Target SSH host (default: nas)
+  IHP_ROSTER_DEMO_REPO  Repo path on target host
+EOF
+    exit 0
+fi
+
+if [ "$CURRENT_HOST" = "$TARGET_HOST" ]; then
+    exec "$SCRIPT_DIR/demo-reset-local"
+fi
+
+exec ssh "$TARGET_HOST" "cd '$TARGET_REPO' && bash ./bin/demo-reset-local"

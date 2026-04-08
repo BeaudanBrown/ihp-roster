@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+DB_NAME="${IHP_ROSTER_DEMO_DB_NAME:-ihp_roster}"
+DB_USER="${IHP_ROSTER_DEMO_DB_USER:-ihp_roster}"
+DB_SOCKET="${IHP_ROSTER_DEMO_DB_SOCKET:-/var/run/postgresql}"
+WORKER_SERVICE="${IHP_ROSTER_DEMO_WORKER_SERVICE:-worker}"
+APP_SERVICE="${IHP_ROSTER_DEMO_APP_SERVICE:-app}"
+
+cd "$REPO_ROOT"
+
+sudo systemctl stop "$APP_SERVICE" "$WORKER_SERVICE" bootstrap-account migrate loadSchema || true
+sudo -u postgres dropdb --if-exists "$DB_NAME"
+sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
+sudo systemctl start migrate
+
+export DATABASE_URL="postgresql://${DB_USER}@/${DB_NAME}?host=${DB_SOCKET}"
+
+bash ./bin/in-env bash -lc '
+    set -euo pipefail
+    GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null | sed "s/-iIHP[^ ]* //g; s/-fbyte-code//g")
+    mkdir -p build/Script
+    cat > build/Script/ResetDemoMain.hs <<'"'"'EOF'"'"'
+import qualified Application.Script.SeedDev as SeedDev
+import Application.Support (resetDatabase)
+import qualified Config
+import IHP.ScriptSupport
+
+main :: IO ()
+main = runScript Config.config (resetDatabase >> SeedDev.run)
+EOF
+    ghc $GHC_OPTS -iTest -main-is Main build/Script/ResetDemoMain.hs \
+        -o build/Script/ResetDemo \
+        -odir build/Script \
+        -hidir build/Script
+    exec build/Script/ResetDemo
+'
+
+sudo systemctl restart "$APP_SERVICE"
+if systemctl list-unit-files "$WORKER_SERVICE.service" >/dev/null 2>&1; then
+    sudo systemctl restart "$WORKER_SERVICE" || true
+fi
