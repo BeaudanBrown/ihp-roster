@@ -57,7 +57,7 @@ test.describe('HTMX submit regressions', () => {
 
         await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
         await expect(page.locator('#leave-requests-content')).toContainText(note);
-        await expect(page.locator(`#leave-requests-content tr:has-text("${note}")`)).toHaveCount(1);
+        await expect(page.locator('#leave-requests-content article').filter({ hasText: note })).toHaveCount(1);
     });
 
     test('timesheet submit creates one card', async ({ page }) => {

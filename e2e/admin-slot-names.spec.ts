@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
+import { gotoWhenReady, loginAs } from './test-helpers';
+
+const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 test.describe('Admin slot names', () => {
     test('deleting a slot name succeeds and updates the slot-name fragment', async ({ page }) => {
@@ -11,21 +13,34 @@ test.describe('Admin slot names', () => {
             await slotNamesToggle.click();
         }
 
-        const slotNameInput = page.locator('#admin-slot-names-fragment input[aria-label="Slot name"]');
-        await expect(slotNameInput).toHaveValue('Early');
+        const addedSlotName = `Delete Me ${Date.now()}`;
+        const slotNameInputs = page.locator('#admin-slot-names-fragment input[aria-label="Slot name"]');
+        const deleteButtons = page.locator('#admin-slot-names-fragment button:has-text("Delete")');
+        const initialSlotCount = await slotNameInputs.count();
+
+        const createResponsePromise = page.waitForResponse((response) => {
+            return response.request().method() === 'POST' && response.url().includes('/CreateSlotName');
+        });
+
+        await page.fill('#new-slot-name', addedSlotName);
+        await page.getByRole('button', { name: 'Add Slot' }).click();
+
+        const createResponse = await createResponsePromise;
+        expect(createResponse.status(), await createResponse.text()).toBe(200);
+        await expect(slotNameInputs).toHaveCount(initialSlotCount + 1);
 
         const deleteResponsePromise = page.waitForResponse((response) => {
             return response.request().method() === 'DELETE' && response.url().includes('/DeleteSlotName');
         });
 
-        await page.locator('#admin-slot-names-fragment button:has-text("Delete")').click();
+        await deleteButtons.last().click();
 
         const deleteResponse = await deleteResponsePromise;
         const deleteResponseText = await deleteResponse.text();
         expect(deleteResponse.status(), deleteResponseText).toBe(200);
 
-        await expect(slotNameInput).toHaveCount(0);
-        await expect(page.locator('#admin-slot-names-fragment')).toContainText('No slot names yet for this roster group.');
+        await expect(slotNameInputs).toHaveCount(initialSlotCount);
+        await expect(page.locator('#admin-slot-names-fragment')).not.toContainText(addedSlotName);
     });
 
     test('creating a slot name leaves an existing roster unchanged until the draft week is synced', async ({ browser }) => {
@@ -37,7 +52,9 @@ test.describe('Admin slot names', () => {
 
         await loginAs(adminPage, 'e2e-admin@example.com', 'test-password-123');
         await gotoWhenReady(adminPage, '/Admin', '#admin-config-sections');
-        await openRoster(viewerPage);
+        await loginAs(viewerPage, 'e2e-admin@example.com', 'test-password-123');
+        await gotoWhenReady(viewerPage, e2eRosterPath, 'table.roster-grid');
+        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: 60000 });
 
         const slotNamesToggle = adminPage.getByRole('button', { name: 'Slot Names' });
         if ((await slotNamesToggle.getAttribute('aria-expanded')) !== 'true') {
@@ -58,21 +75,24 @@ test.describe('Admin slot names', () => {
         }
 
         const viewerRow = viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }).first();
-        if (await adminPage.locator('#admin-slot-names-fragment').getByText('No slot names yet for this roster group.').isVisible().catch(() => false)) {
+        if (await adminPage.locator('#admin-slot-names-fragment').getByText('No slot names yet for this schedule group.').isVisible().catch(() => false)) {
             await addSlot('Early');
         }
 
-        await expect(viewerRow.locator('select[name="staffId"]')).toHaveCount(1);
-        await expect(viewerRow.locator('input[name="note"]')).toHaveCount(1);
+        const initialStaffSelectCount = await viewerRow.locator('select[name="staffId"]').count();
+        const initialNoteCount = await viewerRow.locator('input[name="note"]').count();
+
+        await expect(viewerRow.locator('select[name="staffId"]')).toHaveCount(initialStaffSelectCount);
+        await expect(viewerRow.locator('input[name="note"]')).toHaveCount(initialNoteCount);
 
         await addSlot(addedSlotName);
-        await expect(viewerRow.locator('select[name="staffId"]')).toHaveCount(1);
-        await expect(viewerRow.locator('input[name="note"]')).toHaveCount(1);
+        await expect(viewerRow.locator('select[name="staffId"]')).toHaveCount(initialStaffSelectCount);
+        await expect(viewerRow.locator('input[name="note"]')).toHaveCount(initialNoteCount);
         await expect(viewerPage.locator('table.roster-grid')).not.toContainText(addedSlotName);
 
         await viewerPage.reload();
-        await expect(viewerRow.locator('select[name="staffId"]')).toHaveCount(1);
-        await expect(viewerRow.locator('input[name="note"]')).toHaveCount(1);
+        await expect(viewerRow.locator('select[name="staffId"]')).toHaveCount(initialStaffSelectCount);
+        await expect(viewerRow.locator('input[name="note"]')).toHaveCount(initialNoteCount);
         await expect(viewerPage.locator('table.roster-grid')).not.toContainText(addedSlotName);
 
         const syncResponsePromise = viewerPage.waitForResponse((response) => {
@@ -86,8 +106,8 @@ test.describe('Admin slot names', () => {
         const syncResponseText = await syncResponse.text();
         expect(syncResponse.status(), syncResponseText).toBe(200);
 
-        await expect(viewerRow.locator('select[name="staffId"]')).toHaveCount(2);
-        await expect(viewerRow.locator('input[name="note"]')).toHaveCount(2);
+        await expect(viewerRow.locator('select[name="staffId"]')).toHaveCount(initialStaffSelectCount + 1);
+        await expect(viewerRow.locator('input[name="note"]')).toHaveCount(initialNoteCount + 1);
         await expect(viewerPage.locator('table.roster-grid')).toContainText(addedSlotName);
 
         await adminContext.close();

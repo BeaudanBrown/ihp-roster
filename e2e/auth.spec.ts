@@ -24,10 +24,10 @@ test.describe('Authentication', () => {
         // Should redirect to the roster flow for the current venue
         await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
         await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
-        await expect(page.locator('body')).toContainText('Roster');
+        await expect(page.locator('body')).toContainText('Schedule');
 
         // Logout
-        await page.click('a:has-text("Logout"), button:has-text("Logout")');
+        await page.click('a:has-text("logout"), button:has-text("logout")');
 
         // Should redirect to login page
         await expect(page).toHaveURL(/NewSession/, { timeout: 60000 });

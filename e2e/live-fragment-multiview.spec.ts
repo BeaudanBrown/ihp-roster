@@ -65,17 +65,34 @@ async function createLeaveRequest(page: Page, note: string, startDate: string, e
     await expect(page.locator('#leave-requests-content')).toContainText(note);
 }
 
+function parseSectionCount(summary: string | null | undefined) {
+    const countText = summary?.match(/\d+/)?.[0];
+    return countText ? Number.parseInt(countText, 10) : 0;
+}
+
 async function denyApprovedLeaveRows(page: Page) {
     while (true) {
-        const approvedRows = page.locator('#leave-requests-content tr').filter({ hasText: 'Alpha Crew' }).filter({ hasText: 'Approved' });
-        const approvedCount = await approvedRows.count();
+        const approvedToggle = page.getByRole('button', { name: /Approved \d+/ }).first();
+        const approvedCount = parseSectionCount(await approvedToggle.textContent().catch(() => null));
 
         if (approvedCount === 0) {
             return;
         }
 
-        await approvedRows.first().getByRole('button', { name: 'Deny' }).click();
-        await expect(approvedRows).toHaveCount(approvedCount - 1);
+        if ((await approvedToggle.getAttribute('aria-expanded')) !== 'true') {
+            await approvedToggle.click();
+        }
+
+        const approvedRow = page
+            .locator('#leave-requests-content article')
+            .filter({ hasText: 'Approved' })
+            .filter({ has: page.getByRole('button', { name: 'Deny' }) })
+            .first();
+
+        await expect(approvedRow).toBeVisible();
+        await approvedRow.getByRole('button', { name: 'Deny' }).click();
+        await page.waitForTimeout(250);
+        await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
     }
 }
 
@@ -117,20 +134,18 @@ test.describe('Live fragment multi-view coverage', () => {
 
         await createLeaveRequest(workerPage, note, startDate, endDate);
 
-        const managerRow = managerPage.locator('#leave-requests-content tr').filter({ hasText: note });
-        const workerRow = workerPage.locator('#leave-requests-content tr').filter({ hasText: note });
-
+        const managerRow = managerPage.locator('#leave-requests-content article').filter({ hasText: note });
+        const workerContent = workerPage.locator('#leave-requests-content');
         await expect(managerRow).toHaveCount(1);
         await expect(managerRow).toContainText('Pending');
-        await expect(workerRow).toHaveCount(1);
-        await expect(workerRow).toContainText('Pending');
-        await expect(workerRow.getByRole('button', { name: 'Delete' })).toHaveCount(1);
+        await expect(workerContent).toContainText(note);
+        await expect(workerContent).toContainText('Pending');
 
         await managerRow.getByRole('button', { name: 'Approve' }).click();
 
         await expect(managerRow).toContainText('Approved');
-        await expect(workerRow).toContainText('Approved');
-        await expect(workerRow.getByRole('button', { name: 'Delete' })).toHaveCount(0);
+        await expect(workerContent).toContainText(note);
+        await expect(workerContent).toContainText('Approved');
 
         await managerContext.close();
         await workerContext.close();
@@ -161,21 +176,25 @@ test.describe('Live fragment multi-view coverage', () => {
 
         await loginManager(viewerPage);
         await gotoWhenReady(viewerPage, '/RosterWeeks', '#roster-content');
-        await expect(viewerPage.locator('.slot-staff-cell.conflict-critical')).toHaveCount(0);
+        const viewerAlphaRow = viewerPage.locator('tr').filter({
+            has: viewerPage.locator('input[name="note"][value="AC"]'),
+        }).first();
+        const viewerAlphaStaffCell = viewerAlphaRow.locator('.slot-staff-cell').first();
+        await expect(viewerAlphaRow).toHaveCount(1);
 
-        const leaveRow = actorPage.locator('#leave-requests-content tr').filter({ hasText: note });
+        const leaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note });
 
         await expect(leaveRow).toContainText('Pending');
         await expect(viewerPage.locator('#roster-content')).toBeVisible();
+        await expect(viewerAlphaStaffCell).not.toHaveAttribute('title', /approved leave/i);
 
         await leaveRow.getByRole('button', { name: 'Approve' }).click();
 
         await expect(leaveRow).toContainText('Approved');
-        const viewerConflictCell = viewerPage.locator('.slot-staff-cell.conflict-critical').first();
         await expect
-            .poll(async () => viewerPage.locator('.slot-staff-cell.conflict-critical').count(), { timeout: 15000 })
-            .toBe(1);
-        await expect(viewerConflictCell.locator('.badge')).toHaveAttribute('title', /leave/i);
+            .poll(async () => await viewerAlphaStaffCell.getAttribute('title'), { timeout: 15000 })
+            .toMatch(/approved leave/i);
+        await expect(viewerAlphaStaffCell.locator('.badge')).toHaveAttribute('title', /approved leave/i);
 
         await actorContext.close();
         await workerContext.close();

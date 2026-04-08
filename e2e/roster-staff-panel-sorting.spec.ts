@@ -32,6 +32,12 @@ function compareText(leftValue: string, rightValue: string) {
     return leftValue.localeCompare(rightValue, undefined, { sensitivity: 'base' });
 }
 
+function panelNameFromOptionLabel(label: string) {
+    const [lastName, firstName] = label.split(',').map((part) => part.trim());
+    if (!firstName || !lastName) return label.trim();
+    return `${firstName} ${lastName}`;
+}
+
 test.describe('Roster staff panel sorting', () => {
     test('sorts by name, role, and shifts with asc/desc toggles', async ({ page }) => {
         await loginAndOpenRoster(page);
@@ -62,11 +68,14 @@ test.describe('Roster staff panel sorting', () => {
 
         const assignmentSelect = page.locator('select[name="staffId"]').first();
         await assignmentSelect.selectOption('a0000000-0000-0000-0000-000000000101');
+        const selectedStaffName = panelNameFromOptionLabel(
+            (await assignmentSelect.locator('option:checked').textContent()) ?? '',
+        );
 
         await expect
             .poll(async () => {
                 const rows = await readPanelRows(page);
-                return rows.find((row) => row.name === 'E2E Manager')?.assigned ?? 0;
+                return rows.find((row) => row.name === selectedStaffName)?.assigned ?? 0;
             })
             .toBe(1);
 

@@ -26,9 +26,10 @@ test.describe('Authenticated header navigation', () => {
 
         await page.getByRole('link', { name: 'admin' }).click();
         await expect(page).toHaveURL(/Admin/, { timeout: 60000 });
-        await expect(page.getByRole('heading', { name: 'Admin' })).toBeVisible();
+        await expect(page.locator('#admin-config-sections')).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Schedule Groups' }).first()).toBeVisible();
 
-        await page.getByRole('link', { name: 'roster', exact: true }).click();
+        await page.getByRole('link', { name: 'schedule', exact: true }).click();
         await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
         await expect(page.locator('#roster-week-shell')).toBeVisible();
     });

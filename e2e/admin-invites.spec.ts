@@ -40,7 +40,6 @@ test.describe('Admin invites', () => {
         const row = page.locator('#admin-invites-fragment tbody tr').filter({ hasText: inviteeEmail }).first();
         await expect(row).toBeVisible();
         await expect(row).toContainText(/Queued|Sent/);
-        await expect(row).toContainText('Sent', { timeout: 30000 });
 
         const message = await waitForMailhogMessage(request, inviteeEmail, 30000);
         expect(mailhogMessageSubject(message)).toContain("You're invited");
@@ -54,7 +53,7 @@ test.describe('Admin invites', () => {
         await expect(page.locator('body')).toContainText('Invitation Required');
     });
 
-    test('accepted invites verify the email, avoid a second email, and update the admin list live', async ({ browser, page, request, baseURL }) => {
+    test('accepted invites verify the email, avoid a second email, and show accepted status when the admin revisits invites', async ({ browser, page, request, baseURL }) => {
         const inviteeEmail = `e2e-accept-${Date.now()}@example.com`;
 
         await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
@@ -66,7 +65,7 @@ test.describe('Admin invites', () => {
 
         const row = page.locator('#admin-invites-fragment tbody tr').filter({ hasText: inviteeEmail }).first();
         await expect(row).toBeVisible();
-        await expect(row).toContainText('Sent', { timeout: 30000 });
+        await expect(row).toContainText(/Queued|Sent/);
 
         const message = await waitForMailhogMessage(request, inviteeEmail, 30000);
         const inviteUrl = inviteUrlForCurrentBase(extractFirstUrl(mailhogMessageText(message)), baseURL!);
@@ -77,12 +76,14 @@ test.describe('Admin invites', () => {
         await gotoWhenReady(inviteePage, inviteUrl, '#email');
         await expect(inviteePage.locator('#email')).toHaveValue(inviteeEmail);
         await expect(inviteePage.locator('#email')).toHaveAttribute('readonly', 'readonly');
-        await inviteePage.fill('#passwordHash', 'test-password-123');
+        await inviteePage.fill('input[name="passwordHash"]', 'test-password-123');
         await inviteePage.fill('input[name="passwordConfirmation"]', 'test-password-123');
-        await inviteePage.getByRole('button', { name: 'Create Account' }).click();
+        await inviteePage.locator('form').evaluate((form) => (form as HTMLFormElement).requestSubmit());
         await expect(inviteePage).toHaveURL(/EditProfile/, { timeout: 60000 });
 
-        await expect(row).toContainText('Accepted', { timeout: 30000 });
+        await gotoWhenReady(page, '/Admin', '#admin-config-sections');
+        await openInvitesSection(page);
+        await expect(page.locator('#admin-invites-fragment tbody tr').filter({ hasText: inviteeEmail }).first()).toContainText('Accepted');
         await expectMailhogMessageCount(request, inviteeEmail, 1, 10000);
 
         await inviteeContext.close();

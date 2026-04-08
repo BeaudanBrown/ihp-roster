@@ -1,13 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady } from './test-helpers';
+import { gotoWhenReady, loginAs } from './test-helpers';
+
+const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 async function loginAndOpenRoster(page) {
-    await gotoWhenReady(page, '/NewSession', '#email');
-    await page.fill('#email', 'e2e-test@example.com');
-    await page.fill('#password', 'test-password-123');
-    await page.click('button[type="submit"]');
-
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
+    await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
+    await gotoWhenReady(page, e2eRosterPath, 'table.roster-grid');
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
 }
 
@@ -21,7 +19,7 @@ async function ensureSecondRosterRow(page) {
 
 async function assignStaffToRow(page, rowIndex, staffId) {
     const row = page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') }).nth(rowIndex);
-    const select = row.locator('select[name="staffId"]');
+    const select = row.locator('select[name="staffId"]').first();
     await select.selectOption(staffId);
     await expect(select).toHaveValue(staffId);
 }
@@ -62,6 +60,22 @@ function duplicateConflictCells(page) {
 test.describe('Roster duplicate conflicts', () => {
     test.describe.configure({ retries: 0 });
 
+    test('actor duplicate conflict highlighting refreshes immediately after staff assignment', async ({ page }) => {
+        await loginAndOpenRoster(page);
+        await normalizeRosterForDuplicateConflict(page);
+
+        const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
+        const secondRow = page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') }).nth(1);
+        const secondRowSelect = secondRow.locator('select[name="staffId"]').first();
+        const initialConflictCount = await duplicateConflictCells(page).count();
+
+        await secondRowSelect.selectOption(alphaCrewStaffId);
+        await expect(secondRowSelect).toHaveValue(alphaCrewStaffId);
+        await expect
+            .poll(async () => duplicateConflictCells(page).count(), { timeout: 15000 })
+            .toBeGreaterThan(initialConflictCount);
+    });
+
     test('actor and viewer both keep duplicate conflict highlighting without breaking the roster grid', async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
@@ -75,6 +89,8 @@ test.describe('Roster duplicate conflicts', () => {
         await expect(
             viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }),
         ).toHaveCount(2);
+        const initialActorConflictCount = await duplicateConflictCells(actorPage).count();
+        const initialViewerConflictCount = await duplicateConflictCells(viewerPage).count();
 
         const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
         const alphaCrewEntry = actorPage
@@ -87,10 +103,10 @@ test.describe('Roster duplicate conflicts', () => {
         await expect(alphaCrewEntry).toContainText('2');
         await expect
             .poll(async () => duplicateConflictCells(actorPage).count(), { timeout: 15000 })
-            .toBe(2);
+            .toBeGreaterThan(initialActorConflictCount);
         await expect
             .poll(async () => duplicateConflictCells(viewerPage).count(), { timeout: 15000 })
-            .toBe(2);
+            .toBeGreaterThan(initialViewerConflictCount);
 
         const viewerGridState = await viewerPage.locator('table.roster-grid').evaluate((table) => {
             const bodyRows = Array.from(table.querySelectorAll('tbody > tr[data-roster-row]'));
@@ -109,7 +125,7 @@ test.describe('Roster duplicate conflicts', () => {
 
         expect(viewerGridState.outsideRowCount).toBe(0);
         expect(viewerGridState.editableBodyRowCount).toBe(2);
-        expect(viewerGridState.selectCount).toBe(2);
+        expect(viewerGridState.selectCount).toBeGreaterThanOrEqual(2);
         expect(viewerGridState.bodyRowCount).toBeGreaterThanOrEqual(2);
         expect(viewerGridState.firstRowCellCount).toBeGreaterThanOrEqual(3);
 

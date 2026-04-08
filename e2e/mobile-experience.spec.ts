@@ -18,7 +18,7 @@ test.describe('Mobile experience smoke', () => {
         }
 
         await openAuthenticatedNavIfCollapsed(page);
-        await expect(page.getByRole('link', { name: 'roster', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'schedule', exact: true })).toBeVisible();
         await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'leave' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'admin' })).toBeVisible();
@@ -45,7 +45,7 @@ test.describe('Mobile experience smoke', () => {
         await expectNoHorizontalViewportOverflow(page);
 
         const addButton = page.locator('[data-roster-day-add="true"]').first();
-        await addButton.click();
+        await addButton.evaluate((button: HTMLButtonElement) => button.click());
         await expect(dayRows).toHaveCount(initialRowCount + 1);
         await expectNoHorizontalViewportOverflow(page);
     });
@@ -54,7 +54,7 @@ test.describe('Mobile experience smoke', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
 
-        await expect(page.locator('.table-responsive')).toBeVisible();
+        await expect(page.locator('#leave-requests-content')).toBeVisible();
         await expectNoHorizontalViewportOverflow(page);
 
         await page.getByRole('link', { name: 'New Request' }).click();

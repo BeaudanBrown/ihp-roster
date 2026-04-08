@@ -1,13 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady } from './test-helpers';
+import { gotoWhenReady, loginAs } from './test-helpers';
+
+const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 async function loginAndOpenRoster(page) {
-    await gotoWhenReady(page, '/NewSession', '#email');
-    await page.fill('#email', 'e2e-test@example.com');
-    await page.fill('#password', 'test-password-123');
-    await page.click('button[type="submit"]');
-
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
+    await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
+    await gotoWhenReady(page, e2eRosterPath, 'table.roster-grid');
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
 }
 
@@ -37,7 +35,7 @@ async function ensureDraftWeek(page, actionName) {
 
 async function selectStaffForRow(page, rowIndex, staffId) {
     const row = page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') }).nth(rowIndex);
-    const select = row.locator('select[name="staffId"]');
+    const select = row.locator('select[name="staffId"]').first();
     await select.selectOption(staffId);
     await expect(select).toHaveValue(staffId);
 }
@@ -60,15 +58,8 @@ async function expectViewerRowAssignmentApplied(page) {
 async function normalizeLiveFragmentRoster(page) {
     const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
     const managerPanelEntry = managerEntry(page);
-    const editableRows = page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
-    const rowCount = await editableRows.count();
 
     await selectStaffForRow(page, 0, alphaCrewStaffId);
-
-    for (let rowIndex = 1; rowIndex < rowCount; rowIndex += 1) {
-        await selectStaffForRow(page, rowIndex, '');
-    }
-
     await expect(managerPanelEntry).toContainText('0');
 }
 
@@ -91,7 +82,7 @@ test.describe('Roster live fragments', () => {
         await expect(actorManagerEntry).toContainText('0');
         await expect(viewerManagerEntry).toContainText('0');
 
-        const assignmentSelect = actorPage.locator('select[name="staffId"]').first();
+        const assignmentSelect = actorPage.locator('tr[data-roster-row]').filter({ has: actorPage.locator('select[name="staffId"]') }).first().locator('select[name="staffId"]').first();
         await assignmentSelect.selectOption('a0000000-0000-0000-0000-000000000101');
 
         await expect(actorManagerEntry).toContainText('1');
@@ -170,7 +161,7 @@ test.describe('Roster live fragments', () => {
         await viewerContext.close();
     });
 
-    test('defers same-row live updates for a viewer until the focused input blurs', async ({ browser }) => {
+    test('applies same-row staff assignment updates immediately even while the viewer is editing the note field', async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
@@ -181,9 +172,9 @@ test.describe('Roster live fragments', () => {
         await loginAndOpenRoster(viewerPage);
 
         const viewerRow = viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }).first();
-        const viewerStaffSelect = viewerRow.locator('select[name="staffId"]');
-        const viewerNoteInput = viewerRow.locator('input[name="note"]');
-        const actorStaffSelect = actorPage.locator('select[name="staffId"]').first();
+        const viewerStaffSelect = viewerRow.locator('select[name="staffId"]').first();
+        const viewerNoteInput = viewerRow.locator('input[name="note"]').first();
+        const actorStaffSelect = actorPage.locator('tr[data-roster-row]').filter({ has: actorPage.locator('select[name="staffId"]') }).first().locator('select[name="staffId"]').first();
         const managerStaffId = 'a0000000-0000-0000-0000-000000000101';
 
         await expect(viewerStaffSelect).toHaveValue('a1000000-0000-0000-0000-000000000031');
@@ -195,9 +186,38 @@ test.describe('Roster live fragments', () => {
         await actorStaffSelect.selectOption(managerStaffId);
 
         await expect(managerEntry(actorPage)).toContainText('1');
+        await expect(viewerStaffSelect).toHaveValue(managerStaffId);
+        await expect(viewerNoteInput).toHaveValue('AC');
+        await expectViewerRowAssignmentApplied(viewerPage);
+
+        await actorContext.close();
+        await viewerContext.close();
+    });
+
+    test('does not defer same-row live updates when a viewer has the staff select focused', async ({ browser }) => {
+        const actorContext = await browser.newContext();
+        const viewerContext = await browser.newContext();
+        const actorPage = await actorContext.newPage();
+        const viewerPage = await viewerContext.newPage();
+
+        await loginAndOpenRoster(actorPage);
+        await normalizeLiveFragmentRoster(actorPage);
+        await loginAndOpenRoster(viewerPage);
+
+        const viewerRow = viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }).first();
+        const viewerStaffSelect = viewerRow.locator('select[name="staffId"]').first();
+        const actorStaffSelect = actorPage.locator('tr[data-roster-row]').filter({ has: actorPage.locator('select[name="staffId"]') }).first().locator('select[name="staffId"]').first();
+        const managerStaffId = 'a0000000-0000-0000-0000-000000000101';
+
         await expect(viewerStaffSelect).toHaveValue('a1000000-0000-0000-0000-000000000031');
 
-        await viewerPage.locator('h1').click();
+        await viewerStaffSelect.focus();
+        await expect(viewerStaffSelect).toBeFocused();
+
+        await actorStaffSelect.selectOption(managerStaffId);
+
+        await expect(managerEntry(actorPage)).toContainText('1');
+        await expect(viewerStaffSelect).toHaveValue(managerStaffId);
         await expectViewerRowAssignmentApplied(viewerPage);
 
         await actorContext.close();
@@ -215,9 +235,9 @@ test.describe('Roster live fragments', () => {
         await loginAndOpenRoster(viewerPage);
 
         const viewerRow = viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }).first();
-        const viewerStaffSelect = viewerRow.locator('select[name="staffId"]');
-        const viewerNoteInput = viewerRow.locator('input[name="note"]');
-        const actorStaffSelect = actorPage.locator('select[name="staffId"]').first();
+        const viewerStaffSelect = viewerRow.locator('select[name="staffId"]').first();
+        const viewerNoteInput = viewerRow.locator('input[name="note"]').first();
+        const actorStaffSelect = actorPage.locator('tr[data-roster-row]').filter({ has: actorPage.locator('select[name="staffId"]') }).first().locator('select[name="staffId"]').first();
         const managerStaffId = 'a0000000-0000-0000-0000-000000000101';
 
         await expect(managerEntry(actorPage)).toContainText('0');
