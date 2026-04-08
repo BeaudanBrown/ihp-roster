@@ -186,7 +186,7 @@
                         test-db-reset.exec = ''
                             set -euo pipefail
                             DB_NAME="''${TEST_DATABASE_NAME:-app_test}"
-                            DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            DB_SOCKET="''${TEST_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"
                             LOAD_E2E_FIXTURES="''${TEST_DB_LOAD_E2E_FIXTURES:-0}"
                             SYSTEM_SCHEMA="''${IHP_DEV_CHECKOUT:-$PWD/IHP}/ihp-ide/data/IHPSchema.sql"
 
@@ -226,7 +226,7 @@ SQL
                         test.exec = ''
                             set -euo pipefail
                             export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
-                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"
                             export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
                             test-db-reset
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
@@ -278,7 +278,7 @@ SQL
 
                             DB_NAME="''${1:-app}"
                             RESET_MODE="''${2:-}"
-                            DB_SOCKET="''${DEV_FIXTURE_DB_SOCKET:-$PWD/build/db}"
+                            DB_SOCKET="''${DEV_FIXTURE_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"
 
                             if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
                                 echo "Dev fixture seeding requires the local postgres socket at $DB_SOCKET" >&2
@@ -331,7 +331,7 @@ EOF
                         test-e2e-server.exec = ''
                             set -euo pipefail
                             export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_e2e}"
-                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"
                             export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
                             export IHP_BROWSER="echo"
                             exec RunDevServer
@@ -341,7 +341,8 @@ EOF
                         # Usage: e2e [playwright-args...]
                         e2e.exec = ''
                             set -euo pipefail
-                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
+                            export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"
+                            export MAILHOG_BASE_URL="''${MAILHOG_BASE_URL:-http://127.0.0.1:8025}"
                             export E2E_RUN_ID="''${E2E_RUN_ID:-$(date +%s)-$$-$RANDOM}"
                             export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_e2e_$E2E_RUN_ID}"
 
@@ -349,6 +350,7 @@ EOF
                             STATE_DIR="$STATE_ROOT/$E2E_RUN_ID"
                             PID_FILE="$STATE_DIR/server.pid"
                             LOG_FILE="$STATE_DIR/server.log"
+                            MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
                             export PLAYWRIGHT_OUTPUT_DIR="$STATE_DIR/test-results"
                             export PLAYWRIGHT_HTML_REPORT_DIR="$STATE_DIR/playwright-report"
 
@@ -357,6 +359,12 @@ EOF
                                     PID=$(cat "$PID_FILE")
                                     kill -TERM -"$PID" 2>/dev/null || kill -TERM "$PID" 2>/dev/null || true
                                     rm -f "$PID_FILE"
+                                fi
+
+                                if [ -n "''${MAILHOG_PID_FILE:-}" ] && [ -f "$MAILHOG_PID_FILE" ]; then
+                                    MAILHOG_PID=$(cat "$MAILHOG_PID_FILE")
+                                    kill "$MAILHOG_PID" 2>/dev/null || true
+                                    rm -f "$MAILHOG_PID_FILE"
                                 fi
 
                                 psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1 || true
@@ -369,6 +377,15 @@ SQL
 
                             mkdir -p "$STATE_DIR"
                             : > "$LOG_FILE"
+
+                            if ! curl -fsS "$MAILHOG_BASE_URL/api/v2/messages" >/dev/null 2>&1; then
+                                ${pkgs.mailhog}/bin/MailHog \
+                                    -smtp-bind-addr 127.0.0.1:1025 \
+                                    -ui-bind-addr 127.0.0.1:8025 \
+                                    -api-bind-addr 127.0.0.1:8025 \
+                                    >>"$LOG_FILE" 2>&1 &
+                                echo "$!" > "$MAILHOG_PID_FILE"
+                            fi
 
                             process_group_pids() {
                                 local pgid="$1"

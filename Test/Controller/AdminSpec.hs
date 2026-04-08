@@ -288,6 +288,44 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-target=\"#admin-invites-fragment\""
                 response `responseBodyShouldContain` "hx-post=\"/CreateVenueInvitation"
 
+        it "renders sent, accepted, revoked, and failed invitation statuses" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Invite Status Venue"
+                admin <- createUserRecord "admin-invite-status@example.com" "staff" True
+                acceptedUser <- createUserRecord "accepted-invite-status@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+
+                _ <- createVenueInvitationRecord venue (Just admin) "sent-status@example.com" "worker"
+                    >>= updateRecord
+                        . set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "sent")
+                _ <- createVenueInvitationRecord venue (Just admin) "accepted-status@example.com" "worker"
+                    >>= updateRecord
+                        . set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                        . set #acceptedByUserId (Just (unpackId acceptedUser.id))
+                _ <- createVenueInvitationRecord venue (Just admin) "revoked-status@example.com" "worker"
+                    >>= updateRecord
+                        . set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+                _ <- createVenueInvitationRecord venue (Just admin) "failed-status@example.com" "worker"
+                    >>= updateRecord
+                        . set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "failed")
+                        . set #deliveryError (Just "smtp unavailable")
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams ShowAdminInvitesFragmentAction
+                            [ ("rosterGroupId", idToParam rosterGroup.id) ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "sent-status@example.com"
+                response `responseBodyShouldContain` "accepted-status@example.com"
+                response `responseBodyShouldContain` "revoked-status@example.com"
+                response `responseBodyShouldContain` "failed-status@example.com"
+                response `responseBodyShouldContain` "Sent"
+                response `responseBodyShouldContain` "Accepted"
+                response `responseBodyShouldContain` "Revoked"
+                response `responseBodyShouldContain` "Send Failed"
+
         it "revokes a pending invitation from the admin invites table" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Invite Revoke Venue"

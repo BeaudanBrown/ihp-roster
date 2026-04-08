@@ -92,6 +92,26 @@ tests = beforeAll testContext do
                 userCount `shouldBe` 0
                 membershipCount `shouldBe` 0
 
+        it "does not redeem an invitation that has been revoked" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Revoked Invite Venue"
+                invitation <- createVenueInvitationRecord venue Nothing "revoked@example.com" "worker"
+                    >>= updateRecord . set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
+
+                response <- callActionWithParams CreateUserAction
+                    [ ("invitationId", idToParam invitation.id)
+                    , ("passwordHash", "test-password-123")
+                    , ("passwordConfirmation", "test-password-123")
+                    ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Invitation Required"
+
+                userCount <- query @User |> fetchCount
+                membershipCount <- query @VenueMembership |> fetchCount
+                userCount `shouldBe` 0
+                membershipCount `shouldBe` 0
+
         it "creates a verified user and venue membership from a pending invitation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Bootstrap Venue"

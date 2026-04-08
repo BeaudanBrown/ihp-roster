@@ -3,7 +3,117 @@ import { mkdtempSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Download, expect, Locator, Page } from '@playwright/test';
+import { APIRequestContext, Download, expect, Locator, Page } from '@playwright/test';
+
+type MailHogAddress = {
+    Mailbox?: string;
+    Domain?: string;
+};
+
+type MailHogMessage = {
+    Content?: {
+        Headers?: Record<string, string[]>;
+        Body?: string;
+    };
+    Raw?: {
+        Data?: string;
+    };
+    To?: MailHogAddress[];
+};
+
+function mailhogBaseUrl() {
+    return process.env.MAILHOG_BASE_URL ?? 'http://127.0.0.1:8025';
+}
+
+function mailhogMessageRecipients(message: MailHogMessage) {
+    return (message.To ?? [])
+        .map((address) => {
+            if (!address.Mailbox || !address.Domain) return null;
+            return `${address.Mailbox}@${address.Domain}`.toLowerCase();
+        })
+        .filter((value): value is string => Boolean(value));
+}
+
+function mailhogMessageBody(message: MailHogMessage) {
+    return message.Content?.Body ?? message.Raw?.Data ?? '';
+}
+
+export function extractFirstUrl(text: string) {
+    const match = text.match(/https?:\/\/[^\s>")]+/);
+    if (!match) {
+        throw new Error(`Could not find URL in text:\n${text}`);
+    }
+    return match[0];
+}
+
+export async function clearMailhogInbox(request: APIRequestContext) {
+    const response = await request.delete(`${mailhogBaseUrl()}/api/v1/messages`);
+    expect(response.ok()).toBeTruthy();
+}
+
+export async function waitForMailhogMessages(
+    request: APIRequestContext,
+    recipient: string,
+    minimumCount = 1,
+    timeoutMs = 30000,
+) {
+    const normalizedRecipient = recipient.toLowerCase();
+    const deadline = Date.now() + timeoutMs;
+    let lastCount = 0;
+
+    while (Date.now() < deadline) {
+        const response = await request.get(`${mailhogBaseUrl()}/api/v2/messages`);
+        expect(response.ok()).toBeTruthy();
+        const payload = (await response.json()) as { items?: MailHogMessage[] };
+        const matches = (payload.items ?? []).filter((message) =>
+            mailhogMessageRecipients(message).includes(normalizedRecipient),
+        );
+        if (matches.length >= minimumCount) {
+            return matches;
+        }
+        lastCount = matches.length;
+        await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    throw new Error(
+        `Expected at least ${minimumCount} MailHog messages for ${recipient}, but only found ${lastCount} within ${timeoutMs}ms`,
+    );
+}
+
+export async function waitForMailhogMessage(request: APIRequestContext, recipient: string, timeoutMs = 30000) {
+    const messages = await waitForMailhogMessages(request, recipient, 1, timeoutMs);
+    return messages[0];
+}
+
+export async function expectMailhogMessageCount(
+    request: APIRequestContext,
+    recipient: string,
+    expectedCount: number,
+    timeoutMs = 10000,
+) {
+    const normalizedRecipient = recipient.toLowerCase();
+
+    await expect
+        .poll(async () => {
+            const response = await request.get(`${mailhogBaseUrl()}/api/v2/messages`);
+            expect(response.ok()).toBeTruthy();
+            const payload = (await response.json()) as { items?: MailHogMessage[] };
+            return (payload.items ?? []).filter((message) =>
+                mailhogMessageRecipients(message).includes(normalizedRecipient),
+            ).length;
+        }, {
+            timeout: timeoutMs
+        })
+        .toBe(expectedCount);
+}
+
+export function mailhogMessageSubject(message: MailHogMessage) {
+    return message.Content?.Headers?.Subject?.[0] ?? '';
+}
+
+export function mailhogMessageText(message: MailHogMessage) {
+    return mailhogMessageBody(message);
+}
 
 export async function gotoWhenReady(page: Page, path: string, readySelector: string, timeoutMs = 60000) {
     const deadline = Date.now() + timeoutMs;
