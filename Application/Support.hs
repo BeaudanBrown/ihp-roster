@@ -10,12 +10,12 @@ import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
-import IHP.ModelSupport (sqlExec)
+import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
-    sqlExec
+    sqlExecDiscardResult
         "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, email_verification_tokens, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
@@ -215,7 +215,7 @@ createPayConfigSnapshotRecord venue user versionNumber snapshot =
         |> createRecord
 
 defaultWeekEpoch :: Day
-defaultWeekEpoch = fromGregorian 2024 1 1
+defaultWeekEpoch = fromGregorian 2025 1 6
 
 testPassword :: Text
 testPassword = "password123"

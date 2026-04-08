@@ -15,20 +15,19 @@ import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.Vault.Lazy as Vault
 import Generated.Types
-import IHP.ApplicationContext (ApplicationContext)
 import IHP.Controller.Context (ControllerContext, newControllerContext)
-import IHP.Controller.RequestContext (RequestContext (..))
 import IHP.Controller.Session (sessionVaultKey)
+import IHP.ControllerSupport (Respond)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
-import IHP.ModelSupport (sqlExec)
+import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Header (RequestHeaders)
 import qualified Network.Wai as Wai
-import qualified Network.Wai.Session
+import qualified Network.Wai.Session.Maybe as WaiSession
 import Web.FrontController ()
 import Web.Types
 
@@ -41,19 +40,18 @@ withCleanDb action = do
     action
 
 withControllerTestContext ::
-    (?mocking :: MockContext WebApplication) =>
+    (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?respond :: Respond) =>
     ((?context :: ControllerContext) => IO a) ->
-    ((?context :: RequestContext) => IO a)
+    IO a
 withControllerTestContext action =
     withSessionValues [] do
-        let ?requestContext = ?context
         controllerContext <- newControllerContext
         let ?context = controllerContext
         action
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
-    sqlExec
+    sqlExecDiscardResult
         "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, email_verification_tokens, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
@@ -306,10 +304,10 @@ createPayConfigSnapshotRecord venue user versionNumber snapshot =
 
 withUserAndCurrentVenue ::
     forall result.
-    (?mocking :: MockContext WebApplication, ?context :: RequestContext, ?applicationContext :: ApplicationContext) =>
+    (?mocking :: MockContext WebApplication, ?request :: Wai.Request) =>
     User ->
     Id Venue ->
-    ((?context :: RequestContext) => IO result) ->
+    ((?request :: Wai.Request) => IO result) ->
     IO result
 withUserAndCurrentVenue user venueId callback =
     withSessionValues
@@ -320,21 +318,19 @@ withUserAndCurrentVenue user venueId callback =
 
 withSessionValues ::
     forall result.
-    (?mocking :: MockContext WebApplication, ?context :: RequestContext) =>
+    (?mocking :: MockContext WebApplication, ?request :: Wai.Request) =>
     [(ByteString.ByteString, ByteString.ByteString)] ->
-    ((?context :: RequestContext) => IO result) ->
+    ((?request :: Wai.Request) => IO result) ->
     IO result
 withSessionValues initialValues callback = do
     store <- newIORef (Map.fromList initialValues)
-    let ?context = (?context) { request = requestWithSession store }
+    let ?request = requestWithSession store
     callback
     where
-        RequestContext { request } = ?mocking.requestContext
-
         requestWithSession store =
-            request { Wai.vault = Vault.insert sessionVaultKey (newSession store) (Wai.vault request) }
+            ?request { Wai.vault = Vault.insert sessionVaultKey (newSession store) (Wai.vault ?request) }
 
-        newSession :: IORef (Map.Map ByteString.ByteString ByteString.ByteString) -> Network.Wai.Session.Session IO ByteString.ByteString ByteString.ByteString
+        newSession :: IORef (Map.Map ByteString.ByteString ByteString.ByteString) -> WaiSession.Session IO ByteString.ByteString ByteString.ByteString
         newSession store = (lookupSession store, insertSession store)
 
         lookupSession store key = Map.lookup key <$> readIORef store
@@ -343,16 +339,16 @@ withSessionValues initialValues callback = do
 
 withRequestHeaders ::
     forall result.
-    (?context :: RequestContext) =>
+    (?request :: Wai.Request) =>
     RequestHeaders ->
-    ((?context :: RequestContext) => IO result) ->
+    ((?request :: Wai.Request) => IO result) ->
     IO result
 withRequestHeaders headers callback = do
     let request' =
-            ?context.request
-                { Wai.requestHeaders = headers <> Wai.requestHeaders ?context.request
+            ?request
+                { Wai.requestHeaders = headers <> Wai.requestHeaders ?request
                 }
-    let ?context = (?context) { request = request' }
+    let ?request = request'
     callback
 
 defaultWeekEpoch :: Day

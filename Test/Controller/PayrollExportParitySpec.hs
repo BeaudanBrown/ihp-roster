@@ -4,6 +4,7 @@ import Application.Helper.Export
 import Config
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
+import qualified Data.Text.IO as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -12,6 +13,7 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Test.Mocking
+import Network.HTTP.Types.Status (status302)
 import Test.Hspec
 import Test.Support
 import Test.Support.PayrollFixtures
@@ -112,3 +114,29 @@ lookupCsvRow csvRows staffName label =
     csvRows
         |> Map.lookup (staffName, label)
         |> fromMaybe (error ("Missing payroll CSV row for " <> staffName <> " / " <> label))
+
+generatePayrollExportJob ::
+    (?mocking :: MockContext WebApplication, ?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: WebApplication) =>
+    User ->
+    Venue ->
+    Text ->
+    Int ->
+    IO ExportJob
+generatePayrollExportJob user venue reportSlug weekOffset = do
+    response <- withUserAndCurrentVenue user venue.id do
+        callActionWithParams CreateExportJobAction
+            [ ("reportSlug", cs reportSlug)
+            , ("weekOffset", cs (tshow weekOffset))
+            ]
+
+    response `responseStatusShouldBe` status302
+
+    query @ExportJob
+        |> filterWhere (#venueId, unpackId venue.id)
+        |> filterWhere (#requestedByUserId, unpackId user.id)
+        |> orderByDesc #createdAt
+        |> fetchOne
+
+readExportFixtureText :: FilePath -> IO Text
+readExportFixtureText fixtureName =
+    Text.readFile ("Test/Fixtures/exports/" <> fixtureName)
