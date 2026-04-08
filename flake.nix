@@ -564,7 +564,9 @@ EOF
                             set -euo pipefail
                             STATE_DIR="$(dev-agent-state-dir)"
                             PID_FILE="$STATE_DIR/devenv.pid"
+                            POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
                             LOG_FILE="$STATE_DIR/devenv.log"
+                            DB_SOCKET="''${PGHOST:-$PWD/build/db}"
 
                             mkdir -p "$STATE_DIR"
 
@@ -587,6 +589,36 @@ EOF
                             # nix/direnv evaluation fail while writing fetcher cache.
                             export XDG_CACHE_HOME="''${XDG_CACHE_HOME:-/tmp/nix-cache}"
                             mkdir -p "$XDG_CACHE_HOME"
+                            if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+                                if [ -f "$POSTGRES_PID_FILE" ]; then
+                                    PG_PID=$(cat "$POSTGRES_PID_FILE")
+                                    if ! kill -0 "$PG_PID" 2>/dev/null; then
+                                        rm -f "$POSTGRES_PID_FILE"
+                                    fi
+                                fi
+
+                                if [ ! -f "$POSTGRES_PID_FILE" ]; then
+                                    echo "[dev-start] launching start-postgres (socket=$DB_SOCKET)" >>"$LOG_FILE"
+                                    setsid nohup start-postgres </dev/null >>"$LOG_FILE" 2>&1 &
+                                    PG_PID=$!
+                                    echo "$PG_PID" > "$POSTGRES_PID_FILE"
+                                    disown "$PG_PID" 2>/dev/null || true
+                                fi
+                            fi
+
+                            for _ in $(seq 1 20); do
+                                if psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+                                    break
+                                fi
+                                sleep 1
+                            done
+
+                            if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+                                echo "devenv postgres failed to start; recent log output:"
+                                tail -n 60 "$LOG_FILE" || true
+                                exit 1
+                            fi
+
                             echo "[dev-start] launching start (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
                             setsid nohup start </dev/null >>"$LOG_FILE" 2>&1 &
                             PID=$!
@@ -613,6 +645,37 @@ EOF
                             set -euo pipefail
                             STATE_DIR="$(dev-agent-state-dir)"
                             PID_FILE="$STATE_DIR/devenv.pid"
+                            POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
+
+                            stop_tracked_process() {
+                                local pid_file="$1"
+                                local label="$2"
+
+                                if [ ! -f "$pid_file" ]; then
+                                    return 0
+                                fi
+
+                                local tracked_pid
+                                tracked_pid=$(cat "$pid_file")
+
+                                if ! kill -0 "$tracked_pid" 2>/dev/null; then
+                                    rm -f "$pid_file"
+                                    return 0
+                                fi
+
+                                kill -TERM -"$tracked_pid" 2>/dev/null || kill -TERM "$tracked_pid" 2>/dev/null || true
+
+                                for _ in $(seq 1 20); do
+                                    if ! kill -0 "$tracked_pid" 2>/dev/null; then
+                                        rm -f "$pid_file"
+                                        return 0
+                                    fi
+                                    sleep 1
+                                done
+
+                                kill -KILL -"$tracked_pid" 2>/dev/null || kill -KILL "$tracked_pid" 2>/dev/null || true
+                                rm -f "$pid_file"
+                            }
 
                             if [ ! -f "$PID_FILE" ]; then
                                 if dev-status >/dev/null 2>&1; then
@@ -634,20 +697,9 @@ EOF
                                 exit 0
                             fi
 
-                            kill -TERM -"$PID" 2>/dev/null || kill -TERM "$PID" 2>/dev/null || true
-
-                            for _ in $(seq 1 20); do
-                                if ! kill -0 "$PID" 2>/dev/null; then
-                                    rm -f "$PID_FILE"
-                                    echo "devenv stopped"
-                                    exit 0
-                                fi
-                                sleep 1
-                            done
-
-                            kill -KILL -"$PID" 2>/dev/null || kill -KILL "$PID" 2>/dev/null || true
-                            rm -f "$PID_FILE"
-                            echo "devenv force-stopped"
+                            stop_tracked_process "$PID_FILE" "devenv"
+                            stop_tracked_process "$POSTGRES_PID_FILE" "postgres"
+                            echo "devenv stopped"
                         '';
 
                         # Check health of background devenv server.
@@ -657,6 +709,7 @@ EOF
                             STATE_DIR="$(dev-agent-state-dir)"
                             PID_FILE="$STATE_DIR/devenv.pid"
                             SOCKET_FILE="$STATE_DIR/pc.sock"
+                            DB_SOCKET="''${PGHOST:-$PWD/build/db}"
                             PID=""
 
                             if [ -f "$PID_FILE" ]; then
@@ -681,7 +734,7 @@ EOF
                             DB_OK=false
                             DB_BLOCKED=false
                             DB_ERR=""
-                            if DB_ERR=$(psql -h "$PWD/build/db" -d app -c "select 1" 2>&1); then
+                            if DB_ERR=$(psql -h "$DB_SOCKET" -d app -c "select 1" 2>&1); then
                                 DB_OK=true
                             elif echo "$DB_ERR" | ${pkgs.ripgrep}/bin/rg -qi "operation not permitted|permission denied"; then
                                 DB_BLOCKED=true
