@@ -5,7 +5,6 @@ import Web.View.Prelude
 data NewView
     = InviteOnlyView
     | InvitationSignupView { user :: User, invitation :: VenueInvitation }
-    | VerificationSentView { email :: Text }
 
 instance View NewView where
     html InviteOnlyView = [hsx|
@@ -41,24 +40,6 @@ instance View NewView where
             </div>
         </div>
     |]
-    html VerificationSentView { .. } = [hsx|
-        <div class="app-page-auth">
-            <div class="app-auth-card">
-                <div class="app-auth-body">
-                    <h4 class="card-title mb-3 text-center">Verify Your Email</h4>
-                    <p class="app-muted mb-4 text-center">
-                        We sent a verification link to <strong>{email}</strong>. You need to verify that email before you can sign in.
-                    </p>
-                    <form method="POST" action={ResendVerificationAction} class="d-grid gap-3">
-                        <input type="hidden" name="email" value={email} />
-                        <button type="submit" class="btn btn-primary">Resend Verification Email</button>
-                        <a href={NewSessionAction} class="btn btn-outline-secondary">Back to Sign In</a>
-                    </form>
-                </div>
-            </div>
-        </div>
-    |]
-
 renderInvitationForm :: User -> VenueInvitation -> Html
 renderInvitationForm user invitation = formForWithoutJavascript user [hsx|
     <input type="hidden" name="invitationId" value={tshow invitation.id} />

@@ -12,6 +12,7 @@ import IHP.HaskellSupport
 import IHP.ModelSupport (inputValue)
 import IHP.Prelude
 import IHP.Test.Mocking
+import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
@@ -43,6 +44,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "invitee@example.com"
                 response `responseBodyShouldContain` "venue admin"
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldContain` "readonly=\"readonly\""
 
         it "does not render the signup form for an expired invitation" $ withContext do
             withCleanDb do
@@ -90,19 +92,20 @@ tests = beforeAll testContext do
                 userCount `shouldBe` 0
                 membershipCount `shouldBe` 0
 
-        it "creates a user and venue membership from a pending invitation" $ withContext do
+        it "creates a verified user and venue membership from a pending invitation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Bootstrap Venue"
                 invitation <- createVenueInvitationRecord venue Nothing "owner@example.com" "venue_owner"
 
                 response <- callActionWithParams CreateUserAction
                     [ ("invitationId", idToParam invitation.id)
+                    , ("email", "attacker@example.com")
                     , ("passwordHash", "test-password-123")
                     , ("passwordConfirmation", "test-password-123")
                     ]
 
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Verify Your Email"
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile"
 
                 user <- query @User
                     |> filterWhere (#email, "owner@example.com")
@@ -111,17 +114,19 @@ tests = beforeAll testContext do
                     |> filterWhere (#userId, unpackId user.id)
                     |> fetchOne
                 updatedInvitation <- fetch invitation.id
-                verificationToken <- query @EmailVerificationToken |> fetchOne
+                unexpectedUser <- query @User
+                    |> filterWhere (#email, "attacker@example.com")
+                    |> fetchOneOrNothing
+                verificationTokenCount <- query @EmailVerificationToken |> fetchCount
 
                 membership.venueId `shouldBe` unpackId venue.id
                 inputValue membership.venueRole `shouldBe` "venue_owner"
                 inputValue user.userRole `shouldBe` "staff"
-                user.emailVerifiedAt `shouldBe` Nothing
+                isJust user.emailVerifiedAt `shouldBe` True
                 inputValue updatedInvitation.status `shouldBe` "accepted"
                 updatedInvitation.acceptedByUserId `shouldBe` Just (unpackId user.id)
-                verificationToken.userId `shouldBe` unpackId user.id
-                verificationToken.sentToEmail `shouldBe` user.email
-                verificationToken.consumedAt `shouldBe` Nothing
+                unexpectedUser `shouldBe` Nothing
+                verificationTokenCount `shouldBe` 0
 
                 auditEvent <- query @AuditEvent |> fetchOne
                 auditEvent.venueId `shouldBe` unpackId venue.id

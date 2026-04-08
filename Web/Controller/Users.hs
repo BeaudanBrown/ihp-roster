@@ -1,9 +1,11 @@
 module Web.Controller.Users where
 
-import Application.Helper.EmailVerification (sendEmailVerification)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified IHP.AuthSupport.Controller.Sessions as Sessions
+import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import Web.Controller.Prelude
+import Web.Controller.Sessions ()
 import Web.View.Users.New
 
 instance Controller UsersController where
@@ -53,8 +55,10 @@ instance Controller UsersController where
                                 Right user -> do
                                     hashed <- hashPassword user.passwordHash
                                     user <- withTransaction do
+                                        verifiedAt <- getCurrentTime
                                         user <- user
                                             |> set #passwordHash hashed
+                                            |> set #emailVerifiedAt (Just verifiedAt)
                                             |> createRecord
                                         membership <- newRecord @VenueMembership
                                             |> set #venueId invitation.venueId
@@ -93,9 +97,10 @@ instance Controller UsersController where
                                                 ]
                                             )
                                         pure user
-                                    void (sendEmailVerification user)
-                                    setTitle "Verify Your Email"
-                                    render VerificationSentView { email = user.email }
+                                    Sessions.beforeLogin user
+                                    LoginSupport.login user
+                                    setSuccessMessage "Invitation accepted."
+                                    redirectTo EditProfileAction
                     _ -> do
                         setErrorMessage "That invitation is no longer valid. Contact support for a new bootstrap invite."
                         setTitle "Request Access"
