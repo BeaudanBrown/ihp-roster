@@ -1,6 +1,7 @@
 module Test.DevSeedSpec where
 
 import Application.Helper.Controller (unsafeEnumFromText)
+import Application.Support.Seed.Scenario
 import Data.List (sort)
 import qualified Data.Text as Text
 import Generated.Types
@@ -98,11 +99,13 @@ tests = beforeAll testContext do
                         |> filterWhere (#staffId, Just (unpackId (get #id bob)))
                         |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) mondayDays)
                         |> fetch
+                let seededScenario = get #scenario fixture
+                let expectedApprovedLeaves = get #leaveRequestCount seededScenario - get #pendingLeaveCount seededScenario - get #deniedLeaveCount seededScenario
 
                 map (.rosterGroupId) bobAssignments `shouldMatchList` [unpackId (get #id fixture.frontOfHouseGroup), unpackId (get #id fixture.backOfHouseGroup)]
-                approvedLeaveCount `shouldBe` 1
-                pendingLeaveCount `shouldBe` 1
-                deniedLeaveCount `shouldBe` 1
+                approvedLeaveCount `shouldBe` expectedApprovedLeaves
+                pendingLeaveCount `shouldBe` get #pendingLeaveCount seededScenario
+                deniedLeaveCount `shouldBe` get #deniedLeaveCount seededScenario
                 length bobMondayAssignments `shouldBe` 2
 
         it "seeds support access, venue roles, and invitation bootstrap data" $ withContext do
@@ -163,3 +166,32 @@ tests = beforeAll testContext do
                 map (.name) shiftTypes `shouldMatchList` ["Bar", "Floor", "Kitchen"]
                 length snapshots `shouldBe` 1
                 approvedCount `shouldSatisfy` (> pendingCount)
+
+        it "supports deterministic scenario overrides for realistic demo seeding" $ withContext do
+            withCleanDb do
+                let scenario =
+                        applyOverrides
+                            defaultScenarioOverrides
+                                { overrideStaffCount = Just 12
+                                , overrideManagerCount = Just 2
+                                , overrideRosterFill = Just 65
+                                , overrideScenarioSeed = Just 12345
+                                }
+                            defaultScenario
+                fixture <- seedDevelopmentFixtureWithScenarioForWeek scenario defaultWeekEpoch
+
+                seededStaffCount <-
+                    query @Staff
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> fetchCount
+                managerMembershipCount <-
+                    query @VenueMembership
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhere (#venueRole, unsafeEnumFromText @VenueRoleEnum "manager")
+                        |> fetchCount
+
+                get #staffCount (get #scenario fixture) `shouldBe` 12
+                get #managerCount (get #scenario fixture) `shouldBe` 2
+                get #scenarioSeed (get #scenario fixture) `shouldBe` 12345
+                seededStaffCount `shouldSatisfy` (>= 12)
+                managerMembershipCount `shouldBe` 2

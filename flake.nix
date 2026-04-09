@@ -76,6 +76,7 @@
                         hspec
                     ];
                     devHaskellPackages = p: with p; [
+                        hlint
                         stylish-haskell
                     ];
                 };
@@ -272,13 +273,31 @@ SQL
                         '';
 
                         # Seed a general-purpose development fixture surface into a freshly reset database for manual exploration.
-                        # Usage: seed-dev [app|app_test] [--force]
+                        # Usage: seed-dev [app|app_test] [--force] [seed-options...]
                         seed-dev.exec = ''
                             set -euo pipefail
 
-                            DB_NAME="''${1:-app}"
-                            RESET_MODE="''${2:-}"
+                            DB_NAME="app"
+                            RESET_MODE=""
+                            SCRIPT_ARGS=()
                             DB_SOCKET="''${DEV_FIXTURE_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"
+
+                            while [ "$#" -gt 0 ]; do
+                                case "$1" in
+                                    app|app_test)
+                                        DB_NAME="$1"
+                                        shift
+                                        ;;
+                                    --force)
+                                        RESET_MODE="$1"
+                                        shift
+                                        ;;
+                                    *)
+                                        SCRIPT_ARGS+=("$1")
+                                        shift
+                                        ;;
+                                esac
+                            done
 
                             if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
                                 echo "Dev fixture seeding requires the local postgres socket at $DB_SOCKET" >&2
@@ -297,14 +316,14 @@ SQL
                                 ;;
                                 *)
                                     echo "Unsupported database target: $DB_NAME" >&2
-                                    echo "Usage: seed-dev [app|app_test] [--force]" >&2
+                                    echo "Usage: seed-dev [app|app_test] [--force] [seed-options...]" >&2
                                     exit 1
                                     ;;
                             esac
 
                             if [ -n "$RESET_MODE" ] && [ "$RESET_MODE" != "--force" ]; then
                                 echo "Unsupported flag: $RESET_MODE" >&2
-                                echo "Usage: seed-dev [app|app_test] [--force]" >&2
+                                echo "Usage: seed-dev [app|app_test] [--force] [seed-options...]" >&2
                                 exit 1
                             fi
 
@@ -323,7 +342,7 @@ EOF
                                 -o build/Script/SeedDev \
                                 -odir build/Script \
                                 -hidir build/Script
-                            exec build/Script/SeedDev
+                            exec build/Script/SeedDev "''${SCRIPT_ARGS[@]}"
                         '';
 
                         # Launch a dedicated app server for isolated E2E runs.

@@ -6,6 +6,8 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames,
                                         fetchVenueDayNames,
                                         syncStaffRosterGroupAssignments)
+import Application.Support.Seed.Scenario
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -28,24 +30,30 @@ data DevSeedFixture = DevSeedFixture
     { sandboxVenue      :: !Venue
     , sandboxAdmin      :: !User
     , sandboxManager    :: !User
+    , sandboxManagers   :: ![User]
     , sandboxWorker     :: !User
     , supportAdmin      :: !User
     , sandboxInvitation :: !VenueInvitation
     , frontOfHouseGroup :: !RosterGroup
     , backOfHouseGroup  :: !RosterGroup
     , currentWeekOffset :: !Int
+    , scenario          :: !SeedScenario
     , payrollFixture    :: !ExplorationPayrollFixture
     }
 
 seedDevelopmentFixtureForWeek :: (?modelContext :: ModelContext) => Day -> IO DevSeedFixture
-seedDevelopmentFixtureForWeek fixtureWeekStart = do
+seedDevelopmentFixtureForWeek =
+    seedDevelopmentFixtureWithScenarioForWeek defaultScenario
+
+seedDevelopmentFixtureWithScenarioForWeek :: (?modelContext :: ModelContext) => SeedScenario -> Day -> IO DevSeedFixture
+seedDevelopmentFixtureWithScenarioForWeek scenario fixtureWeekStart = do
     venue <- createVenueWithConfig "Development Sandbox Venue"
     admin <- createUserRecord "dev-admin@example.com" "admin" True
     _ <- createVenueMembershipRecord venue admin "venue_admin"
     supportAdmin <- createUserRecordWithPlatformRole "support-admin@example.com" "admin" (Just SuperAdminRole) True
-    managerUser <- createUserRecord "dev-manager@example.com" "manager" True
+    managerUsers <- createManagerUsers venue scenario.managerCount
+    let managerUser = fromMaybe (error "Expected at least one seeded manager user") (listToMaybe managerUsers)
     workerUser <- createUserRecord "dev-worker@example.com" "staff" True
-    _ <- createVenueMembershipRecord venue managerUser "manager"
     _ <- createVenueMembershipRecord venue workerUser "worker"
     invitation <- createVenueInvitationRecord venue (Just admin) "pending-invite@example.com" "worker"
 
@@ -65,33 +73,23 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
     let saturday = dayNameForWeekday dayNames 6
     _ <- createPayLevelDayRuleRecord kitchenShift saturday backLevel
     snapshot <- createPayrollSnapshot venue admin [frontLevel, backLevel] [floorShift, kitchenShift] dayNames []
-
-    aliceUser <- createUserRecord "dev-alice@example.com" "staff" True
-    bobUser <- createUserRecord "dev-bob@example.com" "staff" True
-    caraUser <- createUserRecord "dev-cara@example.com" "staff" True
-    dylanUser <- createUserRecord "dev-dylan@example.com" "staff" True
-    eveUser <- createUserRecord "dev-eve@example.com" "staff" True
-    frankUser <- createUserRecord "dev-frank@example.com" "staff" True
-
-    managerStaff <- createStaffRecord venue (Just managerUser) "Morgan" "Manager" >>= updateRecord . set #idealShiftsPerWeek 4
+    managerStaffs <- mapM (createManagerStaff venue) (zip [0 ..] managerUsers)
     workerStaff <- createStaffRecord venue (Just workerUser) "Willa" "Worker" >>= updateRecord . set #idealShiftsPerWeek 3
-    alice <- createStaffRecord venue (Just aliceUser) "Alice" "Front" >>= updateRecord . set #idealShiftsPerWeek 5
-    bob <- createStaffRecord venue (Just bobUser) "Bob" "Both" >>= updateRecord . set #idealShiftsPerWeek 4
-    cara <- createStaffRecord venue (Just caraUser) "Cara" "Kitchen" >>= updateRecord . set #idealShiftsPerWeek 4
-    dylan <- createStaffRecord venue (Just dylanUser) "Dylan" "Leave" >>= updateRecord . set #idealShiftsPerWeek 2
-    eve <- createStaffRecord venue (Just eveUser) "Eve" "Closer" >>= updateRecord . set #idealShiftsPerWeek 5
-    frank <- createStaffRecord venue (Just frankUser) "Frank" "Prep" >>= updateRecord . set #idealShiftsPerWeek 3
-    trialStaff <- createStaffRecord venue Nothing "Taylor" "Trial" >>= updateRecord . set #idealShiftsPerWeek 1
+    seededStaff <- createGeneratedStaff venue scenario.staffCount
+    let frontOnlyStaff = takeFrontOnly seededStaff
+    let backOnlyStaff = takeBackOnly seededStaff
+    let crossGroupStaff = takeCrossGroup seededStaff
+    trialStaffs <- createTrialStaff venue scenario.trialStaffCount
 
-    syncStaffRosterGroupAssignments managerStaff [get #id frontGroup, get #id backGroup]
+    mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup, get #id backGroup]) managerStaffs
     syncStaffRosterGroupAssignments workerStaff [get #id frontGroup]
-    syncStaffRosterGroupAssignments alice [get #id frontGroup]
-    syncStaffRosterGroupAssignments bob [get #id frontGroup, get #id backGroup]
-    syncStaffRosterGroupAssignments cara [get #id backGroup]
-    syncStaffRosterGroupAssignments dylan [get #id frontGroup]
-    syncStaffRosterGroupAssignments eve [get #id frontGroup]
-    syncStaffRosterGroupAssignments frank [get #id backGroup]
-    syncStaffRosterGroupAssignments trialStaff [get #id frontGroup]
+    mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup]) frontOnlyStaff
+    mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id backGroup]) backOnlyStaff
+    mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup, get #id backGroup]) crossGroupStaff
+    mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup]) trialStaffs
+
+    let allFrontCandidates = managerStaffs <> [workerStaff] <> frontOnlyStaff <> crossGroupStaff <> trialStaffs
+    let allBackCandidates = managerStaffs <> backOnlyStaff <> crossGroupStaff
 
     let weekOffset = weekOffsetFor fixtureWeekStart
     frontWeek <- createRosterWeekRecordForRosterGroup venue frontGroup weekOffset True
@@ -99,90 +97,15 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
 
     frontDays <- mapM (createRosterDayRecord frontWeek) [0 .. 6]
     backDays <- mapM (createRosterDayRecord backWeek) [0 .. 6]
-    let [frontMonday, frontTuesday, frontWednesday, frontThursday, frontFriday, frontSaturday, frontSunday] = frontDays
-    let [backMonday, backTuesday, backWednesday, _, backFriday, backSaturday, _] = backDays
+    seedRosterGroup scenario.scenarioSeed scenario.rosterFillPercent frontDays frontSlots allFrontCandidates
+    seedRosterGroup (scenario.scenarioSeed + 97) (max 40 (scenario.rosterFillPercent - 8)) backDays backSlots allBackCandidates
 
-    createRosterRow frontMonday frontSlots 0
-        [ ("Early", seededRosterSlot (Just alice) (TimeOfDay 7 0 0) "OP")
-        , ("Mid", seededRosterSlot (Just bob) (TimeOfDay 11 0 0) "LU")
-        , ("Late", seededRosterSlot (Just dylan) (TimeOfDay 16 0 0) "CL")
-        ]
-    createRosterRow frontMonday frontSlots 1
-        [ ("Mid", seededRosterSlot (Just eve) (TimeOfDay 12 0 0) "EX")
-        ]
-    createRosterRow frontTuesday frontSlots 0
-        [ ("Early", seededRosterSlot (Just dylan) (TimeOfDay 7 30 0) "SR")
-        , ("Mid", seededRosterSlot (Just alice) (TimeOfDay 11 30 0) "TR")
-        , ("Late", seededRosterSlot (Just eve) (TimeOfDay 17 0 0) "EV")
-        ]
-    createRosterRow frontWednesday frontSlots 0
-        [ ("Early", seededRosterSlot (Just trialStaff) (TimeOfDay 8 0 0) "SH")
-        , ("Mid", seededRosterSlot (Just bob) (TimeOfDay 12 0 0) "CV")
-        ]
-    createRosterRow frontThursday frontSlots 0
-        [ ("Early", seededRosterSlot (Just managerStaff) (TimeOfDay 6 30 0) "ST")
-        , ("Late", seededRosterSlot (Just eve) (TimeOfDay 16 30 0) "FN")
-        ]
-    createRosterRow frontFriday frontSlots 0
-        [ ("Early", seededRosterSlot (Just workerStaff) (TimeOfDay 7 0 0) "PP")
-        , ("Mid", seededRosterSlot (Just bob) (TimeOfDay 11 0 0) "FP")
-        , ("Late", seededRosterSlot (Just eve) (TimeOfDay 17 30 0) "LK")
-        ]
-    createRosterRow frontSaturday frontSlots 0
-        [ ("Early", seededRosterSlot (Just eve) (TimeOfDay 8 0 0) "WE")
-        , ("Mid", seededRosterSlot (Just alice) (TimeOfDay 12 30 0) "BR")
-        ]
-    createRosterRow frontSunday frontSlots 0
-        [ ("Mid", seededRosterSlot (Just trialStaff) (TimeOfDay 11 0 0) "TS")
-        ]
+    let allOperationalStaff = managerStaffs <> [workerStaff] <> seededStaff <> trialStaffs
 
-    createRosterRow backMonday backSlots 0
-        [ ("Early", seededRosterSlot (Just cara) (TimeOfDay 6 0 0) "PR")
-        , ("Mid", seededRosterSlot (Just bob) (TimeOfDay 11 0 0) "XO")
-        , ("Late", seededRosterSlot (Just frank) (TimeOfDay 16 0 0) "KC")
-        ]
-    createRosterRow backTuesday backSlots 0
-        [ ("Early", seededRosterSlot (Just cara) (TimeOfDay 6 30 0) "MP")
-        , ("Mid", seededRosterSlot (Just frank) (TimeOfDay 12 0 0) "SV")
-        ]
-    createRosterRow backWednesday backSlots 0
-        [ ("Mid", seededRosterSlot (Just bob) (TimeOfDay 11 30 0) "SC")
-        , ("Late", seededRosterSlot (Just cara) (TimeOfDay 17 0 0) "CK")
-        ]
-    createRosterRow backFriday backSlots 0
-        [ ("Early", seededRosterSlot (Just frank) (TimeOfDay 6 0 0) "GR")
-        , ("Mid", seededRosterSlot (Just cara) (TimeOfDay 12 0 0) "FS")
-        ]
-    createRosterRow backSaturday backSlots 0
-        [ ("Early", seededRosterSlot (Just bob) (TimeOfDay 7 30 0) "WC")
-        , ("Late", seededRosterSlot (Just cara) (TimeOfDay 17 30 0) "SA")
-        ]
-
-    _ <- createLeaveRequestRecord venue dylan (dayAtOffset fixtureWeekStart 1) (dayAtOffset fixtureWeekStart 4) "approved"
-    _ <- createLeaveRequestRecord venue alice (dayAtOffset fixtureWeekStart 5) (dayAtOffset fixtureWeekStart 6) "pending"
-    _ <- createLeaveRequestRecord venue workerStaff (dayAtOffset fixtureWeekStart 3) (dayAtOffset fixtureWeekStart 5) "denied"
+    seedLeaveRequests fixtureWeekStart venue scenario allOperationalStaff
 
     let approvedAt = UTCTime (dayAtOffset fixtureWeekStart 6) (secondsToDiffTime 3600)
-    _ <-
-        createTimesheetEntryRecord venue alice (dayAtOffset fixtureWeekStart 0)
-            >>= updateRecord
-                . set #shiftTypeId (unpackId (get #id floorShift))
-                . set #startTime (TimeOfDay 8 0 0)
-                . set #endTime (TimeOfDay 16 0 0)
-                . approveEntryWithSnapshot snapshot admin approvedAt
-    _ <-
-        createTimesheetEntryRecord venue cara (dayAtOffset fixtureWeekStart 1)
-            >>= updateRecord
-                . set #shiftTypeId (unpackId (get #id kitchenShift))
-                . set #startTime (TimeOfDay 6 0 0)
-                . set #endTime (TimeOfDay 14 0 0)
-                . approveEntryWithSnapshot snapshot admin approvedAt
-    _ <-
-        createTimesheetEntryRecord venue bob (dayAtOffset fixtureWeekStart 2)
-            >>= updateRecord
-                . set #shiftTypeId (unpackId (get #id floorShift))
-                . set #startTime (TimeOfDay 12 0 0)
-                . set #endTime (TimeOfDay 18 0 0)
+    seedTimesheets fixtureWeekStart venue admin scenario snapshot floorShift kitchenShift allOperationalStaff approvedAt
 
     seededPayrollFixture <- seedExplorationPayrollFixtureForWeek fixtureWeekStart
 
@@ -191,14 +114,182 @@ seedDevelopmentFixtureForWeek fixtureWeekStart = do
             { sandboxVenue = venue
             , sandboxAdmin = admin
             , sandboxManager = managerUser
+            , sandboxManagers = managerUsers
             , sandboxWorker = workerUser
             , supportAdmin = supportAdmin
             , sandboxInvitation = invitation
             , frontOfHouseGroup = frontGroup
             , backOfHouseGroup = backGroup
             , currentWeekOffset = weekOffset
+            , scenario = scenario
             , payrollFixture = seededPayrollFixture
             }
+
+createManagerUsers :: (?modelContext :: ModelContext) => Venue -> Int -> IO [User]
+createManagerUsers venue count =
+    forM [0 .. max 0 (count - 1)] \index -> do
+        let emailAddress =
+                if index == 0
+                    then "dev-manager@example.com"
+                    else "dev-manager-" <> tshow (index + 1) <> "@example.com"
+        user <- createUserRecord emailAddress "manager" True
+        _ <- createVenueMembershipRecord venue user "manager"
+        pure user
+
+createManagerStaff :: (?modelContext :: ModelContext) => Venue -> (Int, User) -> IO Staff
+createManagerStaff venue (index, user) =
+    createStaffRecord venue (Just user) firstName lastName
+        >>= updateRecord . set #idealShiftsPerWeek (4 + (index `mod` 2))
+    where
+        (firstName, lastName) =
+            fromMaybe ("Morgan", "Manager") (safeIndex managerNames index)
+
+createGeneratedStaff :: (?modelContext :: ModelContext) => Venue -> Int -> IO [Staff]
+createGeneratedStaff venue requestedCount =
+    forM (take (max 0 requestedCount) generatedStaffCatalog) \(index, firstName, lastName) -> do
+        user <- createUserRecord ("dev-" <> Text.toLower firstName <> "-" <> tshow (index + 1) <> "@example.com") "staff" True
+        createStaffRecord venue (Just user) firstName lastName
+            >>= updateRecord . set #idealShiftsPerWeek (1 + ((index + 2) `mod` 5))
+
+createTrialStaff :: (?modelContext :: ModelContext) => Venue -> Int -> IO [Staff]
+createTrialStaff venue requestedCount =
+    forM [0 .. max 0 (requestedCount - 1)] \index ->
+        createStaffRecord venue Nothing "Taylor" ("Trial " <> tshow (index + 1))
+            >>= updateRecord . set #idealShiftsPerWeek 1
+
+takeFrontOnly :: [Staff] -> [Staff]
+takeFrontOnly staff =
+    map snd (filter (\(index, _) -> assignmentBucket index == FrontOnly) (zip [0 :: Int ..] staff))
+
+takeBackOnly :: [Staff] -> [Staff]
+takeBackOnly staff =
+    map snd (filter (\(index, _) -> assignmentBucket index == BackOnly) (zip [0 :: Int ..] staff))
+
+takeCrossGroup :: [Staff] -> [Staff]
+takeCrossGroup staff =
+    map snd (filter (\(index, _) -> assignmentBucket index == CrossGroup) (zip [0 :: Int ..] staff))
+
+seedRosterGroup ::
+    (?modelContext :: ModelContext) =>
+    Int ->
+    Int ->
+    [RosterDay] ->
+    [SlotName] ->
+    [Staff] ->
+    IO ()
+seedRosterGroup seedValue fillPercent rosterDays slotNames staffPool =
+    forM_ (zip [0 :: Int ..] rosterDays) \(dayIndex, rosterDay) -> do
+        let rowCount = if dayIndex `mod` 3 == 0 then 2 else 1
+        let seedRows _ [] = pure ()
+            seedRows usedStaffIds (rowIndex:remainingRowIndexes) = do
+                let (assignments, nextUsedStaffIds) =
+                        buildRowAssignments seedValue fillPercent dayIndex rowIndex slotNames staffPool usedStaffIds
+                createRosterRow rosterDay slotNames rowIndex assignments
+                seedRows nextUsedStaffIds remainingRowIndexes
+        seedRows [] [0 .. rowCount - 1]
+
+buildRowAssignments ::
+    Int ->
+    Int ->
+    Int ->
+    Int ->
+    [SlotName] ->
+    [Staff] ->
+    [UUID] ->
+    ([(Text, DevRosterSlotSeed)], [UUID])
+buildRowAssignments seedValue fillPercent dayIndex rowIndex slotNames staffPool initialUsedStaffIds =
+    foldl'
+        (\(assignments, usedStaffIds) (slotIndex, slotName) ->
+            case seedAssignment seedValue fillPercent dayIndex rowIndex slotIndex slotName staffPool usedStaffIds of
+                Just (assignment, selectedStaffId) -> (assignments <> [assignment], usedStaffIds <> [selectedStaffId])
+                Nothing -> (assignments, usedStaffIds)
+        )
+        ([], initialUsedStaffIds)
+        (zip [0 :: Int ..] slotNames)
+
+seedAssignment :: Int -> Int -> Int -> Int -> Int -> SlotName -> [Staff] -> [UUID] -> Maybe ((Text, DevRosterSlotSeed), UUID)
+seedAssignment _ _ _ _ _ _ [] _ = Nothing
+seedAssignment seedValue fillPercent dayIndex rowIndex slotIndex slotName staffPool usedStaffIds
+    | deterministicPercent seedValue [dayIndex, rowIndex, slotIndex] >= fillPercent = Nothing
+    | otherwise =
+        selectedStaff >>= \staff ->
+            Just
+                ( ( get #name slotName
+                  , seededRosterSlot
+                        (Just staff)
+                        (slotStartTimeFor slotIndex dayIndex)
+                        (slotNoteFor seedValue dayIndex rowIndex slotIndex)
+                  )
+                , unpackId (get #id staff)
+                )
+    where
+        selectedStaff = chooseAvailableStaff seedValue [dayIndex, rowIndex, slotIndex, textHash (get #name slotName)] staffPool usedStaffIds
+
+chooseAvailableStaff :: Int -> [Int] -> [Staff] -> [UUID] -> Maybe Staff
+chooseAvailableStaff _ _ [] _ = Nothing
+chooseAvailableStaff seedValue keys staffPool usedStaffIds =
+    listToMaybe preferredPool <|> listToMaybe staffPool
+    where
+        rotatedPool = rotateList (deterministicIndex seedValue keys (length staffPool)) staffPool
+        preferredPool =
+            filter (\staff -> unpackId (get #id staff) `notElem` usedStaffIds) rotatedPool
+
+rotateList :: Int -> [a] -> [a]
+rotateList _ [] = []
+rotateList offset values =
+    drop clampedOffset values <> take clampedOffset values
+    where
+        clampedOffset = offset `mod` length values
+
+seedLeaveRequests :: (?modelContext :: ModelContext) => Day -> Venue -> SeedScenario -> [Staff] -> IO ()
+seedLeaveRequests fixtureWeekStart venue scenario staffPool = do
+    let approvedCount = max 0 (scenario.leaveRequestCount - scenario.pendingLeaveCount - scenario.deniedLeaveCount)
+    createLeaveBatch venue staffPool approvedCount "approved" 1 fixtureWeekStart
+    createLeaveBatch venue (drop approvedCount staffPool) scenario.pendingLeaveCount "pending" 4 fixtureWeekStart
+    createLeaveBatch venue (drop (approvedCount + scenario.pendingLeaveCount) staffPool) scenario.deniedLeaveCount "denied" 2 fixtureWeekStart
+
+createLeaveBatch :: (?modelContext :: ModelContext) => Venue -> [Staff] -> Int -> Text -> Integer -> Day -> IO ()
+createLeaveBatch venue staffPool count status startOffset fixtureWeekStart =
+    forM_ (zip [0 ..] (take count staffPool)) \(index, staff) -> do
+        let startDate = dayAtOffset fixtureWeekStart (startOffset + toInteger index)
+        let endDate = dayAtOffset startDate 1
+        _ <- createLeaveRequestRecord venue staff startDate endDate status
+        pure ()
+
+seedTimesheets ::
+    (?modelContext :: ModelContext) =>
+    Day ->
+    Venue ->
+    User ->
+    SeedScenario ->
+    PayConfigSnapshot ->
+    ShiftType ->
+    ShiftType ->
+    [Staff] ->
+    UTCTime ->
+    IO ()
+seedTimesheets fixtureWeekStart venue admin scenario snapshot floorShift kitchenShift staffPool approvedAt = do
+    forM_ (zip [0 ..] (take scenario.approvedTimesheets staffPool)) \(index, staff) -> do
+        let shiftTypeId =
+                if index `mod` 4 == 0
+                    then unpackId (get #id kitchenShift)
+                    else unpackId (get #id floorShift)
+        _ <-
+            createTimesheetEntryRecord venue staff (dayAtOffset fixtureWeekStart (toInteger (index `mod` 7)))
+                >>= updateRecord
+                    . set #shiftTypeId shiftTypeId
+                    . set #startTime (TimeOfDay (6 + ((index * 2) `mod` 8)) 0 0)
+                    . set #endTime (TimeOfDay (12 + ((index * 2) `mod` 8)) 0 0)
+                    . approveEntryWithSnapshot snapshot admin approvedAt
+        pure ()
+    forM_ (zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle staffPool)))) \(index, staff) -> do
+        _ <-
+            createTimesheetEntryRecord venue staff (dayAtOffset fixtureWeekStart (toInteger ((index + 2) `mod` 7)))
+                >>= updateRecord
+                    . set #shiftTypeId (unpackId (get #id floorShift))
+                    . set #startTime (TimeOfDay (9 + (index `mod` 3)) 0 0)
+                    . set #endTime (TimeOfDay (15 + (index `mod` 3)) 0 0)
+        pure ()
 
 createRosterRow ::
     (?modelContext :: ModelContext) =>
@@ -226,6 +317,83 @@ seededRosterSlot maybeStaff startTime note =
         , slotStartTime = Just startTime
         , slotNote = Just note
         }
+
+slotStartTimeFor :: Int -> Int -> TimeOfDay
+slotStartTimeFor slotIndex dayIndex =
+    case slotIndex of
+        0 -> TimeOfDay (6 + (dayIndex `mod` 2)) 30 0
+        1 -> TimeOfDay (11 + (dayIndex `mod` 2)) 0 0
+        _ -> TimeOfDay (16 + (dayIndex `mod` 2)) 30 0
+
+slotNoteFor :: Int -> Int -> Int -> Int -> Text
+slotNoteFor seedValue dayIndex rowIndex slotIndex =
+    noteBank !! deterministicIndex seedValue [dayIndex, rowIndex, slotIndex, 77] (length noteBank)
+
+deterministicPercent :: Int -> [Int] -> Int
+deterministicPercent seedValue keys = deterministicIndex seedValue keys 100
+
+deterministicIndex :: Int -> [Int] -> Int -> Int
+deterministicIndex _ _ 0 = 0
+deterministicIndex seedValue keys modulus =
+    abs (foldl' (\acc value -> (acc * 1103515245) + value + 12345) (seedValue + 17) keys) `mod` modulus
+
+textHash :: Text -> Int
+textHash = Text.foldl' (\acc ch -> (acc * 33) + fromEnum ch) 7
+
+managerNames :: [(Text, Text)]
+managerNames =
+    [ ("Morgan", "Manager")
+    , ("Harper", "Lead")
+    , ("Casey", "Shiftlead")
+    , ("Jordan", "Supervisor")
+    ]
+
+generatedStaffCatalog :: [(Int, Text, Text)]
+generatedStaffCatalog =
+    zipWith (\index (firstName, lastName) -> (index, firstName, lastName)) [0 ..] $
+        [ ("Alice", "Front")
+        , ("Bob", "Both")
+        , ("Cara", "Kitchen")
+        , ("Dylan", "Leave")
+        , ("Eve", "Closer")
+        , ("Frank", "Prep")
+        , ("Gina", "Bar")
+        , ("Hugo", "Runner")
+        , ("Iris", "Service")
+        , ("Jules", "Cook")
+        , ("Kira", "Cafe")
+        , ("Luca", "Pass")
+        , ("Mia", "Host")
+        , ("Noah", "Dish")
+        , ("Omar", "Floor")
+        , ("Piper", "Expo")
+        , ("Quinn", "Late")
+        , ("Rosa", "Morning")
+        , ("Seth", "Grill")
+        , ("Talia", "Barista")
+        ]
+
+noteBank :: [Text]
+noteBank = ["OP", "LU", "CL", "EX", "TR", "EV", "ST", "FN", "WK", "BR", "PK", "CV"]
+
+data StaffAssignmentBucket
+    = FrontOnly
+    | BackOnly
+    | CrossGroup
+    deriving (Eq)
+
+assignmentBucket :: Int -> StaffAssignmentBucket
+assignmentBucket index =
+    case index `mod` 6 of
+        1 -> CrossGroup
+        2 -> BackOnly
+        5 -> BackOnly
+        _ -> FrontOnly
+
+safeIndex :: [a] -> Int -> Maybe a
+safeIndex values index
+    | index < 0 = Nothing
+    | otherwise = listToMaybe (drop index values)
 
 dayAtOffset :: Day -> Integer -> Day
 dayAtOffset weekStart offset = addDays offset weekStart
