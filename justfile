@@ -24,11 +24,11 @@ db:
 seed-dev *args:
     if [ -z "{{args}}" ]; then seed-dev app; else seed-dev {{args}}; fi
 
-demo-reset:
-    bash ./bin/demo-reset
+demo-reset *args:
+    if [ -z "{{args}}" ]; then bash ./bin/demo-reset; else bash ./bin/demo-reset {{args}}; fi
 
-demo-reset-local:
-    bash ./bin/demo-reset-local
+demo-reset-local *args:
+    if [ -z "{{args}}" ]; then bash ./bin/demo-reset-local; else bash ./bin/demo-reset-local {{args}}; fi
 
 typecheck *args:
     typecheck {{args}}

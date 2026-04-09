@@ -9,10 +9,15 @@ CURRENT_HOST="$(hostname -s 2>/dev/null || hostname)"
 
 if [ "${1:-}" = "--help" ]; then
     cat <<EOF
-Usage: just demo-reset
+Usage: just demo-reset [seed-options...]
 
 Runs the demo database reset locally when already on ${TARGET_HOST},
 or SSHes to ${TARGET_HOST} and runs the same reset there.
+
+Any additional arguments are forwarded to Application.Script.SeedDev,
+for example:
+  just demo-reset --scenario=realistic-demo
+  just demo-reset --scenario=busy-roster --staff-count=18 --manager-count=2
 
 Overrides:
   IHP_ROSTER_DEMO_HOST  Target SSH host (default: nas)
@@ -22,7 +27,13 @@ EOF
 fi
 
 if [ "$CURRENT_HOST" = "$TARGET_HOST" ]; then
-    exec "$SCRIPT_DIR/demo-reset-local"
+    exec "$SCRIPT_DIR/demo-reset-local" "$@"
 fi
 
-exec ssh "$TARGET_HOST" "cd '$TARGET_REPO' && bash ./bin/demo-reset-local"
+exec ssh "$TARGET_HOST" bash -s -- "$TARGET_REPO" "$@" <<'EOF'
+set -euo pipefail
+TARGET_REPO="$1"
+shift
+cd "$TARGET_REPO"
+exec bash ./bin/demo-reset-local "$@"
+EOF

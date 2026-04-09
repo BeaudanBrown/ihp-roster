@@ -10,6 +10,20 @@ DB_SOCKET="${IHP_ROSTER_DEMO_DB_SOCKET:-/var/run/postgresql}"
 WORKER_SERVICE="${IHP_ROSTER_DEMO_WORKER_SERVICE:-worker}"
 APP_SERVICE="${IHP_ROSTER_DEMO_APP_SERVICE:-app}"
 
+if [ "${1:-}" = "--help" ]; then
+    cat <<EOF
+Usage: just demo-reset-local [seed-options...]
+
+Resets the configured demo database on the current host, then runs the
+programmatic dev seed with the provided SeedDev options.
+
+Examples:
+  just demo-reset-local --scenario=realistic-demo
+  just demo-reset-local --scenario=conflict-heavy --seed=20260413
+EOF
+    exit 0
+fi
+
 cd "$REPO_ROOT"
 
 sudo systemctl stop "$APP_SERVICE" "$WORKER_SERVICE" bootstrap-account migrate loadSchema || true
@@ -36,8 +50,8 @@ EOF
         -o build/Script/ResetDemo \
         -odir build/Script \
         -hidir build/Script
-    exec build/Script/ResetDemo
-'
+    exec build/Script/ResetDemo "$@"
+' demo-reset-local "$@"
 
 sudo systemctl restart "$APP_SERVICE"
 if systemctl list-unit-files "$WORKER_SERVICE.service" >/dev/null 2>&1; then
