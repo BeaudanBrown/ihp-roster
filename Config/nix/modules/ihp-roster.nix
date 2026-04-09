@@ -266,7 +266,6 @@ in
                 optional (cfg.environmentFile != null) cfg.environmentFile;
             systemd.services.worker.enable = mkForce hasJobRunner;
             systemd.services.loadSchema = {
-                wantedBy = [ "multi-user.target" ];
                 before = [ "migrate.service" "app.service" "worker.service" ];
                 path = [ pkgs.postgresql pkgs.gnugrep ];
                 script = mkForce ''
@@ -298,7 +297,6 @@ in
                 ++ optional cfg.bootstrap.enable "bootstrap-account.service";
             systemd.services.bootstrap-account = mkIf cfg.bootstrap.enable {
                 description = "Seed bootstrap account for ihp-roster";
-                wantedBy = [ "multi-user.target" ];
                 after = [ "migrate.service" ];
                 requires = [ "migrate.service" ];
                 before = [ "app.service" "worker.service" ];
