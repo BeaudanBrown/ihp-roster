@@ -56,6 +56,7 @@ if ! bash ./bin/in-env bash -lc '
 import qualified Application.Script.SeedDev as SeedDev
 import Application.Support (resetDatabase)
 import qualified Config
+import IHP.Prelude
 import IHP.ScriptSupport
 
 main = runScript Config.config (resetDatabase >> SeedDev.run)
