@@ -196,7 +196,7 @@ tests = beforeAll testContext do
                 seededStaffCount `shouldSatisfy` (>= 12)
                 managerMembershipCount `shouldBe` 2
 
-        it "seeds recurring availability, shift preferences, duplicate first names, and some preferred names" $ withContext do
+        it "seeds recurring availability, per-staff roster day preferences, duplicate first names, and some preferred names" $ withContext do
             withCleanDb do
                 fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
 
@@ -214,8 +214,13 @@ tests = beforeAll testContext do
                         |> fetch
                 let firstNames = map (.firstName) seededStaff
                 let duplicateFirstNames = map head (filter (\names -> length names > 1) (group (sort firstNames)))
+                let staffIds = sort (map (unpackId . (.id)) seededStaff)
+                let preferenceStaffIds = sort (nub (map (.staffId) shiftPreferences))
+                let preferredWeekdays = nub (map (.weekdayIndex) shiftPreferences)
 
                 length availabilities `shouldSatisfy` (> 5)
-                length shiftPreferences `shouldSatisfy` (> 5)
+                preferenceStaffIds `shouldBe` staffIds
+                length shiftPreferences `shouldSatisfy` (>= length seededStaff)
+                length preferredWeekdays `shouldSatisfy` (>= 4)
                 duplicateFirstNames `shouldContain` ["Alice"]
                 length (filter (isJust . (.preferredName)) seededStaff) `shouldSatisfy` (> 0)

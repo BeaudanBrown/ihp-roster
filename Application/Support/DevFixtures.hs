@@ -320,7 +320,7 @@ seedStaffShiftPreferenceRecords ::
 seedStaffShiftPreferenceRecords _ _ _ [] = pure ()
 seedStaffShiftPreferenceRecords seedValue staffIndex staff groupSlots = do
     let rosterGroupIds = map (get #id . fst) groupSlots
-    let desiredPreferenceCount = deterministicIndex seedValue [staffIndex, 401] 4
+    let desiredPreferenceCount = 1 + deterministicIndex seedValue [staffIndex, 401] 5
     let preferenceSelections =
             take desiredPreferenceCount
                 (buildShiftPreferenceSelections seedValue staffIndex groupSlots)
@@ -338,12 +338,12 @@ buildShiftPreferenceSelections seedValue staffIndex groupSlots =
             , weekdayIndex = weekdayIndex
             , slotNameId = get #id slotName
             }
-        | offset <- [0 :: Int .. 5]
+        | offset <- [0 :: Int .. 9]
         , let groupIndex = deterministicIndex seedValue [staffIndex, 410, offset] (length groupSlots)
         , let (rosterGroup, slotNames) = groupSlots !! groupIndex
         , not (null slotNames)
         , let slotName = slotNames !! deterministicIndex seedValue [staffIndex, 411, offset] (length slotNames)
-        , let weekdayIndex = uniqueWeekdaySequence seedValue [staffIndex, 412 + offset] !! 0
+        , let weekdayIndex = uniqueWeekdaySequence seedValue [staffIndex, 412] !! (offset `mod` 7)
         ]
 
 seedRosterGroup ::
