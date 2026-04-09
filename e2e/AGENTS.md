@@ -180,7 +180,9 @@ bash ./bin/in-env pwcli state-load .devenv/playwright-cli/manager-state.json
 ```
 
 - For authenticated `ihp-roster` pages, the recommended near-term pattern is:
+  - run `bash ./bin/in-env seed-dev app` first when you want to browse the normal dev app with seeded manager/admin/worker/support accounts
   - create seeded dev auth state with `bash ./bin/in-env pwcli-auth-save manager` (or `worker`, `admin`, `support`)
+  - `pwcli-auth-save` defaults to password `password123` for those dev accounts; this is intentionally different from the isolated `app_e2e` test password `test-password-123`
   - `pwcli-auth-save` verifies a concrete post-login page for the chosen role before writing the state file
   - open a pre-authenticated session with `bash ./bin/in-env pwcli-auth-open manager /RosterWeeks`
   - reuse the named session with `bash ./bin/in-env pwcli -s=ihp-manager snapshot`
@@ -201,6 +203,8 @@ Use `screenshot-page` when a page requires login/profile completion before rende
 ```bash
 bash ./bin/in-env screenshot-page /RosterWeeks test-results/roster.png --selector 'table.roster-grid'
 ```
+
+For the normal dev app, `screenshot-page` now defaults to the seeded dev manager login `dev-manager@example.com` / `password123`, so run `bash ./bin/in-env seed-dev app` first unless you pass explicit credentials. This is separate from the isolated `app_e2e` test accounts such as `e2e-test@example.com` / `test-password-123`.
 
 Useful options:
 

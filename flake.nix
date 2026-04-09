@@ -518,6 +518,7 @@ EOF
                         '';
 
                         # Save authenticated Playwright CLI storage state for a seeded dev role.
+                        # Run `seed-dev app` first so the dev-role accounts exist.
                         # Usage: pwcli-auth-save <manager|worker|admin|support> [output-file]
                         pwcli-auth-save.exec = ''
                             exec node ./e2e/pwcli-auth-state.mjs "$@"
@@ -565,6 +566,7 @@ EOF
                         '';
 
                         # Take a screenshot of an authenticated page with reusable login/navigation flow.
+                        # Defaults target the `seed-dev app` dev-manager credentials.
                         # Usage: screenshot-page <path-or-url> <output.png> [--selector <css>] [--email <email>] [--password <password>] [--no-login]
                         screenshot-page.exec = ''
                             exec node ./e2e/screenshot-page.mjs "$@"

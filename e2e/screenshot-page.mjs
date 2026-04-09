@@ -4,8 +4,8 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 
 const DEFAULT_BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:8000';
-const DEFAULT_EMAIL = process.env.SCREENSHOT_EMAIL || 'e2e-test@example.com';
-const DEFAULT_PASSWORD = process.env.SCREENSHOT_PASSWORD || 'test-password-123';
+const DEFAULT_EMAIL = process.env.SCREENSHOT_EMAIL || 'dev-manager@example.com';
+const DEFAULT_PASSWORD = process.env.SCREENSHOT_PASSWORD || 'password123';
 const DEFAULT_LOGIN_PATH = process.env.SCREENSHOT_LOGIN_PATH || '/NewSession';
 const DEFAULT_LOGIN_SELECTOR = process.env.SCREENSHOT_LOGIN_SELECTOR || '#email';
 const DEFAULT_NAVIGATION_TIMEOUT_MS = Number(process.env.SCREENSHOT_NAVIGATION_TIMEOUT_MS || '120000');
@@ -149,14 +149,21 @@ async function ensureLoggedIn(page, options) {
     await page.fill('#password', options.password);
     await page.locator('button[type="submit"]').first().click();
     try {
-        await page.waitForURL(new RegExp(`\\/(${options.postLoginUrlPattern})`), { timeout: options.navigationTimeoutMs });
+        await page.waitForURL((url) => !url.pathname.includes(options.loginPath), {
+            timeout: Math.min(options.navigationTimeoutMs, 15000),
+        });
     } catch (_error) {
-        await page.waitForLoadState('networkidle', { timeout: options.navigationTimeoutMs }).catch(() => null);
+        await page.waitForLoadState('domcontentloaded', {
+            timeout: Math.min(options.navigationTimeoutMs, 5000),
+        }).catch(() => null);
     }
 
     if (page.url().includes(options.loginPath)) {
         const flashText = (await page.locator('.alert').first().textContent().catch(() => null)) || 'No flash message';
-        throw new Error(`Login failed: still on ${options.loginPath} after submit. ${flashText.trim()}`);
+        throw new Error(
+            `Login failed: still on ${options.loginPath} after submit. ${flashText.trim()} ` +
+            'For the dev app, run `bash ./bin/in-env seed-dev app` first or override --email/--password.'
+        );
     }
 
     if (page.url().includes('/EditProfile')) {
@@ -184,7 +191,7 @@ async function main() {
             await ensureLoggedIn(page, options);
         }
 
-        await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: options.navigationTimeoutMs });
+        await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: options.navigationTimeoutMs });
         if (options.selector) {
             await page.locator(options.selector).first().waitFor({ state: 'visible', timeout: options.selectorTimeoutMs });
         }

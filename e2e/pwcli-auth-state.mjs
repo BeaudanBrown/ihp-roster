@@ -4,7 +4,7 @@ import path from 'node:path';
 import { chromium } from 'playwright';
 
 const DEFAULT_BASE_URL = process.env.PWCLI_BASE_URL || 'http://127.0.0.1:8000';
-const DEFAULT_PASSWORD = process.env.PWCLI_AUTH_PASSWORD || 'test-password-123';
+const DEFAULT_PASSWORD = process.env.PWCLI_AUTH_PASSWORD || 'password123';
 const DEFAULT_LOGIN_PATH = process.env.PWCLI_AUTH_LOGIN_PATH || '/NewSession';
 const DEFAULT_LOGIN_SELECTOR = process.env.PWCLI_AUTH_LOGIN_SELECTOR || '#email';
 const DEFAULT_NAVIGATION_TIMEOUT_MS = Number(process.env.PWCLI_AUTH_NAVIGATION_TIMEOUT_MS || '120000');
@@ -161,7 +161,10 @@ async function ensureLoggedIn(page, options) {
 
     if (page.url().includes(options.loginPath)) {
         const flashText = (await page.locator('.alert').first().textContent().catch(() => null)) || 'No flash message';
-        throw new Error(`Login failed: still on ${options.loginPath} after submit. ${flashText.trim()}`);
+        throw new Error(
+            `Login failed: still on ${options.loginPath} after submit. ${flashText.trim()} ` +
+            'Run `bash ./bin/in-env seed-dev app` for the seeded dev role accounts, or override --email/--password.'
+        );
     }
 
     if (page.url().includes('/EditProfile')) {
