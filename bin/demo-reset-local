@@ -9,10 +9,11 @@ DB_USER="${IHP_ROSTER_DEMO_DB_USER:-ihp_roster}"
 DB_SOCKET="${IHP_ROSTER_DEMO_DB_SOCKET:-/var/run/postgresql}"
 WORKER_SERVICE="${IHP_ROSTER_DEMO_WORKER_SERVICE:-worker}"
 APP_SERVICE="${IHP_ROSTER_DEMO_APP_SERVICE:-app}"
+APP_SOCKET="${IHP_ROSTER_DEMO_APP_SOCKET:-app.socket}"
 
 service_exists() {
     local service="$1"
-    systemctl list-unit-files "${service}.service" >/dev/null 2>&1
+    systemctl list-unit-files "$service" >/dev/null 2>&1
 }
 
 run_for_demo_services() {
@@ -51,14 +52,15 @@ fi
 cd "$REPO_ROOT"
 
 echo "[demo-reset] Stopping app services and migration units"
-sudo systemctl stop "$APP_SERVICE" "$WORKER_SERVICE" bootstrap-account migrate loadSchema || true
+sudo systemctl stop "$APP_SOCKET" "$APP_SERVICE" "$WORKER_SERVICE" bootstrap-account migrate loadSchema || true
 run_for_demo_services mask --runtime loadSchema migrate bootstrap-account "$APP_SERVICE" "$WORKER_SERVICE"
-run_for_demo_services reset-failed loadSchema migrate bootstrap-account "$APP_SERVICE" "$WORKER_SERVICE"
+run_for_demo_services reset-failed loadSchema migrate bootstrap-account "$APP_SERVICE" "$WORKER_SERVICE" "$APP_SOCKET"
 echo "[demo-reset] Recreating database ${DB_NAME}"
+sudo -u postgres psql postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${DB_NAME}' AND pid <> pg_backend_pid();" >/dev/null
 sudo -u postgres dropdb --if-exists "$DB_NAME"
 sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
 run_for_demo_services unmask loadSchema migrate bootstrap-account "$APP_SERVICE" "$WORKER_SERVICE"
-run_for_demo_services reset-failed loadSchema migrate bootstrap-account "$APP_SERVICE" "$WORKER_SERVICE"
+run_for_demo_services reset-failed loadSchema migrate bootstrap-account "$APP_SERVICE" "$WORKER_SERVICE" "$APP_SOCKET"
 echo "[demo-reset] Loading schema"
 if ! sudo systemctl start loadSchema; then
     print_service_failure loadSchema
@@ -99,6 +101,9 @@ EOF
 fi
 
 echo "[demo-reset] Restarting app services"
+if service_exists "$APP_SOCKET"; then
+    sudo systemctl restart "$APP_SOCKET"
+fi
 if ! sudo systemctl restart "$APP_SERVICE"; then
     print_service_failure "$APP_SERVICE"
     exit 1
