@@ -58,7 +58,6 @@ import Application.Support (resetDatabase)
 import qualified Config
 import IHP.ScriptSupport
 
-main :: IO ()
 main = runScript Config.config (resetDatabase >> SeedDev.run)
 EOF
     ghc $GHC_OPTS -iTest -main-is Main build/Script/ResetDemoMain.hs \
