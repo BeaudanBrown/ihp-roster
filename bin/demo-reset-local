@@ -10,6 +10,22 @@ DB_SOCKET="${IHP_ROSTER_DEMO_DB_SOCKET:-/var/run/postgresql}"
 WORKER_SERVICE="${IHP_ROSTER_DEMO_WORKER_SERVICE:-worker}"
 APP_SERVICE="${IHP_ROSTER_DEMO_APP_SERVICE:-app}"
 
+service_exists() {
+    local service="$1"
+    systemctl list-unit-files "${service}.service" >/dev/null 2>&1
+}
+
+run_for_demo_services() {
+    local action="$1"
+    shift
+    local service
+    for service in "$@"; do
+        if service_exists "$service"; then
+            sudo systemctl "$action" "$service" >/dev/null 2>&1 || true
+        fi
+    done
+}
+
 print_service_failure() {
     local service="$1"
     echo "[demo-reset] ${service} failed; showing status" >&2
@@ -36,9 +52,18 @@ cd "$REPO_ROOT"
 
 echo "[demo-reset] Stopping app services and migration units"
 sudo systemctl stop "$APP_SERVICE" "$WORKER_SERVICE" bootstrap-account migrate loadSchema || true
+run_for_demo_services mask --runtime loadSchema migrate bootstrap-account "$APP_SERVICE" "$WORKER_SERVICE"
+run_for_demo_services reset-failed loadSchema migrate bootstrap-account "$APP_SERVICE" "$WORKER_SERVICE"
 echo "[demo-reset] Recreating database ${DB_NAME}"
 sudo -u postgres dropdb --if-exists "$DB_NAME"
 sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
+run_for_demo_services unmask loadSchema migrate bootstrap-account "$APP_SERVICE" "$WORKER_SERVICE"
+run_for_demo_services reset-failed loadSchema migrate bootstrap-account "$APP_SERVICE" "$WORKER_SERVICE"
+echo "[demo-reset] Loading schema"
+if ! sudo systemctl start loadSchema; then
+    print_service_failure loadSchema
+    exit 1
+fi
 echo "[demo-reset] Running migrate unit"
 if ! sudo systemctl start migrate; then
     print_service_failure migrate
@@ -46,10 +71,12 @@ if ! sudo systemctl start migrate; then
 fi
 
 export DATABASE_URL="postgresql://${DB_USER}@/${DB_NAME}?host=${DB_SOCKET}"
+export DEMO_DATABASE_URL="$DATABASE_URL"
 
 echo "[demo-reset] Building and running programmatic seed"
 if ! bash ./bin/in-env bash -lc '
     set -euo pipefail
+    export DATABASE_URL="$DEMO_DATABASE_URL"
     GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null | sed "s/-iIHP[^ ]* //g; s/-fbyte-code//g")
     mkdir -p build/Script
     cat > build/Script/ResetDemoMain.hs <<'"'"'EOF'"'"'
