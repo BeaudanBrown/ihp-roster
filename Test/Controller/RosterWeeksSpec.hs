@@ -708,14 +708,74 @@ tests = beforeAll testContext do
                 bodyText `shouldBe` ""
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                let contentTarget = cs rosterContentFragmentId :: String
                 let staffPanelTarget = cs rosterStaffPanelFragmentId :: String
                 let updatedRowTarget = cs (rosterRowDomIdText rosterDay.id 0) :: String
                 fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
+                fromJust triggerHeader `shouldContain` contentTarget
                 fromJust triggerHeader `shouldContain` staffPanelTarget
                 fromJust triggerHeader `shouldContain` updatedRowTarget
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekRowFragment"
+                fromJust triggerHeader `shouldContain` ("\"targetId\":\"" <> contentTarget <> "\"")
+                fromJust triggerHeader `shouldContain` ("\"targetId\":\"" <> updatedRowTarget <> "\"")
+                fromJust triggerHeader `shouldContain` "\"deferUntilBlur\":true"
                 fromJust triggerHeader `shouldContain` "\"deferUntilBlur\":false"
+
+        it "keeps selected staff labels plain when ideal-shift filters hide them" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-plain-labels@example.com" "staff" True
+                staffUser <- createUserRecord "roster-staff-plain-labels@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue staffUser "worker"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue (Just staffUser) "Alpha" "Crew"
+                _ <- updateRecord (staffMember |> set #idealShiftsPerWeek 1)
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffAtIdealShifts", "true")]
+                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "selected=\"selected\">Alpha</option>"
+                response `responseBodyShouldNotContain` "ideal reached"
+
+        it "hides staff with no preferred shifts on that day when the unavailable filter is active" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-unavailable-filter@example.com" "staff" True
+                selectedUser <- createUserRecord "roster-selected-sunday@example.com" "staff" True
+                unavailableUser <- createUserRecord "roster-unavailable-sunday@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue selectedUser "worker"
+                _ <- createVenueMembershipRecord venue unavailableUser "worker"
+                slotName <- fetchSlotNameRecord venue "Early"
+                selectedStaff <- createStaffRecord venue (Just selectedUser) "Selected" "Crew"
+                unavailableStaff <- createStaffRecord venue (Just unavailableUser) "Unavailable" "Crew"
+                _ <-
+                    newRecord @StaffShiftPreference
+                        |> set #venueId (unpackId venue.id)
+                        |> set #staffId (unpackId unavailableStaff.id)
+                        |> set #rosterGroupId slotName.rosterGroupId
+                        |> set #slotNameId (unpackId slotName.id)
+                        |> set #weekdayIndex 2
+                        |> createRecord
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                mondayRosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord mondayRosterDay slotName (Just selectedStaff) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffUnavailable", "true")]
+                    callAction (ShowRosterWeekRowFragmentAction 0 mondayRosterDay.id 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "selected=\"selected\">Selected</option>"
+                response `responseBodyShouldNotContain` ">Unavailable</option>"
 
         it "renders unique roster field keys for each editable control in a multi-slot row fragment" $ withContext do
             withCleanDb do

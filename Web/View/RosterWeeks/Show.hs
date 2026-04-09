@@ -5,7 +5,6 @@ import Application.Helper.View (staffDisplayName)
 import Data.Coerce (coerce)
 import Data.List (find, nub, sort)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
@@ -105,12 +104,10 @@ renderRosterWeekShell ShowView { .. } = [hsx|
 
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> Html
 renderRosterWeekControls weekOffset currentRosterGroup weekStartDate = [hsx|
-    <div class="d-flex justify-content-center">
-        <div class="btn-group roster-week-nav-group" role="group" aria-label="Roster week navigation">
-            {renderWeekNavigationLink "<" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
-            {renderWeekDatePickerButton weekOffset currentRosterGroup.id weekStartDate}
-            {renderWeekNavigationLink ">" (rosterWeekPath (weekOffset + 1) currentRosterGroup.id)}
-        </div>
+    <div class="btn-group roster-week-nav-group" role="group" aria-label="Roster week navigation">
+        {renderWeekNavigationLink "<" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
+        {renderWeekDatePickerButton weekOffset currentRosterGroup.id weekStartDate}
+        {renderWeekNavigationLink ">" (rosterWeekPath (weekOffset + 1) currentRosterGroup.id)}
     </div>
 |]
 
@@ -246,14 +243,14 @@ renderRosterBlockColGroup _ =
 
 renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> Html
 renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate = [hsx|
-    <div class="card-header d-flex justify-content-between align-items-center gap-3 py-3">
-        <div class="d-flex flex-wrap gap-2 align-items-center">
+    <div class="card-header roster-grid-header py-3">
+        <div class="roster-grid-header-side roster-grid-header-side-left">
             {renderLiveToggle maybeRosterWeek}
         </div>
-        <div class="text-center flex-fill">
+        <div class="roster-grid-header-center">
             {renderRosterWeekControls weekOffset currentRosterGroup weekStartDate}
         </div>
-        <div class="d-flex flex-wrap gap-2 align-items-center ms-auto">
+        <div class="roster-grid-header-side roster-grid-header-side-right">
             {renderRosterWeekManagerControls weekOffset currentRosterGroup}
             {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters}
         </div>
@@ -266,22 +263,24 @@ renderLiveToggle Nothing           = mempty
 
 renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Html
 renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters =
-    let divider = [hsx|<div class="dropdown-divider my-1"></div>|]
+    let menuTriggerId = rosterWeekMoreMenuId maybeRosterWeek currentRosterGroup.id
+        divider = [hsx|<div class="dropdown-divider my-1"></div>|]
      in [hsx|
     <div class="dropdown">
         <button class="btn btn-outline-secondary"
                 type="button"
-                id={rosterWeekMoreMenuId maybeRosterWeek currentRosterGroup.id}
+                id={menuTriggerId}
                 data-bs-toggle="dropdown"
+                data-bs-auto-close="outside"
                 aria-expanded="false"
                 aria-label="Roster actions">
             <i class="bi bi-three-dots-vertical"></i>
         </button>
-        <div class="dropdown-menu dropdown-menu-end p-2" aria-labelledby={rosterWeekMoreMenuId maybeRosterWeek currentRosterGroup.id}>
+        <div class="dropdown-menu dropdown-menu-end p-2 roster-week-more-menu" aria-labelledby={menuTriggerId}>
             <div class="px-1 pb-2">
                 {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
             </div>
-            {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id assignmentFilters}
+            {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters}
             {when (shouldShowRosterWeekMenuDivider maybeRosterWeek) divider}
             {renderSyncSlotStructureButton maybeRosterWeek}
         </div>
@@ -292,14 +291,16 @@ shouldShowRosterWeekMenuDivider :: (?context :: ControllerContext) => Maybe Rost
 shouldShowRosterWeekMenuDivider (Just rosterWeek) = currentUserIsManager && not rosterWeek.isLive
 shouldShowRosterWeekMenuDivider Nothing = False
 
-renderRosterAssignmentFiltersMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterAssignmentFilters -> Html
-renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId filters =
+renderRosterAssignmentFiltersMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Text -> RosterAssignmentFilters -> Html
+renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId menuTriggerId filters =
     if currentUserIsManager
         then [hsx|
     <div class="dropdown-divider my-1"></div>
     <form class="px-1 py-1"
           method="POST"
           action={appendQueryParams (pathTo (UpdateRosterAssignmentFiltersAction weekOffset)) [("rosterGroupId", tshow rosterGroupId)]}
+          data-roster-filter-form="true"
+          data-roster-filter-menu-trigger-id={menuTriggerId}
           data-disable-javascript-submission="true"
           hx-post={appendQueryParams (pathTo (UpdateRosterAssignmentFiltersAction weekOffset)) [("rosterGroupId", tshow rosterGroupId)]}
           hx-target={"#" <> rosterContentFragmentId}
@@ -307,10 +308,12 @@ renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId filters =
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
         <div class="small text-uppercase fw-semibold text-body-secondary px-1 pb-2">Hide from dropdowns</div>
-        {renderRosterAssignmentFilterToggle "hide-staff-at-ideal" "hideStaffAtIdealShifts" filters.hideStaffAtIdealShifts "At ideal shifts or greater"}
-        {renderRosterAssignmentFilterToggle "hide-staff-unavailable" "hideStaffUnavailable" filters.hideStaffUnavailable "Day/date unavailable"}
-        {renderRosterAssignmentFilterToggle "hide-staff-on-leave" "hideStaffOnApprovedLeave" filters.hideStaffOnApprovedLeave "Approved leave on this date"}
-        {renderRosterAssignmentFilterToggle "hide-staff-assigned-today" "hideStaffAlreadyAssignedToday" filters.hideStaffAlreadyAssignedToday "Already assigned that day"}
+        <div class="roster-assignment-filter-grid">
+            {renderRosterAssignmentFilterToggle "hide-staff-at-ideal" "hideStaffAtIdealShifts" filters.hideStaffAtIdealShifts "At ideal shifts or greater"}
+            {renderRosterAssignmentFilterToggle "hide-staff-unavailable" "hideStaffUnavailable" filters.hideStaffUnavailable "No preferred shifts that day"}
+            {renderRosterAssignmentFilterToggle "hide-staff-on-leave" "hideStaffOnApprovedLeave" filters.hideStaffOnApprovedLeave "Approved leave on this date"}
+            {renderRosterAssignmentFilterToggle "hide-staff-assigned-today" "hideStaffAlreadyAssignedToday" filters.hideStaffAlreadyAssignedToday "Already assigned that day"}
+        </div>
     </form>
 |]
         else mempty
@@ -698,16 +701,7 @@ renderStaffOptionLabel :: [Staff] -> Staff -> Maybe RosterAssignmentOptionState 
 renderStaffOptionLabel staffMembers staff maybeOptionState =
     case maybeOptionState of
         Nothing -> baseLabel
-        Just optionState ->
-            let reasonLabels = catMaybes
-                    [ if optionState.optionHiddenByIdeal then Just "ideal reached" else Nothing
-                    , if optionState.optionHiddenByUnavailable then Just "unavailable" else Nothing
-                    , if optionState.optionHiddenByLeave then Just "on leave" else Nothing
-                    , if optionState.optionHiddenByAssignedToday then Just "already assigned today" else Nothing
-                    ]
-             in if null reasonLabels
-                    then baseLabel
-                    else baseLabel <> " [" <> Text.intercalate ", " reasonLabels <> "]"
+        Just _ -> baseLabel
     where
         baseLabel = staffDisplayName staffMembers staff
 

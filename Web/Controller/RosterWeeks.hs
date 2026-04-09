@@ -421,6 +421,7 @@ instance Controller RosterWeeksController where
                         let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
                         let actorFragments =
                                 buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset impactedRowKeys
+                                    <> buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset
                                     <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset]
                         broadcastRosterWeekInvalidation
                             rosterGroupId
@@ -532,27 +533,22 @@ buildSlotConflicts rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate ros
                 |> filterWhereIn (#staffId, assignedStaffIds)
                 |> fetch
 
-            availabilities <- query @StaffAvailability
-                |> filterWhereIn (#staffId, assignedStaffIds)
-                |> fetch
-
             shiftPreferences <- query @StaffShiftPreference
                 |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
                 |> filterWhereIn (#staffId, assignedStaffIds)
                 |> fetch
 
             let dayById = map (\day -> (coerce (get #id day), day)) rosterDays
-            let conflictsBySlot = mapMaybe (conflictsForSlot dayById leaveRequests availabilities shiftPreferences) allSlots
+            let conflictsBySlot = mapMaybe (conflictsForSlot dayById leaveRequests shiftPreferences) allSlots
             pure conflictsBySlot
     where
-        conflictsForSlot dayById leaveRequests availabilities shiftPreferences slot = do
+        conflictsForSlot dayById leaveRequests shiftPreferences slot = do
             staffUuid <- slot.staffId
             day <- lookup slot.rosterDayId dayById
             let weekSlotsForStaff = filter (\candidate -> candidate.staffId == Just staffUuid) allSlots
             let daySlotsForStaff = filter (\candidate -> candidate.rosterDayId == slot.rosterDayId && candidate.staffId == Just staffUuid) allSlots
             let staffIdealShifts = (.idealShiftsPerWeek) <$> find (\staff -> coerce (get #id staff) == staffUuid) staffMembers
             let leaveRequestsForStaff = filter (\leaveRequest -> leaveRequest.staffId == staffUuid) leaveRequests
-            let availabilitiesForStaff = filter (\availability -> availability.staffId == staffUuid) availabilities
             let shiftPreferencesForStaff = filter (\preference -> preference.staffId == staffUuid) shiftPreferences
             let rosterDayDate = Calendar.addDays (toInteger day.dayOffset) weekStartDate
             let conflicts = evaluateConflicts ConflictContext
@@ -562,7 +558,6 @@ buildSlotConflicts rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate ros
                     , daySlots = daySlotsForStaff
                     , weekRosterDays = rosterDays
                     , leaveRequests = leaveRequestsForStaff
-                    , availabilities = availabilitiesForStaff
                     , shiftPreferences = shiftPreferencesForStaff
                     , rosterDayDate
                     , lateToEarlyMinStartGapMinutes
@@ -949,28 +944,29 @@ buildRosterStaffOptionStates assignmentFilters weekStartDate rosterDays visibleS
             leaveRequests <- query @LeaveRequest
                 |> filterWhereIn (#staffId, staffIds)
                 |> fetch
-            availabilities <- query @StaffAvailability
+            shiftPreferences <- query @StaffShiftPreference
                 |> filterWhereIn (#staffId, staffIds)
                 |> fetch
 
             let dayById = Map.fromList (map (\day -> (coerce (get #id day), day)) rosterDays)
             pure $
                 Map.fromList
-                    [ ((coerce (get #id slot), coerce (get #id staff)), rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById visibleSlots leaveRequests availabilities slot staff)
+                    [ ((coerce (get #id slot), coerce (get #id staff)), rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById visibleSlots leaveRequests shiftPreferences slot staff)
                     | slot <- visibleSlots
                     , staff <- staffMembers
                     ]
 
-rosterAssignmentOptionStateFor :: RosterAssignmentFilters -> Calendar.Day -> Map.Map UUID.UUID RosterDay -> [RosterSlot] -> [LeaveRequest] -> [StaffAvailability] -> RosterSlot -> Staff -> RosterAssignmentOptionState
-rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById visibleSlots leaveRequests availabilities slot staff =
+rosterAssignmentOptionStateFor :: RosterAssignmentFilters -> Calendar.Day -> Map.Map UUID.UUID RosterDay -> [RosterSlot] -> [LeaveRequest] -> [StaffShiftPreference] -> RosterSlot -> Staff -> RosterAssignmentOptionState
+rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById visibleSlots leaveRequests shiftPreferences slot staff =
     let staffId = coerce (get #id staff)
+        visibleSlotNameIds = nub (map (.slotNameId) visibleSlots)
         rosterDayDate =
             case Map.lookup slot.rosterDayId dayById of
                 Just rosterDay -> Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate
                 Nothing -> weekStartDate
         assignedShiftCount = length (filter (\candidate -> candidate.staffId == Just staffId) visibleSlots)
         assignedToday = any (\candidate -> candidate.rosterDayId == slot.rosterDayId && candidate.staffId == Just staffId && get #id candidate /= get #id slot) visibleSlots
-        unavailable = any (isUnavailableOn rosterDayDate staffId) availabilities
+        unavailable = hasNoPreferredShiftsOnDay staffId visibleSlotNameIds rosterDayDate shiftPreferences
         onApprovedLeave = any (isApprovedLeaveOn rosterDayDate staffId) leaveRequests
         hiddenByIdeal = assignmentFilters.hideStaffAtIdealShifts && assignedShiftCount >= staff.idealShiftsPerWeek
         hiddenByUnavailable = assignmentFilters.hideStaffUnavailable && unavailable
@@ -992,11 +988,15 @@ isApprovedLeaveOn rosterDayDate staffId leaveRequest =
         && rosterDayDate >= leaveRequest.startDate
         && rosterDayDate < leaveRequest.endDate
 
-isUnavailableOn :: Calendar.Day -> UUID.UUID -> StaffAvailability -> Bool
-isUnavailableOn rosterDayDate staffId availability =
-    availability.staffId == staffId
-        && not availability.isAvailable
-        && (availability.specificDate == Just rosterDayDate || availability.weekdayIndex == Just (fromEnum (Calendar.dayOfWeek rosterDayDate)))
+hasNoPreferredShiftsOnDay :: UUID.UUID -> [UUID.UUID] -> Calendar.Day -> [StaffShiftPreference] -> Bool
+hasNoPreferredShiftsOnDay staffId visibleSlotNameIds rosterDayDate shiftPreferences =
+    null
+        [ preference
+        | preference <- shiftPreferences
+        , preference.staffId == staffId
+        , preference.slotNameId `elem` visibleSlotNameIds
+        , preference.weekdayIndex == weekdayIndexForDay rosterDayDate
+        ]
 
 fetchVisibleRosterRowFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> Int -> IO (Maybe Blaze.Html)
 fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex = do
@@ -1039,6 +1039,10 @@ buildRosterContentFragmentRef rosterGroupId weekOffset =
         , deferUntilBlur = False
         }
 
+buildDeferredRosterContentFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
+buildDeferredRosterContentFragmentRef rosterGroupId weekOffset =
+    (buildRosterContentFragmentRef rosterGroupId weekOffset) { deferUntilBlur = True }
+
 buildRosterStaffPanelFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
 buildRosterStaffPanelFragmentRef rosterGroupId weekOffset =
     LiveFragmentRef
@@ -1067,6 +1071,12 @@ buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId weekOffset rowKeys
      in if isJust maybeStaffParam
             then map disableFragmentBlurDeferral refs
             else refs
+
+buildAssignmentRefreshFragmentRefs :: (?context :: ControllerContext) => Maybe Text -> Id RosterGroup -> Int -> [LiveFragmentRef]
+buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId weekOffset =
+    if isJust maybeStaffParam
+        then [buildDeferredRosterContentFragmentRef rosterGroupId weekOffset]
+        else []
 
 buildRosterRowFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> UUID.UUID -> Int -> LiveFragmentRef
 buildRosterRowFragmentRef rosterGroupId weekOffset rosterDayId rowIndex =

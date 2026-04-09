@@ -161,6 +161,40 @@ h5,
     cursor: pointer;
 }
 
+.roster-grid-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    min-height: 4.5rem;
+}
+
+.roster-grid-header-side {
+    display: flex;
+    flex: 1 1 0;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    min-width: 0;
+}
+
+.roster-grid-header-side-right {
+    justify-content: flex-end;
+}
+
+.roster-grid-header-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    pointer-events: none;
+}
+
+.roster-grid-header-center > * {
+    pointer-events: auto;
+}
+
 .roster-week-nav-group {
     gap: 0.4rem;
     align-items: center;
@@ -173,6 +207,24 @@ h5,
 .roster-week-nav-group > .btn,
 .roster-week-nav-group > form {
     border-radius: 999px !important;
+}
+
+.roster-week-more-menu {
+    min-width: min(30rem, 92vw);
+}
+
+.roster-assignment-filter-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    column-gap: 1rem;
+}
+
+.roster-assignment-filter-grid .form-check {
+    min-width: 0;
+}
+
+.roster-assignment-filter-grid .form-check-label {
+    display: block;
 }
 
 .roster-week-nav-button {
@@ -196,6 +248,10 @@ h5,
 .roster-week-date-picker-button {
     min-width: 11.5rem;
     font-variant-numeric: tabular-nums;
+}
+
+[data-roster-week-controls="manager-actions"] {
+    justify-content: flex-end;
 }
 
 .breadcrumb {
@@ -1000,6 +1056,33 @@ h5,
     font-weight: 700;
     line-height: 1;
     padding: 0;
+}
+
+@media (max-width: 991.98px) {
+    .roster-grid-header {
+        min-height: auto;
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .roster-grid-header-center {
+        position: static;
+        transform: none;
+        order: -1;
+        pointer-events: auto;
+    }
+
+    .roster-grid-header-side,
+    .roster-grid-header-side-right,
+    [data-roster-week-controls="manager-actions"] {
+        justify-content: center;
+    }
+}
+
+@media (min-width: 992px) {
+    .roster-assignment-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 767.98px) {

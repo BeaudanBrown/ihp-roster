@@ -46,7 +46,6 @@ tests = describe "Conflict Engine" do
                 , daySlots = [mockSlot]
                 , weekRosterDays = [mockRosterDay]
                 , leaveRequests = []
-                , availabilities = []
                 , shiftPreferences = []
                 , rosterDayDate = mockDate
                 , lateToEarlyMinStartGapMinutes = 600
@@ -61,19 +60,6 @@ tests = describe "Conflict Engine" do
             , endDate = fromGregorian 2025 1 7
             , status = unsafeEnumFromText @LeaveRequestStatusEnum "approved"
             , notes = Nothing
-            , createdAt = def
-            , updatedAt = def
-            , meta = def
-            }
-
-    let mockAvailability = StaffAvailability
-            { id = def
-            , venueId = def
-            , staffId = def
-            , weekdayIndex = Just 1 -- Monday
-            , specificDate = Nothing
-            , isAvailable = False
-            , note = Nothing
             , createdAt = def
             , updatedAt = def
             , meta = def
@@ -128,13 +114,6 @@ tests = describe "Conflict Engine" do
                     }
         let conflicts = evaluateConflicts ctx
         map conflictType conflicts `shouldBe` []
-
-    it "detects availability refusals for matching day" do
-        let ctx = mkContext \base ->
-                base { availabilities = [mockAvailability] }
-        let conflicts = evaluateConflicts ctx
-        length conflicts `shouldBe` 1
-        map conflictType conflicts `shouldBe` [AvailabilityRefusal]
 
     it "detects ideal-shift threshold exceeded" do
         let ctx = mkContext \base ->
