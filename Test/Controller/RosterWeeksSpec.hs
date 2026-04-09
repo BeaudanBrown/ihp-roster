@@ -163,7 +163,7 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Crew, Alpha"
+                response `responseBodyShouldContain` ">Alpha</option>"
                 response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?rosterWeekId="
                 response `responseBodyShouldContain` ">Live</label>"
 
@@ -199,8 +199,8 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "data-roster-week-controls=\"manager-actions\""
+                response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's schedule. Continue?\""
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
                 response `responseBodyShouldContain` "roster-live-toggle-"
@@ -234,7 +234,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "roster-day-label-row-primary"
-                response `responseBodyShouldContain` "roster-day-label-row-secondary"
+                response `responseBodyShouldContain` "roster-day-label-row-controls"
                 response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 1)
 
         it "manager can mark a draft roster day closed via HTMX without deleting existing slot content" $ withContext do
@@ -408,7 +408,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
                 response `responseBodyShouldContain` "Schedule week is now live."
-                response `responseBodyShouldContain` "Crew, Alpha"
+                response `responseBodyShouldContain` ">Alpha<"
                 response `responseBodyShouldContain` "9:00 AM"
                 response `responseBodyShouldContain` "OP"
                 response `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
@@ -432,7 +432,7 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Crew, Alpha"
+                response `responseBodyShouldContain` ">Alpha<"
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 
         it "manager can toggle a draft week live" $ withContext do
@@ -483,7 +483,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 0)
-                response `responseBodyShouldContain` "Crew, Alpha"
+                response `responseBodyShouldContain` ">Alpha</option>"
 
         it "manager can fetch the roster content fragment for the current venue" $ withContext do
             withCleanDb do
@@ -501,7 +501,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
-                response `responseBodyShouldContain` "Crew, Alpha"
+                response `responseBodyShouldContain` ">Alpha</option>"
 
         it "manager can fetch the roster staff panel fragment for the current venue" $ withContext do
             withCleanDb do
@@ -521,7 +521,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterStaffPanelFragmentId
-                response `responseBodyShouldContain` "Alpha Crew"
+                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
                 response `responseBodyShouldContain` "1"
 
         it "manager roster staff panel fragment only shows staff applicable to the selected roster group" $ withContext do
@@ -545,8 +545,8 @@ tests = beforeAll testContext do
                     callActionWithParams (ShowRosterWeekStaffPanelFragmentAction 0) [("rosterGroupId", idToParam frontOfHouse.id)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Alpha Crew"
-                response `responseBodyShouldNotContain` "Bravo Crew"
+                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
+                response `responseBodyShouldNotContain` "data-roster-staff-name=\"Bravo\""
 
         it "staff row fragment fetch returns a masked row for a draft week" $ withContext do
             withCleanDb do

@@ -565,7 +565,6 @@ renderStaffField entry staffMembers =
             <div class="mb-3">
                 <label for="staffId" class="form-label">Staff Member</label>
                 <select name="staffId" id="staffId" class={classes [("form-select", True), ("is-invalid", hasErrorFor entry "staffId")]} required="required">
-                    <option value="">Select staff…</option>
                     {forEach staffMembers (renderTimesheetStaffOption entry.staffId)}
                 </select>
                 {renderFieldError entry "staffId"}
@@ -580,7 +579,6 @@ renderShiftTypeField entry shiftTypes = [hsx|
     <div class="mb-3">
         <label for="shiftTypeId" class="form-label">Shift Type</label>
         <select name="shiftTypeId" id="shiftTypeId" class={classes [("form-select", True), ("is-invalid", hasErrorFor entry "shiftTypeId")]} required="required">
-            <option value="">Select shift type…</option>
             {forEach shiftTypes (renderShiftTypeOption entry.shiftTypeId)}
         </select>
         {renderFieldError entry "shiftTypeId"}

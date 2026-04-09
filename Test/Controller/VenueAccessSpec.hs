@@ -381,8 +381,8 @@ tests = beforeAll testContext do
                     callAction ShowRosterWeekAction { weekOffset = 0 }
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Alpha Crew"
-                response `responseBodyShouldNotContain` "Beta Crew"
+                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
+                response `responseBodyShouldNotContain` "data-roster-staff-name=\"Beta\""
 
         it "uses only current-venue slot names when creating a roster week" $ withContext do
             withCleanDb do

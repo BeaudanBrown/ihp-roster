@@ -66,7 +66,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"roster-content\""
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
-                response `responseBodyShouldContain` "Updated Crew"
+                response `responseBodyShouldContain` "data-roster-staff-name=\"Updated\""
 
         it "updates explicit roster-group applicability from the staff edit form" $ withContext do
             withCleanDb do

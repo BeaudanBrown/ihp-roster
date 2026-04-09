@@ -105,6 +105,7 @@ data RosterWeeksController
     | ShowRosterWeekStaffPanelFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekDaySectionFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekRowFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }
+    | UpdateRosterAssignmentFiltersAction { weekOffset :: !Int }
     | CreateRosterWeekAction { weekOffset :: !Int }
     | CopyRosterWeekAction { sourceWeekOffset :: !Int, targetWeekOffset :: !Int }
     | ToggleRosterWeekLiveStatusAction { rosterWeekId :: !(Id RosterWeek) }

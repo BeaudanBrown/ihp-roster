@@ -29,7 +29,9 @@ import Data.Time.LocalTime (TimeOfDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
-import Web.View.RosterWeeks.Show (RosterStaffPanelEntry (..), ShowView (..),
+import Web.View.RosterWeeks.Show (RosterAssignmentFilters (..),
+                                  RosterAssignmentOptionState (..),
+                                  RosterStaffPanelEntry (..), ShowView (..),
                                   lastRowIndexForRows,
                                   renderRosterContentFragment,
                                   renderRosterContentFragmentOob,
@@ -94,6 +96,12 @@ instance Controller RosterWeeksController where
         rosterGroup <- resolveRequestedRosterGroup
         rowHtml <- fetchVisibleRosterRowFragment rosterGroup.id weekOffset rosterDayId rowIndex
         respondHtml (fromMaybe mempty rowHtml)
+
+    action UpdateRosterAssignmentFiltersAction { weekOffset } = do
+        ensureManagerRole
+        rosterGroup <- resolveRequestedRosterGroup
+        setRosterAssignmentFiltersSession (rosterAssignmentFiltersFromParams)
+        respondWithRosterContent rosterGroup.id weekOffset
 
     action CreateRosterWeekAction { weekOffset } = do
         ensureManagerRole
@@ -457,6 +465,63 @@ normalizeOptionalSlotFlag value =
             Left "Flags can only be 1 or 2 characters."
         normalized -> Right normalized
 
+rosterAssignmentFiltersSessionKey :: ByteString
+rosterAssignmentFiltersSessionKey = "rosterAssignmentFilters"
+
+defaultRosterAssignmentFilters :: RosterAssignmentFilters
+defaultRosterAssignmentFilters =
+    RosterAssignmentFilters
+        { hideStaffAtIdealShifts = False
+        , hideStaffUnavailable = False
+        , hideStaffOnApprovedLeave = False
+        , hideStaffAlreadyAssignedToday = False
+        }
+
+encodeRosterAssignmentFilters :: RosterAssignmentFilters -> Text
+encodeRosterAssignmentFilters filters =
+    Text.pack
+        [ encodeFlag filters.hideStaffAtIdealShifts
+        , encodeFlag filters.hideStaffUnavailable
+        , encodeFlag filters.hideStaffOnApprovedLeave
+        , encodeFlag filters.hideStaffAlreadyAssignedToday
+        ]
+    where
+        encodeFlag True = '1'
+        encodeFlag False = '0'
+
+decodeRosterAssignmentFilters :: Text -> RosterAssignmentFilters
+decodeRosterAssignmentFilters encoded =
+    case Text.unpack encoded of
+        [idealFlag, unavailableFlag, leaveFlag, assignedFlag] ->
+            RosterAssignmentFilters
+                { hideStaffAtIdealShifts = decodeFlag idealFlag
+                , hideStaffUnavailable = decodeFlag unavailableFlag
+                , hideStaffOnApprovedLeave = decodeFlag leaveFlag
+                , hideStaffAlreadyAssignedToday = decodeFlag assignedFlag
+                }
+        _ -> defaultRosterAssignmentFilters
+    where
+        decodeFlag '1' = True
+        decodeFlag _ = False
+
+rosterAssignmentFiltersFromParams :: (?context :: ControllerContext, ?request :: Request) => RosterAssignmentFilters
+rosterAssignmentFiltersFromParams =
+    RosterAssignmentFilters
+        { hideStaffAtIdealShifts = isJust (paramOrNothing @Text "hideStaffAtIdealShifts")
+        , hideStaffUnavailable = isJust (paramOrNothing @Text "hideStaffUnavailable")
+        , hideStaffOnApprovedLeave = isJust (paramOrNothing @Text "hideStaffOnApprovedLeave")
+        , hideStaffAlreadyAssignedToday = isJust (paramOrNothing @Text "hideStaffAlreadyAssignedToday")
+        }
+
+fetchRosterAssignmentFilters :: (?context :: ControllerContext, ?request :: Request) => IO RosterAssignmentFilters
+fetchRosterAssignmentFilters = do
+    encoded <- getSession @Text rosterAssignmentFiltersSessionKey
+    pure (maybe defaultRosterAssignmentFilters decodeRosterAssignmentFilters encoded)
+
+setRosterAssignmentFiltersSession :: (?context :: ControllerContext, ?request :: Request) => RosterAssignmentFilters -> IO ()
+setRosterAssignmentFiltersSession filters =
+    setSession rosterAssignmentFiltersSessionKey (encodeRosterAssignmentFilters filters)
+
 buildSlotConflicts :: (?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> IO [(Id RosterSlot, [RosterConflict])]
 buildSlotConflicts rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate rosterDays allSlots staffMembers = do
     let assignedStaffIds = nub $ mapMaybe (.staffId) allSlots
@@ -518,7 +583,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
     rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
             respondHtml $
                 renderRosterContentFragmentOob
                     (Just rosterWeek)
@@ -526,7 +591,9 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                     weekOffset
                     rosterGroups
                     currentRosterGroup
+                    assignmentFilters
                     staffMembers
+                    staffOptionStates
                     panelStaff
                     orderedSlotNames
                     weekStartDate
@@ -542,14 +609,16 @@ respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
         mconcat
             [ case rosterData of
                 Nothing -> [hsx|<div id="roster-content"></div>|]
-                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
+                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
                     renderRosterContentFragment
                         (Just rosterWeek)
                         rosterDays
                         weekOffset
                         rosterGroups
                         currentRosterGroup
+                        assignmentFilters
                         staffMembers
+                        staffOptionStates
                         panelStaff
                         orderedSlotNames
                         weekStartDate
@@ -599,10 +668,10 @@ respondWithRosterDaySectionPatch rosterGroupId weekOffset rosterDayId shouldRefr
     rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx||]
-        Just RosterRenderData { rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } -> do
+        Just RosterRenderData { rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts } -> do
             let renderedDaySection =
                     mapMaybe
-                        (renderRequestedDaySection rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts)
+                        (renderRequestedDaySection rosterDays weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts)
                         [unpackId rosterDayId]
             let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId panelStaff | shouldRefreshStaffPanel]
             respondHtml (mconcat (renderedDaySection <> renderedStaffPanel))
@@ -612,9 +681,9 @@ respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefresh
     rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtml [hsx||]
-        Just RosterRenderData { rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } -> do
+        Just RosterRenderData { rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts } -> do
             let uniqueRowKeys = nub requestedRowKeys
-            let renderedRows = mapMaybe (renderRequestedRow rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts) uniqueRowKeys
+            let renderedRows = mapMaybe (renderRequestedRow rosterDays weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts) uniqueRowKeys
             let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId panelStaff | shouldRefreshStaffPanel]
             respondHtml (mconcat (renderedRows <> renderedStaffPanel))
 
@@ -632,7 +701,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
     rosterDataOrNothing <- fetchVisibleRosterRenderDataCached currentRosterGroup.id weekOffset
 
     case rosterDataOrNothing of
-        Just RosterRenderData { rosterWeek, rosterDays, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
+        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
             let visibleRosterWeek =
                     if rosterWeek.isLive || hasRole ManagerRole'
                         then Just rosterWeek
@@ -646,7 +715,9 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
                         , currentRosterGroup
                         , weekStartDate
                         , weekEndDate
+                        , assignmentFilters
                         , staffMembers
+                        , staffOptionStates
                         , panelStaff
                         , slotNames = orderedSlotNames
                         , allSlots
@@ -674,7 +745,9 @@ data RosterRenderData = RosterRenderData
     { rosterWeek       :: RosterWeek
     , rosterDays       :: [RosterDay]
     , weekStartDate    :: Calendar.Day
+    , assignmentFilters :: RosterAssignmentFilters
     , staffMembers     :: [Staff]
+    , staffOptionStates :: Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState
     , panelStaff       :: [RosterStaffPanelEntry]
     , orderedSlotNames :: [SlotName]
     , allSlots         :: [RosterSlot]
@@ -707,7 +780,9 @@ rosterProjectionDefinition =
         { surfaceName = "roster-week"
         , cachePolicy = defaultSurfaceProjectionCachePolicy
         , scopeKey = \scope -> tshow scope.rosterProjectionGroupId <> ":" <> tshow scope.rosterProjectionWeekOffset
-        , viewerKey = pure (tshow currentUser.id)
+        , viewerKey = do
+            filters <- fetchRosterAssignmentFilters
+            pure (tshow currentUser.id <> ":" <> encodeRosterAssignmentFilters filters)
         , currentVersion = \scope -> currentLiveUpdateVersion (buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
         , loadProjection = \scope -> fetchVisibleRosterRenderData scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset
         , renderFragment = renderRosterProjectionFragment
@@ -754,14 +829,16 @@ renderRosterContentFromProjection :: (?context :: ControllerContext, ?request ::
 renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
     case rosterData of
         Nothing -> [hsx|<div id="roster-content"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts } ->
             renderRosterContentFragment
                 (Just rosterWeek)
                 rosterDays
                 rosterWeek.weekOffset
                 rosterGroups
                 currentRosterGroup
+                assignmentFilters
                 staffMembers
+                staffOptionStates
                 panelStaff
                 orderedSlotNames
                 weekStartDate
@@ -776,17 +853,18 @@ renderRosterStaffPanelFromProjection rosterData =
             renderRosterStaffPanelFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) panelStaff
 
 renderRequestedRowFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => RosterRenderData -> UUID.UUID -> Int -> Maybe Blaze.Html
-renderRequestedRowFragmentFromProjection RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, orderedSlotNames, allSlots, slotConflicts } rosterDayId rowIndex =
-    renderRequestedRowFragment (hasRole ManagerRole' && not rosterWeek.isLive) rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (rosterDayId, rowIndex)
+renderRequestedRowFragmentFromProjection RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, orderedSlotNames, allSlots, slotConflicts } rosterDayId rowIndex =
+    renderRequestedRowFragment (hasRole ManagerRole' && not rosterWeek.isLive) rosterDays weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts (rosterDayId, rowIndex)
 
 renderRequestedDaySectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => RosterRenderData -> UUID.UUID -> Maybe Blaze.Html
-renderRequestedDaySectionFragmentFromProjection RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, orderedSlotNames, allSlots, slotConflicts } rosterDayId =
-    renderRequestedDaySectionFragment (hasRole ManagerRole' && not rosterWeek.isLive) rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts rosterDayId
+renderRequestedDaySectionFragmentFromProjection RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, orderedSlotNames, allSlots, slotConflicts } rosterDayId =
+    renderRequestedDaySectionFragment (hasRole ManagerRole' && not rosterWeek.isLive) rosterDays weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts rosterDayId
 
-fetchRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
+fetchRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchRosterRenderData rosterGroupId weekOffset = do
     _ <- ensureRosterWeekExists rosterGroupId weekOffset
     venueConfig <- fetchVenueConfig
+    assignmentFilters <- fetchRosterAssignmentFilters
     let epoch = venueConfig.weekOffsetEpoch
     let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) epoch
 
@@ -812,15 +890,16 @@ fetchRosterRenderData rosterGroupId weekOffset = do
             assignedStaffMembers <- fetchAssignedRosterWeekStaff visibleSlots
             let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
             panelStaff <- fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots
+            staffOptionStates <- buildRosterStaffOptionStates assignmentFilters weekStartDate rosterDays visibleSlots staffMembers
 
             orderedSlotNames <- fetchRosterWeekOrderedSlotNamesFromSlots allSlots
             slotConflicts <-
                 if rosterWeek.isLive
                     then pure []
                     else buildSlotConflicts rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays visibleSlots staffMembers
-            pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, staffMembers, panelStaff, orderedSlotNames, allSlots, slotConflicts })
+            pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts })
 
-fetchVisibleRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
+fetchVisibleRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterRenderData rosterGroupId weekOffset = do
     visibleRosterWeek <- fetchVisibleRosterWeek rosterGroupId weekOffset
     case visibleRosterWeek of
@@ -832,7 +911,9 @@ fetchVisibleRosterRenderData rosterGroupId weekOffset = do
                         { rosterWeek = backingRosterWeek
                         , rosterDays
                         , weekStartDate
+                        , assignmentFilters = defaultRosterAssignmentFilters
                         , staffMembers = []
+                        , staffOptionStates = Map.empty
                         , panelStaff = []
                         , orderedSlotNames
                         , allSlots = maskedSlots
@@ -840,7 +921,7 @@ fetchVisibleRosterRenderData rosterGroupId weekOffset = do
                         }
         Just _  -> fetchRosterRenderData rosterGroupId weekOffset
 
-fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (Maybe RosterWeek)
+fetchVisibleRosterWeek :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterWeek)
 fetchVisibleRosterWeek rosterGroupId weekOffset = do
     _ <- ensureRosterWeekExists rosterGroupId weekOffset
     rosterWeekOrNothing <-
@@ -858,6 +939,64 @@ fetchVisibleRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelCon
 fetchVisibleRosterStaffPanelEntries rosterGroupId weekOffset = do
     rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
     pure ((\RosterRenderData { panelStaff } -> panelStaff) <$> rosterData)
+
+buildRosterStaffOptionStates :: (?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
+buildRosterStaffOptionStates assignmentFilters weekStartDate rosterDays visibleSlots staffMembers = do
+    let staffIds = map (coerce . (.id)) staffMembers
+    if null staffIds
+        then pure Map.empty
+        else do
+            leaveRequests <- query @LeaveRequest
+                |> filterWhereIn (#staffId, staffIds)
+                |> fetch
+            availabilities <- query @StaffAvailability
+                |> filterWhereIn (#staffId, staffIds)
+                |> fetch
+
+            let dayById = Map.fromList (map (\day -> (coerce (get #id day), day)) rosterDays)
+            pure $
+                Map.fromList
+                    [ ((coerce (get #id slot), coerce (get #id staff)), rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById visibleSlots leaveRequests availabilities slot staff)
+                    | slot <- visibleSlots
+                    , staff <- staffMembers
+                    ]
+
+rosterAssignmentOptionStateFor :: RosterAssignmentFilters -> Calendar.Day -> Map.Map UUID.UUID RosterDay -> [RosterSlot] -> [LeaveRequest] -> [StaffAvailability] -> RosterSlot -> Staff -> RosterAssignmentOptionState
+rosterAssignmentOptionStateFor assignmentFilters weekStartDate dayById visibleSlots leaveRequests availabilities slot staff =
+    let staffId = coerce (get #id staff)
+        rosterDayDate =
+            case Map.lookup slot.rosterDayId dayById of
+                Just rosterDay -> Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate
+                Nothing -> weekStartDate
+        assignedShiftCount = length (filter (\candidate -> candidate.staffId == Just staffId) visibleSlots)
+        assignedToday = any (\candidate -> candidate.rosterDayId == slot.rosterDayId && candidate.staffId == Just staffId && get #id candidate /= get #id slot) visibleSlots
+        unavailable = any (isUnavailableOn rosterDayDate staffId) availabilities
+        onApprovedLeave = any (isApprovedLeaveOn rosterDayDate staffId) leaveRequests
+        hiddenByIdeal = assignmentFilters.hideStaffAtIdealShifts && assignedShiftCount >= staff.idealShiftsPerWeek
+        hiddenByUnavailable = assignmentFilters.hideStaffUnavailable && unavailable
+        hiddenByLeave = assignmentFilters.hideStaffOnApprovedLeave && onApprovedLeave
+        hiddenByAssignedToday = assignmentFilters.hideStaffAlreadyAssignedToday && assignedToday
+    in RosterAssignmentOptionState
+        { optionHidden = hiddenByIdeal || hiddenByUnavailable || hiddenByLeave || hiddenByAssignedToday
+        , optionAssignedShiftCount = assignedShiftCount
+        , optionHiddenByIdeal = hiddenByIdeal
+        , optionHiddenByUnavailable = hiddenByUnavailable
+        , optionHiddenByLeave = hiddenByLeave
+        , optionHiddenByAssignedToday = hiddenByAssignedToday
+        }
+
+isApprovedLeaveOn :: Calendar.Day -> UUID.UUID -> LeaveRequest -> Bool
+isApprovedLeaveOn rosterDayDate staffId leaveRequest =
+    leaveRequest.staffId == staffId
+        && parseLeaveRequestStatus leaveRequest.status == Just LeaveApproved
+        && rosterDayDate >= leaveRequest.startDate
+        && rosterDayDate < leaveRequest.endDate
+
+isUnavailableOn :: Calendar.Day -> UUID.UUID -> StaffAvailability -> Bool
+isUnavailableOn rosterDayDate staffId availability =
+    availability.staffId == staffId
+        && not availability.isAvailable
+        && (availability.specificDate == Just rosterDayDate || availability.weekdayIndex == Just (fromEnum (Calendar.dayOfWeek rosterDayDate)))
 
 fetchVisibleRosterRowFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> Int -> IO (Maybe Blaze.Html)
 fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex = do
@@ -1172,7 +1311,7 @@ copyRosterWeek sourceWeek targetWeekOffset = do
 
     pure targetWeek
 
-fetchHiddenRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [SlotName], [RosterSlot])
+fetchHiddenRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [SlotName], [RosterSlot])
 fetchHiddenRosterRenderData rosterGroupId weekOffset = do
     rosterDataOrNothing <- fetchRosterRenderData rosterGroupId weekOffset
     case rosterDataOrNothing of
@@ -1180,7 +1319,7 @@ fetchHiddenRosterRenderData rosterGroupId weekOffset = do
             pure (rosterWeek, rosterDays, weekStartDate, orderedSlotNames, maskRosterSlots rosterWeek allSlots)
         Nothing -> error "Roster week should exist after ensureRosterWeekExists"
 
-fetchHiddenRosterWeekSkeleton :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], [SlotName], [RosterSlot])
+fetchHiddenRosterWeekSkeleton :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], [SlotName], [RosterSlot])
 fetchHiddenRosterWeekSkeleton rosterGroupId weekOffset = do
     (rosterWeek, rosterDays, _, orderedSlotNames, maskedSlots) <- fetchHiddenRosterRenderData rosterGroupId weekOffset
     pure (rosterWeek, rosterDays, orderedSlotNames, maskedSlots)
@@ -1199,7 +1338,7 @@ maskRosterSlots rosterWeek slots =
                 |> set #note Nothing
 
 
-renderRequestedRow rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (rosterDayUuid, targetRowIndex) = do
+renderRequestedRow rosterDays weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts (rosterDayUuid, targetRowIndex) = do
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
     let daySlots = filter (\slot -> slot.rosterDayId == rosterDayUuid) allSlots
     let dayRows = rowsForDay rosterDay daySlots
@@ -1208,9 +1347,9 @@ renderRequestedRow rosterDays weekStartDate orderedSlotNames staffMembers allSlo
     let indexedRows = zip [0 :: Int ..] dayRows
     (rowPosition, (_, rowSlots)) <- find (\(_, (rowIndex, _)) -> rowIndex == targetRowIndex) indexedRows
     let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate
-    pure (renderRowOob True orderedSlotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (targetRowIndex, rowSlots)))
+    pure (renderRowOob True orderedSlotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (targetRowIndex, rowSlots)))
 
-renderRequestedRowFragment isEditable rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts (rosterDayUuid, targetRowIndex) = do
+renderRequestedRowFragment isEditable rosterDays weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts (rosterDayUuid, targetRowIndex) = do
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
     let daySlots = filter (\slot -> slot.rosterDayId == rosterDayUuid) allSlots
     let dayRows = rowsForDay rosterDay daySlots
@@ -1219,15 +1358,15 @@ renderRequestedRowFragment isEditable rosterDays weekStartDate orderedSlotNames 
     let indexedRows = zip [0 :: Int ..] dayRows
     (rowPosition, (_, rowSlots)) <- find (\(_, (rowIndex, _)) -> rowIndex == targetRowIndex) indexedRows
     let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate
-    pure (renderRowFragment isEditable orderedSlotNames staffMembers date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (targetRowIndex, rowSlots)))
+    pure (renderRowFragment isEditable orderedSlotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (targetRowIndex, rowSlots)))
 
-renderRequestedDaySection rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts rosterDayUuid = do
+renderRequestedDaySection rosterDays weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts rosterDayUuid = do
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
-    pure (renderRosterDaySectionFragment True orderedSlotNames staffMembers weekStartDate allSlots slotConflicts rosterDay)
+    pure (renderRosterDaySectionFragment True orderedSlotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts rosterDay)
 
-renderRequestedDaySectionFragment isEditable rosterDays weekStartDate orderedSlotNames staffMembers allSlots slotConflicts rosterDayUuid = do
+renderRequestedDaySectionFragment isEditable rosterDays weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts rosterDayUuid = do
     rosterDay <- find (\day -> coerce (get #id day) == rosterDayUuid) rosterDays
-    pure (renderRosterDaySectionFragment isEditable orderedSlotNames staffMembers weekStartDate allSlots slotConflicts rosterDay)
+    pure (renderRosterDaySectionFragment isEditable orderedSlotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts rosterDay)
 
 ensureRosterWeekIsDraftForEdit :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> IO ()
 ensureRosterWeekIsDraftForEdit rosterWeek =
