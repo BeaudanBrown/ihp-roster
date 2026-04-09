@@ -62,7 +62,18 @@ instance Controller RosterWeeksController where
 
     action ShowRosterWeekAction { weekOffset } = do
         rosterGroup <- resolveRequestedRosterGroup
-        renderRosterWeekPage weekOffset rosterGroup.id
+        case paramOrNothing @Calendar.Day "weekDate" of
+            Just weekDate -> do
+                venueConfig <- fetchVenueConfig
+                let selectedWeekOffset = weekOffsetForDay venueConfig.weekOffsetEpoch weekDate
+                let targetPath = buildRosterWeekPath selectedWeekOffset rosterGroup.id
+                if isHtmxRequest
+                    then do
+                        setHtmxPushUrl targetPath
+                        renderRosterWeekPage selectedWeekOffset rosterGroup.id
+                    else redirectToPath targetPath
+            Nothing ->
+                renderRosterWeekPage weekOffset rosterGroup.id
 
     action ShowRosterWeekContentFragmentAction { weekOffset } = do
         rosterGroup <- resolveRequestedRosterGroup

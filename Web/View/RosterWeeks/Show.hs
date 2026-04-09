@@ -83,17 +83,38 @@ renderRosterWeekShell ShowView { .. } = [hsx|
     </section>
 |]
 
-renderRosterWeekControls :: (?context :: ControllerContext) => Int -> [RosterGroup] -> RosterGroup -> Html
-renderRosterWeekControls weekOffset rosterGroups currentRosterGroup = [hsx|
-    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-xl-end">
-        <div class="btn-group" role="group" aria-label="Roster week navigation">
+renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> Html
+renderRosterWeekControls weekOffset currentRosterGroup weekStartDate = [hsx|
+    <div class="d-flex justify-content-center">
+        <div class="btn-group roster-week-nav-group" role="group" aria-label="Roster week navigation">
             {renderWeekNavigationLink "<" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
-            {renderWeekNavigationLink "this week" (appendQueryParams (pathTo RosterWeeksAction) [("rosterGroupId", tshow currentRosterGroup.id)])}
+            {renderWeekDatePickerButton weekOffset currentRosterGroup.id weekStartDate}
             {renderWeekNavigationLink ">" (rosterWeekPath (weekOffset + 1) currentRosterGroup.id)}
         </div>
-        {when currentUserIsManager (renderRosterWeekManagerControls weekOffset currentRosterGroup)}
     </div>
 |]
+
+renderWeekDatePickerButton :: Int -> Id RosterGroup -> Day -> Html
+renderWeekDatePickerButton weekOffset rosterGroupId weekStartDate = [hsx|
+    <form class="mb-0" method="GET" action={pathTo (ShowRosterWeekAction weekOffset)}>
+        <input type="hidden" name="rosterGroupId" value={tshow rosterGroupId}/>
+        <label class="btn btn-outline-secondary mb-0 position-relative roster-week-nav-button roster-week-date-picker-button">
+            <span>{renderRosterWeekRangeLabel weekStartDate}</span>
+            <input type="date"
+                   name="weekDate"
+                   value={Text.pack (formatTime defaultTimeLocale "%Y-%m-%d" weekStartDate)}
+                   class="position-absolute top-0 start-0 w-100 h-100 opacity-0 roster-week-date-picker-input"
+                   onchange="this.form.requestSubmit()"
+                   aria-label="Choose roster week" />
+        </label>
+    </form>
+|]
+
+renderRosterWeekRangeLabel :: Day -> Text
+renderRosterWeekRangeLabel weekStartDate =
+    let weekEndDate = Calendar.addDays 6 weekStartDate
+        formatRangeDate date = Text.pack (formatTime defaultTimeLocale "%d/%m" date)
+     in formatRangeDate weekStartDate <> " - " <> formatRangeDate weekEndDate
 
 renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
@@ -131,7 +152,7 @@ renderWeekNavigationLink label url =
             , partialNavigationUrl = url
             , partialNavigationTargetId = rosterWeekShellId
             , partialNavigationSelectId = Just rosterWeekShellId
-            , partialNavigationClass = "btn btn-outline-secondary"
+            , partialNavigationClass = "btn btn-outline-secondary roster-week-nav-button"
             , partialNavigationSwap = "outerHTML"
             , partialNavigationSync = Just ("#" <> rosterWeekShellId <> ":replace")
             , partialNavigationPushUrl = True
@@ -210,7 +231,7 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
             {renderLiveToggle maybeRosterWeek}
         </div>
         <div class="text-center flex-fill">
-            <h1 class="h4 mb-0">Roster Starting {formatDateDisplay weekStartDate}</h1>
+            {renderRosterWeekControls weekOffset currentRosterGroup weekStartDate}
         </div>
         <div class="d-flex flex-wrap gap-2 align-items-center ms-auto">
             {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup}
