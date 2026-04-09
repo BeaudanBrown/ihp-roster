@@ -26,6 +26,7 @@ Business requirements remain canonical in `specs/`.
   - `plans/50-release-readiness.md`
   - `plans/51-mobile-responsive-foundations.md`
   - `plans/52-roster-mobile-refactor.md`
+  - `plans/53-programmatic-demo-seeding.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
 
@@ -146,6 +147,12 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **File:** `plans/52-roster-mobile-refactor.md`
 - **Focus:** use the roster page as the first cross-device refactor surface and lock in the mobile/tablet behavior contract before visual restructuring.
 
+### Pipeline 53 — Programmatic Demo Seeding
+- **Status:** [ ]
+- **File:** `plans/53-programmatic-demo-seeding.md`
+- **Focus:** replace the current one-off dev seed with scenario-driven deterministic demo data generation that can scale venue shape, staffing mix, pay configuration, and roster realism for client demonstrations and manual QA.
+- **Priority note:** this is the fastest path to a realistic demo environment for the current client demonstration window; land the minimum demo slice before broader scenario/export polish.
+
 ## Parallelism Rules
 
 These pipelines can overlap when they respect the dependency constraints above:
@@ -157,6 +164,7 @@ These pipelines can overlap when they respect the dependency constraints above:
 - `plans/50-release-readiness.md` should mostly trail the others, but test additions can happen incrementally.
 - `plans/51-mobile-responsive-foundations.md` should run alongside roster, leave, and timesheet UX work so responsive contracts land before too many new desktop-first assumptions accumulate.
 - `plans/52-roster-mobile-refactor.md` should lead any roster-page responsive restructuring so layout changes stay anchored to explicit mobile/tablet contracts rather than ad hoc CSS tweaks.
+- `plans/53-programmatic-demo-seeding.md` can proceed alongside roster/payroll/admin work so long as it reuses existing bootstrap helpers and does not destabilize deterministic e2e fixtures or minimal bootstrap SQL.
 
 ## Read Order For Agents
 
