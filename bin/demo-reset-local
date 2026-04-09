@@ -10,6 +10,14 @@ DB_SOCKET="${IHP_ROSTER_DEMO_DB_SOCKET:-/var/run/postgresql}"
 WORKER_SERVICE="${IHP_ROSTER_DEMO_WORKER_SERVICE:-worker}"
 APP_SERVICE="${IHP_ROSTER_DEMO_APP_SERVICE:-app}"
 
+print_service_failure() {
+    local service="$1"
+    echo "[demo-reset] ${service} failed; showing status" >&2
+    sudo systemctl status "$service" --no-pager -l || true
+    echo "[demo-reset] Recent journal for ${service}" >&2
+    sudo journalctl -u "$service" -n 80 --no-pager || true
+}
+
 if [ "${1:-}" = "--help" ]; then
     cat <<EOF
 Usage: just demo-reset-local [seed-options...]
@@ -26,14 +34,21 @@ fi
 
 cd "$REPO_ROOT"
 
+echo "[demo-reset] Stopping app services and migration units"
 sudo systemctl stop "$APP_SERVICE" "$WORKER_SERVICE" bootstrap-account migrate loadSchema || true
+echo "[demo-reset] Recreating database ${DB_NAME}"
 sudo -u postgres dropdb --if-exists "$DB_NAME"
 sudo -u postgres createdb -O "$DB_USER" "$DB_NAME"
-sudo systemctl start migrate
+echo "[demo-reset] Running migrate unit"
+if ! sudo systemctl start migrate; then
+    print_service_failure migrate
+    exit 1
+fi
 
 export DATABASE_URL="postgresql://${DB_USER}@/${DB_NAME}?host=${DB_SOCKET}"
 
-bash ./bin/in-env bash -lc '
+echo "[demo-reset] Building and running programmatic seed"
+if ! bash ./bin/in-env bash -lc '
     set -euo pipefail
     GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null | sed "s/-iIHP[^ ]* //g; s/-fbyte-code//g")
     mkdir -p build/Script
@@ -51,9 +66,19 @@ EOF
         -odir build/Script \
         -hidir build/Script
     exec build/Script/ResetDemo "$@"
-' demo-reset-local "$@"
-
-sudo systemctl restart "$APP_SERVICE"
-if systemctl list-unit-files "$WORKER_SERVICE.service" >/dev/null 2>&1; then
-    sudo systemctl restart "$WORKER_SERVICE" || true
+' demo-reset-local "$@"; then
+    echo "[demo-reset] Programmatic seed failed" >&2
+    exit 1
 fi
+
+echo "[demo-reset] Restarting app services"
+if ! sudo systemctl restart "$APP_SERVICE"; then
+    print_service_failure "$APP_SERVICE"
+    exit 1
+fi
+if systemctl list-unit-files "$WORKER_SERVICE.service" >/dev/null 2>&1; then
+    if ! sudo systemctl restart "$WORKER_SERVICE"; then
+        print_service_failure "$WORKER_SERVICE"
+    fi
+fi
+echo "[demo-reset] Complete"

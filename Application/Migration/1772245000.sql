@@ -1,9 +1,19 @@
-CREATE TYPE invitation_delivery_status_enum AS ENUM ('queued', 'sent', 'failed');
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type
+        WHERE typname = 'invitation_delivery_status_enum'
+    ) THEN
+        CREATE TYPE invitation_delivery_status_enum AS ENUM ('queued', 'sent', 'failed');
+    END IF;
+END
+$$;
 
 ALTER TABLE venue_invitations
-    ADD COLUMN delivery_status invitation_delivery_status_enum,
-    ADD COLUMN delivery_error TEXT,
-    ADD COLUMN delivered_at TIMESTAMP WITH TIME ZONE;
+    ADD COLUMN IF NOT EXISTS delivery_status invitation_delivery_status_enum,
+    ADD COLUMN IF NOT EXISTS delivery_error TEXT,
+    ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP WITH TIME ZONE;
 
 UPDATE venue_invitations
 SET

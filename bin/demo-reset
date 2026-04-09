@@ -30,10 +30,9 @@ if [ "$CURRENT_HOST" = "$TARGET_HOST" ]; then
     exec "$SCRIPT_DIR/demo-reset-local" "$@"
 fi
 
-exec ssh "$TARGET_HOST" bash -s -- "$TARGET_REPO" "$@" <<'EOF'
-set -euo pipefail
-TARGET_REPO="$1"
-shift
-cd "$TARGET_REPO"
-exec bash ./bin/demo-reset-local "$@"
-EOF
+REMOTE_COMMAND="cd $(printf '%q' "$TARGET_REPO") && exec bash ./bin/demo-reset-local"
+for arg in "$@"; do
+    REMOTE_COMMAND+=" $(printf '%q' "$arg")"
+done
+
+exec ssh -tt "$TARGET_HOST" "$REMOTE_COMMAND"
