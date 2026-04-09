@@ -6,6 +6,8 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames,
                                         fetchVenueDayNames,
                                         syncStaffRosterGroupAssignments)
+import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
+                                                 replaceStaffShiftPreferences)
 import Application.Support.Seed.Scenario
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays)
@@ -75,7 +77,7 @@ seedDevelopmentFixtureWithScenarioForWeek scenario fixtureWeekStart = do
     snapshot <- createPayrollSnapshot venue admin [frontLevel, backLevel] [floorShift, kitchenShift] dayNames []
     managerStaffs <- mapM (createManagerStaff venue) (zip [0 ..] managerUsers)
     workerStaff <- createStaffRecord venue (Just workerUser) "Willa" "Worker" >>= updateRecord . set #idealShiftsPerWeek 3
-    seededStaff <- createGeneratedStaff venue scenario.staffCount
+    seededStaff <- createGeneratedStaff venue scenario.scenarioSeed scenario.staffCount
     let frontOnlyStaff = takeFrontOnly seededStaff
     let backOnlyStaff = takeBackOnly seededStaff
     let crossGroupStaff = takeCrossGroup seededStaff
@@ -87,6 +89,20 @@ seedDevelopmentFixtureWithScenarioForWeek scenario fixtureWeekStart = do
     mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id backGroup]) backOnlyStaff
     mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup, get #id backGroup]) crossGroupStaff
     mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup]) trialStaffs
+
+    seedStaffPreferencesAndAvailability
+        scenario.scenarioSeed
+        fixtureWeekStart
+        frontGroup
+        backGroup
+        frontSlots
+        backSlots
+        managerStaffs
+        workerStaff
+        frontOnlyStaff
+        backOnlyStaff
+        crossGroupStaff
+        trialStaffs
 
     let allFrontCandidates = managerStaffs <> [workerStaff] <> frontOnlyStaff <> crossGroupStaff <> trialStaffs
     let allBackCandidates = managerStaffs <> backOnlyStaff <> crossGroupStaff
@@ -144,11 +160,12 @@ createManagerStaff venue (index, user) =
         (firstName, lastName) =
             fromMaybe ("Morgan", "Manager") (safeIndex managerNames index)
 
-createGeneratedStaff :: (?modelContext :: ModelContext) => Venue -> Int -> IO [Staff]
-createGeneratedStaff venue requestedCount =
-    forM (take (max 0 requestedCount) generatedStaffCatalog) \(index, firstName, lastName) -> do
+createGeneratedStaff :: (?modelContext :: ModelContext) => Venue -> Int -> Int -> IO [Staff]
+createGeneratedStaff venue seedValue requestedCount =
+    forM (take (max 0 requestedCount) generatedStaffCatalog) \(index, firstName, lastName, preferredName) -> do
         user <- createUserRecord ("dev-" <> Text.toLower firstName <> "-" <> tshow (index + 1) <> "@example.com") "staff" True
         createStaffRecord venue (Just user) firstName lastName
+            >>= updateRecord . set #preferredName (preferredNameFor seedValue index firstName preferredName)
             >>= updateRecord . set #idealShiftsPerWeek (1 + ((index + 2) `mod` 5))
 
 createTrialStaff :: (?modelContext :: ModelContext) => Venue -> Int -> IO [Staff]
@@ -168,6 +185,166 @@ takeBackOnly staff =
 takeCrossGroup :: [Staff] -> [Staff]
 takeCrossGroup staff =
     map snd (filter (\(index, _) -> assignmentBucket index == CrossGroup) (zip [0 :: Int ..] staff))
+
+seedStaffPreferencesAndAvailability ::
+    (?modelContext :: ModelContext) =>
+    Int ->
+    Day ->
+    RosterGroup ->
+    RosterGroup ->
+    [SlotName] ->
+    [SlotName] ->
+    [Staff] ->
+    Staff ->
+    [Staff] ->
+    [Staff] ->
+    [Staff] ->
+    [Staff] ->
+    IO ()
+seedStaffPreferencesAndAvailability seedValue fixtureWeekStart frontGroup backGroup frontSlots backSlots managerStaffs workerStaff frontOnlyStaff backOnlyStaff crossGroupStaff trialStaffs = do
+    forM_ (zip [0 :: Int ..] managerStaffs) \(index, staff) ->
+        seedStaffRecurringPreferencesAndAvailability
+            seedValue
+            fixtureWeekStart
+            (index + 1)
+            staff
+            [(frontGroup, frontSlots), (backGroup, backSlots)]
+    seedStaffRecurringPreferencesAndAvailability
+        seedValue
+        fixtureWeekStart
+        21
+        workerStaff
+        [(frontGroup, frontSlots)]
+    forM_ (zip [0 :: Int ..] frontOnlyStaff) \(index, staff) ->
+        seedStaffRecurringPreferencesAndAvailability
+            seedValue
+            fixtureWeekStart
+            (40 + index)
+            staff
+            [(frontGroup, frontSlots)]
+    forM_ (zip [0 :: Int ..] backOnlyStaff) \(index, staff) ->
+        seedStaffRecurringPreferencesAndAvailability
+            seedValue
+            fixtureWeekStart
+            (80 + index)
+            staff
+            [(backGroup, backSlots)]
+    forM_ (zip [0 :: Int ..] crossGroupStaff) \(index, staff) ->
+        seedStaffRecurringPreferencesAndAvailability
+            seedValue
+            fixtureWeekStart
+            (120 + index)
+            staff
+            [(frontGroup, frontSlots), (backGroup, backSlots)]
+    forM_ (zip [0 :: Int ..] trialStaffs) \(index, staff) ->
+        seedStaffRecurringPreferencesAndAvailability
+            seedValue
+            fixtureWeekStart
+            (160 + index)
+            staff
+            [(frontGroup, frontSlots)]
+
+seedStaffRecurringPreferencesAndAvailability ::
+    (?modelContext :: ModelContext) =>
+    Int ->
+    Day ->
+    Int ->
+    Staff ->
+    [(RosterGroup, [SlotName])] ->
+    IO ()
+seedStaffRecurringPreferencesAndAvailability seedValue fixtureWeekStart staffIndex staff groupSlots = do
+    seedStaffAvailabilityRecords seedValue fixtureWeekStart staffIndex staff
+    seedStaffShiftPreferenceRecords seedValue staffIndex staff groupSlots
+
+seedStaffAvailabilityRecords ::
+    (?modelContext :: ModelContext) =>
+    Int ->
+    Day ->
+    Int ->
+    Staff ->
+    IO ()
+seedStaffAvailabilityRecords seedValue fixtureWeekStart staffIndex staff = do
+    let venueId = staff.venueId
+    let recurringUnavailabilityCount = deterministicIndex seedValue [staffIndex, 301] 3
+    let recurringAvailableCount = deterministicIndex seedValue [staffIndex, 302] 2
+    let recurringUnavailableWeekdays =
+            take recurringUnavailabilityCount
+                (uniqueWeekdaySequence seedValue [staffIndex, 303])
+    let recurringAvailableWeekdays =
+            take recurringAvailableCount
+                (filter (`notElem` recurringUnavailableWeekdays) (uniqueWeekdaySequence seedValue [staffIndex, 304]))
+    forM_ (zip [0 :: Int ..] recurringUnavailableWeekdays) \(noteIndex, weekdayIndex) -> do
+        _ <-
+            newRecord @StaffAvailability
+                |> set #venueId venueId
+                |> set #staffId (unpackId staff.id)
+                |> set #weekdayIndex (Just weekdayIndex)
+                |> set #specificDate Nothing
+                |> set #isAvailable False
+                |> set #note (Just (availabilityNoteFor seedValue staffIndex noteIndex))
+                |> createRecord
+        pure ()
+    forM_ recurringAvailableWeekdays \weekdayIndex -> do
+        _ <-
+            newRecord @StaffAvailability
+                |> set #venueId venueId
+                |> set #staffId (unpackId staff.id)
+                |> set #weekdayIndex (Just weekdayIndex)
+                |> set #specificDate Nothing
+                |> set #isAvailable True
+                |> set #note Nothing
+                |> createRecord
+        pure ()
+    when (deterministicPercent seedValue [staffIndex, 305] < 45) do
+        let dateOffset = toInteger (deterministicIndex seedValue [staffIndex, 306] 7)
+        let specificDate = dayAtOffset fixtureWeekStart dateOffset
+        let isAvailable = deterministicPercent seedValue [staffIndex, 307] < 35
+        _ <-
+            newRecord @StaffAvailability
+                |> set #venueId venueId
+                |> set #staffId (unpackId staff.id)
+                |> set #weekdayIndex Nothing
+                |> set #specificDate (Just specificDate)
+                |> set #isAvailable isAvailable
+                |> set #note (Just (if isAvailable then "Requested swap" else "Study / childcare"))
+                |> createRecord
+        pure ()
+
+seedStaffShiftPreferenceRecords ::
+    (?modelContext :: ModelContext) =>
+    Int ->
+    Int ->
+    Staff ->
+    [(RosterGroup, [SlotName])] ->
+    IO ()
+seedStaffShiftPreferenceRecords _ _ _ [] = pure ()
+seedStaffShiftPreferenceRecords seedValue staffIndex staff groupSlots = do
+    let rosterGroupIds = map (get #id . fst) groupSlots
+    let desiredPreferenceCount = deterministicIndex seedValue [staffIndex, 401] 4
+    let preferenceSelections =
+            take desiredPreferenceCount
+                (buildShiftPreferenceSelections seedValue staffIndex groupSlots)
+    replaceStaffShiftPreferences staff rosterGroupIds preferenceSelections
+
+buildShiftPreferenceSelections ::
+    Int ->
+    Int ->
+    [(RosterGroup, [SlotName])] ->
+    [ShiftPreferenceSelection]
+buildShiftPreferenceSelections seedValue staffIndex groupSlots =
+    nub
+        [ ShiftPreferenceSelection
+            { rosterGroupId = get #id rosterGroup
+            , weekdayIndex = weekdayIndex
+            , slotNameId = get #id slotName
+            }
+        | offset <- [0 :: Int .. 5]
+        , let groupIndex = deterministicIndex seedValue [staffIndex, 410, offset] (length groupSlots)
+        , let (rosterGroup, slotNames) = groupSlots !! groupIndex
+        , not (null slotNames)
+        , let slotName = slotNames !! deterministicIndex seedValue [staffIndex, 411, offset] (length slotNames)
+        , let weekdayIndex = uniqueWeekdaySequence seedValue [staffIndex, 412 + offset] !! 0
+        ]
 
 seedRosterGroup ::
     (?modelContext :: ModelContext) =>
@@ -340,6 +517,31 @@ deterministicIndex seedValue keys modulus =
 textHash :: Text -> Int
 textHash = Text.foldl' (\acc ch -> (acc * 33) + fromEnum ch) 7
 
+uniqueWeekdaySequence :: Int -> [Int] -> [Int]
+uniqueWeekdaySequence seedValue keys =
+    nub (map (\offset -> deterministicIndex seedValue (keys <> [offset]) 7) [0 :: Int .. 20])
+
+availabilityNoteFor :: Int -> Int -> Int -> Text
+availabilityNoteFor seedValue staffIndex noteIndex =
+    availabilityNotes !! deterministicIndex seedValue [staffIndex, noteIndex, 499] (length availabilityNotes)
+
+preferredNameFor :: Int -> Int -> Text -> Maybe Text -> Maybe Text
+preferredNameFor seedValue index firstName fallbackPreferredName
+    | deterministicPercent seedValue [index, 601] < 32 =
+        fallbackPreferredName <|> generatedNickname firstName
+    | otherwise = Nothing
+
+generatedNickname :: Text -> Maybe Text
+generatedNickname firstName =
+    case Text.toLower firstName of
+        "alice" -> Just "Ali"
+        "cara" -> Just "C"
+        "dylan" -> Just "Dyl"
+        "frank" -> Just "Frankie"
+        "jules" -> Just "J"
+        "talia" -> Just "T"
+        _ -> Nothing
+
 managerNames :: [(Text, Text)]
 managerNames =
     [ ("Morgan", "Manager")
@@ -348,33 +550,36 @@ managerNames =
     , ("Jordan", "Supervisor")
     ]
 
-generatedStaffCatalog :: [(Int, Text, Text)]
+generatedStaffCatalog :: [(Int, Text, Text, Maybe Text)]
 generatedStaffCatalog =
-    zipWith (\index (firstName, lastName) -> (index, firstName, lastName)) [0 ..] $
-        [ ("Alice", "Front")
-        , ("Bob", "Both")
-        , ("Cara", "Kitchen")
-        , ("Dylan", "Leave")
-        , ("Eve", "Closer")
-        , ("Frank", "Prep")
-        , ("Gina", "Bar")
-        , ("Hugo", "Runner")
-        , ("Iris", "Service")
-        , ("Jules", "Cook")
-        , ("Kira", "Cafe")
-        , ("Luca", "Pass")
-        , ("Mia", "Host")
-        , ("Noah", "Dish")
-        , ("Omar", "Floor")
-        , ("Piper", "Expo")
-        , ("Quinn", "Late")
-        , ("Rosa", "Morning")
-        , ("Seth", "Grill")
-        , ("Talia", "Barista")
+    zipWith (\index (firstName, lastName, preferredName) -> (index, firstName, lastName, preferredName)) [0 ..] $
+        [ ("Alice", "Front", Nothing)
+        , ("Bob", "Both", Nothing)
+        , ("Cara", "Kitchen", Just "CJ")
+        , ("Dylan", "Leave", Nothing)
+        , ("Eve", "Closer", Nothing)
+        , ("Frank", "Prep", Just "Frankie")
+        , ("Gina", "Bar", Nothing)
+        , ("Hugo", "Runner", Nothing)
+        , ("Alice", "Host", Just "Ali")
+        , ("Jules", "Cook", Nothing)
+        , ("Kira", "Cafe", Nothing)
+        , ("Luca", "Pass", Nothing)
+        , ("Mia", "Morning", Nothing)
+        , ("Noah", "Dish", Nothing)
+        , ("Omar", "Floor", Nothing)
+        , ("Piper", "Expo", Nothing)
+        , ("Quinn", "Late", Nothing)
+        , ("Rosa", "Morning", Just "Rosie")
+        , ("Seth", "Grill", Nothing)
+        , ("Talia", "Barista", Just "T")
         ]
 
 noteBank :: [Text]
 noteBank = ["OP", "LU", "CL", "EX", "TR", "EV", "ST", "FN", "WK", "BR", "PK", "CV"]
+
+availabilityNotes :: [Text]
+availabilityNotes = ["School", "Uni", "Childcare", "Second job", "Medical", "Family"]
 
 data StaffAssignmentBucket
     = FrontOnly

@@ -195,3 +195,27 @@ tests = beforeAll testContext do
                 get #scenarioSeed (get #scenario fixture) `shouldBe` 12345
                 seededStaffCount `shouldSatisfy` (>= 12)
                 managerMembershipCount `shouldBe` 2
+
+        it "seeds recurring availability, shift preferences, duplicate first names, and some preferred names" $ withContext do
+            withCleanDb do
+                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+
+                seededStaff <-
+                    query @Staff
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> fetch
+                availabilities <-
+                    query @StaffAvailability
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> fetch
+                shiftPreferences <-
+                    query @StaffShiftPreference
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> fetch
+                let firstNames = map (.firstName) seededStaff
+                let duplicateFirstNames = map head (filter (\names -> length names > 1) (group (sort firstNames)))
+
+                length availabilities `shouldSatisfy` (> 5)
+                length shiftPreferences `shouldSatisfy` (> 5)
+                duplicateFirstNames `shouldContain` ["Alice"]
+                length (filter (isJust . (.preferredName)) seededStaff) `shouldSatisfy` (> 0)
