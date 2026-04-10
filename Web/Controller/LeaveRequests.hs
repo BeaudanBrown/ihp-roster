@@ -29,23 +29,24 @@ instance Controller LeaveRequestsController where
     beforeAction = do
         ensureIsUser
         ensureCurrentVenue
-        ensureProfileCompleted
 
     action LeaveRequestsAction = do
+        ensureProfileCompleted
         ensureManagerRole
         renderProfiled . leaveRequestsIndexView =<< fetchLeaveRequestsProjectionCached
 
     action ShowLeaveRequestsContentFragmentAction = do
+        ensureProfileCompleted
         ensureManagerRole
         respondHtmlProfiled . fromMaybe mempty =<< renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
 
     action NewLeaveRequestAction = do
         maybeStaff <- fetchCurrentUserStaff
         let responseContext = effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))
+        ensureLeaveProfileAccess responseContext
         case maybeStaff of
             Nothing -> do
-                setErrorMessage "No staff record found. Contact an administrator."
-                redirectToPath (leaveFallbackPath responseContext)
+                respondWithLeaveContextError responseContext "No staff record found. Contact an administrator."
             Just _ -> do
                 leaveRequest <- buildDefaultLeaveRequest
                 if isHtmxRequest
@@ -55,10 +56,10 @@ instance Controller LeaveRequestsController where
     action CreateLeaveRequestAction = do
         maybeStaff <- fetchCurrentUserStaff
         let responseContext = effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))
+        ensureLeaveProfileAccess responseContext
         case maybeStaff of
             Nothing -> do
-                setErrorMessage "No staff record found. Contact an administrator."
-                redirectToPath (leaveFallbackPath responseContext)
+                respondWithLeaveContextError responseContext "No staff record found. Contact an administrator."
             Just staff -> do
                 let leaveRequest =
                         newRecord @LeaveRequest
@@ -92,6 +93,7 @@ instance Controller LeaveRequestsController where
                                     redirectToPath (leaveFallbackPath responseContext)
 
     action ApproveLeaveRequestAction { leaveRequestId } = do
+        ensureProfileCompleted
         ensureManagerRole
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
@@ -132,6 +134,7 @@ instance Controller LeaveRequestsController where
                 redirectTo LeaveRequestsAction
 
     action DenyLeaveRequestAction { leaveRequestId } = do
+        ensureProfileCompleted
         ensureManagerRole
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
@@ -173,11 +176,13 @@ instance Controller LeaveRequestsController where
 
     action DeleteLeaveRequestAction { leaveRequestId } = do
         leaveRequest <- fetch leaveRequestId
+        let responseContext = effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))
+        ensureLeaveProfileAccess responseContext
         ensureRecordInCurrentVenue leaveRequest.venueId
         ensureLeaveDeleteAllowed leaveRequest
         unless (leaveRequestCanBeDeleted leaveRequest) do
             setErrorMessage "Reviewed leave requests cannot be deleted."
-            redirectTo LeaveRequestsAction
+            redirectToPath (leaveFallbackPath responseContext)
         withTransaction do
             void $
                 recordCurrentUserLeaveRequestEvent
@@ -200,10 +205,10 @@ instance Controller LeaveRequestsController where
             deleteRecord leaveRequest
         broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
         if isHtmxRequest
-            then respondWithLeaveMutationSuccess (effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))) "Leave request deleted" False
+            then respondWithLeaveMutationSuccess responseContext "Leave request deleted" False
             else do
                 setSuccessMessage "Leave request deleted"
-                redirectToPath (leaveFallbackPath (effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))))
+                redirectToPath (leaveFallbackPath responseContext)
 
 fetchStaffMembersForCurrentVenue :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffMembersForCurrentVenue =
@@ -367,6 +372,34 @@ respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmen
                             , toastOverlayMessage = successMessage
                             , toastOverlayClass = "app-toast-success"
                             , toastOverlayAutoHideMs = 3200
+                            }
+                        ]
+                    ]
+
+ensureLeaveProfileAccess :: (?context :: ControllerContext) => LeaveResponseContext -> IO ()
+ensureLeaveProfileAccess responseContext =
+    case responseContext of
+        LeavePageResponseContext -> ensureProfileCompleted
+        LeaveProfileResponseContext -> pure ()
+
+respondWithLeaveContextError :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> IO ()
+respondWithLeaveContextError responseContext errorMessage =
+    case responseContext of
+        LeavePageResponseContext -> do
+            setErrorMessage errorMessage
+            redirectToPath (leaveFallbackPath responseContext)
+        LeaveProfileResponseContext -> do
+            leaveRequests <- fetchCurrentUserLeaveRequests
+            leaveRequest <- buildDefaultLeaveRequest
+            respondHtmlProfiled $
+                mconcat
+                    [ renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests
+                    , renderToastOverlayHostOob ToastBottomCenter
+                        [ ToastOverlayConfig
+                            { toastOverlayTitle = Just "Error"
+                            , toastOverlayMessage = errorMessage
+                            , toastOverlayClass = "app-toast-danger"
+                            , toastOverlayAutoHideMs = 4200
                             }
                         ]
                     ]

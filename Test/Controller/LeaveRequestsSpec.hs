@@ -271,6 +271,29 @@ tests = beforeAll testContext do
                 versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore + 1
 
+        it "returns the profile leave fragment instead of redirecting when no staff record exists on profile leave submit" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Venue"
+                user <- createUserRecord "leave-profile-no-staff@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue user "worker"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateLeaveRequestAction
+                            [ ("startDate", "2025-01-13")
+                            , ("endDate", "2025-01-14")
+                            , ("notes", "Family event")
+                            , ("responseContext", "profile")
+                            , ("section", "leave")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                body <- responseBody response
+                let bodyText = cs (LByteString.unpack body)
+                bodyText `shouldContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldContain` "No staff record found. Contact an administrator."
+                bodyText `shouldNotContain` "id=\"profile-content-fragment\""
+
         it "manager review actions bump the leave scope version" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
