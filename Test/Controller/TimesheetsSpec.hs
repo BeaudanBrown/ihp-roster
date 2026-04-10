@@ -131,6 +131,32 @@ tests = beforeAll testContext do
                 workerResponse `responseBodyShouldContain` "Ava Hours"
                 workerResponse `responseBodyShouldNotContain` "Bea Hours"
 
+        it "applies manager timesheet filters from the week query params" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Filter Venue"
+                manager <- createUserRecord "timesheet-filter-manager@example.com" "staff" True
+                workerAUser <- createUserRecord "timesheet-filter-worker-a@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerAUser "worker"
+                managerStaff <- createStaffRecord venue (Just manager) "Mia" "Manager"
+                workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Hours"
+                approvedEntry <- createTimesheetEntryRecord venue managerStaff (fromGregorian 2025 1 7)
+                _ <- approvedEntry |> set #isApproved True |> updateRecord
+                _ <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [ ("showApproved", "false")
+                        , ("showAllStaff", "false")
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Show approved"
+                response `responseBodyShouldContain` "Show all staff"
+                response `responseBodyShouldContain` "No entries for this day."
+                response `responseBodyShouldNotContain` "Ava Hours"
+                response `responseBodyShouldNotContain` "timesheet-entry-status-badge\">Approved"
+
         it "creating timesheets via HTMX updates the actor fragment and bumps the week scope version" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"

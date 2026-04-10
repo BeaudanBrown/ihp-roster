@@ -9,6 +9,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
+import Data.UUID (UUID)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -21,6 +22,9 @@ data IndexView = IndexView
     , weekOffset            :: Int
     , weekStartDate         :: Day
     , weekEndDate           :: Day
+    , showApproved          :: Bool
+    , showAllStaff          :: Bool
+    , currentViewerStaffId  :: Maybe UUID
     , liveUpdateScope       :: Maybe LiveUpdateScope
     }
 
@@ -44,12 +48,12 @@ renderTimesheetWeekShell IndexView { .. } =
                     , appPanelHasActions = False
                     , appPanelActions = mempty
                     , appPanelHasCustomHeader = True
-                    , appPanelCustomHeader = renderTimesheetWeekHeader weekOffset weekStartDate
+                    , appPanelCustomHeader = renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
                         <div class="d-flex flex-column gap-3">
-                            {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate)}
+                            {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate showApproved showAllStaff)}
                         </div>
                     |]
                     }
@@ -83,22 +87,79 @@ renderTimesheetWeekNavigationLink label url =
             , partialNavigationPushUrl = True
             }
 
-renderTimesheetWeekHeader :: Int -> Day -> Html
-renderTimesheetWeekHeader weekOffset weekStartDate = [hsx|
+timesheetWeekUrl :: Int -> Bool -> Bool -> Text
+timesheetWeekUrl weekOffset showApproved showAllStaff =
+    appendQueryParams
+        (pathTo (ShowTimesheetWeekAction weekOffset))
+        [ ("showApproved", boolText showApproved)
+        , ("showAllStaff", boolText showAllStaff)
+        ]
+
+renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bool -> Bool -> Html
+renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff = [hsx|
     <div class="app-panel-header app-surface-toolbar">
         <div class="app-surface-toolbar-side">
-            {renderTimesheetWeekNavigationLink "This week" (pathTo TimesheetsAction)}
+            {renderTimesheetWeekNavigationLink "This week" (appendQueryParams (pathTo TimesheetsAction) [("showApproved", boolText showApproved), ("showAllStaff", boolText showAllStaff)])}
         </div>
         <div class="app-surface-toolbar-center">
             <div class="btn-group app-week-nav-group" role="group" aria-label="Timesheet week navigation">
-                {renderTimesheetWeekNavigationLink "<" (pathTo (ShowTimesheetWeekAction (weekOffset - 1)))}
+                {renderTimesheetWeekNavigationLink "<" (timesheetWeekUrl (weekOffset - 1) showApproved showAllStaff)}
                 <div class="btn btn-outline-secondary app-week-nav-label">
                     {renderTimesheetWeekLabel weekStartDate}
                 </div>
-                {renderTimesheetWeekNavigationLink ">" (pathTo (ShowTimesheetWeekAction (weekOffset + 1)))}
+                {renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) showApproved showAllStaff)}
             </div>
         </div>
-        <div class="app-surface-toolbar-side app-surface-toolbar-side-right"></div>
+        <div class="app-surface-toolbar-side app-surface-toolbar-side-right">
+            {renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff}
+        </div>
+    </div>
+|]
+
+renderTimesheetWeekMoreMenu :: (?context :: ControllerContext) => Int -> Bool -> Bool -> Html
+renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff =
+    let menuTriggerId = "timesheet-week-more-menu-trigger" :: Text
+        updateUrl = timesheetWeekUrl weekOffset showApproved showAllStaff
+     in [hsx|
+    <div class="dropdown">
+        <button class="btn btn-outline-secondary"
+                type="button"
+                id={menuTriggerId}
+                data-bs-toggle="dropdown"
+                data-bs-auto-close="outside"
+                aria-expanded="false"
+                aria-label="Timesheet actions">
+            <i class="bi bi-three-dots-vertical"></i>
+        </button>
+        <div class="dropdown-menu dropdown-menu-end p-2 roster-week-more-menu" aria-labelledby={menuTriggerId}>
+            <form class="px-1 py-1"
+                  method="GET"
+                  action={updateUrl}
+                  data-disable-javascript-submission="true"
+                  hx-get={updateUrl}
+                  hx-target={"#" <> timesheetWeekShellId}
+                  hx-swap="outerHTML"
+                  hx-push-url="true"
+                  hx-sync={"#" <> timesheetWeekShellId <> ":replace"}>
+                <input type="hidden" name="showApproved" id="timesheet-show-approved-value" value={boolText showApproved} />
+                <input type="hidden" name="showAllStaff" id="timesheet-show-all-staff-value" value={boolText showAllStaff} />
+                <div class="small text-uppercase fw-semibold text-body-secondary px-1 pb-2">Filters</div>
+                {renderTimesheetMenuToggle "timesheet-show-approved-toggle" "timesheet-show-approved-value" showApproved "Show approved"}
+                {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" "timesheet-show-all-staff-value" showAllStaff "Show all staff")}
+            </form>
+        </div>
+    </div>
+|]
+
+renderTimesheetMenuToggle :: Text -> Text -> Bool -> Text -> Html
+renderTimesheetMenuToggle inputId hiddenInputId isChecked label = [hsx|
+    <div class="form-check form-switch mb-2">
+        <input type="checkbox"
+               id={inputId}
+               class="form-check-input"
+               checked={isChecked}
+               onchange={"document.getElementById('" <> hiddenInputId <> "').value = this.checked ? 'true' : 'false'; this.form.requestSubmit();"} />
+        <label class="form-check-label small" for={inputId}>{label}</label>
     </div>
 |]
 
@@ -106,16 +167,16 @@ renderTimesheetWeekLabel :: Day -> Text
 renderTimesheetWeekLabel weekStartDate =
     "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
-renderDaySection :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Int -> Html
+renderDaySection :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
 renderDaySection =
     renderDaySectionWithSwap Nothing
 
-renderDaySectionOob :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Int -> Html
+renderDaySectionOob :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
 renderDaySectionOob =
     renderDaySectionWithSwap (Just "outerHTML")
 
-renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Int -> Html
-renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate dayOffset = [hsx|
+renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
+renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate showApproved showAllStaff dayOffset = [hsx|
     <section id={timesheetDaySectionDomId dayOffset}
              class="app-panel timesheet-day-panel"
              data-timesheet-day-offset={tshow dayOffset}
@@ -133,7 +194,7 @@ renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes paySummari
                 <span class="timesheet-day-add-label">{weekdayLabel} {formatDateCompact dayDate}</span>
             </a>
 
-            {renderDayEntries dayOffset dayEntries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset}
+            {renderDayEntries dayOffset dayEntries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset showApproved showAllStaff}
         </div>
     </section>
 |]
@@ -142,33 +203,40 @@ renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes paySummari
         dayEntries = filter (\entry -> entry.workedOn == dayDate) entries
         weekdayLabel = Text.pack (formatTime defaultTimeLocale "%A" dayDate)
         daySectionUrl =
-            pathTo
-                (ShowTimesheetDaySectionFragmentAction
-                    { weekOffset = weekOffset
-                    , dayOffset = dayOffset
-                    }
+            appendQueryParams
+                (pathTo
+                    (ShowTimesheetDaySectionFragmentAction
+                        { weekOffset = weekOffset
+                        , dayOffset = dayOffset
+                        }
+                    )
                 )
+                [ ("showApproved", boolText showApproved)
+                , ("showAllStaff", boolText showAllStaff)
+                ]
         newEntryUrl =
             appendQueryParams
                 (pathTo NewTimesheetEntryAction)
                 [ ("weekOffset", tshow weekOffset)
                 , ("workedOn", tshow dayDate)
+                , ("showApproved", boolText showApproved)
+                , ("showAllStaff", boolText showAllStaff)
                 ]
 
 timesheetDaySectionDomId :: Int -> Text
 timesheetDaySectionDomId dayOffset = "timesheet-day-section-" <> tshow dayOffset
 
-renderDayEntries :: (?context :: ControllerContext) => Int -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Html
-renderDayEntries dayOffset dayEntries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset
+renderDayEntries :: (?context :: ControllerContext) => Int -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Bool -> Bool -> Html
+renderDayEntries dayOffset dayEntries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset showApproved showAllStaff
     | null dayEntries = [hsx|<p class="timesheet-day-empty app-muted mb-0">No entries for this day.</p>|]
     | otherwise = [hsx|
         <div class="timesheet-entry-list">
-            {forEach dayEntries (renderEntryCard dayOffset staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset)}
+            {forEach dayEntries (renderEntryCard dayOffset staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset showApproved showAllStaff)}
         </div>
     |]
 
-renderEntryCard :: (?context :: ControllerContext) => Int -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> TimesheetEntry -> Html
-renderEntryCard dayOffset staffMembers shiftTypes _paySummariesByEntryId today editWindowDays weekOffset entry = [hsx|
+renderEntryCard :: (?context :: ControllerContext) => Int -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Bool -> Bool -> TimesheetEntry -> Html
+renderEntryCard dayOffset staffMembers shiftTypes _paySummariesByEntryId today editWindowDays weekOffset showApproved showAllStaff entry = [hsx|
     <article class="timesheet-entry-card" data-timesheet-entry-approved={boolText entry.isApproved}>
         <div class="timesheet-entry-main">
             <div class="timesheet-entry-identity">
@@ -186,8 +254,8 @@ renderEntryCard dayOffset staffMembers shiftTypes _paySummariesByEntryId today e
 
             <div class="timesheet-entry-actions">
                 {renderApprovalBadge entry}
-                {renderApprovalAction dayOffset entry weekOffset}
-                {renderEditActions dayOffset entry canEdit weekOffset}
+                {renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff}
+                {renderEditActions dayOffset entry canEdit weekOffset showApproved showAllStaff}
             </div>
         </div>
 
@@ -203,8 +271,8 @@ renderEntryCard dayOffset staffMembers shiftTypes _paySummariesByEntryId today e
             Nothing        -> "Shift"
         canEdit = currentUserIsManager || isWithinEditWindow today entry.workedOn editWindowDays
 
-renderEditActions :: Int -> TimesheetEntry -> Bool -> Int -> Html
-renderEditActions dayOffset entry canEdit weekOffset
+renderEditActions :: Int -> TimesheetEntry -> Bool -> Int -> Bool -> Bool -> Html
+renderEditActions dayOffset entry canEdit weekOffset showApproved showAllStaff
     | canEdit && not entry.isApproved = [hsx|
         <a href={editUrl}
            class="btn btn-sm btn-outline-secondary"
@@ -218,7 +286,7 @@ renderEditActions dayOffset entry canEdit weekOffset
     |]
     | otherwise = mempty
     where
-        editUrl = appendQueryParams (pathTo (EditTimesheetEntryAction (get #id entry))) [("weekOffset", tshow weekOffset)]
+        editUrl = appendQueryParams (pathTo (EditTimesheetEntryAction (get #id entry))) [("weekOffset", tshow weekOffset), ("showApproved", boolText showApproved), ("showAllStaff", boolText showAllStaff)]
         deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id entry))) [("weekOffset", tshow weekOffset)]
         deleteTarget = "#" <> timesheetDaySectionDomId dayOffset
         renderDeleteButton = [hsx|
@@ -231,12 +299,14 @@ renderEditActions dayOffset entry canEdit weekOffset
                   hx-push-url="false">
                 <input type="hidden" name="_method" value="DELETE"/>
                 <input type="hidden" name="weekOffset" value={tshow weekOffset} />
+                <input type="hidden" name="showApproved" value={boolText showApproved} />
+                <input type="hidden" name="showAllStaff" value={boolText showAllStaff} />
                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
             </form>
         |]
 
-renderApprovalAction :: (?context :: ControllerContext) => Int -> TimesheetEntry -> Int -> Html
-renderApprovalAction dayOffset entry weekOffset
+renderApprovalAction :: (?context :: ControllerContext) => Int -> TimesheetEntry -> Int -> Bool -> Bool -> Html
+renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff
     | not currentUserIsManager = mempty
     | entry.isApproved = [hsx|
         <form method="POST"
@@ -248,6 +318,8 @@ renderApprovalAction dayOffset entry weekOffset
               hx-swap="outerHTML"
               hx-push-url="false">
             <input type="hidden" name="weekOffset" value={tshow weekOffset} />
+            <input type="hidden" name="showApproved" value={boolText showApproved} />
+            <input type="hidden" name="showAllStaff" value={boolText showAllStaff} />
             <button type="submit" class="btn btn-sm btn-outline-warning">Unapprove</button>
         </form>
     |]
@@ -261,6 +333,8 @@ renderApprovalAction dayOffset entry weekOffset
               hx-swap="outerHTML"
               hx-push-url="false">
             <input type="hidden" name="weekOffset" value={tshow weekOffset} />
+            <input type="hidden" name="showApproved" value={boolText showApproved} />
+            <input type="hidden" name="showAllStaff" value={boolText showAllStaff} />
             <button type="submit" class="btn btn-sm btn-outline-success">Approve</button>
         </form>
     |]

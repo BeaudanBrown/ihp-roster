@@ -1,28 +1,31 @@
 module Web.View.Timesheets.Edit where
 
 import Web.View.Prelude
+import Web.View.Timesheets.Index (timesheetWeekUrl)
 
 data EditView = EditView
     { timesheetEntry :: TimesheetEntry
     , staffMembers   :: [Staff]
     , shiftTypes     :: [ShiftType]
     , weekOffset     :: Int
+    , showApproved   :: Bool
+    , showAllStaff   :: Bool
     }
 
 instance View EditView where
     html EditView { .. } =
         renderTimesheetEntryModal
             "Edit Timesheet Entry"
-            weekOffset
+            (timesheetWeekUrl weekOffset showApproved showAllStaff)
             editTimesheetFormId
-            (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset (UpdateTimesheetEntryAction (get #id timesheetEntry)) editTimesheetFormId PageOverlayForm)
+            (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
 
 editTimesheetFormId :: Text
 editTimesheetFormId = "timesheet-entry-edit-form"
 
-renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Html
-renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset =
+renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Html
+renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff =
     renderTimesheetEntryDialog
         "Edit Timesheet Entry"
         editTimesheetFormId
-        (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset (UpdateTimesheetEntryAction (get #id timesheetEntry)) editTimesheetFormId HtmxOverlayForm)
+        (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)

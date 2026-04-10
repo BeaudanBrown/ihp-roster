@@ -350,22 +350,23 @@
         if (!fragment || !fragment.targetId || !fragment.url) return;
         const target = document.getElementById(fragment.targetId);
         if (!(target instanceof HTMLElement)) return;
+        const resolvedFragment = { ...fragment, url: target.dataset.liveUpdateUrl || fragment.url };
 
-        if (fragment.deferUntilBlur && hasProtectedActiveInput(target, fragment)) {
-            pendingDeferredFragments.set(fragment.targetId, captureDeferredState(target, fragment));
+        if (resolvedFragment.deferUntilBlur && hasProtectedActiveInput(target, resolvedFragment)) {
+            pendingDeferredFragments.set(resolvedFragment.targetId, captureDeferredState(target, resolvedFragment));
             document.dispatchEvent(new CustomEvent('app:live-update-performance', {
                 detail: {
                     name: 'live_updates.defer_fragment',
                     duration: 0,
-                    targetId: fragment.targetId,
+                    targetId: resolvedFragment.targetId,
                     reason: 'active_input',
                 },
             }));
             return;
         }
 
-        pendingDeferredFragments.delete(fragment.targetId);
-        queueFragment(fragment);
+        pendingDeferredFragments.delete(resolvedFragment.targetId);
+        queueFragment(resolvedFragment);
     }
 
     function flushDeferredFragment(targetId) {

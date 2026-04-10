@@ -563,34 +563,36 @@ renderTimePickerOption (value, label) = [hsx|
 |]
 
 -- | Shared timesheet entry form used by New and Edit views.
-renderTimesheetForm :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> TimesheetsController -> Text -> OverlayFormMode -> Html
-renderTimesheetForm entry staffMembers shiftTypes weekOffset action formId formMode =
+renderTimesheetForm :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Text -> Text -> OverlayFormMode -> Html
+renderTimesheetForm entry staffMembers shiftTypes weekOffset showApproved showAllStaff actionUrl formId formMode =
     case formMode of
         HtmxOverlayForm -> [hsx|
             <form id={formId}
                   method="POST"
-                  action={action}
+                  action={actionUrl}
                   class="mt-3"
                   data-disable-javascript-submission="true"
-                  hx-post={action}
+                  hx-post={actionUrl}
                   hx-target={"#" <> dialogOverlayMountId}
                   hx-swap="innerHTML"
                   hx-push-url="false">
-                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset}
+                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff}
             </form>
         |]
         PageOverlayForm -> [hsx|
             <form id={formId}
                   method="POST"
-                  action={action}
+                  action={actionUrl}
                   class="mt-3">
-                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset}
+                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff}
             </form>
         |]
 
-renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Html
-renderTimesheetFormFields entry staffMembers shiftTypes weekOffset = [hsx|
+renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Html
+renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff = [hsx|
     <input type="hidden" name="weekOffset" value={tshow weekOffset} />
+    <input type="hidden" name="showApproved" value={if showApproved then ("true" :: Text) else "false"} />
+    <input type="hidden" name="showAllStaff" value={if showAllStaff then ("true" :: Text) else "false"} />
     {renderStaffField entry staffMembers}
     {renderShiftTypeField entry shiftTypes}
     <div class="mb-3">
@@ -787,10 +789,10 @@ renderFieldError entry fieldName =
 hasErrorFor :: TimesheetEntry -> Text -> Bool
 hasErrorFor entry fieldName = isJust (lookup fieldName entry.meta.annotations)
 
-renderTimesheetEntryModal :: Text -> Int -> Text -> Html -> Html
-renderTimesheetEntryModal title weekOffset formId formContent =
+renderTimesheetEntryModal :: Text -> Text -> Text -> Html -> Html
+renderTimesheetEntryModal title closeUrl formId formContent =
     renderPageDialogModal
-        (pathTo (ShowTimesheetWeekAction weekOffset))
+        closeUrl
         DialogOverlayConfig
             { dialogOverlayTitle = title
             , dialogOverlayBody = formContent
