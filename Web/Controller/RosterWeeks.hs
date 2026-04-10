@@ -36,6 +36,7 @@ import Web.View.RosterWeeks.Show (RosterAssignmentFilters (..),
                                   RosterRenderIndexes (..),
                                   RosterStaffPanelEntry (..),
                                   RosterWeekOverviewDay (..), ShowView (..),
+                                  buildRosterViewCapabilities,
                                   lastRowIndexForRows,
                                   renderRosterContentFragment,
                                   renderRosterContentFragmentOob,
@@ -588,34 +589,9 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
     case rosterData of
         Nothing -> respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } ->
-            respondHtmlProfiled $
-                renderRosterContentFragmentOob
-                    (Just rosterWeek)
-                    rosterDays
-                    weekOffset
-                    rosterGroups
-                    currentRosterGroup
-                    assignmentFilters
-                    staffMembers
-                    staffOptionStates
-                    panelStaff
-                    orderedSlotNames
-                    weekStartDate
-                    allSlots
-                    slotConflicts
-                    renderIndexes
-
-respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
-respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
-    rosterGroups <- fetchCurrentVenueRosterGroups
-    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
-    respondHtmlProfiled $
-        mconcat
-            [ case rosterData of
-                Nothing -> [hsx|<div id="roster-content"></div>|]
-                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } ->
-                    renderRosterContentFragment
+            let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
+             in respondHtmlProfiled $
+                    renderRosterContentFragmentOob
                         (Just rosterWeek)
                         rosterDays
                         weekOffset
@@ -630,6 +606,35 @@ respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
                         allSlots
                         slotConflicts
                         renderIndexes
+                        viewCapabilities
+
+respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
+respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
+    rosterGroups <- fetchCurrentVenueRosterGroups
+    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
+    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
+    respondHtmlProfiled $
+        mconcat
+            [ case rosterData of
+                Nothing -> [hsx|<div id="roster-content"></div>|]
+                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } ->
+                    let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
+                     in renderRosterContentFragment
+                            (Just rosterWeek)
+                            rosterDays
+                            weekOffset
+                            rosterGroups
+                            currentRosterGroup
+                            assignmentFilters
+                            staffMembers
+                            staffOptionStates
+                            panelStaff
+                            orderedSlotNames
+                            weekStartDate
+                            allSlots
+                            slotConflicts
+                            renderIndexes
+                            viewCapabilities
             , renderToastOverlayHostOob ToastBottomCenter
                 [ ToastOverlayConfig
                     { toastOverlayTitle = Just "Success"
@@ -730,6 +735,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
                         , slotConflicts
                         , renderIndexes
                         , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId = unpackId currentRosterGroup.id, weekOffset })
+                        , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
                         }
         Nothing ->
             error "Roster week should exist after ensureRosterWeekExists"
@@ -747,7 +753,7 @@ renderRosterWeekOverviewFragment weekOffset rosterGroupId = do
     let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) venueConfig.weekOffsetEpoch
     let focusDate = initialOverviewFocusDate weekStartDate todayDate
     weekOverviewDays <- profileActionSpan "roster.build_month_overview" (buildRosterMonthOverviewDays venueConfig.weekOffsetEpoch rosterGroupId focusDate)
-    pure (renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate weekOverviewDays)
+    pure (renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate weekOverviewDays (buildRosterViewCapabilities Nothing))
 
 fetchRelatedSlotsForStaffIds :: (?modelContext :: ModelContext) => [UUID.UUID] -> IO [RosterSlot]
 fetchRelatedSlotsForStaffIds staffIds =
@@ -857,21 +863,23 @@ renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
     case rosterData of
         Nothing -> [hsx|<div id="roster-content"></div>|]
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } ->
-            renderRosterContentFragment
-                (Just rosterWeek)
-                rosterDays
-                rosterWeek.weekOffset
-                rosterGroups
-                currentRosterGroup
-                assignmentFilters
-                staffMembers
-                staffOptionStates
-                panelStaff
-                orderedSlotNames
-                weekStartDate
-                allSlots
-                slotConflicts
-                renderIndexes
+            let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
+             in renderRosterContentFragment
+                    (Just rosterWeek)
+                    rosterDays
+                    rosterWeek.weekOffset
+                    rosterGroups
+                    currentRosterGroup
+                    assignmentFilters
+                    staffMembers
+                    staffOptionStates
+                    panelStaff
+                    orderedSlotNames
+                    weekStartDate
+                    allSlots
+                    slotConflicts
+                    renderIndexes
+                    viewCapabilities
 
 renderRosterStaffPanelFromProjection :: (?context :: ControllerContext, ?request :: Request) => Maybe RosterRenderData -> Blaze.Html
 renderRosterStaffPanelFromProjection rosterData =

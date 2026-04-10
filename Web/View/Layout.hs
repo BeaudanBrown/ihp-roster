@@ -50,7 +50,7 @@ renderAppHeader =
             <header class="app-header border-bottom">
                 <nav class="navbar navbar-expand-md container py-2">
                     <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Bepis</a>
-                    {when currentUserIsSupportAdmin renderSupportVenueSwitcher}
+                    {renderWhenAudience SupportAudience renderSupportVenueSwitcher}
                     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#app-nav" aria-controls="app-nav" aria-expanded="false" aria-label="Toggle navigation">
                         <span class="navbar-toggler-icon"></span>
                     </button>
@@ -60,8 +60,8 @@ renderAppHeader =
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={EditProfileAction}>profile</a>
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={TimesheetsAction}>timesheets</a>
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={leaveHref}>leave</a>
-                            {when currentUserIsAdmin renderAdminNavLink}
-                            {when currentUserIsSupportAdmin renderSupportNavLink}
+                            {renderWhenAudience AdminAudience renderAdminNavLink}
+                            {renderWhenAudience SupportAudience renderSupportNavLink}
                             <form method="POST" action={DeleteSessionAction} class="d-inline app-header-logout-form">
                                 <input type="hidden" name="_method" value="DELETE"/>
                                 <button class="btn btn-outline-danger btn-sm app-header-nav-item" type="submit">logout</button>

@@ -45,4 +45,25 @@ test.describe('Roster week overview', () => {
 
         await expect(page.locator('body')).toHaveAttribute('data-roster-export-last-status', 'success');
     });
+
+    test('worker cannot see manager-only roster controls or leave metrics', async ({ page }) => {
+        await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
+        await gotoWhenReady(page, e2eRosterPath, '#roster-week-shell');
+
+        await expect(page.getByLabel('Live')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Copy Previous Week' })).toHaveCount(0);
+
+        await page.getByRole('button', { name: 'Roster actions' }).click();
+        const actionsMenu = page.locator('.roster-week-more-menu.show');
+        await expect(actionsMenu).toBeVisible();
+        await expect(actionsMenu.getByRole('button', { name: 'Export PNG' })).toHaveCount(0);
+        await expect(actionsMenu.getByText('Hide from dropdowns')).toHaveCount(0);
+        await expect(actionsMenu.getByRole('button', { name: 'Sync Slots' })).toHaveCount(0);
+
+        await page.getByRole('button', { name: 'Open roster week overview' }).click();
+        const overviewMenu = page.locator('.roster-week-overview-menu.show');
+        await expect(overviewMenu).toBeVisible();
+        await expect(overviewMenu.getByText('leave requests')).toHaveCount(0);
+        await expect(overviewMenu.locator('[data-week-overview-leave-value="true"]')).toHaveCount(0);
+    });
 });

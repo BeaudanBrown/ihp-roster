@@ -29,6 +29,25 @@ currentUserIsAdmin = hasRole VenueAdminRole
 currentUserIsSupportAdmin :: (?context :: ControllerContext) => Bool
 currentUserIsSupportAdmin = currentUserIsSuperAdmin
 
+data ViewAudience
+    = AnySignedInAudience
+    | ManagerAudience
+    | AdminAudience
+    | SupportAudience
+    deriving (Eq, Show)
+
+currentUserMatchesAudience :: (?context :: ControllerContext) => ViewAudience -> Bool
+currentUserMatchesAudience audience =
+    case audience of
+        AnySignedInAudience -> isJust currentUserOrNothing
+        ManagerAudience     -> currentUserIsManager
+        AdminAudience       -> currentUserIsAdmin
+        SupportAudience     -> currentUserIsSupportAdmin
+
+renderWhenAudience :: (?context :: ControllerContext) => ViewAudience -> Html -> Html
+renderWhenAudience audience html =
+    when (currentUserMatchesAudience audience) html
+
 -- | True when a staff record is a trial placeholder (no linked user account).
 isTrialStaff :: Staff -> Bool
 isTrialStaff staff = isNothing staff.userId
