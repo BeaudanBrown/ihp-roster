@@ -14,14 +14,16 @@ import Application.Helper.View (ToastOverlayConfig (..),
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
-import Data.Time.Calendar (addDays)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
+import Web.Controller.Profiles (buildDefaultLeaveRequest,
+                                fetchCurrentUserLeaveRequests)
 import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation,
                                    buildRosterContentFragmentRef,
                                    buildRosterStaffPanelFragmentRef)
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
+import Web.View.Profiles.Edit (renderProfileLeaveRequestsContentFragment)
 
 instance Controller LeaveRequestsController where
     beforeAction = do
@@ -30,33 +32,33 @@ instance Controller LeaveRequestsController where
         ensureProfileCompleted
 
     action LeaveRequestsAction = do
+        ensureManagerRole
         renderProfiled . leaveRequestsIndexView =<< fetchLeaveRequestsProjectionCached
 
     action ShowLeaveRequestsContentFragmentAction = do
+        ensureManagerRole
         respondHtmlProfiled . fromMaybe mempty =<< renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
 
     action NewLeaveRequestAction = do
         maybeStaff <- fetchCurrentUserStaff
+        let responseContext = effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))
         case maybeStaff of
             Nothing -> do
                 setErrorMessage "No staff record found. Contact an administrator."
-                redirectTo LeaveRequestsAction
+                redirectToPath (leaveFallbackPath responseContext)
             Just _ -> do
-                today <- utctDay <$> getCurrentTime
-                let leaveRequest =
-                        newRecord @LeaveRequest
-                            |> set #startDate today
-                            |> set #endDate (addDays 1 today)
+                leaveRequest <- buildDefaultLeaveRequest
                 if isHtmxRequest
                     then respondHtml (renderNewLeaveRequestDialog leaveRequest)
                     else render NewView { .. }
 
     action CreateLeaveRequestAction = do
         maybeStaff <- fetchCurrentUserStaff
+        let responseContext = effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))
         case maybeStaff of
             Nothing -> do
                 setErrorMessage "No staff record found. Contact an administrator."
-                redirectTo LeaveRequestsAction
+                redirectToPath (leaveFallbackPath responseContext)
             Just staff -> do
                 let leaveRequest =
                         newRecord @LeaveRequest
@@ -69,7 +71,7 @@ instance Controller LeaveRequestsController where
                     |> ifValid \case
                         Left leaveRequest ->
                             if isHtmxRequest
-                                then respondHtml (renderNewLeaveRequestDialog leaveRequest)
+                                then respondWithLeaveRequestValidationFailure responseContext leaveRequest
                                 else render NewView { .. }
                         Right leaveRequest -> do
                             _ <- withTransaction do
@@ -84,10 +86,10 @@ instance Controller LeaveRequestsController where
                                 pure createdLeaveRequest
                             broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
                             if isHtmxRequest
-                                then respondWithLeaveRequestsContent "Leave request submitted" True
+                                then respondWithLeaveMutationSuccess responseContext "Leave request submitted" True
                                 else do
                                     setSuccessMessage "Leave request submitted"
-                                    redirectTo LeaveRequestsAction
+                                    redirectToPath (leaveFallbackPath responseContext)
 
     action ApproveLeaveRequestAction { leaveRequestId } = do
         ensureManagerRole
@@ -198,10 +200,10 @@ instance Controller LeaveRequestsController where
             deleteRecord leaveRequest
         broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
         if isHtmxRequest
-            then respondWithLeaveRequestsContent "Leave request deleted" False
+            then respondWithLeaveMutationSuccess (effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))) "Leave request deleted" False
             else do
                 setSuccessMessage "Leave request deleted"
-                redirectTo LeaveRequestsAction
+                redirectToPath (leaveFallbackPath (effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))))
 
 fetchStaffMembersForCurrentVenue :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffMembersForCurrentVenue =
@@ -318,6 +320,56 @@ respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
                     }
                 ]
             ]
+
+data LeaveResponseContext
+    = LeavePageResponseContext
+    | LeaveProfileResponseContext
+    deriving (Eq, Show)
+
+parseLeaveResponseContext :: Text -> LeaveResponseContext
+parseLeaveResponseContext responseContext
+    | responseContext == "profile" = LeaveProfileResponseContext
+    | otherwise = LeavePageResponseContext
+
+effectiveLeaveResponseContext :: (?context :: ControllerContext) => LeaveResponseContext -> LeaveResponseContext
+effectiveLeaveResponseContext requestedContext
+    | not (hasRole ManagerRole') = LeaveProfileResponseContext
+    | otherwise = requestedContext
+
+leaveFallbackPath :: LeaveResponseContext -> Text
+leaveFallbackPath LeavePageResponseContext = pathTo EditProfileAction
+leaveFallbackPath LeaveProfileResponseContext =
+    pathTo EditProfileAction <> "?section=leave"
+
+respondWithLeaveRequestValidationFailure :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> LeaveRequest -> IO ()
+respondWithLeaveRequestValidationFailure responseContext leaveRequest =
+    case responseContext of
+        LeavePageResponseContext ->
+            respondHtml (renderNewLeaveRequestDialog leaveRequest)
+        LeaveProfileResponseContext -> do
+            leaveRequests <- fetchCurrentUserLeaveRequests
+            respondHtml (renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests)
+
+respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> Bool -> IO ()
+respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmentOob =
+    case responseContext of
+        LeavePageResponseContext ->
+            respondWithLeaveRequestsContent successMessage renderMainFragmentOob
+        LeaveProfileResponseContext -> do
+            leaveRequests <- fetchCurrentUserLeaveRequests
+            leaveRequest <- buildDefaultLeaveRequest
+            respondHtmlProfiled $
+                mconcat
+                    [ renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests
+                    , renderToastOverlayHostOob ToastBottomCenter
+                        [ ToastOverlayConfig
+                            { toastOverlayTitle = Just "Success"
+                            , toastOverlayMessage = successMessage
+                            , toastOverlayClass = "app-toast-success"
+                            , toastOverlayAutoHideMs = 3200
+                            }
+                        ]
+                    ]
 
 ensureLeaveDeleteAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LeaveRequest -> IO ()
 ensureLeaveDeleteAllowed leaveRequest =

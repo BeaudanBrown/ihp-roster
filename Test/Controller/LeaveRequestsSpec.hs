@@ -98,7 +98,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 user <- createUserRecord "leave-shell@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue user "manager"
                 _ <- createStaffRecord venue (Just user) "Shell" "Viewer"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -109,6 +109,18 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-live-update-client-enabled=\"true\""
                 response `responseBodyShouldContain` "data-live-update-scope-kind=\"leave_requests\""
                 response `responseBodyShouldContain` "id=\"leave-requests-content\""
+
+        it "denies the leave review page to ordinary staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Venue"
+                user <- createUserRecord "leave-staff-blocked@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createStaffRecord venue (Just user) "Blocked" "Worker"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction LeaveRequestsAction
+
+                response `responseStatusShouldBe` status403
 
         it "renders HTMX leave forms with javascript submission disabled" $ withContext do
             withCleanDb do
@@ -128,8 +140,10 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 user <- createUserRecord "leave-delete-form@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
-                staff <- createStaffRecord venue (Just user) "Delia" "Viewer"
+                workerUser <- createUserRecord "leave-delete-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                staff <- createStaffRecord venue (Just workerUser) "Delia" "Viewer"
                 leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 13) (fromGregorian 2025 1 14) "pending"
 
                 response <- withUserAndCurrentVenue user venue.id do
@@ -203,9 +217,7 @@ tests = beforeAll testContext do
                 managerResponse `responseStatusShouldBe` status200
                 managerResponse `responseBodyShouldContain` "Ava Viewer"
                 managerResponse `responseBodyShouldContain` "Bea Viewer"
-                workerResponse `responseStatusShouldBe` status200
-                workerResponse `responseBodyShouldContain` "Ava Viewer"
-                workerResponse `responseBodyShouldNotContain` "Bea Viewer"
+                workerResponse `responseStatusShouldBe` status403
 
         it "denying previously approved leave invalidates the affected roster week scope" $ withContext do
             withCleanDb do
@@ -245,14 +257,16 @@ tests = beforeAll testContext do
                                 [ ("startDate", "2025-01-13")
                                 , ("endDate", "2025-01-14")
                                 , ("notes", "Family event")
+                                , ("responseContext", "profile")
+                                , ("section", "leave")
                                 ]
 
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"leave-requests-content\""
+                bodyText `shouldContain` "id=\"profile-leave-requests-content\""
                 bodyText `shouldContain` "Leave request submitted"
-                bodyText `shouldContain` "hx-swap-oob=\"innerHTML\""
+                bodyText `shouldContain` "Submitted Requests"
 
                 versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore + 1
@@ -291,9 +305,15 @@ tests = beforeAll testContext do
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "leave-delete-client")] do
-                        callAction DeleteLeaveRequestAction { leaveRequestId = leaveRequest.id }
+                        callActionWithParams (DeleteLeaveRequestAction leaveRequest.id)
+                            [ ("responseContext", "profile")
+                            , ("section", "leave")
+                            ]
 
                 response `responseStatusShouldBe` status200
+                body <- responseBody response
+                let bodyText = cs (LByteString.unpack body)
+                bodyText `shouldContain` "id=\"profile-leave-requests-content\""
                 versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore + 1
 

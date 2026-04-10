@@ -7,6 +7,8 @@ import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)
 import qualified Data.Map.Strict as Map
+import Data.Time.Calendar (addDays)
+import Data.Time.Clock (utctDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation,
@@ -23,7 +25,10 @@ instance Controller ProfilesController where
         maybeExistingStaff <- fetchCurrentUserStaff
         staff <- pure (fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff)
         let currentUserEmail = currentUser.email
+        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
         (preferenceWeekdays, preferenceSections, selectedShiftPreferenceKeys) <- profilePreferenceViewData maybeExistingStaff
+        leaveRequests <- fetchCurrentUserLeaveRequests
+        leaveRequestForm <- buildDefaultLeaveRequest
         render EditView { .. }
 
     action UpdateProfileAction = do
@@ -31,8 +36,11 @@ instance Controller ProfilesController where
         let submittedShiftPreferenceKeys = nub (paramList @Text "shiftPreferenceKeys")
         staff <- pure (fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff)
         let currentUserEmail = currentUser.email
+        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
         (preferenceWeekdays, preferenceSections, selectedShiftPreferenceKeys) <-
             profilePreferenceViewDataWithSubmitted maybeExistingStaff submittedShiftPreferenceKeys
+        leaveRequests <- fetchCurrentUserLeaveRequests
+        leaveRequestForm <- buildDefaultLeaveRequest
         staff
             |> fill @'["firstName", "lastName", "preferredName", "phone", "emergencyContactName", "emergencyContactPhone", "idealShiftsPerWeek"]
             |> validateField #firstName nonEmpty
@@ -44,7 +52,7 @@ instance Controller ProfilesController where
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys)
+                        then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys leaveRequests leaveRequestForm openSection)
                         else render EditView { .. }
                 Right staff -> do
                     staff <- upsertCurrentUserStaff staff
@@ -55,8 +63,10 @@ instance Controller ProfilesController where
                             let currentUserEmail = currentUser.email
                             let preferenceWeekdays = allPreferenceWeekdays
                             preferenceSections <- fetchStaffPreferenceGroupSections staff
+                            leaveRequests <- fetchCurrentUserLeaveRequests
+                            leaveRequestForm <- buildDefaultLeaveRequest
                             if isHtmxRequest
-                                then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys)
+                                then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys leaveRequests leaveRequestForm openSection)
                                 else render EditView { .. }
                         Right submittedSelections -> do
                             rosterGroupIds <- map (.rosterGroup.id) <$> fetchStaffPreferenceGroupSections staff
@@ -76,7 +86,7 @@ instance Controller ProfilesController where
                                     then
                                         respondHtml $
                                             mconcat
-                                                [ renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys
+                                                [ renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys leaveRequests leaveRequestForm openSection
                                                 , renderToastOverlayHostOob ToastBottomCenter
                                                     [ ToastOverlayConfig
                                                         { toastOverlayTitle = Just "Success"
@@ -139,6 +149,31 @@ profilePreferenceViewDataWithSubmitted maybeStaff submittedShiftPreferenceKeys =
             let preferenceWeekdays = allPreferenceWeekdays
             preferenceSections <- fetchStaffPreferenceGroupSections staff
             pure (preferenceWeekdays, preferenceSections, submittedShiftPreferenceKeys)
+
+fetchCurrentUserLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [LeaveRequest]
+fetchCurrentUserLeaveRequests = do
+    maybeStaff <- fetchCurrentUserStaff
+    case maybeStaff of
+        Nothing -> pure []
+        Just staff ->
+            query @LeaveRequest
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#staffId, unpackId staff.id)
+                |> orderByDesc #startDate
+                |> fetch
+
+buildDefaultLeaveRequest :: (?context :: ControllerContext) => IO LeaveRequest
+buildDefaultLeaveRequest = do
+    today <- utctDay <$> getCurrentTime
+    pure $
+        newRecord @LeaveRequest
+            |> set #startDate today
+            |> set #endDate (addDays 1 today)
+
+normalizeProfileOpenSection :: Text -> Text
+normalizeProfileOpenSection section
+    | section == "leave" = "leave"
+    | otherwise = "profile"
 
 fetchProfileRosterInvalidationTargets :: (?modelContext :: ModelContext) => Id Venue -> Staff -> IO [(Id RosterGroup, Int, [(UUID.UUID, Int)])]
 fetchProfileRosterInvalidationTargets venueId staff = do

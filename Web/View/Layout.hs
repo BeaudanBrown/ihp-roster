@@ -41,7 +41,12 @@ defaultLayout inner = [hsx|
 renderAppHeader :: (?context :: ControllerContext) => Html
 renderAppHeader =
     case currentUserOrNothing of
-        Just _ -> [hsx|
+        Just _ ->
+            let leaveHref =
+                    if currentUserIsManager
+                        then pathTo LeaveRequestsAction
+                        else appendQueryParams (pathTo EditProfileAction) [("section", "leave")]
+             in [hsx|
             <header class="app-header border-bottom">
                 <nav class="navbar navbar-expand-md container py-2">
                     <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Bepis</a>
@@ -54,7 +59,7 @@ renderAppHeader =
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={RosterWeeksAction}>roster</a>
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={EditProfileAction}>profile</a>
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={TimesheetsAction}>timesheets</a>
-                            <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={LeaveRequestsAction}>leave</a>
+                            <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={leaveHref}>leave</a>
                             {when currentUserIsAdmin renderAdminNavLink}
                             {when currentUserIsSupportAdmin renderSupportNavLink}
                             <form method="POST" action={DeleteSessionAction} class="d-inline app-header-logout-form">

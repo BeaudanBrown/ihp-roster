@@ -29,21 +29,24 @@ instance View IndexView where
 
 renderLeaveRequestsShell :: IndexView -> Html
 renderLeaveRequestsShell IndexView { .. } =
-    let page = renderAppPage (AppPageConfig
+    let leaveRequestsPanel =
+            renderAppPanel AppPanelConfig
+                { appPanelTitle = Nothing
+                , appPanelDescription = Nothing
+                , appPanelHasActions = False
+                , appPanelActions = mempty
+                , appPanelHasCustomHeader = False
+                , appPanelCustomHeader = mempty
+                , appPanelClass = "overflow-hidden"
+                , appPanelBodyClass = ""
+                , appPanelBody = renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId
+                }
+        page = renderAppPage (AppPageConfig
             { appPageTitle = "Leave Requests"
             , appPageDescription = Nothing
-            , appPageActions = [hsx|
-                <a href={NewLeaveRequestAction}
-                   class="btn btn-primary"
-                   hx-get={NewLeaveRequestAction}
-                   hx-target={"#" <> dialogOverlayMountId}
-                   hx-swap="innerHTML"
-                   hx-push-url="false">
-                    New Request
-                </a>
-            |]
+            , appPageActions = mempty
             , appPageWidthClass = ""
-            , appPageBody = renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId
+            , appPageBody = leaveRequestsPanel
             })
      in [hsx|
         <section id={leaveRequestsShellId}
@@ -80,13 +83,7 @@ renderLeaveRequestsContentFragmentWithSwap maybeSwapOob leaveRequests staffMembe
 |]
 
 renderEmptyState :: Html
-renderEmptyState = [hsx|
-    <div class="app-panel app-form-width">
-        <div class="app-panel-body">
-            <p class="app-muted mb-0">No leave requests yet.</p>
-        </div>
-    </div>
-|]
+renderEmptyState = [hsx|<p class="app-muted mb-0">No leave requests yet.</p>|]
 
 renderLeaveRequestsTable :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
 renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId = [hsx|

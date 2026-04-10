@@ -137,7 +137,7 @@ tests = beforeAll testContext do
                     callAction AdminAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Schedule Groups"
+                response `responseBodyShouldContain` "Roster Groups"
 
         it "denies the support page to ordinary venue admins" $ withContext do
             withCleanDb do
