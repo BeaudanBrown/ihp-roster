@@ -56,7 +56,13 @@ seedDevelopmentFixtureWithScenarioForWeek scenario fixtureWeekStart =
 
 seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth :: (?modelContext :: ModelContext) => SeedScenario -> Day -> Day -> IO DevSeedFixture
 seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart leaveMonthAnchor = do
+    -- `seed-dev app` rebuilds the dev DB from schema + bootstrap fixtures first.
+    -- Wipe those bootstrap rows here so the scripted demo surface is the only
+    -- seeded venue set that remains afterwards.
+    resetDatabase
     venue <- createVenueWithConfig "Development Sandbox Venue"
+    founder <- createUserRecordWithPlatformRole "beaudan.brown@gmail.com" "staff" (Just SuperAdminRole) True
+    _ <- createVenueMembershipRecord venue founder "venue_owner"
     admin <- createUserRecord "dev-admin@example.com" "admin" True
     _ <- createVenueMembershipRecord venue admin "venue_admin"
     supportAdmin <- createUserRecordWithPlatformRole "support-admin@example.com" "admin" (Just SuperAdminRole) True
@@ -64,6 +70,7 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     let managerUser = fromMaybe (error "Expected at least one seeded manager user") (listToMaybe managerUsers)
     workerUser <- createUserRecord "dev-worker@example.com" "staff" True
     _ <- createVenueMembershipRecord venue workerUser "worker"
+    seedSandboxRoleAliasAccounts venue
     invitation <- createVenueInvitationRecord venue (Just admin) "pending-invite@example.com" "worker"
 
     frontGroup <-
@@ -147,6 +154,22 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
             , scenario = scenario
             , payrollFixture = seededPayrollFixture
             }
+
+seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> IO ()
+seedSandboxRoleAliasAccounts venue = do
+    staffUser <- createUserRecordWithPassword "staff@bepis.lol" "staff" "staff" True
+    _ <- createVenueMembershipRecord venue staffUser "worker"
+
+    managerUser <- createUserRecordWithPassword "manager@bepis.lol" "manager" "manager" True
+    _ <- createVenueMembershipRecord venue managerUser "manager"
+
+    venueAdminUser <- createUserRecordWithPassword "venue@bepis.lol" "venue" "admin" True
+    _ <- createVenueMembershipRecord venue venueAdminUser "venue_admin"
+
+    venueOwnerUser <- createUserRecordWithPassword "owner@bepis.lol" "owner" "admin" True
+    _ <- createVenueMembershipRecord venue venueOwnerUser "venue_owner"
+
+    pure ()
 
 createManagerUsers :: (?modelContext :: ModelContext) => Venue -> Int -> IO [User]
 createManagerUsers venue count =

@@ -46,8 +46,18 @@ tests = beforeAll testContext do
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> orderByAsc #firstName
                         |> fetch
+                seededVenues <-
+                    query @Venue
+                        |> orderByAsc #name
+                        |> fetch
+                seededUsers <-
+                    query @User
+                        |> orderByAsc #email
+                        |> fetch
 
                 map (.name) rosterGroups `shouldBe` ["Front of House", "Back of House"]
+                map (.name) seededVenues `shouldBe` ["Development Sandbox Venue", "Payroll Parity Venue"]
+                map (.email) seededUsers `shouldContain` ["beaudan.brown@gmail.com"]
                 length rosterWeeks `shouldBe` 2
                 length rosterDays `shouldBe` 14
                 length rosterSlots `shouldSatisfy` (> 30)
@@ -178,11 +188,34 @@ tests = beforeAll testContext do
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> filterWhere (#userId, unpackId (get #id fixture.sandboxWorker))
                         |> fetchOne
+                dummyUsers <-
+                    query @User
+                        |> filterWhereIn (#email, ["manager@bepis.lol", "owner@bepis.lol", "staff@bepis.lol", "venue@bepis.lol"])
+                        |> fetch
+                dummyMemberships <-
+                    query @VenueMembership
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhereIn (#userId, map (unpackId . (.id)) dummyUsers)
+                        |> fetch
+                let dummyRoleByEmail =
+                        Map.fromList
+                            [ ( user.email
+                              , membership.venueRole
+                              )
+                            | user <- dummyUsers
+                            , membership <- dummyMemberships
+                            , membership.userId == unpackId user.id
+                            ]
 
                 get #platformRole fixture.supportAdmin `shouldBe` Just SuperAdmin
                 supportMemberships `shouldBe` []
                 inputValue (get #venueRole managerMembership) `shouldBe` ("manager" :: Text)
                 inputValue (get #venueRole workerMembership) `shouldBe` ("worker" :: Text)
+                sort (map (.email) dummyUsers) `shouldBe` ["manager@bepis.lol", "owner@bepis.lol", "staff@bepis.lol", "venue@bepis.lol"]
+                fmap inputValue (Map.lookup "staff@bepis.lol" dummyRoleByEmail) `shouldBe` Just ("worker" :: Text)
+                fmap inputValue (Map.lookup "manager@bepis.lol" dummyRoleByEmail) `shouldBe` Just ("manager" :: Text)
+                fmap inputValue (Map.lookup "venue@bepis.lol" dummyRoleByEmail) `shouldBe` Just ("venue_admin" :: Text)
+                fmap inputValue (Map.lookup "owner@bepis.lol" dummyRoleByEmail) `shouldBe` Just ("venue_owner" :: Text)
                 get #status fixture.sandboxInvitation `shouldBe` InvitationStatusEnumPending
                 get #email fixture.sandboxInvitation `shouldBe` "pending-invite@example.com"
 
@@ -263,7 +296,7 @@ tests = beforeAll testContext do
                 get #managerCount (get #scenario fixture) `shouldBe` 2
                 get #scenarioSeed (get #scenario fixture) `shouldBe` 12345
                 seededStaffCount `shouldSatisfy` (>= 12)
-                managerMembershipCount `shouldBe` 2
+                managerMembershipCount `shouldBe` 3
 
         it "seeds recurring availability, per-staff roster day preferences, duplicate first names, and some preferred names" $ withContext do
             withCleanDb do

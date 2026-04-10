@@ -33,9 +33,17 @@ createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> I
 createUserRecord emailAddress globalRole isProfileCompleted =
     createUserRecordWithPlatformRole emailAddress globalRole Nothing isProfileCompleted
 
+createUserRecordWithPassword :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Bool -> IO User
+createUserRecordWithPassword emailAddress password globalRole isProfileCompleted =
+    createUserRecordWithPasswordAndPlatformRole emailAddress password globalRole Nothing isProfileCompleted
+
 createUserRecordWithPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Maybe PlatformRole -> Bool -> IO User
 createUserRecordWithPlatformRole emailAddress globalRole platformRole isProfileCompleted = do
-    passwordHash <- hashPassword testPassword
+    createUserRecordWithPasswordAndPlatformRole emailAddress testPassword globalRole platformRole isProfileCompleted
+
+createUserRecordWithPasswordAndPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRole -> Bool -> IO User
+createUserRecordWithPasswordAndPlatformRole emailAddress password globalRole platformRole isProfileCompleted = do
+    passwordHash <- hashPassword password
     newRecord @User
         |> set #email emailAddress
         |> set #passwordHash passwordHash
