@@ -38,25 +38,14 @@ renderTimesheetWeekShell :: IndexView -> Html
 renderTimesheetWeekShell IndexView { .. } =
     let page = renderAppPage (AppPageConfig
             { appPageTitle = "Timesheets"
-            , appPageDescription = Nothing
-            , appPageActions = mempty
+            , appPageDescription = Just (formatDateDisplay weekStartDate <> " to " <> formatDateDisplay weekEndDate)
+            , appPageActions = renderTimesheetPageActions weekOffset weekStartDate showApproved showAllStaff
             , appPageWidthClass = ""
-            , appPageBody =
-                renderAppPanel AppPanelConfig
-                    { appPanelTitle = Nothing
-                    , appPanelDescription = Nothing
-                    , appPanelHasActions = False
-                    , appPanelActions = mempty
-                    , appPanelHasCustomHeader = True
-                    , appPanelCustomHeader = renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff
-                    , appPanelClass = "overflow-hidden"
-                    , appPanelBodyClass = ""
-                    , appPanelBody = [hsx|
-                        <div class="d-flex flex-column gap-3">
-                            {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate showApproved showAllStaff)}
-                        </div>
-                    |]
-                    }
+            , appPageBody = [hsx|
+                <div class="d-flex flex-column gap-3">
+                    {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate showApproved showAllStaff)}
+                </div>
+            |]
             })
      in [hsx|
     <section id={timesheetWeekShellId}
@@ -71,6 +60,21 @@ renderTimesheetWeekShell IndexView { .. } =
              data-live-update-week-offset={liveUpdateWeekOffsetText =<< liveUpdateScope}>
         {page}
     </section>
+|]
+
+renderTimesheetPageActions :: (?context :: ControllerContext) => Int -> Day -> Bool -> Bool -> Html
+renderTimesheetPageActions weekOffset weekStartDate showApproved showAllStaff = [hsx|
+    <div class="d-flex gap-2 align-items-center flex-wrap justify-content-start justify-content-md-end">
+        <div class="btn-group app-week-nav-group" role="group" aria-label="Timesheet week navigation">
+            {renderTimesheetWeekNavigationLink "<" (timesheetWeekUrl (weekOffset - 1) showApproved showAllStaff)}
+            <div class="btn btn-outline-secondary app-week-nav-label">
+                {renderTimesheetWeekLabel weekStartDate}
+            </div>
+            {renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) showApproved showAllStaff)}
+        </div>
+        {renderTimesheetWeekNavigationLink "This week" (appendQueryParams (pathTo TimesheetsAction) [("showApproved", boolText showApproved), ("showAllStaff", boolText showAllStaff)])}
+        {renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff}
+    </div>
 |]
 
 renderTimesheetWeekNavigationLink :: Text -> Text -> Html
@@ -94,27 +98,6 @@ timesheetWeekUrl weekOffset showApproved showAllStaff =
         [ ("showApproved", boolText showApproved)
         , ("showAllStaff", boolText showAllStaff)
         ]
-
-renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bool -> Bool -> Html
-renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff = [hsx|
-    <div class="app-panel-header app-surface-toolbar">
-        <div class="app-surface-toolbar-side">
-            {renderTimesheetWeekNavigationLink "This week" (appendQueryParams (pathTo TimesheetsAction) [("showApproved", boolText showApproved), ("showAllStaff", boolText showAllStaff)])}
-        </div>
-        <div class="app-surface-toolbar-center">
-            <div class="btn-group app-week-nav-group" role="group" aria-label="Timesheet week navigation">
-                {renderTimesheetWeekNavigationLink "<" (timesheetWeekUrl (weekOffset - 1) showApproved showAllStaff)}
-                <div class="btn btn-outline-secondary app-week-nav-label">
-                    {renderTimesheetWeekLabel weekStartDate}
-                </div>
-                {renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) showApproved showAllStaff)}
-            </div>
-        </div>
-        <div class="app-surface-toolbar-side app-surface-toolbar-side-right">
-            {renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff}
-        </div>
-    </div>
-|]
 
 renderTimesheetWeekMoreMenu :: (?context :: ControllerContext) => Int -> Bool -> Bool -> Html
 renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff =
