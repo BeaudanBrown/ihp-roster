@@ -320,7 +320,7 @@ renderWeekOverviewDetailsCard weekOffset rosterGroupId initialDate initialOvervi
                     </div>
                     <div class="roster-week-overview-metric">
                         <span class="roster-week-overview-metric-value" data-week-overview-hours-value="true">{maybe "0h" (formatMinutesAsHours . scheduledMinutes) initialOverviewDay}</span>
-                        <span class="roster-week-overview-metric-label">scheduled hours</span>
+                        <span class="roster-week-overview-metric-label">rostered hours</span>
                     </div>
                 </div>
                 <div class="roster-week-overview-summary" data-week-overview-summary-text="true">
@@ -355,7 +355,7 @@ weekOverviewMetricSummary daySummary
     | otherwise =
         tshow (leaveRequestCount daySummary) <> " leave requests, "
             <> tshow (overviewAssignedShiftCount daySummary) <> " shifts assigned, "
-            <> formatMinutesAsHours (scheduledMinutes daySummary) <> " scheduled."
+            <> formatMinutesAsHours (scheduledMinutes daySummary) <> " rostered."
 
 formatDayParam :: Day -> Text
 formatDayParam date = Text.pack (formatTime defaultTimeLocale "%Y-%m-%d" date)
@@ -554,11 +554,28 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
             <div class="px-1 pb-2">
                 {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
             </div>
+            <div class="dropdown-divider my-1"></div>
+            <div class="px-1 py-1">
+                <div class="small text-uppercase fw-semibold text-body-secondary px-1 pb-2">Share roster</div>
+                <div class="d-grid gap-2">
+                    {renderRosterExportButton "png" "Export PNG"}
+                    {renderRosterExportButton "jpg" "Export JPG"}
+                </div>
+            </div>
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters}
             {when (shouldShowRosterWeekMenuDivider maybeRosterWeek) divider}
             {renderSyncSlotStructureButton maybeRosterWeek}
         </div>
     </div>
+|]
+
+renderRosterExportButton :: Text -> Text -> Html
+renderRosterExportButton format label = [hsx|
+    <button type="button"
+            class="btn btn-outline-secondary w-100 text-start roster-export-button"
+            data-roster-export-format={format}>
+        {label}
+    </button>
 |]
 
 shouldShowRosterWeekMenuDivider :: (?context :: ControllerContext) => Maybe RosterWeek -> Bool
@@ -988,7 +1005,7 @@ renderEditableTimeCell rosterSlotId currentStartTime =
                 , timePickerFieldClasses = ["m-0", "d-flex", "align-items-center", "slot-cell-form"]
                 , timePickerControlClasses = ["roster-time-picker-control"]
                 , timePickerTriggerClasses = ["btn-sm", "slot-time-trigger"]
-                , timePickerAriaLabel = "Select schedule slot time"
+                , timePickerAriaLabel = "Select roster slot time"
                 }
         inputHtml = [hsx|
             <input type="hidden"
@@ -1098,7 +1115,7 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
           hx-swap="outerHTML"
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}
-          hx-confirm="This will overwrite the current week with the previous week's schedule. Continue?">
+          hx-confirm="This will overwrite the current week with the previous week's roster. Continue?">
         <button type="submit" class="btn btn-outline-primary">Copy Previous Week</button>
     </form>
 |]

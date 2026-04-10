@@ -82,6 +82,12 @@ a:not(.btn):hover {
     --app-page-max-width: 84rem;
 }
 
+.app-page-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
 .app-page-header {
     display: flex;
     flex-wrap: wrap;

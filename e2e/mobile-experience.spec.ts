@@ -18,7 +18,7 @@ test.describe('Mobile experience smoke', () => {
         }
 
         await openAuthenticatedNavIfCollapsed(page);
-        await expect(page.getByRole('link', { name: 'schedule', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'roster', exact: true })).toBeVisible();
         await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'leave' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'admin' })).toBeVisible();

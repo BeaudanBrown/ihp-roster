@@ -37,16 +37,22 @@ renderTimesheetWeekShell IndexView { .. } =
             , appPageDescription = Nothing
             , appPageActions = mempty
             , appPageWidthClass = ""
-            , appPageBody = [hsx|
-                <div class="app-panel overflow-hidden">
-                    {renderTimesheetWeekHeader weekOffset weekStartDate}
-                    <div class="app-panel-body">
+            , appPageBody =
+                renderAppPanel AppPanelConfig
+                    { appPanelTitle = Nothing
+                    , appPanelDescription = Nothing
+                    , appPanelHasActions = False
+                    , appPanelActions = mempty
+                    , appPanelHasCustomHeader = True
+                    , appPanelCustomHeader = renderTimesheetWeekHeader weekOffset weekStartDate
+                    , appPanelClass = "overflow-hidden"
+                    , appPanelBodyClass = ""
+                    , appPanelBody = [hsx|
                         <div class="d-flex flex-column gap-3">
                             {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate)}
                         </div>
-                    </div>
-                </div>
-            |]
+                    |]
+                    }
             })
      in [hsx|
     <section id={timesheetWeekShellId}

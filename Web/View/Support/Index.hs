@@ -11,15 +11,17 @@ data IndexView = IndexView
 
 instance View IndexView where
     html IndexView { .. } =
-        renderAppPage (AppPageConfig
-            { appPageTitle = "Support"
-            , appPageDescription = Nothing
-            , appPageActions = mempty
-            , appPageWidthClass = ""
-            , appPageBody = [hsx|
-                {renderCreatedVenueBanner createdVenue}
-                <div class="app-panel">
-                    <div class="app-panel-body">
+        let switchVenuePanel =
+                renderAppPanel AppPanelConfig
+                    { appPanelTitle = Nothing
+                    , appPanelDescription = Nothing
+                    , appPanelHasActions = False
+                    , appPanelActions = mempty
+                    , appPanelHasCustomHeader = False
+                    , appPanelCustomHeader = mempty
+                    , appPanelClass = ""
+                    , appPanelBodyClass = ""
+                    , appPanelBody = [hsx|
                         <div class="border rounded p-3 bg-light-subtle mb-4">
                             <div class="small text-uppercase app-muted mb-1">Current support venue</div>
                             <div class="fw-semibold">
@@ -37,17 +39,19 @@ instance View IndexView where
                                 <button class="btn btn-primary w-100" type="submit">Switch Venue</button>
                             </div>
                         </form>
-                    </div>
-                </div>
-                <div class="app-panel">
-                    <div class="app-panel-header">
-                        <div class="app-panel-heading">
-                            <div>
-                                <h2 class="app-panel-title h5">Create Venue</h2>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="app-panel-body">
+                    |]
+                    }
+            createVenuePanel =
+                renderAppPanel AppPanelConfig
+                    { appPanelTitle = Just "Create Venue"
+                    , appPanelDescription = Nothing
+                    , appPanelHasActions = False
+                    , appPanelActions = mempty
+                    , appPanelHasCustomHeader = False
+                    , appPanelCustomHeader = mempty
+                    , appPanelClass = ""
+                    , appPanelBodyClass = ""
+                    , appPanelBody = [hsx|
                         <form method="POST" action={CreateSupportVenueAction} class="row g-3" data-disable-javascript-submission="true">
                             <div class="col-12">
                                 <label class="form-label" for="support-create-venue-name">Venue name</label>
@@ -65,7 +69,18 @@ instance View IndexView where
                                 <button class="btn btn-primary w-100" type="submit">Create Venue</button>
                             </div>
                         </form>
-                    </div>
+                    |]
+                    }
+         in renderAppPage (AppPageConfig
+            { appPageTitle = "Support"
+            , appPageDescription = Nothing
+            , appPageActions = mempty
+            , appPageWidthClass = ""
+            , appPageBody = [hsx|
+                {renderCreatedVenueBanner createdVenue}
+                <div class="app-page-stack">
+                    {switchVenuePanel}
+                    {createVenuePanel}
                 </div>
             |]
             })
@@ -85,7 +100,7 @@ renderCreatedVenueBanner maybeVenue =
             <div class="alert alert-success d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3" role="alert">
                 <div>
                     <div class="fw-semibold">Venue ready for founder setup</div>
-                    <div>{venue.name} was created with minimum Bepis schedule defaults. You can switch into it now and invite users later.</div>
+                    <div>{venue.name} was created with minimum Bepis roster defaults. You can switch into it now and invite users later.</div>
                 </div>
                 <form method="POST" action={SwitchSupportVenueAction} class="m-0">
                     <input type="hidden" name="venueId" value={tshow venue.id} />

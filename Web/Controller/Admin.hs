@@ -93,21 +93,21 @@ instance Controller AdminController where
 
     action CreateRosterGroupAction = do
         venue <- fetch currentVenueId
-        maybeName <- parseRequiredName "name" "Schedule group name is required."
+        maybeName <- parseRequiredName "name" "Roster group name is required."
         case maybeName of
             Nothing -> redirectToAdminFor Nothing
             Just name -> do
                 let isActive = parseIsActiveParam
                 let sortOrder = parseSortOrderParam
                 rosterGroup <- createVenueRosterGroupWithDefaults venue name sortOrder isActive
-                setSuccessMessage "Schedule group added"
+                setSuccessMessage "Roster group added"
                 redirectToAdminFor (Just rosterGroup.id)
 
     action UpdateRosterGroupAction { rosterGroupId } = do
         venue <- fetch currentVenueId
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        maybeName <- parseRequiredName "name" "Schedule group name is required."
+        maybeName <- parseRequiredName "name" "Roster group name is required."
         case maybeName of
             Nothing -> redirectToAdminFor (Just rosterGroup.id)
             Just name -> do
@@ -117,7 +117,7 @@ instance Controller AdminController where
                 let otherActiveGroups = filter (\group -> group.id /= rosterGroup.id && group.isActive) rosterGroups
                 if not isActive && null otherActiveGroups
                     then do
-                        setErrorMessage "Each venue needs at least one active schedule group."
+                        setErrorMessage "Each venue needs at least one active roster group."
                         redirectToAdminFor (Just rosterGroup.id)
                     else do
                         updatedRosterGroup <-
@@ -135,7 +135,7 @@ instance Controller AdminController where
                                 Just fallbackGroup -> do
                                     _ <- setVenueDefaultRosterGroup currentVenueId fallbackGroup.id
                                     pure ()
-                        setSuccessMessage "Schedule group updated"
+                        setSuccessMessage "Roster group updated"
                         redirectToAdminFor (Just updatedRosterGroup.id)
 
     action MakeDefaultRosterGroupAction { rosterGroupId } = do
@@ -143,11 +143,11 @@ instance Controller AdminController where
         ensureRecordInCurrentVenue rosterGroup.venueId
         if not rosterGroup.isActive
             then do
-                setErrorMessage "Only active schedule groups can be the default."
+                setErrorMessage "Only active roster groups can be the default."
                 redirectToAdminFor (Just rosterGroup.id)
             else do
                 _ <- setVenueDefaultRosterGroup currentVenueId rosterGroup.id
-                setSuccessMessage "Default schedule group updated"
+                setSuccessMessage "Default roster group updated"
                 redirectToAdminFor (Just rosterGroup.id)
 
     action CreatePayLevelAction = do

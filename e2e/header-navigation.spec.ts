@@ -27,7 +27,7 @@ test.describe('Authenticated header navigation', () => {
         await page.getByRole('link', { name: 'admin' }).click();
         await expect(page).toHaveURL(/Admin/, { timeout: 60000 });
         await expect(page.locator('#admin-config-sections')).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Schedule Groups' }).first()).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Roster Groups' }).first()).toBeVisible();
 
         await page.getByRole('link', { name: 'roster' }).click();
         await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });

@@ -26,17 +26,31 @@ data IndexView = IndexView
 
 instance View IndexView where
     html IndexView { .. } =
-        renderAppPage (AppPageConfig
+        let adminContentPanel =
+                renderAppPanel AppPanelConfig
+                    { appPanelTitle = Nothing
+                    , appPanelDescription = Nothing
+                    , appPanelHasActions = False
+                    , appPanelActions = mempty
+                    , appPanelHasCustomHeader = False
+                    , appPanelCustomHeader = mempty
+                    , appPanelClass = "overflow-hidden"
+                    , appPanelBodyClass = ""
+                    , appPanelBody = [hsx|
+                        <div class="row g-3">
+                            <div class="col-12">
+                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
+                            </div>
+                        </div>
+                    |]
+                    }
+         in renderAppPage (AppPageConfig
             { appPageTitle = "Admin"
             , appPageDescription = Nothing
             , appPageActions = mempty
             , appPageWidthClass = ""
             , appPageBody = [hsx|
-                <div class="row g-3">
-                    <div class="col-12">
-                        {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
-                    </div>
-                </div>
+                {adminContentPanel}
                 <div data-live-update-owner="true"
                      data-live-update-feature="admin-slot-names"
                      data-live-updates-path="/live-updates"
@@ -93,29 +107,29 @@ renderRosterGroupsSection :: [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupsSection rosterGroups currentRosterGroup =
     renderConfigSection
         "roster-groups"
-        "Schedule Groups"
-        "Define the scheduling lanes inside this venue. Slot names below are edited for the selected schedule group."
+        "Roster Groups"
+        "Define the roster lanes inside this venue. Slot names below are edited for the selected roster group."
         (renderRowCountSummary rosterGroups)
         [hsx|
             <div class="mb-3">
-                <div class="small text-uppercase app-muted mb-2">Selected schedule group</div>
+                <div class="small text-uppercase app-muted mb-2">Selected roster group</div>
                 <div class="d-flex flex-wrap gap-2">
                     {forEach rosterGroups (renderRosterGroupSelector currentRosterGroup.id)}
                 </div>
             </div>
             {renderRosterGroupCreateForm}
         |]
-        (if null rosterGroups then renderEmptyState "No schedule groups yet." else forEach rosterGroups (renderRosterGroupRow currentRosterGroup.id))
+        (if null rosterGroups then renderEmptyState "No roster groups yet." else forEach rosterGroups (renderRosterGroupRow currentRosterGroup.id))
 
 renderSlotNamesSection :: RosterGroup -> [SlotName] -> Html
 renderSlotNamesSection currentRosterGroup slotNames =
     renderConfigSection
         "slot-names"
         "Slot Names"
-        ("These power the Bepis schedule block labels for the selected schedule group: " <> currentRosterGroup.name <> ".")
+        ("These power the Bepis roster block labels for the selected roster group: " <> currentRosterGroup.name <> ".")
         (renderRowCountSummary slotNames)
         (renderSlotNameCreateForm currentRosterGroup.id)
-        (if null slotNames then renderEmptyState "No slot names yet for this schedule group." else [hsx|
+        (if null slotNames then renderEmptyState "No slot names yet for this roster group." else [hsx|
             <div class="d-flex flex-column gap-2">
                 {forEach (zip [0 :: Int ..] slotNames) (renderSlotNameRow currentRosterGroup.id (length slotNames))}
             </div>
@@ -266,7 +280,7 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
 renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> [PayLevel] -> [ShiftType] -> [PayLevelDayRule] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
 renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
-        {renderAccordionItem "roster-groups" "Schedule Groups" True (renderRosterGroupsSection rosterGroups currentRosterGroup)}
+        {renderAccordionItem "roster-groups" "Roster Groups" True (renderRosterGroupsSection rosterGroups currentRosterGroup)}
         {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "pay-levels" "Pay Levels" False (renderPayLevelsSection payLevels)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes payLevels)}
@@ -350,21 +364,26 @@ renderAccordionItem sectionId title isOpen content = [hsx|
 |]
 
 renderConfigSection :: Text -> Text -> Text -> Html -> Html -> Html -> Html
-renderConfigSection anchorId title description summary createForm rows = [hsx|
-    <div id={anchorId} class="app-panel h-100">
-        <div class="app-panel-body">
-            <div class="mb-2">
-                <h2 class="h5 mb-2">{title}</h2>
-                <p class="app-muted mb-2">{description}</p>
+renderConfigSection anchorId title description summary createForm rows =
+    renderAppPanel AppPanelConfig
+        { appPanelTitle = Just title
+        , appPanelDescription = Just description
+        , appPanelHasActions = False
+        , appPanelActions = mempty
+        , appPanelHasCustomHeader = False
+        , appPanelCustomHeader = mempty
+        , appPanelClass = "h-100"
+        , appPanelBodyClass = ""
+        , appPanelBody = [hsx|
+            <div id={anchorId}>
+                {summary}
+                {createForm}
+                <div class="mt-3">
+                    {rows}
+                </div>
             </div>
-            {summary}
-            {createForm}
-            <div class="mt-3">
-                {rows}
-            </div>
-        </div>
-    </div>
-|]
+        |]
+        }
 
 renderPayLevelCreateForm :: Html
 renderPayLevelCreateForm = [hsx|
@@ -635,7 +654,7 @@ renderRosterGroupRow currentRosterGroupId rosterGroup = [hsx|
     <form method="POST" action={appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
         <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
             <div class="d-flex align-items-center gap-2">
-                <span class="fw-semibold">Schedule Group</span>
+                <span class="fw-semibold">Roster Group</span>
                 {renderActiveBadge rosterGroup.isActive}
                 {renderRosterGroupDefaultBadge rosterGroup}
                 {renderRosterGroupSelectedBadge currentRosterGroupId rosterGroup}
@@ -842,7 +861,7 @@ renderRosterGroupSelectedBadge selectedRosterGroupId rosterGroup
 
 renderRosterGroupDefaultControl :: RosterGroup -> Html
 renderRosterGroupDefaultControl rosterGroup
-    | rosterGroup.isDefault = [hsx|<span class="small app-muted">Used for default schedule navigation.</span>|]
+    | rosterGroup.isDefault = [hsx|<span class="small app-muted">Used for default roster navigation.</span>|]
     | otherwise = [hsx|
         <button class="btn btn-sm btn-outline-primary" type="submit" formaction={appendQueryParams (pathTo (MakeDefaultRosterGroupAction rosterGroup.id)) [("rosterGroupId", tshow rosterGroup.id)]}>Make Default</button>
     |]

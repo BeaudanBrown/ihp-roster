@@ -75,7 +75,7 @@ test.describe('Admin slot names', () => {
         }
 
         const viewerRow = viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }).first();
-        if (await adminPage.locator('#admin-slot-names-fragment').getByText('No slot names yet for this schedule group.').isVisible().catch(() => false)) {
+        if (await adminPage.locator('#admin-slot-names-fragment').getByText('No slot names yet for this roster group.').isVisible().catch(() => false)) {
             await addSlot('Early');
         }
 

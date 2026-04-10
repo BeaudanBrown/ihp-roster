@@ -83,7 +83,7 @@ checkDuplicateAssignment ctx =
         then Just RosterConflict
             { conflictType = DuplicateAssignment
             , severity = getConflictSeverity DuplicateAssignment
-            , message = "Multiple shifts scheduled on the same day."
+            , message = "Multiple shifts rostered on the same day."
             }
         else Nothing
 

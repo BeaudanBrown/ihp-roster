@@ -94,6 +94,7 @@ renderForm post = formFor post [hsx|
   - surfaces: `app-panel`, `app-auth-card`, `app-panel-body`, `app-auth-body`
   - sizing/text helpers: `app-form-width`, `app-muted`
 - Signed-in pages should use `renderAppPage` from `Application/Helper/View.hs` plus `app-panel` surfaces. Reserve `app-page-auth` / `app-auth-card` for unauthenticated auth and welcome flows only.
+- Prefer `renderAppPanel` for ordinary themed surfaces instead of hand-writing `app-panel`, `app-panel-header`, and `app-panel-body` markup in each view. Use the custom-header escape hatch only when a surface needs richer toolbar chrome like week navigation.
 - Keep page-level titles and summary copy in the shared `app-page-header`. Use panel headers (`app-panel-header`, `app-panel-title`, `app-panel-description`) only for secondary sections inside the page body.
 - Avoid inline `style="..."` in HSX for layout/sizing; add a reusable class in `static/app.css` instead.
 - Avoid hardcoded light-mode classes (`bg-light`, `text-muted`) in new views; use semantic classes/tokens.
