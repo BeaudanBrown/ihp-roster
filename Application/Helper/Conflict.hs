@@ -71,7 +71,6 @@ evaluateConflicts ctx =
         , checkLeaveConflict ctx
         , checkLateToEarlyConflict ctx
         , checkShiftPreferenceDayUnavailable ctx
-        , checkShiftPreferenceSlotMismatch ctx
         , checkIdealShiftThreshold ctx
         ]
 
@@ -115,26 +114,9 @@ checkShiftPreferenceDayUnavailable ctx =
                     then Just RosterConflict
                         { conflictType = ShiftPreferenceDayUnavailable
                         , severity = getConflictSeverity ShiftPreferenceDayUnavailable
-                        , message = "Staff has no preferred shifts on this day for this roster group."
+                        , message = "Preference conflict"
                         }
                     else Nothing
-
-checkShiftPreferenceSlotMismatch :: ConflictContext -> Maybe RosterConflict
-checkShiftPreferenceSlotMismatch ctx =
-    case ctx.slot.staffId of
-        Nothing -> Nothing
-        Just _ ->
-            let dayPreferences = shiftPreferencesForDay ctx
-             in if null dayPreferences
-                    then Nothing
-                    else
-                        if any (\preference -> preference.slotNameId == ctx.slot.slotNameId) dayPreferences
-                            then Nothing
-                            else Just RosterConflict
-                                { conflictType = ShiftPreferenceSlotMismatch
-                                , severity = getConflictSeverity ShiftPreferenceSlotMismatch
-                                , message = "Staff prefers other shifts on this day in this roster group."
-                                }
 
 shiftPreferencesForDay :: ConflictContext -> [StaffShiftPreference]
 shiftPreferencesForDay ctx =
@@ -192,7 +174,7 @@ checkIdealShiftThreshold ctx =
                 then Just RosterConflict
                     { conflictType = IdealShiftThresholdExceeded
                     , severity = getConflictSeverity IdealShiftThresholdExceeded
-                    , message = "Assigned shifts exceed staff's ideal weekly shifts."
+                    , message = "Ideal shifts exceeded"
                     }
                 else Nothing
         Nothing -> Nothing

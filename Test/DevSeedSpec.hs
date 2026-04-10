@@ -2,6 +2,7 @@ module Test.DevSeedSpec where
 
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Support.Seed.Scenario
+import qualified Data.Map.Strict as Map
 import Data.List (sort)
 import qualified Data.Text as Text
 import Generated.Types
@@ -167,6 +168,23 @@ tests = beforeAll testContext do
                 length snapshots `shouldBe` 1
                 approvedCount `shouldSatisfy` (> pendingCount)
 
+        it "seeds three times as many sandbox timesheets with break coverage on most entries" $ withContext do
+            withCleanDb do
+                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+                let seededScenario = get #scenario fixture
+
+                timesheetEntries <-
+                    query @TimesheetEntry
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> fetch
+
+                let totalTimesheetCount = length timesheetEntries
+                let entriesWithBreaks = length (filter (.hadBreak) timesheetEntries)
+                let requiredBreakCount = ceiling ((fromIntegral totalTimesheetCount :: Double) * 0.8)
+
+                totalTimesheetCount `shouldBe` (seededScenario.approvedTimesheets + seededScenario.pendingTimesheets)
+                entriesWithBreaks `shouldSatisfy` (>= requiredBreakCount)
+
         it "supports deterministic scenario overrides for realistic demo seeding" $ withContext do
             withCleanDb do
                 let scenario =
@@ -224,3 +242,60 @@ tests = beforeAll testContext do
                 length preferredWeekdays `shouldSatisfy` (>= 4)
                 duplicateFirstNames `shouldContain` ["Alice"]
                 length (filter (isJust . (.preferredName)) seededStaff) `shouldSatisfy` (> 0)
+
+        it "keeps at least 80 percent of seeded assigned shifts aligned with recurring slot preferences" $ withContext do
+            withCleanDb do
+                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+
+                rosterWeeks <-
+                    query @RosterWeek
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhere (#weekOffset, fixture.currentWeekOffset)
+                        |> fetch
+                rosterDays <-
+                    query @RosterDay
+                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+                        |> fetch
+                assignedSlots <-
+                    query @RosterSlot
+                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                        |> fetch
+                shiftPreferences <-
+                    query @StaffShiftPreference
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> fetch
+                let assignedSlotsWithStaff = filter (isJust . (.staffId)) assignedSlots
+
+                let rosterGroupByWeekId = Map.fromList (map (\week -> (unpackId week.id, week.rosterGroupId)) rosterWeeks)
+                let rosterDayContextById =
+                        Map.fromList
+                            (mapMaybe
+                                (\rosterDay -> do
+                                    rosterGroupId <- Map.lookup rosterDay.rosterWeekId rosterGroupByWeekId
+                                    pure (unpackId rosterDay.id, (rosterDay.dayOffset, rosterGroupId))
+                                )
+                                rosterDays
+                            )
+                let preferenceKeys =
+                        map
+                            (\preference -> (preference.staffId, preference.rosterGroupId, preference.weekdayIndex, preference.slotNameId))
+                            shiftPreferences
+                let assignedPreferenceKeys =
+                        mapMaybe
+                            (\slot -> do
+                                staffId <- slot.staffId
+                                (dayOffset, rosterGroupId) <- Map.lookup slot.rosterDayId rosterDayContextById
+                                pure (staffId, rosterGroupId, weekdayIndexForDayOffset dayOffset, slot.slotNameId)
+                            )
+                            assignedSlotsWithStaff
+                let matchedAssignedCount = length (filter (`elem` preferenceKeys) assignedPreferenceKeys)
+                let requiredPreferredCount = ceiling ((fromIntegral (length assignedPreferenceKeys) :: Double) * 0.8)
+
+                length assignedPreferenceKeys `shouldSatisfy` (> 0)
+                matchedAssignedCount `shouldSatisfy` (>= requiredPreferredCount)
+
+weekdayIndexForDayOffset :: Int -> Int
+weekdayIndexForDayOffset dayOffset =
+    case (dayOffset + 1) `mod` 7 of
+        0 -> 0
+        index -> index

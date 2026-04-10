@@ -9,8 +9,9 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  replaceStaffShiftPreferences)
 import Application.Support.Seed.Scenario
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day, addDays, dayOfWeek, diffDays)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -113,8 +114,8 @@ seedDevelopmentFixtureWithScenarioForWeek scenario fixtureWeekStart = do
 
     frontDays <- mapM (createRosterDayRecord frontWeek) [0 .. 6]
     backDays <- mapM (createRosterDayRecord backWeek) [0 .. 6]
-    seedRosterGroup scenario.scenarioSeed scenario.rosterFillPercent frontDays frontSlots allFrontCandidates
-    seedRosterGroup (scenario.scenarioSeed + 97) (max 40 (scenario.rosterFillPercent - 8)) backDays backSlots allBackCandidates
+    seedRosterGroup scenario.scenarioSeed scenario.rosterFillPercent fixtureWeekStart frontGroup frontDays frontSlots allFrontCandidates
+    seedRosterGroup (scenario.scenarioSeed + 97) (max 40 (scenario.rosterFillPercent - 8)) fixtureWeekStart backGroup backDays backSlots allBackCandidates
 
     let allOperationalStaff = managerStaffs <> [workerStaff] <> seededStaff <> trialStaffs
 
@@ -350,11 +351,13 @@ seedRosterGroup ::
     (?modelContext :: ModelContext) =>
     Int ->
     Int ->
+    Day ->
+    RosterGroup ->
     [RosterDay] ->
     [SlotName] ->
     [Staff] ->
     IO ()
-seedRosterGroup seedValue fillPercent rosterDays slotNames staffPool =
+seedRosterGroup seedValue fillPercent fixtureWeekStart rosterGroup rosterDays slotNames staffPool = do
     forM_ (zip [0 :: Int ..] rosterDays) \(dayIndex, rosterDay) -> do
         let rowCount = if dayIndex `mod` 3 == 0 then 2 else 1
         let seedRows _ [] = pure ()
@@ -364,6 +367,7 @@ seedRosterGroup seedValue fillPercent rosterDays slotNames staffPool =
                 createRosterRow rosterDay slotNames rowIndex assignments
                 seedRows nextUsedStaffIds remainingRowIndexes
         seedRows [] [0 .. rowCount - 1]
+    ensureAssignedShiftPreferenceCoverage fixtureWeekStart rosterGroup rosterDays
 
 buildRowAssignments ::
     Int ->
@@ -411,6 +415,122 @@ chooseAvailableStaff seedValue keys staffPool usedStaffIds =
         preferredPool =
             filter (\staff -> unpackId (get #id staff) `notElem` usedStaffIds) rotatedPool
 
+data StaffPreferenceTarget = StaffPreferenceTarget
+    { targetStaffId  :: !UUID
+    , targetSelection :: !ShiftPreferenceSelection
+    }
+    deriving (Eq, Show)
+
+ensureAssignedShiftPreferenceCoverage ::
+    (?modelContext :: ModelContext) =>
+    Day ->
+    RosterGroup ->
+    [RosterDay] ->
+    IO ()
+ensureAssignedShiftPreferenceCoverage fixtureWeekStart rosterGroup rosterDays = do
+    let rosterDayIds = map (unpackId . get #id) rosterDays
+    let dayOffsetsById = Map.fromList (map (\rosterDay -> (unpackId (get #id rosterDay), rosterDay.dayOffset)) rosterDays)
+
+    assignedSlots <-
+        query @RosterSlot
+            |> filterWhereIn (#rosterDayId, rosterDayIds)
+            |> orderByAsc #rosterDayId
+            |> orderByAsc #rowIndex
+            |> orderByAsc #slotSortOrder
+            |> fetch
+    let assignedSlotsWithStaff = filter (isJust . (.staffId)) assignedSlots
+
+    let assignedStaffIds = nub (mapMaybe (.staffId) assignedSlotsWithStaff)
+    unless (null assignedStaffIds) do
+        existingPreferences <-
+            query @StaffShiftPreference
+                |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
+                |> filterWhereIn (#staffId, assignedStaffIds)
+                |> fetch
+
+        let existingTargets = map staffShiftPreferenceToTarget existingPreferences
+        let missingTargets = mapMaybe (missingPreferenceTarget fixtureWeekStart dayOffsetsById rosterGroup existingTargets) assignedSlotsWithStaff
+        let requiredPreferredCount = minimumPreferredSlotCount (length assignedSlotsWithStaff)
+        let existingPreferredCount = length assignedSlotsWithStaff - length missingTargets
+        let missingPreferredCount = max 0 (requiredPreferredCount - existingPreferredCount)
+
+        backfillAssignedShiftPreferences rosterGroup existingTargets missingTargets missingPreferredCount
+
+backfillAssignedShiftPreferences ::
+    (?modelContext :: ModelContext) =>
+    RosterGroup ->
+    [StaffPreferenceTarget] ->
+    [StaffPreferenceTarget] ->
+    Int ->
+    IO ()
+backfillAssignedShiftPreferences _ _ _ remainingNeeded | remainingNeeded <= 0 = pure ()
+backfillAssignedShiftPreferences rosterGroup existingTargets missingTargets remainingNeeded =
+    go existingTargets missingTargets remainingNeeded
+    where
+        venueId = rosterGroup.venueId
+
+        go _ _ needed | needed <= 0 = pure ()
+        go _ [] _ = pure ()
+        go coveredTargets (target:remainingTargets) needed
+            | target `elem` coveredTargets =
+                go coveredTargets remainingTargets (needed - 1)
+            | otherwise = do
+                _ <-
+                    newRecord @StaffShiftPreference
+                        |> set #venueId venueId
+                        |> set #staffId target.targetStaffId
+                        |> set #rosterGroupId (unpackId target.targetSelection.rosterGroupId)
+                        |> set #slotNameId (unpackId target.targetSelection.slotNameId)
+                        |> set #weekdayIndex target.targetSelection.weekdayIndex
+                        |> createRecord
+                go (target : coveredTargets) remainingTargets (needed - 1)
+
+missingPreferenceTarget ::
+    Day ->
+    Map.Map UUID Int ->
+    RosterGroup ->
+    [StaffPreferenceTarget] ->
+    RosterSlot ->
+    Maybe StaffPreferenceTarget
+missingPreferenceTarget fixtureWeekStart dayOffsetsById rosterGroup existingTargets rosterSlot = do
+    staffId <- rosterSlot.staffId
+    dayOffset <- Map.lookup rosterSlot.rosterDayId dayOffsetsById
+    let target =
+            StaffPreferenceTarget
+                { targetStaffId = staffId
+                , targetSelection =
+                    ShiftPreferenceSelection
+                        { rosterGroupId = rosterGroup.id
+                        , weekdayIndex = weekdayIndexForFixtureDay fixtureWeekStart dayOffset
+                        , slotNameId = Id rosterSlot.slotNameId
+                        }
+                }
+    if target `elem` existingTargets
+        then Nothing
+        else Just target
+
+staffShiftPreferenceToTarget :: StaffShiftPreference -> StaffPreferenceTarget
+staffShiftPreferenceToTarget preference =
+    StaffPreferenceTarget
+        { targetStaffId = preference.staffId
+        , targetSelection =
+            ShiftPreferenceSelection
+                { rosterGroupId = Id preference.rosterGroupId
+                , weekdayIndex = preference.weekdayIndex
+                , slotNameId = Id preference.slotNameId
+                }
+        }
+
+minimumPreferredSlotCount :: Int -> Int
+minimumPreferredSlotCount assignedSlotCount =
+    ceiling ((fromIntegral assignedSlotCount :: Double) * 0.8)
+
+weekdayIndexForFixtureDay :: Day -> Int -> Int
+weekdayIndexForFixtureDay fixtureWeekStart dayOffset =
+    case fromEnum (dayOfWeek (addDays (toInteger dayOffset) fixtureWeekStart)) of
+        7 -> 0
+        index -> index
+
 rotateList :: Int -> [a] -> [a]
 rotateList _ [] = []
 rotateList offset values =
@@ -446,27 +566,56 @@ seedTimesheets ::
     UTCTime ->
     IO ()
 seedTimesheets fixtureWeekStart venue admin scenario snapshot floorShift kitchenShift staffPool approvedAt = do
-    forM_ (zip [0 ..] (take scenario.approvedTimesheets staffPool)) \(index, staff) -> do
+    forM_ (zip [0 ..] (take scenario.approvedTimesheets (cycle staffPool))) \(index, staff) -> do
         let shiftTypeId =
                 if index `mod` 4 == 0
                     then unpackId (get #id kitchenShift)
                     else unpackId (get #id floorShift)
+        let (hadBreak, breakStartTime, breakEndTime, breakMinutes) =
+                seededBreakFields scenario.scenarioSeed index
         _ <-
             createTimesheetEntryRecord venue staff (dayAtOffset fixtureWeekStart (toInteger (index `mod` 7)))
                 >>= updateRecord
                     . set #shiftTypeId shiftTypeId
                     . set #startTime (TimeOfDay (6 + ((index * 2) `mod` 8)) 0 0)
                     . set #endTime (TimeOfDay (12 + ((index * 2) `mod` 8)) 0 0)
+                    . set #hadBreak hadBreak
+                    . set #breakStartTime breakStartTime
+                    . set #breakEndTime breakEndTime
+                    . set #breakMinutes breakMinutes
                     . approveEntryWithSnapshot snapshot admin approvedAt
         pure ()
     forM_ (zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle staffPool)))) \(index, staff) -> do
+        let globalIndex = scenario.approvedTimesheets + index
+        let (hadBreak, breakStartTime, breakEndTime, breakMinutes) =
+                seededBreakFields scenario.scenarioSeed globalIndex
         _ <-
             createTimesheetEntryRecord venue staff (dayAtOffset fixtureWeekStart (toInteger ((index + 2) `mod` 7)))
                 >>= updateRecord
                     . set #shiftTypeId (unpackId (get #id floorShift))
                     . set #startTime (TimeOfDay (9 + (index `mod` 3)) 0 0)
                     . set #endTime (TimeOfDay (15 + (index `mod` 3)) 0 0)
+                    . set #hadBreak hadBreak
+                    . set #breakStartTime breakStartTime
+                    . set #breakEndTime breakEndTime
+                    . set #breakMinutes breakMinutes
         pure ()
+
+seededBreakFields :: Int -> Int -> (Bool, Maybe TimeOfDay, Maybe TimeOfDay, Int)
+seededBreakFields seedValue index
+    | deterministicPercent seedValue [index, 901] < 80 =
+        let breakStartHour = 10 + (index `mod` 4)
+            breakStartMinute = if deterministicPercent seedValue [index, 902] < 50 then 0 else 15
+            breakLengthMinutes = if deterministicPercent seedValue [index, 903] < 55 then 30 else 45
+            breakStartTime = TimeOfDay breakStartHour breakStartMinute 0
+            breakEndTime = addBreakMinutes breakStartTime breakLengthMinutes
+         in (True, Just breakStartTime, Just breakEndTime, breakLengthMinutes)
+    | otherwise = (False, Nothing, Nothing, 0)
+
+addBreakMinutes :: TimeOfDay -> Int -> TimeOfDay
+addBreakMinutes startTime minutes =
+    let totalMinutes = todHour startTime * 60 + todMin startTime + minutes
+     in TimeOfDay (totalMinutes `div` 60) (totalMinutes `mod` 60) 0
 
 createRosterRow ::
     (?modelContext :: ModelContext) =>

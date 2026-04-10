@@ -2,7 +2,7 @@ module Web.View.Timesheets.Index where
 
 import Application.Helper.Controller (isWithinEditWindow, shiftDurationMinutes)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
-import Application.Helper.Pay (TimesheetPaySummary (..), timesheetEntryIdKey)
+import Application.Helper.Pay (TimesheetPaySummary)
 import Data.Fixed (Pico)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
@@ -136,7 +136,7 @@ renderDayEntries dayOffset dayEntries staffMembers shiftTypes paySummariesByEntr
     |]
 
 renderEntryCard :: (?context :: ControllerContext) => Int -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> TimesheetEntry -> Html
-renderEntryCard dayOffset staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset entry = [hsx|
+renderEntryCard dayOffset staffMembers shiftTypes _paySummariesByEntryId today editWindowDays weekOffset entry = [hsx|
     <article class="timesheet-entry-card" data-timesheet-entry-approved={boolText entry.isApproved}>
         <div class="timesheet-entry-main">
             <div class="timesheet-entry-identity">
@@ -150,7 +150,6 @@ renderEntryCard dayOffset staffMembers shiftTypes paySummariesByEntryId today ed
                 </div>
                 <div class="timesheet-entry-meta">Shift: {renderDuration entry}</div>
                 <div class="timesheet-entry-meta">Break: {renderBreakSummary entry}</div>
-                <div class="timesheet-entry-meta">Pay: {renderPaySummary paySummary}</div>
             </div>
 
             <div class="timesheet-entry-actions">
@@ -170,26 +169,7 @@ renderEntryCard dayOffset staffMembers shiftTypes paySummariesByEntryId today ed
         shiftTypeLabel = case find (\shiftType -> unpackId (get #id shiftType) == entry.shiftTypeId) shiftTypes of
             Just shiftType -> shiftType.name
             Nothing        -> "Shift"
-        paySummary = Map.lookup (timesheetEntryIdKey (get #id entry)) paySummariesByEntryId
         canEdit = currentUserIsManager || isWithinEditWindow today entry.workedOn editWindowDays
-
-renderPaySummary :: Maybe TimesheetPaySummary -> Html
-renderPaySummary maybeSummary =
-    case maybeSummary of
-        Nothing -> [hsx|<span class="app-muted">Unavailable</span>|]
-        Just summary -> [hsx|
-            <span>{renderMinutes summary.paidMinutes}</span>
-            <span class="app-muted"> ({show summary.segmentCount} segment(s))</span>
-            {when summary.weekendApplied renderWeekendNotice}
-            {when summary.hasStackedMultiplier renderStackedBadge}
-        |]
-    where
-        renderMinutes totalMinutes =
-            let hours = totalMinutes `div` 60
-                mins = totalMinutes `mod` 60
-             in tshow hours <> "h " <> tshow mins <> "m"
-        renderWeekendNotice = [hsx|<span class="app-muted"> weekend</span>|]
-        renderStackedBadge = [hsx|<span class="badge bg-info-subtle text-info-emphasis ms-1">stacked</span>|]
 
 renderEditActions :: Int -> TimesheetEntry -> Bool -> Int -> Html
 renderEditActions dayOffset entry canEdit weekOffset

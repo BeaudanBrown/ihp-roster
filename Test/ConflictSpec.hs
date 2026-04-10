@@ -153,7 +153,7 @@ tests = describe "Conflict Engine" do
                     , shiftPreferences = [mockShiftPreference]
                     }
         let conflicts = evaluateConflicts ctx
-        map conflictType conflicts `shouldBe` [ShiftPreferenceSlotMismatch]
+        conflicts `shouldBe` []
 
     it "sorts multiple conflicts by severity/priority" do
         let ctx = mkContext \base ->

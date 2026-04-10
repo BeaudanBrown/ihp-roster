@@ -70,8 +70,8 @@ scenarioByName = \case
             , leaveRequestCount = 4
             , pendingLeaveCount = 1
             , deniedLeaveCount = 1
-            , approvedTimesheets = 9
-            , pendingTimesheets = 4
+            , approvedTimesheets = 27
+            , pendingTimesheets = 12
             , scenarioSeed = 20260410
             }
     BusyRoster ->
@@ -86,8 +86,8 @@ scenarioByName = \case
             , leaveRequestCount = 3
             , pendingLeaveCount = 1
             , deniedLeaveCount = 0
-            , approvedTimesheets = 12
-            , pendingTimesheets = 5
+            , approvedTimesheets = 36
+            , pendingTimesheets = 15
             , scenarioSeed = 20260412
             }
     ConflictHeavy ->
@@ -102,8 +102,8 @@ scenarioByName = \case
             , leaveRequestCount = 6
             , pendingLeaveCount = 2
             , deniedLeaveCount = 1
-            , approvedTimesheets = 7
-            , pendingTimesheets = 5
+            , approvedTimesheets = 21
+            , pendingTimesheets = 15
             , scenarioSeed = 20260413
             }
     PayrollHeavy ->
@@ -118,8 +118,8 @@ scenarioByName = \case
             , leaveRequestCount = 3
             , pendingLeaveCount = 1
             , deniedLeaveCount = 0
-            , approvedTimesheets = 15
-            , pendingTimesheets = 3
+            , approvedTimesheets = 45
+            , pendingTimesheets = 9
             , scenarioSeed = 20260411
             }
 
