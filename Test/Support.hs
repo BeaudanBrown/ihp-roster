@@ -17,8 +17,8 @@ import qualified Data.Vault.Lazy as Vault
 import Generated.Types
 import IHP.Controller.Context (ControllerContext, newControllerContext)
 import IHP.Controller.Session (sessionVaultKey)
-import IHP.ControllerSupport (Respond)
 import IHP.ControllerPrelude
+import IHP.ControllerSupport (Respond)
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
@@ -210,12 +210,17 @@ createTimesheetEntryRecord venue staff workedOn = do
 
 createLeaveRequestRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> Text -> IO LeaveRequest
 createLeaveRequestRecord venue staff startDate endDate leaveStatus =
+    createLeaveRequestRecordWithNotes venue staff startDate endDate leaveStatus Nothing
+
+createLeaveRequestRecordWithNotes :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> Text -> Maybe Text -> IO LeaveRequest
+createLeaveRequestRecordWithNotes venue staff startDate endDate leaveStatus notes =
     newRecord @LeaveRequest
         |> set #venueId (unpackId (get #id venue))
         |> set #staffId (unpackId (get #id staff))
         |> set #startDate startDate
         |> set #endDate endDate
         |> set #status (unsafeEnumFromText @LeaveRequestStatusEnum leaveStatus)
+        |> set #notes notes
         |> createRecord
 
 createPayLevelRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO PayLevel

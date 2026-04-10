@@ -2,9 +2,10 @@ module Test.DevSeedSpec where
 
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Support.Seed.Scenario
-import qualified Data.Map.Strict as Map
 import Data.List (sort)
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
+import Data.Time.Calendar (addDays, fromGregorian, toGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport (inputValue)
@@ -66,6 +67,11 @@ tests = beforeAll testContext do
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> filterWhere (#firstName, "Bob")
                         |> fetchOne
+                leaveRequests <-
+                    query @LeaveRequest
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> orderByAsc #startDate
+                        |> fetch
                 bobAssignments <-
                     query @StaffRosterGroup
                         |> filterWhere (#staffId, unpackId (get #id bob))
@@ -100,13 +106,25 @@ tests = beforeAll testContext do
                         |> filterWhere (#staffId, Just (unpackId (get #id bob)))
                         |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) mondayDays)
                         |> fetch
+                let leaveNotes =
+                        mapMaybe (.notes) leaveRequests
                 let seededScenario = get #scenario fixture
                 let expectedApprovedLeaves = get #leaveRequestCount seededScenario - get #pendingLeaveCount seededScenario - get #deniedLeaveCount seededScenario
+                let (fixtureYear, fixtureMonthNumber, _) = toGregorian defaultWeekEpoch
+                let fixtureMonth = (fixtureYear, fixtureMonthNumber)
+                let fixtureMonthStart = fromGregorian fixtureYear fixtureMonthNumber 1
+                let leaveMonths = map (\leaveRequest -> (\(year, month, _) -> (year, month)) (toGregorian leaveRequest.startDate)) leaveRequests
 
                 map (.rosterGroupId) bobAssignments `shouldMatchList` [unpackId (get #id fixture.frontOfHouseGroup), unpackId (get #id fixture.backOfHouseGroup)]
+                length leaveRequests `shouldBe` 15
                 approvedLeaveCount `shouldBe` expectedApprovedLeaves
                 pendingLeaveCount `shouldBe` get #pendingLeaveCount seededScenario
                 deniedLeaveCount `shouldBe` get #deniedLeaveCount seededScenario
+                leaveMonths `shouldSatisfy` all (== fixtureMonth)
+                length leaveNotes `shouldBe` length leaveRequests
+                leaveNotes `shouldSatisfy` all (not . Text.null)
+                fmap (.startDate) (head leaveRequests) `shouldBe` Just fixtureMonthStart
+                fmap (.startDate) (last leaveRequests) `shouldSatisfy` maybe False (>= addDays 27 fixtureMonthStart)
                 length bobMondayAssignments `shouldBe` 2
 
         it "seeds support access, venue roles, and invitation bootstrap data" $ withContext do
@@ -297,5 +315,5 @@ tests = beforeAll testContext do
 weekdayIndexForDayOffset :: Int -> Int
 weekdayIndexForDayOffset dayOffset =
     case (dayOffset + 1) `mod` 7 of
-        0 -> 0
+        0     -> 0
         index -> index

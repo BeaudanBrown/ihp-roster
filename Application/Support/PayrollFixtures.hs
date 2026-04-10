@@ -2,6 +2,7 @@ module Application.Support.PayrollFixtures where
 
 import Application.Helper.RosterGroups (ensureVenueRosterDefaults,
                                         fetchVenueDayNames)
+import Application.Support
 import Config
 import qualified Data.Aeson as Aeson
 import Data.Time.Calendar (Day, addDays, fromGregorian)
@@ -10,7 +11,6 @@ import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
-import Application.Support
 
 data CanonicalPayrollFixture = CanonicalPayrollFixture
     { venue        :: !Venue

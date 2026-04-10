@@ -1,14 +1,14 @@
 module Application.Script.SeedPayrollFixture where
 
 import Application.Script.Prelude
+import Application.Support (defaultWeekEpoch)
+import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..),
+                                            seedExplorationPayrollFixtureForWeek)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import System.Exit (exitFailure)
-import Application.Support (defaultWeekEpoch)
-import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..),
-                                            seedExplorationPayrollFixtureForWeek)
 
 run :: Script
 run = do

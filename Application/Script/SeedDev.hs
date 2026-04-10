@@ -2,16 +2,16 @@ module Application.Script.SeedDev where
 
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Script.Prelude
+import Application.Support (defaultWeekEpoch, testPassword)
+import Application.Support.DevFixtures (DevSeedFixture (..),
+                                        seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth)
+import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..))
 import Application.Support.Seed.Scenario
+import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
-import Application.Support (defaultWeekEpoch, testPassword)
-import Application.Support.DevFixtures (DevSeedFixture (..),
-                                        seedDevelopmentFixtureWithScenarioForWeek)
-import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..))
-import qualified Data.List as List
 import qualified System.Environment as Environment
 import System.Exit (exitSuccess)
 import qualified Text.Read as TextRead
@@ -42,7 +42,7 @@ run = do
                 , explorationApprovedEntries = approvedEntries
                 , explorationPendingEntries = pendingEntries
                 }
-        } <- seedDevelopmentFixtureWithScenarioForWeek scenario fixtureWeekStart
+        } <- seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart (utctDay now)
 
     actualStaffCount <-
         query @Staff
@@ -108,7 +108,7 @@ run = do
     TextIO.putStrLn "Manual testing surface now includes multi-group roster data, support switching, invitation/bootstrap state, leave/timesheet activity, and payroll export data."
 
 data SeedDevOptions = SeedDevOptions
-    { selectedScenario :: !SeedScenarioName
+    { selectedScenario  :: !SeedScenarioName
     , scenarioOverrides :: !SeedScenarioOverrides
     }
 
@@ -142,7 +142,7 @@ parseArg options arg
     | "--scenario=" `List.isPrefixOf` arg =
         case List.stripPrefix "--scenario=" arg >>= (parseScenarioName . cs) of
             Just name -> pure options { selectedScenario = name }
-            Nothing -> error ("Unknown scenario: " <> cs arg)
+            Nothing   -> error ("Unknown scenario: " <> cs arg)
     | "--seed=" `List.isPrefixOf` arg =
         pure options { scenarioOverrides = options.scenarioOverrides { overrideScenarioSeed = Just (readIntFlag "--seed=" arg) } }
     | "--staff-count=" `List.isPrefixOf` arg =
@@ -159,7 +159,7 @@ readIntFlag :: String -> String -> Int
 readIntFlag prefix arg =
     case TextRead.readMaybe (drop (length prefix) arg) of
         Just value -> value
-        _ -> error ("Expected integer for flag: " <> cs arg)
+        _          -> error ("Expected integer for flag: " <> cs arg)
 
 printSeedDevUsage :: IO ()
 printSeedDevUsage = do
