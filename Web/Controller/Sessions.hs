@@ -3,9 +3,9 @@ module Web.Controller.Sessions where
 import Application.Helper.EmailVerification (findActiveVerificationTokenByToken,
                                              sendEmailVerification)
 import Control.Monad (void)
-import qualified IHP.AuthSupport.Lockable as Lockable
 import IHP.AuthSupport.Authentication (verifyPassword)
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
+import qualified IHP.AuthSupport.Lockable as Lockable
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import Web.Controller.Prelude
 import Web.View.Sessions.New

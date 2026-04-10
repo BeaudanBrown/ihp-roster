@@ -22,8 +22,7 @@ import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import Test.Support.PayrollFixtures (createAndApproveEntry,
-                                     createPayrollSnapshot,
-                                     seedWeekDayNames)
+                                     createPayrollSnapshot, seedWeekDayNames)
 import Web.Controller.Exports ()
 import Web.FrontController ()
 import Web.Routes

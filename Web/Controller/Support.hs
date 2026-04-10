@@ -1,6 +1,7 @@
 module Web.Controller.Support where
 
-import Application.Helper.Controller (currentSupportVenueOptions, unsafeEnumFromText)
+import Application.Helper.Controller (currentSupportVenueOptions,
+                                      unsafeEnumFromText)
 import Application.Helper.RosterGroups (ensureVenueRosterDefaults)
 import Application.Helper.View (appendQueryParams)
 import qualified Data.Aeson as Aeson
@@ -19,7 +20,7 @@ instance Controller SupportController where
     action SupportAction = do
         let venues = currentSupportVenueOptions
         createdVenue <- case paramOrNothing @(Id Venue) "createdVenueId" of
-            Nothing -> pure Nothing
+            Nothing      -> pure Nothing
             Just venueId -> Just <$> fetchCreatedVenue venueId
         let venue = buildSupportVenueForm
         render IndexView { .. }

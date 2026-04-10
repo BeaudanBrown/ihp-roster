@@ -4,9 +4,9 @@ import Generated.Types
 import IHP.MailPrelude
 
 data EmailVerificationMail = EmailVerificationMail
-    { user :: User
+    { user            :: User
     , verificationUrl :: Text
-    , fromAddress :: Text
+    , fromAddress     :: Text
     }
 
 instance BuildMail EmailVerificationMail where

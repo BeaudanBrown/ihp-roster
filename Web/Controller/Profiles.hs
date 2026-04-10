@@ -1,8 +1,8 @@
 module Web.Controller.Profiles where
 
+import Application.Helper.LiveUpdate (LiveFragmentRef)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
-import Application.Helper.LiveUpdate (LiveFragmentRef)
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)

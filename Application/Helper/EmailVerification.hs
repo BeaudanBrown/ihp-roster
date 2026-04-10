@@ -6,9 +6,9 @@ import qualified Data.UUID.V4 as UUIDv4
 import IHP.EnvVar
 import IHP.Mail
 import System.Environment (lookupEnv)
+import Web.Controller.Prelude
 import Web.Mail.Users.EmailVerification
 import Web.Types
-import Web.Controller.Prelude
 
 verificationTokenLifetime :: NominalDiffTime
 verificationTokenLifetime = 60 * 60 * 24

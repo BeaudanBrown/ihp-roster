@@ -2,7 +2,7 @@ module Web.View.Sessions.New where
 import Web.View.Prelude
 
 data NewView = NewView
-    { user :: User
+    { user                     :: User
     , pendingVerificationEmail :: Maybe Text
     }
 

@@ -1,7 +1,7 @@
 module Config where
 
-import IHP.EnvVar
 import IHP.Environment
+import IHP.EnvVar
 import IHP.FrameworkConfig
 import IHP.Mail
 import IHP.Mail.Types (SMTPEncryption)
@@ -20,7 +20,7 @@ config = do
 
     let smtpCredentials = case (smtpUserMaybe, smtpPasswordMaybe) of
             (Just user, Just password) -> Just (cs user, cs password)
-            _ -> Nothing
+            _                          -> Nothing
 
     option $
         SMTP

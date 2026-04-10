@@ -221,7 +221,7 @@ currentVenueRoleOrNothing = unsafePerformIO (join <$> maybeFromContext @(Maybe V
 currentSupportVenueOptionsOrNothing :: (?context :: ControllerContext) => Maybe [Venue]
 currentSupportVenueOptionsOrNothing =
     case unsafePerformIO (maybeFromContext @SupportVenueOptions) of
-        Nothing -> Nothing
+        Nothing                           -> Nothing
         Just (SupportVenueOptions venues) -> Just venues
 {-# NOINLINE currentSupportVenueOptionsOrNothing #-}
 

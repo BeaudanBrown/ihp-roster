@@ -1,10 +1,11 @@
 module Web.Controller.Users where
 
+import Application.Helper.LiveUpdate (LiveUpdateScope (..),
+                                      broadcastLiveInvalidation)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
-import Application.Helper.LiveUpdate (LiveUpdateScope (..), broadcastLiveInvalidation)
 import Web.Controller.Prelude
 import Web.Controller.Sessions ()
 import Web.View.Users.New

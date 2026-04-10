@@ -570,8 +570,8 @@ parseSortOrderParam :: (?context :: ControllerContext, ?request :: Request) => I
 parseSortOrderParam = paramOrDefault @Int 0 "sortOrder"
 
 venueRoleLabel :: VenueRole -> Text
-venueRoleLabel WorkerRole = "Worker"
-venueRoleLabel ManagerRole' = "Manager"
+venueRoleLabel WorkerRole     = "Worker"
+venueRoleLabel ManagerRole'   = "Manager"
 venueRoleLabel VenueAdminRole = "Venue Admin"
 venueRoleLabel VenueOwnerRole = "Venue Owner"
 

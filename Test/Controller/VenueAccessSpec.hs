@@ -4,8 +4,8 @@ module Test.Controller.VenueAccessSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       currentVenueSessionKey)
-import qualified Data.ByteString.Char8 as BS
 import Config
+import qualified Data.ByteString.Char8 as BS
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
@@ -15,8 +15,8 @@ import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
-import Network.Wai (responseHeaders)
 import Network.HTTP.Types.Status
+import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import Web.Controller.Admin ()

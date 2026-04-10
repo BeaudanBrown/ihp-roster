@@ -29,20 +29,20 @@ data RosterConflict = RosterConflict
     } deriving (Eq, Show)
 
 getConflictSeverity :: ConflictType -> ConflictSeverity
-getConflictSeverity DuplicateAssignment            = CriticalConflict
-getConflictSeverity LeaveConflict                  = CriticalConflict
-getConflictSeverity LateToEarlyConflict            = CriticalConflict
-getConflictSeverity ShiftPreferenceDayUnavailable  = AdvisoryConflict
-getConflictSeverity ShiftPreferenceSlotMismatch    = AdvisoryConflict
-getConflictSeverity IdealShiftThresholdExceeded    = AdvisoryConflict
+getConflictSeverity DuplicateAssignment           = CriticalConflict
+getConflictSeverity LeaveConflict                 = CriticalConflict
+getConflictSeverity LateToEarlyConflict           = CriticalConflict
+getConflictSeverity ShiftPreferenceDayUnavailable = AdvisoryConflict
+getConflictSeverity ShiftPreferenceSlotMismatch   = AdvisoryConflict
+getConflictSeverity IdealShiftThresholdExceeded   = AdvisoryConflict
 
 conflictPriority :: ConflictType -> Int
-conflictPriority DuplicateAssignment            = 1
-conflictPriority LeaveConflict                  = 2
-conflictPriority LateToEarlyConflict            = 3
-conflictPriority ShiftPreferenceDayUnavailable  = 4
-conflictPriority ShiftPreferenceSlotMismatch    = 5
-conflictPriority IdealShiftThresholdExceeded    = 6
+conflictPriority DuplicateAssignment           = 1
+conflictPriority LeaveConflict                 = 2
+conflictPriority LateToEarlyConflict           = 3
+conflictPriority ShiftPreferenceDayUnavailable = 4
+conflictPriority ShiftPreferenceSlotMismatch   = 5
+conflictPriority IdealShiftThresholdExceeded   = 6
 
 instance Ord ConflictType where
     compare a b = compare (conflictPriority a) (conflictPriority b)
@@ -128,7 +128,7 @@ shiftPreferencesForDay ctx =
 weekdayIndexForDay :: Day -> Int
 weekdayIndexForDay day =
     case fromEnum (dayOfWeek day) of
-        7 -> 0
+        7     -> 0
         index -> index
 
 checkLateToEarlyConflict :: ConflictContext -> Maybe RosterConflict

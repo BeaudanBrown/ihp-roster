@@ -3,8 +3,8 @@ module Test.Controller.ProfilesSpec where
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
-import Application.Helper.StaffShiftPreferences (encodeShiftPreferenceKey,
-                                                 ShiftPreferenceSelection (..))
+import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
+                                                 encodeShiftPreferenceKey)
 import Config
 import Generated.Types
 import IHP.ControllerPrelude
@@ -17,7 +17,6 @@ import Network.Wai
 import Test.Hspec
 import Test.Support
 import Web.Controller.Profiles (fetchProfileRosterInvalidationTargets)
-import Web.Controller.Profiles ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Types

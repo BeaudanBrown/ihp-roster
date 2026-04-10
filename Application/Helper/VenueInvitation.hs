@@ -1,8 +1,8 @@
 module Application.Helper.VenueInvitation where
 
 import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
-import qualified Control.Exception.Safe as Exception
 import Application.Helper.View (appendQueryParams)
+import qualified Control.Exception.Safe as Exception
 import IHP.EnvVar
 import IHP.Mail
 import Web.Controller.Prelude

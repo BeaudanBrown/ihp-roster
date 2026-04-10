@@ -4,8 +4,8 @@ import Generated.Types
 import IHP.MailPrelude
 
 data VenueInvitationMail = VenueInvitationMail
-    { invitation :: VenueInvitation
-    , inviteUrl :: Text
+    { invitation  :: VenueInvitation
+    , inviteUrl   :: Text
     , fromAddress :: Text
     }
 
@@ -42,5 +42,5 @@ inviteRoleLabel value =
     case inputValue value of
         "venue_owner" -> "venue owner"
         "venue_admin" -> "venue admin"
-        "manager" -> "manager"
-        _ -> "worker"
+        "manager"     -> "manager"
+        _             -> "worker"
