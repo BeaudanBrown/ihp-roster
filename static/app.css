@@ -286,6 +286,10 @@ h5,
     min-width: min(30rem, 92vw);
 }
 
+.roster-export-button[disabled] {
+    opacity: 0.7;
+}
+
 .roster-assignment-filter-grid {
     display: grid;
     grid-template-columns: 1fr;
@@ -1770,6 +1774,51 @@ h5,
 .roster-grid .slot-closed-cell {
     height: calc(var(--roster-row-height) + 0.65rem);
     min-height: calc(var(--roster-row-height) + 0.65rem);
+}
+
+.roster-export-stage {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    pointer-events: none;
+    opacity: 0;
+    z-index: -1;
+}
+
+.roster-export-surface {
+    width: 1720px;
+    padding: 28px;
+    background:
+        radial-gradient(circle at top left, rgba(109, 151, 222, 0.16), transparent 28%),
+        linear-gradient(180deg, #1a2331, #0f1622);
+}
+
+.roster-export-table {
+    width: 100%;
+    margin: 0;
+}
+
+.roster-export-table .roster-day-actions,
+.roster-export-table .roster-day-actions-placeholder {
+    display: none !important;
+}
+
+.roster-export-table .slot-cell-export-value {
+    height: calc(var(--roster-row-height) + 0.65rem);
+    min-height: calc(var(--roster-row-height) + 0.65rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.16rem;
+    text-align: center;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 700;
+    color: var(--app-text);
+    font-size: var(--roster-text-sm);
+    font-variant-numeric: tabular-nums;
 }
 
 @media print {
