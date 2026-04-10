@@ -17,98 +17,101 @@ data IndexView = IndexView
     }
 
 instance View IndexView where
-    html IndexView { .. } = [hsx|
-        <div class="row g-3">
-            <div class="col-12 col-xl-5">
-                <div class="app-panel h-100">
-                    <div class="app-panel-body">
-                        <h1 class="h4 mb-3">Export Jobs</h1>
-                        <p class="app-muted mb-4">
-                            Generate venue-scoped payroll and timesheet exports. Downloads use per-job expiring tokens and are audited.
-                        </p>
-                        <div class="border rounded p-3 mb-4 bg-light-subtle">
-                            <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-                                <div>
-                                    <div class="fw-semibold mb-1">Payroll Reports</div>
-                                    <div class="small app-muted">
-                                        Week of {tshow reportWeekSelection.weekStart} to {tshow reportWeekSelection.weekEnd}
+    html IndexView { .. } =
+        renderAppPage (AppPageConfig
+            { appPageTitle = "Export Jobs"
+            , appPageDescription = Nothing
+            , appPageActions = mempty
+            , appPageWidthClass = ""
+            , appPageBody = [hsx|
+                <div class="row g-3">
+                    <div class="col-12 col-xl-5">
+                        <div class="app-panel h-100">
+                            <div class="app-panel-body">
+                                <div class="border rounded p-3 mb-4 bg-light-subtle">
+                                    <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                        <div>
+                                            <div class="fw-semibold mb-1">Payroll Reports</div>
+                                            <div class="small app-muted">
+                                                Week of {tshow reportWeekSelection.weekStart} to {tshow reportWeekSelection.weekEnd}
+                                            </div>
+                                        </div>
+                                        <div class="btn-group btn-group-sm" role="group" aria-label="Report week navigation">
+                                            <a
+                                                href={appendQueryParams (pathTo ExportJobsAction) [("weekOffset", tshow (reportWeekSelection.weekOffset - 1))]}
+                                                class="btn btn-outline-secondary"
+                                            >
+                                                Previous
+                                            </a>
+                                            <a href={ExportJobsAction} class="btn btn-outline-secondary">Current</a>
+                                            <a
+                                                href={appendQueryParams (pathTo ExportJobsAction) [("weekOffset", tshow (reportWeekSelection.weekOffset + 1))]}
+                                                class="btn btn-outline-secondary"
+                                            >
+                                                Next
+                                            </a>
+                                        </div>
                                     </div>
+                                    <div class="small app-muted mb-3">
+                                        Venue report definitions decide which payroll exports are available for this venue. Staff-pay CSV and hourly ZIP reports both run through the same export-job lifecycle.
+                                    </div>
+                                    {renderReportDefinitionList reportWeekSelection reportDefinitions}
+                                    {if canManageReportDefinitions then renderReportDefinitionManagement allReportDefinitions shiftTypes else mempty}
                                 </div>
-                                <div class="btn-group btn-group-sm" role="group" aria-label="Report week navigation">
-                                    <a
-                                        href={appendQueryParams (pathTo ExportJobsAction) [("weekOffset", tshow (reportWeekSelection.weekOffset - 1))]}
-                                        class="btn btn-outline-secondary"
-                                    >
-                                        Previous
-                                    </a>
-                                    <a href={ExportJobsAction} class="btn btn-outline-secondary">Current</a>
-                                    <a
-                                        href={appendQueryParams (pathTo ExportJobsAction) [("weekOffset", tshow (reportWeekSelection.weekOffset + 1))]}
-                                        class="btn btn-outline-secondary"
-                                    >
-                                        Next
-                                    </a>
+                                <div class="border rounded p-3">
+                                    <div class="fw-semibold mb-2">Approved Timesheets CSV</div>
+                                    <div class="small app-muted mb-3">
+                                        Range-based CSV export for approved timesheet entries. This is separate from the legacy payroll report definitions.
+                                    </div>
+                                    <form method="POST" action={CreateExportJobAction} class="d-grid gap-3" data-disable-javascript-submission="true">
+                                        <div>
+                                            <label class="form-label" for="rangeStart">From</label>
+                                            <input
+                                                id="rangeStart"
+                                                class="form-control"
+                                                type="date"
+                                                name="rangeStart"
+                                                value={tshow defaultRangeStart}
+                                                required={True}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label class="form-label" for="rangeEnd">To</label>
+                                            <input
+                                                id="rangeEnd"
+                                                class="form-control"
+                                                type="date"
+                                                name="rangeEnd"
+                                                value={tshow defaultRangeEnd}
+                                                required={True}
+                                            />
+                                        </div>
+                                        <div class="small app-muted">
+                                            Scope is always limited to the current venue and the selected date range.
+                                        </div>
+                                        <button class="btn btn-primary" type="submit">Generate Export</button>
+                                    </form>
                                 </div>
                             </div>
-                            <div class="small app-muted mb-3">
-                                Venue report definitions decide which payroll exports are available for this venue. Staff-pay CSV and hourly ZIP reports both run through the same export-job lifecycle.
-                            </div>
-                            {renderReportDefinitionList reportWeekSelection reportDefinitions}
-                            {if canManageReportDefinitions then renderReportDefinitionManagement allReportDefinitions shiftTypes else mempty}
                         </div>
-                        <div class="border rounded p-3">
-                            <div class="fw-semibold mb-2">Approved Timesheets CSV</div>
-                            <div class="small app-muted mb-3">
-                                Range-based CSV export for approved timesheet entries. This is separate from the legacy payroll report definitions.
+                    </div>
+                    <div class="col-12 col-xl-7">
+                        <div class="app-panel h-100">
+                            <div class="app-panel-body">
+                                <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
+                                    <div>
+                                        <h2 class="h5 mb-1">Recent Exports</h2>
+                                        <p class="app-muted mb-0">Most recent export jobs for this venue.</p>
+                                    </div>
+                                    <a href={AdminAction} class="btn btn-outline-secondary btn-sm">Back to admin</a>
+                                </div>
+                                {if null exportJobs then renderEmptyState else renderExportTable exportJobs}
                             </div>
-                            <form method="POST" action={CreateExportJobAction} class="d-grid gap-3" data-disable-javascript-submission="true">
-                                <div>
-                                    <label class="form-label" for="rangeStart">From</label>
-                                    <input
-                                        id="rangeStart"
-                                        class="form-control"
-                                        type="date"
-                                        name="rangeStart"
-                                        value={tshow defaultRangeStart}
-                                        required={True}
-                                    />
-                                </div>
-                                <div>
-                                    <label class="form-label" for="rangeEnd">To</label>
-                                    <input
-                                        id="rangeEnd"
-                                        class="form-control"
-                                        type="date"
-                                        name="rangeEnd"
-                                        value={tshow defaultRangeEnd}
-                                        required={True}
-                                    />
-                                </div>
-                                <div class="small app-muted">
-                                    Scope is always limited to the current venue and the selected date range.
-                                </div>
-                                <button class="btn btn-primary" type="submit">Generate Export</button>
-                            </form>
                         </div>
                     </div>
                 </div>
-            </div>
-            <div class="col-12 col-xl-7">
-                <div class="app-panel h-100">
-                    <div class="app-panel-body">
-                        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-                            <div>
-                                <h2 class="h5 mb-1">Recent Exports</h2>
-                                <p class="app-muted mb-0">Most recent export jobs for this venue.</p>
-                            </div>
-                            <a href={AdminAction} class="btn btn-outline-secondary btn-sm">Back to admin</a>
-                        </div>
-                        {if null exportJobs then renderEmptyState else renderExportTable exportJobs}
-                    </div>
-                </div>
-            </div>
-        </div>
-    |]
+            |]
+            })
 
 renderEmptyState :: Html
 renderEmptyState = [hsx|

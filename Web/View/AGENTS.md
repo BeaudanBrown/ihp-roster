@@ -90,9 +90,11 @@ renderForm post = formFor post [hsx|
 - The app uses a centralized token system in `static/app.css` (`:root` CSS variables) with dark mode as the default.
 - Root layout sets dark mode via `<html data-bs-theme="dark">`; all new views should inherit this instead of setting per-page theme flags.
 - Prefer semantic app wrappers/classes over one-off utilities:
-  - page shells: `app-shell`, `app-content`, `app-page-auth`
+  - page shells: `app-shell`, `app-content`, `app-page`, `app-page-auth`
   - surfaces: `app-panel`, `app-auth-card`, `app-panel-body`, `app-auth-body`
   - sizing/text helpers: `app-form-width`, `app-muted`
+- Signed-in pages should use `renderAppPage` from `Application/Helper/View.hs` plus `app-panel` surfaces. Reserve `app-page-auth` / `app-auth-card` for unauthenticated auth and welcome flows only.
+- Keep page-level titles and summary copy in the shared `app-page-header`. Use panel headers (`app-panel-header`, `app-panel-title`, `app-panel-description`) only for secondary sections inside the page body.
 - Avoid inline `style="..."` in HSX for layout/sizing; add a reusable class in `static/app.css` instead.
 - Avoid hardcoded light-mode classes (`bg-light`, `text-muted`) in new views; use semantic classes/tokens.
 - For new component colors, add/consume CSS variables first, then apply them in selectors (including Bootstrap overrides).

@@ -28,7 +28,24 @@ instance View IndexView where
     html = renderLeaveRequestsShell
 
 renderLeaveRequestsShell :: IndexView -> Html
-renderLeaveRequestsShell IndexView { .. } = [hsx|
+renderLeaveRequestsShell IndexView { .. } =
+    let page = renderAppPage (AppPageConfig
+            { appPageTitle = "Leave Requests"
+            , appPageDescription = Nothing
+            , appPageActions = [hsx|
+                <a href={NewLeaveRequestAction}
+                   class="btn btn-primary"
+                   hx-get={NewLeaveRequestAction}
+                   hx-target={"#" <> dialogOverlayMountId}
+                   hx-swap="innerHTML"
+                   hx-push-url="false">
+                    New Request
+                </a>
+            |]
+            , appPageWidthClass = ""
+            , appPageBody = renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId
+            })
+     in [hsx|
         <section id={leaveRequestsShellId}
                  data-live-update-owner="true"
                  data-live-update-feature="leave-requests"
@@ -38,19 +55,7 @@ renderLeaveRequestsShell IndexView { .. } = [hsx|
                  data-live-update-client-id=""
                  data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
                  data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}>
-            <div class="leave-requests-toolbar">
-                <h1 class="mb-0">Leave Requests</h1>
-                <a href={NewLeaveRequestAction}
-                   class="btn btn-primary"
-                   hx-get={NewLeaveRequestAction}
-                   hx-target={"#" <> dialogOverlayMountId}
-                   hx-swap="innerHTML"
-                   hx-push-url="false">
-                    New Request
-                </a>
-            </div>
-
-            {renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId}
+            {page}
         </section>
     |]
 
@@ -65,10 +70,10 @@ renderLeaveRequestsContentFragmentOob =
 renderLeaveRequestsContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
 renderLeaveRequestsContentFragmentWithSwap maybeSwapOob leaveRequests staffMembers currentViewerStaffId = [hsx|
     <div id={leaveRequestsContentFragmentId} hx-swap-oob={maybeSwapOob}>
-        {if null leaveRequests
-            then renderEmptyState
-            else if currentUserIsManager
-                then renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId
+        {if currentUserIsManager
+            then renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId
+            else if null leaveRequests
+                then renderEmptyState
                 else renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId
         }
     </div>
@@ -107,9 +112,9 @@ renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId = [hsx|
 renderManagerLeaveRequests :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
 renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId = [hsx|
     <div class="accordion leave-request-accordion" id="leave-request-manager-sections">
-        {renderManagerSection "leave-pending" "Pending" "Needs a decision" pendingRequests staffMembers currentViewerStaffId True}
-        {renderManagerSection "leave-approved" "Approved" "Already confirmed" approvedRequests staffMembers currentViewerStaffId False}
-        {renderManagerSection "leave-denied" "Denied" "Rejected requests" deniedRequests staffMembers currentViewerStaffId False}
+        {renderManagerSection "leave-pending" "Pending" pendingRequests staffMembers currentViewerStaffId True}
+        {renderManagerSection "leave-approved" "Approved" approvedRequests staffMembers currentViewerStaffId False}
+        {renderManagerSection "leave-denied" "Denied" deniedRequests staffMembers currentViewerStaffId False}
     </div>
 |]
     where
@@ -117,8 +122,8 @@ renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId = [hs
         approvedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveApproved) . parseLeaveRequestStatus . (.status)) leaveRequests)
         deniedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveDenied) . parseLeaveRequestStatus . (.status)) leaveRequests)
 
-renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
-renderManagerSection sectionId title subtitle requests staffMembers currentViewerStaffId isOpen = [hsx|
+renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
+renderManagerSection sectionId title requests staffMembers currentViewerStaffId isOpen = [hsx|
     <div class="accordion-item app-panel mb-3 leave-request-section">
         <h2 class="accordion-header" id={sectionId <> "-heading"}>
             <button
@@ -129,8 +134,7 @@ renderManagerSection sectionId title subtitle requests staffMembers currentViewe
                 aria-expanded={if isOpen then ("true" :: Text) else "false"}
                 aria-controls={sectionId <> "-collapse"}
             >
-                <span class="leave-request-accordion-title">{title}</span>
-                <span class="leave-request-accordion-count">{tshow (length requests)}</span>
+                <span class="leave-request-accordion-title">{title <> " (" <> tshow (length requests) <> ")"}</span>
             </button>
         </h2>
         <div
@@ -140,7 +144,6 @@ renderManagerSection sectionId title subtitle requests staffMembers currentViewe
             data-bs-parent="#leave-request-manager-sections"
         >
             <div class="accordion-body">
-                <p class="app-muted mb-3">{subtitle}</p>
                 {sectionBody}
             </div>
         </div>
@@ -149,13 +152,7 @@ renderManagerSection sectionId title subtitle requests staffMembers currentViewe
     where
         sectionBody
             | null requests =
-                [hsx|
-                    <div class="app-panel">
-                        <div class="app-panel-body">
-                            <p class="app-muted mb-0">No requests in this section.</p>
-                        </div>
-                    </div>
-                |]
+                mempty
             | otherwise =
                 [hsx|
                     <div class="leave-request-list">
@@ -320,17 +317,17 @@ isCurrentUsersLeaveRequest currentViewerStaffId leaveRequest =
     maybe False (== leaveRequest.staffId) currentViewerStaffId
 
 liveUpdateScopeKind :: LiveUpdateScope -> Text
-liveUpdateScopeKind LeaveRequestsScope {} = "leave_requests"
-liveUpdateScopeKind RosterWeekScope {}    = "roster_week"
+liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
+liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
 liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
-liveUpdateScopeKind AdminSlotNamesScope {} = "admin_slot_names"
-liveUpdateScopeKind AdminInvitesScope {} = "admin_invites"
-liveUpdateScopeKind TimesheetWeekScope {} = "timesheet_week"
+liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
+liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
+liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
 
 liveUpdateVenueId :: LiveUpdateScope -> Text
-liveUpdateVenueId LeaveRequestsScope { venueId } = tshow venueId
-liveUpdateVenueId RosterWeekScope { venueId }    = tshow venueId
+liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
+liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
 liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
-liveUpdateVenueId AdminSlotNamesScope { venueId } = tshow venueId
-liveUpdateVenueId AdminInvitesScope { venueId } = tshow venueId
-liveUpdateVenueId TimesheetWeekScope { venueId } = tshow venueId
+liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
+liveUpdateVenueId AdminInvitesScope { venueId }      = tshow venueId
+liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId

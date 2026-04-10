@@ -9,8 +9,8 @@ import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.Calendar.WeekDate (toWeekDate)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.UUID (UUID)
 import Web.View.Prelude
 
@@ -42,11 +42,11 @@ data RosterRenderIndexes = RosterRenderIndexes
     }
 
 data RosterWeekOverviewDay = RosterWeekOverviewDay
-    { overviewDate      :: Day
-    , leaveRequestCount :: Int
+    { overviewDate               :: Day
+    , leaveRequestCount          :: Int
     , overviewAssignedShiftCount :: Int
-    , scheduledMinutes  :: Int
-    , overviewIsClosed  :: Bool
+    , scheduledMinutes           :: Int
+    , overviewIsClosed           :: Bool
     }
 
 data RosterStaffPanelEntry = RosterStaffPanelEntry
@@ -56,9 +56,9 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
     }
 
 data RosterAssignmentFilters = RosterAssignmentFilters
-    { hideStaffAtIdealShifts      :: Bool
-    , hideStaffUnavailable        :: Bool
-    , hideStaffOnApprovedLeave    :: Bool
+    { hideStaffAtIdealShifts        :: Bool
+    , hideStaffUnavailable          :: Bool
+    , hideStaffOnApprovedLeave      :: Bool
     , hideStaffAlreadyAssignedToday :: Bool
     }
 
@@ -93,7 +93,15 @@ instance View ShowView where
     html = renderRosterWeekShell
 
 renderRosterWeekShell :: ShowView -> Html
-renderRosterWeekShell ShowView { .. } = [hsx|
+renderRosterWeekShell ShowView { .. } =
+    let page = renderAppPage (AppPageConfig
+            { appPageTitle = "Roster"
+            , appPageDescription = Nothing
+            , appPageActions = mempty
+            , appPageWidthClass = ""
+            , appPageBody = renderRosterContentFragment rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes
+            })
+     in [hsx|
     <section id={rosterWeekShellId}
              hx-history-elt="true"
              data-live-update-owner="true"
@@ -117,13 +125,13 @@ renderRosterWeekShell ShowView { .. } = [hsx|
              data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
              data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< liveUpdateScope}
              hidden="hidden"></div>
-        {renderRosterContentFragment rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes}
+        {page}
     </section>
 |]
 
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> Html
 renderRosterWeekControls weekOffset currentRosterGroup weekStartDate = [hsx|
-    <div class="btn-group roster-week-nav-group" role="group" aria-label="Roster week navigation">
+    <div class="btn-group app-week-nav-group roster-week-nav-group" role="group" aria-label="Roster week navigation">
         {renderWeekNavigationLink "bi-chevron-left" "Previous week" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
         {renderWeekOverviewDropdown weekOffset currentRosterGroup.id weekStartDate}
         {renderWeekNavigationLink "bi-chevron-right" "Next week" (rosterWeekPath (weekOffset + 1) currentRosterGroup.id)}
@@ -410,7 +418,7 @@ renderWeekNavigationLink :: Text -> Text -> Text -> Html
 renderWeekNavigationLink iconClass ariaLabel url =
     [hsx|
         <a href={url}
-           class="btn btn-outline-secondary roster-week-nav-button roster-week-nav-arrow"
+           class="btn btn-outline-secondary app-week-nav-button roster-week-nav-button roster-week-nav-arrow"
            aria-label={ariaLabel}
            title={ariaLabel}
            data-turbolinks="false"
@@ -450,7 +458,7 @@ renderRosterGrid :: (?context :: ControllerContext) => Maybe RosterWeek -> [Rost
 renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes = [hsx|
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
-            <div class="card shadow-sm mb-5 mb-xl-0">
+            <div class="app-panel overflow-hidden mb-5 mb-xl-0">
                 {renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate}
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm mb-0 align-middle roster-grid"
@@ -494,15 +502,15 @@ renderRosterBlockColGroup _ =
 
 renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> Html
 renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate = [hsx|
-    <div class="card-header roster-grid-header py-3">
-        <div class="roster-grid-header-side roster-grid-header-side-left">
+    <div class="app-panel-header app-surface-toolbar roster-grid-header">
+        <div class="app-surface-toolbar-side roster-grid-header-side roster-grid-header-side-left">
             {renderLiveToggle maybeRosterWeek}
             {renderThisWeekButton}
         </div>
-        <div class="roster-grid-header-center">
+        <div class="app-surface-toolbar-center roster-grid-header-center">
             {renderRosterWeekControls weekOffset currentRosterGroup weekStartDate}
         </div>
-        <div class="roster-grid-header-side roster-grid-header-side-right">
+        <div class="app-surface-toolbar-side app-surface-toolbar-side-right roster-grid-header-side roster-grid-header-side-right">
             {renderRosterWeekManagerControls weekOffset currentRosterGroup}
             {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters}
         </div>
@@ -521,7 +529,7 @@ renderThisWeekButton =
             , partialNavigationUrl = pathTo RosterWeeksAction
             , partialNavigationTargetId = rosterWeekShellId
             , partialNavigationSelectId = Just rosterWeekShellId
-            , partialNavigationClass = "btn btn-outline-secondary"
+            , partialNavigationClass = "btn btn-outline-secondary app-week-nav-button"
             , partialNavigationSwap = "outerHTML"
             , partialNavigationSync = Just ("#" <> rosterWeekShellId <> ":replace")
             , partialNavigationPushUrl = True
@@ -699,9 +707,9 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
 humanizeStaffRole :: Text -> Text
 humanizeStaffRole "venue_admin" = "Venue Admin"
 humanizeStaffRole "venue_owner" = "Venue Owner"
-humanizeStaffRole "manager" = "Manager"
-humanizeStaffRole "worker" = "Worker"
-humanizeStaffRole other = Text.toTitle (Text.replace "_" " " other)
+humanizeStaffRole "manager"     = "Manager"
+humanizeStaffRole "worker"      = "Worker"
+humanizeStaffRole other         = Text.toTitle (Text.replace "_" " " other)
 
 renderShiftSummary :: RosterStaffPanelEntry -> Html
 renderShiftSummary entry = [hsx|
@@ -967,7 +975,7 @@ renderStaffOptionLabel :: [Staff] -> Staff -> Maybe RosterAssignmentOptionState 
 renderStaffOptionLabel staffMembers staff maybeOptionState =
     case maybeOptionState of
         Nothing -> baseLabel
-        Just _ -> baseLabel
+        Just _  -> baseLabel
     where
         baseLabel = staffDisplayName staffMembers staff
 
@@ -1069,12 +1077,12 @@ renderConflictClass :: Maybe RosterConflict -> Text
 renderConflictClass Nothing = ""
 renderConflictClass (Just conflict) =
     case conflict.conflictType of
-        DuplicateAssignment -> "conflict-critical"
-        LeaveConflict -> "conflict-critical"
-        LateToEarlyConflict -> "conflict-critical"
+        DuplicateAssignment           -> "conflict-critical"
+        LeaveConflict                 -> "conflict-critical"
+        LateToEarlyConflict           -> "conflict-critical"
         ShiftPreferenceDayUnavailable -> "conflict-preference"
-        ShiftPreferenceSlotMismatch -> "conflict-preference"
-        IdealShiftThresholdExceeded -> "conflict-ideal"
+        ShiftPreferenceSlotMismatch   -> "conflict-preference"
+        IdealShiftThresholdExceeded   -> "conflict-ideal"
 
 renderConflictMessage :: Maybe RosterConflict -> Text
 renderConflictMessage Nothing         = ""
@@ -1144,15 +1152,15 @@ rosterWeekMoreMenuId :: Maybe RosterWeek -> Id RosterGroup -> Text
 rosterWeekMoreMenuId maybeRosterWeek rosterGroupId =
     case maybeRosterWeek of
         Just rosterWeek -> "roster-week-more-menu-" <> tshow rosterWeek.id
-        Nothing -> "roster-week-more-menu-group-" <> tshow rosterGroupId
+        Nothing         -> "roster-week-more-menu-group-" <> tshow rosterGroupId
 
 liveUpdateScopeKind :: LiveUpdateScope -> Text
-liveUpdateScopeKind RosterWeekScope {}    = "roster_week"
+liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
 liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
-liveUpdateScopeKind AdminSlotNamesScope {} = "admin_slot_names"
-liveUpdateScopeKind AdminInvitesScope {} = "admin_invites"
-liveUpdateScopeKind LeaveRequestsScope {} = "leave_requests"
-liveUpdateScopeKind TimesheetWeekScope {} = "timesheet_week"
+liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
+liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
+liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
+liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
 
 liveUpdateRosterGroupScopeKind :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupScopeKind RosterWeekScope {}        = Just "roster_group_config"
@@ -1163,12 +1171,12 @@ liveUpdateRosterGroupScopeKind LeaveRequestsScope {}     = Nothing
 liveUpdateRosterGroupScopeKind TimesheetWeekScope {}     = Nothing
 
 liveUpdateVenueId :: LiveUpdateScope -> Text
-liveUpdateVenueId RosterWeekScope { venueId }    = tshow venueId
+liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
 liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
-liveUpdateVenueId AdminSlotNamesScope { venueId } = tshow venueId
-liveUpdateVenueId AdminInvitesScope { venueId } = tshow venueId
-liveUpdateVenueId LeaveRequestsScope { venueId } = tshow venueId
-liveUpdateVenueId TimesheetWeekScope { venueId } = tshow venueId
+liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
+liveUpdateVenueId AdminInvitesScope { venueId }      = tshow venueId
+liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
+liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
 
 liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId } = Just (tshow rosterGroupId)

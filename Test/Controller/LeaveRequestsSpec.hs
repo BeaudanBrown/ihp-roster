@@ -1,8 +1,8 @@
 module Test.Controller.LeaveRequestsSpec where
 
-import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
+import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Config
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import Data.Time.Calendar (fromGregorian)
@@ -140,6 +140,46 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` cs (pathTo DeleteSessionAction)
                 response `responseBodyShouldContain` "name=\"_method\" value=\"DELETE\""
                 response `responseBodyShouldNotContain` "js-delete"
+
+        it "renders manager accordion headings with counts inline after the title" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Venue"
+                manager <- createUserRecord "leave-manager-headings@example.com" "staff" True
+                workerUser <- createUserRecord "leave-worker-headings@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                staff <- createStaffRecord venue (Just workerUser) "Hana" "Headings"
+                _ <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "pending"
+                _ <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 11) (fromGregorian 2025 1 12) "pending"
+                _ <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 13) (fromGregorian 2025 1 14) "approved"
+                _ <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 15) (fromGregorian 2025 1 16) "denied"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction LeaveRequestsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Pending (2)"
+                response `responseBodyShouldContain` "Approved (1)"
+                response `responseBodyShouldContain` "Denied (1)"
+                response `responseBodyShouldNotContain` "Needs a decision"
+                response `responseBodyShouldNotContain` "Already confirmed"
+                response `responseBodyShouldNotContain` "Rejected requests"
+
+        it "renders manager accordions with zero counts instead of empty-state copy when there are no leave requests" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Venue"
+                manager <- createUserRecord "leave-manager-empty@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction LeaveRequestsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Pending (0)"
+                response `responseBodyShouldContain` "Approved (0)"
+                response `responseBodyShouldContain` "Denied (0)"
+                response `responseBodyShouldNotContain` "No leave requests yet."
+                response `responseBodyShouldNotContain` "No requests in this section."
 
         it "scopes leave fragment refetches to the current viewer visibility" $ withContext do
             withCleanDb do

@@ -31,7 +31,24 @@ instance View IndexView where
     html = renderTimesheetWeekShell
 
 renderTimesheetWeekShell :: IndexView -> Html
-renderTimesheetWeekShell IndexView { .. } = [hsx|
+renderTimesheetWeekShell IndexView { .. } =
+    let page = renderAppPage (AppPageConfig
+            { appPageTitle = "Timesheets"
+            , appPageDescription = Nothing
+            , appPageActions = mempty
+            , appPageWidthClass = ""
+            , appPageBody = [hsx|
+                <div class="app-panel overflow-hidden">
+                    {renderTimesheetWeekHeader weekOffset weekStartDate}
+                    <div class="app-panel-body">
+                        <div class="d-flex flex-column gap-3">
+                            {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate)}
+                        </div>
+                    </div>
+                </div>
+            |]
+            })
+     in [hsx|
     <section id={timesheetWeekShellId}
              hx-history-elt="true"
              data-live-update-owner="true"
@@ -42,21 +59,7 @@ renderTimesheetWeekShell IndexView { .. } = [hsx|
              data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
              data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
              data-live-update-week-offset={liveUpdateWeekOffsetText =<< liveUpdateScope}>
-        <div class="d-flex justify-content-between align-items-center mb-4 gap-2 flex-wrap">
-            <div>
-                <h1 class="mb-0">Timesheets</h1>
-                <p class="app-muted mb-0">{formatDateDisplay weekStartDate} to {formatDateDisplay weekEndDate}</p>
-            </div>
-            <div class="d-flex gap-2 align-items-center">
-                {renderTimesheetWeekNavigationLink "<" (pathTo (ShowTimesheetWeekAction (weekOffset - 1)))}
-                {renderTimesheetWeekNavigationLink "this week" (pathTo TimesheetsAction)}
-                {renderTimesheetWeekNavigationLink ">" (pathTo (ShowTimesheetWeekAction (weekOffset + 1)))}
-            </div>
-        </div>
-
-        <div class="d-flex flex-column gap-3">
-            {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate)}
-        </div>
+        {page}
     </section>
 |]
 
@@ -68,11 +71,34 @@ renderTimesheetWeekNavigationLink label url =
             , partialNavigationUrl = url
             , partialNavigationTargetId = timesheetWeekShellId
             , partialNavigationSelectId = Just timesheetWeekShellId
-            , partialNavigationClass = "btn btn-outline-secondary"
+            , partialNavigationClass = "btn btn-outline-secondary app-week-nav-button"
             , partialNavigationSwap = "outerHTML"
             , partialNavigationSync = Just ("#" <> timesheetWeekShellId <> ":replace")
             , partialNavigationPushUrl = True
             }
+
+renderTimesheetWeekHeader :: Int -> Day -> Html
+renderTimesheetWeekHeader weekOffset weekStartDate = [hsx|
+    <div class="app-panel-header app-surface-toolbar">
+        <div class="app-surface-toolbar-side">
+            {renderTimesheetWeekNavigationLink "This week" (pathTo TimesheetsAction)}
+        </div>
+        <div class="app-surface-toolbar-center">
+            <div class="btn-group app-week-nav-group" role="group" aria-label="Timesheet week navigation">
+                {renderTimesheetWeekNavigationLink "<" (pathTo (ShowTimesheetWeekAction (weekOffset - 1)))}
+                <div class="btn btn-outline-secondary app-week-nav-label">
+                    {renderTimesheetWeekLabel weekStartDate}
+                </div>
+                {renderTimesheetWeekNavigationLink ">" (pathTo (ShowTimesheetWeekAction (weekOffset + 1)))}
+            </div>
+        </div>
+        <div class="app-surface-toolbar-side app-surface-toolbar-side-right"></div>
+    </div>
+|]
+
+renderTimesheetWeekLabel :: Day -> Text
+renderTimesheetWeekLabel weekStartDate =
+    "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
 renderDaySection :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Int -> Html
 renderDaySection =
@@ -261,7 +287,7 @@ formatDateCompact day =
     Text.pack (formatTime defaultTimeLocale "%d/%m" day)
 
 boolText :: Bool -> Text
-boolText True = "true"
+boolText True  = "true"
 boolText False = "false"
 
 data TimesheetTimelineScale = TimesheetTimelineScale
@@ -355,20 +381,20 @@ renderTimesheetShapeSegment segment = [hsx|
 |]
 
 liveUpdateScopeKind :: LiveUpdateScope -> Text
-liveUpdateScopeKind LeaveRequestsScope {} = "leave_requests"
-liveUpdateScopeKind RosterWeekScope {}    = "roster_week"
+liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
+liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
 liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
-liveUpdateScopeKind AdminSlotNamesScope {} = "admin_slot_names"
-liveUpdateScopeKind AdminInvitesScope {} = "admin_invites"
-liveUpdateScopeKind TimesheetWeekScope {} = "timesheet_week"
+liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
+liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
+liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
 
 liveUpdateVenueId :: LiveUpdateScope -> Text
-liveUpdateVenueId LeaveRequestsScope { venueId } = tshow venueId
-liveUpdateVenueId RosterWeekScope { venueId }    = tshow venueId
+liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
+liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
 liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
-liveUpdateVenueId AdminSlotNamesScope { venueId } = tshow venueId
-liveUpdateVenueId AdminInvitesScope { venueId } = tshow venueId
-liveUpdateVenueId TimesheetWeekScope { venueId } = tshow venueId
+liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
+liveUpdateVenueId AdminInvitesScope { venueId }      = tshow venueId
+liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
 
 liveUpdateWeekOffsetText :: LiveUpdateScope -> Maybe Text
 liveUpdateWeekOffsetText LeaveRequestsScope {}          = Nothing

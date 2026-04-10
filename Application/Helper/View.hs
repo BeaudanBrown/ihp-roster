@@ -65,7 +65,7 @@ renderStaffLastInitial :: Staff -> Text
 renderStaffLastInitial staff =
     case Text.find (not . Char.isSpace) (Text.strip staff.lastName) of
         Just char -> " " <> Text.singleton (Char.toUpper char) <> "."
-        Nothing -> ""
+        Nothing   -> ""
 
 nonBlankText :: Text -> Maybe Text
 nonBlankText text =
@@ -128,18 +128,26 @@ data PartialNavigationLink = PartialNavigationLink
     }
 
 data TimePickerConfig = TimePickerConfig
-    { timePickerFieldName      :: !Text
-    , timePickerCurrentValue   :: !Text
-    , timePickerRangeStart     :: !Text
-    , timePickerRangeEnd       :: !Text
-    , timePickerDisabled       :: !Bool
+    { timePickerFieldName       :: !Text
+    , timePickerCurrentValue    :: !Text
+    , timePickerRangeStart      :: !Text
+    , timePickerRangeEnd        :: !Text
+    , timePickerDisabled        :: !Bool
     , timePickerShowStepButtons :: !Bool
-    , timePickerEmptyLabel     :: !Text
-    , timePickerFieldClasses   :: ![Text]
-    , timePickerControlClasses :: ![Text]
-    , timePickerInputClasses   :: ![Text]
-    , timePickerTriggerClasses :: ![Text]
-    , timePickerAriaLabel      :: !Text
+    , timePickerEmptyLabel      :: !Text
+    , timePickerFieldClasses    :: ![Text]
+    , timePickerControlClasses  :: ![Text]
+    , timePickerInputClasses    :: ![Text]
+    , timePickerTriggerClasses  :: ![Text]
+    , timePickerAriaLabel       :: !Text
+    }
+
+data AppPageConfig = AppPageConfig
+    { appPageTitle       :: !Text
+    , appPageDescription :: !(Maybe Text)
+    , appPageActions     :: !Html
+    , appPageWidthClass  :: !Text
+    , appPageBody        :: !Html
     }
 
 defaultOverlayButtons :: Text -> [OverlayButton]
@@ -243,6 +251,25 @@ renderPageDialogButton closeUrl button =
                 {button.overlayButtonLabel}
             </a>
         |]
+
+renderAppPage :: AppPageConfig -> Html
+renderAppPage AppPageConfig { appPageTitle, appPageDescription, appPageActions, appPageWidthClass, appPageBody } = [hsx|
+    <section class={classes [("app-page", True), (appPageWidthClass, not (Text.null appPageWidthClass))]}>
+        <header class="app-page-header">
+            <div class="app-page-title-block">
+                <h1 class="app-page-title">{appPageTitle}</h1>
+                {forEach appPageDescription renderAppPageDescription}
+            </div>
+            {appPageActions}
+        </header>
+        {appPageBody}
+    </section>
+|]
+
+renderAppPageDescription :: Text -> Html
+renderAppPageDescription description = [hsx|
+    <p class="app-page-description">{description}</p>
+|]
 
 renderPartialNavigationLink :: PartialNavigationLink -> Html
 renderPartialNavigationLink PartialNavigationLink { partialNavigationLabel, partialNavigationUrl, partialNavigationTargetId, partialNavigationSelectId, partialNavigationClass, partialNavigationSwap, partialNavigationSync, partialNavigationPushUrl } = [hsx|

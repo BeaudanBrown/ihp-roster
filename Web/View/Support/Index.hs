@@ -4,22 +4,22 @@ import Application.Helper.Controller (currentVenueOrNothing)
 import Web.View.Prelude
 
 data IndexView = IndexView
-    { venues :: [Venue]
-    , venue :: Venue
+    { venues       :: [Venue]
+    , venue        :: Venue
     , createdVenue :: Maybe Venue
     }
 
 instance View IndexView where
-    html IndexView { .. } = [hsx|
-        <div class="row justify-content-center">
-            <div class="col-12 col-xl-8">
+    html IndexView { .. } =
+        renderAppPage (AppPageConfig
+            { appPageTitle = "Support"
+            , appPageDescription = Nothing
+            , appPageActions = mempty
+            , appPageWidthClass = ""
+            , appPageBody = [hsx|
                 {renderCreatedVenueBanner createdVenue}
                 <div class="app-panel">
                     <div class="app-panel-body">
-                        <h1 class="h4 mb-2">Support</h1>
-                        <p class="app-muted mb-4">
-                            Switch the current venue context for founder support access. This changes the existing session venue and does not create a real venue membership.
-                        </p>
                         <div class="border rounded p-3 bg-light-subtle mb-4">
                             <div class="small text-uppercase app-muted mb-1">Current support venue</div>
                             <div class="fw-semibold">
@@ -39,12 +39,15 @@ instance View IndexView where
                         </form>
                     </div>
                 </div>
-                <div class="app-panel mt-4">
+                <div class="app-panel">
+                    <div class="app-panel-header">
+                        <div class="app-panel-heading">
+                            <div>
+                                <h2 class="app-panel-title h5">Create Venue</h2>
+                            </div>
+                        </div>
+                    </div>
                     <div class="app-panel-body">
-                        <h2 class="h5 mb-2">Create Venue</h2>
-                        <p class="app-muted mb-4">
-                            Create a new active venue and apply the minimum Bepis schedule defaults. Customer invitations happen later, after any founder-side setup is complete.
-                        </p>
                         <form method="POST" action={CreateSupportVenueAction} class="row g-3" data-disable-javascript-submission="true">
                             <div class="col-12">
                                 <label class="form-label" for="support-create-venue-name">Venue name</label>
@@ -64,9 +67,8 @@ instance View IndexView where
                         </form>
                     </div>
                 </div>
-            </div>
-        </div>
-    |]
+            |]
+            })
 
 renderVenueOption :: Venue -> Html
 renderVenueOption venue = [hsx|

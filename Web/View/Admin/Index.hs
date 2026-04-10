@@ -25,32 +25,39 @@ data IndexView = IndexView
     }
 
 instance View IndexView where
-    html IndexView { .. } = [hsx|
-        <div class="row g-3">
-            <div class="col-12">
-                {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
-            </div>
-        </div>
-        <div data-live-update-owner="true"
-             data-live-update-feature="admin-slot-names"
-             data-live-updates-path="/live-updates"
-             data-live-update-content-url={appendQueryParams (pathTo ShowAdminSlotNamesFragmentAction) [("rosterGroupId", tshow currentRosterGroup.id)]}
-             data-live-update-client-enabled={isJust slotNamesLiveUpdateScope}
-             data-live-update-client-id=""
-             data-live-update-scope-kind={liveUpdateScopeKind <$> slotNamesLiveUpdateScope}
-             data-live-update-venue-id={liveUpdateVenueId <$> slotNamesLiveUpdateScope}
-             data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< slotNamesLiveUpdateScope}
-             hidden="hidden"></div>
-        <div data-live-update-owner="true"
-             data-live-update-feature="admin-invites"
-             data-live-updates-path="/live-updates"
-             data-live-update-content-url={appendQueryParams (pathTo ShowAdminInvitesFragmentAction) [("rosterGroupId", tshow currentRosterGroup.id)]}
-             data-live-update-client-enabled={isJust invitesLiveUpdateScope}
-             data-live-update-client-id=""
-             data-live-update-scope-kind={liveUpdateScopeKind <$> invitesLiveUpdateScope}
-             data-live-update-venue-id={liveUpdateVenueId <$> invitesLiveUpdateScope}
-             hidden="hidden"></div>
-    |]
+    html IndexView { .. } =
+        renderAppPage (AppPageConfig
+            { appPageTitle = "Admin"
+            , appPageDescription = Nothing
+            , appPageActions = mempty
+            , appPageWidthClass = ""
+            , appPageBody = [hsx|
+                <div class="row g-3">
+                    <div class="col-12">
+                        {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
+                    </div>
+                </div>
+                <div data-live-update-owner="true"
+                     data-live-update-feature="admin-slot-names"
+                     data-live-updates-path="/live-updates"
+                     data-live-update-content-url={appendQueryParams (pathTo ShowAdminSlotNamesFragmentAction) [("rosterGroupId", tshow currentRosterGroup.id)]}
+                     data-live-update-client-enabled={isJust slotNamesLiveUpdateScope}
+                     data-live-update-client-id=""
+                     data-live-update-scope-kind={liveUpdateScopeKind <$> slotNamesLiveUpdateScope}
+                     data-live-update-venue-id={liveUpdateVenueId <$> slotNamesLiveUpdateScope}
+                     data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< slotNamesLiveUpdateScope}
+                     hidden="hidden"></div>
+                <div data-live-update-owner="true"
+                     data-live-update-feature="admin-invites"
+                     data-live-updates-path="/live-updates"
+                     data-live-update-content-url={appendQueryParams (pathTo ShowAdminInvitesFragmentAction) [("rosterGroupId", tshow currentRosterGroup.id)]}
+                     data-live-update-client-enabled={isJust invitesLiveUpdateScope}
+                     data-live-update-client-id=""
+                     data-live-update-scope-kind={liveUpdateScopeKind <$> invitesLiveUpdateScope}
+                     data-live-update-venue-id={liveUpdateVenueId <$> invitesLiveUpdateScope}
+                     hidden="hidden"></div>
+            |]
+            })
 
 renderPayLevelsSection :: [PayLevel] -> Html
 renderPayLevelsSection payLevels =
@@ -971,5 +978,5 @@ invitationRoleLabel value =
     case inputValue value of
         "venue_owner" -> "Venue Owner"
         "venue_admin" -> "Venue Admin"
-        "manager" -> "Manager"
-        _ -> "Worker"
+        "manager"     -> "Manager"
+        _             -> "Worker"

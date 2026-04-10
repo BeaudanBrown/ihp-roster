@@ -1,12 +1,13 @@
 module Web.View.Layout (defaultLayout, Html) where
 
+import Application.Helper.Controller (currentSupportVenueOptions,
+                                      currentVenueOrNothing)
 import Application.Helper.View
-import Application.Helper.Controller (currentSupportVenueOptions, currentVenueOrNothing)
+import qualified Data.Text.Encoding as Text
 import Generated.Types
 import IHP.ControllerSupport (getRequestPathAndQuery)
 import IHP.Environment
 import IHP.ViewPrelude
-import qualified Data.Text.Encoding as Text
 import Web.Routes
 import Web.Types
 

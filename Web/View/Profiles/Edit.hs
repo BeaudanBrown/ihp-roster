@@ -16,20 +16,25 @@ data EditView = EditView
     }
 
 instance View EditView where
-    html EditView { .. } = [hsx|
-        <div class="app-page-auth">
-            <div class="app-auth-card app-auth-card-wide app-auth-card-profile">
-                {renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys}
-            </div>
-        </div>
-    |]
+    html EditView { .. } =
+        renderAppPage (AppPageConfig
+            { appPageTitle = "Profile"
+            , appPageDescription = Nothing
+            , appPageActions = mempty
+            , appPageWidthClass = ""
+            , appPageBody = [hsx|
+                <div class="app-panel">
+                    {renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys}
+                </div>
+            |]
+            })
 
 renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [Text] -> Html
 renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys = [hsx|
-    <div id={profileContentFragmentId} class="app-auth-body">
-        <h4 class="card-title mb-3 text-center">Profile</h4>
-        <p class="app-muted text-center">Update your profile details.</p>
-        {renderForm staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys}
+    <div id={profileContentFragmentId}>
+        <div class="app-panel-body">
+            {renderForm staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys}
+        </div>
     </div>
 |]
 
