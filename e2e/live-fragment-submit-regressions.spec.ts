@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady } from './test-helpers';
+import { writeFile } from 'node:fs/promises';
+import { gotoWhenReady, loginAs } from './test-helpers';
 
 async function login(page) {
     await gotoWhenReady(page, '/NewSession', '#email');
@@ -25,6 +26,43 @@ async function setFlatpickrDate(page, selector: string, value: string) {
 }
 
 test.describe('HTMX submit regressions', () => {
+    test('profile leave submit appends a leave request without nesting the whole profile page', async ({ page }) => {
+        const note = 'profile-leave-submit-check';
+
+        await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/EditProfile', '#profile-content-fragment');
+
+        const leaveSectionToggle = page.getByRole('button', { name: 'Leave Requests' });
+        if ((await leaveSectionToggle.getAttribute('aria-expanded')) !== 'true') {
+            await leaveSectionToggle.click();
+        }
+
+        await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
+        await expect(page.locator('#profile-leave-requests-list-fragment')).toBeVisible();
+
+        const initialCount = await page.locator('#profile-leave-requests-list-fragment .leave-request-row').count();
+        const submitResponsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/CreateLeaveRequest')
+        );
+
+        await setFlatpickrDate(page, '#startDate', '2026-03-23');
+        await setFlatpickrDate(page, '#endDate', '2026-03-24');
+        await page.fill('#notes', note);
+        await page.getByRole('button', { name: 'Submit Leave Request' }).click();
+
+        const submitResponse = await submitResponsePromise;
+        const submitResponseText = await submitResponse.text();
+        await writeFile(test.info().outputPath('profile-leave-submit-response.html'), submitResponseText);
+
+        await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
+        await expect(page.locator('#profile-leave-requests-list-fragment')).toContainText(note);
+        await expect(page.locator('#profile-leave-requests-list-fragment .leave-request-row')).toHaveCount(initialCount + 1);
+        await expect(page.locator('#profile-leave-request-form-fragment #profile-content-fragment')).toHaveCount(0);
+        await expect(page.locator('#profile-leave-request-form-fragment #profile-leave-requests-content')).toHaveCount(0);
+        expect(submitResponseText).not.toContain('id="profile-content-fragment"');
+        expect(submitResponseText).not.toContain('id="profile-leave-requests-content"');
+    });
+
     test('leave request modal date fields get flatpickr after HTMX swap', async ({ page }) => {
         await login(page);
         await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');

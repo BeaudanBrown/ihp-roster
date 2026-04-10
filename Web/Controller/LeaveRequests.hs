@@ -23,7 +23,12 @@ import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation,
                                    buildRosterStaffPanelFragmentRef)
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
-import Web.View.Profiles.Edit (renderProfileLeaveRequestsContentFragment)
+import Web.View.Profiles.Edit (renderProfileLeaveRequestFormFragment,
+                               renderProfileLeaveRequestsContentFragment,
+                               renderProfileLeaveRequestsListFragmentOob,
+                               profileLeaveRequestFormFragmentId,
+                               profileLeaveRequestsContentFragmentId,
+                               profileLeaveRequestsListFragmentId)
 
 instance Controller LeaveRequestsController where
     beforeAction = do
@@ -42,7 +47,7 @@ instance Controller LeaveRequestsController where
 
     action NewLeaveRequestAction = do
         maybeStaff <- fetchCurrentUserStaff
-        let responseContext = effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))
+        let responseContext = requestedLeaveResponseContext
         ensureLeaveProfileAccess responseContext
         case maybeStaff of
             Nothing -> do
@@ -55,7 +60,7 @@ instance Controller LeaveRequestsController where
 
     action CreateLeaveRequestAction = do
         maybeStaff <- fetchCurrentUserStaff
-        let responseContext = effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))
+        let responseContext = requestedLeaveResponseContext
         ensureLeaveProfileAccess responseContext
         case maybeStaff of
             Nothing -> do
@@ -176,7 +181,7 @@ instance Controller LeaveRequestsController where
 
     action DeleteLeaveRequestAction { leaveRequestId } = do
         leaveRequest <- fetch leaveRequestId
-        let responseContext = effectiveLeaveResponseContext (parseLeaveResponseContext (paramOrDefault @Text "responseContext" "page"))
+        let responseContext = requestedLeaveResponseContext
         ensureLeaveProfileAccess responseContext
         ensureRecordInCurrentVenue leaveRequest.venueId
         ensureLeaveDeleteAllowed leaveRequest
@@ -341,6 +346,21 @@ effectiveLeaveResponseContext requestedContext
     | not (hasRole ManagerRole') = LeaveProfileResponseContext
     | otherwise = requestedContext
 
+requestedLeaveResponseContext :: (?context :: ControllerContext, ?request :: Request) => LeaveResponseContext
+requestedLeaveResponseContext =
+    effectiveLeaveResponseContext $
+        fromMaybe inferredFromHtmxTarget (parseLeaveResponseContext <$> paramOrNothing @Text "responseContext")
+    where
+        inferredFromHtmxTarget =
+            case cs <$> getHeader "HX-Target" of
+                Just targetId
+                    | targetId `elem`
+                        [ profileLeaveRequestsContentFragmentId
+                        , profileLeaveRequestFormFragmentId
+                        , profileLeaveRequestsListFragmentId
+                        ] -> LeaveProfileResponseContext
+                _ -> LeavePageResponseContext
+
 leaveFallbackPath :: LeaveResponseContext -> Text
 leaveFallbackPath LeavePageResponseContext = pathTo EditProfileAction
 leaveFallbackPath LeaveProfileResponseContext =
@@ -351,9 +371,8 @@ respondWithLeaveRequestValidationFailure responseContext leaveRequest =
     case responseContext of
         LeavePageResponseContext ->
             respondHtml (renderNewLeaveRequestDialog leaveRequest)
-        LeaveProfileResponseContext -> do
-            leaveRequests <- fetchCurrentUserLeaveRequests
-            respondHtml (renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests)
+        LeaveProfileResponseContext ->
+            respondHtml (renderProfileLeaveRequestFormFragment leaveRequest)
 
 respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> Bool -> IO ()
 respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmentOob =
@@ -365,7 +384,8 @@ respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmen
             leaveRequest <- buildDefaultLeaveRequest
             respondHtmlProfiled $
                 mconcat
-                    [ renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests
+                    [ renderProfileLeaveRequestFormFragment leaveRequest
+                    , renderProfileLeaveRequestsListFragmentOob leaveRequests
                     , renderToastOverlayHostOob ToastBottomCenter
                         [ ToastOverlayConfig
                             { toastOverlayTitle = Just "Success"
@@ -389,11 +409,10 @@ respondWithLeaveContextError responseContext errorMessage =
             setErrorMessage errorMessage
             redirectToPath (leaveFallbackPath responseContext)
         LeaveProfileResponseContext -> do
-            leaveRequests <- fetchCurrentUserLeaveRequests
             leaveRequest <- buildDefaultLeaveRequest
             respondHtmlProfiled $
                 mconcat
-                    [ renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests
+                    [ renderProfileLeaveRequestFormFragment leaveRequest
                     , renderToastOverlayHostOob ToastBottomCenter
                         [ ToastOverlayConfig
                             { toastOverlayTitle = Just "Error"

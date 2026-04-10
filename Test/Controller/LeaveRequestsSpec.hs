@@ -264,9 +264,12 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
+                bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\" hx-swap-oob=\"outerHTML\""
                 bodyText `shouldContain` "Leave request submitted"
                 bodyText `shouldContain` "Submitted Requests"
+                bodyText `shouldNotContain` "id=\"profile-content-fragment\""
+                bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
 
                 versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore + 1
@@ -290,9 +293,37 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
                 bodyText `shouldContain` "No staff record found. Contact an administrator."
                 bodyText `shouldNotContain` "id=\"profile-content-fragment\""
+                bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
+
+        it "infers profile leave context from the HTMX target when responseContext is missing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Venue"
+                user <- createUserRecord "leave-profile-target-inference@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createStaffRecord venue (Just user) "Admin" "Crew"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders
+                        [ ("HX-Request", "true")
+                        , ("HX-Target", "profile-leave-request-form-fragment")
+                        ] do
+                            callActionWithParams CreateLeaveRequestAction
+                                [ ("startDate", "2025-01-13")
+                                , ("endDate", "2025-01-14")
+                                , ("notes", "HTMX target inference")
+                                ]
+
+                response `responseStatusShouldBe` status200
+                body <- responseBody response
+                let bodyText = cs (LByteString.unpack body)
+                bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
+                bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\" hx-swap-oob=\"outerHTML\""
+                bodyText `shouldContain` "HTMX target inference"
+                bodyText `shouldNotContain` "id=\"leave-requests-content\""
+                bodyText `shouldNotContain` "Pending ("
 
         it "manager review actions bump the leave scope version" $ withContext do
             withCleanDb do
@@ -336,7 +367,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"profile-leave-requests-content\""
+                bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
+                bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\" hx-swap-oob=\"outerHTML\""
                 versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore + 1
 

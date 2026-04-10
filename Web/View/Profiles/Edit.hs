@@ -20,6 +20,26 @@ profileSectionsAccordionId = "profile-sections"
 profileLeaveRequestsContentFragmentId :: Text
 profileLeaveRequestsContentFragmentId = "profile-leave-requests-content"
 
+profileLeaveRequestFormFragmentId :: Text
+profileLeaveRequestFormFragmentId = "profile-leave-request-form-fragment"
+
+profileLeaveRequestsListFragmentId :: Text
+profileLeaveRequestsListFragmentId = "profile-leave-requests-list-fragment"
+
+profileLeaveQueryParams :: [(Text, Text)]
+profileLeaveQueryParams =
+    [ ("responseContext", "profile")
+    , ("section", "leave")
+    ]
+
+profileCreateLeaveRequestPath :: Text
+profileCreateLeaveRequestPath =
+    appendQueryParams (pathTo CreateLeaveRequestAction) profileLeaveQueryParams
+
+profileDeleteLeaveRequestPath :: Id LeaveRequest -> Text
+profileDeleteLeaveRequestPath leaveRequestId =
+    appendQueryParams (pathTo (DeleteLeaveRequestAction leaveRequestId)) profileLeaveQueryParams
+
 data EditView = EditView
     { staff                       :: Staff
     , currentUserEmail            :: Text
@@ -126,33 +146,50 @@ renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests = [hsx|
     <div id={profileLeaveRequestsContentFragmentId}>
         <div class="row g-4 align-items-start">
             <div class="col-12 col-xl-5">
-                {renderProfileLeaveRequestForm leaveRequest}
+                {renderProfileLeaveRequestFormFragment leaveRequest}
             </div>
             <div class="col-12 col-xl-7">
-                <h5 class="mb-3">Submitted Requests</h5>
-                {renderProfileLeaveRequestsList leaveRequests}
+                {renderProfileLeaveRequestsListFragment leaveRequests}
             </div>
         </div>
     </div>
 |]
 
-renderProfileLeaveRequestForm :: LeaveRequest -> Html
-renderProfileLeaveRequestForm leaveRequest = [hsx|
-    <form id="profile-leave-request-form"
-          method="POST"
-          action={CreateLeaveRequestAction}
-          data-disable-javascript-submission="true"
-          hx-post={CreateLeaveRequestAction}
-          hx-target={"#" <> profileLeaveRequestsContentFragmentId}
-          hx-swap="outerHTML"
-          hx-push-url="false">
-        <input type="hidden" name="responseContext" value="profile"/>
-        <input type="hidden" name="section" value="leave"/>
-        {renderLeaveRequestFormFields leaveRequest}
-        <div class="d-grid mt-4 app-form-width">
-            <button type="submit" class="btn btn-primary">Submit Leave Request</button>
-        </div>
-    </form>
+renderProfileLeaveRequestFormFragment :: LeaveRequest -> Html
+renderProfileLeaveRequestFormFragment leaveRequest = [hsx|
+    <div id={profileLeaveRequestFormFragmentId}>
+        <form id="profile-leave-request-form"
+              method="POST"
+              action={profileCreateLeaveRequestPath}
+              data-disable-javascript-submission="true"
+              hx-post={profileCreateLeaveRequestPath}
+              hx-target={"#" <> profileLeaveRequestFormFragmentId}
+              hx-swap="outerHTML"
+              hx-push-url="false">
+            <input type="hidden" name="responseContext" value="profile"/>
+            <input type="hidden" name="section" value="leave"/>
+            {renderLeaveRequestFormFields leaveRequest}
+            <div class="d-grid mt-4 app-form-width">
+                <button type="submit" class="btn btn-primary">Submit Leave Request</button>
+            </div>
+        </form>
+    </div>
+|]
+
+renderProfileLeaveRequestsListFragment :: [LeaveRequest] -> Html
+renderProfileLeaveRequestsListFragment leaveRequests = [hsx|
+    <div id={profileLeaveRequestsListFragmentId}>
+        <h5 class="mb-3">Submitted Requests</h5>
+        {renderProfileLeaveRequestsList leaveRequests}
+    </div>
+|]
+
+renderProfileLeaveRequestsListFragmentOob :: [LeaveRequest] -> Html
+renderProfileLeaveRequestsListFragmentOob leaveRequests = [hsx|
+    <div id={profileLeaveRequestsListFragmentId} hx-swap-oob="outerHTML">
+        <h5 class="mb-3">Submitted Requests</h5>
+        {renderProfileLeaveRequestsList leaveRequests}
+    </div>
 |]
 
 renderProfileLeaveRequestsList :: [LeaveRequest] -> Html
@@ -200,10 +237,10 @@ renderProfileLeaveDeleteAction leaveRequest =
     if leaveRequestCanBeDeleted leaveRequest
         then [hsx|
             <form method="POST"
-                  action={DeleteLeaveRequestAction leaveRequest.id}
+                  action={profileDeleteLeaveRequestPath leaveRequest.id}
                   class="d-inline"
-                  hx-delete={DeleteLeaveRequestAction leaveRequest.id}
-                  hx-target={"#" <> profileLeaveRequestsContentFragmentId}
+                  hx-delete={profileDeleteLeaveRequestPath leaveRequest.id}
+                  hx-target={"#" <> profileLeaveRequestsListFragmentId}
                   hx-swap="outerHTML"
                   hx-push-url="false">
                 <input type="hidden" name="_method" value="DELETE"/>
