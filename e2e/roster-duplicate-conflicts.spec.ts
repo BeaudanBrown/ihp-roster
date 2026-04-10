@@ -41,8 +41,7 @@ async function commitRosterEdit(page) {
 async function normalizeRosterForDuplicateConflict(actorPage) {
     const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
     const alphaCrewEntry = actorPage
-        .locator('#roster-staff-panel-fragment .roster-staff-panel-entry')
-        .filter({ hasText: 'Alpha Crew' })
+        .locator('#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-name="Alpha"]')
         .first();
 
     await ensureSecondRosterRow(actorPage);
@@ -94,8 +93,7 @@ test.describe('Roster duplicate conflicts', () => {
 
         const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
         const alphaCrewEntry = actorPage
-            .locator('#roster-staff-panel-fragment .roster-staff-panel-entry')
-            .filter({ hasText: 'Alpha Crew' })
+            .locator('#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-name="Alpha"]')
             .first();
 
         await assignStaffToRow(actorPage, 1, alphaCrewStaffId);

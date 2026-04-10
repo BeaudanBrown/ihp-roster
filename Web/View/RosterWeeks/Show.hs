@@ -1,14 +1,16 @@
 module Web.View.RosterWeeks.Show where
 
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
-import Application.Helper.View (staffDisplayName)
+import Application.Helper.View (appendQueryParams, staffDisplayName)
 import Data.Coerce (coerce)
 import Data.List (find, nub, sort)
 import qualified Data.Map.Strict as Map
+import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.UUID (UUID)
 import Web.View.Prelude
 
@@ -27,7 +29,24 @@ data ShowView = ShowView
     , slotNames          :: [SlotName]
     , allSlots           :: [RosterSlot]
     , slotConflicts      :: [(Id RosterSlot, [RosterConflict])]
+    , renderIndexes      :: RosterRenderIndexes
     , liveUpdateScope    :: Maybe LiveUpdateScope
+    }
+
+data RosterRenderIndexes = RosterRenderIndexes
+    { rosterDayById              :: Map.Map UUID RosterDay
+    , rosterDayRowsByDayId       :: Map.Map UUID [(Int, [RosterSlot])]
+    , rosterSlotByDayRowSlotName :: Map.Map (UUID, Int, UUID) RosterSlot
+    , rosterStaffById            :: Map.Map UUID Staff
+    , rosterConflictsBySlotId    :: Map.Map UUID [RosterConflict]
+    }
+
+data RosterWeekOverviewDay = RosterWeekOverviewDay
+    { overviewDate      :: Day
+    , leaveRequestCount :: Int
+    , overviewAssignedShiftCount :: Int
+    , scheduledMinutes  :: Int
+    , overviewIsClosed  :: Bool
     }
 
 data RosterStaffPanelEntry = RosterStaffPanelEntry
@@ -98,40 +117,266 @@ renderRosterWeekShell ShowView { .. } = [hsx|
              data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
              data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< liveUpdateScope}
              hidden="hidden"></div>
-        {renderRosterContentFragment rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts}
+        {renderRosterContentFragment rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes}
     </section>
 |]
 
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> Html
 renderRosterWeekControls weekOffset currentRosterGroup weekStartDate = [hsx|
     <div class="btn-group roster-week-nav-group" role="group" aria-label="Roster week navigation">
-        {renderWeekNavigationLink "<" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
-        {renderWeekDatePickerButton weekOffset currentRosterGroup.id weekStartDate}
-        {renderWeekNavigationLink ">" (rosterWeekPath (weekOffset + 1) currentRosterGroup.id)}
+        {renderWeekNavigationLink "bi-chevron-left" "Previous week" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
+        {renderWeekOverviewDropdown weekOffset currentRosterGroup.id weekStartDate}
+        {renderWeekNavigationLink "bi-chevron-right" "Next week" (rosterWeekPath (weekOffset + 1) currentRosterGroup.id)}
     </div>
 |]
 
-renderWeekDatePickerButton :: Int -> Id RosterGroup -> Day -> Html
-renderWeekDatePickerButton weekOffset rosterGroupId weekStartDate = [hsx|
-    <form class="mb-0" method="GET" action={pathTo (ShowRosterWeekAction weekOffset)}>
-        <input type="hidden" name="rosterGroupId" value={tshow rosterGroupId}/>
-        <label class="btn btn-outline-secondary mb-0 position-relative roster-week-nav-button roster-week-date-picker-button">
-            <span>{renderRosterWeekRangeLabel weekStartDate}</span>
-            <input type="date"
-                   name="weekDate"
-                   value={Text.pack (formatTime defaultTimeLocale "%Y-%m-%d" weekStartDate)}
-                   class="position-absolute top-0 start-0 w-100 h-100 opacity-0 roster-week-date-picker-input"
-                   onchange="this.form.requestSubmit()"
-                   aria-label="Choose roster week" />
-        </label>
-    </form>
+rosterWeekOverviewMountId :: Id RosterGroup -> Int -> Text
+rosterWeekOverviewMountId rosterGroupId weekOffset =
+    "roster-week-overview-mount-" <> tshow rosterGroupId <> "-" <> tshow weekOffset
+
+renderWeekOverviewDropdown :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Html
+renderWeekOverviewDropdown weekOffset rosterGroupId weekStartDate =
+    let
+        triggerId = "roster-week-overview-trigger-" <> tshow rosterGroupId <> "-" <> tshow weekOffset
+        mountId = rosterWeekOverviewMountId rosterGroupId weekOffset
+        fragmentUrl = appendQueryParams (pathTo (ShowRosterWeekOverviewFragmentAction weekOffset)) [("rosterGroupId", tshow rosterGroupId)]
+     in
+        [hsx|
+            <div class="dropdown roster-week-overview" data-week-overview="true">
+                <button class="btn btn-outline-secondary roster-week-nav-button roster-week-overview-trigger"
+                        type="button"
+                        id={triggerId}
+                        data-bs-toggle="dropdown"
+                        data-bs-auto-close="outside"
+                        aria-expanded="false"
+                        aria-label="Open roster week overview">
+                    <span class="roster-week-overview-trigger-icon" aria-hidden="true">
+                        <i class="bi bi-calendar3"></i>
+                    </span>
+                    <span>{renderRosterWeekLabel weekStartDate}</span>
+                </button>
+                <div class="dropdown-menu dropdown-menu-end roster-week-overview-menu" aria-labelledby={triggerId}>
+                    <div id={mountId}
+                         data-week-overview-fragment-mount="true"
+                         hx-get={fragmentUrl}
+                         hx-trigger="load"
+                         hx-swap="innerHTML">
+                        {renderWeekOverviewDropdownLoading}
+                    </div>
+                </div>
+            </div>
+        |]
+
+renderWeekOverviewDropdownLoading :: Html
+renderWeekOverviewDropdownLoading = [hsx|
+    <div class="roster-week-overview-panel roster-week-overview-panel-loading">
+        <div class="roster-week-overview-header">
+            <div>
+                <div class="roster-week-overview-eyebrow">Month overview</div>
+                <div class="roster-week-overview-month">Loading...</div>
+            </div>
+        </div>
+        <div class="app-muted small">Loading month overview...</div>
+    </div>
 |]
 
-renderRosterWeekRangeLabel :: Day -> Text
-renderRosterWeekRangeLabel weekStartDate =
-    let weekEndDate = Calendar.addDays 6 weekStartDate
-        formatRangeDate date = Text.pack (formatTime defaultTimeLocale "%d/%m" date)
-     in formatRangeDate weekStartDate <> " - " <> formatRangeDate weekEndDate
+renderWeekOverviewPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Day -> [RosterWeekOverviewDay] -> Html
+renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate weekOverviewDays =
+    let
+        initialDate = initialOverviewDate weekStartDate todayDate weekOverviewDays
+        monthDays = buildOverviewMonthDays initialDate
+        initialOverviewDay = find (\daySummary -> overviewDate daySummary == initialDate) weekOverviewDays
+     in
+        [hsx|
+            <div class="roster-week-overview-panel"
+                 data-week-overview-panel="true"
+                 data-week-overview-current-date={formatDayParam todayDate}
+                 data-week-overview-loaded="true">
+                <div class="roster-week-overview-header">
+                    <div>
+                        <div class="roster-week-overview-eyebrow">Month overview</div>
+                        <div class="roster-week-overview-month">{renderMonthLabel initialDate}</div>
+                    </div>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary"
+                            data-week-overview-today="true">
+                        Today
+                    </button>
+                </div>
+                <div class="roster-week-overview-layout">
+                    <div class="roster-week-overview-calendar">
+                        <div class="roster-week-overview-weekdays">
+                            {forEach weekdayLabels renderOverviewWeekdayLabel}
+                        </div>
+                        <div class="roster-week-overview-grid">
+                            {forEach monthDays (renderOverviewDayCell weekOffset rosterGroupId weekOverviewDays initialDate todayDate)}
+                        </div>
+                        <div class="roster-week-overview-legend">
+                            <span><span class="roster-week-overview-legend-dot"></span> Leave requests</span>
+                            <span><span class="roster-week-overview-legend-closed"></span> Closed</span>
+                            <span><span class="roster-week-overview-legend-today"></span> Today</span>
+                        </div>
+                    </div>
+                    {renderWeekOverviewDetailsCard weekOffset rosterGroupId initialDate initialOverviewDay}
+                </div>
+            </div>
+        |]
+
+renderRosterWeekLabel :: Day -> Text
+renderRosterWeekLabel weekStartDate = "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
+
+weekdayLabels :: [Text]
+weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+initialOverviewDate :: Day -> Day -> [RosterWeekOverviewDay] -> Day
+initialOverviewDate weekStartDate todayDate weekOverviewDays =
+    if any (\daySummary -> overviewDate daySummary == todayDate) weekOverviewDays
+        then todayDate
+        else weekStartDate
+
+renderMonthLabel :: Day -> Text
+renderMonthLabel date = Text.pack (formatTime defaultTimeLocale "%B %Y" date)
+
+renderOverviewWeekdayLabel :: Text -> Html
+renderOverviewWeekdayLabel label = [hsx|<div class="roster-week-overview-weekday">{label}</div>|]
+
+renderOverviewDayCell :: (?context :: ControllerContext) => Int -> Id RosterGroup -> [RosterWeekOverviewDay] -> Day -> Day -> Maybe Day -> Html
+renderOverviewDayCell _ _ _ _ _ Nothing = [hsx|<div class="roster-week-overview-day-spacer" aria-hidden="true"></div>|]
+renderOverviewDayCell weekOffset rosterGroupId weekOverviewDays initialDate todayDate (Just date) =
+    let
+        maybeOverviewDay = find (\daySummary -> overviewDate daySummary == date) weekOverviewDays
+        isInVisibleWeek = isJust maybeOverviewDay
+        isSelected = date == initialDate
+        navigateUrl = appendQueryParams (pathTo (ShowRosterWeekAction weekOffset)) [("rosterGroupId", tshow rosterGroupId), ("weekDate", formatDayParam date)]
+        weekStartLabel = "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" (startOfWeek date))
+        leaveCountText = maybe "" (tshow . leaveRequestCount) maybeOverviewDay
+        assignedText = maybe "" (tshow . overviewAssignedShiftCount) maybeOverviewDay
+        hoursText = maybe "" (formatMinutesAsHours . scheduledMinutes) maybeOverviewDay
+        detailsAvailable = isInVisibleWeek
+        detailSummary =
+            if isInVisibleWeek
+                then weekOverviewMetricSummaryMaybe maybeOverviewDay
+                else "No loaded roster summary for this date yet."
+        closedState = maybe False overviewIsClosed maybeOverviewDay
+        closedStateText :: Text
+        closedStateText = if closedState then "true" else "false"
+        detailsAvailableText :: Text
+        detailsAvailableText = if detailsAvailable then "true" else "false"
+        leaveDot =
+            if maybe False ((> 0) . leaveRequestCount) maybeOverviewDay
+                then [hsx|<span class="roster-week-overview-day-dot" aria-hidden="true"></span>|]
+                else mempty
+     in
+        [hsx|
+            <button type="button"
+                    class={classes [("roster-week-overview-day", True), ("is-selected", isSelected), ("is-current-week", isInVisibleWeek), ("is-closed", closedState), ("is-today", date == todayDate)]}
+                    data-week-overview-day="true"
+                    data-week-overview-date={formatDayParam date}
+                    data-week-overview-label={renderSelectedDateLabel date}
+                    data-week-overview-week-label={weekStartLabel}
+                    data-week-overview-url={navigateUrl}
+                    data-week-overview-leave={leaveCountText}
+                    data-week-overview-assigned={assignedText}
+                    data-week-overview-hours={hoursText}
+                    data-week-overview-closed={closedStateText}
+                    data-week-overview-details={detailsAvailableText}
+                    data-week-overview-summary={detailSummary}
+                    aria-pressed={isSelected}>
+                <span class="roster-week-overview-day-number">{Text.pack (formatTime defaultTimeLocale "%-d" date)}</span>
+                {leaveDot}
+            </button>
+        |]
+
+renderWeekOverviewDetailsCard :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Maybe RosterWeekOverviewDay -> Html
+renderWeekOverviewDetailsCard weekOffset rosterGroupId initialDate initialOverviewDay =
+    let
+        navigateUrl = appendQueryParams (pathTo (ShowRosterWeekAction weekOffset)) [("rosterGroupId", tshow rosterGroupId), ("weekDate", formatDayParam initialDate)]
+        closedState = maybe False overviewIsClosed initialOverviewDay
+        closedBadge =
+            if closedState
+                then [hsx|<span class="badge text-bg-secondary">Closed</span>|]
+                else mempty
+     in
+        [hsx|
+            <div class="roster-week-overview-details" data-week-overview-details-panel="true">
+                <div class="roster-week-overview-details-label">Selected date</div>
+                <div class="roster-week-overview-details-date" data-week-overview-selected-label="true">{renderSelectedDateLabel initialDate}</div>
+                <div class="roster-week-overview-metrics">
+                    <div class="roster-week-overview-metric">
+                        <span class="roster-week-overview-metric-value" data-week-overview-leave-value="true">{maybe "0" (tshow . leaveRequestCount) initialOverviewDay}</span>
+                        <span class="roster-week-overview-metric-label">leave requests</span>
+                    </div>
+                    <div class="roster-week-overview-metric">
+                        <span class="roster-week-overview-metric-value" data-week-overview-assigned-value="true">{maybe "0" (tshow . overviewAssignedShiftCount) initialOverviewDay}</span>
+                        <span class="roster-week-overview-metric-label">shifts assigned</span>
+                    </div>
+                    <div class="roster-week-overview-metric">
+                        <span class="roster-week-overview-metric-value" data-week-overview-hours-value="true">{maybe "0h" (formatMinutesAsHours . scheduledMinutes) initialOverviewDay}</span>
+                        <span class="roster-week-overview-metric-label">scheduled hours</span>
+                    </div>
+                </div>
+                <div class="roster-week-overview-summary" data-week-overview-summary-text="true">
+                    {maybe "No loaded roster summary for this date yet." weekOverviewMetricSummary initialOverviewDay}
+                </div>
+                <div class="roster-week-overview-week-target">
+                    <span data-week-overview-week-label="true">In {renderWeekLabelWithPrefix initialDate}</span>
+                    {closedBadge}
+                </div>
+                <a href={navigateUrl}
+                   class="btn btn-primary roster-week-overview-go"
+                   data-week-overview-go-link="true">
+                    Go to this week
+                </a>
+            </div>
+        |]
+
+renderSelectedDateLabel :: Day -> Text
+renderSelectedDateLabel date = Text.pack (formatTime defaultTimeLocale "%a %-d %b" date)
+
+renderWeekLabelWithPrefix :: Day -> Text
+renderWeekLabelWithPrefix date = "week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" (startOfWeek date))
+
+weekOverviewMetricSummaryMaybe :: Maybe RosterWeekOverviewDay -> Text
+weekOverviewMetricSummaryMaybe Nothing = "No loaded roster summary for this date yet."
+weekOverviewMetricSummaryMaybe (Just daySummary) = weekOverviewMetricSummary daySummary
+
+weekOverviewMetricSummary :: RosterWeekOverviewDay -> Text
+weekOverviewMetricSummary daySummary
+    | overviewIsClosed daySummary = "This day is closed for rostering."
+    | leaveRequestCount daySummary == 0 && overviewAssignedShiftCount daySummary == 0 = "No leave requests or assigned shifts loaded for this date yet."
+    | otherwise =
+        tshow (leaveRequestCount daySummary) <> " leave requests, "
+            <> tshow (overviewAssignedShiftCount daySummary) <> " shifts assigned, "
+            <> formatMinutesAsHours (scheduledMinutes daySummary) <> " scheduled."
+
+formatDayParam :: Day -> Text
+formatDayParam date = Text.pack (formatTime defaultTimeLocale "%Y-%m-%d" date)
+
+formatMinutesAsHours :: Int -> Text
+formatMinutesAsHours minutes =
+    let hours = minutes `div` 60
+        remainder = minutes `mod` 60
+     in if remainder == 0
+        then tshow hours <> "h"
+        else tshow hours <> "h " <> tshow remainder <> "m"
+
+startOfWeek :: Day -> Day
+startOfWeek date =
+    let (_, _, weekdayNumber) = toWeekDate date
+     in Calendar.addDays (toInteger (1 - weekdayNumber)) date
+
+buildOverviewMonthDays :: Day -> [Maybe Day]
+buildOverviewMonthDays focusDate =
+    let
+        (year, month, _) = Calendar.toGregorian focusDate
+        monthStart = Calendar.fromGregorian year month 1
+        (_, _, startWeekday) = toWeekDate monthStart
+        dayCount = Calendar.gregorianMonthLength year month
+        days = map (Just . Calendar.fromGregorian year month) [1 .. dayCount]
+        leading = replicate (startWeekday - 1) Nothing
+        totalCells = length leading + length days
+        trailing = replicate ((7 - totalCells `mod` 7) `mod` 7) Nothing
+     in leading <> days <> trailing
 
 renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
@@ -161,44 +406,48 @@ renderRosterWeekManagerControls weekOffset currentRosterGroup = [hsx|
     </div>
 |]
 
-renderWeekNavigationLink :: Text -> Text -> Html
-renderWeekNavigationLink label url =
-    renderPartialNavigationLink
-        PartialNavigationLink
-            { partialNavigationLabel = label
-            , partialNavigationUrl = url
-            , partialNavigationTargetId = rosterWeekShellId
-            , partialNavigationSelectId = Just rosterWeekShellId
-            , partialNavigationClass = "btn btn-outline-secondary roster-week-nav-button"
-            , partialNavigationSwap = "outerHTML"
-            , partialNavigationSync = Just ("#" <> rosterWeekShellId <> ":replace")
-            , partialNavigationPushUrl = True
-            }
+renderWeekNavigationLink :: Text -> Text -> Text -> Html
+renderWeekNavigationLink iconClass ariaLabel url =
+    [hsx|
+        <a href={url}
+           class="btn btn-outline-secondary roster-week-nav-button roster-week-nav-arrow"
+           aria-label={ariaLabel}
+           title={ariaLabel}
+           data-turbolinks="false"
+           hx-get={url}
+           hx-target={"#" <> rosterWeekShellId}
+           hx-swap="outerHTML"
+           hx-select={"#" <> rosterWeekShellId}
+           hx-push-url="true"
+           hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+            <i class={"bi " <> iconClass} aria-hidden="true"></i>
+        </a>
+    |]
 
-renderRosterContentFragment :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
+renderRosterContentFragment :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> Html
 renderRosterContentFragment =
     renderRosterContentFragmentWithSwap Nothing
 
-renderRosterContentFragmentOob :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
+renderRosterContentFragmentOob :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> Html
 renderRosterContentFragmentOob =
     renderRosterContentFragmentWithSwap (Just "outerHTML")
 
-renderRosterContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
-renderRosterContentFragmentWithSwap maybeSwapOob rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts = [hsx|
+renderRosterContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> Html
+renderRosterContentFragmentWithSwap maybeSwapOob rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes = [hsx|
     <div id={rosterContentFragmentId} hx-swap-oob={maybeSwapOob}>
-        {renderRosterContent rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts}
+        {renderRosterContent rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes}
     </div>
 |]
 
-renderRosterContent :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
-renderRosterContent Nothing rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts =
-    renderRosterGrid Nothing rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts
+renderRosterContent :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> Html
+renderRosterContent Nothing rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes =
+    renderRosterGrid Nothing rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes
 
-renderRosterContent (Just rosterWeek) rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts =
-    renderRosterGrid (Just rosterWeek) rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts
+renderRosterContent (Just rosterWeek) rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes =
+    renderRosterGrid (Just rosterWeek) rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes
 
-renderRosterGrid :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
-renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts = [hsx|
+renderRosterGrid :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> Html
+renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes = [hsx|
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
             <div class="card shadow-sm mb-5 mb-xl-0">
@@ -216,7 +465,9 @@ renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRoste
                                 {forEach slotNames renderSlotSubHeaders}
                             </tr>
                         </thead>
-                        {forEach rosterDays (renderRosterDay (rosterWeekIsEditable maybeRosterWeek) slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts)}
+                        <tbody>
+                            {forEach rosterDays (renderRosterDay (rosterWeekIsEditable maybeRosterWeek) slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes)}
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -246,6 +497,7 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
     <div class="card-header roster-grid-header py-3">
         <div class="roster-grid-header-side roster-grid-header-side-left">
             {renderLiveToggle maybeRosterWeek}
+            {renderThisWeekButton}
         </div>
         <div class="roster-grid-header-center">
             {renderRosterWeekControls weekOffset currentRosterGroup weekStartDate}
@@ -260,6 +512,20 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
 renderLiveToggle :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
 renderLiveToggle (Just rosterWeek) = renderLiveToggleForm rosterWeek
 renderLiveToggle Nothing           = mempty
+
+renderThisWeekButton :: (?context :: ControllerContext) => Html
+renderThisWeekButton =
+    renderPartialNavigationLink
+        PartialNavigationLink
+            { partialNavigationLabel = "This week"
+            , partialNavigationUrl = pathTo RosterWeeksAction
+            , partialNavigationTargetId = rosterWeekShellId
+            , partialNavigationSelectId = Just rosterWeekShellId
+            , partialNavigationClass = "btn btn-outline-secondary"
+            , partialNavigationSwap = "outerHTML"
+            , partialNavigationSync = Just ("#" <> rosterWeekShellId <> ":replace")
+            , partialNavigationPushUrl = True
+            }
 
 renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Html
 renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters =
@@ -456,27 +722,28 @@ renderSlotSubHeaders _ =
         , [hsx|<th class="py-1 roster-subhead roster-col-code roster-block-end">Flag</th>|]
         ]
 
-renderRosterDay :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
-renderRosterDay isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts rosterDay =
-    renderRosterDaySectionFragment isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts rosterDay
+renderRosterDay :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
+renderRosterDay isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay =
+    renderRosterDaySectionFragment isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay
 
-renderRosterDaySectionFragment :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
+renderRosterDaySectionFragment :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
 renderRosterDaySectionFragment =
     renderRosterDaySectionFragmentWithSwap Nothing
 
-renderRosterDaySectionFragmentOob :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
+renderRosterDaySectionFragmentOob :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
 renderRosterDaySectionFragmentOob =
     renderRosterDaySectionFragmentWithSwap (Just "outerHTML")
 
-renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterDay -> Html
-renderRosterDaySectionFragmentWithSwap maybeSwapOob isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts rosterDay = [hsx|
+renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
+renderRosterDaySectionFragmentWithSwap maybeSwapOob isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay = [hsx|
     <tbody id={rosterDaySectionDomId rosterDay.id}
            data-roster-day-section="true"
            hx-swap-oob={maybeSwapOob}>
-        {renderDayRows isEditable slotNames assignmentFilters staffMembers staffOptionStates (Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate) rosterDay daySlots slotConflicts}
+        {renderDayRows isEditable slotNames assignmentFilters staffMembers staffOptionStates (Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate) rosterDay dayRows renderIndexes}
     </tbody>
 |]
     where
+        dayRows = Map.findWithDefault (rowsForDay rosterDay daySlots) (coerce (get #id rosterDay)) renderIndexes.rosterDayRowsByDayId
         daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) allSlots
 
 rowsForDay :: RosterDay -> [RosterSlot] -> [(Int, [RosterSlot])]
@@ -495,35 +762,34 @@ rowsForDay rosterDay slots =
 lastRowIndexForRows :: [(Int, [RosterSlot])] -> Int
 lastRowIndexForRows dayRows = maybe (-1) fst (last dayRows)
 
-renderDayRows :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> Html
-renderDayRows isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay slots slotConflicts = [hsx|
-    {forEach indexedRows (renderRow isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex slotConflicts)}
+renderDayRows :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> [(Int, [RosterSlot])] -> RosterRenderIndexes -> Html
+renderDayRows isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay dayRows renderIndexes = [hsx|
+    {forEach indexedRows (renderRow isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes)}
 |]
     where
-        dayRows = rowsForDay rosterDay slots
         rowCount = length dayRows
         lastRowIndex = lastRowIndexForRows dayRows
         indexedRows = zip [0 :: Int ..] dayRows
 
-renderRow :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Html
-renderRow isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex slotConflicts rowData =
-    renderRowWithAttrs isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex slotConflicts rowData Nothing
+renderRow :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> RosterRenderIndexes -> (Int, (Int, [RosterSlot])) -> Html
+renderRow isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes rowData =
+    renderRowWithAttrs isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes rowData Nothing
 
-renderRowFragment :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Html
+renderRowFragment :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> RosterRenderIndexes -> (Int, (Int, [RosterSlot])) -> Html
 renderRowFragment = renderRow
 
-renderRowOob :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Html
-renderRowOob isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex slotConflicts rowData =
-    [hsx|<template>{renderRowWithAttrs isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex slotConflicts rowData (Just "outerHTML")}</template>|]
+renderRowOob :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> RosterRenderIndexes -> (Int, (Int, [RosterSlot])) -> Html
+renderRowOob isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes rowData =
+    [hsx|<template>{renderRowWithAttrs isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes rowData (Just "outerHTML")}</template>|]
 
-renderRowWithAttrs :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> [(Id RosterSlot, [RosterConflict])] -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
-renderRowWithAttrs isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex slotConflicts (rowPosition, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
+renderRowWithAttrs :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> RosterRenderIndexes -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
+renderRowWithAttrs isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes (rowPosition, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
     <tr id={rosterRowDomIdText rosterDay.id rowIndex}
         data-roster-row="true"
         hx-swap-oob={maybeSwapOob}
         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rosterDay), True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
         {renderDayLabel isEditable date rosterDay rowCount rowPosition lastRowIndex}
-        {forEach (zip [0 :: Int ..] slotNames) (renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates rosterDay rowIndex rowSlots slotConflicts)}
+        {forEach (zip [0 :: Int ..] slotNames) (renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates rosterDay rowIndex rowSlots renderIndexes)}
     </tr>
 |]
 
@@ -650,16 +916,16 @@ renderDeleteLastRowButton rosterDay rowIndex =
         |]
         else [hsx|<span></span>|]
 
-renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> RosterDay -> Int -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> (Int, SlotName) -> Html
-renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates rosterDay rowIndex rowSlots slotConflicts (blockIndex, slotName)
+renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, SlotName) -> Html
+renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates rosterDay rowIndex rowSlots renderIndexes (blockIndex, slotName)
     | rosterDay.isClosed = renderClosedBlockCells blockIndex
     | otherwise =
-    case find (\slot -> slot.slotNameId == coerce (get #id slotName)) rowSlots of
+    case Map.lookup (coerce (get #id rosterDay), rowIndex, coerce (get #id slotName)) renderIndexes.rosterSlotByDayRowSlotName of
         Just slot ->
             let currentStartTime = optionalTimeOfDayToStorageValue slot.startTime
                 currentNote = fromMaybe "" slot.note
-                currentPrimaryConflict = primaryConflict (lookupConflicts (get #id slot) slotConflicts)
-                currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel slot.staffId staffMembers)
+                currentPrimaryConflict = primaryConflict (lookupConflicts (get #id slot) renderIndexes)
+                currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel slot.staffId renderIndexes)
              in [hsx|
                 <td class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}>
                     {if isEditable then renderEditableTimeCell slot.id currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Time" currentStartTime)}
@@ -748,7 +1014,6 @@ renderEditableStaffCell _ rosterSlotId selectedStaffId staffMembers staffOptionS
             <option value=""></option>
             {forEach visibleStaffMembers (\staff -> renderStaffOption staffMembers selectedStaffId (optionStateForStaff staff) staff)}
         </select>
-        {renderConflictBadge currentPrimaryConflict}
     </form>
 |]
     where
@@ -763,9 +1028,7 @@ renderEditableStaffCell _ rosterSlotId selectedStaffId staffMembers staffOptionS
 renderReadOnlyStaffCell :: Text -> Maybe RosterConflict -> Html
 renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict =
     mconcat
-        [ [hsx|<div class="slot-cell-static">{currentStaffLabel}</div>|]
-        , renderConflictBadge currentPrimaryConflict
-        ]
+        [ [hsx|<div class="slot-cell-static">{currentStaffLabel}</div>|] ]
 
 renderEditableNoteCell :: Id RosterSlot -> Text -> Html
 renderEditableNoteCell rosterSlotId currentNote = [hsx|
@@ -793,34 +1056,29 @@ renderReadOnlyCell value = [hsx|
     <div class={classes [("slot-cell-static", True), ("app-muted", Text.null value)]}>{if Text.null value then " " else value}</div>
 |]
 
-renderAssignedStaffLabel :: Maybe UUID -> [Staff] -> Maybe Text
+renderAssignedStaffLabel :: Maybe UUID -> RosterRenderIndexes -> Maybe Text
 renderAssignedStaffLabel Nothing _ = Nothing
-renderAssignedStaffLabel (Just assignedStaffId) staffMembers =
-    (\staff -> staffDisplayName staffMembers staff)
-        <$> find (\staff -> coerce (get #id staff) == assignedStaffId) staffMembers
+renderAssignedStaffLabel (Just assignedStaffId) renderIndexes =
+    (\staff -> staffDisplayName (Map.elems renderIndexes.rosterStaffById) staff)
+        <$> Map.lookup assignedStaffId renderIndexes.rosterStaffById
 
-lookupConflicts :: Id RosterSlot -> [(Id RosterSlot, [RosterConflict])] -> [RosterConflict]
-lookupConflicts slotId slotConflicts = fromMaybe [] (lookup slotId slotConflicts)
+lookupConflicts :: Id RosterSlot -> RosterRenderIndexes -> [RosterConflict]
+lookupConflicts slotId renderIndexes = Map.findWithDefault [] (coerce slotId) renderIndexes.rosterConflictsBySlotId
 
 renderConflictClass :: Maybe RosterConflict -> Text
 renderConflictClass Nothing = ""
 renderConflictClass (Just conflict) =
-    case conflict.severity of
-        CriticalConflict -> "conflict-critical"
-        AdvisoryConflict -> "conflict-advisory"
+    case conflict.conflictType of
+        DuplicateAssignment -> "conflict-critical"
+        LeaveConflict -> "conflict-critical"
+        LateToEarlyConflict -> "conflict-critical"
+        ShiftPreferenceDayUnavailable -> "conflict-preference"
+        ShiftPreferenceSlotMismatch -> "conflict-preference"
+        IdealShiftThresholdExceeded -> "conflict-ideal"
 
 renderConflictMessage :: Maybe RosterConflict -> Text
 renderConflictMessage Nothing         = ""
 renderConflictMessage (Just conflict) = conflict.message
-
-renderConflictBadge :: Maybe RosterConflict -> Html
-renderConflictBadge Nothing = [hsx|<span></span>|]
-renderConflictBadge (Just conflict) = [hsx|
-    <span class={classes [("badge", True), ("position-absolute", True), ("top-0", True), ("end-0", True), ("translate-middle", True), ("bg-danger", conflict.severity == CriticalConflict), ("bg-warning text-dark", conflict.severity == AdvisoryConflict)]}
-          title={conflict.message}>
-        !
-    </span>
-|]
 
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Html
 renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|

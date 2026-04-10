@@ -31,7 +31,7 @@ test.describe('Week navigation', () => {
 
         const initialShell = await page.locator('#roster-week-shell').evaluate((el) => el.outerHTML);
 
-        await page.getByRole('link', { name: '>' }).click();
+        await page.getByRole('link', { name: 'Next week' }).click();
         await expect(page).toHaveURL(/ShowRosterWeek/);
         await expect(page.locator('#roster-week-shell')).toBeVisible();
 

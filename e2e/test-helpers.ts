@@ -215,7 +215,7 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
             return;
         }
 
-        await page.getByRole('link', { name: '>' }).click();
+        await page.getByRole('link', { name: 'Next week' }).click();
         await expect(page.locator('#roster-week-shell')).toBeVisible();
     }
 }

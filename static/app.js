@@ -115,39 +115,82 @@
     document.addEventListener('app:page-ready', syncDialogState);
 })();
 
-(function preserveRosterFilterDropdownState() {
+(function enableRosterWeekOverview() {
     if (typeof window === 'undefined') return;
 
-    let pendingMenuTriggerId = null;
+    function updateOverviewSelection(panelEl, dayButton) {
+        if (!(panelEl instanceof HTMLElement) || !(dayButton instanceof HTMLElement)) return;
 
-    document.addEventListener('htmx:beforeRequest', function (event) {
-        const sourceEl = event.detail && event.detail.elt;
-        if (!(sourceEl instanceof HTMLElement)) return;
-
-        const formEl = sourceEl.closest('[data-roster-filter-form="true"]');
-        if (!(formEl instanceof HTMLElement)) return;
-
-        pendingMenuTriggerId = formEl.dataset.rosterFilterMenuTriggerId || null;
-    });
-
-    document.addEventListener('htmx:afterSwap', function (event) {
-        if (!pendingMenuTriggerId) return;
-        if (!(event.detail && event.detail.target instanceof HTMLElement)) return;
-        if (event.detail.target.id !== 'roster-content') return;
-        if (!(window.bootstrap && window.bootstrap.Dropdown)) return;
-
-        const triggerEl = document.getElementById(pendingMenuTriggerId);
-        pendingMenuTriggerId = null;
-        if (!(triggerEl instanceof HTMLElement)) return;
-
-        window.requestAnimationFrame(function () {
-            const dropdown = window.bootstrap.Dropdown.getOrCreateInstance(triggerEl);
-            dropdown.show();
+        panelEl.querySelectorAll('[data-week-overview-day="true"]').forEach((button) => {
+            if (button instanceof HTMLElement) {
+                button.classList.toggle('is-selected', button === dayButton);
+                button.setAttribute('aria-pressed', button === dayButton ? 'true' : 'false');
+            }
         });
+
+        const selectedLabel = panelEl.querySelector('[data-week-overview-selected-label="true"]');
+        const leaveValue = panelEl.querySelector('[data-week-overview-leave-value="true"]');
+        const assignedValue = panelEl.querySelector('[data-week-overview-assigned-value="true"]');
+        const hoursValue = panelEl.querySelector('[data-week-overview-hours-value="true"]');
+        const summaryText = panelEl.querySelector('[data-week-overview-summary-text="true"]');
+        const weekLabel = panelEl.querySelector('[data-week-overview-week-label="true"]');
+        const goLink = panelEl.querySelector('[data-week-overview-go-link="true"]');
+        const detailsPanel = panelEl.querySelector('[data-week-overview-details-panel="true"]');
+
+        const hasDetails = dayButton.dataset.weekOverviewDetails === 'true';
+        const isClosed = dayButton.dataset.weekOverviewClosed === 'true';
+
+        if (selectedLabel) selectedLabel.textContent = dayButton.dataset.weekOverviewLabel || '';
+        if (leaveValue) leaveValue.textContent = hasDetails ? (dayButton.dataset.weekOverviewLeave || '0') : '—';
+        if (assignedValue) assignedValue.textContent = hasDetails ? (dayButton.dataset.weekOverviewAssigned || '0') : '—';
+        if (hoursValue) hoursValue.textContent = hasDetails ? (dayButton.dataset.weekOverviewHours || '0h') : '—';
+        if (summaryText) summaryText.textContent = dayButton.dataset.weekOverviewSummary || '';
+        if (weekLabel) weekLabel.textContent = `In ${dayButton.dataset.weekOverviewWeekLabel || ''}`;
+        if (goLink instanceof HTMLAnchorElement && dayButton.dataset.weekOverviewUrl) {
+            goLink.href = dayButton.dataset.weekOverviewUrl;
+        }
+
+        if (detailsPanel instanceof HTMLElement) {
+            detailsPanel.classList.toggle('is-unloaded', !hasDetails);
+            detailsPanel.classList.toggle('is-closed', isClosed);
+        }
+    }
+
+    function selectToday(panelEl) {
+        if (!(panelEl instanceof HTMLElement)) return;
+        const today = panelEl.dataset.weekOverviewCurrentDate;
+        if (!today) return;
+        const button = panelEl.querySelector(`[data-week-overview-day="true"][data-week-overview-date="${today}"]`);
+        if (button instanceof HTMLElement) {
+            updateOverviewSelection(panelEl, button);
+        }
+    }
+
+    document.addEventListener('click', function (event) {
+        const dayButton = event.target.closest('[data-week-overview-day="true"]');
+        if (dayButton instanceof HTMLElement) {
+            const panelEl = dayButton.closest('[data-week-overview-panel="true"]');
+            updateOverviewSelection(panelEl, dayButton);
+            return;
+        }
+
+        const todayButton = event.target.closest('[data-week-overview-today="true"]');
+        if (todayButton instanceof HTMLElement) {
+            const panelEl = todayButton.closest('[data-week-overview-panel="true"]');
+            selectToday(panelEl);
+        }
     });
 
-    document.addEventListener('htmx:responseError', function () {
-        pendingMenuTriggerId = null;
+    document.addEventListener('shown.bs.dropdown', function (event) {
+        const trigger = event.target;
+        if (!(trigger instanceof HTMLElement)) return;
+        const panelEl = trigger.parentElement?.querySelector('[data-week-overview-panel="true"]');
+        if (!(panelEl instanceof HTMLElement)) return;
+
+        const selectedButton = panelEl.querySelector('[data-week-overview-day="true"].is-selected');
+        if (selectedButton instanceof HTMLElement) {
+            updateOverviewSelection(panelEl, selectedButton);
+        }
     });
 })();
 

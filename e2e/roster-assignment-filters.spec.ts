@@ -7,7 +7,7 @@ import {
     loginAs,
 } from './test-helpers';
 
-const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
+const e2eRosterPath = '/ShowRosterWeek?weekOffset=1&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 async function loginAndOpenRoster(page) {
     await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
@@ -36,9 +36,9 @@ test.describe('Roster assignment filters', () => {
         if ((await rows.count()) < 2) {
             await addRowToRosterDay(daySection);
             await expect
-                .poll(async () => await editableRosterRows(daySection).count())
+                .poll(async () => await editableRosterRows(page).count())
                 .toBe(2);
-            rows = editableRosterRows(daySection);
+            rows = editableRosterRows(firstEditableRosterDaySection(page));
         }
         expect(await rows.count()).toBeGreaterThanOrEqual(2);
 
@@ -71,4 +71,5 @@ test.describe('Roster assignment filters', () => {
             })
             .toBe(false);
     });
+
 });

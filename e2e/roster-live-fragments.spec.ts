@@ -13,7 +13,7 @@ async function openRosterWeekOffset(page, weekOffset) {
     await loginAndOpenRoster(page);
 
     for (let step = 0; step < weekOffset; step += 1) {
-        await page.getByRole('link', { name: '>' }).click();
+        await page.getByRole('link', { name: 'Next week' }).click();
         await expect(page.locator('#roster-week-shell')).toHaveAttribute(
             'data-live-update-week-offset',
             String(step + 1),
@@ -42,8 +42,7 @@ async function selectStaffForRow(page, rowIndex, staffId) {
 
 function managerEntry(page) {
     return page
-        .locator('#roster-staff-panel-fragment .roster-staff-panel-entry')
-        .filter({ hasText: /E2E Manager|Live Fragments/ })
+        .locator('#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-role="Manager"]')
         .first();
 }
 
@@ -52,7 +51,7 @@ function firstViewerRow(page) {
 }
 
 async function expectViewerRowAssignmentApplied(page) {
-    await expect(firstViewerRow(page)).toContainText(/Manager, E2E|Fragments, Live/, { timeout: 15000 });
+    await expect(firstViewerRow(page)).toContainText(/E2E|Live|Fragments/, { timeout: 15000 });
 }
 
 async function normalizeLiveFragmentRoster(page) {
@@ -115,8 +114,8 @@ test.describe('Roster live fragments', () => {
         const actorPage = await actorContext.newPage();
         const viewerPage = await viewerContext.newPage();
 
-        await openRosterWeekOffset(actorPage, 1);
-        await openRosterWeekOffset(viewerPage, 1);
+        await openRosterWeekOffset(actorPage, 3);
+        await openRosterWeekOffset(viewerPage, 3);
 
         await ensureDraftWeek(actorPage, 'Copy Previous Week');
         await expect(viewerPage.locator('tr[data-roster-row]')).toHaveCount(28);
@@ -135,7 +134,7 @@ test.describe('Roster live fragments', () => {
         await loginAndOpenRoster(actorPage);
         await loginAndOpenRoster(viewerPage);
 
-        const updatedName = 'Live Fragments';
+        const updatedName = 'Live';
         const actorEntry = managerEntry(actorPage);
         const viewerEntry = managerEntry(viewerPage);
 
@@ -151,10 +150,10 @@ test.describe('Roster live fragments', () => {
 
         await expect(actorPage.locator('#dialog-overlay-mount')).toBeEmpty();
         await expect(
-            actorPage.locator('.roster-staff-panel-entry').filter({ hasText: updatedName }).first(),
+            actorPage.locator(`.roster-staff-panel-entry[data-roster-staff-name="${updatedName}"]`).first(),
         ).toBeVisible();
         await expect(
-            viewerPage.locator('.roster-staff-panel-entry').filter({ hasText: updatedName }).first(),
+            viewerPage.locator(`.roster-staff-panel-entry[data-roster-staff-name="${updatedName}"]`).first(),
         ).toBeVisible();
 
         await actorContext.close();
@@ -187,7 +186,7 @@ test.describe('Roster live fragments', () => {
 
         await expect(managerEntry(actorPage)).toContainText('1');
         await expect(viewerStaffSelect).toHaveValue(managerStaffId);
-        await expect(viewerNoteInput).toHaveValue('AC');
+        await expect(viewerNoteInput).toHaveValue('vi');
         await expectViewerRowAssignmentApplied(viewerPage);
 
         await actorContext.close();

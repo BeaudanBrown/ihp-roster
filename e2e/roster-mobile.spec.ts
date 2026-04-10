@@ -53,7 +53,7 @@ test.describe('Roster mobile baseline', () => {
         const shell = page.locator('#roster-week-shell');
         const initialShellHtml = await shell.evaluate((el) => el.outerHTML);
 
-        const nextWeekButton = page.getByRole('link', { name: '>' });
+        const nextWeekButton = page.getByRole('link', { name: 'Next week' });
         await nextWeekButton.click();
         await expect(shell).toBeVisible();
         const nextShellHtml = await shell.evaluate((el) => el.outerHTML);

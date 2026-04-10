@@ -25,7 +25,7 @@ async function loginAndOpenRoster(page) {
             break;
         }
 
-        await page.getByRole('link', { name: '>' }).click();
+        await page.getByRole('link', { name: 'Next week' }).click();
         await expect(page.locator('#roster-week-shell')).toBeVisible();
     }
 

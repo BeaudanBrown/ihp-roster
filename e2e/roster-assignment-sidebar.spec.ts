@@ -16,8 +16,7 @@ test.describe('Roster assignment sidebar refresh', () => {
         await loginAndOpenRoster(page);
 
         const managerEntry = page
-            .locator('#roster-staff-panel-fragment .roster-staff-panel-entry')
-            .filter({ hasText: 'E2E Manager' })
+            .locator('#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-role="Manager"]')
             .first();
 
         await expect(managerEntry).toContainText('0');

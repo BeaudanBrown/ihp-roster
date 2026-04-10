@@ -99,8 +99,14 @@ test.describe('Admin slot names', () => {
             return response.request().method() === 'POST' && response.url().includes('/SyncRosterWeekSlotStructure');
         });
 
+        const syncSlotsButton = viewerPage.getByRole('button', { name: 'Sync Slots' });
+        if (!(await syncSlotsButton.isVisible().catch(() => false))) {
+            await viewerPage.getByRole('button', { name: 'Roster actions' }).click();
+            await expect(syncSlotsButton).toBeVisible();
+        }
+
         viewerPage.once('dialog', (dialog) => dialog.accept());
-        await viewerPage.getByRole('button', { name: 'Sync Slots' }).click();
+        await syncSlotsButton.click();
 
         const syncResponse = await syncResponsePromise;
         const syncResponseText = await syncResponse.text();

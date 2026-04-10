@@ -1030,5 +1030,52 @@ tests = beforeAll testContext do
                 secondRowText `shouldContain` "conflict-critical"
                 firstRowText `shouldContain` "data-conflict-message="
                 secondRowText `shouldContain` "data-conflict-message="
+
+        it "defers roster month overview loading to an HTMX fragment" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-overview-shell@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-week-overview-fragment-mount=\"true\""
+                response `responseBodyShouldContain` "hx-get=\"/ShowRosterWeekOverviewFragment?weekOffset=0&amp;rosterGroupId="
+                response `responseBodyShouldNotContain` "data-week-overview-day=\"true\""
+
+        it "month overview fragment includes other weeks in the same month and counts assigned shifts rather than unique staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-overview@example.com" "staff" True
+                workerUser <- createUserRecord "roster-worker-overview@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue (Just workerUser) "Alpha" "Crew"
+
+                currentWeek <- createRosterWeekRecord venue 0 False
+                currentWeekDay <- createRosterDayRecord currentWeek 0
+                _ <- createRosterSlotRecord currentWeekDay slotName (Just staffMember) 0
+
+                nextWeek <- createRosterWeekRecord venue 1 False
+                nextWeekDay <- createRosterDayRecord nextWeek 0
+                nextWeekSlotA <- createRosterSlotRecord nextWeekDay slotName (Just staffMember) 0
+                nextWeekSlotB <- createRosterSlotRecord nextWeekDay slotName (Just staffMember) 1
+                _ <- updateRecord (nextWeekSlotA |> set #durationMinutes (Just 240))
+                _ <- updateRecord (nextWeekSlotB |> set #durationMinutes (Just 240))
+                _ <- createLeaveRequestRecord venue staffMember (addDays 7 defaultWeekEpoch) (addDays 8 defaultWeekEpoch) "pending"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekOverviewFragmentAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-week-overview-loaded=\"true\""
+                response `responseBodyShouldContain` "data-week-overview-date=\"2025-01-13\""
+                response `responseBodyShouldContain` "data-week-overview-assigned=\"2\""
+                response `responseBodyShouldContain` "data-week-overview-hours=\"8h\""
+                response `responseBodyShouldContain` "data-week-overview-leave=\"1\""
+                response `responseBodyShouldContain` "weekDate=2025-01-13"
     where
         timeOfDay hour minute = TimeOfDay hour minute 0
