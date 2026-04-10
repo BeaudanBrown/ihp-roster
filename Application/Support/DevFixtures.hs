@@ -365,7 +365,7 @@ seedRosterGroup ::
     IO ()
 seedRosterGroup seedValue fillPercent fixtureWeekStart rosterGroup rosterDays slotNames staffPool = do
     forM_ (zip [0 :: Int ..] rosterDays) \(dayIndex, rosterDay) -> do
-        let rowCount = if dayIndex `mod` 3 == 0 then 2 else 1
+        let rowCount = 2
         let seedRows _ [] = pure ()
             seedRows usedStaffIds (rowIndex:remainingRowIndexes) = do
                 let (assignments, nextUsedStaffIds) =
@@ -385,14 +385,47 @@ buildRowAssignments ::
     [UUID] ->
     ([(Text, DevRosterSlotSeed)], [UUID])
 buildRowAssignments seedValue fillPercent dayIndex rowIndex slotNames staffPool initialUsedStaffIds =
-    foldl'
-        (\(assignments, usedStaffIds) (slotIndex, slotName) ->
-            case seedAssignment seedValue fillPercent dayIndex rowIndex slotIndex slotName staffPool usedStaffIds of
-                Just (assignment, selectedStaffId) -> (assignments <> [assignment], usedStaffIds <> [selectedStaffId])
-                Nothing -> (assignments, usedStaffIds)
+    ensureMinimumStaffedRow (rowAssignments, rowUsedStaffIds)
+    where
+        (rowAssignments, rowUsedStaffIds) =
+            foldl'
+                (\(assignments, usedStaffIds) (slotIndex, slotName) ->
+                    case seedAssignment seedValue fillPercent dayIndex rowIndex slotIndex slotName staffPool usedStaffIds of
+                        Just (assignment, selectedStaffId) -> (assignments <> [assignment], usedStaffIds <> [selectedStaffId])
+                        Nothing -> (assignments, usedStaffIds)
+                )
+                ([], initialUsedStaffIds)
+                (zip [0 :: Int ..] slotNames)
+
+        ensureMinimumStaffedRow result@(assignments, usedStaffIds)
+            | null slotNames = result
+            | any (isJust . (.slotStaff) . snd) assignments = result
+            | otherwise =
+                case forceAssignmentForRow seedValue dayIndex rowIndex slotNames staffPool usedStaffIds of
+                    Just (assignment, selectedStaffId) -> ([assignment], usedStaffIds <> [selectedStaffId])
+                    Nothing -> result
+
+forceAssignmentForRow ::
+    Int ->
+    Int ->
+    Int ->
+    [SlotName] ->
+    [Staff] ->
+    [UUID] ->
+    Maybe ((Text, DevRosterSlotSeed), UUID)
+forceAssignmentForRow seedValue dayIndex rowIndex slotNames staffPool usedStaffIds = do
+    let slotIndex = deterministicIndex seedValue [dayIndex, rowIndex, 991] (length slotNames)
+    let slotName = slotNames !! slotIndex
+    staff <- chooseAvailableStaff seedValue [dayIndex, rowIndex, slotIndex, 992, textHash (get #name slotName)] staffPool usedStaffIds
+    pure
+        ( ( get #name slotName
+          , seededRosterSlot
+                (Just staff)
+                (slotStartTimeFor slotIndex dayIndex)
+                (slotNoteFor seedValue dayIndex rowIndex slotIndex)
+          )
+        , unpackId (get #id staff)
         )
-        ([], initialUsedStaffIds)
-        (zip [0 :: Int ..] slotNames)
 
 seedAssignment :: Int -> Int -> Int -> Int -> Int -> SlotName -> [Staff] -> [UUID] -> Maybe ((Text, DevRosterSlotSeed), UUID)
 seedAssignment _ _ _ _ _ _ [] _ = Nothing

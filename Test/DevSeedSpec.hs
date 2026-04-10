@@ -58,6 +58,39 @@ tests = beforeAll testContext do
                 noteLengths `shouldSatisfy` (all (<= 2))
                 sort (nub (map (.idealShiftsPerWeek) seededStaff)) `shouldBe` [1, 2, 3, 4, 5]
 
+        it "seeds at least two staffed roster rows for every roster day" $ withContext do
+            withCleanDb do
+                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+
+                rosterWeeks <-
+                    query @RosterWeek
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhere (#weekOffset, fixture.currentWeekOffset)
+                        |> fetch
+                rosterDays <-
+                    query @RosterDay
+                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+                        |> fetch
+                rosterSlots <-
+                    query @RosterSlot
+                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                        |> fetch
+
+                let staffedRowIndexesByDayId =
+                        Map.fromListWith (<>)
+                            [ (slot.rosterDayId, [slot.rowIndex])
+                            | slot <- rosterSlots
+                            , isJust slot.staffId
+                            ]
+
+                forM_ rosterDays \rosterDay -> do
+                    let staffedRowCount =
+                            staffedRowIndexesByDayId
+                                |> Map.findWithDefault [] (unpackId (get #id rosterDay))
+                                |> nub
+                                |> length
+                    staffedRowCount `shouldSatisfy` (>= 2)
+
         it "seeds staff applicability, approved leave, pending leave, and cross-group conflicts" $ withContext do
             withCleanDb do
                 fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
