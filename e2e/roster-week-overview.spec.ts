@@ -32,4 +32,17 @@ test.describe('Roster week overview', () => {
         await expect(page).toHaveURL(/weekOffset=1/);
         await expect(page.locator('#roster-week-shell')).toBeVisible();
     });
+
+    test('exports the live roster as a png from the roster actions menu', async ({ page }) => {
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, e2eRosterPath, '#roster-week-shell');
+
+        await page.getByRole('button', { name: 'Roster actions' }).click();
+        const exportButton = page.getByRole('button', { name: 'Export PNG' });
+        await expect(exportButton).toBeVisible();
+
+        await exportButton.click();
+
+        await expect(page.locator('body')).toHaveAttribute('data-roster-export-last-status', 'success');
+    });
 });
