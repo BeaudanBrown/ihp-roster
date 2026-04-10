@@ -17,15 +17,18 @@ import Data.IORef
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
+import IHP.Controller.Context (ControllerContext)
 import IHP.Prelude
 import qualified Network.WebSockets as WebSocket
 import System.IO.Unsafe (unsafePerformIO)
 
+import Application.Helper.Profiling (profileActionSpan)
+
 data LiveUpdateScope
     = RosterWeekScope
-        { venueId    :: !UUID.UUID
+        { venueId       :: !UUID.UUID
         , rosterGroupId :: !UUID.UUID
-        , weekOffset :: !Int
+        , weekOffset    :: !Int
         }
     | RosterGroupConfigScope
         { venueId       :: !UUID.UUID
@@ -312,12 +315,12 @@ incrementLiveUpdateVersion scope =
         let nextVersion = Map.findWithDefault 0 scope versions + 1
          in (Map.insert scope nextVersion versions, nextVersion)
 
-broadcastLiveInvalidation :: LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO ()
+broadcastLiveInvalidation :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO ()
 broadcastLiveInvalidation scope sourceClientId fragments = do
-    version <- incrementLiveUpdateVersion scope
+    version <- profileActionSpan "live_updates.increment_version" (incrementLiveUpdateVersion scope)
     subscriptions <- readIORef liveSubscriptionsRef
     let matchingSubscriptions = filter (\subscription -> subscription.subscriptionScope == scope) subscriptions
-    staleIds <- mapMaybeM (sendInvalidation scope version sourceClientId fragments) matchingSubscriptions
+    staleIds <- profileActionSpan "live_updates.broadcast" (mapMaybeM (sendInvalidation scope version sourceClientId fragments) matchingSubscriptions)
     unless (null staleIds) do
         atomicModifyIORef' liveSubscriptionsRef \activeSubscriptions ->
             ( filter (\subscription -> subscription.subscriptionId `notElem` staleIds) activeSubscriptions

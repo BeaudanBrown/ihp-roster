@@ -4,8 +4,8 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (RosterContentFragment),
                                       LiveFragmentRef (..))
 import Application.Helper.SurfaceProjection
 import Data.IORef
-import Data.Time.Clock
 import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock
 import IHP.Prelude
 import Test.Hspec
 import qualified Text.Blaze.Html5 as Html5

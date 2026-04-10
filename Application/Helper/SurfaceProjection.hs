@@ -8,6 +8,7 @@ module Application.Helper.SurfaceProjection
     , loadSurfaceProjectionFromStore
     , newSurfaceProjectionStore
     , newSurfaceProjectionStoreWithClock
+    , surfaceProjectionCacheDeltaDetail
     , readSurfaceProjectionCacheStats
     , readSurfaceProjectionCacheStatsFromStore
     , renderSurfaceProjectionFragment
@@ -22,39 +23,40 @@ import Application.Helper.LiveUpdate (LiveFragmentRef)
 import qualified Data.Dynamic as Dynamic
 import Data.IORef
 import qualified Data.Map.Strict as Map
+import qualified Data.Text as Text
 import Data.Time.Clock
 import IHP.Prelude
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Text.Blaze.Html as Blaze
 
 data SurfaceProjectionCachePolicy = SurfaceProjectionCachePolicy
-    { ttl :: !NominalDiffTime
+    { ttl                  :: !NominalDiffTime
     , maxEntriesPerSurface :: !Int
     }
     deriving (Eq, Show)
 
 data SurfaceProjectionCacheStats = SurfaceProjectionCacheStats
-    { hits :: !Int
-    , misses :: !Int
-    , loads :: !Int
-    , warms :: !Int
+    { hits      :: !Int
+    , misses    :: !Int
+    , loads     :: !Int
+    , warms     :: !Int
     , evictions :: !Int
     }
     deriving (Eq, Show)
 
 data SurfaceProjectionDefinition scope snapshot fragment = SurfaceProjectionDefinition
-    { surfaceName :: !Text
-    , cachePolicy :: !SurfaceProjectionCachePolicy
-    , scopeKey :: scope -> Text
-    , viewerKey :: IO Text
-    , currentVersion :: scope -> IO Int
-    , loadProjection :: scope -> IO snapshot
-    , renderFragment :: snapshot -> fragment -> Maybe Blaze.Html
+    { surfaceName      :: !Text
+    , cachePolicy      :: !SurfaceProjectionCachePolicy
+    , scopeKey         :: scope -> Text
+    , viewerKey        :: IO Text
+    , currentVersion   :: scope -> IO Int
+    , loadProjection   :: scope -> IO snapshot
+    , renderFragment   :: snapshot -> fragment -> Maybe Blaze.Html
     , buildFragmentRef :: scope -> fragment -> LiveFragmentRef
     }
 
 data SurfaceProjectionStore = SurfaceProjectionStore
-    { stateRef :: !(IORef SurfaceProjectionCacheState)
+    { stateRef    :: !(IORef SurfaceProjectionCacheState)
     , currentTime :: !(IO UTCTime)
     }
 
@@ -65,17 +67,17 @@ data SurfaceProjectionCacheState = SurfaceProjectionCacheState
 
 data SurfaceProjectionCacheKey = SurfaceProjectionCacheKey
     { keySurfaceName :: !Text
-    , keyViewer :: !Text
-    , keyScope :: !Text
-    , keyVersion :: !Int
+    , keyViewer      :: !Text
+    , keyScope       :: !Text
+    , keyVersion     :: !Int
     }
     deriving (Eq, Ord, Show)
 
 data SurfaceProjectionCacheEntry = SurfaceProjectionCacheEntry
-    { storedAt :: !UTCTime
+    { storedAt       :: !UTCTime
     , lastAccessedAt :: !UTCTime
-    , entryTtl :: !NominalDiffTime
-    , snapshot :: !Dynamic.Dynamic
+    , entryTtl       :: !NominalDiffTime
+    , snapshot       :: !Dynamic.Dynamic
     }
 
 defaultSurfaceProjectionCachePolicy :: SurfaceProjectionCachePolicy
@@ -210,6 +212,23 @@ readSurfaceProjectionCacheStats =
 readSurfaceProjectionCacheStatsFromStore :: SurfaceProjectionStore -> IO SurfaceProjectionCacheStats
 readSurfaceProjectionCacheStatsFromStore store =
     (.stats) <$> readIORef store.stateRef
+
+surfaceProjectionCacheDeltaDetail :: SurfaceProjectionCacheStats -> SurfaceProjectionCacheStats -> Maybe Text
+surfaceProjectionCacheDeltaDetail before after
+    | null parts = Nothing
+    | otherwise = Just (Text.intercalate "," parts)
+    where
+        parts =
+            catMaybes
+                [ renderDelta "hits" before.hits after.hits
+                , renderDelta "misses" before.misses after.misses
+                , renderDelta "loads" before.loads after.loads
+                , renderDelta "warms" before.warms after.warms
+                , renderDelta "evictions" before.evictions after.evictions
+                ]
+        renderDelta label beforeValue afterValue =
+            let delta = afterValue - beforeValue
+             in if delta == 0 then Nothing else Just (label <> "=" <> tshow delta)
 
 lookupSurfaceProjection ::
     forall snapshot.

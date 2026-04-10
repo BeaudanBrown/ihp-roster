@@ -2,9 +2,9 @@ module Web.Controller.LiveUpdates where
 
 import Application.Helper.Controller
 import Application.Helper.LiveUpdate
-import Data.Coerce (coerce)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
+import Data.Coerce (coerce)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Network.WebSockets as WebSocket

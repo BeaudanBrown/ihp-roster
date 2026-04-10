@@ -1,11 +1,12 @@
 module Web.Controller.LeaveRequests where
 
-import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroups)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentRef (..),
                                       LiveUpdateScope (..),
                                       broadcastLiveInvalidation,
                                       currentLiveUpdateVersion)
+import Application.Helper.Profiling
+import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroups)
 import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
@@ -29,10 +30,10 @@ instance Controller LeaveRequestsController where
         ensureProfileCompleted
 
     action LeaveRequestsAction = do
-        render . leaveRequestsIndexView =<< fetchLeaveRequestsProjectionCached
+        renderProfiled . leaveRequestsIndexView =<< fetchLeaveRequestsProjectionCached
 
     action ShowLeaveRequestsContentFragmentAction = do
-        respondHtml . fromMaybe mempty =<< renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
+        respondHtmlProfiled . fromMaybe mempty =<< renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
 
     action NewLeaveRequestAction = do
         maybeStaff <- fetchCurrentUserStaff
@@ -226,8 +227,8 @@ fetchVisibleLeaveRequests = do
                         |> fetch
 
 data LeaveRequestsProjection = LeaveRequestsProjection
-    { leaveProjectionRequests :: [LeaveRequest]
-    , leaveProjectionStaffMembers :: [Staff]
+    { leaveProjectionRequests             :: [LeaveRequest]
+    , leaveProjectionStaffMembers         :: [Staff]
     , leaveProjectionCurrentViewerStaffId :: Maybe UUID
     }
 
@@ -254,16 +255,24 @@ leaveRequestsProjectionDefinition =
 
 fetchLeaveRequestsProjectionCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO LeaveRequestsProjection
 fetchLeaveRequestsProjectionCached =
-    loadSurfaceProjection leaveRequestsProjectionDefinition ()
+    profileActionSpanWithDetail "leave.projection.load" do
+        before <- readSurfaceProjectionCacheStats
+        projection <- loadSurfaceProjection leaveRequestsProjectionDefinition ()
+        after <- readSurfaceProjectionCacheStats
+        pure (projection, surfaceProjectionCacheDeltaDetail before after)
 
 renderLeaveRequestsProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequestsProjectionFragment -> IO (Maybe Blaze.Html)
 renderLeaveRequestsProjectionFragment fragment =
-    renderSurfaceProjectionFragment leaveRequestsProjectionDefinition () fragment
+    profileActionSpanWithDetail "leave.projection.render_fragment" do
+        before <- readSurfaceProjectionCacheStats
+        html <- renderSurfaceProjectionFragment leaveRequestsProjectionDefinition () fragment
+        after <- readSurfaceProjectionCacheStats
+        pure (html, surfaceProjectionCacheDeltaDetail before after)
 
 fetchLeaveRequestsProjection :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO LeaveRequestsProjection
 fetchLeaveRequestsProjection = do
-    leaveProjectionStaffMembers <- fetchStaffMembersForCurrentVenue
-    leaveProjectionRequests <- fetchVisibleLeaveRequests
+    leaveProjectionStaffMembers <- profileActionSpan "leave.fetch_staff_members" fetchStaffMembersForCurrentVenue
+    leaveProjectionRequests <- profileActionSpan "leave.fetch_requests" fetchVisibleLeaveRequests
     leaveProjectionCurrentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
     pure LeaveRequestsProjection { .. }
 
@@ -296,7 +305,7 @@ respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
             if renderMainFragmentOob
                 then renderLeaveRequestsContentFragmentOob projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId
                 else renderLeaveRequestsContentFragment projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId
-    respondHtml $
+    respondHtmlProfiled $
         mconcat
             [ mainFragment
             , [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]

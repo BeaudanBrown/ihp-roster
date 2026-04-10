@@ -8,6 +8,7 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
 import Application.Helper.Pay (TimesheetPaySummary,
                                ensureCurrentVenuePayConfigSnapshot,
                                fetchTimesheetPaySummariesForEntries)
+import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
@@ -328,7 +329,7 @@ fetchShiftTypesForForm =
 
 respondWithTimesheetDaySectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Int -> IO ()
 respondWithTimesheetDaySectionFragment weekOffset dayOffset =
-    respondHtml . fromMaybe mempty =<< renderTimesheetProjectionFragment weekOffset (TimesheetProjectionDaySection dayOffset)
+    respondHtmlProfiled . fromMaybe mempty =<< renderTimesheetProjectionFragment weekOffset (TimesheetProjectionDaySection dayOffset)
 
 respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Text -> Bool -> Bool -> IO ()
 respondWithTimesheetDaySectionUpdate weekOffset workedOn successMessage closeDialog renderMainFragmentOob = do
@@ -357,7 +358,7 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn successMessage closeDia
                     weekOffset
                     weekStartDate
                     dayOffset
-    respondHtml $
+    respondHtmlProfiled $
         mconcat
             [ mainFragment
             , when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
@@ -392,9 +393,9 @@ fetchTimesheetWeekProjection weekOffset = do
     let weekStartDate = addDays (toInteger (weekOffset * 7)) venueConfig.weekOffsetEpoch
     let weekEndDate = addDays 6 weekStartDate
 
-    (entries, staffMembers) <- fetchTimesheetDataForWeek weekStartDate weekEndDate
-    shiftTypes <- fetchShiftTypesForForm
-    paySummariesByEntryId <- fetchTimesheetPaySummariesForEntries entries
+    (entries, staffMembers) <- profileActionSpan "timesheets.fetch_week_data" (fetchTimesheetDataForWeek weekStartDate weekEndDate)
+    shiftTypes <- profileActionSpan "timesheets.fetch_shift_types" fetchShiftTypesForForm
+    paySummariesByEntryId <- profileActionSpan "timesheets.build_pay_summaries" (fetchTimesheetPaySummariesForEntries entries)
     today <- utctDay <$> getCurrentTime
     let editWindowDays = venueConfig.staffTimesheetEditWindowDays
 
@@ -418,19 +419,19 @@ renderTimesheetWeekPage weekOffset =
 respondWithTimesheetWeekView :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IndexView -> IO ()
 respondWithTimesheetWeekView indexView =
     if isHtmxRequest
-        then respondHtml (renderTimesheetWeekShell indexView)
-        else render indexView
+        then respondHtmlProfiled (renderTimesheetWeekShell indexView)
+        else renderProfiled indexView
 
 data TimesheetWeekProjection = TimesheetWeekProjection
-    { timesheetEntries :: [TimesheetEntry]
-    , timesheetStaffMembers :: [Staff]
-    , timesheetShiftTypes :: [ShiftType]
+    { timesheetEntries               :: [TimesheetEntry]
+    , timesheetStaffMembers          :: [Staff]
+    , timesheetShiftTypes            :: [ShiftType]
     , timesheetPaySummariesByEntryId :: Map.Map Text TimesheetPaySummary
-    , timesheetToday :: Day
-    , timesheetEditWindowDays :: Int
-    , timesheetWeekOffset :: Int
-    , timesheetWeekStartDate :: Day
-    , timesheetWeekEndDate :: Day
+    , timesheetToday                 :: Day
+    , timesheetEditWindowDays        :: Int
+    , timesheetWeekOffset            :: Int
+    , timesheetWeekStartDate         :: Day
+    , timesheetWeekEndDate           :: Day
     }
 
 data TimesheetProjectionFragment
@@ -458,11 +459,19 @@ timesheetProjectionDefinition =
 
 fetchTimesheetWeekProjectionCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> IO TimesheetWeekProjection
 fetchTimesheetWeekProjectionCached weekOffset =
-    loadSurfaceProjection timesheetProjectionDefinition weekOffset
+    profileActionSpanWithDetail "timesheets.projection.load" do
+        before <- readSurfaceProjectionCacheStats
+        projection <- loadSurfaceProjection timesheetProjectionDefinition weekOffset
+        after <- readSurfaceProjectionCacheStats
+        pure (projection, surfaceProjectionCacheDeltaDetail before after)
 
 renderTimesheetProjectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetProjectionFragment -> IO (Maybe Blaze.Html)
 renderTimesheetProjectionFragment weekOffset fragment =
-    renderSurfaceProjectionFragment timesheetProjectionDefinition weekOffset fragment
+    profileActionSpanWithDetail "timesheets.projection.render_fragment" do
+        before <- readSurfaceProjectionCacheStats
+        html <- renderSurfaceProjectionFragment timesheetProjectionDefinition weekOffset fragment
+        after <- readSurfaceProjectionCacheStats
+        pure (html, surfaceProjectionCacheDeltaDetail before after)
 
 renderTimesheetWeekProjectionFragment :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
 renderTimesheetWeekProjectionFragment projection fragment =

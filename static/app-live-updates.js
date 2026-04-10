@@ -11,6 +11,65 @@
     let socketPath = null;
     let reconnectTimer = null;
     let activeClientId = null;
+    let nextPerfToken = 0;
+
+    function supportsPerformanceTimeline() {
+        return Boolean(window.performance && typeof window.performance.mark === 'function' && typeof window.performance.measure === 'function');
+    }
+
+    function perfToken(prefix) {
+        nextPerfToken += 1;
+        return `${prefix}-${Date.now()}-${nextPerfToken}`;
+    }
+
+    function beginPerfSpan(name, detail) {
+        if (!supportsPerformanceTimeline()) return null;
+
+        const token = perfToken(name);
+        const startMark = `${token}:start`;
+        window.performance.mark(startMark, detail ? { detail } : undefined);
+        return {
+            token,
+            name,
+            startMark,
+            detail: detail || null,
+        };
+    }
+
+    function endPerfSpan(span, extraDetail) {
+        if (!span || !supportsPerformanceTimeline()) return null;
+
+        const endMark = `${span.token}:end`;
+        const detail = extraDetail ? { ...span.detail, ...extraDetail } : span.detail;
+        window.performance.mark(endMark, detail ? { detail } : undefined);
+
+        let duration = null;
+        try {
+            window.performance.measure(span.name, {
+                start: span.startMark,
+                end: endMark,
+                detail: detail || undefined,
+            });
+            const entries = window.performance.getEntriesByName(span.name, 'measure');
+            const entry = entries[entries.length - 1];
+            duration = entry ? entry.duration : null;
+        } catch (_error) {
+            duration = null;
+        }
+
+        window.performance.clearMarks(span.startMark);
+        window.performance.clearMarks(endMark);
+
+        document.dispatchEvent(new CustomEvent('app:live-update-performance', {
+            detail: {
+                name: span.name,
+                duration,
+                ...detail,
+            },
+        }));
+
+        return duration;
+    }
 
     function findPreservedField(root, preserveField) {
         if (!(root instanceof HTMLElement) || !preserveField) return null;
@@ -85,12 +144,17 @@
     }
 
     async function swapFragmentHtml(targetId, html) {
+        const perfSpan = beginPerfSpan('live_updates.swap_fragment', { targetId });
         const target = document.getElementById(targetId);
-        if (!target) return;
+        if (!target) {
+            endPerfSpan(perfSpan, { outcome: 'target_missing' });
+            return;
+        }
 
         const trimmed = (html || '').trim();
         if (!trimmed) {
             target.remove();
+            endPerfSpan(perfSpan, { outcome: 'removed_empty_html' });
             return;
         }
 
@@ -103,6 +167,7 @@
         }
 
         if (!(nextNode instanceof Element)) {
+            endPerfSpan(perfSpan, { outcome: 'no_element' });
             return;
         }
 
@@ -119,9 +184,19 @@
                 isFullPage: false,
             });
         }
+
+        endPerfSpan(perfSpan, {
+            outcome: 'swapped',
+            nextTagName: nextNode.tagName,
+        });
     }
 
     async function refetchFragment(fragment) {
+        const perfSpan = beginPerfSpan('live_updates.refetch_fragment', {
+            targetId: fragment && fragment.targetId ? fragment.targetId : null,
+            url: fragment && fragment.url ? fragment.url : null,
+            deferUntilBlur: Boolean(fragment && fragment.deferUntilBlur),
+        });
         const response = await window.fetch(fragment.url, {
             credentials: 'same-origin',
             headers: {
@@ -130,12 +205,18 @@
         });
 
         if (!response.ok) {
+            endPerfSpan(perfSpan, { outcome: 'http_error', status: response.status });
             throw new Error(`Fragment fetch failed with ${response.status}`);
         }
 
         const html = await response.text();
         await swapFragmentHtml(fragment.targetId, html);
         restoreDeferredState(fragment);
+        endPerfSpan(perfSpan, {
+            outcome: 'ok',
+            status: response.status,
+            responseBytes: html.length,
+        });
     }
 
     function queueFragment(fragment) {
@@ -272,6 +353,14 @@
 
         if (fragment.deferUntilBlur && hasProtectedActiveInput(target, fragment)) {
             pendingDeferredFragments.set(fragment.targetId, captureDeferredState(target, fragment));
+            document.dispatchEvent(new CustomEvent('app:live-update-performance', {
+                detail: {
+                    name: 'live_updates.defer_fragment',
+                    duration: 0,
+                    targetId: fragment.targetId,
+                    reason: 'active_input',
+                },
+            }));
             return;
         }
 
@@ -687,12 +776,23 @@
     function handleInvalidateMessage(message) {
         if (!message || !message.scope || !Array.isArray(message.fragments)) return;
         if (message.sourceClientId && message.sourceClientId === activeClientId) return;
+        const perfSpan = beginPerfSpan('live_updates.handle_invalidate', {
+            fragmentCount: message.fragments.length,
+            scopeKind: message.scope && message.scope.kind ? message.scope.kind : null,
+            version: normalizeVersion(message.version),
+        });
 
         const scope = message.scope;
         const scopeKey = buildScopeKey(scope);
-        if (!scopeKey) return;
+        if (!scopeKey) {
+            endPerfSpan(perfSpan, { outcome: 'invalid_scope' });
+            return;
+        }
         const subscription = activeSubscriptions.get(scopeKey);
-        if (!subscription) return;
+        if (!subscription) {
+            endPerfSpan(perfSpan, { outcome: 'unsubscribed_scope', scopeKey });
+            return;
+        }
 
         const nextVersion = normalizeVersion(message.version);
         const previousVersion = getScopeVersion(scopeKey);
@@ -703,10 +803,22 @@
                 if (typeof subscription.resync === 'function') {
                     subscription.resync(subscription);
                 }
+                endPerfSpan(perfSpan, {
+                    outcome: 'resync_gap',
+                    scopeKey,
+                    previousVersion,
+                    nextVersion,
+                });
                 return;
             }
 
             if (previousVersion !== null && nextVersion <= previousVersion) {
+                endPerfSpan(perfSpan, {
+                    outcome: 'stale',
+                    scopeKey,
+                    previousVersion,
+                    nextVersion,
+                });
                 return;
             }
 
@@ -715,18 +827,25 @@
 
         if (message.fragments.length === 0 && typeof subscription.resync === 'function') {
             subscription.resync(subscription);
+            endPerfSpan(perfSpan, { outcome: 'resync_empty_fragments', scopeKey });
             return;
         }
 
         message.fragments.forEach(handleFragmentRefreshRequest);
+        endPerfSpan(perfSpan, { outcome: 'queued_fragments', scopeKey });
     }
 
     function openSocket(path) {
+        const connectPerfSpan = beginPerfSpan('live_updates.open_socket', { path });
         socket = new window.WebSocket(buildWebSocketUrl(path));
         socketPath = path;
 
         socket.onopen = function () {
             activeSubscriptions.forEach(subscribeScope);
+            endPerfSpan(connectPerfSpan, {
+                outcome: 'open',
+                subscriptionCount: activeSubscriptions.size,
+            });
         };
 
         socket.onmessage = function (event) {
@@ -750,6 +869,7 @@
         };
 
         socket.onclose = function () {
+            endPerfSpan(connectPerfSpan, { outcome: 'closed_before_open' });
             socket = null;
             if (activeSubscriptions.size > 0) {
                 scheduleReconnect();
@@ -757,6 +877,7 @@
         };
 
         socket.onerror = function () {
+            endPerfSpan(connectPerfSpan, { outcome: 'error' });
             if (socket) {
                 socket.close();
             }
