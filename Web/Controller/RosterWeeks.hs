@@ -32,6 +32,7 @@ import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Projection
+import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Grid (lastRowIndexForRows,
                                   renderRosterContentFragment,
@@ -1376,20 +1377,6 @@ ensureRosterWeekIsDraftForEdit rosterWeek =
                 setErrorMessage errorMessage
                 redirectToPath targetPath
 
-impactedRowKeysForSlotUpdate :: Maybe UUID.UUID -> RosterSlot -> [RosterSlot] -> [(UUID.UUID, Int)]
-impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots =
-    nub $
-        (updatedSlot.rosterDayId, updatedSlot.rowIndex)
-            : map (\slot -> (slot.rosterDayId, slot.rowIndex)) affectedSlots
-    where
-        impactedStaffIds = catMaybes [previousStaffId, updatedSlot.staffId]
-        affectedSlots = filter (\slot -> slot.staffId `elem` map Just impactedStaffIds) relatedSlots
-
-filterVisibleRosterSlots :: [RosterDay] -> [RosterSlot] -> [RosterSlot]
-filterVisibleRosterSlots rosterDays allSlots =
-    let openRosterDayIds = map (coerce . (.id)) (filter (not . (.isClosed)) rosterDays)
-     in filter (\slot -> slot.rosterDayId `elem` openRosterDayIds) allSlots
-
 ensureRosterDayHasMinimumRows :: (?modelContext :: ModelContext) => RosterDay -> Id RosterGroup -> Int -> IO ()
 ensureRosterDayHasMinimumRows rosterDay rosterGroupId minimumRowCount = do
     rosterWeek <- fetch (Id rosterDay.rosterWeekId :: Id RosterWeek)
@@ -1409,9 +1396,3 @@ ensureRosterDayHasMinimumRows rosterDay rosterGroupId minimumRowCount = do
                     |> set #rowIndex rowIndex
                     |> createRecord
                 pure ()
-
-applyOptionalField :: forall field model value. (SetField field model value) => Proxy field -> value -> Maybe Text -> model -> model
-applyOptionalField _ parsedValue rawParam model =
-    case rawParam of
-        Nothing -> model
-        Just _  -> setField @field parsedValue model
