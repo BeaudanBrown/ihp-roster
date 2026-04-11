@@ -6,7 +6,7 @@ import IHP.ControllerPrelude (newRecord)
 import IHP.Prelude
 import Test.Hspec
 import Web.Controller.RosterWeeks (impactedRowKeysForSlotUpdate)
-import Web.View.RosterWeeks.Show (lastRowIndexForRows, rowsForDay)
+import Web.View.RosterWeeks.Grid (lastRowIndexForRows, rowsForDay)
 
 tests :: Spec
 tests = describe "Roster grid row grouping" do

@@ -31,24 +31,20 @@ import Data.Time.LocalTime (TimeOfDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
-import Web.View.RosterWeeks.Show (RosterAssignmentFilters (..),
-                                  RosterAssignmentOptionState (..),
-                                  RosterRenderIndexes (..),
-                                  RosterStaffPanelEntry (..),
-                                  RosterWeekOverviewDay (..), ShowView (..),
-                                  buildRosterViewCapabilities,
-                                  lastRowIndexForRows,
+import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
+import Web.RosterWeeks.Dom
+import Web.RosterWeeks.Types
+import Web.View.RosterWeeks.Grid (lastRowIndexForRows,
                                   renderRosterContentFragment,
                                   renderRosterContentFragmentOob,
                                   renderRosterDaySectionFragment,
                                   renderRosterDaySectionFragmentOob,
-                                  renderRosterStaffPanelFragment,
-                                  renderRosterStaffPanelFragmentOob,
-                                  renderRosterWeekShell, renderRowFragment,
-                                  renderRowOob, renderWeekOverviewPanelFragment,
-                                  rosterContentFragmentId,
-                                  rosterDaySectionDomId, rosterRowDomIdText,
-                                  rosterStaffPanelFragmentId, rowsForDay)
+                                  renderRowFragment, renderRowOob,
+                                  rowsForDay)
+import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
+import Web.View.RosterWeeks.Show (renderRosterWeekShell)
+import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment,
+                                        renderRosterStaffPanelFragmentOob)
 
 instance Controller RosterWeeksController where
     beforeAction = do
@@ -439,12 +435,6 @@ instance Controller RosterWeeksController where
                             actorFragments
                         respondWithActorRosterFragmentRefresh actorFragments
 
-minimumOpenRosterRows :: Int
-minimumOpenRosterRows = 2
-
-closedRosterDayRows :: Int
-closedRosterDayRows = 3
-
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
 resolveRequestedRosterGroup =
     fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
@@ -762,33 +752,6 @@ fetchRelatedSlotsForStaffIds staffIds =
         else query @RosterSlot
             |> filterWhereIn (#staffId, map Just (nub staffIds))
             |> fetch
-
-data RosterRenderData = RosterRenderData
-    { rosterWeek       :: RosterWeek
-    , rosterDays       :: [RosterDay]
-    , weekStartDate    :: Calendar.Day
-    , assignmentFilters :: RosterAssignmentFilters
-    , staffMembers     :: [Staff]
-    , staffOptionStates :: Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState
-    , panelStaff       :: [RosterStaffPanelEntry]
-    , orderedSlotNames :: [SlotName]
-    , allSlots         :: [RosterSlot]
-    , slotConflicts    :: [(Id RosterSlot, [RosterConflict])]
-    , renderIndexes    :: RosterRenderIndexes
-    }
-
-data RosterProjectionScope = RosterProjectionScope
-    { rosterProjectionGroupId    :: !(Id RosterGroup)
-    , rosterProjectionWeekOffset :: !Int
-    }
-    deriving (Eq, Show)
-
-data RosterProjectionFragment
-    = RosterProjectionContent
-    | RosterProjectionStaffPanel
-    | RosterProjectionDaySection !UUID.UUID
-    | RosterProjectionRow !UUID.UUID !Int
-    deriving (Eq, Show)
 
 buildRosterProjectionScope :: Id RosterGroup -> Int -> RosterProjectionScope
 buildRosterProjectionScope rosterGroupId weekOffset =

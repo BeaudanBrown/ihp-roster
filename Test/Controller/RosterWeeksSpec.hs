@@ -18,10 +18,10 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
+import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterRowDomIdText,
+                            rosterStaffPanelFragmentId)
 import Web.Routes
 import Web.Types
-import Web.View.RosterWeeks.Show (rosterContentFragmentId, rosterRowDomIdText,
-                                  rosterStaffPanelFragmentId)
 
 tests :: Spec
 tests = beforeAll testContext do
