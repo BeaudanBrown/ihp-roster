@@ -11,11 +11,12 @@ import Application.Helper.RosterGroups (fetchEligibleRosterGroupStaff)
 import Data.Coerce (coerce)
 import Data.List (nub)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isJust, mapMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Calendar.WeekDate (toWeekDate)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Service (weekOffsetForDay)
+import Web.RosterWeeks.StaffOptions (fetchAssignedRosterWeekStaff)
 import Web.RosterWeeks.Types
 
 buildRosterMonthOverviewDays :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Calendar.Day -> Id RosterGroup -> Calendar.Day -> IO [RosterWeekOverviewDay]
@@ -136,15 +137,3 @@ startOfWeek :: Calendar.Day -> Calendar.Day
 startOfWeek day =
     let (_, _, weekdayNumber) = toWeekDate day
      in Calendar.addDays (toInteger (1 - weekdayNumber)) day
-
-fetchAssignedRosterWeekStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [RosterSlot] -> IO [Staff]
-fetchAssignedRosterWeekStaff allSlots = do
-    let assignedStaffIds = nub (mapMaybe (.staffId) allSlots)
-    if null assignedStaffIds
-        then pure []
-        else
-            query @Staff
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhereIn (#id, map Id assignedStaffIds)
-                |> orderBy #lastName
-                |> fetch
