@@ -9,8 +9,8 @@ import Application.Helper.StaffShiftPreferences
 import Application.Helper.View (appendQueryParams)
 import Web.Controller.Prelude
 import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation,
-                                   buildRosterContentFragmentRef,
                                    respondWithRosterContentOob)
+import Web.RosterWeeks.Projection (buildRosterContentFragmentRef)
 import Web.View.Staff.Edit
 
 instance Controller StaffController where

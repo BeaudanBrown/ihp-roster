@@ -18,8 +18,8 @@ import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Controller.Profiles (buildDefaultLeaveRequest,
                                 fetchCurrentUserLeaveRequests)
-import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation,
-                                   buildRosterContentFragmentRef,
+import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation)
+import Web.RosterWeeks.Projection (buildRosterContentFragmentRef,
                                    buildRosterStaffPanelFragmentRef)
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New

@@ -11,8 +11,8 @@ import Data.Time.Calendar (addDays)
 import Data.Time.Clock (utctDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
-import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation,
-                                   buildRosterRowFragmentRefs,
+import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation)
+import Web.RosterWeeks.Projection (buildRosterRowFragmentRefs,
                                    buildRosterStaffPanelFragmentRef)
 import Web.View.Profiles.Edit
 
