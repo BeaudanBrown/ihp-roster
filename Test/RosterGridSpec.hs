@@ -5,7 +5,7 @@ import Generated.Types
 import IHP.ControllerPrelude (newRecord)
 import IHP.Prelude
 import Test.Hspec
-import Web.Controller.RosterWeeks (impactedRowKeysForSlotUpdate)
+import Web.RosterWeeks.Rows (impactedRowKeysForSlotUpdate)
 import Web.View.RosterWeeks.Grid (lastRowIndexForRows, rowsForDay)
 
 tests :: Spec
