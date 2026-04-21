@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { chromium } from 'playwright';
+import { chromium, devices } from 'playwright';
 
 const DEFAULT_BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:8000';
 const DEFAULT_EMAIL = process.env.SCREENSHOT_EMAIL || 'dev-manager@example.com';
@@ -32,7 +32,10 @@ Options:
                         Regex fragment for the expected post-login destination (default: ${DEFAULT_POST_LOGIN_URL_PATTERN})
   --wait-ms <ms>        Extra wait after navigation (default: 0)
   --no-login            Skip login/profile completion flow
+  --device <name>       Use a Playwright device descriptor, e.g. "Pixel 7" or "iPad Mini"
+  --clip-selector <css> Capture only the first matching visible element
   --full-page           Capture full page (default)
+  --no-full-page        Capture the viewport only
   --viewport <WxH>      Viewport size, e.g. 1900x1200 (default: 1900x1200)
   --help                Show this message
 `);
@@ -65,7 +68,10 @@ function parseArgs(argv) {
         waitMs: 0,
         login: true,
         fullPage: true,
+        deviceName: null,
+        clipSelector: null,
         viewport: { width: 1900, height: 1200 },
+        viewportWasSet: false,
     };
 
     while (args.length > 0) {
@@ -104,8 +110,17 @@ function parseArgs(argv) {
             case '--no-login':
                 options.login = false;
                 break;
+            case '--device':
+                options.deviceName = args.shift();
+                break;
+            case '--clip-selector':
+                options.clipSelector = args.shift();
+                break;
             case '--full-page':
                 options.fullPage = true;
+                break;
+            case '--no-full-page':
+                options.fullPage = false;
                 break;
             case '--viewport': {
                 const value = args.shift() || '';
@@ -116,6 +131,7 @@ function parseArgs(argv) {
                     throw new Error(`Invalid --viewport value: ${value}`);
                 }
                 options.viewport = { width, height };
+                options.viewportWasSet = true;
                 break;
             }
             default:
@@ -129,6 +145,7 @@ function parseArgs(argv) {
     if (!options.loginPath && options.login) throw new Error('--login-path is required unless --no-login is used');
     if (!options.loginSelector && options.login) throw new Error('--login-selector is required unless --no-login is used');
     if (!options.postLoginUrlPattern && options.login) throw new Error('--post-login-url-pattern is required unless --no-login is used');
+    if (options.deviceName && !devices[options.deviceName]) throw new Error(`Unknown Playwright device: ${options.deviceName}`);
     if (!Number.isFinite(options.navigationTimeoutMs) || options.navigationTimeoutMs <= 0) throw new Error('--navigation-timeout-ms must be a positive number');
     if (!Number.isFinite(options.selectorTimeoutMs) || options.selectorTimeoutMs <= 0) throw new Error('--selector-timeout-ms must be a positive number');
     if (!Number.isFinite(options.waitMs) || options.waitMs < 0) throw new Error('--wait-ms must be a non-negative number');
@@ -171,7 +188,11 @@ async function ensureLoggedIn(page, options) {
         if (await firstName.count()) {
             await firstName.fill('Screenshot');
             await page.fill('#lastName', 'User');
-            await page.getByRole('button', { name: /save and continue/i }).click();
+            await page.fill('#phone', '0400000000').catch(() => null);
+            await page.fill('#emergencyContactName', 'Emergency Contact').catch(() => null);
+            await page.fill('#emergencyContactPhone', '0411111111').catch(() => null);
+            await page.fill('#idealShiftsPerWeek', '4').catch(() => null);
+            await page.getByRole('button', { name: /save( and continue)?/i }).click();
             await page.waitForLoadState('networkidle', { timeout: options.navigationTimeoutMs }).catch(() => null);
         }
     }
@@ -183,7 +204,11 @@ async function main() {
     const outputPath = path.resolve(outputFile);
 
     const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext({ viewport: options.viewport });
+    const contextOptions = options.deviceName ? { ...devices[options.deviceName] } : {};
+    if (!options.deviceName || options.viewportWasSet) {
+        contextOptions.viewport = options.viewport;
+    }
+    const context = await browser.newContext(contextOptions);
     const page = await context.newPage();
 
     try {
@@ -200,9 +225,17 @@ async function main() {
         }
 
         fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-        await page.screenshot({ path: outputPath, fullPage: options.fullPage });
+        if (options.clipSelector) {
+            const clipTarget = page.locator(options.clipSelector).first();
+            await clipTarget.waitFor({ state: 'visible', timeout: options.selectorTimeoutMs });
+            await clipTarget.screenshot({ path: outputPath });
+        } else {
+            await page.screenshot({ path: outputPath, fullPage: options.fullPage });
+        }
         console.log(`Saved screenshot: ${outputPath}`);
         console.log(`URL: ${targetUrl}`);
+        if (options.deviceName) console.log(`Device: ${options.deviceName}`);
+        if (options.clipSelector) console.log(`Clip selector: ${options.clipSelector}`);
     } finally {
         await context.close();
         await browser.close();

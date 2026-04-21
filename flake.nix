@@ -572,6 +572,73 @@ EOF
                             exec node ./e2e/screenshot-page.mjs "$@"
                         '';
 
+                        # Capture a deterministic set of authenticated roster screenshots against the running dev app.
+                        # Run `seed-dev app` first when you want the standard dev manager dataset.
+                        # Usage: screenshot-roster-mobile [output-dir] [path]
+                        screenshot-roster-mobile.exec = ''
+                            set -euo pipefail
+
+                            OUT_DIR="''${1:-output/playwright/roster-mobile/latest}"
+                            TARGET_PATH="''${2:-/RosterWeeks}"
+                            mkdir -p "$OUT_DIR"
+
+                            capture_device() {
+                                local slug="$1"
+                                local device="$2"
+
+                                screenshot-page "$TARGET_PATH" "$OUT_DIR/$slug-full.png" \
+                                    --device "$device" \
+                                    --selector '#roster-week-shell' \
+                                    --navigation-timeout-ms 120000 \
+                                    --selector-timeout-ms 120000
+
+                                screenshot-page "$TARGET_PATH" "$OUT_DIR/$slug-shell.png" \
+                                    --device "$device" \
+                                    --selector '#roster-week-shell' \
+                                    --clip-selector '#roster-week-shell' \
+                                    --navigation-timeout-ms 120000 \
+                                    --selector-timeout-ms 120000
+
+                                screenshot-page "$TARGET_PATH" "$OUT_DIR/$slug-table.png" \
+                                    --device "$device" \
+                                    --selector 'table.roster-grid' \
+                                    --clip-selector '.table-responsive' \
+                                    --navigation-timeout-ms 120000 \
+                                    --selector-timeout-ms 120000
+                            }
+
+                            capture_device pixel-7 "Pixel 7"
+                            capture_device iphone-13 "iPhone 13"
+                            capture_device ipad-mini "iPad Mini"
+
+                            screenshot-page "$TARGET_PATH" "$OUT_DIR/galaxy-s9-plus-full.png" \
+                                --viewport 360x740 \
+                                --selector '#roster-week-shell' \
+                                --navigation-timeout-ms 120000 \
+                                --selector-timeout-ms 120000
+
+                            screenshot-page "$TARGET_PATH" "$OUT_DIR/galaxy-s9-plus-shell.png" \
+                                --viewport 360x740 \
+                                --selector '#roster-week-shell' \
+                                --clip-selector '#roster-week-shell' \
+                                --navigation-timeout-ms 120000 \
+                                --selector-timeout-ms 120000
+
+                            echo "Roster mobile screenshots saved under $OUT_DIR"
+                        '';
+
+                        # Run the roster mobile visual diagnostic suite and attach screenshots/metrics to the report.
+                        # Usage: e2e-roster-mobile-screenshots [extra playwright args...]
+                        e2e-roster-mobile-screenshots.exec = ''
+                            export E2E_INCLUDE_SCREENSHOTS=1
+                            exec e2e \
+                                --project=mobile-chromium \
+                                --project=galaxy-s9-plus \
+                                --project=tablet-chromium \
+                                e2e/roster-mobile-screenshots.spec.ts \
+                                "$@"
+                        '';
+
                         # Open the Playwright HTML test report.
                         # Usage: e2e-report
                         e2e-report.exec = ''

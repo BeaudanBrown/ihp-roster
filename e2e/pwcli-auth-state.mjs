@@ -23,7 +23,8 @@ const ROLE_CONFIGS = {
         targetPath: '/RosterWeeks',
     },
     support: {
-        email: 'support-admin@example.com',
+        email: 'admin@bepis.lol',
+        password: 'admin',
         readySelector: '#support-venue-id',
         targetPath: '/Support',
     },
@@ -75,7 +76,7 @@ function parseArgs(argv) {
     const options = {
         baseUrl: DEFAULT_BASE_URL,
         email: ROLE_CONFIGS[role].email,
-        password: DEFAULT_PASSWORD,
+        password: ROLE_CONFIGS[role].password || DEFAULT_PASSWORD,
         loginPath: DEFAULT_LOGIN_PATH,
         loginSelector: DEFAULT_LOGIN_SELECTOR,
         navigationTimeoutMs: DEFAULT_NAVIGATION_TIMEOUT_MS,

@@ -3,6 +3,12 @@ import { defineConfig, devices } from '@playwright/test';
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000';
 const outputDir = process.env.PLAYWRIGHT_OUTPUT_DIR ?? 'test-results';
 const htmlReportDir = process.env.PLAYWRIGHT_HTML_REPORT_DIR ?? 'playwright-report';
+const includeScreenshotSpecs = process.env.E2E_INCLUDE_SCREENSHOTS === '1';
+const mobileTestFiles = [
+    /.*mobile-experience\.spec\.ts/,
+    /.*roster-mobile\.spec\.ts/,
+    ...(includeScreenshotSpecs ? [/.*roster-mobile-screenshots\.spec\.ts/] : []),
+];
 
 export default defineConfig({
     testDir: './e2e',
@@ -24,12 +30,16 @@ export default defineConfig({
     projects: [
         {
             name: 'desktop-chromium',
-            testIgnore: [/.*mobile-experience\.spec\.ts/, /.*roster-mobile\.spec\.ts/],
+            testIgnore: [
+                /.*mobile-experience\.spec\.ts/,
+                /.*roster-mobile\.spec\.ts/,
+                /.*roster-mobile-screenshots\.spec\.ts/,
+            ],
             use: { browserName: 'chromium' },
         },
         {
             name: 'mobile-chromium',
-            testMatch: [/.*mobile-experience\.spec\.ts/, /.*roster-mobile\.spec\.ts/],
+            testMatch: mobileTestFiles,
             use: {
                 ...devices['Pixel 7'],
                 browserName: 'chromium',
@@ -37,7 +47,7 @@ export default defineConfig({
         },
         {
             name: 'galaxy-s9-plus',
-            testMatch: [/.*mobile-experience\.spec\.ts/, /.*roster-mobile\.spec\.ts/],
+            testMatch: mobileTestFiles,
             use: {
                 browserName: 'chromium',
                 viewport: { width: 360, height: 740 },
@@ -51,7 +61,7 @@ export default defineConfig({
         },
         {
             name: 'tablet-chromium',
-            testMatch: [/.*mobile-experience\.spec\.ts/, /.*roster-mobile\.spec\.ts/],
+            testMatch: mobileTestFiles,
             use: {
                 ...devices['iPad Mini'],
                 browserName: 'chromium',

@@ -16,6 +16,9 @@ import qualified System.Environment as Environment
 import System.Exit (exitSuccess)
 import qualified Text.Read as TextRead
 
+seededSupportAdminPassword :: Text
+seededSupportAdminPassword = "admin"
+
 run :: Script
 run = do
     options <- liftIO parseSeedDevOptions
@@ -92,6 +95,7 @@ run = do
     TextIO.putStrLn ("Sandbox worker login: " <> get #email sandboxWorker)
     TextIO.putStrLn ("Support admin login: " <> get #email supportAdmin)
     TextIO.putStrLn ("Sandbox admin password: " <> testPassword)
+    TextIO.putStrLn ("Support admin password: " <> seededSupportAdminPassword)
     TextIO.putStrLn ("Pending invitation email: " <> get #email sandboxInvitation)
     TextIO.putStrLn ("Current week start: " <> tshow fixtureWeekStart)
     TextIO.putStrLn ("Roster groups: " <> get #name frontOfHouseGroup <> ", " <> get #name backOfHouseGroup)

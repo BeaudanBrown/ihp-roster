@@ -35,6 +35,12 @@ bash ./bin/in-env e2e e2e/mobile-experience.spec.ts
 # Run the roster-specific mobile/tablet baseline
 bash ./bin/in-env e2e e2e/roster-mobile.spec.ts
 
+# Capture roster mobile screenshots and layout metrics in the Playwright report
+bash ./bin/in-env e2e-roster-mobile-screenshots
+
+# Capture authenticated roster screenshots against the running dev app
+bash ./bin/in-env screenshot-roster-mobile output/playwright/roster-mobile/latest
+
 # View the last test report
 bash ./bin/in-env e2e-report
 
@@ -193,8 +199,21 @@ bash ./bin/in-env pwcli state-load .devenv/playwright-cli/manager-state.json
 - `desktop-chromium` runs the existing desktop-oriented suite
 - `mobile-chromium` and `tablet-chromium` run `e2e/mobile-experience.spec.ts`
 - `mobile-chromium` and `tablet-chromium` also run `e2e/roster-mobile.spec.ts`
+- `galaxy-s9-plus` runs the same mobile-focused specs with a 360px-wide Android profile
+- `e2e/roster-mobile-screenshots.spec.ts` is opt-in via `E2E_INCLUDE_SCREENSHOTS=1`; prefer `bash ./bin/in-env e2e-roster-mobile-screenshots` during roster mobile UI work
 - Keep mobile assertions focused on layout contracts and core flows, not on pixel-perfect matching
 - If a spec assumes desktop-expanded navigation or sticky sidebars, keep it in the desktop suite unless the interaction is being made explicitly cross-device
+
+## Roster Mobile Visual Diagnostics
+
+Use `e2e-roster-mobile-screenshots` when changing roster layout, spacing, controls, picker behavior, or staff-panel placement on small screens. It runs the roster page through the mobile/tablet projects and attaches:
+
+- full-page screenshots
+- `#roster-week-shell` screenshots
+- first editable row screenshots
+- JSON layout metrics for viewport width, body/root scroll width, table overflow, staff panel, editable row, and overlay/picker regions
+
+Use the normal `roster-mobile.spec.ts` assertions as the regression gate. Use the screenshot suite as the visual review path; do not add brittle pixel-perfect expectations while the mobile layout is still moving.
 
 ## Authenticated Screenshot Helper
 
@@ -202,6 +221,8 @@ Use `screenshot-page` when a page requires login/profile completion before rende
 
 ```bash
 bash ./bin/in-env screenshot-page /RosterWeeks test-results/roster.png --selector 'table.roster-grid'
+bash ./bin/in-env screenshot-page /RosterWeeks output/playwright/roster-pixel.png --device "Pixel 7" --selector '#roster-week-shell'
+bash ./bin/in-env screenshot-page /RosterWeeks output/playwright/roster-table.png --viewport 390x844 --clip-selector '.table-responsive' --selector 'table.roster-grid'
 ```
 
 For the normal dev app, `screenshot-page` now defaults to the seeded dev manager login `dev-manager@example.com` / `password123`, so run `bash ./bin/in-env seed-dev app` first unless you pass explicit credentials. This is separate from the isolated `app_e2e` test accounts such as `e2e-test@example.com` / `test-password-123`.
@@ -215,6 +236,10 @@ Useful options:
 - `--post-login-url-pattern` when the expected landing page is not one of `Dashboard|RosterWeeks|EditProfile`
 - `--navigation-timeout-ms` and `--selector-timeout-ms` for cold IHP boots or slow compile/reload windows
 - `--wait-ms` for delayed UI states
+- `--device` for a Playwright device descriptor such as `Pixel 7`, `iPhone 13`, or `iPad Mini`
+- `--viewport` for custom dimensions such as `360x740`
+- `--clip-selector` for focused element screenshots such as `#roster-week-shell` or `.table-responsive`
+- `--no-full-page` when you want only the viewport rather than a full-page capture
 
 Recommended pattern for arbitrary authenticated screenshots:
 
