@@ -237,30 +237,26 @@ lookupSurfaceProjection ::
     SurfaceProjectionCacheKey ->
     UTCTime ->
     IO (Maybe snapshot)
-lookupSurfaceProjection store key now = do
-    state <- readIORef store.stateRef
-    let (cleanedEntries, expiredCount) = dropExpiredEntries now state.entries
-    let cleanedState = addEvictions expiredCount state { entries = cleanedEntries }
-    case Map.lookup key cleanedEntries of
-        Just entry
-            | Just typedSnapshot <- Dynamic.fromDynamic entry.snapshot -> do
-                let touchedEntry = entry { lastAccessedAt = now }
-                atomicModifyIORef' store.stateRef \_ ->
-                    ( cleanedState
-                        { entries = Map.insert key touchedEntry cleanedEntries
-                        , stats = incrementHits cleanedState.stats
-                        }
-                    , ()
-                    )
-                pure (Just typedSnapshot)
-        _ -> do
-            atomicModifyIORef' store.stateRef \_ ->
-                ( cleanedState
-                    { stats = incrementMisses cleanedState.stats
-                    }
-                , ()
-                )
-            pure Nothing
+lookupSurfaceProjection store key now =
+    atomicModifyIORef' store.stateRef \state ->
+        let (cleanedEntries, expiredCount) = dropExpiredEntries now state.entries
+            cleanedState = addEvictions expiredCount state { entries = cleanedEntries }
+         in case Map.lookup key cleanedEntries of
+                Just entry
+                    | Just typedSnapshot <- Dynamic.fromDynamic entry.snapshot ->
+                        let touchedEntry = entry { lastAccessedAt = now }
+                            nextState =
+                                cleanedState
+                                    { entries = Map.insert key touchedEntry cleanedEntries
+                                    , stats = incrementHits cleanedState.stats
+                                    }
+                         in (nextState, Just typedSnapshot)
+                _ ->
+                    let nextState =
+                            cleanedState
+                                { stats = incrementMisses cleanedState.stats
+                                }
+                     in (nextState, Nothing)
 
 insertSurfaceProjection ::
     forall scope snapshot fragment.
@@ -306,12 +302,12 @@ dropExpiredEntries now cacheEntries =
 
 dropOlderScopeVersions :: SurfaceProjectionCacheKey -> Map.Map SurfaceProjectionCacheKey SurfaceProjectionCacheEntry -> (Map.Map SurfaceProjectionCacheKey SurfaceProjectionCacheEntry, Int)
 dropOlderScopeVersions key cacheEntries =
-    let sameScope differentKey candidateKey =
-            candidateKey /= key
-                && candidateKey.keySurfaceName == key.keySurfaceName
+    let isOlderScopeVersion candidateKey =
+            candidateKey.keySurfaceName == key.keySurfaceName
                 && candidateKey.keyViewer == key.keyViewer
                 && candidateKey.keyScope == key.keyScope
-        (staleEntries, retainedEntries) = Map.partitionWithKey (\candidateKey _ -> sameScope key candidateKey) cacheEntries
+                && candidateKey.keyVersion < key.keyVersion
+        (staleEntries, retainedEntries) = Map.partitionWithKey (\candidateKey _ -> isOlderScopeVersion candidateKey) cacheEntries
      in (retainedEntries, Map.size staleEntries)
 
 trimSurfaceEntries :: Text -> Int -> Map.Map SurfaceProjectionCacheKey SurfaceProjectionCacheEntry -> (Map.Map SurfaceProjectionCacheKey SurfaceProjectionCacheEntry, Int)

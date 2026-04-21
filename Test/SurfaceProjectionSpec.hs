@@ -67,6 +67,30 @@ tests = describe "SurfaceProjection helper" do
         stats.loads `shouldBe` 2
         stats.evictions `shouldBe` 1
 
+    it "keeps newer scope versions cached when an older version is loaded later" do
+        clock <- newClock
+        store <- newStore clock
+        viewerRef <- newIORef "manager"
+        versionRef <- newIORef 2
+        loadCountRef <- newIORef (0 :: Int)
+        let definition = testDefinition viewerRef versionRef loadCountRef defaultSurfaceProjectionCachePolicy
+
+        newerSnapshot <- loadSurfaceProjectionFromStore store definition (0 :: Int)
+        writeIORef versionRef 1
+        olderSnapshot <- loadSurfaceProjectionFromStore store definition 0
+        writeIORef versionRef 2
+        cachedNewerSnapshot <- loadSurfaceProjectionFromStore store definition 0
+        stats <- readSurfaceProjectionCacheStatsFromStore store
+        loadCount <- readIORef loadCountRef
+
+        newerSnapshot `shouldBe` ("projection-1" :: Text)
+        olderSnapshot `shouldBe` "projection-2"
+        cachedNewerSnapshot `shouldBe` "projection-1"
+        loadCount `shouldBe` 2
+        stats.hits `shouldBe` 1
+        stats.loads `shouldBe` 2
+        stats.evictions `shouldBe` 0
+
     it "warms a projection without forcing a second load on the next read" do
         clock <- newClock
         store <- newStore clock
