@@ -1,25 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs } from './test-helpers';
-
-const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
+import { openRoster } from './test-helpers';
 
 async function loginAndOpenRoster(page) {
-    await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
-    await gotoWhenReady(page, e2eRosterPath, 'table.roster-grid');
-    await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+    await openRoster(page);
 }
 
 async function openRosterWeekOffset(page, weekOffset) {
-    await loginAndOpenRoster(page);
-
-    for (let step = 0; step < weekOffset; step += 1) {
-        await page.getByRole('link', { name: 'Next week' }).click();
-        await expect(page.locator('#roster-week-shell')).toHaveAttribute(
-            'data-live-update-week-offset',
-            String(step + 1),
-        );
-    }
-
+    await openRoster(page, { weekOffset });
     await expect(page.locator('#roster-week-shell')).toHaveAttribute(
         'data-live-update-week-offset',
         String(weekOffset),

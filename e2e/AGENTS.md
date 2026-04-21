@@ -91,15 +91,16 @@ test.describe('My Feature', () => {
 For pages that can briefly show the IHP compile screen during reloads, prefer the shared helpers:
 
 ```typescript
-import { gotoWhenReady, loginAs } from './test-helpers';
+import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
 
 await gotoWhenReady(page, '/NewSession', '#email');
 await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+await openRoster(page, { email: 'e2e-test@example.com', weekOffset: 1 });
 ```
 
 `gotoWhenReady` retries the navigation until the expected selector appears instead of failing on the temporary `Is compiling` page. `loginAs` wraps the seeded login flow and waits for the post-login roster shell.
 `gotoWhenReady` also retries transient `ERR_CONNECTION_REFUSED` startup races from the temporary E2E app server instead of failing immediately on the first `page.goto`.
-`openRoster(page, ...)` is the shared helper for authenticated roster-grid specs. It defaults to the seeded venue admin (`e2e-admin@example.com`) and canonical roster-group fixture, preserves the current post-login grid when one is already visible, and otherwise resolves the current roster group before navigating to the canonical `ShowRosterWeek` route instead of assuming the `/RosterWeeks` landing page has already resolved to a concrete grid.
+`openRoster(page, ...)` is the shared helper for authenticated roster-grid specs. It defaults to the seeded venue admin (`e2e-admin@example.com`) and canonical roster-group fixture, preserves the current post-login grid when one is already visible, and otherwise resolves the current roster group before navigating to the canonical `ShowRosterWeek` route instead of assuming the `/RosterWeeks` landing page has already resolved to a concrete grid. New roster-grid specs should use `openRoster` unless they are explicitly testing authentication or initial roster routing.
 
 For payroll/export coverage, the shared helpers in `e2e/test-helpers.ts` also provide:
 
@@ -121,18 +122,13 @@ For payroll/export coverage, the shared helpers in `e2e/test-helpers.ts` also pr
 
 ### Logging in within a test
 ```typescript
-import { gotoWhenReady } from './test-helpers';
+import { gotoWhenReady, loginAs } from './test-helpers';
 
 test('authenticated feature', async ({ page }) => {
-    // Login with the seeded test user
-    await gotoWhenReady(page, '/NewSession', '#email');
-    await page.fill('#email', 'e2e-test@example.com');
-    await page.fill('#password', 'test-password-123');
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
+    await loginAs(page, 'e2e-test@example.com', 'test-password-123');
 
     // Now navigate to the authenticated page
-    await page.goto('/MyProtectedPage');
+    await gotoWhenReady(page, '/MyProtectedPage', 'body');
     // ...assertions...
 });
 ```
@@ -160,6 +156,7 @@ test('authenticated feature', async ({ page }) => {
 - Prefer stable shell selectors such as `#roster-content`, `#timesheet-week-shell`, and `#leave-requests-content`
 - Match the actual rendered copy, not seed helper names. Example: the roster grid renders staff as `Last, First`, while leave/timesheet views render `First Last`
 - After login, wait for the destination shell selector as well as the URL because the post-login flow now resolves venue context before landing on roster pages
+- Do not use `page.waitForTimeout(...)` to “let HTMX settle” in normal specs. Prefer asserting the concrete post-action contract instead: updated field value, fragment text, row count, conflict class, modal close, or URL/shell stability.
 
 ## Operational Notes
 

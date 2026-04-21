@@ -1,29 +1,9 @@
 import { test, expect } from '@playwright/test';
-
-async function login(page) {
-    await page.goto('/NewSession');
-    await page.fill('#email', 'e2e-test@example.com');
-    await page.fill('#password', 'test-password-123');
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/);
-}
-
-async function ensureRosterDraft(page) {
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/);
-
-    const createDraftButton = page.locator('button:has-text("Create Draft Roster")');
-    if (await createDraftButton.isVisible()) {
-        await createDraftButton.click();
-    }
-
-    await expect(page.locator('#roster-week-shell')).toBeVisible();
-    await expect(page.locator('#roster-content')).toBeVisible();
-}
+import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
 
 test.describe('Week navigation', () => {
     test('roster week pager swaps the shell without a full page navigation', async ({ page }) => {
-        await login(page);
-        await ensureRosterDraft(page);
+        await openRoster(page, { email: 'e2e-test@example.com' });
 
         await page.evaluate(() => {
             window.__rosterWeekNavMarker = 'still-here';
@@ -43,8 +23,8 @@ test.describe('Week navigation', () => {
     });
 
     test('timesheet week pager swaps the shell without a full page navigation', async ({ page }) => {
-        await login(page);
-        await page.goto('/Timesheets');
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await expect(page.locator('#timesheet-week-shell')).toBeVisible();
 
         await page.evaluate(() => {
