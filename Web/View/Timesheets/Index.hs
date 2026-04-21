@@ -2,9 +2,7 @@ module Web.View.Timesheets.Index where
 
 import Application.Helper.Controller (isWithinEditWindow, shiftDurationMinutes)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
-import Application.Helper.Pay (TimesheetPaySummary)
 import Data.Fixed (Pico)
-import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -17,7 +15,6 @@ data IndexView = IndexView
     { entries               :: [TimesheetEntry]
     , staffMembers          :: [Staff]
     , shiftTypes            :: [ShiftType]
-    , paySummariesByEntryId :: Map.Map Text TimesheetPaySummary
     , today                 :: Day
     , editWindowDays        :: Int
     , weekOffset            :: Int
@@ -54,7 +51,7 @@ renderTimesheetWeekShell IndexView { .. } =
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
                         <div class="d-flex flex-column gap-3">
-                            {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate showApproved showAllStaff)}
+                            {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes today editWindowDays weekOffset weekStartDate showApproved showAllStaff)}
                         </div>
                     |]
                     }
@@ -160,16 +157,16 @@ renderTimesheetWeekLabel :: Day -> Text
 renderTimesheetWeekLabel weekStartDate =
     "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
-renderDaySection :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
+renderDaySection :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
 renderDaySection =
     renderDaySectionWithSwap Nothing
 
-renderDaySectionOob :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
+renderDaySectionOob :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
 renderDaySectionOob =
     renderDaySectionWithSwap (Just "outerHTML")
 
-renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
-renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset weekStartDate showApproved showAllStaff dayOffset = [hsx|
+renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
+renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes today editWindowDays weekOffset weekStartDate showApproved showAllStaff dayOffset = [hsx|
     <section id={timesheetDaySectionDomId dayOffset}
              class="app-panel timesheet-day-panel"
              data-timesheet-day-offset={tshow dayOffset}
@@ -187,7 +184,7 @@ renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes paySummari
                 <span class="timesheet-day-add-label">{weekdayLabel} {formatDateCompact dayDate}</span>
             </a>
 
-            {renderDayEntries dayOffset dayEntries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset showApproved showAllStaff}
+            {renderDayEntries dayOffset dayEntries staffMembers shiftTypes today editWindowDays weekOffset showApproved showAllStaff}
         </div>
     </section>
 |]
@@ -219,17 +216,17 @@ renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes paySummari
 timesheetDaySectionDomId :: Int -> Text
 timesheetDaySectionDomId dayOffset = "timesheet-day-section-" <> tshow dayOffset
 
-renderDayEntries :: (?context :: ControllerContext) => Int -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Bool -> Bool -> Html
-renderDayEntries dayOffset dayEntries staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset showApproved showAllStaff
+renderDayEntries :: (?context :: ControllerContext) => Int -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Bool -> Bool -> Html
+renderDayEntries dayOffset dayEntries staffMembers shiftTypes today editWindowDays weekOffset showApproved showAllStaff
     | null dayEntries = [hsx|<p class="timesheet-day-empty app-muted mb-0">No entries for this day.</p>|]
     | otherwise = [hsx|
         <div class="timesheet-entry-list">
-            {forEach dayEntries (renderEntryCard dayOffset staffMembers shiftTypes paySummariesByEntryId today editWindowDays weekOffset showApproved showAllStaff)}
+            {forEach dayEntries (renderEntryCard dayOffset staffMembers shiftTypes today editWindowDays weekOffset showApproved showAllStaff)}
         </div>
     |]
 
-renderEntryCard :: (?context :: ControllerContext) => Int -> [Staff] -> [ShiftType] -> Map.Map Text TimesheetPaySummary -> Day -> Int -> Int -> Bool -> Bool -> TimesheetEntry -> Html
-renderEntryCard dayOffset staffMembers shiftTypes _paySummariesByEntryId today editWindowDays weekOffset showApproved showAllStaff entry = [hsx|
+renderEntryCard :: (?context :: ControllerContext) => Int -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Bool -> Bool -> TimesheetEntry -> Html
+renderEntryCard dayOffset staffMembers shiftTypes today editWindowDays weekOffset showApproved showAllStaff entry = [hsx|
     <article class="timesheet-entry-card" data-timesheet-entry-approved={boolText entry.isApproved}>
         <div class="timesheet-entry-main">
             <div class="timesheet-entry-identity">

@@ -5,9 +5,7 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..),
                                       broadcastLiveInvalidation,
                                       currentLiveUpdateVersion)
-import Application.Helper.Pay (TimesheetPaySummary,
-                               ensureCurrentVenuePayConfigSnapshot,
-                               fetchTimesheetPaySummariesForEntries)
+import Application.Helper.Pay (ensureCurrentVenuePayConfigSnapshot)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayConfig (..),
@@ -374,7 +372,6 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
                     projection.timesheetEntries
                     projection.timesheetStaffMembers
                     projection.timesheetShiftTypes
-                    projection.timesheetPaySummariesByEntryId
                     projection.timesheetToday
                     projection.timesheetEditWindowDays
                     weekOffset
@@ -386,7 +383,6 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
                     projection.timesheetEntries
                     projection.timesheetStaffMembers
                     projection.timesheetShiftTypes
-                    projection.timesheetPaySummariesByEntryId
                     projection.timesheetToday
                     projection.timesheetEditWindowDays
                     weekOffset
@@ -408,21 +404,6 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
                 ]
             ]
 
-fetchTimesheetDaySectionState :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Int -> IO ([TimesheetEntry], [Staff], [ShiftType], Map.Map Text TimesheetPaySummary, Day, Int, Day)
-fetchTimesheetDaySectionState weekOffset = do
-    venueConfig <- fetchVenueConfig
-    let weekStartDate = addDays (toInteger (weekOffset * 7)) venueConfig.weekOffsetEpoch
-    let weekEndDate = addDays 6 weekStartDate
-
-    (entries, staffMembers, _) <- fetchTimesheetDataForWeek weekStartDate weekEndDate True True
-    shiftTypes <- fetchShiftTypesForForm
-    paySummariesByEntryId <- fetchTimesheetPaySummariesForEntries entries
-    now <- getCurrentTime
-    let today = utctDay now
-    let editWindowDays = venueConfig.staffTimesheetEditWindowDays
-
-    pure (entries, staffMembers, shiftTypes, paySummariesByEntryId, today, editWindowDays, weekStartDate)
-
 fetchTimesheetWeekProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetProjectionRequest -> IO TimesheetWeekProjection
 fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset = weekOffset, projectionShowApproved = showApproved, projectionShowAllStaff = showAllStaff } = do
     venueConfig <- fetchVenueConfig
@@ -431,7 +412,6 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
 
     (entries, staffMembers, currentViewerStaffId) <- profileActionSpan "timesheets.fetch_week_data" (fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff)
     shiftTypes <- profileActionSpan "timesheets.fetch_shift_types" fetchShiftTypesForForm
-    paySummariesByEntryId <- profileActionSpan "timesheets.build_pay_summaries" (fetchTimesheetPaySummariesForEntries entries)
     today <- utctDay <$> getCurrentTime
     let editWindowDays = venueConfig.staffTimesheetEditWindowDays
 
@@ -440,7 +420,6 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             { timesheetEntries = entries
             , timesheetStaffMembers = staffMembers
             , timesheetShiftTypes = shiftTypes
-            , timesheetPaySummariesByEntryId = paySummariesByEntryId
             , timesheetToday = today
             , timesheetEditWindowDays = editWindowDays
             , timesheetWeekOffset = weekOffset
@@ -465,7 +444,6 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     { timesheetEntries               :: [TimesheetEntry]
     , timesheetStaffMembers          :: [Staff]
     , timesheetShiftTypes            :: [ShiftType]
-    , timesheetPaySummariesByEntryId :: Map.Map Text TimesheetPaySummary
     , timesheetToday                 :: Day
     , timesheetEditWindowDays        :: Int
     , timesheetWeekOffset            :: Int
@@ -540,7 +518,6 @@ renderTimesheetWeekProjectionFragment projection fragment =
                     projection.timesheetEntries
                     projection.timesheetStaffMembers
                     projection.timesheetShiftTypes
-                    projection.timesheetPaySummariesByEntryId
                     projection.timesheetToday
                     projection.timesheetEditWindowDays
                     projection.timesheetWeekOffset
@@ -551,12 +528,11 @@ renderTimesheetWeekProjectionFragment projection fragment =
                 )
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
-timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMembers, timesheetShiftTypes, timesheetPaySummariesByEntryId, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetShowApproved, timesheetShowAllStaff, timesheetCurrentViewerStaffId } =
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetShowApproved, timesheetShowAllStaff, timesheetCurrentViewerStaffId } =
     IndexView
         { entries = timesheetEntries
         , staffMembers = timesheetStaffMembers
         , shiftTypes = timesheetShiftTypes
-        , paySummariesByEntryId = timesheetPaySummariesByEntryId
         , today = timesheetToday
         , editWindowDays = timesheetEditWindowDays
         , weekOffset = timesheetWeekOffset
