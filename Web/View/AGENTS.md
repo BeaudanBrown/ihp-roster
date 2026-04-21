@@ -49,7 +49,7 @@ renderForm post = formFor post [hsx|
 
 ## Key Imports
 - Always import `Web.View.Prelude` — it re-exports `IHP.ViewPrelude`, `Web.View.Layout`, `Generated.Types`, `Web.Types`, and `Application.Helper.View`
-- Shared view helpers go in `Application/Helper/View.hs`
+- Shared view helpers should be added to focused modules under `Application/Helper/View/` first. Use `Application/Helper/View.hs` as the compatibility wrapper, not the default implementation bucket.
 - Layout is defined in `Web/View/Layout.hs`
 
 ## Roster HTMX Pattern
@@ -93,8 +93,8 @@ renderForm post = formFor post [hsx|
   - page shells: `app-shell`, `app-content`, `app-page`, `app-page-auth`
   - surfaces: `app-panel`, `app-auth-card`, `app-panel-body`, `app-auth-body`
   - sizing/text helpers: `app-form-width`, `app-muted`
-- Signed-in pages should use `renderAppPage` from `Application/Helper/View.hs` plus `app-panel` surfaces. Reserve `app-page-auth` / `app-auth-card` for unauthenticated auth and welcome flows only.
-- Prefer `renderAppPanel` for ordinary themed surfaces instead of hand-writing `app-panel`, `app-panel-header`, and `app-panel-body` markup in each view. Use the custom-header escape hatch only when a surface needs richer toolbar chrome like week navigation.
+- Signed-in pages should use `renderAppPage` from `Application/Helper/View/Chrome.hs` plus `app-panel` surfaces. Reserve `app-page-auth` / `app-auth-card` for unauthenticated auth and welcome flows only.
+- Prefer `renderAppPanel` from `Application/Helper/View/Chrome.hs` for ordinary themed surfaces instead of hand-writing `app-panel`, `app-panel-header`, and `app-panel-body` markup in each view. Use the custom-header escape hatch only when a surface needs richer toolbar chrome like week navigation.
 - Keep page-level titles and summary copy in the shared `app-page-header`. Use panel headers (`app-panel-header`, `app-panel-title`, `app-panel-description`) only for secondary sections inside the page body.
 - Avoid inline `style="..."` in HSX for layout/sizing; add a reusable class in `static/app.css` instead.
 - Avoid hardcoded light-mode classes (`bg-light`, `text-muted`) in new views; use semantic classes/tokens.
@@ -140,7 +140,12 @@ renderForm post = formFor post [hsx|
   - one shared toast mount for transient notifications
   - picker markup rendered separately for utility overlays
 - Default toast placement is bottom-center. Future left/right placement changes should come from shared helper config, not layout-specific markup changes.
-- Keep reusable overlay helpers in `Application/Helper/View.hs` so structure, title, close behavior, and footer/button handling stay centralized.
+- Keep reusable overlay helpers in `Application/Helper/View/Overlay.hs` and toast helpers in `Application/Helper/View/Toast.hs` so structure, title, close behavior, footer/button handling, and toast rendering stay centralized.
+- When adding new shared UI helpers, split by concern:
+  - page/panel/navigation wrappers in `View/Chrome.hs`
+  - dialog workflow wrappers in `View/Overlay.hs`
+  - toast rendering in `View/Toast.hs`
+  - dense time-input or form-specific helpers in their own dedicated modules rather than extending the wrapper module
 - Dialog launch contract:
   - trigger uses `hx-get`
   - target is the shared dialog mount

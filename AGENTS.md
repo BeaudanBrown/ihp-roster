@@ -70,11 +70,16 @@
   - `toast` for transient notifications
 - Multiple overlay triggers may exist on a page, but only one workflow dialog should be active at a time in the shared dialog mount.
 - Do not build arbitrary nested workflow dialogs. A picker may appear above a workflow dialog, but dialogs should replace each other rather than stack.
-- Prefer declarative overlay config in `Application/Helper/View.hs` over ad-hoc per-view footer buttons. Shared forms should usually render fields only; overlay wrappers own primary and secondary actions.
+- Prefer declarative overlay config in `Application/Helper/View/Overlay.hs` over ad-hoc per-view footer buttons. Shared forms should usually render fields only; overlay wrappers own primary and secondary actions.
 - For responsive HTMX flows, return the smallest updated fragment plus any out-of-band overlay updates. Avoid whole-page redirects when the current screen can be updated in place.
 
 ## Overlay Implementation Plan
-- Shared overlay helpers live in `Application/Helper/View.hs` and define the canonical mount ids, config records, footer button rendering, and toast rendering.
+- Shared view helpers are split by concern under `Application/Helper/View/`:
+  - `Chrome.hs` for page/panel/partial-navigation wrappers
+  - `Overlay.hs` for workflow dialog mount ids, config records, and footer buttons
+  - `Toast.hs` for toast config and rendering
+  - keep `Application/Helper/View.hs` as the compatibility wrapper, not the default place for new helper implementations
+- New shared view helpers should go into the narrowest matching `Application/Helper/View/*` module first. Only keep `Application/Helper/View.hs` as a re-export boundary unless a helper truly spans multiple view helper areas.
 - `Web/View/Layout.hs` owns the top-level overlay hosts:
   - one shared dialog mount for workflow dialogs
   - one shared toast mount for transient notifications
@@ -118,7 +123,7 @@ Available scripts:
 - **`seed-dev [app|app_test] [--force]`** — Seed a broader current-week development dataset for manual inspection, including a busy multi-group roster venue, support/bootstrap scenarios, and the richer payroll parity venue. The command now always resets the target DB first; `--force` is accepted as an explicit no-op compatibility flag.
 - **`just seed-dev`** — Human-friendly default for manual dev exploration. This always wipes and reseeds `app` so the running dev app reflects the seeded venues immediately.
 - **`new-controller NAME`** — IHP code generator that scaffolds controller, views, types, and routes. Prefer this for new CRUD controllers, then customize.
-- **`e2e`** — Run Playwright end-to-end tests against isolated shard-local `app_e2e_*` databases and temporary app servers on the next free local IHP dev ports. The full suite auto-shards across local cores when called without focused or interactive args; use `E2E_SHARDS=1` to force serial execution. Accepts Playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). The local Postgres socket still needs to be available, but this wrapper no longer reuses the normal dev app/database.
+- **`e2e`** — Run Playwright end-to-end tests against isolated shard-local `app_e2e_*` databases and temporary app servers on the next free local IHP dev ports. The full suite now auto-shards to at most two app-server shards by default when called without focused or interactive args; use `E2E_SHARDS=1` to force serial execution or set a larger explicit shard count when you really want it. Accepts Playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). The local Postgres socket still needs to be available, but this wrapper no longer reuses the normal dev app/database.
 - **`screenshot`** — Take a screenshot of a page. Usage: `screenshot http://localhost:8000/Dashboard dash.png`. Requires `devenv up` running.
 - **`screenshot-page`** — Authenticated Playwright screenshot helper for arbitrary app pages. Preferred over ad hoc browser scripts when the page requires login/profile completion or a shell-specific wait selector. For the normal dev app it assumes the `seed-dev app` dataset and defaults to `dev-manager@example.com` / `password123`. Supports `--selector`, `--clip-selector`, `--device`, `--viewport`, `--base-url`, `--email`, `--password`, `--login-path`, `--login-selector`, `--post-login-url-pattern`, `--navigation-timeout-ms`, `--selector-timeout-ms`, `--wait-ms`, `--no-login`, and `--no-full-page`.
 - **`screenshot-roster-mobile`** — Capture a standard roster mobile screenshot set against the running dev app. Run `bash ./bin/in-env seed-dev app` first when you want deterministic dev-role data. Saves full-page and clipped roster shell/table captures for Pixel 7, iPhone 13, iPad Mini, and a 360px Galaxy-style viewport.

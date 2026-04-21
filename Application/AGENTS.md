@@ -57,9 +57,13 @@ psql -h "$PWD/build/db" app -c "\dt"
 ```
 
 ## Helpers
-- `Application/Helper/Controller.hs` — Functions available in all controllers
-- `Application/Helper/View.hs` — Functions available in all views
+- `Application/Helper/Controller.hs` — compatibility wrapper for shared controller helpers
+- `Application/Helper/View.hs` — compatibility wrapper for shared view helpers
 - These are already imported via `Web.Controller.Prelude` and `Web.View.Prelude`
+- Prefer adding new shared helpers to focused submodules first:
+  - controller helpers under `Application/Helper/Controller*.hs` or adjacent feature modules
+  - view helpers under `Application/Helper/View/*.hs`
+- Treat the top-level wrapper modules as re-export surfaces for compatibility. Do not grow them back into monoliths.
 - Keep durable audit writes centralized in `Application/Helper/Controller.hs`; prefer one append-only `audit_events` helper that stores structured `JSONB` payloads and call it inside the same `withTransaction` as the sensitive mutation.
 - Keep export generation/download flow centralized in `Application/Helper/Export.hs`; controllers should delegate venue-scoped export creation, expiry checks, and audit emission there instead of hand-rolling ad hoc CSV endpoints.
 - Keep payroll report selection separate from export-job lifecycle. Venue-scoped report definitions (slug, engine, description, optional shift-type filters) should decide which report a venue can request; `export_jobs` should remain the request/generation/download/audit record for the concrete file instance.
@@ -86,13 +90,13 @@ psql -h "$PWD/build/db" app -c "\dt"
 - Pay levels now carry the old-system monetary inputs directly (`base_rate`, `evening_penalty`, `after_12_penalty`, `weekday_multiplier`, `saturday_multiplier`, `sunday_multiplier`). Any payroll snapshot/export change that needs wage math should serialize and read those fields through `Application/Helper/Pay.hs` instead of recalculating them ad hoc elsewhere.
 - `day_names.weekday_index` is treated as real weekday numbering for pay resolution (`EXTRACT(DOW ...)`: Sunday `0` through Saturday `6`). When rendering week-scoped report columns, do not sort/export by raw `weekday_index`; reorder labels by the selected week start date so Monday-first (or venue-specific epoch-first) week views stay stable while the SQL pay engine still resolves overrides correctly.
 - The pay payload now exposes effective shift-type/pay-level identifiers and labels plus real monetary fields (`baseRate`, per-segment `amount`, `totals.totalAmount`) for payroll export/report shaping.
-- Keep reusable overlay helpers in `Application/Helper/View.hs`:
-  - shared dialog and toast mount ids
-  - declarative overlay config/button types
-  - renderer helpers for workflow dialogs, `setModal` fallback footers, and toast notifications
+- Keep reusable overlay helpers in focused view helper modules:
+  - `Application/Helper/View/Overlay.hs` for shared dialog mount ids, overlay config/button types, and workflow dialog / `setModal` footer rendering
+  - `Application/Helper/View/Toast.hs` for toast mount ids, toast config, and toast rendering
 - Keep toast host placement declarative as well. Prefer a `position` enum or class mapping in the helper layer instead of hardcoded left/right CSS in the layout.
 - Prefer data/config records over passing Haskell callbacks into view builders. Server-rendered HSX stays easier to reuse when overlays are described declaratively.
 - Shared form helpers should usually render only fields plus the `<form>` wrapper. Put submit/cancel controls in the overlay footer so the same form body can be used by both HTMX dialogs and `setModal` fallback views.
+- For shared page shells and panels, use `Application/Helper/View/Chrome.hs` instead of mixing page/panel markup into unrelated feature view helpers.
 
 ## Database Queries
 Read `/home/beau/documents/projects/ihp/Guide/querybuilder.markdown`. Key patterns:
