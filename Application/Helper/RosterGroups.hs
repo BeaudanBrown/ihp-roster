@@ -131,14 +131,6 @@ ensureStaffDefaultRosterGroupAssignment staff = do
                     |> createRecord
             pure ()
 
-ensureVenueStaffRosterGroupAssignments :: (?modelContext :: ModelContext) => Venue -> IO ()
-ensureVenueStaffRosterGroupAssignments venue = do
-    staffMembers <-
-        query @Staff
-            |> filterWhere (#venueId, unpackId venue.id)
-            |> fetch
-    forM_ staffMembers ensureStaffDefaultRosterGroupAssignment
-
 fetchStaffRosterGroupIds :: (?modelContext :: ModelContext) => Staff -> IO [Id RosterGroup]
 fetchStaffRosterGroupIds staff = do
     ensureStaffDefaultRosterGroupAssignment staff
@@ -177,8 +169,6 @@ staffIsEligibleForRosterGroup staffId rosterGroupId = do
 
 fetchEligibleRosterGroupStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> IO [Staff]
 fetchEligibleRosterGroupStaff rosterGroupId = do
-    venue <- fetch currentVenueId
-    ensureVenueStaffRosterGroupAssignments venue
     staffRosterGroups <-
         query @StaffRosterGroup
             |> filterWhere (#rosterGroupId, unpackId rosterGroupId)

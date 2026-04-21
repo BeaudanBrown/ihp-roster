@@ -3,7 +3,9 @@ module Web.Controller.Profiles where
 import Application.Helper.LiveUpdate (LiveFragmentRef)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
-import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
+import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
+                                        fetchStaffRosterGroupIds,
+                                        syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
@@ -128,7 +130,8 @@ upsertCurrentUserStaff staff = do
                         |> set #venueId (unpackId currentVenueId)
                         |> set #userId (Just (unpackId (get #id currentUser)))
                         |> createRecord
-                _ <- fetchStaffPreferenceGroupSections createdStaff
+                defaultRosterGroup <- fetchCurrentVenueDefaultRosterGroup
+                syncStaffRosterGroupAssignments createdStaff [defaultRosterGroup.id]
                 pure createdStaff
 
 profilePreferenceViewData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> IO ([PreferenceWeekday], [StaffPreferenceGroupSection], [Text])
