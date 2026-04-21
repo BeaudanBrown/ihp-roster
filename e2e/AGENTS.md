@@ -99,6 +99,7 @@ await loginAs(page, 'e2e-test@example.com', 'test-password-123');
 
 `gotoWhenReady` retries the navigation until the expected selector appears instead of failing on the temporary `Is compiling` page. `loginAs` wraps the seeded login flow and waits for the post-login roster shell.
 `gotoWhenReady` also retries transient `ERR_CONNECTION_REFUSED` startup races from the temporary E2E app server instead of failing immediately on the first `page.goto`.
+`openRoster(page, ...)` is the shared helper for authenticated roster-grid specs. It defaults to the seeded venue admin (`e2e-admin@example.com`) and canonical roster-group fixture, preserves the current post-login grid when one is already visible, and otherwise resolves the current roster group before navigating to the canonical `ShowRosterWeek` route instead of assuming the `/RosterWeeks` landing page has already resolved to a concrete grid.
 
 For payroll/export coverage, the shared helpers in `e2e/test-helpers.ts` also provide:
 

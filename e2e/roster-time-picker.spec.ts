@@ -1,49 +1,22 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady } from './test-helpers';
+import { addRowToFirstRosterDay, editableRosterRows, openRoster } from './test-helpers';
 
 const modalSelector = '#quarter-hour-time-picker-modal';
 
 async function loginAndOpenRoster(page) {
-    await gotoWhenReady(page, '/NewSession', '#email');
-    await page.fill('#email', 'e2e-test@example.com');
-    await page.fill('#password', 'test-password-123');
-    await page.click('button[type="submit"]');
+    await openRoster(page);
 
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/);
-    await expect(page.locator('#roster-week-shell')).toBeVisible();
-
-    for (let step = 0; step < 4; step += 1) {
-        const createDraftButton = page.locator('button:has-text("Create Draft Roster")');
-        if (await createDraftButton.isVisible()) {
-            await createDraftButton.click();
-            await expect(page.locator('#roster-week-shell')).toBeVisible();
-        }
-
-        const hasEditableRows = (await page.locator('select[name="staffId"]').count()) > 0;
-        const hasAddRowControl = await page.locator('[data-roster-day-add="true"]').first().isVisible().catch(() => false);
-        if (hasEditableRows || hasAddRowControl) {
-            break;
-        }
-
-        await page.getByRole('link', { name: 'Next week' }).click();
-        await expect(page.locator('#roster-week-shell')).toBeVisible();
-    }
-
-    await expect(page.locator('table.roster-grid')).toBeVisible();
-    await expect(page.locator('[data-roster-day-add="true"]').first()).toBeVisible();
-
-    const timeFields = page.locator('[data-time-picker-field]');
-    if ((await timeFields.count()) === 0) {
-        await page.locator('[data-roster-day-add="true"]').first().click();
+    if ((await page.locator('[data-time-picker-field]').count()) === 0) {
+        await addRowToFirstRosterDay(page);
         await expect(page.locator('[data-time-picker-field]').first()).toBeVisible();
     }
 }
 
 async function addFreshRowAndGetFirstTimeField(page) {
     const firstDaySection = page.locator('tbody[data-roster-day-section="true"]').first();
-    const editableRows = firstDaySection.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
+    const editableRows = editableRosterRows(firstDaySection);
     const initialRowCount = await editableRows.count();
-    await page.locator('[data-roster-day-add="true"]').first().click();
+    await addRowToFirstRosterDay(page);
     await expect(editableRows).toHaveCount(initialRowCount + 1);
     const firstField = editableRows.last().locator('[data-time-picker-field]').first();
     await expect(firstField.locator('.js-time-picker-label')).toHaveText('Time');

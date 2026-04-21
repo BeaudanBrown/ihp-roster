@@ -225,7 +225,7 @@ test.describe('Roster live fragments', () => {
         await viewerContext.close();
     });
 
-    test.fixme('recovers from reconnect and reapplies the latest live roster state', async ({ browser }) => {
+    test('recovers from reconnect and reapplies the latest live roster state', async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();

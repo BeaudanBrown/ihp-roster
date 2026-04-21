@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { APIRequestContext, Download, expect, Locator, Page } from '@playwright/test';
 
+export const defaultE2ERosterGroupId = 'a1000000-0000-0000-0000-000000000211';
+
 type MailHogAddress = {
     Mailbox?: string;
     Domain?: string;
@@ -172,6 +174,8 @@ export async function loginAs(page: Page, email: string, password: string) {
 type OpenRosterOptions = {
     email?: string;
     password?: string;
+    weekOffset?: number;
+    rosterGroupId?: string;
     maxWeekAdvances?: number;
     ensureDraft?: boolean;
     ensureEditable?: boolean;
@@ -179,30 +183,28 @@ type OpenRosterOptions = {
 
 export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
     const {
-        email = 'e2e-test@example.com',
+        email = 'e2e-admin@example.com',
         password = 'test-password-123',
+        weekOffset = 0,
+        rosterGroupId = defaultE2ERosterGroupId,
         maxWeekAdvances = 4,
         ensureDraft = true,
         ensureEditable = true,
     } = options;
 
     await loginAs(page, email, password);
-    await expect(page.locator('#roster-week-shell')).toBeVisible();
+    await expect(page.locator('#roster-content')).toBeVisible();
+    await gotoWhenReady(
+        page,
+        `/ShowRosterWeek?${new URLSearchParams({
+            weekOffset: String(weekOffset),
+            rosterGroupId,
+        }).toString()}`,
+        'table.roster-grid',
+    );
+    await expect(page.locator('#roster-content')).toBeVisible();
 
     for (let step = 0; step <= maxWeekAdvances; step += 1) {
-        if (ensureDraft) {
-            const createDraftButton = page.getByRole('button', { name: 'Create Draft Roster' });
-            const copyPreviousWeekButton = page.getByRole('button', { name: 'Copy Previous Week' });
-            if (await createDraftButton.isVisible().catch(() => false)) {
-                await createDraftButton.click();
-                await expect(page.locator('#roster-week-shell')).toBeVisible();
-            } else if (await copyPreviousWeekButton.isVisible().catch(() => false)) {
-                page.once('dialog', (dialog) => dialog.accept());
-                await copyPreviousWeekButton.click();
-                await expect(page.locator('#roster-week-shell')).toBeVisible();
-            }
-        }
-
         await expect(page.locator('table.roster-grid')).toBeVisible();
 
         if (!ensureEditable) {
@@ -213,6 +215,22 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
         const hasAddRowControl = await firstRosterDayAddButton(page).isVisible().catch(() => false);
         if (hasEditableRows || hasAddRowControl || step === maxWeekAdvances) {
             return;
+        }
+
+        if (ensureDraft) {
+            const createDraftButton = page.getByRole('button', { name: 'Create Draft Roster' });
+            const copyPreviousWeekButton = page.getByRole('button', { name: 'Copy Previous Week' });
+            if (await createDraftButton.isVisible().catch(() => false)) {
+                await createDraftButton.click();
+                await expect(page.locator('#roster-week-shell')).toBeVisible();
+                continue;
+            }
+            if (await copyPreviousWeekButton.isVisible().catch(() => false)) {
+                page.once('dialog', (dialog) => dialog.accept());
+                await copyPreviousWeekButton.click();
+                await expect(page.locator('#roster-week-shell')).toBeVisible();
+                continue;
+            }
         }
 
         await page.getByRole('link', { name: 'Next week' }).click();
