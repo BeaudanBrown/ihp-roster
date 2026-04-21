@@ -233,13 +233,18 @@ fetchVisibleRosterWeek rosterGroupId weekOffset = do
 
 buildRosterRenderIndexes :: [RosterDay] -> [RosterSlot] -> [Staff] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes
 buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts =
-    RosterRenderIndexes
+    let slotsByRosterDayId =
+            Map.fromListWith
+                (<>)
+                [ (slot.rosterDayId, [slot])
+                | slot <- visibleSlots
+                ]
+     in RosterRenderIndexes
         { rosterDayById = Map.fromList [(coerce (get #id rosterDay), rosterDay) | rosterDay <- rosterDays]
         , rosterDayRowsByDayId =
             Map.fromList
-                [ (coerce (get #id rosterDay), rowsForDay rosterDay daySlots)
+                [ (coerce (get #id rosterDay), rowsForDay rosterDay (Map.findWithDefault [] (coerce (get #id rosterDay)) slotsByRosterDayId))
                 | rosterDay <- rosterDays
-                , let daySlots = filter (\slot -> slot.rosterDayId == coerce (get #id rosterDay)) visibleSlots
                 ]
         , rosterSlotByDayRowSlotName =
             Map.fromList

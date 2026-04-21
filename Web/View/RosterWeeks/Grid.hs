@@ -133,8 +133,9 @@ renderRosterDaySectionFragmentWithSwap maybeSwapOob isEditable slotNames assignm
 
 rowsForDay :: RosterDay -> [RosterSlot] -> [(Int, [RosterSlot])]
 rowsForDay rosterDay slots =
-    map (\rowIndex -> (rowIndex, filter (\slot -> slot.rowIndex == rowIndex) slots)) visibleIndices
+    map (\rowIndex -> (rowIndex, Map.findWithDefault [] rowIndex slotsByRowIndex)) visibleIndices
     where
+        slotsByRowIndex = Map.fromListWith (<>) [ (slot.rowIndex, [slot]) | slot <- slots ]
         existingIndices = slots |> map (.rowIndex) |> nub |> sort
         visibleIndices
             | rosterDay.isClosed = [0 .. closedRosterDayRows - 1]
