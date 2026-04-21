@@ -1,7 +1,7 @@
 module Web.View.Timesheets.New where
 
 import Web.View.Prelude
-import Web.View.Timesheets.Index (timesheetWeekUrl)
+import Web.Timesheets.Paths (timesheetWeekUrl)
 
 data NewView = NewView
     { timesheetEntry :: TimesheetEntry

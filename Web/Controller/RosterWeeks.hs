@@ -11,9 +11,7 @@ import Application.Helper.LiveUpdate (LiveFragmentRef,
                                       LiveUpdateScope (..))
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
-import Application.Helper.View (ToastOverlayConfig (..),
-                                ToastOverlayPosition (ToastBottomCenter),
-                                appendQueryParams, renderToastOverlayHostOob)
+import Application.Helper.View (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import Data.List (nub)
@@ -30,11 +28,12 @@ import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.RenderData
+import Web.RosterWeeks.Responses (respondWithRosterContent,
+                                  respondWithRosterContentUpdate,
+                                  respondWithRosterToast)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.Types
-import Web.View.RosterWeeks.Grid (renderRosterContentFragment,
-                                  renderRosterContentFragmentOob)
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment,
@@ -436,86 +435,6 @@ resolveRequestedRosterGroup =
 buildRosterWeekPath :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Text
 buildRosterWeekPath weekOffset rosterGroupId =
     appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
-
-respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
-respondWithRosterContent rosterGroupId weekOffset =
-    respondHtmlProfiled . fromMaybe mempty =<< renderVisibleRosterProjectionFragment rosterGroupId weekOffset RosterProjectionContent
-
-respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
-respondWithRosterContentOob rosterGroupId weekOffset = do
-    rosterGroups <- fetchCurrentVenueRosterGroups
-    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
-    case rosterData of
-        Nothing -> respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } ->
-            let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
-             in respondHtmlProfiled $
-                    renderRosterContentFragmentOob
-                        (Just rosterWeek)
-                        rosterDays
-                        weekOffset
-                        rosterGroups
-                        currentRosterGroup
-                        assignmentFilters
-                        staffMembers
-                        staffOptionStates
-                        panelStaff
-                        orderedSlotNames
-                        weekStartDate
-                        allSlots
-                        slotConflicts
-                        renderIndexes
-                        viewCapabilities
-
-respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
-respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
-    rosterGroups <- fetchCurrentVenueRosterGroups
-    currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
-    respondHtmlProfiled $
-        mconcat
-            [ case rosterData of
-                Nothing -> [hsx|<div id="roster-content"></div>|]
-                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } ->
-                    let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
-                     in renderRosterContentFragment
-                            (Just rosterWeek)
-                            rosterDays
-                            weekOffset
-                            rosterGroups
-                            currentRosterGroup
-                            assignmentFilters
-                            staffMembers
-                            staffOptionStates
-                            panelStaff
-                            orderedSlotNames
-                            weekStartDate
-                            allSlots
-                            slotConflicts
-                            renderIndexes
-                            viewCapabilities
-            , renderToastOverlayHostOob ToastBottomCenter
-                [ ToastOverlayConfig
-                    { toastOverlayTitle = Just "Success"
-                    , toastOverlayMessage = successMessage
-                    , toastOverlayClass = "app-toast-success"
-                    , toastOverlayAutoHideMs = 3200
-                    }
-                ]
-            ]
-
-respondWithRosterToast :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> IO ()
-respondWithRosterToast message toastClass =
-    respondHtmlProfiled $
-        renderToastOverlayHostOob ToastBottomCenter
-            [ ToastOverlayConfig
-                { toastOverlayTitle = Just (if toastClass == "app-toast-error" then "Error" else "Success")
-                , toastOverlayMessage = message
-                , toastOverlayClass = toastClass
-                , toastOverlayAutoHideMs = if toastClass == "app-toast-error" then 4200 else 3200
-                }
-            ]
 
 respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> IO ()
 respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =

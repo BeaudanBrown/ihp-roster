@@ -23,6 +23,7 @@ import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
+import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.View.Timesheets.Edit
 import Web.View.Timesheets.Index
 import Web.View.Timesheets.New

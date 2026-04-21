@@ -8,9 +8,9 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.View (appendQueryParams)
 import Web.Controller.Prelude
-import Web.Controller.RosterWeeks (respondWithRosterContentOob)
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Projection (buildRosterContentFragmentRef)
+import Web.RosterWeeks.Responses (respondWithRosterContentOob)
 import Web.View.Staff.Edit
 
 instance Controller StaffController where

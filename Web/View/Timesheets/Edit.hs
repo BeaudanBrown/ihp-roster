@@ -1,7 +1,7 @@
 module Web.View.Timesheets.Edit where
 
 import Web.View.Prelude
-import Web.View.Timesheets.Index (timesheetWeekUrl)
+import Web.Timesheets.Paths (timesheetWeekUrl)
 
 data EditView = EditView
     { timesheetEntry :: TimesheetEntry

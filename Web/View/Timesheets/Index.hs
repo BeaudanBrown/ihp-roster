@@ -10,6 +10,7 @@ import Data.Time.Calendar (Day, addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
+import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -86,14 +87,6 @@ renderTimesheetWeekNavigationLink label url =
             , partialNavigationSync = Just ("#" <> timesheetWeekShellId <> ":replace")
             , partialNavigationPushUrl = True
             }
-
-timesheetWeekUrl :: Int -> Bool -> Bool -> Text
-timesheetWeekUrl weekOffset showApproved showAllStaff =
-    appendQueryParams
-        (pathTo (ShowTimesheetWeekAction weekOffset))
-        [ ("showApproved", boolText showApproved)
-        , ("showAllStaff", boolText showAllStaff)
-        ]
 
 renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bool -> Bool -> Html
 renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff = [hsx|
