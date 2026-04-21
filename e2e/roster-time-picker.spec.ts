@@ -56,7 +56,7 @@ async function addFreshRowAndGetFirstTimeField(page) {
 test.describe('Roster Time Picker', () => {
     test.setTimeout(120000);
 
-    test.fixme('opens modal picker and selects a time', async ({ page }) => {
+    test('opens modal picker and selects a time', async ({ page }) => {
         const pageErrors: string[] = [];
         page.on('pageerror', (error) => {
             pageErrors.push(error.message);
@@ -85,24 +85,26 @@ test.describe('Roster Time Picker', () => {
         expect(initErrors).toHaveLength(0);
     });
 
-    test.fixme('clear action resets the selected time', async ({ page }) => {
+    test('clear action resets the selected time', async ({ page }) => {
         await loginAndOpenRoster(page);
 
         const firstField = await addFreshRowAndGetFirstTimeField(page);
         const trigger = firstField.locator('.js-time-picker-trigger');
-        const label = firstField.locator('.js-time-picker-label');
-        const hiddenInput = firstField.locator('.js-time-picker-input');
+        const modal = page.locator(modalSelector);
+        const clearButton = page.locator(`${modalSelector} .js-time-picker-clear`);
 
         await trigger.click();
         await page.locator(`${modalSelector} .js-time-picker-option[data-time-value="06:30"]`).click();
-        await expect(page.locator(modalSelector)).toBeHidden();
+        await expect(modal).toBeHidden();
         await expect(firstField.locator('.js-time-picker-label')).toHaveText('6:30 AM');
         await expect(firstField.locator('.js-time-picker-input')).toHaveValue('06:30');
 
         await trigger.click();
-        await page.locator(`${modalSelector} .js-time-picker-clear`).click();
+        await expect(modal).toBeVisible();
+        await expect(clearButton).toBeVisible();
+        await clearButton.click();
 
-        await expect(page.locator(modalSelector)).toBeHidden();
+        await expect(modal).toBeHidden();
         await expect(firstField.locator('.js-time-picker-label')).toHaveText('Time');
         await expect(firstField.locator('.js-time-picker-input')).toHaveValue('');
     });
