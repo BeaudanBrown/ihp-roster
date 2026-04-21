@@ -65,7 +65,12 @@ psql -h "$PWD/build/db" app -c "\dt"
   - view helpers under `Application/Helper/View/*.hs`
 - Treat the top-level wrapper modules as re-export surfaces for compatibility. Do not grow them back into monoliths.
 - Keep durable audit writes centralized in `Application/Helper/Controller.hs`; prefer one append-only `audit_events` helper that stores structured `JSONB` payloads and call it inside the same `withTransaction` as the sensitive mutation.
-- Keep export generation/download flow centralized in `Application/Helper/Export.hs`; controllers should delegate venue-scoped export creation, expiry checks, and audit emission there instead of hand-rolling ad hoc CSV endpoints.
+- Keep export generation/download flow centralized under `Application/Helper/Export*.hs`; controllers should delegate venue-scoped export creation, expiry checks, and audit emission there instead of hand-rolling ad hoc CSV endpoints.
+- Prefer splitting export code by concern:
+  - `Application/Helper/Export/Types.hs` for export/report domain types and text conversions
+  - `Application/Helper/Export/Render.hs` for CSV/ZIP rendering and pure formatting helpers
+  - `Application/Helper/Export.hs` for DB-backed orchestration, authorization, expiry, and audit wiring
+- Treat `Application/Helper/Export.hs` as the orchestration layer and compatibility wrapper, not the default place for new pure rendering helpers.
 - Keep payroll report selection separate from export-job lifecycle. Venue-scoped report definitions (slug, engine, description, optional shift-type filters) should decide which report a venue can request; `export_jobs` should remain the request/generation/download/audit record for the concrete file instance.
 - Legacy payroll parity currently maps venue report definitions like this:
   - `staff_hours` and filtered variants such as `kitchen` use `staff_pay_csv`

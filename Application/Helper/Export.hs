@@ -1,140 +1,27 @@
-module Application.Helper.Export where
+module Application.Helper.Export
+    ( module Application.Helper.Export
+    , module Application.Helper.Export.Types
+    , module Application.Helper.Export.Render
+    ) where
 
 import Application.Helper.Controller
+import Application.Helper.Export.Render
+import Application.Helper.Export.Types
 import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..),
                                ensureCurrentVenuePayConfigSnapshot,
                                fetchTimesheetPayResultsForEntries,
                                timesheetEntryIdKey)
 import Application.Helper.View (isTrialStaff)
-import qualified Codec.Archive.Zip as Zip
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import qualified Data.ByteString.Base64 as Base64
-import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Data.Time.LocalTime (TimeOfDay)
 import Generated.Types
 import IHP.ControllerPrelude
-import Text.Printf (printf)
-import Text.Read (readMaybe)
-
-data ExportJobType
-    = ApprovedTimesheetsCsv
-    | StaffPayCsv
-    | HourlyBreakdownZip
-    deriving (Eq, Show)
-
-data ReportDefinitionEngine
-    = StaffPayCsvReport
-    | HourlyBreakdownZipReport
-    deriving (Eq, Show)
-
-data ExportJobStatus
-    = ExportPending
-    | ExportReady
-    | ExportExpired
-    deriving (Eq, Show)
-
-data VenueReportDefinition = VenueReportDefinition
-    { definition       :: !ReportDefinition
-    , engine           :: !ReportDefinitionEngine
-    , shiftTypeFilters :: ![ShiftType]
-    }
-    deriving (Eq, Show)
-
-data ReportWeekSelection = ReportWeekSelection
-    { weekOffset :: !Int
-    , weekStart  :: !Day
-    , weekEnd    :: !Day
-    , dayLabels  :: ![Text]
-    }
-    deriving (Eq, Show)
-
-data StaffPayCsvRecord = StaffPayCsvRecord
-    { staffName :: !Text
-    , label     :: !Text
-    , dayHours  :: ![Double]
-    , total     :: !Double
-    }
-    deriving (Eq, Show)
-
-data StaffPayCsvPayload = StaffPayCsvPayload
-    { weekSelection         :: !ReportWeekSelection
-    , fileName              :: !Text
-    , csvContents           :: !Text
-    , entryCount            :: !Int
-    , rowCount              :: !Int
-    , snapshotVersions      :: ![Text]
-    , exportSnapshotVersion :: !(Maybe Text)
-    }
-    deriving (Eq, Show)
-
-data HourlyBreakdownZipPayload = HourlyBreakdownZipPayload
-    { weekSelection         :: !ReportWeekSelection
-    , fileName              :: !Text
-    , zipContentsBase64     :: !Text
-    , entryCount            :: !Int
-    , fileCount             :: !Int
-    , snapshotVersions      :: ![Text]
-    , exportSnapshotVersion :: !(Maybe Text)
-    }
-    deriving (Eq, Show)
-
-allExportJobTypeValues :: [Text]
-allExportJobTypeValues = ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip"]
-
-allReportDefinitionEngineValues :: [Text]
-allReportDefinitionEngineValues = ["staff_pay_csv", "hourly_breakdown_zip"]
-
-allExportJobStatusValues :: [Text]
-allExportJobStatusValues = ["pending", "ready", "expired"]
-
-exportJobTypeToText :: ExportJobType -> Text
-exportJobTypeToText ApprovedTimesheetsCsv = "approved_timesheets_csv"
-exportJobTypeToText StaffPayCsv           = "staff_pay_csv"
-exportJobTypeToText HourlyBreakdownZip    = "hourly_breakdown_zip"
-
-parseExportJobType :: Text -> Maybe ExportJobType
-parseExportJobType "approved_timesheets_csv" = Just ApprovedTimesheetsCsv
-parseExportJobType "staff_pay_csv"           = Just StaffPayCsv
-parseExportJobType "hourly_breakdown_zip"    = Just HourlyBreakdownZip
-parseExportJobType _                         = Nothing
-
-reportDefinitionEngineToText :: ReportDefinitionEngine -> Text
-reportDefinitionEngineToText StaffPayCsvReport        = "staff_pay_csv"
-reportDefinitionEngineToText HourlyBreakdownZipReport = "hourly_breakdown_zip"
-
-parseReportDefinitionEngine :: Text -> Maybe ReportDefinitionEngine
-parseReportDefinitionEngine "staff_pay_csv" = Just StaffPayCsvReport
-parseReportDefinitionEngine "hourly_breakdown_zip" = Just HourlyBreakdownZipReport
-parseReportDefinitionEngine _ = Nothing
-
-exportJobStatusToText :: ExportJobStatus -> Text
-exportJobStatusToText ExportPending = "pending"
-exportJobStatusToText ExportReady   = "ready"
-exportJobStatusToText ExportExpired = "expired"
-
-parseExportJobStatus :: Text -> Maybe ExportJobStatus
-parseExportJobStatus "pending" = Just ExportPending
-parseExportJobStatus "ready"   = Just ExportReady
-parseExportJobStatus "expired" = Just ExportExpired
-parseExportJobStatus _         = Nothing
-
-browserDownloadMethod :: Text
-browserDownloadMethod = "browser_download"
-
-exportSchemaVersion :: Int
-exportSchemaVersion = 1
-
-exportExpirySeconds :: NominalDiffTime
-exportExpirySeconds = 60 * 60 * 24
 
 currentReportWeekOffset ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -595,143 +482,6 @@ buildStaffPayCsvRecords reportDefinition reportWeekSelection entries staffById p
                 , total = sum recordDayHours
                 }
 
-renderStaffPayCsv :: [Text] -> [StaffPayCsvRecord] -> Text
-renderStaffPayCsv reportDayLabels records =
-    Text.unlines (csvHeader : map renderRow records)
-    where
-        csvHeader =
-            Text.intercalate ","
-                (map csvCell (["Name", "Type"] <> reportDayLabels <> ["Total"]))
-
-        renderRow record =
-            Text.intercalate ","
-                ( map csvCell [record.staffName, record.label]
-                    <> map formatStaffPayHours record.dayHours
-                    <> [formatStaffPayHours record.total]
-                )
-
-staffPayDisplayName :: Staff -> Text
-staffPayDisplayName staff = staff.firstName
-
-staffPayRecordLabel :: VenueReportDefinition -> TimesheetPayResult -> Text
-staffPayRecordLabel reportDefinition payResult
-    | null reportDefinition.shiftTypeFilters = fromMaybe "Unknown pay level" payResult.payLevelName
-    | otherwise = ""
-
-reportDayIndex :: ReportWeekSelection -> Day -> Maybe Int
-reportDayIndex reportWeekSelection workedOnDate =
-    let dayIndex = fromInteger (diffDays workedOnDate reportWeekSelection.weekStart)
-     in if dayIndex >= 0 && dayIndex < length reportWeekSelection.dayLabels
-            then Just dayIndex
-            else Nothing
-
-addDayHours :: Int -> Double -> [Double] -> [Double]
-addDayHours dayIndex hours existingDayHours =
-    [ if index == dayIndex then currentHours + hours else currentHours
-    | (index, currentHours) <- zip [0 ..] existingDayHours
-    ]
-
-paidMinutesToHours :: Int -> Double
-paidMinutesToHours paidMinutes = fromIntegral paidMinutes / 60
-
-formatStaffPayHours :: Double -> Text
-formatStaffPayHours value = Text.pack (printf "%.2f" value :: String)
-
-renderHourlyBreakdownZipBase64 :: ReportWeekSelection -> [ShiftType] -> [TimesheetEntry] -> Text
-renderHourlyBreakdownZipBase64 reportWeekSelection shiftTypes entries =
-    decodeUtf8
-        (Base64.encode (LBS.toStrict (Zip.fromArchive archive)))
-    where
-        archive =
-            foldr
-                (\(dayOffset, dayLabel) currentArchive ->
-                    let fileName = Text.unpack dayLabel <> ".csv"
-                        csvContents = encodeUtf8 (renderHourlyBreakdownDayCsv reportWeekSelection dayOffset shiftTypes entries)
-                        entry = Zip.toEntry fileName 0 (LBS.fromStrict csvContents)
-                     in Zip.addEntryToArchive entry currentArchive
-                )
-                Zip.emptyArchive
-                (zip [0 ..] reportWeekSelection.dayLabels)
-
-renderHourlyBreakdownDayCsv :: ReportWeekSelection -> Int -> [ShiftType] -> [TimesheetEntry] -> Text
-renderHourlyBreakdownDayCsv reportWeekSelection dayOffset shiftTypes entries =
-    Text.unlines (csvHeader : map renderHourRow [8 .. 27])
-    where
-        csvHeader =
-            Text.intercalate ","
-                (map csvCell ("Time" : map (.name) shiftTypes))
-
-        dayEntries =
-            filter (\entry -> reportDayIndex reportWeekSelection entry.workedOn == Just dayOffset) entries
-
-        renderHourRow hourOfWindow =
-            let windowLabel = formatHourlyWindow hourOfWindow
-                hourValues =
-                    map
-                        (\shiftType ->
-                            let hours = sum (map (entryHoursForHourlyWindow hourOfWindow shiftType) dayEntries)
-                             in if hours <= 0
-                                    then ""
-                                    else formatHourlyBreakdownHours hours
-                        )
-                        shiftTypes
-             in Text.intercalate "," (csvCell windowLabel : map csvCell hourValues)
-
-entryHoursForHourlyWindow :: Int -> ShiftType -> TimesheetEntry -> Double
-entryHoursForHourlyWindow hourOfWindow shiftType entry
-    | entry.shiftTypeId /= unpackId (get #id shiftType) = 0
-    | otherwise =
-        let windowStart = hourlyWindowStartMinute hourOfWindow
-            windowEnd = windowStart + 60
-            entryStart = timeOfDayToMinutes entry.startTime
-            entryEndRaw = timeOfDayToMinutes entry.endTime
-            entryEnd = if entryEndRaw <= entryStart then entryEndRaw + 1440 else entryEndRaw
-            overlapMinutes =
-                max 0
-                    (min entryEnd windowEnd - max entryStart windowStart)
-            paidMinutes = max 0 (overlapMinutes - breakOverlapMinutes windowStart windowEnd entry)
-         in fromIntegral paidMinutes / 60
-
-breakOverlapMinutes :: Int -> Int -> TimesheetEntry -> Int
-breakOverlapMinutes windowStart windowEnd entry
-    | not entry.hadBreak = 0
-    | entry.breakMinutes <= 0 = 0
-    | otherwise =
-        case (entry.breakStartTime, entry.breakEndTime) of
-            (Just breakStartTime, Just breakEndTime) ->
-                let breakStart = timeOfDayToMinutes breakStartTime
-                    breakEndRaw = timeOfDayToMinutes breakEndTime
-                    breakEnd = if breakEndRaw <= breakStart then breakEndRaw + 1440 else breakEndRaw
-                 in max 0 (min breakEnd windowEnd - max breakStart windowStart)
-            _ -> 0
-
-hourlyWindowStartMinute :: Int -> Int
-hourlyWindowStartMinute hourOfWindow
-    | hourOfWindow < 24 = hourOfWindow * 60
-    | otherwise = (hourOfWindow - 24) * 60 + 1440
-
-formatHourlyWindow :: Int -> Text
-formatHourlyWindow hourOfWindow
-    | hourOfWindow < 24 = Text.pack (printf "%02d:00" hourOfWindow :: String)
-    | otherwise = Text.pack (printf "%02d:00+1" (hourOfWindow - 24) :: String)
-
-formatHourlyBreakdownHours :: Double -> Text
-formatHourlyBreakdownHours value = Text.pack (printf "%.1f" value :: String)
-
-fallbackReportDayLabels :: Day -> [Text]
-fallbackReportDayLabels reportWeekStart =
-    map (fallbackReportDayLabel reportWeekStart) [0 .. 6]
-
-fallbackReportDayLabel :: Day -> Int -> Text
-fallbackReportDayLabel reportWeekStart dayOffset =
-    Text.pack (formatTime defaultTimeLocale "%A" (addDays (toInteger dayOffset) reportWeekStart))
-
-weekOffsetForDay :: Day -> Day -> Int
-weekOffsetForDay epoch day = fromInteger (diffDays day epoch `div` 7)
-
-weekdayIndexForDay :: Day -> Int
-weekdayIndexForDay day = fromMaybe 0 (readMaybe (formatTime defaultTimeLocale "%w" day))
-
 requestApprovedTimesheetsCsvExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Day ->
@@ -881,44 +631,6 @@ buildApprovedTimesheetExportFileName :: Day -> Day -> Text
 buildApprovedTimesheetExportFileName rangeStart rangeEnd =
     "approved-timesheets-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".csv"
 
-renderApprovedTimesheetCsv ::
-    [TimesheetEntry] ->
-    Map.Map UUID Staff ->
-    Map.Map UUID User ->
-    Map.Map UUID Text ->
-    Text
-renderApprovedTimesheetCsv entries staffById approversById snapshotVersionsByEntryId =
-    Text.unlines (csvHeader : map renderRow entries)
-    where
-        csvHeader =
-            Text.intercalate ","
-                [ "worked_on"
-                , "staff_name"
-                , "start_time"
-                , "end_time"
-                , "break_minutes"
-                , "pay_config_snapshot_version"
-                , "approved_at"
-                , "approved_by_email"
-                ]
-
-        renderRow entry =
-            Text.intercalate ","
-                [ csvCell (tshow entry.workedOn)
-                , csvCell (staffDisplayName entry.staffId)
-                , csvCell (formatTimeOfDay entry.startTime)
-                , csvCell (formatTimeOfDay entry.endTime)
-                , csvCell (tshow entry.breakMinutes)
-                , csvCell (fromMaybe "" (entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId)))
-                , csvCell (maybe "" formatUtc entry.approvedAt)
-                , csvCell (maybe "" (.email) (entry.approvedByUserId >>= (`Map.lookup` approversById)))
-                ]
-
-        staffDisplayName staffId =
-            case Map.lookup staffId staffById of
-                Just staff -> staff.lastName <> ", " <> staff.firstName
-                Nothing    -> "Unknown staff"
-
 fetchApprovedTimesheetEntries ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     Day ->
@@ -967,15 +679,3 @@ shouldExpireExportJob :: UTCTime -> ExportJob -> Bool
 shouldExpireExportJob now exportJob =
     exportJob.status /= exportJobStatusToText ExportExpired
         && exportJob.expiresAt <= now
-
-formatTimeOfDay :: TimeOfDay -> Text
-formatTimeOfDay timeOfDay = Text.pack (formatTime defaultTimeLocale "%H:%M" timeOfDay)
-
-formatUtc :: UTCTime -> Text
-formatUtc timestamp = Text.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S UTC" timestamp)
-
-csvCell :: Text -> Text
-csvCell value
-    | Text.any (`elem` [',', '"', '\n', '\r']) value =
-        "\"" <> Text.replace "\"" "\"\"" value <> "\""
-    | otherwise = value
