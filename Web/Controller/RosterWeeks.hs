@@ -7,7 +7,8 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
-import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate (LiveFragmentRef,
+                                      LiveUpdateScope (..))
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.View (ToastOverlayConfig (..),
@@ -25,6 +26,7 @@ import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
+import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.RenderData
@@ -620,21 +622,6 @@ fetchRelatedSlotsForStaffIds staffIds =
         else query @RosterSlot
             |> filterWhereIn (#staffId, map Just (nub staffIds))
             |> fetch
-
-broadcastRosterWeekInvalidation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id RosterGroup ->
-    Int ->
-    [LiveFragmentRef] ->
-    IO ()
-broadcastRosterWeekInvalidation rosterGroupId weekOffset fragments =
-    unless (null fragments) do
-        liftIO $
-            broadcastLiveInvalidation
-                (buildRosterWeekScope rosterGroupId weekOffset)
-                (cs <$> getHeader "X-Live-Update-Client-Id")
-                fragments
-        keepCurrentRosterWeekProjectionHot rosterGroupId weekOffset
 
 ensureRosterWeekIsDraftForEdit :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> IO ()
 ensureRosterWeekIsDraftForEdit rosterWeek =

@@ -5,6 +5,8 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..),
                                       broadcastLiveInvalidation,
                                       currentLiveUpdateVersion)
+import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
+                                        fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroups)
 import Application.Helper.SurfaceProjection
@@ -16,9 +18,7 @@ import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
-import Web.Controller.Profiles (buildDefaultLeaveRequest,
-                                fetchCurrentUserLeaveRequests)
-import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation)
+import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Projection (buildRosterContentFragmentRef,
                                    buildRosterStaffPanelFragmentRef)
 import Web.View.LeaveRequests.Index

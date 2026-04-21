@@ -1,17 +1,17 @@
 module Web.Controller.Profiles where
 
 import Application.Helper.LiveUpdate (LiveFragmentRef)
+import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
+                                        fetchCurrentUserLeaveRequests)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)
 import qualified Data.Map.Strict as Map
-import Data.Time.Calendar (addDays)
-import Data.Time.Clock (utctDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
-import Web.Controller.RosterWeeks (broadcastRosterWeekInvalidation)
+import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Projection (buildRosterRowFragmentRefs,
                                    buildRosterStaffPanelFragmentRef)
 import Web.View.Profiles.Edit
@@ -149,26 +149,6 @@ profilePreferenceViewDataWithSubmitted maybeStaff submittedShiftPreferenceKeys =
             let preferenceWeekdays = allPreferenceWeekdays
             preferenceSections <- fetchStaffPreferenceGroupSections staff
             pure (preferenceWeekdays, preferenceSections, submittedShiftPreferenceKeys)
-
-fetchCurrentUserLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [LeaveRequest]
-fetchCurrentUserLeaveRequests = do
-    maybeStaff <- fetchCurrentUserStaff
-    case maybeStaff of
-        Nothing -> pure []
-        Just staff ->
-            query @LeaveRequest
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#staffId, unpackId staff.id)
-                |> orderByDesc #startDate
-                |> fetch
-
-buildDefaultLeaveRequest :: (?context :: ControllerContext) => IO LeaveRequest
-buildDefaultLeaveRequest = do
-    today <- utctDay <$> getCurrentTime
-    pure $
-        newRecord @LeaveRequest
-            |> set #startDate today
-            |> set #endDate (addDays 1 today)
 
 normalizeProfileOpenSection :: Text -> Text
 normalizeProfileOpenSection section
