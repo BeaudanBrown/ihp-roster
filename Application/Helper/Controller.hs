@@ -3,74 +3,26 @@
 module Application.Helper.Controller
     ( module Application.Helper.Controller
     , module Application.Helper.ControllerContext
+    , module Application.Helper.ControllerAccess
     , module Application.Helper.ControllerSupport
     , module Application.Helper.Htmx
     , module Application.Helper.Audit
     ) where
 
-import Data.Coerce (coerce)
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
-import Web.Routes ()
-import Web.Types (ProfilesController (EditProfileAction))
 
 import Application.Helper.Audit
+import Application.Helper.ControllerAccess
 import Application.Helper.ControllerContext
 import Application.Helper.ControllerSupport
 import Application.Helper.Htmx
 
 -- Here you can add functions which are available in all your controllers
-
-fetchVenueConfig :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO VenueConfig
-fetchVenueConfig =
-    query @VenueConfig
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> fetchOne
-
-requiredProfileFieldsCompleted :: Staff -> Bool
-requiredProfileFieldsCompleted staff =
-    not
-        ( any
-            isEmpty
-            [ staff.firstName
-            , staff.lastName
-            , staff.phone
-            , staff.emergencyContactName
-            , staff.emergencyContactPhone
-            ]
-        )
-
-isOperationallyActive :: User -> Bool
-isOperationallyActive user = user.isProfileCompleted
-
-ensureProfileCompleted :: (?context :: ControllerContext) => IO ()
-ensureProfileCompleted =
-    unless (isOperationallyActive authenticatedCurrentUser) do
-        withRequestContext do
-            setErrorMessage "Please complete your profile to continue."
-            redirectTo EditProfileAction
-
-hasVenueRole :: VenueRole -> VenueRole -> Bool
-hasVenueRole actualRole minimumRole = actualRole >= minimumRole
-
-hasRole :: (?context :: ControllerContext) => VenueRole -> Bool
-hasRole minimumRole =
-    currentUserIsSuperAdmin || maybe False (`hasVenueRole` minimumRole) currentVenueRoleOrNothing
-
-ensureCurrentVenue :: (?context :: ControllerContext) => IO ()
-ensureCurrentVenue = accessDeniedUnless (isJust currentVenueOrNothing)
-
--- | Deny access (403) unless the current user is a manager or admin.
-ensureManagerRole :: (?context :: ControllerContext) => IO ()
-ensureManagerRole = accessDeniedUnless (hasRole ManagerRole')
-
--- | Deny access (403) unless the current user is an admin.
-ensureAdminRole :: (?context :: ControllerContext) => IO ()
-ensureAdminRole = accessDeniedUnless (hasRole VenueAdminRole)
 
 -- | Parse a HH:MM text value into a TimeOfDay.
 parseTimeParam :: Text -> Maybe TimeOfDay
@@ -133,27 +85,3 @@ affectedWeekOffsetsForDateRange epoch startDate endDate
         startOffset = toWeekOffset startDate
         leaveLastDate = addDays (-1) endDate
         endOffset = toWeekOffset leaveLastDate
-
-fetchCurrentUserStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe Staff)
-fetchCurrentUserStaff =
-    query @Staff
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#userId, Just (coerce (get #id authenticatedCurrentUser)))
-        |> fetchOneOrNothing
-
-staffInCurrentVenueOrNothing :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID -> IO (Maybe Staff)
-staffInCurrentVenueOrNothing staffId =
-    query @Staff
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#id, Id staffId)
-        |> fetchOneOrNothing
-
-ensureOptionalStaffInCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe UUID -> IO ()
-ensureOptionalStaffInCurrentVenue maybeStaffId =
-    forM_ maybeStaffId \staffId -> do
-        maybeStaff <- staffInCurrentVenueOrNothing staffId
-        accessDeniedUnless (isJust maybeStaff)
-
-ensureRecordInCurrentVenue :: (?context :: ControllerContext) => UUID -> IO ()
-ensureRecordInCurrentVenue venueId =
-    accessDeniedUnless (venueId == unpackId currentVenueId)
