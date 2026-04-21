@@ -26,11 +26,11 @@ async function openRosterWeekOffset(page, weekOffset) {
     );
 }
 
-async function ensureDraftWeek(page, actionName) {
-    const content = page.locator('#roster-content');
-    await expect(content).toBeVisible();
+async function expectAutoCreatedDraftWeek(page) {
+    await expect(page.locator('#roster-content')).toBeVisible();
     await expect(page.locator('tr[data-roster-row]')).toHaveCount(28);
     await expect(page.locator('.form-check-input[type="checkbox"]').first()).not.toBeChecked();
+    await expect(page.getByRole('button', { name: 'Create Draft Roster' })).toHaveCount(0);
 }
 
 async function selectStaffForRow(page, rowIndex, staffId) {
@@ -52,6 +52,12 @@ function firstViewerRow(page) {
 
 async function expectViewerRowAssignmentApplied(page) {
     await expect(firstViewerRow(page)).toContainText(/E2E|Live|Fragments/, { timeout: 15000 });
+}
+
+async function copyPreviousWeek(page) {
+    page.once('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: 'Copy Previous Week' }).click();
+    await expect(page.locator('#roster-week-shell')).toBeVisible();
 }
 
 async function normalizeLiveFragmentRoster(page) {
@@ -91,7 +97,12 @@ test.describe('Roster live fragments', () => {
         await viewerContext.close();
     });
 
-    test('updates another manager live after creating a draft week from an empty page', async ({ browser }) => {
+    test('auto-creates a future draft week on navigation without exposing a separate create action', async ({ page }) => {
+        await openRosterWeekOffset(page, 2);
+        await expectAutoCreatedDraftWeek(page);
+    });
+
+    test('updates another manager live after copying the previous week into an auto-created draft week', async ({ browser }) => {
         const actorContext = await browser.newContext();
         const viewerContext = await browser.newContext();
         const actorPage = await actorContext.newPage();
@@ -100,26 +111,17 @@ test.describe('Roster live fragments', () => {
         await openRosterWeekOffset(actorPage, 2);
         await openRosterWeekOffset(viewerPage, 2);
 
-        await ensureDraftWeek(actorPage, 'Create Draft Roster');
-        await expect(viewerPage.locator('tr[data-roster-row]')).toHaveCount(28);
-        await expect(viewerPage.locator('.form-check-input[type="checkbox"]').first()).not.toBeChecked();
+        await expectAutoCreatedDraftWeek(actorPage);
+        await expectAutoCreatedDraftWeek(viewerPage);
+        await expect(viewerPage.locator('input[name="note"][value="A1"]')).toHaveCount(0);
+        await expect(viewerPage.locator('input[name="note"][value="A2"]')).toHaveCount(0);
 
-        await actorContext.close();
-        await viewerContext.close();
-    });
+        await copyPreviousWeek(actorPage);
 
-    test('updates another manager live after copying the previous week into an empty page', async ({ browser }) => {
-        const actorContext = await browser.newContext();
-        const viewerContext = await browser.newContext();
-        const actorPage = await actorContext.newPage();
-        const viewerPage = await viewerContext.newPage();
-
-        await openRosterWeekOffset(actorPage, 3);
-        await openRosterWeekOffset(viewerPage, 3);
-
-        await ensureDraftWeek(actorPage, 'Copy Previous Week');
-        await expect(viewerPage.locator('tr[data-roster-row]')).toHaveCount(28);
-        await expect(viewerPage.locator('.form-check-input[type="checkbox"]').first()).not.toBeChecked();
+        await expect(actorPage.locator('input[name="note"][value="A1"]')).toBeVisible();
+        await expect(actorPage.locator('input[name="note"][value="A2"]')).toBeVisible();
+        await expect(viewerPage.locator('input[name="note"][value="A1"]')).toBeVisible({ timeout: 15000 });
+        await expect(viewerPage.locator('input[name="note"][value="A2"]')).toBeVisible({ timeout: 15000 });
 
         await actorContext.close();
         await viewerContext.close();
