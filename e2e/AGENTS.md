@@ -5,7 +5,7 @@
 All commands require `bash ./bin/in-env` (or an already active devenv shell). Do not rely on bare `npx playwright ...` in Loom or other automation contexts; the repo wrapper resolves the repo-local Playwright test CLI inside the dev shell so the runner matches the `@playwright/test` package imported by the specs.
 
 ```bash
-# Run the full e2e suite, auto-sharded across local cores
+# Run the full e2e suite, auto-sharded up to two app-server shards by default
 bash ./bin/in-env e2e
 
 # Run a specific test file
@@ -54,7 +54,7 @@ bash ./bin/in-env pwcli --help
 ## Prerequisites
 
 - The local project Postgres socket under `build/db` must be available
-- `bash ./bin/in-env e2e` now shards the full suite across local cores when no interactive or focused Playwright args are passed
+- `bash ./bin/in-env e2e` now shards the full suite across at most two app-server shards by default when no interactive or focused Playwright args are passed
 - Each shard gets its own ephemeral database, dedicated app server, blob report, and test-results directory under `.devenv/e2e/<run-id>/`
 - The wrapper merges shard blob reports into one HTML report and updates `.devenv/e2e/latest-report`
 - Focused or interactive runs such as `--ui`, `--headed`, `--debug`, explicit file paths, `--project`, or `--grep` default back to a single shard unless `E2E_SHARDS` is set explicitly

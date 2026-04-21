@@ -307,10 +307,11 @@ SQL
 DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
 SQL
                                     }
-                                    trap cleanup EXIT
+                                    trap cleanup EXIT INT TERM
 
                                     test-db-reset
-                                    exec build/Test/Main "$@"
+                                    build/Test/Main "$@"
+                                    exit $?
                                 ) >"$shard_log" 2>&1 &
 
                                 shard_pids+=("$!")
@@ -514,7 +515,13 @@ EOF
                                     esac
                                 done
 
-                                detect_cpu_count
+                                local detected_cpu_count
+                                detected_cpu_count="$(detect_cpu_count)"
+                                if [ "$detected_cpu_count" -gt 2 ]; then
+                                    printf '2\n'
+                                else
+                                    printf '%s\n' "$detected_cpu_count"
+                                fi
                             }
 
                             E2E_SHARDS="$(detect_e2e_shards "$@")"
@@ -621,21 +628,21 @@ DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
 SQL
                                         fi
                                     }
-                                    trap cleanup EXIT
+                                    trap cleanup EXIT INT TERM
 
                                     test-db-reset
 
-                                    setsid nohup test-e2e-server </dev/null >>"$shard_log" 2>&1 &
+                                    setsid test-e2e-server </dev/null >>"$shard_log" 2>&1 &
                                     local server_pid="$!"
                                     echo "$server_pid" > "$shard_pid_file"
-                                    disown "$server_pid" 2>/dev/null || true
 
                                     for _ in $(seq 1 120); do
                                         if E2E_BASE_URL=$(detect_e2e_base_url "$server_pid"); then
                                             export E2E_BASE_URL
                                             echo "E2E shard $shard_index/$E2E_SHARDS app server ready at $E2E_BASE_URL"
                                             echo "E2E database: $TEST_DATABASE_NAME"
-                                            exec node ./node_modules/@playwright/test/cli.js test --shard="$shard_index/$E2E_SHARDS" "$@"
+                                            node ./node_modules/@playwright/test/cli.js test --shard="$shard_index/$E2E_SHARDS" "$@"
+                                            exit $?
                                         fi
 
                                         if ! kill -0 "$server_pid" 2>/dev/null; then
