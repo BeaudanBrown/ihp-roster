@@ -4,7 +4,8 @@ module Web.RosterWeeks.Conflicts
 
 import Application.Helper.Conflict
 import Data.Coerce (coerce)
-import Data.List (find, nub)
+import Data.List (nub)
+import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import qualified Data.Time.Calendar as Calendar
 import Web.Controller.Prelude
@@ -24,18 +25,23 @@ buildSlotConflicts rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate ros
                 |> filterWhereIn (#staffId, assignedStaffIds)
                 |> fetch
 
-            let dayById = map (\day -> (coerce (get #id day), day)) rosterDays
-            let conflictsBySlot = mapMaybe (conflictsForSlot dayById leaveRequests shiftPreferences) allSlots
+            let dayById = Map.fromList [ (coerce (get #id day), day) | day <- rosterDays ]
+            let weekSlotsByStaff = Map.fromListWith (<>) [ (staffId, [slot]) | slot <- allSlots, staffId <- maybeToList slot.staffId ]
+            let daySlotsByStaff = Map.fromListWith (<>) [ ((slot.rosterDayId, staffId), [slot]) | slot <- allSlots, staffId <- maybeToList slot.staffId ]
+            let staffIdealShiftsById = Map.fromList [ (coerce (get #id staff), staff.idealShiftsPerWeek) | staff <- staffMembers ]
+            let leaveRequestsByStaff = Map.fromListWith (<>) [ (leaveRequest.staffId, [leaveRequest]) | leaveRequest <- leaveRequests ]
+            let shiftPreferencesByStaff = Map.fromListWith (<>) [ (preference.staffId, [preference]) | preference <- shiftPreferences ]
+            let conflictsBySlot = mapMaybe (conflictsForSlot dayById weekSlotsByStaff daySlotsByStaff staffIdealShiftsById leaveRequestsByStaff shiftPreferencesByStaff) allSlots
             pure conflictsBySlot
     where
-        conflictsForSlot dayById leaveRequests shiftPreferences slot = do
+        conflictsForSlot dayById weekSlotsByStaff daySlotsByStaff staffIdealShiftsById leaveRequestsByStaff shiftPreferencesByStaff slot = do
             staffUuid <- slot.staffId
-            day <- lookup slot.rosterDayId dayById
-            let weekSlotsForStaff = filter (\candidate -> candidate.staffId == Just staffUuid) allSlots
-            let daySlotsForStaff = filter (\candidate -> candidate.rosterDayId == slot.rosterDayId && candidate.staffId == Just staffUuid) allSlots
-            let staffIdealShifts = (.idealShiftsPerWeek) <$> find (\staff -> coerce (get #id staff) == staffUuid) staffMembers
-            let leaveRequestsForStaff = filter (\leaveRequest -> leaveRequest.staffId == staffUuid) leaveRequests
-            let shiftPreferencesForStaff = filter (\preference -> preference.staffId == staffUuid) shiftPreferences
+            day <- Map.lookup slot.rosterDayId dayById
+            let weekSlotsForStaff = Map.findWithDefault [] staffUuid weekSlotsByStaff
+            let daySlotsForStaff = Map.findWithDefault [] (slot.rosterDayId, staffUuid) daySlotsByStaff
+            let staffIdealShifts = Map.lookup staffUuid staffIdealShiftsById
+            let leaveRequestsForStaff = Map.findWithDefault [] staffUuid leaveRequestsByStaff
+            let shiftPreferencesForStaff = Map.findWithDefault [] staffUuid shiftPreferencesByStaff
             let rosterDayDate = Calendar.addDays (toInteger day.dayOffset) weekStartDate
             let conflicts = evaluateConflicts ConflictContext
                     { slot
