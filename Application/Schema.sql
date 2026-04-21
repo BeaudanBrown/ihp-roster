@@ -410,15 +410,19 @@ CREATE TABLE venue_membership_role_events (
 
 -- Composite indexes for common venue-scoped access paths
 CREATE INDEX idx_venue_memberships_venue_user ON venue_memberships (venue_id, user_id);
+CREATE INDEX idx_venue_memberships_user_active ON venue_memberships (user_id, is_active);
 CREATE INDEX idx_venue_invitations_venue_status ON venue_invitations (venue_id, status);
 CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, status);
 CREATE INDEX idx_staff_venue ON staff (venue_id);
 CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL;
 CREATE INDEX idx_report_definitions_venue_sort ON report_definitions (venue_id, sort_order ASC, created_at ASC);
 CREATE INDEX idx_report_definition_shift_type_filters_definition ON report_definition_shift_type_filters (report_definition_id);
+CREATE INDEX idx_staff_roster_groups_group_staff ON staff_roster_groups (roster_group_id, staff_id);
 CREATE INDEX idx_slot_names_group_sort ON slot_names (roster_group_id, sort_order ASC, created_at ASC);
 CREATE UNIQUE INDEX idx_slot_names_active_name ON slot_names (roster_group_id, name) WHERE is_active = TRUE;
 CREATE INDEX idx_roster_weeks_venue_offset ON roster_weeks (venue_id, week_offset);
+CREATE INDEX idx_roster_slots_day ON roster_slots (roster_day_id);
+CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL;
 CREATE INDEX idx_pay_config_snapshots_venue_version ON pay_config_snapshots (venue_id, version_number DESC);
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id);
 CREATE INDEX idx_timesheet_entries_venue_worked_on ON timesheet_entries (venue_id, worked_on);
