@@ -680,6 +680,46 @@ tests = beforeAll testContext do
                 copiedSlot.durationMinutes `shouldBe` Just 300
                 copiedSlot.note `shouldBe` Just "FS"
 
+        it "rejects copying a roster week onto itself via HTMX" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-copy-self-htmx@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                originalWeek <- createRosterWeekRecord venue 0 False
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (CopyRosterWeekAction 0 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Cannot copy a roster week onto itself."
+
+                persistedWeeks <- query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 0)
+                    |> fetch
+                length persistedWeeks `shouldBe` 1
+                map (.id) persistedWeeks `shouldBe` [originalWeek.id]
+
+        it "rejects copying from a missing source week via HTMX without creating the target week" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-copy-missing-source-htmx@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (CopyRosterWeekAction 7 8)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Source week not found. Cannot copy."
+
+                targetWeek <- query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 8)
+                    |> fetchOneOrNothing
+                targetWeek `shouldBe` Nothing
+
         it "returns fragment refresh instructions when a slot assignment changes" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

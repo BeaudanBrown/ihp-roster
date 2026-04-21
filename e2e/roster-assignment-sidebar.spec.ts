@@ -1,13 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { openRoster } from './test-helpers';
 
 async function loginAndOpenRoster(page) {
-    await page.goto('/NewSession');
-    await page.fill('#email', 'e2e-test@example.com');
-    await page.fill('#password', 'test-password-123');
-    await page.click('button[type="submit"]');
-
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/);
-    await expect(page.locator('#roster-content')).toBeVisible();
+    await openRoster(page, { email: 'e2e-test@example.com' });
     await expect(page.locator('#roster-staff-panel-fragment')).toBeVisible();
 }
 

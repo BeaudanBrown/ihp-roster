@@ -3,16 +3,11 @@ import {
     addRowToRosterDay,
     editableRosterRows,
     firstEditableRosterDaySection,
-    gotoWhenReady,
-    loginAs,
+    openRoster,
 } from './test-helpers';
 
-const e2eRosterPath = '/ShowRosterWeek?weekOffset=1&rosterGroupId=a1000000-0000-0000-0000-000000000211';
-
 async function loginAndOpenRoster(page) {
-    await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
-    await gotoWhenReady(page, e2eRosterPath, 'table.roster-grid');
-    await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+    await openRoster(page, { weekOffset: 1 });
 }
 
 async function optionValues(select: Locator) {
