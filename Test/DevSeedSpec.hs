@@ -66,7 +66,7 @@ tests = beforeAll testContext do
                 length (filter (isJust . (.note)) rosterSlots) `shouldSatisfy` (> 10)
                 let noteLengths = map Text.length (mapMaybe (.note) rosterSlots)
                 noteLengths `shouldSatisfy` (all (<= 2))
-                sort (nub (map (.idealShiftsPerWeek) seededStaff)) `shouldBe` [1, 2, 3, 4, 5]
+                sort (nub (map (.idealShiftsPerWeek) seededStaff)) `shouldBe` [0, 1, 2, 3, 4, 5]
 
         it "seeds at least two staffed roster rows for every roster day" $ withContext do
             withCleanDb do
@@ -314,15 +314,36 @@ tests = beforeAll testContext do
                     query @StaffShiftPreference
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> fetch
+                linkedUsers <-
+                    query @User
+                        |> filterWhereIn (#id, nub (mapMaybe (fmap Id . (.userId)) seededStaff))
+                        |> fetch
                 let firstNames = map (.firstName) seededStaff
                 let duplicateFirstNames = map head (filter (\names -> length names > 1) (group (sort firstNames)))
                 let staffIds = sort (map (unpackId . (.id)) seededStaff)
                 let preferenceStaffIds = sort (nub (map (.staffId) shiftPreferences))
+                let linkedUserEmailById = Map.fromList (map (\user -> (unpackId user.id, user.email)) linkedUsers)
+                let exemptPreferenceEmails =
+                        [ "beaudan.brown@gmail.com"
+                        , "dev-admin@example.com"
+                        , "admin@bepis.lol"
+                        , "staff@bepis.lol"
+                        , "manager@bepis.lol"
+                        , "venue@bepis.lol"
+                        , "owner@bepis.lol"
+                        ]
+                let expectedPreferenceStaffIds =
+                        sort
+                            [ unpackId staff.id
+                            | staff <- seededStaff
+                            , maybe True (`notElem` exemptPreferenceEmails) (staff.userId >>= (`Map.lookup` linkedUserEmailById))
+                            ]
                 let preferredWeekdays = nub (map (.weekdayIndex) shiftPreferences)
 
                 length availabilities `shouldSatisfy` (> 5)
-                preferenceStaffIds `shouldBe` staffIds
-                length shiftPreferences `shouldSatisfy` (>= length seededStaff)
+                preferenceStaffIds `shouldBe` expectedPreferenceStaffIds
+                preferenceStaffIds `shouldSatisfy` all (`elem` staffIds)
+                length shiftPreferences `shouldSatisfy` (>= length expectedPreferenceStaffIds)
                 length preferredWeekdays `shouldSatisfy` (>= 4)
                 duplicateFirstNames `shouldContain` ["Alice"]
                 length (filter (isJust . (.preferredName)) seededStaff) `shouldSatisfy` (> 0)

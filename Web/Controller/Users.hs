@@ -2,6 +2,7 @@ module Web.Controller.Users where
 
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       broadcastLiveInvalidation)
+import Application.Support (defaultStaffNameFromEmail, provisionVenueUser)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
@@ -56,18 +57,15 @@ instance Controller UsersController where
                                     render InvitationSignupView { .. }
                                 Right user -> do
                                     hashed <- hashPassword user.passwordHash
+                                    let (staffFirstName, staffLastName) = defaultStaffNameFromEmail invitation.email
                                     user <- withTransaction do
                                         verifiedAt <- getCurrentTime
                                         user <- user
                                             |> set #passwordHash hashed
                                             |> set #emailVerifiedAt (Just verifiedAt)
                                             |> createRecord
-                                        membership <- newRecord @VenueMembership
-                                            |> set #venueId invitation.venueId
-                                            |> set #userId (unpackId (get #id user))
-                                            |> set #venueRole invitation.inviteRole
-                                            |> set #isActive True
-                                            |> createRecord
+                                        venue <- fetch (Id invitation.venueId :: Id Venue)
+                                        (membership, _) <- provisionVenueUser venue user (inputValue invitation.inviteRole) staffFirstName staffLastName
                                         _ <- invitation
                                             |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
                                             |> set #acceptedByUserId (Just (unpackId (get #id user)))

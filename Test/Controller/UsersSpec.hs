@@ -133,6 +133,10 @@ tests = beforeAll testContext do
                 membership <- query @VenueMembership
                     |> filterWhere (#userId, unpackId user.id)
                     |> fetchOne
+                staff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId user.id))
+                    |> fetchOne
                 updatedInvitation <- fetch invitation.id
                 unexpectedUser <- query @User
                     |> filterWhere (#email, "attacker@example.com")
@@ -140,6 +144,8 @@ tests = beforeAll testContext do
                 verificationTokenCount <- query @EmailVerificationToken |> fetchCount
 
                 membership.venueId `shouldBe` unpackId venue.id
+                staff.venueId `shouldBe` unpackId venue.id
+                staff.userId `shouldBe` Just (unpackId user.id)
                 inputValue membership.venueRole `shouldBe` "venue_owner"
                 inputValue user.userRole `shouldBe` "staff"
                 isJust user.emailVerifiedAt `shouldBe` True

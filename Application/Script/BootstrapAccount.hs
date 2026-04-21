@@ -1,9 +1,8 @@
 module Application.Script.BootstrapAccount where
 
-import Application.Helper.Controller (PlatformRole (..), platformRoleToEnum,
-                                      unsafeEnumFromText)
+import Application.Helper.Controller (PlatformRole (..), platformRoleToEnum)
 import Application.Script.Prelude
-import Application.Support (createVenueWithConfig)
+import Application.Support (createVenueWithConfig, provisionVenueUser)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Generated.Types
@@ -21,8 +20,7 @@ run = do
 
     venue <- findOrCreateBootstrapVenue venueName
     user <- findOrCreateBootstrapUser email password
-    _ <- ensureBootstrapMembership venue user
-    _ <- ensureBootstrapStaff venue user
+    _ <- provisionVenueUser venue user "venue_owner" "Bootstrap" "Admin"
     pure ()
 
 requireEnvText :: String -> IO Text
@@ -56,46 +54,4 @@ findOrCreateBootstrapUser email password =
                     |> set #platformRole (Just (platformRoleToEnum SuperAdminRole))
                     |> set #isProfileCompleted True
                     |> set #emailVerifiedAt (Just def)
-                    |> createRecord
-
-ensureBootstrapMembership :: (?modelContext :: ModelContext) => Venue -> User -> IO VenueMembership
-ensureBootstrapMembership venue user =
-    query @VenueMembership
-        |> filterWhere (#venueId, unpackId venue.id)
-        |> filterWhere (#userId, unpackId user.id)
-        |> fetchOneOrNothing
-        >>= \case
-            Just membership ->
-                membership
-                    |> set #venueRole (unsafeEnumFromText @VenueRoleEnum "venue_owner")
-                    |> set #isActive True
-                    |> updateRecord
-            Nothing ->
-                newRecord @VenueMembership
-                    |> set #venueId (unpackId venue.id)
-                    |> set #userId (unpackId user.id)
-                    |> set #venueRole (unsafeEnumFromText @VenueRoleEnum "venue_owner")
-                    |> set #isActive True
-                    |> createRecord
-
-ensureBootstrapStaff :: (?modelContext :: ModelContext) => Venue -> User -> IO Staff
-ensureBootstrapStaff venue user =
-    query @Staff
-        |> filterWhere (#venueId, unpackId venue.id)
-        |> filterWhere (#userId, Just (unpackId user.id))
-        |> fetchOneOrNothing
-        >>= \case
-            Just staff -> pure staff
-            Nothing ->
-                newRecord @Staff
-                    |> set #venueId (unpackId venue.id)
-                    |> set #userId (Just (unpackId user.id))
-                    |> set #firstName "Bootstrap"
-                    |> set #lastName "Admin"
-                    |> set #preferredName Nothing
-                    |> set #phone ""
-                    |> set #emergencyContactName ""
-                    |> set #emergencyContactPhone ""
-                    |> set #idealShiftsPerWeek 0
-                    |> set #isActive True
                     |> createRecord

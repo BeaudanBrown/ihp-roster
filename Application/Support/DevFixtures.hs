@@ -62,14 +62,14 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     resetDatabase
     venue <- createVenueWithConfig "Development Sandbox Venue"
     founder <- createUserRecordWithPlatformRole "beaudan.brown@gmail.com" "staff" (Just SuperAdminRole) True
-    _ <- createVenueMembershipRecord venue founder "venue_owner"
+    _ <- provisionVenueUser venue founder "venue_owner" "Beaudan" "Brown"
     admin <- createUserRecord "dev-admin@example.com" "admin" True
-    _ <- createVenueMembershipRecord venue admin "venue_admin"
-    supportAdmin <- createUserRecordWithPlatformRole "support-admin@example.com" "admin" (Just SuperAdminRole) True
+    _ <- provisionVenueUser venue admin "venue_admin" "Dev" "Admin"
+    supportAdmin <- createUserRecordWithPasswordAndPlatformRole "admin@bepis.lol" "admin" "admin" (Just SuperAdminRole) True
     managerUsers <- createManagerUsers venue scenario.managerCount
     let managerUser = fromMaybe (error "Expected at least one seeded manager user") (listToMaybe managerUsers)
     workerUser <- createUserRecord "dev-worker@example.com" "staff" True
-    _ <- createVenueMembershipRecord venue workerUser "worker"
+    (_, seededWorkerStaff) <- provisionVenueUser venue workerUser "worker" "Willa" "Worker"
     seedSandboxRoleAliasAccounts venue
     invitation <- createVenueInvitationRecord venue (Just admin) "pending-invite@example.com" "worker"
 
@@ -90,7 +90,7 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     _ <- createPayLevelDayRuleRecord kitchenShift saturday backLevel
     snapshot <- createPayrollSnapshot venue admin [frontLevel, backLevel] [floorShift, kitchenShift] dayNames []
     managerStaffs <- mapM (createManagerStaff venue) (zip [0 ..] managerUsers)
-    workerStaff <- createStaffRecord venue (Just workerUser) "Willa" "Worker" >>= updateRecord . set #idealShiftsPerWeek 3
+    workerStaff <- seededWorkerStaff |> set #idealShiftsPerWeek 3 |> updateRecord
     seededStaff <- createGeneratedStaff venue scenario.scenarioSeed scenario.staffCount
     let frontOnlyStaff = takeFrontOnly seededStaff
     let backOnlyStaff = takeBackOnly seededStaff
@@ -158,16 +158,16 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
 seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> IO ()
 seedSandboxRoleAliasAccounts venue = do
     staffUser <- createUserRecordWithPassword "staff@bepis.lol" "staff" "staff" True
-    _ <- createVenueMembershipRecord venue staffUser "worker"
+    _ <- provisionVenueUser venue staffUser "worker" "Staff" "Demo"
 
     managerUser <- createUserRecordWithPassword "manager@bepis.lol" "manager" "manager" True
-    _ <- createVenueMembershipRecord venue managerUser "manager"
+    _ <- provisionVenueUser venue managerUser "manager" "Manager" "Demo"
 
     venueAdminUser <- createUserRecordWithPassword "venue@bepis.lol" "venue" "admin" True
-    _ <- createVenueMembershipRecord venue venueAdminUser "venue_admin"
+    _ <- provisionVenueUser venue venueAdminUser "venue_admin" "Venue" "Admin"
 
     venueOwnerUser <- createUserRecordWithPassword "owner@bepis.lol" "owner" "admin" True
-    _ <- createVenueMembershipRecord venue venueOwnerUser "venue_owner"
+    _ <- provisionVenueUser venue venueOwnerUser "venue_owner" "Venue" "Owner"
 
     pure ()
 

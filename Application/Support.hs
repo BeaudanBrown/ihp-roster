@@ -5,6 +5,8 @@ import Application.Helper.Controller (PlatformRole (..), platformRoleToEnum,
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
 import qualified Data.Aeson as Aeson
+import qualified Data.Char as Char
+import qualified Data.Text as Text
 import Data.Scientific (Scientific)
 import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -62,6 +64,21 @@ createVenueMembershipRecord venue user venueRole =
         |> set #isActive True
         |> createRecord
 
+ensureVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
+ensureVenueMembershipRecord venue user venueRole =
+    query @VenueMembership
+        |> filterWhere (#venueId, unpackId (get #id venue))
+        |> filterWhere (#userId, unpackId (get #id user))
+        |> fetchOneOrNothing
+        >>= \case
+            Just membership ->
+                membership
+                    |> set #venueRole (unsafeEnumFromText @VenueRoleEnum venueRole)
+                    |> set #isActive True
+                    |> updateRecord
+            Nothing ->
+                createVenueMembershipRecord venue user venueRole
+
 createVenueInvitationRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO VenueInvitation
 createVenueInvitationRecord venue maybeInviter emailAddress inviteRole =
     newRecord @VenueInvitation
@@ -88,6 +105,43 @@ createStaffRecord venue maybeUser firstName lastName = do
         |> createRecord
     _ <- createStaffRosterGroupRecord staff =<< ensureVenueDefaultRosterGroup venue
     pure staff
+
+ensureLinkedStaffRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> Text -> IO Staff
+ensureLinkedStaffRecord venue user firstName lastName =
+    query @Staff
+        |> filterWhere (#venueId, unpackId (get #id venue))
+        |> filterWhere (#userId, Just (unpackId (get #id user)))
+        |> fetchOneOrNothing
+        >>= \case
+            Just staff ->
+                if staff.isActive
+                    then pure staff
+                    else staff
+                        |> set #isActive True
+                        |> updateRecord
+            Nothing ->
+                createStaffRecord venue (Just user) firstName lastName
+
+provisionVenueUser :: (?modelContext :: ModelContext) => Venue -> User -> Text -> Text -> Text -> IO (VenueMembership, Staff)
+provisionVenueUser venue user venueRole firstName lastName =
+    do
+        membership <- ensureVenueMembershipRecord venue user venueRole
+        staff <- ensureLinkedStaffRecord venue user firstName lastName
+        pure (membership, staff)
+
+defaultStaffNameFromEmail :: Text -> (Text, Text)
+defaultStaffNameFromEmail emailAddress =
+    case filter (not . Text.null) (Text.split (not . Char.isAlphaNum) localPart) of
+        [] -> ("Invited", "User")
+        [firstName] -> (toTitleCase firstName, "User")
+        firstName:lastName:_ -> (toTitleCase firstName, toTitleCase lastName)
+    where
+        localPart = Text.takeWhile (/= '@') emailAddress
+        toTitleCase token =
+            case Text.uncons token of
+                Nothing -> "User"
+                Just (firstCharacter, remainingCharacters) ->
+                    Text.cons (Char.toUpper firstCharacter) (Text.toLower remainingCharacters)
 
 createStaffRosterGroupRecord :: (?modelContext :: ModelContext) => Staff -> RosterGroup -> IO StaffRosterGroup
 createStaffRosterGroupRecord staff rosterGroup =

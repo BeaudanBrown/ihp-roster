@@ -413,6 +413,7 @@ CREATE INDEX idx_venue_memberships_venue_user ON venue_memberships (venue_id, us
 CREATE INDEX idx_venue_invitations_venue_status ON venue_invitations (venue_id, status);
 CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, status);
 CREATE INDEX idx_staff_venue ON staff (venue_id);
+CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL;
 CREATE INDEX idx_report_definitions_venue_sort ON report_definitions (venue_id, sort_order ASC, created_at ASC);
 CREATE INDEX idx_report_definition_shift_type_filters_definition ON report_definition_shift_type_filters (report_definition_id);
 CREATE INDEX idx_slot_names_group_sort ON slot_names (roster_group_id, sort_order ASC, created_at ASC);

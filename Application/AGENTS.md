@@ -49,6 +49,8 @@ For schema work that adds enums or constraints, also do a real startup verificat
 
 Current auth direction: founder-wide cross-venue support uses a separate platform-level capability on `users` (`platform_role = 'super_admin'`). Keep that distinct from venue business roles like `manager`, `venue_admin`, and `venue_owner`; do not model support access as synthetic `venue_memberships`.
 
+Venue-linked operational accounts should satisfy one invariant: for each `(venue_id, user_id)` pair that represents a real venue member, there should be exactly one linked `staff` row in that same venue. Provision venue users through the shared helper path instead of creating `venue_memberships` and `staff` rows independently, and preserve the partial unique index on linked staff rows so future multi-venue support keeps one global `users` identity with venue-local `staff` profiles.
+
 To verify the schema is applied, connect to the dev DB and check:
 ```bash
 psql -h "$PWD/build/db" app -c "\dt"

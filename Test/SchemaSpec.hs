@@ -184,6 +184,11 @@ tests = describe "Schema" do
                     enumNames
         riskyEnumNames `shouldBe` []
 
+    it "enforces one linked staff row per user per venue while still allowing trial staff" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        schemaSqlText `shouldSatisfy`
+            Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL;"
+
     describe "Leave request helpers" do
         it "validates leave date ranges as unavailable-from to available-again" do
             let startDate = fromGregorian 2025 3 10
