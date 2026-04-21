@@ -5,7 +5,7 @@
 All commands require `bash ./bin/in-env` (or an already active devenv shell). Do not rely on bare `npx playwright ...` in Loom or other automation contexts; the repo wrapper resolves the repo-local Playwright test CLI inside the dev shell so the runner matches the `@playwright/test` package imported by the specs.
 
 ```bash
-# Run all e2e tests
+# Run the full e2e suite, auto-sharded across local cores
 bash ./bin/in-env e2e
 
 # Run a specific test file
@@ -44,6 +44,9 @@ bash ./bin/in-env screenshot-roster-mobile output/playwright/roster-mobile/lates
 # View the last test report
 bash ./bin/in-env e2e-report
 
+# Force serial execution
+E2E_SHARDS=1 bash ./bin/in-env e2e
+
 # Use Playwright CLI for exploratory browser automation
 bash ./bin/in-env pwcli --help
 ```
@@ -51,7 +54,10 @@ bash ./bin/in-env pwcli --help
 ## Prerequisites
 
 - The local project Postgres socket under `build/db` must be available
-- `bash ./bin/in-env e2e` resets the isolated `app_e2e` database, launches a dedicated app server on the next free local IHP dev port, and points Playwright at that server
+- `bash ./bin/in-env e2e` now shards the full suite across local cores when no interactive or focused Playwright args are passed
+- Each shard gets its own ephemeral database, dedicated app server, blob report, and test-results directory under `.devenv/e2e/<run-id>/`
+- The wrapper merges shard blob reports into one HTML report and updates `.devenv/e2e/latest-report`
+- Focused or interactive runs such as `--ui`, `--headed`, `--debug`, explicit file paths, `--project`, or `--grep` default back to a single shard unless `E2E_SHARDS` is set explicitly
 - Test data is seeded automatically via `global-setup.ts` before tests run
 - Before blaming Playwright, verify the app is actually serving the expected page:
 
@@ -146,6 +152,7 @@ test('authenticated feature', async ({ page }) => {
 - Prefer fixed UUIDs plus `ON CONFLICT DO UPDATE` so reruns stay deterministic
 - Treat `e2e/fixtures/seed.sql` as durable fixture state: fixed-id venue rows can persist across runs, while teardown mainly cleans dynamic `e2e-%` users created during tests
 - If a spec mutates fixed-id roster/week fixture rows, reset the mutable venue-scoped rows at the top of `e2e/fixtures/seed.sql` before reinserting them; do not rely on teardown of `e2e-%` users alone to restore roster state.
+- Specs must not rely on cross-file ordering or cross-shard shared state. Treat each file as if it may run in a different isolated database from the rest of the suite.
 
 ## Assertion Style
 

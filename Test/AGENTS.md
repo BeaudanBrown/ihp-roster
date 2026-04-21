@@ -8,9 +8,31 @@ Read `/home/beau/documents/projects/ihp/Guide/testing.markdown` for full IHP tes
 Tests are a devenv shell script — use `bash ./bin/in-env` outside an interactive shell:
 
 ```bash
-bash ./bin/in-env test                        # compile and run all tests
+bash ./bin/in-env test                        # compile and run the full suite, auto-sharded across local cores
 bash ./bin/in-env test --match "PostsController"  # run tests matching a pattern
+TEST_SHARDS=1 bash ./bin/in-env test          # force serial execution
+TEST_SHARDS=4 bash ./bin/in-env test          # override shard count explicitly
 ```
+
+`bash ./bin/in-env test` now auto-shards the full Hspec suite across local cores when no Hspec filter args are passed. Each shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`.
+
+For debugging:
+
+- `TEST_SHARDS=1` forces a single serial shard
+- `TEST_KEEP_DATABASES=1` preserves shard databases after the run instead of dropping them
+- `.devenv/test/latest/` points at the most recent shard log directory
+
+## Shard Registry
+
+`Test/Main.hs` is now only the runner entrypoint. The authoritative suite registry lives in `Test/Suite.hs`.
+
+When adding a new spec module:
+
+1. Import it in `Test/Suite.hs`
+2. Add a `TestSuite "Label" Module.tests` entry to `allSuites`
+3. Place it so heavier DB-backed suites are spread across shards instead of clustered together
+
+Do not reintroduce a hard-coded linear `hspec do ...` list in `Test/Main.hs`; that bypasses shard selection.
 
 ## DB-Backed Controller Tests
 
@@ -25,6 +47,14 @@ Useful patterns:
 - `withControllerTestContext do ...` when the test needs a real `ControllerContext`, e.g. to call `beforeLogin` and then `getSession`
 
 `withCleanDb` should leave the test database truly empty. If automation must preserve bootstrap/manual accounts, solve that by running tests against an isolated database instead of weakening `withCleanDb`.
+
+The shard architecture assumes:
+
+- every parallel shard owns an isolated ephemeral database
+- examples within a shard still reset their own state with `withCleanDb`
+- no spec may depend on rows created by another spec module or another example
+
+If a helper or fixture needs state to persist across examples, that is usually a test-design bug. Prefer explicit builders that recreate only the rows the example needs.
 
 For payroll/report export correctness, prefer a dedicated parity spec with:
 
@@ -105,13 +135,14 @@ When adding a new controller (e.g., `PostsController`), create a corresponding s
                response `responseStatusShouldBe` status302
    ```
 
-2. Register it in `Test/Main.hs`:
+2. Register it in `Test/Suite.hs`:
    ```haskell
    import qualified Test.Controller.PostsSpec
 
-   main = hspec do
-       Test.Controller.StaticSpec.tests
-       Test.Controller.PostsSpec.tests
+   allSuites =
+       [ TestSuite "StaticController" Test.Controller.StaticSpec.tests
+       , TestSuite "PostsController" Test.Controller.PostsSpec.tests
+       ]
    ```
 
 ## Available Test Helpers (from `IHP.Test.Mocking`)

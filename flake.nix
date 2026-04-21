@@ -223,18 +223,128 @@ SQL
                         '';
 
                         # Run the hspec test suite.
-                        # Usage: test
+                        # Usage: test [hspec-args...]
                         test.exec = ''
                             set -euo pipefail
-                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
+                            BASE_TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
                             export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"
-                            export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
-                            test-db-reset
+
+                            detect_cpu_count() {
+                                if command -v getconf >/dev/null 2>&1; then
+                                    getconf _NPROCESSORS_ONLN 2>/dev/null && return 0
+                                fi
+                                if command -v nproc >/dev/null 2>&1; then
+                                    nproc && return 0
+                                fi
+                                printf '1\n'
+                            }
+
+                            detect_test_shards() {
+                                if [ -n "''${TEST_SHARDS:-}" ]; then
+                                    printf '%s\n' "$TEST_SHARDS"
+                                    return 0
+                                fi
+
+                                if [ "$#" -gt 0 ]; then
+                                    printf '1\n'
+                                    return 0
+                                fi
+
+                                detect_cpu_count
+                            }
+
+                            TEST_SHARDS="$(detect_test_shards "$@")"
+                            case "$TEST_SHARDS" in
+                                ""|*[!0-9]*)
+                                    echo "TEST_SHARDS must be a positive integer, got: $TEST_SHARDS" >&2
+                                    exit 1
+                                    ;;
+                            esac
+                            if [ "$TEST_SHARDS" -lt 1 ]; then
+                                echo "TEST_SHARDS must be at least 1" >&2
+                                exit 1
+                            fi
+
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             mkdir -p build/Test
                             ghc $GHC_OPTS -iTest -main-is Main Test/Main.hs -o build/Test/Main -odir build/Test -hidir build/Test
-                            exec build/Test/Main "$@"
+
+                            if [ "$TEST_SHARDS" -eq 1 ]; then
+                                export TEST_DATABASE_NAME="$BASE_TEST_DATABASE_NAME"
+                                export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+                                test-db-reset
+                                exec build/Test/Main "$@"
+                            fi
+
+                            RUN_ID="''${TEST_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+                            STATE_ROOT="$PWD/.devenv/test"
+                            STATE_DIR="$STATE_ROOT/$RUN_ID"
+                            mkdir -p "$STATE_DIR"
+                            ln -sfn "$STATE_DIR" "$STATE_ROOT/latest"
+
+                            shard_pids=()
+                            shard_statuses=()
+
+                            run_test_shard() {
+                                local shard_index="$1"
+                                shift
+                                local shard_db_name="''${BASE_TEST_DATABASE_NAME}_''${RUN_ID}_shard_''${shard_index}"
+                                local shard_log="$STATE_DIR/shard-$shard_index.log"
+
+                                (
+                                    export TEST_SHARD_INDEX="$shard_index"
+                                    export TEST_SHARD_TOTAL="$TEST_SHARDS"
+                                    export TEST_DATABASE_NAME="$shard_db_name"
+                                    export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+
+                                    cleanup() {
+                                        if [ "''${TEST_KEEP_DATABASES:-0}" = "1" ]; then
+                                            return 0
+                                        fi
+
+                                        psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1 || true
+DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
+SQL
+                                    }
+                                    trap cleanup EXIT
+
+                                    test-db-reset
+                                    exec build/Test/Main "$@"
+                                ) >"$shard_log" 2>&1 &
+
+                                shard_pids+=("$!")
+                            }
+
+                            for shard_index in $(seq 1 "$TEST_SHARDS"); do
+                                run_test_shard "$shard_index" "$@"
+                            done
+
+                            failed=0
+                            for shard_offset in "''${!shard_pids[@]}"; do
+                                if wait "''${shard_pids[$shard_offset]}"; then
+                                    shard_statuses[$shard_offset]=0
+                                else
+                                    shard_statuses[$shard_offset]=$?
+                                    failed=1
+                                fi
+                            done
+
+                            if [ "$failed" -ne 0 ]; then
+                                echo "Parallel hspec run failed; shard logs are under $STATE_DIR" >&2
+                                for shard_index in $(seq 1 "$TEST_SHARDS"); do
+                                    status="''${shard_statuses[$((shard_index - 1))]:-1}"
+                                    if [ "$status" -ne 0 ]; then
+                                        echo >&2
+                                        echo "===== hspec shard $shard_index/$TEST_SHARDS failed (exit $status) =====" >&2
+                                        tail -n 120 "$STATE_DIR/shard-$shard_index.log" >&2 || true
+                                    fi
+                                done
+                                exit 1
+                            fi
+
+                            echo "Parallel hspec run completed across $TEST_SHARDS shards"
+                            echo "Shard logs: $STATE_DIR"
                         '';
 
                         # Run hlint on app source files.
@@ -356,55 +466,94 @@ EOF
                             exec RunDevServer
                         '';
 
-                        # Run Playwright end-to-end tests against the isolated test DB + server.
+                        # Run Playwright end-to-end tests against isolated shard-local DBs + servers.
                         # Usage: e2e [playwright-args...]
                         e2e.exec = ''
                             set -euo pipefail
                             export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"
                             export MAILHOG_BASE_URL="''${MAILHOG_BASE_URL:-http://127.0.0.1:8025}"
+                            BASE_E2E_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_e2e}"
                             export E2E_RUN_ID="''${E2E_RUN_ID:-$(date +%s)-$$-$RANDOM}"
-                            export TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_e2e_$E2E_RUN_ID}"
+
+                            detect_cpu_count() {
+                                if command -v getconf >/dev/null 2>&1; then
+                                    getconf _NPROCESSORS_ONLN 2>/dev/null && return 0
+                                fi
+                                if command -v nproc >/dev/null 2>&1; then
+                                    nproc && return 0
+                                fi
+                                printf '1\n'
+                            }
+
+                            detect_e2e_shards() {
+                                if [ -n "''${E2E_SHARDS:-}" ]; then
+                                    printf '%s\n' "$E2E_SHARDS"
+                                    return 0
+                                fi
+
+                                for arg in "$@"; do
+                                    case "$arg" in
+                                        --ui|--headed|--debug|--list)
+                                            printf '1\n'
+                                            return 0
+                                            ;;
+                                        --project=*|--grep=*|--grep-invert=*|--reporter=*|--workers=*|--shard=*)
+                                            printf '1\n'
+                                            return 0
+                                            ;;
+                                        --project|--grep|--grep-invert|--reporter|--workers|--shard)
+                                            printf '1\n'
+                                            return 0
+                                            ;;
+                                        -*)
+                                            ;;
+                                        *)
+                                            printf '1\n'
+                                            return 0
+                                            ;;
+                                    esac
+                                done
+
+                                detect_cpu_count
+                            }
+
+                            E2E_SHARDS="$(detect_e2e_shards "$@")"
+                            case "$E2E_SHARDS" in
+                                ""|*[!0-9]*)
+                                    echo "E2E_SHARDS must be a positive integer, got: $E2E_SHARDS" >&2
+                                    exit 1
+                                    ;;
+                            esac
+                            if [ "$E2E_SHARDS" -lt 1 ]; then
+                                echo "E2E_SHARDS must be at least 1" >&2
+                                exit 1
+                            fi
 
                             STATE_ROOT="$PWD/.devenv/e2e"
                             STATE_DIR="$STATE_ROOT/$E2E_RUN_ID"
-                            PID_FILE="$STATE_DIR/server.pid"
-                            LOG_FILE="$STATE_DIR/server.log"
-                            MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
-                            export PLAYWRIGHT_OUTPUT_DIR="$STATE_DIR/test-results"
-                            export PLAYWRIGHT_HTML_REPORT_DIR="$STATE_DIR/playwright-report"
-
-                            cleanup() {
-                                if [ -n "''${PID_FILE:-}" ] && [ -f "$PID_FILE" ]; then
-                                    PID=$(cat "$PID_FILE")
-                                    kill -TERM -"$PID" 2>/dev/null || kill -TERM "$PID" 2>/dev/null || true
-                                    rm -f "$PID_FILE"
-                                fi
-
-                                if [ -n "''${MAILHOG_PID_FILE:-}" ] && [ -f "$MAILHOG_PID_FILE" ]; then
-                                    MAILHOG_PID=$(cat "$MAILHOG_PID_FILE")
-                                    kill "$MAILHOG_PID" 2>/dev/null || true
-                                    rm -f "$MAILHOG_PID_FILE"
-                                fi
-
-                                psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1 || true
-DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
-SQL
-                            }
-                            trap cleanup EXIT
-
-                            test-db-reset
-
-                            mkdir -p "$STATE_DIR"
-                            : > "$LOG_FILE"
+                            MERGED_BLOB_DIR="$STATE_DIR/blob-report"
+                            MERGED_HTML_DIR="$STATE_DIR/playwright-report"
+                            mkdir -p "$STATE_DIR" "$MERGED_BLOB_DIR"
 
                             if ! curl -fsS "$MAILHOG_BASE_URL/api/v2/messages" >/dev/null 2>&1; then
+                                MAILHOG_LOG="$STATE_DIR/mailhog.log"
                                 ${pkgs.mailhog}/bin/MailHog \
                                     -smtp-bind-addr 127.0.0.1:1025 \
                                     -ui-bind-addr 127.0.0.1:8025 \
                                     -api-bind-addr 127.0.0.1:8025 \
-                                    >>"$LOG_FILE" 2>&1 &
-                                echo "$!" > "$MAILHOG_PID_FILE"
+                                    >>"$MAILHOG_LOG" 2>&1 &
+                                MAILHOG_PID="$!"
+                                MAILHOG_STARTED=1
+                            else
+                                MAILHOG_STARTED=0
                             fi
+
+                            cleanup_parent() {
+                                if [ "''${MAILHOG_STARTED:-0}" = "1" ] && [ -n "''${MAILHOG_PID:-}" ]; then
+                                    kill "$MAILHOG_PID" 2>/dev/null || true
+                                fi
+                            }
+                            trap cleanup_parent EXIT
 
                             process_group_pids() {
                                 local pgid="$1"
@@ -435,35 +584,124 @@ SQL
                                 return 1
                             }
 
-                            setsid nohup test-e2e-server </dev/null >>"$LOG_FILE" 2>&1 &
-                            PID=$!
-                            echo "$PID" > "$PID_FILE"
-                            disown "$PID" 2>/dev/null || true
+                            shard_pids=()
+                            shard_statuses=()
 
-                            for _ in $(seq 1 120); do
-                                if E2E_BASE_URL=$(detect_e2e_base_url "$PID"); then
-                                    export E2E_BASE_URL
-                                    ln -sfn "$PLAYWRIGHT_HTML_REPORT_DIR" "$STATE_ROOT/latest-report"
-                                    echo "E2E app server ready at $E2E_BASE_URL"
-                                    echo "E2E run id: $E2E_RUN_ID"
-                                    echo "E2E database: $TEST_DATABASE_NAME"
-                                    echo "E2E artifacts: $STATE_DIR"
-                                    node ./node_modules/@playwright/test/cli.js test "$@"
-                                    exit $?
-                                fi
+                            run_e2e_shard() {
+                                local shard_index="$1"
+                                shift
+                                local shard_dir="$STATE_DIR/shard-$shard_index"
+                                local shard_db_name="''${BASE_E2E_DATABASE_NAME}_''${E2E_RUN_ID}_shard_''${shard_index}"
+                                local shard_log="$shard_dir/run.log"
+                                local shard_blob_dir="$shard_dir/blob-report"
+                                local shard_output_dir="$shard_dir/test-results"
+                                local shard_pid_file="$shard_dir/server.pid"
 
-                                if ! kill -0 "$PID" 2>/dev/null; then
-                                    echo "E2E app server failed to start; recent log output:" >&2
-                                    tail -n 80 "$LOG_FILE" >&2 || true
+                                mkdir -p "$shard_dir"
+
+                                (
+                                    export TEST_DATABASE_NAME="$shard_db_name"
+                                    export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
+                                    export PLAYWRIGHT_OUTPUT_DIR="$shard_output_dir"
+                                    export PLAYWRIGHT_BLOB_REPORT_DIR="$shard_blob_dir"
+                                    export PLAYWRIGHT_WORKERS=1
+                                    export PLAYWRIGHT_FULLY_PARALLEL=0
+
+                                    cleanup() {
+                                        if [ -f "$shard_pid_file" ]; then
+                                            local pid
+                                            pid=$(cat "$shard_pid_file")
+                                            kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+                                            rm -f "$shard_pid_file"
+                                        fi
+
+                                        if [ "''${TEST_KEEP_DATABASES:-0}" != "1" ]; then
+                                            psql -h "$TEST_DB_SOCKET" -d postgres -v ON_ERROR_STOP=1 <<SQL >/dev/null 2>&1 || true
+DROP DATABASE IF EXISTS "$TEST_DATABASE_NAME" WITH (FORCE);
+SQL
+                                        fi
+                                    }
+                                    trap cleanup EXIT
+
+                                    test-db-reset
+
+                                    setsid nohup test-e2e-server </dev/null >>"$shard_log" 2>&1 &
+                                    local server_pid="$!"
+                                    echo "$server_pid" > "$shard_pid_file"
+                                    disown "$server_pid" 2>/dev/null || true
+
+                                    for _ in $(seq 1 120); do
+                                        if E2E_BASE_URL=$(detect_e2e_base_url "$server_pid"); then
+                                            export E2E_BASE_URL
+                                            echo "E2E shard $shard_index/$E2E_SHARDS app server ready at $E2E_BASE_URL"
+                                            echo "E2E database: $TEST_DATABASE_NAME"
+                                            exec node ./node_modules/@playwright/test/cli.js test --shard="$shard_index/$E2E_SHARDS" "$@"
+                                        fi
+
+                                        if ! kill -0 "$server_pid" 2>/dev/null; then
+                                            echo "E2E shard $shard_index/$E2E_SHARDS app server failed to start" >&2
+                                            tail -n 80 "$shard_log" >&2 || true
+                                            exit 1
+                                        fi
+
+                                        sleep 1
+                                    done
+
+                                    echo "Timed out waiting for E2E shard $shard_index/$E2E_SHARDS app server" >&2
+                                    tail -n 80 "$shard_log" >&2 || true
                                     exit 1
-                                fi
+                                ) &
 
-                                sleep 1
+                                shard_pids+=("$!")
+                            }
+
+                            for shard_index in $(seq 1 "$E2E_SHARDS"); do
+                                run_e2e_shard "$shard_index" "$@"
                             done
 
-                            echo "Timed out waiting for isolated E2E app server to become ready" >&2
-                            tail -n 80 "$LOG_FILE" >&2 || true
-                            exit 1
+                            failed=0
+                            for shard_offset in "''${!shard_pids[@]}"; do
+                                if wait "''${shard_pids[$shard_offset]}"; then
+                                    shard_statuses[$shard_offset]=0
+                                else
+                                    shard_statuses[$shard_offset]=$?
+                                    failed=1
+                                fi
+                            done
+
+                            for shard_index in $(seq 1 "$E2E_SHARDS"); do
+                                if [ -d "$STATE_DIR/shard-$shard_index/blob-report" ]; then
+                                    cp "$STATE_DIR/shard-$shard_index"/blob-report/* "$MERGED_BLOB_DIR"/ 2>/dev/null || true
+                                fi
+                            done
+
+                            if [ -n "$(find "$MERGED_BLOB_DIR" -mindepth 1 -maxdepth 1 -type f 2>/dev/null)" ]; then
+                                node ./node_modules/@playwright/test/cli.js merge-reports \
+                                    --reporter html \
+                                    --config playwright.config.ts \
+                                    "$MERGED_BLOB_DIR" >/dev/null
+                                rm -rf "$MERGED_HTML_DIR"
+                                if [ -d "$PWD/playwright-report" ]; then
+                                    mv "$PWD/playwright-report" "$MERGED_HTML_DIR"
+                                fi
+                                ln -sfn "$MERGED_HTML_DIR" "$STATE_ROOT/latest-report"
+                            fi
+
+                            if [ "$failed" -ne 0 ]; then
+                                echo "Parallel Playwright run failed; shard logs are under $STATE_DIR" >&2
+                                for shard_index in $(seq 1 "$E2E_SHARDS"); do
+                                    status="''${shard_statuses[$((shard_index - 1))]:-1}"
+                                    if [ "$status" -ne 0 ]; then
+                                        echo >&2
+                                        echo "===== e2e shard $shard_index/$E2E_SHARDS failed (exit $status) =====" >&2
+                                        tail -n 120 "$STATE_DIR/shard-$shard_index/run.log" >&2 || true
+                                    fi
+                                done
+                                exit 1
+                            fi
+
+                            echo "Parallel Playwright run completed across $E2E_SHARDS shards"
+                            echo "E2E artifacts: $STATE_DIR"
                         '';
 
                         # Take a screenshot of a page using Playwright.

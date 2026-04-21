@@ -111,14 +111,14 @@ Available scripts:
 
 - **`typecheck`** — Fast (~2-3s) typecheck without full build. **Run after every code change** to catch errors immediately. Exit 0 = success.
 - **`regen-types`** — Regenerate `build/Generated/Types.hs` after editing `Application/Schema.sql`. Always run this before `typecheck` when schema has changed.
-- **`test`** — Compile and run the hspec test suite. **Add tests for every new controller** (see `Test/AGENTS.md`).
+- **`test`** — Compile and run the Hspec suite. The full run now auto-shards across local cores when called without Hspec filter args; each shard gets its own ephemeral database and log directory under `.devenv/test/`. Use `TEST_SHARDS=1` to force serial execution. **Add tests for every new controller** (see `Test/AGENTS.md`).
 - **`lint`** — Run hlint on app sources. Provides suggestions for idiomatic Haskell.
 - **`format`** — Format app sources with stylish-haskell (config in `.stylish-haskell.yaml`).
 - **`ghci-app`** — Launch GHCi with the full app loaded for testing expressions interactively.
 - **`seed-dev [app|app_test] [--force]`** — Seed a broader current-week development dataset for manual inspection, including a busy multi-group roster venue, support/bootstrap scenarios, and the richer payroll parity venue. The command now always resets the target DB first; `--force` is accepted as an explicit no-op compatibility flag.
 - **`just seed-dev`** — Human-friendly default for manual dev exploration. This always wipes and reseeds `app` so the running dev app reflects the seeded venues immediately.
 - **`new-controller NAME`** — IHP code generator that scaffolds controller, views, types, and routes. Prefer this for new CRUD controllers, then customize.
-- **`e2e`** — Run Playwright end-to-end tests against an isolated `app_e2e` database and a temporary app server on the next free local IHP dev port. Accepts playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). The local Postgres socket still needs to be available, but this wrapper no longer reuses the normal dev app/database.
+- **`e2e`** — Run Playwright end-to-end tests against isolated shard-local `app_e2e_*` databases and temporary app servers on the next free local IHP dev ports. The full suite auto-shards across local cores when called without focused or interactive args; use `E2E_SHARDS=1` to force serial execution. Accepts Playwright args (e.g. `e2e --headed`, `e2e e2e/auth.spec.ts`). The local Postgres socket still needs to be available, but this wrapper no longer reuses the normal dev app/database.
 - **`screenshot`** — Take a screenshot of a page. Usage: `screenshot http://localhost:8000/Dashboard dash.png`. Requires `devenv up` running.
 - **`screenshot-page`** — Authenticated Playwright screenshot helper for arbitrary app pages. Preferred over ad hoc browser scripts when the page requires login/profile completion or a shell-specific wait selector. For the normal dev app it assumes the `seed-dev app` dataset and defaults to `dev-manager@example.com` / `password123`. Supports `--selector`, `--clip-selector`, `--device`, `--viewport`, `--base-url`, `--email`, `--password`, `--login-path`, `--login-selector`, `--post-login-url-pattern`, `--navigation-timeout-ms`, `--selector-timeout-ms`, `--wait-ms`, `--no-login`, and `--no-full-page`.
 - **`screenshot-roster-mobile`** — Capture a standard roster mobile screenshot set against the running dev app. Run `bash ./bin/in-env seed-dev app` first when you want deterministic dev-role data. Saves full-page and clipped roster shell/table captures for Pixel 7, iPhone 13, iPad Mini, and a 360px Galaxy-style viewport.
@@ -168,15 +168,15 @@ For simple CRUD, prefer running `new-controller NAME` to scaffold all files, the
 - The IHP schema-designer toast about `Unmigrated Changes` is not an authoritative sync check in this repo; it is driven by the IDE migration workflow state and can stay stale even after `make db`. Treat `make db` plus explicit DB/startup verification as the real source of truth.
 - **After adding/changing controllers**: `bash ./bin/in-env test` to run the test suite
 - **After UI/integration changes**: `bash ./bin/in-env e2e` to run end-to-end tests against the isolated test DB/server
-- `bash ./bin/in-env test` rebuilds `app_test`, while `bash ./bin/in-env e2e` rebuilds `app_e2e`. They no longer share a database, so parallel Hspec and Playwright runs are safe as long as both use the local Postgres socket under `build/db`.
+- `bash ./bin/in-env test` and `bash ./bin/in-env e2e` now both shard across isolated ephemeral databases by default for full-suite runs. Hspec shard selection is defined in `Test/Suite.hs`; Playwright shard reports are merged back into `.devenv/e2e/latest-report`.
 - **Before committing**: `bash ./bin/in-env lint` then `bash ./bin/in-env format`
 - **To confirm DB is in sync**: `psql -h "$PWD/build/db" app -c "\dt"` — all tables in `Schema.sql` should be present
 
 ## E2E Testing
 
-Playwright-based end-to-end tests live in `e2e/` and run against an isolated temporary app server on the next free local IHP dev port, backed by `app_e2e`. See `e2e/AGENTS.md` for the full guide.
+Playwright-based end-to-end tests live in `e2e/` and run against isolated temporary app servers on the next free local IHP dev ports, each backed by its own `app_e2e_*` shard database. See `e2e/AGENTS.md` for the full guide.
 
-- **Config**: `playwright.config.ts` — single chromium project, serial execution
+- **Config**: `playwright.config.ts` — multi-project desktop/mobile config, with the wrapper controlling shard count and report mode through environment variables
 - **Test data**: Seeded via `e2e/fixtures/seed.sql` (manager: `e2e-test@example.com`, worker: `e2e-worker@example.com`, both with password `test-password-123`)
 - **Cleanup**: `global-teardown.ts` deletes all rows with `e2e-` prefixed emails and removes worker-owned leave/timesheet rows before deleting dependent snapshots
 - **Browsers**: Provided by Nix via `playwright-web-flake` — no manual browser install needed
