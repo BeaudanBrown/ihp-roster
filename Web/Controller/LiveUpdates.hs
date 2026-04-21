@@ -99,35 +99,20 @@ isAuthorizedScope RosterWeekScope { venueId, rosterGroupId, weekOffset } = do
     if venueId /= unpackId currentVenueId
         then pure False
         else do
-            rosterGroupOrNothing <-
-                query @RosterGroup
-                    |> filterWhere (#id, coerce rosterGroupId)
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> fetchOneOrNothing
             let _ = weekOffset
-            pure (isJust rosterGroupOrNothing)
+            isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
 isAuthorizedScope RosterGroupConfigScope { venueId, rosterGroupId } = do
     if venueId /= unpackId currentVenueId
         then pure False
-        else do
-            rosterGroupOrNothing <-
-                query @RosterGroup
-                    |> filterWhere (#id, coerce rosterGroupId)
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> fetchOneOrNothing
-            pure (isJust rosterGroupOrNothing)
+        else isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
 isAuthorizedScope AdminSlotNamesScope { venueId, rosterGroupId } = do
     if venueId /= unpackId currentVenueId
         then pure False
         else do
-            rosterGroupOrNothing <-
-                query @RosterGroup
-                    |> filterWhere (#id, coerce rosterGroupId)
-                    |> filterWhere (#venueId, unpackId currentVenueId)
-                    |> fetchOneOrNothing
-            pure (isJust rosterGroupOrNothing)
+            hasRosterGroupAccess <- isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
+            pure (hasRosterGroupAccess && hasRole VenueAdminRole)
 isAuthorizedScope AdminInvitesScope { venueId } =
-    pure (venueId == unpackId currentVenueId)
+    pure (venueId == unpackId currentVenueId && hasRole VenueAdminRole)
 isAuthorizedScope LeaveRequestsScope { venueId } =
     pure (venueId == unpackId currentVenueId)
 isAuthorizedScope TimesheetWeekScope { venueId, weekOffset } = do
@@ -136,3 +121,15 @@ isAuthorizedScope TimesheetWeekScope { venueId, weekOffset } = do
         else do
             let _ = weekOffset
             pure True
+
+isAuthorizedCurrentVenueRosterGroupScope ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    UUID.UUID ->
+    IO Bool
+isAuthorizedCurrentVenueRosterGroupScope rosterGroupId = do
+    rosterGroupOrNothing <-
+        query @RosterGroup
+            |> filterWhere (#id, coerce rosterGroupId)
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOneOrNothing
+    pure (isJust rosterGroupOrNothing)

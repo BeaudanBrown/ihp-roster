@@ -3,19 +3,26 @@
 module Test.Controller.VenueAccessSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
-                                      currentVenueSessionKey)
+                                      currentVenueSessionKey,
+                                      initCurrentVenueContext)
+import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Config
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Serialize as Serialize
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
+import IHP.Controller.Context (ControllerContext, newControllerContext)
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
+import IHP.LoginSupport.Middleware (initAuthentication)
 import IHP.Prelude
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
+import qualified Network.Wai as Wai
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
@@ -26,6 +33,7 @@ import Web.Controller.Sessions ()
 import Web.Controller.Staff ()
 import Web.Controller.Support ()
 import Web.Controller.Timesheets ()
+import Web.Controller.LiveUpdates (isAuthorizedScope)
 import Web.FrontController ()
 import Web.Types
 
@@ -125,6 +133,41 @@ tests = beforeAll testContext do
                     callAction ToggleRosterWeekLiveStatusAction { rosterWeekId = rosterWeek.id }
 
                 response `responseStatusShouldBe` status403
+
+        it "does not let venue managers subscribe to admin slot-name live scopes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "manager-live-admin-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+
+                authorized <- withAuthenticatedControllerContext manager venue.id do
+                    isAuthorizedScope AdminSlotNamesScope
+                        { venueId = unpackId venue.id
+                        , rosterGroupId = unpackId rosterGroup.id
+                        }
+
+                authorized `shouldBe` False
+
+        it "lets venue admins subscribe to admin live scopes for the current venue" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                admin <- createUserRecord "admin-live-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+
+                slotNamesAuthorized <- withAuthenticatedControllerContext admin venue.id do
+                    isAuthorizedScope AdminSlotNamesScope
+                        { venueId = unpackId venue.id
+                        , rosterGroupId = unpackId rosterGroup.id
+                        }
+                invitesAuthorized <- withAuthenticatedControllerContext admin venue.id do
+                    isAuthorizedScope AdminInvitesScope
+                        { venueId = unpackId venue.id
+                        }
+
+                slotNamesAuthorized `shouldBe` True
+                invitesAuthorized `shouldBe` True
 
         it "lets super-admin bypass venue membership for admin screens in another active venue" $ withContext do
             withCleanDb do
@@ -415,3 +458,23 @@ tests = beforeAll testContext do
                 length slots `shouldBe` 84
                 map (.slotNameId) slots `shouldSatisfy` all (`elem` venueASlotIds)
                 map (.slotNameId) slots `shouldSatisfy` all (`notElem` venueBSlotIds)
+
+withAuthenticatedControllerContext ::
+    forall result.
+    (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?modelContext :: ModelContext) =>
+    User ->
+    Id Venue ->
+    ((?context :: ControllerContext) => IO result) ->
+    IO result
+withAuthenticatedControllerContext user venueId action =
+    withSessionValues
+        [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
+        , (currentVenueSessionKey, Serialize.encode venueId)
+        ]
+        do
+            let ?frameworkConfig = config
+            controllerContext <- newControllerContext
+            let ?context = controllerContext
+            initAuthentication @User
+            initCurrentVenueContext
+            action
