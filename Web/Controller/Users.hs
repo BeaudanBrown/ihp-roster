@@ -4,8 +4,10 @@ import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       broadcastLiveInvalidation)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
+import Application.Helper.Controller (defaultRosterWeekStartsOn)
 import Application.Support (createVenueWithBootstrapConfigInCurrentTransaction,
-                            defaultStaffNameFromEmail, provisionVenueUser)
+                            defaultStaffNameFromEmail,
+                            defaultVenueBootstrapTimezone, provisionVenueUser)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
@@ -127,8 +129,8 @@ instance Controller UsersController where
                     Just invitation | venueOnboardingInvitationIsActive now invitation -> do
                         let user = newRecord @User |> set #email invitation.email
                         let venue = newRecord @Venue |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
-                        let venueTimezone = "Australia/Melbourne"
-                        let venueRosterWeekStartsOn = 1
+                        let venueTimezone = defaultVenueBootstrapTimezone
+                        let venueRosterWeekStartsOn = defaultRosterWeekStartsOn
                         setTitle "Create Venue"
                         render VenueOnboardingSignupView
                             { user
@@ -155,8 +157,8 @@ instance Controller UsersController where
                 case invitationOrNothing of
                     Just invitation | venueOnboardingInvitationIsActive now invitation -> do
                         let passwordConfirmation = param @Text "passwordConfirmation"
-                        let venueTimezone = paramOrDefault "Australia/Melbourne" "timezone"
-                        let venueRosterWeekStartsOn = fromMaybe 1 (paramOrNothing @Int "rosterWeekStartsOn")
+                        let venueTimezone = paramOrDefault defaultVenueBootstrapTimezone "timezone"
+                        let venueRosterWeekStartsOn = fromMaybe defaultRosterWeekStartsOn (paramOrNothing @Int "rosterWeekStartsOn")
                         let user = newRecord @User |> set #email invitation.email
                         let venue =
                                 newRecord @Venue

@@ -1,5 +1,6 @@
 module Web.View.Users.New where
 
+import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
 import Web.View.Prelude
 
 data NewView
@@ -129,34 +130,8 @@ renderVenueOnboardingForm user invitation venue venueTimezone venueRosterWeekSta
                 required="required"
             />
         </div>
-        <div class="mb-3">
-            <label class="form-label" for="name">Venue name</label>
-            <input
-                id="name"
-                type="text"
-                class={classes [("form-control", True), ("is-invalid", hasFieldError venue "name")]}
-                name="name"
-                value={venue.name}
-                required="required"
-            />
-            {renderVenueNameFieldError venue "name"}
-        </div>
-        <div class="mb-3">
-            <label class="form-label" for="timezone">Timezone</label>
-            <input
-                id="timezone"
-                type="text"
-                class="form-control"
-                name="timezone"
-                value={venueTimezone}
-                required="required"
-            />
-        </div>
-        <div class="mb-3">
-            <label class="form-label" for="rosterWeekStartsOn">Roster week starts on</label>
-            <select id="rosterWeekStartsOn" class="form-select" name="rosterWeekStartsOn">
-                {forEach [1 :: Int, 2, 3, 4, 5, 6, 0] (renderWeekdayOption venueRosterWeekStartsOn)}
-            </select>
+        <div class="row g-3">
+            {renderVenueBootstrapFields venue venueTimezone venueRosterWeekStartsOn}
         </div>
         <div class="d-grid mt-4">
             <button type="submit" class="btn btn-primary">Create Account And Venue</button>
@@ -171,33 +146,3 @@ invitationRoleLabel value =
         "venue_admin" -> "venue admin"
         "manager"     -> "manager"
         _             -> "worker"
-
-renderVenueNameFieldError :: Venue -> Text -> Html
-renderVenueNameFieldError venue fieldName =
-    case lookup fieldName venue.meta.annotations of
-        Just (TextViolation messageText) -> [hsx|<div class="invalid-feedback d-block">{messageText}</div>|]
-        Just (HtmlViolation messageHtml) -> [hsx|<div class="invalid-feedback d-block">{messageHtml}</div>|]
-        Nothing -> mempty
-
-hasFieldError :: Venue -> Text -> Bool
-hasFieldError venue fieldName = isJust (lookup fieldName venue.meta.annotations)
-
-renderWeekdayOption :: Int -> Int -> Html
-renderWeekdayOption selectedWeekday weekdayIndex = [hsx|
-    <option value={tshow weekdayIndex} selected={weekdayIndex == selectedWeekday}>{weekdayLabel weekdayIndex}</option>
-|]
-
-weekdayLabel :: Int -> Text
-weekdayLabel weekdayIndex =
-    fromMaybe ("Weekday " <> tshow weekdayIndex) (lookup weekdayIndex weekdayLabels)
-
-weekdayLabels :: [(Int, Text)]
-weekdayLabels =
-    [ (0, "Sunday")
-    , (1, "Monday")
-    , (2, "Tuesday")
-    , (3, "Wednesday")
-    , (4, "Thursday")
-    , (5, "Friday")
-    , (6, "Saturday")
-    ]

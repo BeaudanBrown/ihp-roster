@@ -25,7 +25,10 @@ resetDatabase = do
 
 createVenueWithConfig :: (?modelContext :: ModelContext) => Text -> IO Venue
 createVenueWithConfig name =
-    fst <$> createVenueWithBootstrapConfig name "Australia/Melbourne" 1
+    fst <$> createVenueWithBootstrapConfig name defaultVenueBootstrapTimezone 1
+
+defaultVenueBootstrapTimezone :: Text
+defaultVenueBootstrapTimezone = "Australia/Melbourne"
 
 createVenueWithBootstrapConfig :: (?modelContext :: ModelContext) => Text -> Text -> Int -> IO (Venue, VenueConfig)
 createVenueWithBootstrapConfig name timezone rosterWeekStartsOn =

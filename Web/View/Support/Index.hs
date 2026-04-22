@@ -1,11 +1,14 @@
 module Web.View.Support.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
 import Web.View.Prelude
 
 data IndexView = IndexView
     { venues       :: [Venue]
     , venue        :: Venue
+    , venueTimezone :: Text
+    , venueRosterWeekStartsOn :: Int
     , onboardingInvitation :: VenueOnboardingInvitation
     , onboardingInvitations :: [VenueOnboardingInvitation]
     , createdVenue :: Maybe Venue
@@ -55,18 +58,7 @@ instance View IndexView where
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
                         <form method="POST" action={CreateSupportVenueAction} class="row g-3" data-disable-javascript-submission="true">
-                            <div class="col-12">
-                                <label class="form-label" for="support-create-venue-name">Venue name</label>
-                                <input
-                                    id="support-create-venue-name"
-                                    class={classes [("form-control", True), ("is-invalid", hasVenueErrorFor venue "name")]}
-                                    type="text"
-                                    name="name"
-                                    value={venue.name}
-                                    required="required"
-                                />
-                                {renderVenueError venue "name"}
-                            </div>
+                            {renderVenueBootstrapFields venue venueTimezone venueRosterWeekStartsOn}
                             <div class="col-12 col-lg-6 d-flex align-items-end">
                                 <button class="btn btn-primary w-100" type="submit">Create Venue</button>
                             </div>
@@ -134,7 +126,7 @@ renderCreatedVenueBanner maybeVenue =
             <div class="alert alert-success d-flex flex-column flex-lg-row justify-content-between align-items-lg-center gap-3" role="alert">
                 <div>
                     <div class="fw-semibold">Venue ready for founder setup</div>
-                    <div>{venue.name} was created with minimum Bepis roster defaults. You can switch into it now and invite users later.</div>
+                    <div>{venue.name} was created with the configured bootstrap settings. You can switch into it now and invite users later.</div>
                 </div>
                 <form method="POST" action={SwitchSupportVenueAction} class="m-0">
                     <input type="hidden" name="venueId" value={tshow venue.id} />
@@ -143,16 +135,6 @@ renderCreatedVenueBanner maybeVenue =
                 </form>
             </div>
         |]
-
-renderVenueError :: Venue -> Text -> Html
-renderVenueError venue fieldName =
-    case lookup fieldName venue.meta.annotations of
-        Just (TextViolation messageText) -> [hsx|<div class="invalid-feedback d-block">{messageText}</div>|]
-        Just (HtmlViolation messageHtml) -> [hsx|<div class="invalid-feedback d-block">{messageHtml}</div>|]
-        Nothing -> mempty
-
-hasVenueErrorFor :: Venue -> Text -> Bool
-hasVenueErrorFor venue fieldName = isJust (lookup fieldName venue.meta.annotations)
 
 renderOnboardingInvitationError :: VenueOnboardingInvitation -> Text -> Html
 renderOnboardingInvitationError invitation fieldName =

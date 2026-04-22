@@ -207,6 +207,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Switch Venue"
                 response `responseBodyShouldContain` "Invite Venue Owner"
                 response `responseBodyShouldContain` "Create Venue"
+                response `responseBodyShouldContain` "Roster week starts on"
+                response `responseBodyShouldContain` "Australia/Melbourne"
                 response `responseBodyShouldContain` "Alpha Venue"
                 response `responseBodyShouldContain` "Beta Venue"
 
@@ -253,6 +255,8 @@ tests = beforeAll testContext do
                 response <- withUser founder do
                     callActionWithParams CreateSupportVenueAction
                         [ ("name", "Fresh Venue")
+                        , ("timezone", "Pacific/Auckland")
+                        , ("rosterWeekStartsOn", "2")
                         ]
 
                 response `responseStatusShouldBe` status302
@@ -265,7 +269,8 @@ tests = beforeAll testContext do
                 invitationCount <- query @VenueInvitation |> filterWhere (#venueId, unpackId venue.id) |> fetchCount
                 auditEvent <- query @AuditEvent |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
-                venueConfig.timezone `shouldBe` "Australia/Melbourne"
+                venueConfig.timezone `shouldBe` "Pacific/Auckland"
+                venueConfig.rosterWeekStartsOn `shouldBe` 2
                 slotCount `shouldBe` 3
                 invitationCount `shouldBe` 0
                 auditEvent.eventType `shouldBe` "venue_bootstrapped"
