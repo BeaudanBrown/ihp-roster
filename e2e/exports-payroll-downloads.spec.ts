@@ -5,6 +5,7 @@ import {
     generatePayrollReport,
     gotoExports,
     loginAs,
+    payrollReportCard,
     parseCsv,
     readDownloadText,
     readZipEntryText,
@@ -25,10 +26,10 @@ test.describe('Payroll export downloads', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoExports(page);
 
-        await expect(page.getByText('Staff Hours Report')).toBeVisible();
-        await expect(page.getByText('Kitchen Report')).toBeVisible();
-        await expect(page.getByText('Wage Report')).toBeVisible();
-        await expect(page.locator('body')).not.toContainText('Manage Report Definitions');
+        await expect(payrollReportCard(page, 'Staff Hours Report')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Kitchen Report')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Wage Report')).toHaveCount(1);
+        await expect(page.locator('#report-definition-management')).toHaveCount(0);
 
         const currentWeek = await currentReportWeek(page);
         await shiftExportWeek(page, 'Previous');

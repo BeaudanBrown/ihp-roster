@@ -14,8 +14,8 @@ test.describe('Venue-scoped navigation', () => {
     test('login resolves the current venue and scopes roster, timesheets, and leave views', async ({ page }) => {
         await login(page);
 
-        await expect(page.locator('#roster-content')).toContainText('Crew, Alpha');
-        await expect(page.locator('#roster-content')).not.toContainText('Crew, Beta');
+        await expect(page.locator('#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-name="Alpha"]')).toHaveCount(1);
+        await expect(page.locator('#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-name="Beta"]')).toHaveCount(0);
 
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
         await expect(page.locator('#timesheet-week-shell')).toContainText('Alpha Crew');

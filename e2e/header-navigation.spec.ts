@@ -12,7 +12,7 @@ test.describe('Authenticated header navigation', () => {
 
         await page.getByRole('link', { name: 'profile' }).click();
         await expect(page).toHaveURL(/EditProfile/, { timeout: 60000 });
-        await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Profile', exact: true })).toBeVisible();
         await expect(page.locator('#firstName')).toBeVisible();
         await expect(page.evaluate(() => window.__headerNavMarker)).resolves.toBeUndefined();
 

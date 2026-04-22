@@ -29,11 +29,11 @@ instance View IndexView where
                     , appPanelClass = "h-100"
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
-                        <div class="border rounded p-3 mb-4 bg-light-subtle">
+                        <div id="payroll-reports-panel" class="border rounded p-3 mb-4 bg-light-subtle">
                             <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
                                 <div>
                                     <div class="fw-semibold mb-1">Payroll Reports</div>
-                                    <div class="small app-muted">
+                                    <div id="payroll-report-week-summary" class="small app-muted">
                                         Week of {tshow reportWeekSelection.weekStart} to {tshow reportWeekSelection.weekEnd}
                                     </div>
                                 </div>
@@ -133,14 +133,19 @@ renderReportDefinitionList :: ReportWeekSelection -> [VenueReportDefinition] -> 
 renderReportDefinitionList reportWeekSelection reportDefinitions
     | null reportDefinitions = [hsx|<div class="app-muted mb-0">No payroll report definitions are available for this venue yet.</div>|]
     | otherwise = [hsx|
-        <div class="d-grid gap-2">
+        <div id="payroll-report-list" class="d-grid gap-2">
             {forEach reportDefinitions (renderReportDefinitionRow reportWeekSelection)}
         </div>
     |]
 
 renderReportDefinitionRow :: ReportWeekSelection -> VenueReportDefinition -> Html
 renderReportDefinitionRow reportWeekSelection reportDefinition = [hsx|
-    <div class="border rounded p-2 bg-white">
+    <div
+        class="border rounded p-2 bg-white"
+        data-payroll-report-card="true"
+        data-report-slug={reportDefinition.definition.slug}
+        data-report-engine={renderReportEngineLabel reportDefinition.engine}
+    >
         <div class="d-flex justify-content-between align-items-start gap-3">
             <div>
                 <div class="fw-semibold">{reportDefinition.definition.name}</div>
@@ -173,7 +178,14 @@ renderShiftTypeFilterSummary reportDefinition
 
 renderReportDefinitionAction :: ReportWeekSelection -> VenueReportDefinition -> Html
 renderReportDefinitionAction reportWeekSelection reportDefinition = [hsx|
-    <form method="POST" action={CreateExportJobAction} class="d-inline" data-disable-javascript-submission="true">
+    <form
+        method="POST"
+        action={CreateExportJobAction}
+        class="d-inline"
+        data-disable-javascript-submission="true"
+        data-generate-payroll-report-form="true"
+        data-report-slug={reportDefinition.definition.slug}
+    >
         <input type="hidden" name="reportSlug" value={reportDefinition.definition.slug} />
         <input type="hidden" name="weekOffset" value={tshow reportWeekSelection.weekOffset} />
         <button class="btn btn-primary btn-sm" type="submit">{renderGenerateButtonLabel reportDefinition.engine}</button>
@@ -186,7 +198,7 @@ renderGenerateButtonLabel HourlyBreakdownZipReport = "Generate ZIP"
 
 renderReportDefinitionManagement :: [VenueReportDefinition] -> [ShiftType] -> Html
 renderReportDefinitionManagement reportDefinitions shiftTypes = [hsx|
-    <div class="border-top mt-4 pt-4">
+    <div id="report-definition-management" class="border-top mt-4 pt-4">
         <div class="fw-semibold mb-2">Manage Report Definitions</div>
         <div class="small app-muted mb-3">
             These venue-scoped definitions replace the old hardcoded report config. Use them to control report names, slugs, order, engine type, and optional shift-type filters.
@@ -200,7 +212,13 @@ renderReportDefinitionManagement reportDefinitions shiftTypes = [hsx|
 
 renderReportDefinitionCreateForm :: [ShiftType] -> Html
 renderReportDefinitionCreateForm shiftTypes = [hsx|
-    <form method="POST" action={CreateReportDefinitionAction} class="border rounded p-3 bg-white" data-disable-javascript-submission="true">
+    <form
+        id="report-definition-create-form"
+        method="POST"
+        action={CreateReportDefinitionAction}
+        class="border rounded p-3 bg-white"
+        data-disable-javascript-submission="true"
+    >
         <div class="fw-semibold mb-3">Add Report Definition</div>
         {renderReportDefinitionFields Nothing shiftTypes}
         <div class="mt-3">
@@ -211,7 +229,15 @@ renderReportDefinitionCreateForm shiftTypes = [hsx|
 
 renderReportDefinitionEditor :: [ShiftType] -> VenueReportDefinition -> Html
 renderReportDefinitionEditor shiftTypes reportDefinition = [hsx|
-    <form method="POST" action={UpdateReportDefinitionAction (get #id reportDefinition.definition)} class="border rounded p-3 bg-white" data-disable-javascript-submission="true">
+    <form
+        method="POST"
+        action={UpdateReportDefinitionAction (get #id reportDefinition.definition)}
+        class="border rounded p-3 bg-white"
+        data-disable-javascript-submission="true"
+        data-report-definition-editor="true"
+        data-report-definition-slug={reportDefinition.definition.slug}
+        data-report-definition-id={tshow (get #id reportDefinition.definition)}
+    >
         <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
             <div>
                 <div class="fw-semibold">{reportDefinition.definition.name}</div>
@@ -306,7 +332,7 @@ reportDefinitionStatusClass reportDefinition =
 renderExportTable :: [ExportJob] -> Html
 renderExportTable exportJobs = [hsx|
     <div class="table-responsive">
-        <table class="table table-sm align-middle mb-0">
+        <table id="export-jobs-table" class="table table-sm align-middle mb-0">
             <thead>
                 <tr>
                     <th>Export</th>
@@ -326,7 +352,7 @@ renderExportTable exportJobs = [hsx|
 
 renderExportJobRow :: ExportJob -> Html
 renderExportJobRow exportJob = [hsx|
-    <tr>
+    <tr data-export-job-row="true" data-export-job-file={fromMaybe exportJob.exportType exportJob.fileName} data-export-job-status={exportJob.status}>
         <td>{renderExportDescriptor exportJob}</td>
         <td>{formatTimestamp exportJob.createdAt}</td>
         <td>{renderRange exportJob}</td>
@@ -345,9 +371,9 @@ renderRange exportJob =
 renderStatusBadge :: ExportJob -> Html
 renderStatusBadge exportJob =
     case parseExportJobStatus exportJob.status of
-        Just ExportReady -> [hsx|<span class="badge bg-success-subtle text-success-emphasis">ready</span>|]
-        Just ExportExpired -> [hsx|<span class="badge bg-secondary">expired</span>|]
-        _ -> [hsx|<span class="badge bg-warning-subtle text-warning-emphasis">pending</span>|]
+        Just ExportReady -> [hsx|<span class="badge bg-success-subtle text-success-emphasis" data-export-job-status-badge="ready">ready</span>|]
+        Just ExportExpired -> [hsx|<span class="badge bg-secondary" data-export-job-status-badge="expired">expired</span>|]
+        _ -> [hsx|<span class="badge bg-warning-subtle text-warning-emphasis" data-export-job-status-badge="pending">pending</span>|]
 
 renderExportDescriptor :: ExportJob -> Html
 renderExportDescriptor exportJob = [hsx|

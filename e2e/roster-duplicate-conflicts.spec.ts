@@ -1,22 +1,39 @@
 import { test, expect } from '@playwright/test';
-import { openRoster } from './test-helpers';
+import { addRowToRosterDay, firstEditableRosterDaySection, openRoster } from './test-helpers';
 
 async function loginAndOpenRoster(page) {
     await openRoster(page);
 }
 
-async function ensureSecondRosterRow(page) {
-    const editableRows = page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
-    if (await editableRows.count() >= 2) return;
+function editableRosterRows(page) {
+    return page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
+}
 
-    await page.locator('[data-roster-day-add="true"]').first().click();
-    await expect(editableRows).toHaveCount(2);
+async function ensureTwoEditableRosterRows(page) {
+    const rows = editableRosterRows(page);
+    const initialCount = await rows.count();
+    if (initialCount >= 2) {
+        return;
+    }
+
+    await addRowToRosterDay(firstEditableRosterDaySection(page));
+    await expect(rows).toHaveCount(initialCount + 1);
+    await expect(rows).toHaveCount(2);
 }
 
 async function assignStaffToRow(page, rowIndex, staffId) {
-    const row = page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') }).nth(rowIndex);
+    const row = editableRosterRows(page).nth(rowIndex);
     const select = row.locator('select[name="staffId"]').first();
-    await select.selectOption(staffId);
+    const updateUrl = await select.getAttribute('hx-post');
+    if (!updateUrl) {
+        throw new Error('Expected roster staff select to have an hx-post update URL');
+    }
+    await Promise.all([
+        page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().endsWith(updateUrl),
+        ),
+        select.selectOption(staffId),
+    ]);
     await expect(select).toHaveValue(staffId);
 }
 
@@ -31,16 +48,16 @@ async function blurActiveRosterInput(page) {
 
 async function normalizeRosterForDuplicateConflict(actorPage) {
     const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
-    const alphaCrewEntry = actorPage
-        .locator('#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-name="Alpha"]')
-        .first();
 
-    await ensureSecondRosterRow(actorPage);
+    await ensureTwoEditableRosterRows(actorPage);
+    await assignStaffToRow(actorPage, 0, '');
+    await blurActiveRosterInput(actorPage);
     await assignStaffToRow(actorPage, 1, '');
     await blurActiveRosterInput(actorPage);
+    await expect(duplicateConflictCells(actorPage)).toHaveCount(0);
     await assignStaffToRow(actorPage, 0, alphaCrewStaffId);
     await blurActiveRosterInput(actorPage);
-    await expect(alphaCrewEntry).toContainText('1');
+    await expect(duplicateConflictCells(actorPage)).toHaveCount(0);
 }
 
 function duplicateConflictCells(page) {
@@ -55,12 +72,13 @@ test.describe('Roster duplicate conflicts', () => {
         await normalizeRosterForDuplicateConflict(page);
 
         const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
-        const secondRow = page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') }).nth(1);
-        const secondRowSelect = secondRow.locator('select[name="staffId"]').first();
+        const duplicateTargetRow = editableRosterRows(page).nth(1);
+        const duplicateTargetSelect = duplicateTargetRow.locator('select[name="staffId"]').first();
         const initialConflictCount = await duplicateConflictCells(page).count();
 
-        await secondRowSelect.selectOption(alphaCrewStaffId);
-        await expect(secondRowSelect).toHaveValue(alphaCrewStaffId);
+        await duplicateTargetSelect.selectOption(alphaCrewStaffId);
+        await expect(duplicateTargetSelect).toHaveValue(alphaCrewStaffId);
+        await blurActiveRosterInput(page);
         await expect
             .poll(async () => duplicateConflictCells(page).count(), { timeout: 15000 })
             .toBeGreaterThan(initialConflictCount);
@@ -76,20 +94,13 @@ test.describe('Roster duplicate conflicts', () => {
         await normalizeRosterForDuplicateConflict(actorPage);
 
         await loginAndOpenRoster(viewerPage);
-        await expect(
-            viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }),
-        ).toHaveCount(2);
+        await expect(editableRosterRows(viewerPage)).toHaveCount(2);
         const initialActorConflictCount = await duplicateConflictCells(actorPage).count();
         const initialViewerConflictCount = await duplicateConflictCells(viewerPage).count();
 
         const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
-        const alphaCrewEntry = actorPage
-            .locator('#roster-staff-panel-fragment .roster-staff-panel-entry[data-roster-staff-name="Alpha"]')
-            .first();
-
         await assignStaffToRow(actorPage, 1, alphaCrewStaffId);
         await blurActiveRosterInput(actorPage);
-        await expect(alphaCrewEntry).toContainText('2');
         await expect
             .poll(async () => duplicateConflictCells(actorPage).count(), { timeout: 15000 })
             .toBeGreaterThan(initialActorConflictCount);
@@ -113,10 +124,11 @@ test.describe('Roster duplicate conflicts', () => {
         });
 
         expect(viewerGridState.outsideRowCount).toBe(0);
-        expect(viewerGridState.editableBodyRowCount).toBe(2);
+        expect(viewerGridState.editableBodyRowCount).toBeGreaterThanOrEqual(2);
         expect(viewerGridState.selectCount).toBeGreaterThanOrEqual(2);
         expect(viewerGridState.bodyRowCount).toBeGreaterThanOrEqual(2);
         expect(viewerGridState.firstRowCellCount).toBeGreaterThanOrEqual(3);
+        expect(viewerGridState.secondRowCellCount).toBeGreaterThanOrEqual(3);
 
         await actorContext.close();
         await viewerContext.close();

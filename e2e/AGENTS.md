@@ -119,6 +119,7 @@ For payroll/export coverage, the shared helpers in `e2e/test-helpers.ts` also pr
   - dense tables keep overflow contained inside `.table-responsive`
   - authenticated mobile nav expands and exposes the expected links
   - workflow dialogs fit inside the viewport width
+- If a page does not expose a stable structural hook for the behavior you need to assert, add one in the view first. Prefer explicit ids or `data-*` attributes for cards, forms, rows, and status badges over selectors tied to Bootstrap utility classes or broad `body` text.
 
 ### Logging in within a test
 ```typescript
@@ -157,6 +158,7 @@ test('authenticated feature', async ({ page }) => {
 - Match the actual rendered copy, not seed helper names. Example: the roster grid renders staff as `Last, First`, while leave/timesheet views render `First Last`
 - After login, wait for the destination shell selector as well as the URL because the post-login flow now resolves venue context before landing on roster pages
 - Do not use `page.waitForTimeout(...)` to “let HTMX settle” in normal specs. Prefer asserting the concrete post-action contract instead: updated field value, fragment text, row count, conflict class, modal close, or URL/shell stability.
+- Prefer stable view contracts like `data-report-slug`, `data-export-job-file`, or dedicated panel ids when asserting repeated list items. Avoid coupling specs to Bootstrap class combinations such as `.border.rounded.p-2.bg-white`, which are presentation details rather than behavior contracts.
 
 ## Operational Notes
 

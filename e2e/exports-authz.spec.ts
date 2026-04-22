@@ -1,18 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { gotoExports, loginAs } from './test-helpers';
+import { gotoExports, loginAs, payrollReportCard } from './test-helpers';
 
 test.describe('Export authorization and negative cases', () => {
     test('manager only sees current-venue payroll reports and no management controls', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoExports(page);
 
-        const payrollCards = page.locator('.border.rounded.p-2.bg-white');
-        await expect(page.locator('body')).not.toContainText('Manage Report Definitions');
-        await expect(payrollCards.filter({ hasText: 'Wage Report' })).toHaveCount(1);
-        await expect(payrollCards.filter({ hasText: 'Staff Hours Report' })).toHaveCount(1);
-        await expect(payrollCards.filter({ hasText: 'Kitchen Report' })).toHaveCount(1);
-        await expect(payrollCards.filter({ hasText: 'Beta Hours' })).toHaveCount(0);
-        await expect(page.locator('tbody tr')).toHaveCount(0);
+        await expect(page.locator('#report-definition-management')).toHaveCount(0);
+        await expect(payrollReportCard(page, 'Wage Report')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Staff Hours Report')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Kitchen Report')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Beta Hours')).toHaveCount(0);
+        await expect(page.locator('#export-jobs-table tbody tr')).toHaveCount(0);
     });
 
     test('worker cannot access exports', async ({ page }) => {
@@ -31,9 +30,7 @@ test.describe('Export authorization and negative cases', () => {
         await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
         await gotoExports(page);
 
-        const createForm = page.locator('form').filter({
-            has: page.getByText('Add Report Definition'),
-        });
+        const createForm = page.locator('#report-definition-create-form');
 
         await createForm.locator('input[name="slug"]').fill(duplicateSlug);
         await createForm.locator('input[name="name"]').fill(transientName);
@@ -44,8 +41,8 @@ test.describe('Export authorization and negative cases', () => {
         await createForm.getByRole('button', { name: 'Add Report Definition' }).click();
 
         await expect(page.locator('body')).toContainText('That report slug is already in use for this venue.');
-        await expect(page.locator('.border.rounded.p-2.bg-white').filter({ hasText: transientName })).toHaveCount(0);
-        await expect(page.locator('form').filter({ has: page.locator(`input[name="slug"][value="${duplicateSlug}"]`) })).toHaveCount(1);
-        await expect(page.locator('form').filter({ has: page.locator(`input[name="name"][value="${transientName}"]`) })).toHaveCount(0);
+        await expect(payrollReportCard(page, transientName)).toHaveCount(0);
+        await expect(page.locator('[data-report-definition-editor="true"][data-report-definition-slug="wage"]')).toHaveCount(1);
+        await expect(page.locator(`[data-report-definition-editor="true"] input[name="name"][value="${transientName}"]`)).toHaveCount(0);
     });
 });
