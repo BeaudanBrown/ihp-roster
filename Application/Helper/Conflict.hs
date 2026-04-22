@@ -2,6 +2,7 @@ module Application.Helper.Conflict where
 
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus)
+import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Time.Calendar (Day)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -124,12 +125,6 @@ shiftPreferencesForDay ctx =
      in filter
             (\preference -> preference.rosterGroupId == ctx.rosterGroupId && preference.weekdayIndex == weekdayIndex)
             ctx.shiftPreferences
-
-weekdayIndexForDay :: Day -> Int
-weekdayIndexForDay day =
-    case fromEnum (dayOfWeek day) of
-        7     -> 0
-        index -> index
 
 checkLateToEarlyConflict :: ConflictContext -> Maybe RosterConflict
 checkLateToEarlyConflict ctx

@@ -62,7 +62,7 @@ instance Controller RosterWeeksController where
         case paramOrNothing @Calendar.Day "weekDate" of
             Just weekDate -> do
                 venueConfig <- fetchVenueConfig
-                let selectedWeekOffset = weekOffsetForDay venueConfig.weekOffsetEpoch weekDate
+                let selectedWeekOffset = venueWeekOffsetForDay venueConfig weekDate
                 let targetPath = buildRosterWeekPath selectedWeekOffset rosterGroup.id
                 if isHtmxRequest
                     then do
@@ -480,8 +480,7 @@ respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefresh
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
 renderRosterWeekPage weekOffset requestedRosterGroupId = do
     venueConfig <- fetchVenueConfig
-    let epoch = venueConfig.weekOffsetEpoch
-    let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) epoch
+    let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let weekEndDate = Calendar.addDays 6 weekStartDate
     setTitle "Roster"
     rosterGroups <- fetchCurrentVenueRosterGroups
@@ -529,9 +528,9 @@ renderRosterWeekOverviewFragment :: (?context :: ControllerContext, ?modelContex
 renderRosterWeekOverviewFragment weekOffset rosterGroupId = do
     venueConfig <- fetchVenueConfig
     todayDate <- utctDay <$> getCurrentTime
-    let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) venueConfig.weekOffsetEpoch
+    let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let focusDate = initialOverviewFocusDate weekStartDate todayDate
-    weekOverviewDays <- profileActionSpan "roster.build_month_overview" (buildRosterMonthOverviewDays venueConfig.weekOffsetEpoch rosterGroupId focusDate)
+    weekOverviewDays <- profileActionSpan "roster.build_month_overview" (buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate)
     pure (renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate weekOverviewDays (buildRosterViewCapabilities Nothing))
 
 fetchRelatedSlotsForStaffIds :: (?modelContext :: ModelContext) => [UUID.UUID] -> IO [RosterSlot]

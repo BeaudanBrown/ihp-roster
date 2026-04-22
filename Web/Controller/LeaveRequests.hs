@@ -447,8 +447,8 @@ invalidateAffectedRosterWeeksForLeave :: (?context :: ControllerContext, ?modelC
 invalidateAffectedRosterWeeksForLeave leaveRequest = do
     venueConfig <- fetchVenueConfig
     let affectedOffsets =
-            affectedWeekOffsetsForDateRange
-                venueConfig.weekOffsetEpoch
+            affectedVenueWeekOffsetsForDateRange
+                venueConfig
                 leaveRequest.startDate
                 leaveRequest.endDate
 

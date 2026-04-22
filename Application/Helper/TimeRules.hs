@@ -1,6 +1,6 @@
 module Application.Helper.TimeRules where
 
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day, diffDays)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -50,13 +50,3 @@ leaveRequestCanBeDeleted leaveRequest =
 
 isLeaveDateRangeValid :: Day -> Day -> Bool
 isLeaveDateRangeValid startDate endDate = endDate > startDate
-
-affectedWeekOffsetsForDateRange :: Day -> Day -> Day -> [Int]
-affectedWeekOffsetsForDateRange epoch startDate endDate
-    | not (isLeaveDateRangeValid startDate endDate) = []
-    | otherwise = [startOffset .. endOffset]
-    where
-        toWeekOffset day = fromInteger (diffDays day epoch `div` 7)
-        startOffset = toWeekOffset startDate
-        leaveLastDate = addDays (-1) endDate
-        endOffset = toWeekOffset leaveLastDate

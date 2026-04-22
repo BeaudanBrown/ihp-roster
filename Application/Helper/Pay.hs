@@ -222,6 +222,7 @@ buildCurrentVenuePayConfigSnapshotPayload = do
             [ "venueConfig" Aeson..= Aeson.object
                 [ "id" Aeson..= unpackId (get #id venueConfig)
                 , "timezone" Aeson..= venueConfig.timezone
+                , "rosterWeekStartsOn" Aeson..= venueConfig.rosterWeekStartsOn
                 , "weekOffsetEpoch" Aeson..= venueConfig.weekOffsetEpoch
                 , "lateToEarlyMinStartGapMinutes" Aeson..= venueConfig.lateToEarlyMinStartGapMinutes
                 , "staffTimesheetEditWindowDays" Aeson..= venueConfig.staffTimesheetEditWindowDays

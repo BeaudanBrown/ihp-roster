@@ -66,6 +66,7 @@ tests = describe "Schema" do
         let _readConfigFields venueConfig =
                 ( get #venueId venueConfig
                 , get #timezone venueConfig
+                , get #rosterWeekStartsOn venueConfig
                 , get #weekOffsetEpoch venueConfig
                 , get #lateToEarlyMinStartGapMinutes venueConfig
                 )
@@ -201,11 +202,23 @@ tests = describe "Schema" do
             isLeaveDateRangeValid startDate earlierDate `shouldBe` False
 
         it "computes affected week offsets for a leave range" do
-            let epoch = fromGregorian 2025 1 6
-            affectedWeekOffsetsForDateRange epoch (fromGregorian 2025 1 6) (fromGregorian 2025 1 13) `shouldBe` [0]
-            affectedWeekOffsetsForDateRange epoch (fromGregorian 2025 1 12) (fromGregorian 2025 1 14) `shouldBe` [0, 1]
-            affectedWeekOffsetsForDateRange epoch (fromGregorian 2025 1 20) (fromGregorian 2025 1 21) `shouldBe` [2]
-            affectedWeekOffsetsForDateRange epoch (fromGregorian 2025 1 21) (fromGregorian 2025 1 20) `shouldBe` []
+            let mondayVenueConfig =
+                    newRecord @VenueConfig
+                        |> set #rosterWeekStartsOn 1
+                        |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay 1)
+            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 6) (fromGregorian 2025 1 13) `shouldBe` [0]
+            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 12) (fromGregorian 2025 1 14) `shouldBe` [0, 1]
+            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 20) (fromGregorian 2025 1 21) `shouldBe` [2]
+            affectedVenueWeekOffsetsForDateRange mondayVenueConfig (fromGregorian 2025 1 21) (fromGregorian 2025 1 20) `shouldBe` []
+
+        it "computes affected week offsets for a non-monday roster week" do
+            let tuesdayVenueConfig =
+                    newRecord @VenueConfig
+                        |> set #rosterWeekStartsOn 2
+                        |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay 2)
+            affectedVenueWeekOffsetsForDateRange tuesdayVenueConfig (fromGregorian 2025 1 7) (fromGregorian 2025 1 14) `shouldBe` [0]
+            affectedVenueWeekOffsetsForDateRange tuesdayVenueConfig (fromGregorian 2025 1 13) (fromGregorian 2025 1 15) `shouldBe` [0, 1]
+            affectedVenueWeekOffsetsForDateRange tuesdayVenueConfig (fromGregorian 2025 1 14) (fromGregorian 2025 1 16) `shouldBe` [1]
 
     it "requires all mandatory contact fields for profile completion" do
         let completeStaff =

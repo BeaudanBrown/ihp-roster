@@ -9,7 +9,7 @@ import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day, addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay)
 import Generated.Types
@@ -147,12 +147,6 @@ fallbackReportDayLabels reportWeekStart =
 fallbackReportDayLabel :: Day -> Int -> Text
 fallbackReportDayLabel reportWeekStart dayOffset =
     Text.pack (formatTime defaultTimeLocale "%A" (addDays (toInteger dayOffset) reportWeekStart))
-
-weekOffsetForDay :: Day -> Day -> Int
-weekOffsetForDay epoch day = fromInteger (diffDays day epoch `div` 7)
-
-weekdayIndexForDay :: Day -> Int
-weekdayIndexForDay day = fromMaybe 0 (readMaybe (formatTime defaultTimeLocale "%w" day))
 
 renderApprovedTimesheetCsv ::
     [TimesheetEntry] ->

@@ -7,7 +7,7 @@ module Web.RosterWeeks.StaffOptions
     , rosterAssignmentOptionStateFor
     ) where
 
-import Application.Helper.Conflict (weekdayIndexForDay)
+import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus, venueRoleToText)
 import Application.Helper.View (linkedActiveStaffForRosterPanel)

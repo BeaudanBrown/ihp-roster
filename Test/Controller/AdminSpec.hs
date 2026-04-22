@@ -3,6 +3,7 @@ module Test.Controller.AdminSpec where
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
+import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Config
 import qualified Data.Aeson as Aeson
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
@@ -62,6 +63,7 @@ tests = beforeAll testContext do
                     callActionWithParams AdminAction [("rosterGroupId", idToParam venueAGroupB.id)]
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Venue Config"
                 response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldContain` "Pay Levels"
                 response `responseBodyShouldContain` "Pay Level Day Rules"
@@ -120,6 +122,7 @@ tests = beforeAll testContext do
                     callAction AdminAction
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Venue Config"
                 response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldContain` "Exports"
 
@@ -437,6 +440,47 @@ tests = beforeAll testContext do
                 updatedPayLevelDayRule.shiftTypeId `shouldBe` unpackId shiftType.id
                 updatedPayLevelDayRule.payLevelId `shouldBe` unpackId newPayLevel.id
                 updatedPayLevelDayRule.dayNameId `shouldBe` unpackId nextDayName.id
+
+        it "updates the roster week start before venue history exists and snapshots the new setting" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-week-start@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [("rosterWeekStartsOn", "2")]
+
+                response `responseStatusShouldBe` status302
+
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                snapshots <- query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch
+
+                venueConfig.rosterWeekStartsOn `shouldBe` 2
+                venueConfig.weekOffsetEpoch `shouldBe` defaultWeekOffsetEpochForStartDay 2
+                map (.versionLabel) snapshots `shouldBe` ["v1"]
+
+        it "locks roster week start changes once venue history exists" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-week-start-lock@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createRosterWeekRecord venue 0 False
+
+                originalVenueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+
+                response <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [("rosterWeekStartsOn", "2")]
+
+                response `responseStatusShouldBe` status302
+
+                updatedVenueConfig <- fetch originalVenueConfig.id
+                snapshots <- query @PayConfigSnapshot |> fetch
+
+                updatedVenueConfig.rosterWeekStartsOn `shouldBe` originalVenueConfig.rosterWeekStartsOn
+                updatedVenueConfig.weekOffsetEpoch `shouldBe` originalVenueConfig.weekOffsetEpoch
+                snapshots `shouldBe` []
 
         it "allows recreating a deleted slot name with the same name" $ withContext do
             withCleanDb do

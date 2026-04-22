@@ -104,6 +104,7 @@ createPayrollSnapshotWithVersion venue admin versionNumber payLevels shiftTypes 
             [ "venueConfig" Aeson..= Aeson.object
                 [ "id" Aeson..= unpackId venueConfig.id
                 , "timezone" Aeson..= venueConfig.timezone
+                , "rosterWeekStartsOn" Aeson..= venueConfig.rosterWeekStartsOn
                 , "weekOffsetEpoch" Aeson..= venueConfig.weekOffsetEpoch
                 , "lateToEarlyMinStartGapMinutes" Aeson..= venueConfig.lateToEarlyMinStartGapMinutes
                 , "staffTimesheetEditWindowDays" Aeson..= venueConfig.staffTimesheetEditWindowDays

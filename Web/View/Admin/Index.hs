@@ -3,11 +3,15 @@ module Web.View.Admin.Index where
 import Application.Helper.Export (ReportWeekSelection (..),
                                   VenueReportDefinition (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.WeekBoundaries
+    ( validRosterWeekStartDays, weekdayIndexLabel )
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 data IndexView = IndexView
-    { latestSnapshot                  :: Maybe PayConfigSnapshot
+    { venueConfig                     :: VenueConfig
+    , venueRosterWeekStartLocked      :: Bool
+    , latestSnapshot                  :: Maybe PayConfigSnapshot
     , recentSnapshots                 :: [PayConfigSnapshot]
     , rosterGroups                    :: [RosterGroup]
     , currentRosterGroup              :: RosterGroup
@@ -39,7 +43,7 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
+                                {renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
                             </div>
                         </div>
                     |]
@@ -247,6 +251,56 @@ renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition re
             </div>
         |]
 
+renderVenueConfigSection :: VenueConfig -> Bool -> Html
+renderVenueConfigSection venueConfig venueRosterWeekStartLocked =
+    renderConfigSection
+        "venue-config"
+        "Venue Config"
+        "Choose which weekday a venue roster week starts on. This is write-once once live roster or payroll data exists."
+        (renderVenueConfigSummary venueConfig venueRosterWeekStartLocked)
+        (renderVenueConfigForm venueConfig venueRosterWeekStartLocked)
+        mempty
+
+renderVenueConfigSummary :: VenueConfig -> Bool -> Html
+renderVenueConfigSummary venueConfig venueRosterWeekStartLocked = [hsx|
+    <p class="small app-muted mb-3">
+        Current roster week start: <span class="fw-semibold">{weekdayIndexLabel venueConfig.rosterWeekStartsOn}</span>.
+        {venueConfigSummarySuffix venueRosterWeekStartLocked}
+    </p>
+|]
+
+venueConfigSummarySuffix :: Bool -> Text
+venueConfigSummarySuffix venueRosterWeekStartLocked =
+    if venueRosterWeekStartLocked
+        then " This setting is now locked for this venue."
+        else " Configure it now before any roster, timesheet, leave, export, or payroll snapshot history exists."
+
+renderVenueConfigForm :: VenueConfig -> Bool -> Html
+renderVenueConfigForm venueConfig venueRosterWeekStartLocked = [hsx|
+    <form method="POST" action={UpdateVenueConfigAction} class="border rounded p-3" data-disable-javascript-submission="true">
+        <div class="row g-2 align-items-end">
+            <div class="col-12 col-md-6">
+                <label class="form-label" for="venue-config-roster-week-starts-on">Roster Week Starts On</label>
+                <select id="venue-config-roster-week-starts-on" class="form-select" name="rosterWeekStartsOn" disabled={venueRosterWeekStartLocked}>
+                    {forEach validRosterWeekStartDays (renderRosterWeekStartOption venueConfig.rosterWeekStartsOn)}
+                </select>
+            </div>
+            <div class="col-12 col-md-6">
+                {renderVenueConfigFormAction venueRosterWeekStartLocked}
+            </div>
+        </div>
+    </form>
+|]
+
+renderVenueConfigFormAction :: Bool -> Html
+renderVenueConfigFormAction venueRosterWeekStartLocked
+    | venueRosterWeekStartLocked = [hsx|
+        <div class="small app-muted">Locked after roster, timesheet, leave, export, or payroll snapshot records are created.</div>
+    |]
+    | otherwise = [hsx|
+        <button class="btn btn-outline-primary w-100" type="submit">Save Venue Config</button>
+    |]
+
 renderExportSummary :: Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Html
 renderExportSummary staffPayReportDefinition hourlyBreakdownReportDefinition = [hsx|
     <div class="small app-muted mb-3">
@@ -277,10 +331,11 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
         |]
 
-renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> [PayLevel] -> [ShiftType] -> [PayLevelDayRule] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
+renderConfigSectionsAccordion :: VenueConfig -> Bool -> [RosterGroup] -> RosterGroup -> [PayLevel] -> [ShiftType] -> [PayLevelDayRule] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
+renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
-        {renderAccordionItem "roster-groups" "Roster Groups" True (renderRosterGroupsSection rosterGroups currentRosterGroup)}
+        {renderAccordionItem "venue-config" "Venue Config" True (renderVenueConfigSection venueConfig venueRosterWeekStartLocked)}
+        {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSection rosterGroups currentRosterGroup)}
         {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "pay-levels" "Pay Levels" False (renderPayLevelsSection payLevels)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes payLevels)}
@@ -895,6 +950,11 @@ renderSelectedShiftTypeRuleOption selectedShiftTypeId shiftType = [hsx|
 renderDayNameOption :: DayName -> Html
 renderDayNameOption dayName = [hsx|
     <option value={tshow (unpackId (get #id dayName))}>{renderDayNameLabel dayName}</option>
+|]
+
+renderRosterWeekStartOption :: Int -> Int -> Html
+renderRosterWeekStartOption selectedWeekdayIndex weekdayIndex = [hsx|
+    <option value={tshow weekdayIndex} selected={weekdayIndex == selectedWeekdayIndex}>{weekdayIndexLabel weekdayIndex}</option>
 |]
 
 renderSelectedDayNameOption :: UUID -> DayName -> Html

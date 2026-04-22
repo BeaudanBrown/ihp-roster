@@ -10,26 +10,20 @@ module Web.RosterWeeks.Service
     , fetchRosterWeekSlotTemplate
     , fetchRosterWeekSlotTemplateFromSlots
     , syncRosterWeekSlotStructure
-    , weekOffsetForDay
     ) where
 
 import Application.Helper.RosterGroups
 import Data.Coerce (coerce)
 import Data.List (find, nub, sortOn)
 import qualified Data.Map.Strict as Map
-import Data.Time (diffDays, getCurrentTime, utctDay)
-import qualified Data.Time.Calendar as Calendar
+import Data.Time (getCurrentTime, utctDay)
 import Web.Controller.Prelude
 
 fetchCurrentRosterWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
 fetchCurrentRosterWeekOffset = do
     venueConfig <- fetchVenueConfig
     today <- utctDay <$> getCurrentTime
-    pure (weekOffsetForDay venueConfig.weekOffsetEpoch today)
-
-weekOffsetForDay :: Calendar.Day -> Calendar.Day -> Int
-weekOffsetForDay epoch day =
-    fromInteger (diffDays day epoch `div` 7)
+    pure (venueWeekOffsetForDay venueConfig today)
 
 type RosterWeekSlotTemplate = (SlotName, Int)
 

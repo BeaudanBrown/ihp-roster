@@ -70,12 +70,13 @@ ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     status = EXCLUDED.status;
 
-INSERT INTO venue_config (id, venue_id, timezone, week_offset_epoch, late_to_early_min_start_gap_minutes, staff_timesheet_edit_window_days)
+INSERT INTO venue_config (id, venue_id, timezone, roster_week_starts_on, week_offset_epoch, late_to_early_min_start_gap_minutes, staff_timesheet_edit_window_days)
 VALUES
     (
         'a1000000-0000-0000-0000-000000000011',
         'a1000000-0000-0000-0000-000000000001',
         'Australia/Melbourne',
+        1,
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
         600,
         7
@@ -84,6 +85,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000012',
         'a1000000-0000-0000-0000-000000000002',
         'Australia/Melbourne',
+        1,
         CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
         600,
         7
@@ -91,6 +93,7 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     timezone = EXCLUDED.timezone,
+    roster_week_starts_on = EXCLUDED.roster_week_starts_on,
     week_offset_epoch = EXCLUDED.week_offset_epoch,
     late_to_early_min_start_gap_minutes = EXCLUDED.late_to_early_min_start_gap_minutes,
     staff_timesheet_edit_window_days = EXCLUDED.staff_timesheet_edit_window_days;
@@ -337,6 +340,7 @@ VALUES
             'venueConfig', jsonb_build_object(
                 'id', 'a1000000-0000-0000-0000-000000000011',
                 'timezone', 'Australia/Melbourne',
+                'rosterWeekStartsOn', 1,
                 'weekOffsetEpoch', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)),
                 'lateToEarlyMinStartGapMinutes', 600,
                 'staffTimesheetEditWindowDays', 7

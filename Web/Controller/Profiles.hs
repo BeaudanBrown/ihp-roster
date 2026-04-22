@@ -60,10 +60,11 @@ instance Controller ProfilesController where
                     staff <- upsertCurrentUserStaff staff
                     case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
                         Left preferenceError -> do
+                            venueConfig <- fetchVenueConfig
                             setErrorMessage preferenceError
                             let selectedShiftPreferenceKeys = submittedShiftPreferenceKeys
                             let currentUserEmail = currentUser.email
-                            let preferenceWeekdays = allPreferenceWeekdays
+                            let preferenceWeekdays = allPreferenceWeekdays venueConfig
                             preferenceSections <- fetchStaffPreferenceGroupSections staff
                             leaveRequests <- fetchCurrentUserLeaveRequests
                             leaveRequestForm <- buildDefaultLeaveRequest
@@ -139,7 +140,8 @@ profilePreferenceViewData maybeStaff =
     case maybeStaff of
         Nothing -> pure ([], [], [])
         Just staff -> do
-            let preferenceWeekdays = allPreferenceWeekdays
+            venueConfig <- fetchVenueConfig
+            let preferenceWeekdays = allPreferenceWeekdays venueConfig
             preferenceSections <- fetchStaffPreferenceGroupSections staff
             selectedShiftPreferenceKeys <- fetchStaffShiftPreferenceKeyTexts staff (map (.rosterGroup.id) preferenceSections)
             pure (preferenceWeekdays, preferenceSections, selectedShiftPreferenceKeys)
@@ -149,7 +151,8 @@ profilePreferenceViewDataWithSubmitted maybeStaff submittedShiftPreferenceKeys =
     case maybeStaff of
         Nothing -> pure ([], [], submittedShiftPreferenceKeys)
         Just staff -> do
-            let preferenceWeekdays = allPreferenceWeekdays
+            venueConfig <- fetchVenueConfig
+            let preferenceWeekdays = allPreferenceWeekdays venueConfig
             preferenceSections <- fetchStaffPreferenceGroupSections staff
             pure (preferenceWeekdays, preferenceSections, submittedShiftPreferenceKeys)
 

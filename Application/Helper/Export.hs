@@ -18,7 +18,7 @@ import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day)
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -29,7 +29,7 @@ currentReportWeekOffset ::
 currentReportWeekOffset = do
     venueConfig <- fetchVenueConfig
     today <- utctDay <$> getCurrentTime
-    pure (weekOffsetForDay venueConfig.weekOffsetEpoch today)
+    pure (venueWeekOffsetForDay venueConfig today)
 
 fetchReportWeekSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -37,7 +37,7 @@ fetchReportWeekSelection ::
     IO ReportWeekSelection
 fetchReportWeekSelection selectedWeekOffset = do
     venueConfig <- fetchVenueConfig
-    let reportWeekStart = addDays (toInteger (selectedWeekOffset * 7)) venueConfig.weekOffsetEpoch
+    let reportWeekStart = venueWeekStartDate venueConfig selectedWeekOffset
     let labels = fallbackReportDayLabels reportWeekStart
     let reportWeekEnd = addDays 6 reportWeekStart
     pure

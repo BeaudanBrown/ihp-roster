@@ -3,12 +3,14 @@ module Web.View.RosterWeeks.Overview
     , renderWeekOverviewPanelFragment
     ) where
 
+import Application.Helper.WeekBoundaries (orderedWeekdayIndexes,
+                                          startOfWeekFor,
+                                          weekdayIndexForDay)
 import Application.Helper.View (appendQueryParams)
-import Data.List (find)
+import Data.List (find, findIndex)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
-import Data.Time.Calendar.WeekDate (toWeekDate)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
@@ -64,10 +66,10 @@ renderWeekOverviewDropdownLoading = [hsx|
 |]
 
 renderWeekOverviewPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Day -> [RosterWeekOverviewDay] -> RosterViewCapabilities -> Html
-renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate weekOverviewDays viewCapabilities =
+renderWeekOverviewPanelFragment weekOffset rosterGroupId currentWeekStartDate todayDate weekOverviewDays viewCapabilities =
     let
-        initialDate = initialOverviewDate weekStartDate todayDate weekOverviewDays
-        monthDays = buildOverviewMonthDays initialDate
+        initialDate = initialOverviewDate currentWeekStartDate todayDate weekOverviewDays
+        monthDays = buildOverviewMonthDays currentWeekStartDate initialDate
         initialOverviewDay = find (\daySummary -> overviewDate daySummary == initialDate) weekOverviewDays
         leaveLegend =
             if viewCapabilities.canViewLeaveMetrics
@@ -93,10 +95,10 @@ renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate
                 <div class="roster-week-overview-layout">
                     <div class="roster-week-overview-calendar">
                         <div class="roster-week-overview-weekdays">
-                            {forEach weekdayLabels renderOverviewWeekdayLabel}
+                            {forEach (weekdayLabels currentWeekStartDate) renderOverviewWeekdayLabel}
                         </div>
                         <div class="roster-week-overview-grid">
-                            {forEach monthDays (renderOverviewDayCell weekOffset rosterGroupId weekOverviewDays initialDate todayDate viewCapabilities)}
+                            {forEach monthDays (renderOverviewDayCell weekOffset rosterGroupId currentWeekStartDate weekOverviewDays initialDate todayDate viewCapabilities)}
                         </div>
                         <div class="roster-week-overview-legend">
                             {leaveLegend}
@@ -104,7 +106,7 @@ renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate
                             <span><span class="roster-week-overview-legend-today"></span> Today</span>
                         </div>
                     </div>
-                    {renderWeekOverviewDetailsCard weekOffset rosterGroupId initialDate initialOverviewDay viewCapabilities}
+                    {renderWeekOverviewDetailsCard weekOffset rosterGroupId currentWeekStartDate initialDate initialOverviewDay viewCapabilities}
                 </div>
             </div>
         |]
@@ -112,8 +114,11 @@ renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate
 renderRosterWeekLabel :: Day -> Text
 renderRosterWeekLabel weekStartDate = "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
-weekdayLabels :: [Text]
-weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+weekdayLabels :: Day -> [Text]
+weekdayLabels weekStartDate =
+    [ Text.pack (formatTime defaultTimeLocale "%a" (Calendar.addDays (toInteger dayOffset) weekStartDate))
+    | dayOffset <- [0 .. 6]
+    ]
 
 initialOverviewDate :: Day -> Day -> [RosterWeekOverviewDay] -> Day
 initialOverviewDate weekStartDate todayDate weekOverviewDays =
@@ -127,15 +132,15 @@ renderMonthLabel date = Text.pack (formatTime defaultTimeLocale "%B %Y" date)
 renderOverviewWeekdayLabel :: Text -> Html
 renderOverviewWeekdayLabel label = [hsx|<div class="roster-week-overview-weekday">{label}</div>|]
 
-renderOverviewDayCell :: (?context :: ControllerContext) => Int -> Id RosterGroup -> [RosterWeekOverviewDay] -> Day -> Day -> RosterViewCapabilities -> Maybe Day -> Html
-renderOverviewDayCell _ _ _ _ _ _ Nothing = [hsx|<div class="roster-week-overview-day-spacer" aria-hidden="true"></div>|]
-renderOverviewDayCell weekOffset rosterGroupId weekOverviewDays initialDate todayDate viewCapabilities (Just date) =
+renderOverviewDayCell :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> [RosterWeekOverviewDay] -> Day -> Day -> RosterViewCapabilities -> Maybe Day -> Html
+renderOverviewDayCell _ _ _ _ _ _ _ Nothing = [hsx|<div class="roster-week-overview-day-spacer" aria-hidden="true"></div>|]
+renderOverviewDayCell weekOffset rosterGroupId referenceWeekStart weekOverviewDays initialDate todayDate viewCapabilities (Just date) =
     let
         maybeOverviewDay = find (\daySummary -> overviewDate daySummary == date) weekOverviewDays
         isInVisibleWeek = isJust maybeOverviewDay
         isSelected = date == initialDate
         navigateUrl = appendQueryParams (pathTo (ShowRosterWeekAction weekOffset)) [("rosterGroupId", tshow rosterGroupId), ("weekDate", formatDayParam date)]
-        weekStartLabel = "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" (startOfWeek date))
+        weekStartLabel = "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" (startOfWeek date referenceWeekStart))
         leaveCountText
             | viewCapabilities.canViewLeaveMetrics = maybe "" (tshow . leaveRequestCount) maybeOverviewDay
             | otherwise = ""
@@ -176,8 +181,8 @@ renderOverviewDayCell weekOffset rosterGroupId weekOverviewDays initialDate toda
             </button>
         |]
 
-renderWeekOverviewDetailsCard :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Maybe RosterWeekOverviewDay -> RosterViewCapabilities -> Html
-renderWeekOverviewDetailsCard weekOffset rosterGroupId initialDate initialOverviewDay viewCapabilities =
+renderWeekOverviewDetailsCard :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Day -> Maybe RosterWeekOverviewDay -> RosterViewCapabilities -> Html
+renderWeekOverviewDetailsCard weekOffset rosterGroupId weekStartDate initialDate initialOverviewDay viewCapabilities =
     let
         navigateUrl = appendQueryParams (pathTo (ShowRosterWeekAction weekOffset)) [("rosterGroupId", tshow rosterGroupId), ("weekDate", formatDayParam initialDate)]
         closedState = maybe False overviewIsClosed initialOverviewDay
@@ -214,7 +219,7 @@ renderWeekOverviewDetailsCard weekOffset rosterGroupId initialDate initialOvervi
                     {maybe "No loaded roster summary for this date yet." (\daySummary -> weekOverviewMetricSummary daySummary viewCapabilities.canViewLeaveMetrics) initialOverviewDay}
                 </div>
                 <div class="roster-week-overview-week-target">
-                    <span data-week-overview-week-label="true">In {renderWeekLabelWithPrefix initialDate}</span>
+                    <span data-week-overview-week-label="true">In {renderWeekLabelWithPrefix initialDate weekStartDate}</span>
                     {closedBadge}
                 </div>
                 <a href={navigateUrl}
@@ -228,8 +233,9 @@ renderWeekOverviewDetailsCard weekOffset rosterGroupId initialDate initialOvervi
 renderSelectedDateLabel :: Day -> Text
 renderSelectedDateLabel date = Text.pack (formatTime defaultTimeLocale "%a %-d %b" date)
 
-renderWeekLabelWithPrefix :: Day -> Text
-renderWeekLabelWithPrefix date = "week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" (startOfWeek date))
+renderWeekLabelWithPrefix :: Day -> Day -> Text
+renderWeekLabelWithPrefix date referenceWeekStart =
+    "week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" (startOfWeek date referenceWeekStart))
 
 weekOverviewMetricSummaryMaybe :: Maybe RosterWeekOverviewDay -> Bool -> Text
 weekOverviewMetricSummaryMaybe Nothing _ = "No loaded roster summary for this date yet."
@@ -259,20 +265,24 @@ formatMinutesAsHours minutes =
         then tshow hours <> "h"
         else tshow hours <> "h " <> tshow remainder <> "m"
 
-startOfWeek :: Day -> Day
-startOfWeek date =
-    let (_, _, weekdayNumber) = toWeekDate date
-     in Calendar.addDays (toInteger (1 - weekdayNumber)) date
+startOfWeek :: Day -> Day -> Day
+startOfWeek date referenceWeekStart =
+    startOfWeekFor (weekdayIndexForDay referenceWeekStart) date
 
-buildOverviewMonthDays :: Day -> [Maybe Day]
-buildOverviewMonthDays focusDate =
+buildOverviewMonthDays :: Day -> Day -> [Maybe Day]
+buildOverviewMonthDays referenceWeekStart focusDate =
     let
         (year, month, _) = Calendar.toGregorian focusDate
         monthStart = Calendar.fromGregorian year month 1
-        (_, _, startWeekday) = toWeekDate monthStart
+        leadingCount = weekdayDistanceFromWeekStart referenceWeekStart monthStart
         dayCount = Calendar.gregorianMonthLength year month
         days = map (Just . Calendar.fromGregorian year month) [1 .. dayCount]
-        leading = replicate (startWeekday - 1) Nothing
+        leading = replicate leadingCount Nothing
         totalCells = length leading + length days
         trailing = replicate ((7 - totalCells `mod` 7) `mod` 7) Nothing
      in leading <> days <> trailing
+
+weekdayDistanceFromWeekStart :: Day -> Day -> Int
+weekdayDistanceFromWeekStart referenceWeekStart date =
+    let orderedIndexes = orderedWeekdayIndexes (weekdayIndexForDay referenceWeekStart)
+     in fromMaybe 0 (findIndex (== weekdayIndexForDay date) orderedIndexes)

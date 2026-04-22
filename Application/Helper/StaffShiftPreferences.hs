@@ -5,6 +5,8 @@ module Application.Helper.StaffShiftPreferences where
 
 import Application.Helper.Controller (currentVenueId)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
+import Application.Helper.WeekBoundaries (orderedWeekdayIndexes,
+                                          weekdayIndexLabel)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
@@ -29,16 +31,16 @@ data PreferenceWeekday = PreferenceWeekday
     }
     deriving (Eq, Show)
 
-allPreferenceWeekdays :: [PreferenceWeekday]
-allPreferenceWeekdays =
-    [ PreferenceWeekday { weekdayIndex = 1, label = "Monday" }
-    , PreferenceWeekday { weekdayIndex = 2, label = "Tuesday" }
-    , PreferenceWeekday { weekdayIndex = 3, label = "Wednesday" }
-    , PreferenceWeekday { weekdayIndex = 4, label = "Thursday" }
-    , PreferenceWeekday { weekdayIndex = 5, label = "Friday" }
-    , PreferenceWeekday { weekdayIndex = 6, label = "Saturday" }
-    , PreferenceWeekday { weekdayIndex = 0, label = "Sunday" }
-    ]
+allPreferenceWeekdays :: VenueConfig -> [PreferenceWeekday]
+allPreferenceWeekdays venueConfig =
+    map
+        (\weekdayIndex ->
+            PreferenceWeekday
+                { weekdayIndex
+                , label = weekdayIndexLabel weekdayIndex
+                }
+        )
+        (orderedWeekdayIndexes venueConfig.rosterWeekStartsOn)
 
 fetchStaffPreferenceGroupSections :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO [StaffPreferenceGroupSection]
 fetchStaffPreferenceGroupSections staff = do

@@ -61,6 +61,7 @@ data ExportsController
 
 data AdminController
     = AdminAction
+    | UpdateVenueConfigAction
     | ShowAdminSlotNamesFragmentAction
     | ShowAdminInvitesFragmentAction
     | CreateVenueInvitationAction

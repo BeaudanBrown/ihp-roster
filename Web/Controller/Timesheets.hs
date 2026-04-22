@@ -17,7 +17,7 @@ import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, diffDays)
+import Data.Time.Calendar (Day, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
@@ -409,7 +409,7 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
 fetchTimesheetWeekProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetProjectionRequest -> IO TimesheetWeekProjection
 fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset = weekOffset, projectionShowApproved = showApproved, projectionShowAllStaff = showAllStaff } = do
     venueConfig <- fetchVenueConfig
-    let weekStartDate = addDays (toInteger (weekOffset * 7)) venueConfig.weekOffsetEpoch
+    let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let weekEndDate = addDays 6 weekStartDate
 
     (entries, staffMembers, currentViewerStaffId) <- profileActionSpan "timesheets.fetch_week_data" (fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff)
@@ -722,17 +722,14 @@ weekOffsetFromParamOrCurrent = do
 weekOffsetFromParamOrEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> IO Int
 weekOffsetFromParamOrEntry workedOnDate = do
     venueConfig <- fetchVenueConfig
-    let entryOffset = weekOffsetForDay venueConfig.weekOffsetEpoch workedOnDate
+    let entryOffset = venueWeekOffsetForDay venueConfig workedOnDate
     pure (paramOrDefault entryOffset "weekOffset")
 
 currentTimesheetWeekOffset :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
 currentTimesheetWeekOffset = do
     venueConfig <- fetchVenueConfig
     today <- utctDay <$> getCurrentTime
-    pure (weekOffsetForDay venueConfig.weekOffsetEpoch today)
-
-weekOffsetForDay :: Day -> Day -> Int
-weekOffsetForDay epoch day = fromInteger (diffDays day epoch `div` 7)
+    pure (venueWeekOffsetForDay venueConfig today)
 
 timesheetDayOffset :: Day -> Day -> Int
 timesheetDayOffset weekStartDate workedOn = fromInteger (diffDays workedOn weekStartDate)
@@ -770,7 +767,7 @@ buildTimesheetWeekPageFragmentRef requestKey =
 broadcastTimesheetDayInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> IO ()
 broadcastTimesheetDayInvalidation weekOffset workedOn = do
     venueConfig <- fetchVenueConfig
-    let weekStartDate = addDays (toInteger (weekOffset * 7)) venueConfig.weekOffsetEpoch
+    let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let dayOffset = timesheetDayOffset weekStartDate workedOn
     liftIO $
         broadcastLiveInvalidation

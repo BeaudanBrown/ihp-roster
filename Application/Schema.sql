@@ -203,6 +203,7 @@ CREATE TABLE venue_config (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
     timezone TEXT NOT NULL,
+    roster_week_starts_on INT NOT NULL,
     week_offset_epoch DATE NOT NULL,
     late_to_early_min_start_gap_minutes INT DEFAULT 0 NOT NULL,
     staff_timesheet_edit_window_days INT DEFAULT 7 NOT NULL,

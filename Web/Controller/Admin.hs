@@ -5,6 +5,9 @@ import Application.Helper.LiveUpdate
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
 import Application.Helper.VenueInvitation
+import Application.Helper.WeekBoundaries
+    ( defaultWeekOffsetEpochForStartDay, validRosterWeekStartDays,
+      weekdayIndexLabel )
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
 import qualified Data.List as List
@@ -21,6 +24,7 @@ instance Controller AdminController where
         ensureAdminRole
 
     action AdminAction = do
+        venueConfig <- fetchVenueConfig
         recentSnapshots <- fetchCurrentVenuePayConfigSnapshots
         rosterGroups <- fetchCurrentVenueRosterGroups
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
@@ -36,9 +40,33 @@ instance Controller AdminController where
         let hourlyBreakdownReportDefinition = findReportDefinitionByEngine HourlyBreakdownZipReport activeReportDefinitions
         let latestSnapshot = listToMaybe recentSnapshots
         invitations <- fetchCurrentVenueInvitations
+        venueRosterWeekStartLocked <- isVenueRosterWeekStartLocked
         let slotNamesLiveUpdateScope = Just (adminSlotNamesScope currentRosterGroup.id)
         let invitesLiveUpdateScope = Just (adminInvitesScope currentVenueId)
         render IndexView { .. }
+
+    action UpdateVenueConfigAction = do
+        venueConfig <- fetchVenueConfig
+        requestedRosterWeekStartsOn <- parseRosterWeekStartsOn
+        case requestedRosterWeekStartsOn of
+            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
+            Just rosterWeekStartsOn -> do
+                isLocked <- isVenueRosterWeekStartLocked
+                if isLocked
+                    then do
+                        setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll snapshot data exists."
+                        redirectToAdminFor (paramOrNothing "rosterGroupId")
+                    else do
+                        _ <- withTransaction do
+                            updatedVenueConfig <-
+                                venueConfig
+                                    |> set #rosterWeekStartsOn rosterWeekStartsOn
+                                    |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
+                                    |> updateRecord
+                            _ <- syncCurrentVenuePayConfigSnapshot
+                            pure updatedVenueConfig
+                        setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
+                        redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action ShowAdminSlotNamesFragmentAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
@@ -525,11 +553,13 @@ moveListItem sourceIndex targetIndex items
             _ -> items
 
 fetchCurrentVenueDayNames :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [DayName]
-fetchCurrentVenueDayNames =
-    query @DayName
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> orderByAsc #weekdayIndex
-        |> fetch
+fetchCurrentVenueDayNames = do
+    venueConfig <- fetchVenueConfig
+    dayNames <-
+        query @DayName
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetch
+    pure (sortDayNamesForVenueWeek venueConfig dayNames)
 
 fetchCurrentVenueInvitations :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [VenueInvitation]
 fetchCurrentVenueInvitations =
@@ -537,6 +567,30 @@ fetchCurrentVenueInvitations =
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> orderByDesc #createdAt
         |> fetch
+
+isVenueRosterWeekStartLocked :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
+isVenueRosterWeekStartLocked = do
+    rosterWeekCount <-
+        query @RosterWeek
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchCount
+    timesheetEntryCount <-
+        query @TimesheetEntry
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchCount
+    leaveRequestCount <-
+        query @LeaveRequest
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchCount
+    exportJobCount <-
+        query @ExportJob
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchCount
+    paySnapshotCount <-
+        query @PayConfigSnapshot
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchCount
+    pure (any (> 0) [rosterWeekCount, timesheetEntryCount, leaveRequestCount, exportJobCount, paySnapshotCount])
 
 parseRequiredName :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Text -> IO (Maybe Text)
 parseRequiredName paramName errorMessage =
@@ -568,6 +622,20 @@ parseIsActiveParam = paramOrDefault "true" "isActive" == ("true" :: Text)
 
 parseSortOrderParam :: (?context :: ControllerContext, ?request :: Request) => Int
 parseSortOrderParam = paramOrDefault @Int 0 "sortOrder"
+
+parseRosterWeekStartsOn ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    IO (Maybe Int)
+parseRosterWeekStartsOn =
+    case paramOrNothing @Int "rosterWeekStartsOn" of
+        Nothing -> do
+            setErrorMessage "Choose the first day of the roster week."
+            pure Nothing
+        Just weekdayIndex
+            | weekdayIndex `elem` validRosterWeekStartDays -> pure (Just weekdayIndex)
+            | otherwise -> do
+                setErrorMessage "Choose a valid first day of the roster week."
+                pure Nothing
 
 venueRoleLabel :: VenueRole -> Text
 venueRoleLabel WorkerRole     = "Worker"

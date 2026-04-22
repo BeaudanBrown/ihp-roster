@@ -1,13 +1,14 @@
 module Web.Controller.Support where
 
 import Application.Helper.Controller (currentSupportVenueOptions,
+                                      defaultRosterWeekStartsOn,
+                                      defaultWeekOffsetEpochForStartDay,
                                       unsafeEnumFromText)
 import Application.Helper.RosterGroups (ensureVenueRosterDefaults)
 import Application.Helper.View (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
-import Data.Time.Calendar (fromGregorian)
 import Web.Controller.Prelude
 import Web.View.Support.Index
 
@@ -96,7 +97,8 @@ ensureVenueConfigRecord venue =
                 newRecord @VenueConfig
                     |> set #venueId (unpackId venue.id)
                     |> set #timezone defaultSupportVenueTimezone
-                    |> set #weekOffsetEpoch (fromGregorian 2025 1 6)
+                    |> set #rosterWeekStartsOn defaultRosterWeekStartsOn
+                    |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay defaultRosterWeekStartsOn)
                     |> set #lateToEarlyMinStartGapMinutes 600
                     |> set #staffTimesheetEditWindowDays 7
                     |> createRecord

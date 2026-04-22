@@ -28,8 +28,8 @@ INSERT INTO venues (id, name, status) VALUES
 ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Dev Venue', 'active');
 
 -- Venue config (one per venue)
-INSERT INTO venue_config (venue_id, timezone, week_offset_epoch, late_to_early_min_start_gap_minutes)
-VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Australia/Melbourne', DATE '2025-01-06', 600);
+INSERT INTO venue_config (venue_id, timezone, roster_week_starts_on, week_offset_epoch, late_to_early_min_start_gap_minutes)
+VALUES ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Australia/Melbourne', 1, DATE '2025-01-06', 600);
 
 INSERT INTO roster_groups (id, venue_id, name, sort_order, is_active, is_default) VALUES
 ('a0a0a0a0-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Main', 0, true, true);

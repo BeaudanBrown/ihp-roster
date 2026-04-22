@@ -4,8 +4,10 @@
 module Application.Helper.RosterGroups where
 
 import Application.Helper.Controller (currentVenueId)
+import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
+                                          defaultWeekOffsetEpochForStartDay,
+                                          sortDayNamesForVenueWeek)
 import qualified Data.Set as Set
-import Data.Time.Calendar (fromGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
@@ -185,11 +187,13 @@ fetchEligibleRosterGroupStaff rosterGroupId = do
                 |> fetch
 
 fetchVenueDayNames :: (?modelContext :: ModelContext) => Venue -> IO [DayName]
-fetchVenueDayNames venue =
-    query @DayName
-        |> filterWhere (#venueId, unpackId venue.id)
-        |> orderByAsc #weekdayIndex
-        |> fetch
+fetchVenueDayNames venue = do
+    venueConfig <- ensureVenueConfigRecord venue
+    dayNames <-
+        query @DayName
+            |> filterWhere (#venueId, unpackId venue.id)
+            |> fetch
+    pure (sortDayNamesForVenueWeek venueConfig dayNames)
 
 ensureVenueConfigRecord :: (?modelContext :: ModelContext) => Venue -> IO VenueConfig
 ensureVenueConfigRecord venue =
@@ -202,7 +206,8 @@ ensureVenueConfigRecord venue =
                 newRecord @VenueConfig
                     |> set #venueId (unpackId venue.id)
                     |> set #timezone "Australia/Melbourne"
-                    |> set #weekOffsetEpoch (fromGregorian 2025 1 6)
+                    |> set #rosterWeekStartsOn defaultRosterWeekStartsOn
+                    |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay defaultRosterWeekStartsOn)
                     |> set #lateToEarlyMinStartGapMinutes 600
                     |> set #staffTimesheetEditWindowDays 7
                     |> createRecord

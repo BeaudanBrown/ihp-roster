@@ -26,9 +26,10 @@ instance Controller StaffController where
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
+        venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
         selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
-        let preferenceWeekdays = allPreferenceWeekdays
+        let preferenceWeekdays = allPreferenceWeekdays venueConfig
         preferenceSections <- fetchPreferenceSectionsForRosterGroups selectedRosterGroupIds
         selectedShiftPreferenceKeys <- fetchStaffShiftPreferenceKeyTexts staff selectedRosterGroupIds
         if isHtmxRequest
@@ -42,11 +43,12 @@ instance Controller StaffController where
         let submittedShiftPreferenceKeys = nub (paramList @Text "shiftPreferenceKeys")
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
+        venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
         let submittedRosterGroupIds = nub (paramList @(Id RosterGroup) "rosterGroupIds")
         maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
         previousRosterGroupIds <- fetchStaffRosterGroupIds staff
-        let preferenceWeekdays = allPreferenceWeekdays
+        let preferenceWeekdays = allPreferenceWeekdays venueConfig
         preferenceSections <- fetchPreferenceSectionsForRosterGroups submittedRosterGroupIds
         let selectedShiftPreferenceKeys = submittedShiftPreferenceKeys
         staff

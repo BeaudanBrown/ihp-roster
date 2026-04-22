@@ -2,7 +2,6 @@ module Web.RosterWeeks.Overview
     ( buildRosterMonthOverviewDays
     , initialOverviewFocusDate
     , monthBounds
-    , startOfWeek
     ) where
 
 import Application.Helper.Controller (LeaveRequestStatus (..),
@@ -13,17 +12,16 @@ import Data.List (nub)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Time.Calendar as Calendar
-import Data.Time.Calendar.WeekDate (toWeekDate)
 import Web.Controller.Prelude
-import Web.RosterWeeks.Service (weekOffsetForDay)
 import Web.RosterWeeks.StaffOptions (fetchAssignedRosterWeekStaff)
 import Web.RosterWeeks.Types
 
-buildRosterMonthOverviewDays :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Calendar.Day -> Id RosterGroup -> Calendar.Day -> IO [RosterWeekOverviewDay]
-buildRosterMonthOverviewDays epoch rosterGroupId focusDate = do
+buildRosterMonthOverviewDays :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> Id RosterGroup -> Calendar.Day -> IO [RosterWeekOverviewDay]
+buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
     let (monthStartDate, monthEndDate) = monthBounds focusDate
-    let firstWeekOffset = weekOffsetForDay epoch (startOfWeek monthStartDate)
-    let lastWeekOffset = weekOffsetForDay epoch (startOfWeek monthEndDate)
+    let weekStartsOn = venueConfig.rosterWeekStartsOn
+    let firstWeekOffset = venueWeekOffsetForDay venueConfig (startOfWeekFor weekStartsOn monthStartDate)
+    let lastWeekOffset = venueWeekOffsetForDay venueConfig (startOfWeekFor weekStartsOn monthEndDate)
     let monthWeekOffsets = [firstWeekOffset .. lastWeekOffset]
 
     rosterWeeks <-
@@ -65,7 +63,7 @@ buildRosterMonthOverviewDays epoch rosterGroupId focusDate = do
                 |> fetch
 
     let rosterWeekStartDates = Map.fromList
-            [ (coerce rosterWeek.id, Calendar.addDays (toInteger (rosterWeek.weekOffset * 7)) epoch)
+            [ (coerce rosterWeek.id, venueWeekStartDate venueConfig rosterWeek.weekOffset)
             | rosterWeek <- rosterWeeks
             ]
     let rosterDaysByDate = Map.fromList
@@ -132,8 +130,3 @@ monthBounds focusDate =
         monthEndDate = Calendar.fromGregorian year month (Calendar.gregorianMonthLength year month)
      in
         (monthStartDate, monthEndDate)
-
-startOfWeek :: Calendar.Day -> Calendar.Day
-startOfWeek day =
-    let (_, _, weekdayNumber) = toWeekDate day
-     in Calendar.addDays (toInteger (1 - weekdayNumber)) day

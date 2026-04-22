@@ -159,8 +159,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
     _ <- profileActionSpan "roster.ensure_week_exists" (ensureRosterWeekExists rosterGroupId weekOffset)
     venueConfig <- fetchVenueConfig
     assignmentFilters <- fetchRosterAssignmentFilters
-    let epoch = venueConfig.weekOffsetEpoch
-    let weekStartDate = Calendar.addDays (toInteger (weekOffset * 7)) epoch
+    let weekStartDate = venueWeekStartDate venueConfig weekOffset
 
     rosterWeekOrNothing <- query @RosterWeek
         |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
