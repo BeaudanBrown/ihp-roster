@@ -266,6 +266,8 @@ in
                 optional (cfg.environmentFile != null) cfg.environmentFile;
             systemd.services.worker.enable = mkForce hasJobRunner;
             systemd.services.loadSchema = {
+                after = [ "postgresql.service" ];
+                requires = [ "postgresql.service" ];
                 before = [ "migrate.service" "app.service" "worker.service" ];
                 path = [ pkgs.postgresql pkgs.gnugrep ];
                 script = mkForce ''
