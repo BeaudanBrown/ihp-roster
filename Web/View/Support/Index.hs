@@ -2,6 +2,7 @@ module Web.View.Support.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
+import Data.Time.Calendar (Day)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -158,7 +159,9 @@ renderVenueOnboardingInvitationList invitations =
                         <thead>
                             <tr>
                                 <th scope="col">Email</th>
-                                <th scope="col">Status</th>
+                                <th scope="col">Invite</th>
+                                <th scope="col">Delivery</th>
+                                <th scope="col">Expires</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -173,6 +176,50 @@ renderVenueOnboardingInvitationRow :: VenueOnboardingInvitation -> Html
 renderVenueOnboardingInvitationRow invitation = [hsx|
     <tr>
         <td>{invitation.email}</td>
-        <td>{inputValue invitation.status}</td>
+        <td>{renderOnboardingInvitationStatusBadge invitation}</td>
+        <td>
+            {renderOnboardingInvitationDeliveryBadge invitation}
+            {renderOnboardingInvitationDeliveryError invitation}
+        </td>
+        <td>{renderOnboardingInvitationExpiry invitation.expiresAt}</td>
     </tr>
 |]
+
+renderOnboardingInvitationStatusBadge :: VenueOnboardingInvitation -> Html
+renderOnboardingInvitationStatusBadge invitation = [hsx|
+    <span class={badgeClass}>{label}</span>
+|]
+    where
+        (label, badgeClass) =
+            case inputValue invitation.status of
+                "accepted" -> ("Accepted" :: Text, "badge text-bg-success" :: Text)
+                "revoked" -> ("Revoked", "badge text-bg-secondary" :: Text)
+                _ -> ("Pending", "badge text-bg-warning text-dark")
+
+renderOnboardingInvitationDeliveryBadge :: VenueOnboardingInvitation -> Html
+renderOnboardingInvitationDeliveryBadge invitation = [hsx|
+    <span class={badgeClass}>{label}</span>
+|]
+    where
+        (label, badgeClass) =
+            case inputValue invitation.deliveryStatus of
+                "sent" -> ("Sent" :: Text, "badge text-bg-success" :: Text)
+                "failed" -> ("Send Failed", "badge text-bg-danger")
+                _ -> ("Queued", "badge text-bg-warning text-dark")
+
+renderOnboardingInvitationDeliveryError :: VenueOnboardingInvitation -> Html
+renderOnboardingInvitationDeliveryError invitation =
+    case invitation.deliveryError of
+        Just deliveryError | inputValue invitation.deliveryStatus == "failed" -> [hsx|
+            <div class="small app-muted mt-1">{deliveryError}</div>
+        |]
+        _ -> mempty
+
+renderOnboardingInvitationExpiry :: Maybe UTCTime -> Html
+renderOnboardingInvitationExpiry maybeExpiresAt =
+    case maybeExpiresAt of
+        Nothing -> [hsx|<span class="app-muted">Never</span>|]
+        Just expiresAt -> [hsx|{renderDay expiresAt.utctDay}|]
+
+renderDay :: Day -> Html
+renderDay day = [hsx|{tshow day}|]

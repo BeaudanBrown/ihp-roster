@@ -4,7 +4,8 @@ module Test.Controller.VenueAccessSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       currentVenueSessionKey,
-                                      initCurrentVenueContext)
+                                      initCurrentVenueContext,
+                                      unsafeEnumFromText)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Config
 import qualified Data.ByteString.Char8 as BS
@@ -230,6 +231,23 @@ tests = beforeAll testContext do
                 invitation.invitedByUserId `shouldBe` Just (unpackId founder.id)
                 inputValue invitation.status `shouldBe` "pending"
                 isJust invitation.expiresAt `shouldBe` True
+
+        it "shows recent venue owner invites with delivery state on the support page" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-owner-invite-list@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <-
+                    createVenueOnboardingInvitationRecord (Just founder) "listed-owner@example.com"
+                        >>= updateRecord
+                            . set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "sent")
+
+                response <- withUser founder do
+                    callAction SupportAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "listed-owner@example.com"
+                response `responseBodyShouldContain` "Sent"
 
         it "denies venue owner onboarding invitation creation to ordinary venue admins" $ withContext do
             withCleanDb do
