@@ -6,6 +6,12 @@ export default function globalTeardown() {
     const dbSocket = process.env.TEST_DB_SOCKET ?? path.join(projectRoot, 'build', 'db');
     const dbName = process.env.TEST_DATABASE_NAME ?? 'app_e2e';
     const cleanupSql = `
+        DELETE FROM venue_onboarding_invitations
+        WHERE email LIKE 'e2e-%';
+
+        DELETE FROM venues
+        WHERE name LIKE 'e2e-owner-%';
+
         DELETE FROM leave_requests
         WHERE staff_id IN (
             SELECT s.id
