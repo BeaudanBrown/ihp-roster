@@ -171,6 +171,15 @@ export async function loginAs(page: Page, email: string, password: string) {
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
 }
 
+export async function openNewLeaveRequestDialog(page: Page) {
+    const trigger = page
+        .getByRole('link', { name: 'New Request', exact: true })
+        .or(page.getByRole('button', { name: 'New Request', exact: true }));
+    await expect(trigger).toBeVisible();
+    await trigger.click();
+    await expect(page.locator('#leave-request-form')).toBeVisible();
+}
+
 type OpenRosterOptions = {
     email?: string;
     password?: string;
@@ -399,11 +408,11 @@ export async function expectDialogToFitViewport(page: Page, selector: string) {
 
 export async function gotoExports(page: Page) {
     await gotoWhenReady(page, '/ExportJobs', 'h1:has-text("Export Jobs")');
-    await expect(page.getByText('Payroll Reports')).toBeVisible();
+    await expect(page.locator('#payroll-reports-panel')).toBeVisible();
 }
 
 export async function currentReportWeek(page: Page) {
-    const summaryText = await page.locator('.border.rounded.p-3.mb-4.bg-light-subtle .small.app-muted').first().textContent();
+    const summaryText = await page.locator('#payroll-report-week-summary').textContent();
     const match = summaryText?.match(/Week of (\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})/);
     if (!match) {
         throw new Error(`Could not parse report week summary: ${summaryText ?? '<empty>'}`);
@@ -415,28 +424,28 @@ export async function currentReportWeek(page: Page) {
 export async function shiftExportWeek(page: Page, direction: 'Previous' | 'Current' | 'Next') {
     await page.getByRole('link', { name: direction }).click();
     await expect(page.getByRole('heading', { name: 'Export Jobs' })).toBeVisible();
+    await expect(page.locator('#payroll-report-week-summary')).toBeVisible();
+}
+
+export function payrollReportCard(page: Page, reportName: string) {
+    return page.locator('[data-payroll-report-card="true"]').filter({
+        has: page.locator(`.fw-semibold:text-is("${reportName}")`),
+    });
 }
 
 export async function generatePayrollReport(page: Page, reportName: string) {
-    const card = page.locator('.border.rounded.p-2.bg-white').filter({
-        has: page.locator(`.fw-semibold:text-is("${reportName}")`),
-    });
-
+    const card = payrollReportCard(page, reportName);
     await expect(card).toHaveCount(1);
     await card.getByRole('button', { name: /Generate (CSV|ZIP)/ }).click();
     await expect(page.locator('body')).toContainText('Export generated');
 }
 
 export function exportJobRow(page: Page, fileName: string) {
-    return page.locator('tbody tr').filter({
-        has: page.locator(`text=${fileName}`),
-    });
+    return page.locator(`[data-export-job-row="true"][data-export-job-file="${fileName}"]`);
 }
 
 export function exportJobRows(page: Page, fileName: string) {
-    return page.locator('tbody tr').filter({
-        has: page.locator(`text=${fileName}`),
-    });
+    return page.locator(`[data-export-job-row="true"][data-export-job-file="${fileName}"]`);
 }
 
 export async function waitForExportJob(page: Page, fileName: string) {
@@ -447,7 +456,7 @@ export async function waitForExportJob(page: Page, fileName: string) {
         })
         .toBeGreaterThan(0);
     const row = rows.last();
-    await expect(row).toContainText('ready');
+    await expect(row.locator('[data-export-job-status-badge="ready"]')).toBeVisible();
     return row;
 }
 
@@ -469,7 +478,7 @@ export async function downloadExportAtIndex(page: Page, fileName: string, index:
         })
         .toBeGreaterThan(index);
     const row = rows.nth(index);
-    await expect(row).toContainText('ready');
+    await expect(row.locator('[data-export-job-status-badge="ready"]')).toBeVisible();
 
     const [download] = await Promise.all([
         page.waitForEvent('download'),

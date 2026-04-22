@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
-import { gotoWhenReady, loginAs } from './test-helpers';
+import { gotoWhenReady, loginAs, openNewLeaveRequestDialog } from './test-helpers';
 
 async function login(page) {
     await gotoWhenReady(page, '/NewSession', '#email');
@@ -67,8 +67,7 @@ test.describe('HTMX submit regressions', () => {
         await login(page);
         await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
 
-        await page.getByRole('link', { name: 'New Request' }).click();
-        await expect(page.locator('#leave-request-form')).toBeVisible();
+        await openNewLeaveRequestDialog(page);
 
         await expect(page.locator('#startDate.flatpickr-input')).toBeVisible();
         await expect(page.locator('#endDate.flatpickr-input')).toBeVisible();
@@ -86,8 +85,7 @@ test.describe('HTMX submit regressions', () => {
         await login(page);
         await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
 
-        await page.getByRole('link', { name: 'New Request' }).click();
-        await expect(page.locator('#leave-request-form')).toBeVisible();
+        await openNewLeaveRequestDialog(page);
         await setFlatpickrDate(page, '#startDate', '2026-03-21');
         await setFlatpickrDate(page, '#endDate', '2026-03-22');
         await page.fill('#notes', note);

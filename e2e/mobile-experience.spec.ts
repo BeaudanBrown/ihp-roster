@@ -5,6 +5,7 @@ import {
     expectNoHorizontalViewportOverflow,
     gotoWhenReady,
     loginAs,
+    openNewLeaveRequestDialog,
     openAuthenticatedNavIfCollapsed,
 } from './test-helpers';
 
@@ -57,8 +58,7 @@ test.describe('Mobile experience smoke', () => {
         await expect(page.locator('#leave-requests-content')).toBeVisible();
         await expectNoHorizontalViewportOverflow(page);
 
-        await page.getByRole('link', { name: 'New Request' }).click();
-        await expect(page.locator('#leave-request-form')).toBeVisible();
+        await openNewLeaveRequestDialog(page);
         await expectDialogToFitViewport(page, '#dialog-overlay-mount .modal-dialog, #dialog-overlay-mount [role="dialog"]');
     });
 

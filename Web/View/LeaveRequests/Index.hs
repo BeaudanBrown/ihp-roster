@@ -44,7 +44,7 @@ renderLeaveRequestsShell IndexView { .. } =
         page = renderAppPage (AppPageConfig
             { appPageTitle = "Leave Requests"
             , appPageDescription = Nothing
-            , appPageActions = mempty
+            , appPageActions = renderNewLeaveRequestAction
             , appPageWidthClass = ""
             , appPageBody = leaveRequestsPanel
             })
@@ -61,6 +61,19 @@ renderLeaveRequestsShell IndexView { .. } =
             {page}
         </section>
     |]
+
+renderNewLeaveRequestAction :: Html
+renderNewLeaveRequestAction = [hsx|
+    <a href={pathTo NewLeaveRequestAction}
+       class="btn btn-primary"
+       data-disable-javascript-submission="true"
+       hx-get={pathTo NewLeaveRequestAction}
+       hx-target={"#" <> dialogOverlayMountId}
+       hx-swap="innerHTML"
+       hx-push-url="false">
+        New Request
+    </a>
+|]
 
 renderLeaveRequestsContentFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
 renderLeaveRequestsContentFragment =
