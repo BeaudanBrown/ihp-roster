@@ -131,35 +131,152 @@
                             fi
                         '';
 
-                        # Start the app server in the foreground with MailHog alongside it.
+                        # Start a local postgres instance when the project socket is unavailable.
+                        # Usage: dev-ensure-postgres
+                        dev-ensure-postgres.exec = ''
+                            set -euo pipefail
+                            STATE_DIR="$(dev-agent-state-dir)"
+                            POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
+                            LOG_FILE="$STATE_DIR/devenv.log"
+                            DB_SOCKET="''${PGHOST:-$PWD/build/db}"
+
+                            mkdir -p "$STATE_DIR"
+                            : > "$LOG_FILE"
+
+                            if psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+                                exit 0
+                            fi
+
+                            if [ -f "$POSTGRES_PID_FILE" ]; then
+                                PG_PID=$(cat "$POSTGRES_PID_FILE")
+                                if ! kill -0 "$PG_PID" 2>/dev/null; then
+                                    rm -f "$POSTGRES_PID_FILE"
+                                fi
+                            fi
+
+                            if [ ! -f "$POSTGRES_PID_FILE" ]; then
+                                echo "[dev-ensure-postgres] launching start-postgres (socket=$DB_SOCKET)" >>"$LOG_FILE"
+                                setsid nohup start-postgres </dev/null >>"$LOG_FILE" 2>&1 &
+                                PG_PID=$!
+                                echo "$PG_PID" > "$POSTGRES_PID_FILE"
+                                disown "$PG_PID" 2>/dev/null || true
+                            fi
+
+                            for _ in $(seq 1 20); do
+                                if psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+                                    exit 0
+                                fi
+                                sleep 1
+                            done
+
+                            echo "devenv postgres failed to start; recent log output:"
+                            tail -n 60 "$LOG_FILE" || true
+                            exit 1
+                        '';
+
+                        # Start MailHog in the background when it is not already reachable.
+                        # Usage: dev-ensure-mailhog
+                        dev-ensure-mailhog.exec = ''
+                            set -euo pipefail
+                            STATE_DIR="$(dev-agent-state-dir)"
+                            MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
+                            LOG_FILE="$STATE_DIR/devenv.log"
+                            MAILHOG_URL="''${MAILHOG_BASE_URL:-http://127.0.0.1:8025}"
+                            MAILHOG_BIN="$(command -v MailHog || command -v mailhog)"
+
+                            mkdir -p "$STATE_DIR"
+                            : > "$LOG_FILE"
+
+                            if curl -fsS "$MAILHOG_URL/api/v2/messages" >/dev/null 2>&1; then
+                                exit 0
+                            fi
+
+                            if [ -f "$MAILHOG_PID_FILE" ]; then
+                                MAILHOG_PID=$(cat "$MAILHOG_PID_FILE")
+                                if ! kill -0 "$MAILHOG_PID" 2>/dev/null; then
+                                    rm -f "$MAILHOG_PID_FILE"
+                                fi
+                            fi
+
+                            if [ ! -f "$MAILHOG_PID_FILE" ]; then
+                                echo "[dev-ensure-mailhog] launching MailHog" >>"$LOG_FILE"
+                                setsid nohup "$MAILHOG_BIN" \
+                                    -smtp-bind-addr 127.0.0.1:1025 \
+                                    -ui-bind-addr 127.0.0.1:8025 \
+                                    -api-bind-addr 127.0.0.1:8025 \
+                                    </dev/null >>"$LOG_FILE" 2>&1 &
+                                MAILHOG_PID=$!
+                                echo "$MAILHOG_PID" > "$MAILHOG_PID_FILE"
+                                disown "$MAILHOG_PID" 2>/dev/null || true
+                            fi
+
+                            for _ in $(seq 1 20); do
+                                if curl -fsS "$MAILHOG_URL/api/v2/messages" >/dev/null 2>&1; then
+                                    exit 0
+                                fi
+                                sleep 1
+                            done
+
+                            echo "devenv MailHog failed to start; recent log output:"
+                            tail -n 60 "$LOG_FILE" || true
+                            exit 1
+                        '';
+
+                        # Start the app server in the foreground with postgres and MailHog alongside it.
                         # Usage: dev-foreground
                         dev-foreground.exec = ''
                             set -euo pipefail
 
-                            MAILHOG="$(command -v MailHog || command -v mailhog)"
-                            "$MAILHOG" \
-                                -smtp-bind-addr 127.0.0.1:1025 \
-                                -ui-bind-addr 127.0.0.1:8025 \
-                                -api-bind-addr 127.0.0.1:8025 &
-                            MAILHOG_PID=$!
+                            STATE_DIR="$(dev-agent-state-dir)"
+                            LOG_FILE="$STATE_DIR/devenv.log"
+                            DB_SOCKET="''${PGHOST:-$PWD/build/db}"
                             APP_PID=""
+                            APP_WAS_ALREADY_RUNNING=0
+                            MAILHOG_STARTED=0
+                            MAILHOG_BIN="$(command -v MailHog || command -v mailhog)"
+
+                            mkdir -p "$STATE_DIR"
+                            export XDG_CACHE_HOME="''${XDG_CACHE_HOME:-/tmp/nix-cache}"
+                            mkdir -p "$XDG_CACHE_HOME"
+
+                            if curl -fsS "''${MAILHOG_BASE_URL:-http://127.0.0.1:8025}/api/v2/messages" >/dev/null 2>&1; then
+                                MAILHOG_STARTED=0
+                            else
+                                "$MAILHOG_BIN" \
+                                    -smtp-bind-addr 127.0.0.1:1025 \
+                                    -ui-bind-addr 127.0.0.1:8025 \
+                                    -api-bind-addr 127.0.0.1:8025 &
+                                MAILHOG_PID=$!
+                                MAILHOG_STARTED=1
+                            fi
 
                             cleanup() {
                                 if [ -n "$APP_PID" ]; then
                                     kill "$APP_PID" 2>/dev/null || true
                                 fi
-                                kill "$MAILHOG_PID" 2>/dev/null || true
+                                if [ "''${MAILHOG_STARTED:-0}" = "1" ] && [ -n "''${MAILHOG_PID:-}" ]; then
+                                    kill "$MAILHOG_PID" 2>/dev/null || true
+                                fi
                             }
                             trap cleanup EXIT INT TERM
 
+                            if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+                                dev-ensure-postgres
+                            fi
+
                             if curl -fsS http://127.0.0.1:8000 >/dev/null 2>&1; then
+                                APP_WAS_ALREADY_RUNNING=1
                                 echo "App server already running; MailHog available at http://127.0.0.1:8025"
-                                wait "$MAILHOG_PID"
                             else
-                                echo "Starting app server and MailHog..."
+                                echo "[dev-foreground] launching start (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
+                                echo "Starting app server, postgres, and MailHog..."
                                 start &
                                 APP_PID=$!
                                 wait "$APP_PID"
+                            fi
+
+                            if [ "$APP_WAS_ALREADY_RUNNING" = "1" ] && [ "''${MAILHOG_STARTED:-0}" = "1" ] && [ -n "''${MAILHOG_PID:-}" ]; then
+                                wait "$MAILHOG_PID"
                             fi
                         '';
 
@@ -898,6 +1015,7 @@ EOF
                             STATE_DIR="$(dev-agent-state-dir)"
                             PID_FILE="$STATE_DIR/devenv.pid"
                             POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
+                            MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
                             LOG_FILE="$STATE_DIR/devenv.log"
                             DB_SOCKET="''${PGHOST:-$PWD/build/db}"
 
@@ -922,35 +1040,8 @@ EOF
                             # nix/direnv evaluation fail while writing fetcher cache.
                             export XDG_CACHE_HOME="''${XDG_CACHE_HOME:-/tmp/nix-cache}"
                             mkdir -p "$XDG_CACHE_HOME"
-                            if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
-                                if [ -f "$POSTGRES_PID_FILE" ]; then
-                                    PG_PID=$(cat "$POSTGRES_PID_FILE")
-                                    if ! kill -0 "$PG_PID" 2>/dev/null; then
-                                        rm -f "$POSTGRES_PID_FILE"
-                                    fi
-                                fi
-
-                                if [ ! -f "$POSTGRES_PID_FILE" ]; then
-                                    echo "[dev-start] launching start-postgres (socket=$DB_SOCKET)" >>"$LOG_FILE"
-                                    setsid nohup start-postgres </dev/null >>"$LOG_FILE" 2>&1 &
-                                    PG_PID=$!
-                                    echo "$PG_PID" > "$POSTGRES_PID_FILE"
-                                    disown "$PG_PID" 2>/dev/null || true
-                                fi
-                            fi
-
-                            for _ in $(seq 1 20); do
-                                if psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
-                                    break
-                                fi
-                                sleep 1
-                            done
-
-                            if ! psql -h "$DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
-                                echo "devenv postgres failed to start; recent log output:"
-                                tail -n 60 "$LOG_FILE" || true
-                                exit 1
-                            fi
+                            dev-ensure-postgres
+                            dev-ensure-mailhog
 
                             echo "[dev-start] launching start (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
                             setsid nohup start </dev/null >>"$LOG_FILE" 2>&1 &
@@ -979,6 +1070,7 @@ EOF
                             STATE_DIR="$(dev-agent-state-dir)"
                             PID_FILE="$STATE_DIR/devenv.pid"
                             POSTGRES_PID_FILE="$STATE_DIR/postgres.pid"
+                            MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
 
                             stop_tracked_process() {
                                 local pid_file="$1"
@@ -1032,6 +1124,7 @@ EOF
 
                             stop_tracked_process "$PID_FILE" "devenv"
                             stop_tracked_process "$POSTGRES_PID_FILE" "postgres"
+                            stop_tracked_process "$MAILHOG_PID_FILE" "mailhog"
                             echo "devenv stopped"
                         '';
 
@@ -1082,9 +1175,19 @@ EOF
                                 HTTP_BLOCKED=true
                             fi
 
+                            MAILHOG_OK=false
+                            MAILHOG_BLOCKED=false
+                            MAILHOG_ERR=""
+                            if MAILHOG_ERR=$(curl -fsS "''${MAILHOG_BASE_URL:-http://127.0.0.1:8025}/api/v2/messages" 2>&1); then
+                                MAILHOG_OK=true
+                            elif echo "$MAILHOG_ERR" | ${pkgs.ripgrep}/bin/rg -qi "operation not permitted|permission denied"; then
+                                MAILHOG_BLOCKED=true
+                            fi
+
                             CHECKS_BLOCKED=false
                             if { [ "$DB_OK" = true ] || [ "$DB_BLOCKED" = true ]; } \
-                                && { [ "$HTTP_OK" = true ] || [ "$HTTP_BLOCKED" = true ]; }; then
+                                && { [ "$HTTP_OK" = true ] || [ "$HTTP_BLOCKED" = true ]; } \
+                                && { [ "$MAILHOG_OK" = true ] || [ "$MAILHOG_BLOCKED" = true ]; }; then
                                 CHECKS_BLOCKED=true
                             fi
 
@@ -1099,9 +1202,9 @@ EOF
                                 RUNNING=true
                             fi
 
-                            echo "running=$RUNNING managed=$MANAGED socket_ok=$SOCKET_OK pid=''${PID:-none} db_ok=$DB_OK http_ok=$HTTP_OK db_blocked=$DB_BLOCKED http_blocked=$HTTP_BLOCKED"
+                            echo "running=$RUNNING managed=$MANAGED socket_ok=$SOCKET_OK pid=''${PID:-none} db_ok=$DB_OK http_ok=$HTTP_OK mailhog_ok=$MAILHOG_OK db_blocked=$DB_BLOCKED http_blocked=$HTTP_BLOCKED mailhog_blocked=$MAILHOG_BLOCKED"
 
-                            if [ "$DB_OK" = true ] && [ "$HTTP_OK" = true ]; then
+                            if [ "$DB_OK" = true ] && [ "$HTTP_OK" = true ] && [ "$MAILHOG_OK" = true ]; then
                                 exit 0
                             fi
 
