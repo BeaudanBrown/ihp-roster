@@ -41,12 +41,7 @@ defaultLayout inner = [hsx|
 renderAppHeader :: (?context :: ControllerContext) => Html
 renderAppHeader =
     case currentUserOrNothing of
-        Just _ ->
-            let leaveHref =
-                    if currentUserIsManager
-                        then pathTo LeaveRequestsAction
-                        else appendQueryParams (pathTo EditProfileAction) [("section", "leave")]
-             in [hsx|
+        Just _ -> [hsx|
             <header class="app-header border-bottom">
                 <nav class="navbar navbar-expand-md container py-2">
                     <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Bepis</a>
@@ -59,7 +54,7 @@ renderAppHeader =
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={RosterWeeksAction}>roster</a>
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={EditProfileAction}>profile</a>
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={TimesheetsAction}>timesheets</a>
-                            <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={leaveHref}>leave</a>
+                            {renderWhenAudience ManagerAudience renderLeaveNavLink}
                             {renderWhenAudience AdminAudience renderAdminNavLink}
                             {renderWhenAudience SupportAudience renderSupportNavLink}
                             <form method="POST" action={DeleteSessionAction} class="d-inline app-header-logout-form">
@@ -76,6 +71,11 @@ renderAppHeader =
 renderAdminNavLink :: Html
 renderAdminNavLink = [hsx|
     <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={AdminAction}>admin</a>
+|]
+
+renderLeaveNavLink :: Html
+renderLeaveNavLink = [hsx|
+    <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={LeaveRequestsAction}>leave</a>
 |]
 
 renderSupportVenueSwitcher :: (?context :: ControllerContext) => Html

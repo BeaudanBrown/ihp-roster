@@ -10,7 +10,7 @@ import {
 } from './test-helpers';
 
 test.describe('Mobile experience smoke', () => {
-    test('authenticated navigation remains usable when the header collapses', async ({ page }) => {
+    test('manager navigation remains usable when the header collapses', async ({ page }) => {
         await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
 
         const navToggle = page.locator('.navbar-toggler');
@@ -32,6 +32,30 @@ test.describe('Mobile experience smoke', () => {
         await page.getByRole('link', { name: 'timesheets' }).click();
         await expect(page).toHaveURL(/(Timesheets|ShowTimesheetWeek)/, { timeout: 60000 });
         await expect(page.locator('#timesheet-week-shell')).toBeVisible();
+    });
+
+    test('worker mobile navigation uses profile for leave access and hides the leave header link', async ({ page }) => {
+        await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
+
+        await openAuthenticatedNavIfCollapsed(page);
+        await expect(page.getByRole('link', { name: 'roster', exact: true })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'profile' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
+        await expect(page.getByRole('link', { name: 'leave' })).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'admin' })).toHaveCount(0);
+
+        await page.getByRole('link', { name: 'profile' }).click();
+        await expect(page).toHaveURL(/EditProfile/, { timeout: 60000 });
+        await expect(page.locator('#profile-content-fragment')).toBeVisible();
+
+        const leaveSectionToggle = page.getByRole('button', { name: 'Leave Requests' });
+        if ((await leaveSectionToggle.getAttribute('aria-expanded')) !== 'true') {
+            await leaveSectionToggle.click();
+        }
+
+        await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
+        await expect(page.locator('#profile-leave-requests-list-fragment')).toBeVisible();
+        await expectNoHorizontalViewportOverflow(page);
     });
 
     test('roster creator remains usable on a narrow viewport without leaking page-level overflow', async ({ page }) => {

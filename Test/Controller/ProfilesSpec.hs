@@ -67,6 +67,35 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Ideal Shifts Per Week"
                 response `responseBodyShouldContain` "Login email is read-only here for now."
 
+        it "hides the dedicated leave header link for workers while keeping profile leave content available" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Venue"
+                user <- createUserRecord "profile-worker-header@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createStaffRecord venue (Just user) "Taylor" "Worker"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction EditProfileAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "href=\"/EditProfile\">profile</a>"
+                response `responseBodyShouldContain` "href=\"/Timesheets\">timesheets</a>"
+                response `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
+                response `responseBodyShouldNotContain` "href=\"/LeaveRequests\">leave</a>"
+
+        it "shows the dedicated leave header link for managers" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Venue"
+                user <- createUserRecord "profile-manager-header@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "manager"
+                _ <- createStaffRecord venue (Just user) "Morgan" "Manager"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction EditProfileAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "href=\"/LeaveRequests\">leave</a>"
+
         it "saves submitted shift preferences from the profile form" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
