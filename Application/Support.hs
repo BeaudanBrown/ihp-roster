@@ -1,7 +1,8 @@
 module Application.Support where
 
-import Application.Helper.Controller (PlatformRole (..), platformRoleToEnum,
-                                      unsafeEnumFromText)
+import Application.Helper.Controller (PlatformRole (..),
+                                      defaultWeekOffsetEpochForStartDay,
+                                      platformRoleToEnum, unsafeEnumFromText)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
 import qualified Data.Aeson as Aeson
@@ -18,18 +19,37 @@ import IHP.Prelude
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExecDiscardResult
-        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, email_verification_tokens, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
 createVenueWithConfig :: (?modelContext :: ModelContext) => Text -> IO Venue
 createVenueWithConfig name =
+    fst <$> createVenueWithBootstrapConfig name "Australia/Melbourne" 1
+
+createVenueWithBootstrapConfig :: (?modelContext :: ModelContext) => Text -> Text -> Int -> IO (Venue, VenueConfig)
+createVenueWithBootstrapConfig name timezone rosterWeekStartsOn =
     withTransaction do
-        venue <- newRecord @Venue
+        createVenueWithBootstrapConfigInCurrentTransaction name timezone rosterWeekStartsOn
+
+createVenueWithBootstrapConfigInCurrentTransaction :: (?modelContext :: ModelContext) => Text -> Text -> Int -> IO (Venue, VenueConfig)
+createVenueWithBootstrapConfigInCurrentTransaction name timezone rosterWeekStartsOn = do
+    venue <-
+        newRecord @Venue
             |> set #name name
+            |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
             |> createRecord
-        _ <- ensureVenueRosterDefaults venue
-        pure venue
+    venueConfig <-
+        newRecord @VenueConfig
+            |> set #venueId (unpackId venue.id)
+            |> set #timezone timezone
+            |> set #rosterWeekStartsOn rosterWeekStartsOn
+            |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
+            |> set #lateToEarlyMinStartGapMinutes 600
+            |> set #staffTimesheetEditWindowDays 7
+            |> createRecord
+    _ <- ensureVenueRosterDefaults venue
+    pure (venue, venueConfig)
 
 createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> IO User
 createUserRecord emailAddress globalRole isProfileCompleted =
@@ -86,6 +106,14 @@ createVenueInvitationRecord venue maybeInviter emailAddress inviteRole =
         |> set #invitedByUserId (fmap (unpackId . get #id) maybeInviter)
         |> set #email emailAddress
         |> set #inviteRole (unsafeEnumFromText @VenueRoleEnum inviteRole)
+        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> createRecord
+
+createVenueOnboardingInvitationRecord :: (?modelContext :: ModelContext) => Maybe User -> Text -> IO VenueOnboardingInvitation
+createVenueOnboardingInvitationRecord maybeInviter emailAddress =
+    newRecord @VenueOnboardingInvitation
+        |> set #invitedByUserId (fmap (unpackId . get #id) maybeInviter)
+        |> set #email emailAddress
         |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
         |> createRecord
 

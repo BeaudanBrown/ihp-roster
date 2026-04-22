@@ -6,6 +6,8 @@ import Web.View.Prelude
 data IndexView = IndexView
     { venues       :: [Venue]
     , venue        :: Venue
+    , onboardingInvitation :: VenueOnboardingInvitation
+    , onboardingInvitations :: [VenueOnboardingInvitation]
     , createdVenue :: Maybe Venue
     }
 
@@ -71,6 +73,37 @@ instance View IndexView where
                         </form>
                     |]
                     }
+            inviteVenueOwnerPanel =
+                renderAppPanel AppPanelConfig
+                    { appPanelTitle = Just "Invite Venue Owner"
+                    , appPanelDescription = Just "Send a one-time onboarding link so the owner can create their account and configure their venue before it exists."
+                    , appPanelHasActions = False
+                    , appPanelActions = mempty
+                    , appPanelHasCustomHeader = False
+                    , appPanelCustomHeader = mempty
+                    , appPanelClass = ""
+                    , appPanelBodyClass = ""
+                    , appPanelBody = [hsx|
+                        <form method="POST" action={CreateSupportVenueOnboardingInvitationAction} class="row g-3" data-disable-javascript-submission="true">
+                            <div class="col-12 col-lg-7">
+                                <label class="form-label" for="support-create-onboarding-email">Owner email</label>
+                                <input
+                                    id="support-create-onboarding-email"
+                                    class={classes [("form-control", True), ("is-invalid", hasOnboardingInvitationErrorFor onboardingInvitation "email")]}
+                                    type="email"
+                                    name="email"
+                                    value={onboardingInvitation.email}
+                                    required="required"
+                                />
+                                {renderOnboardingInvitationError onboardingInvitation "email"}
+                            </div>
+                            <div class="col-12 col-lg-5 d-flex align-items-end">
+                                <button class="btn btn-primary w-100" type="submit">Send Owner Invite</button>
+                            </div>
+                        </form>
+                        {renderVenueOnboardingInvitationList onboardingInvitations}
+                    |]
+                    }
          in renderAppPage (AppPageConfig
             { appPageTitle = "Support"
             , appPageDescription = Nothing
@@ -80,6 +113,7 @@ instance View IndexView where
                 {renderCreatedVenueBanner createdVenue}
                 <div class="app-page-stack">
                     {switchVenuePanel}
+                    {inviteVenueOwnerPanel}
                     {createVenuePanel}
                 </div>
             |]
@@ -119,3 +153,44 @@ renderVenueError venue fieldName =
 
 hasVenueErrorFor :: Venue -> Text -> Bool
 hasVenueErrorFor venue fieldName = isJust (lookup fieldName venue.meta.annotations)
+
+renderOnboardingInvitationError :: VenueOnboardingInvitation -> Text -> Html
+renderOnboardingInvitationError invitation fieldName =
+    case lookup fieldName invitation.meta.annotations of
+        Just (TextViolation messageText) -> [hsx|<div class="invalid-feedback d-block">{messageText}</div>|]
+        Just (HtmlViolation messageHtml) -> [hsx|<div class="invalid-feedback d-block">{messageHtml}</div>|]
+        Nothing -> mempty
+
+hasOnboardingInvitationErrorFor :: VenueOnboardingInvitation -> Text -> Bool
+hasOnboardingInvitationErrorFor invitation fieldName = isJust (lookup fieldName invitation.meta.annotations)
+
+renderVenueOnboardingInvitationList :: [VenueOnboardingInvitation] -> Html
+renderVenueOnboardingInvitationList invitations =
+    case invitations of
+        [] -> [hsx|<p class="app-muted small mb-0 mt-4">No venue owner onboarding invites yet.</p>|]
+        _ -> [hsx|
+            <div class="mt-4">
+                <div class="small text-uppercase app-muted mb-2">Recent owner invites</div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th scope="col">Email</th>
+                                <th scope="col">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {forEach invitations renderVenueOnboardingInvitationRow}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        |]
+
+renderVenueOnboardingInvitationRow :: VenueOnboardingInvitation -> Html
+renderVenueOnboardingInvitationRow invitation = [hsx|
+    <tr>
+        <td>{invitation.email}</td>
+        <td>{inputValue invitation.status}</td>
+    </tr>
+|]

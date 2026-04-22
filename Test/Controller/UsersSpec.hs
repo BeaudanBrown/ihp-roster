@@ -1,6 +1,7 @@
 module Test.Controller.UsersSpec where
 
 import Application.Helper.Controller (unsafeEnumFromText,
+                                      validRosterWeekStartDays,
                                       updateVenueMembershipRoleWithAudit)
 import Config
 import Data.Aeson (Value (Null))
@@ -71,6 +72,48 @@ tests = beforeAll testContext do
 
                 userCount <- query @User |> fetchCount
                 userCount `shouldBe` 0
+
+        it "renders the onboarding signup form for a valid venue owner invitation" $ withContext do
+            withCleanDb do
+                invitation <- createVenueOnboardingInvitationRecord Nothing "owner-onboarding@example.com"
+
+                response <- callActionWithParams NewVenueOnboardingUserAction [("invitationId", idToParam invitation.id)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Create Your Venue"
+                response `responseBodyShouldContain` "owner-onboarding@example.com"
+                response `responseBodyShouldContain` "Roster week starts on"
+
+        it "creates a verified user, venue, and owner membership from a pending onboarding invitation" $ withContext do
+            withCleanDb do
+                invitation <- createVenueOnboardingInvitationRecord Nothing "owner-create-venue@example.com"
+
+                response <- callActionWithParams CreateVenueOnboardingUserAction
+                    [ ("invitationId", idToParam invitation.id)
+                    , ("passwordHash", "test-password-123")
+                    , ("passwordConfirmation", "test-password-123")
+                    , ("name", "Owner Venue")
+                    , ("timezone", "Australia/Melbourne")
+                    , ("rosterWeekStartsOn", "2")
+                    ]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile"
+
+                user <- query @User |> filterWhere (#email, "owner-create-venue@example.com") |> fetchOne
+                venue <- query @Venue |> filterWhere (#name, "Owner Venue") |> fetchOne
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                membership <- query @VenueMembership |> filterWhere (#userId, unpackId user.id) |> fetchOne
+                staff <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#userId, Just (unpackId user.id)) |> fetchOne
+                updatedInvitation <- fetch invitation.id
+
+                venueConfig.timezone `shouldBe` "Australia/Melbourne"
+                venueConfig.rosterWeekStartsOn `shouldBe` 2
+                venueConfig.rosterWeekStartsOn `shouldSatisfy` (`elem` validRosterWeekStartDays)
+                inputValue membership.venueRole `shouldBe` "venue_owner"
+                staff.userId `shouldBe` Just (unpackId user.id)
+                inputValue updatedInvitation.status `shouldBe` "accepted"
+                updatedInvitation.acceptedByUserId `shouldBe` Just (unpackId user.id)
 
         it "does not redeem an invitation that has already been accepted" $ withContext do
             withCleanDb do

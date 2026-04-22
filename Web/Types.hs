@@ -21,6 +21,8 @@ data SessionsController
 data UsersController
     = NewUserAction
     | CreateUserAction
+    | NewVenueOnboardingUserAction
+    | CreateVenueOnboardingUserAction
     deriving (Eq, Show, Data)
 
 data ProfilesController
@@ -85,6 +87,7 @@ data AdminController
 data SupportController
     = SupportAction
     | CreateSupportVenueAction
+    | CreateSupportVenueOnboardingInvitationAction
     | SwitchSupportVenueAction
     deriving (Eq, Show, Data)
 

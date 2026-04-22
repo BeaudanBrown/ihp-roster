@@ -205,9 +205,44 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Switch Venue"
+                response `responseBodyShouldContain` "Invite Venue Owner"
                 response `responseBodyShouldContain` "Create Venue"
                 response `responseBodyShouldContain` "Alpha Venue"
                 response `responseBodyShouldContain` "Beta Venue"
+
+        it "lets super-admin create a venue owner onboarding invitation" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-create-owner-invite@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+
+                response <- withUser founder do
+                    callActionWithParams CreateSupportVenueOnboardingInvitationAction
+                        [ ("email", "new-owner@example.com")
+                        ]
+
+                response `responseStatusShouldBe` status302
+
+                invitation <- query @VenueOnboardingInvitation |> filterWhere (#email, "new-owner@example.com") |> fetchOne
+
+                invitation.invitedByUserId `shouldBe` Just (unpackId founder.id)
+                inputValue invitation.status `shouldBe` "pending"
+                isJust invitation.expiresAt `shouldBe` True
+
+        it "denies venue owner onboarding invitation creation to ordinary venue admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                admin <- createUserRecord "venue-admin-owner-invite@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withUser admin do
+                    callActionWithParams CreateSupportVenueOnboardingInvitationAction
+                        [ ("email", "blocked-owner@example.com")
+                        ]
+
+                response `responseStatusShouldBe` status403
+                invitationCount <- query @VenueOnboardingInvitation |> filterWhere (#email, "blocked-owner@example.com") |> fetchCount
+                invitationCount `shouldBe` 0
 
         it "lets super-admin create a bootstrapped venue without creating an invitation" $ withContext do
             withCleanDb do

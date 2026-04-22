@@ -5,7 +5,12 @@ import Application.Helper.Controller (currentSupportVenueOptions,
                                       defaultWeekOffsetEpochForStartDay,
                                       unsafeEnumFromText)
 import Application.Helper.RosterGroups (ensureVenueRosterDefaults)
+import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail,
+                                                     venueOnboardingInvitationLifetime)
 import Application.Helper.View (appendQueryParams)
+import Application.Support (createVenueWithBootstrapConfigInCurrentTransaction)
+import Control.Concurrent (forkIO)
+import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
@@ -20,16 +25,20 @@ instance Controller SupportController where
 
     action SupportAction = do
         let venues = currentSupportVenueOptions
+        onboardingInvitations <- fetchVenueOnboardingInvitations
         createdVenue <- case paramOrNothing @(Id Venue) "createdVenueId" of
             Nothing      -> pure Nothing
             Just venueId -> Just <$> fetchCreatedVenue venueId
         let venue = buildSupportVenueForm
+        let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         render IndexView { .. }
 
     action CreateSupportVenueAction = do
         let venues = currentSupportVenueOptions
+        onboardingInvitations <- fetchVenueOnboardingInvitations
         let createdVenue = Nothing
         let venue = buildSupportVenueForm |> fill @'["name"]
+        let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         venue
             |> validateField #name nonEmpty
             |> ifValid \case
@@ -37,12 +46,7 @@ instance Controller SupportController where
                     render IndexView { .. }
                 Right venue -> do
                     createdVenue <- withTransaction do
-                        createdVenue <-
-                            venue
-                                |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
-                                |> createRecord
-                        venueConfig <- ensureVenueConfigRecord createdVenue
-                        _ <- ensureVenueRosterDefaults createdVenue
+                        (createdVenue, venueConfig) <- createVenueWithBootstrapConfigInCurrentTransaction venue.name defaultSupportVenueTimezone defaultRosterWeekStartsOn
                         _ <- recordAuditEvent
                             (unpackId createdVenue.id)
                             (unpackId currentUser.id)
@@ -58,6 +62,32 @@ instance Controller SupportController where
                         pure createdVenue
                     setSuccessMessage ("Venue created: " <> createdVenue.name)
                     redirectToPath (appendQueryParams (pathTo SupportAction) [("createdVenueId", tshow createdVenue.id)])
+
+    action CreateSupportVenueOnboardingInvitationAction = do
+        let venues = currentSupportVenueOptions
+        onboardingInvitations <- fetchVenueOnboardingInvitations
+        let createdVenue = Nothing
+        let venue = buildSupportVenueForm
+        now <- getCurrentTime
+        let onboardingInvitation = buildSupportVenueOnboardingInvitationForm |> fill @'["email"]
+        onboardingInvitation
+            |> validateField #email nonEmpty
+            |> validateField #email isEmail
+            |> ifValid \case
+                Left onboardingInvitation -> render IndexView { .. }
+                Right onboardingInvitation -> do
+                    invitation <- withTransaction do
+                        invitation <-
+                            onboardingInvitation
+                                |> set #invitedByUserId (Just (unpackId currentUser.id))
+                                |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+                                |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+                                |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
+                                |> createRecord
+                        pure invitation
+                    queueVenueOnboardingInvitationDelivery invitation
+                    setSuccessMessage ("Venue owner invitation queued for " <> invitation.email)
+                    redirectTo SupportAction
 
     action SwitchSupportVenueAction = do
         let venueId = (coerce (param @UUID "venueId") :: Id Venue)
@@ -83,25 +113,14 @@ buildSupportVenueForm =
     newRecord @Venue
         |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
 
+buildSupportVenueOnboardingInvitationForm :: VenueOnboardingInvitation
+buildSupportVenueOnboardingInvitationForm =
+    newRecord @VenueOnboardingInvitation
+        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+
 defaultSupportVenueTimezone :: Text
 defaultSupportVenueTimezone = "Australia/Melbourne"
-
-ensureVenueConfigRecord :: (?modelContext :: ModelContext) => Venue -> IO VenueConfig
-ensureVenueConfigRecord venue =
-    query @VenueConfig
-        |> filterWhere (#venueId, unpackId venue.id)
-        |> fetchOneOrNothing
-        >>= \case
-            Just venueConfig -> pure venueConfig
-            Nothing ->
-                newRecord @VenueConfig
-                    |> set #venueId (unpackId venue.id)
-                    |> set #timezone defaultSupportVenueTimezone
-                    |> set #rosterWeekStartsOn defaultRosterWeekStartsOn
-                    |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay defaultRosterWeekStartsOn)
-                    |> set #lateToEarlyMinStartGapMinutes 600
-                    |> set #staffTimesheetEditWindowDays 7
-                    |> createRecord
 
 fetchCreatedVenue :: (?modelContext :: ModelContext) => Id Venue -> IO Venue
 fetchCreatedVenue venueId =
@@ -109,6 +128,28 @@ fetchCreatedVenue venueId =
         |> filterWhere (#id, venueId)
         |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
         |> fetchOne
+
+fetchVenueOnboardingInvitations :: (?modelContext :: ModelContext) => IO [VenueOnboardingInvitation]
+fetchVenueOnboardingInvitations =
+    query @VenueOnboardingInvitation
+        |> orderByDesc #createdAt
+        |> fetch
+
+queueVenueOnboardingInvitationDelivery ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    VenueOnboardingInvitation ->
+    IO ()
+queueVenueOnboardingInvitationDelivery invitation = do
+    let currentContext = ?context
+    let currentModelContext = ?modelContext
+    let currentRequest = ?request
+    void $
+        forkIO do
+            let ?context = currentContext
+            let ?modelContext = currentModelContext
+            let ?request = currentRequest
+            _ <- deliverVenueOnboardingInvitationEmail invitation
+            pure ()
 
 isSafeReturnPath :: Text -> Bool
 isSafeReturnPath candidate =

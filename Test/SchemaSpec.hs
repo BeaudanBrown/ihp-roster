@@ -54,6 +54,7 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe Venue)
         let _ = (Nothing :: Maybe VenueMembership)
         let _ = (Nothing :: Maybe VenueInvitation)
+        let _ = (Nothing :: Maybe VenueOnboardingInvitation)
         let _ = (Nothing :: Maybe EmailVerificationToken)
         True `shouldBe` True
 
@@ -102,6 +103,13 @@ tests = describe "Schema" do
         let invitation = newRecord @VenueInvitation
         inputValue (get #inviteRole invitation) `shouldBe` "worker"
         inputValue (get #status invitation) `shouldBe` "pending"
+
+    it "venue onboarding invitations expose delivery and redemption fields" do
+        let invitation = newRecord @VenueOnboardingInvitation
+        get #email invitation `shouldBe` ""
+        inputValue (get #status invitation) `shouldBe` "pending"
+        inputValue (get #deliveryStatus invitation) `shouldBe` "queued"
+        get #acceptedByUserId invitation `shouldBe` Nothing
 
     it "exposes normalized legacy user roles, venue roles, and leave statuses via shared helpers" do
         allUserRoleValues `shouldBe` ["staff", "manager", "admin"]

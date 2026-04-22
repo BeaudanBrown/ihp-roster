@@ -32,6 +32,7 @@ import qualified Test.RosterGridSpec
 import qualified Test.SchemaSpec
 import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
+import qualified Test.VenueOnboardingInvitationSpec
 
 data TestSuite = TestSuite
     { suiteLabel :: String
@@ -126,6 +127,7 @@ allSuites =
     , TestSuite "PayrollExportParity" Test.Controller.PayrollExportParitySpec.tests
     , TestSuite "StaffController" Test.Controller.StaffSpec.tests
     , TestSuite "VenueInvitation" Test.VenueInvitationSpec.tests
+    , TestSuite "VenueOnboardingInvitation" Test.VenueOnboardingInvitationSpec.tests
     , TestSuite "DevSeed" Test.DevSeedSpec.tests
     , TestSuite "Conflict" Test.ConflictSpec.tests
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests

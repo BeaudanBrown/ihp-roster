@@ -73,6 +73,22 @@ CREATE TABLE venue_invitations (
     FOREIGN KEY (invited_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (accepted_by_user_id) REFERENCES users (id) ON DELETE SET NULL
 );
+CREATE TABLE venue_onboarding_invitations (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    invited_by_user_id UUID,
+    accepted_by_user_id UUID,
+    email TEXT NOT NULL,
+    status invitation_status_enum DEFAULT 'pending' NOT NULL,
+    delivery_status invitation_delivery_status_enum DEFAULT 'queued' NOT NULL,
+    delivery_error TEXT DEFAULT NULL,
+    delivered_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    accepted_at TIMESTAMP WITH TIME ZONE,
+    expires_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (invited_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
+    FOREIGN KEY (accepted_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+);
 CREATE TABLE staff (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -414,6 +430,7 @@ CREATE INDEX idx_venue_memberships_venue_user ON venue_memberships (venue_id, us
 CREATE INDEX idx_venue_memberships_user_active ON venue_memberships (user_id, is_active);
 CREATE INDEX idx_venue_invitations_venue_status ON venue_invitations (venue_id, status);
 CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, status);
+CREATE INDEX idx_venue_onboarding_invitations_email_status ON venue_onboarding_invitations (email, status);
 CREATE INDEX idx_staff_venue ON staff (venue_id);
 CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL;
 CREATE INDEX idx_report_definitions_venue_sort ON report_definitions (venue_id, sort_order ASC, created_at ASC);

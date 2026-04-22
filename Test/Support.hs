@@ -52,7 +52,7 @@ withControllerTestContext action =
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExecDiscardResult
-        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, email_verification_tokens, venue_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
@@ -97,6 +97,14 @@ createVenueInvitationRecord venue maybeInviter emailAddress inviteRole =
         |> set #invitedByUserId (fmap (unpackId . get #id) maybeInviter)
         |> set #email emailAddress
         |> set #inviteRole (unsafeEnumFromText @VenueRoleEnum inviteRole)
+        |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+        |> createRecord
+
+createVenueOnboardingInvitationRecord :: (?modelContext :: ModelContext) => Maybe User -> Text -> IO VenueOnboardingInvitation
+createVenueOnboardingInvitationRecord maybeInviter emailAddress =
+    newRecord @VenueOnboardingInvitation
+        |> set #invitedByUserId (fmap (unpackId . get #id) maybeInviter)
+        |> set #email emailAddress
         |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
         |> createRecord
 
