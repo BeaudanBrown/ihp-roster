@@ -64,11 +64,13 @@
                     ];
                     haskellPackages = p: with p; [
                         # Haskell dependencies go here
+                        aeson
                         p.ihp
                         p.ihp-mail
                         p.ihp-hspec
                         base64-bytestring
                         base
+                        http-conduit
                         ip
                         wai
                         text
@@ -571,6 +573,41 @@ EOF
                                 -odir build/Script \
                                 -hidir build/Script
                             exec build/Script/SeedDev "''${SCRIPT_ARGS[@]}"
+                        '';
+
+                        # Fetch and cache configured FWC MAPD award data into the local database.
+                        # Usage: sync-fwc-mapd
+                        sync-fwc-mapd.exec = ''
+                            set -euo pipefail
+
+                            DB_NAME="''${1:-app}"
+                            case "$DB_NAME" in
+                                app|app_test)
+                                    shift || true
+                                    ;;
+                                *)
+                                    echo "Unsupported database target: $DB_NAME" >&2
+                                    echo "Usage: sync-fwc-mapd [app|app_test]" >&2
+                                    exit 1
+                                    ;;
+                            esac
+
+                            export DATABASE_URL="postgresql:///$DB_NAME?host=''${PGHOST:-$PWD/build/db}"
+                            GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
+                              | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+                            mkdir -p build/Script
+                            cat > build/Script/SyncFwcMapdMain.hs <<'EOF'
+import qualified Application.Script.SyncFwcMapd as Script
+import qualified Config
+import IHP.ScriptSupport
+
+main = runScript Config.config Script.run
+EOF
+                            ghc $GHC_OPTS -iTest -main-is Main build/Script/SyncFwcMapdMain.hs \
+                                -o build/Script/SyncFwcMapd \
+                                -odir build/Script \
+                                -hidir build/Script
+                            exec build/Script/SyncFwcMapd "$@"
                         '';
 
                         # Launch a dedicated app server for isolated E2E runs.
