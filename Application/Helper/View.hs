@@ -120,6 +120,16 @@ timePickerModalId = "quarter-hour-time-picker-modal"
 formatDateDisplay :: Day -> Text
 formatDateDisplay day = Text.pack (formatTime defaultTimeLocale "%d/%m/%Y" day)
 
+formatDayMonthDisplay :: Day -> Text
+formatDayMonthDisplay day = Text.pack (formatTime defaultTimeLocale "%d/%m" day)
+
+timesheetModalTitle :: Day -> Text
+timesheetModalTitle day =
+    "Timesheet "
+        <> Text.pack (formatTime defaultTimeLocale "%A" day)
+        <> " "
+        <> formatDayMonthDisplay day
+
 appendQueryParams :: Text -> [(Text, Text)] -> Text
 appendQueryParams basePath params
     | null nonEmptyParams = basePath
@@ -208,7 +218,7 @@ timePickerStepButtonStates currentValue rangeStart rangeEnd stepMinutes disabled
 
 renderTimePickerDisplayLabel :: Text -> Text -> Text
 renderTimePickerDisplayLabel emptyLabel currentValue
-    | Text.null currentValue || currentValue == "00:00" = emptyLabel
+    | Text.null currentValue = emptyLabel
     | otherwise = storageTimeToDisplayLabel currentValue
 
 renderQuarterHourTimePickerModal :: Html
@@ -282,12 +292,8 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved 
     <input type="hidden" name="showAllStaff" value={if showAllStaff then ("true" :: Text) else "false"} />
     {renderStaffField entry staffMembers}
     {renderShiftTypeField entry shiftTypes}
-    <div class="mb-3">
-        <label class="form-label">Day</label>
-        <input type="hidden" name="workedOn" value={dateValueIso} />
-        <div class="form-control">{dateLabel}</div>
-        {renderFieldError entry "workedOn"}
-    </div>
+    <input type="hidden" name="workedOn" value={dateValueIso} />
+    {renderFieldError entry "workedOn"}
 
     <div class="row mb-3">
         <div class="col">
@@ -339,7 +345,6 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved 
         breakStartTimeValue = optionalTimeOfDayToStorageValue entry.breakStartTime
         breakEndTimeValue = optionalTimeOfDayToStorageValue entry.breakEndTime
         dateValueIso = tshow entry.workedOn :: Text
-        dateLabel = formatDateDisplay entry.workedOn
 
 renderStaffField :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> Html
 renderStaffField entry staffMembers =
@@ -429,7 +434,7 @@ renderTimePickerFieldWithInput config@TimePickerConfig { timePickerRangeStart, t
 renderTimePickerControl :: TimePickerConfig -> Html
 renderTimePickerControl TimePickerConfig { timePickerCurrentValue, timePickerRangeStart, timePickerRangeEnd, timePickerDisabled, timePickerShowStepButtons, timePickerEmptyLabel, timePickerControlClasses, timePickerTriggerClasses, timePickerAriaLabel } =
     let displayLabel = renderTimePickerDisplayLabel timePickerEmptyLabel timePickerCurrentValue
-        isMuted = Text.null timePickerCurrentValue || timePickerCurrentValue == "00:00"
+        isMuted = Text.null timePickerCurrentValue
         (stepDownDisabled, stepUpDisabled) = timePickerStepButtonStates timePickerCurrentValue timePickerRangeStart timePickerRangeEnd 15 timePickerDisabled
         controlClasses =
             ("btn-group", True)

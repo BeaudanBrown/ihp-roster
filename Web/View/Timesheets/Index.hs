@@ -109,7 +109,7 @@ renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff = [
 renderTimesheetWeekMoreMenu :: (?context :: ControllerContext) => Int -> Bool -> Bool -> Html
 renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff =
     let menuTriggerId = "timesheet-week-more-menu-trigger" :: Text
-        updateUrl = timesheetWeekUrl weekOffset showApproved showAllStaff
+        updateUrl = pathTo (ShowTimesheetWeekAction weekOffset)
      in [hsx|
     <div class="dropdown">
         <button class="btn btn-outline-secondary"
@@ -131,6 +131,7 @@ renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff =
                   hx-swap="outerHTML"
                   hx-push-url="true"
                   hx-sync={"#" <> timesheetWeekShellId <> ":replace"}>
+                <input type="hidden" name="weekOffset" value={tshow weekOffset} />
                 <input type="hidden" name="showApproved" id="timesheet-show-approved-value" value={boolText showApproved} />
                 <input type="hidden" name="showAllStaff" id="timesheet-show-all-staff-value" value={boolText showAllStaff} />
                 <div class="small text-uppercase fw-semibold text-body-secondary px-1 pb-2">Filters</div>
@@ -422,9 +423,9 @@ mkSegment cssClass scale startMinutes endMinutes =
 scaledSpan :: TimesheetTimelineScale -> TimeOfDay -> TimeOfDay -> (Int, Int)
 scaledSpan scale startTime endTime =
     let startMinutes = scaleMinuteValue scale startTime
-        endBase = timeOfDayToMinutes endTime
+        endBase = scaleMinuteValue scale endTime
         endMinutes =
-            if endBase <= timeOfDayToMinutes startTime
+            if endBase <= startMinutes
                 then endBase + 1440
                 else endBase
     in (startMinutes, endMinutes)

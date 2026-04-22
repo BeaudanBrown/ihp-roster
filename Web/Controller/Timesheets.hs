@@ -75,6 +75,8 @@ instance Controller TimesheetsController where
                             |> (\entry -> maybe entry (\staff -> set #staffId (unpackId (get #id staff)) entry) currentUserStaff)
                             |> set #shiftTypeId (unpackId (get #id defaultShiftType))
                             |> set #workedOn workedOn
+                            |> set #startTime (TimeOfDay 12 0 0)
+                            |> set #endTime (TimeOfDay 20 0 0)
                             |> set #hadBreak False
                             |> set #breakStartTime Nothing
                             |> set #breakEndTime Nothing

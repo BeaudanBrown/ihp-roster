@@ -15,7 +15,7 @@ data EditView = EditView
 instance View EditView where
     html EditView { .. } =
         renderTimesheetEntryModal
-            "Edit Timesheet Entry"
+            (timesheetModalTitle timesheetEntry.workedOn)
             (timesheetWeekUrl weekOffset showApproved showAllStaff)
             editTimesheetFormId
             (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
@@ -26,6 +26,6 @@ editTimesheetFormId = "timesheet-entry-edit-form"
 renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Html
 renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff =
     renderTimesheetEntryDialog
-        "Edit Timesheet Entry"
+        (timesheetModalTitle timesheetEntry.workedOn)
         editTimesheetFormId
         (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)

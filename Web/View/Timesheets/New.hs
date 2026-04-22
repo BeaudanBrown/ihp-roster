@@ -15,7 +15,7 @@ data NewView = NewView
 instance View NewView where
     html NewView { .. } =
         renderTimesheetEntryModal
-            "New Timesheet Entry"
+            (timesheetModalTitle timesheetEntry.workedOn)
             (timesheetWeekUrl weekOffset showApproved showAllStaff)
             newTimesheetFormId
             (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff (pathTo CreateTimesheetEntryAction) newTimesheetFormId PageOverlayForm)
@@ -26,6 +26,6 @@ newTimesheetFormId = "timesheet-entry-create-form"
 renderNewTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Html
 renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff =
     renderTimesheetEntryDialog
-        "New Timesheet Entry"
+        (timesheetModalTitle timesheetEntry.workedOn)
         newTimesheetFormId
         (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff (pathTo CreateTimesheetEntryAction) newTimesheetFormId HtmxOverlayForm)

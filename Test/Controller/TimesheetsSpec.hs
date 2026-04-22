@@ -88,6 +88,11 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldContain` "Timesheet Tuesday 07/01"
+                response `responseBodyShouldContain` "name=\"startTime\" value=\"12:00\""
+                response `responseBodyShouldContain` "name=\"endTime\" value=\"20:00\""
+                response `responseBodyShouldNotContain` ">Day<"
+                response `responseBodyShouldNotContain` "07/01/2025</div>"
 
         it "renders explicit delete forms instead of js-delete links on timesheet cards" $ withContext do
             withCleanDb do
@@ -156,6 +161,51 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "No entries for this day."
                 response `responseBodyShouldNotContain` "Ava Hours"
                 response `responseBodyShouldNotContain` "timesheet-entry-status-badge\">Approved"
+
+        it "renders a shape bar for valid after-midnight timesheet entries" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet After Midnight Venue"
+                manager <- createUserRecord "timesheet-after-midnight-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue (Just manager) "Mia" "Manager"
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 20)
+                _ <-
+                    entry
+                        |> set #startTime (TimeOfDay 0 15 0)
+                        |> set #endTime (TimeOfDay 4 0 0)
+                        |> set #hadBreak False
+                        |> set #breakStartTime Nothing
+                        |> set #breakEndTime Nothing
+                        |> set #breakMinutes 0
+                        |> updateRecord
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction ShowTimesheetWeekAction { weekOffset = 2 }
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "12:15 AM - 4:00 AM"
+                response `responseBodyShouldContain` "timesheet-shape-bar"
+                response `responseBodyShouldContain` "timesheet-shape-segment-shift"
+
+        it "renders the timesheet filter menu form against the canonical week path" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Menu Venue"
+                manager <- createUserRecord "timesheet-menu-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 2 }
+                        [ ("showApproved", "true")
+                        , ("showAllStaff", "false")
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "action=\"/ShowTimesheetWeek?weekOffset=2\""
+                response `responseBodyShouldContain` "hx-get=\"/ShowTimesheetWeek?weekOffset=2\""
+                response `responseBodyShouldContain` "name=\"weekOffset\" value=\"2\""
+                response `responseBodyShouldNotContain` "action=\"/ShowTimesheetWeek?weekOffset=2&amp;showApproved=true"
+                response `responseBodyShouldNotContain` "hx-get=\"/ShowTimesheetWeek?weekOffset=2&amp;showApproved=true"
 
         it "creating timesheets via HTMX updates the actor fragment and bumps the week scope version" $ withContext do
             withCleanDb do

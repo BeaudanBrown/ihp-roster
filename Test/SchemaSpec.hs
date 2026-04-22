@@ -344,9 +344,14 @@ tests = describe "Schema" do
             fmap fst overnightOptions `shouldNotContain` ["05:00"]
 
         it "renders stored HH:MM values as 12-hour AM/PM labels" do
+            storageTimeToDisplayLabel "00:00" `shouldBe` "12:00 AM"
             storageTimeToDisplayLabel "06:00" `shouldBe` "6:00 AM"
             storageTimeToDisplayLabel "13:15" `shouldBe` "1:15 PM"
             storageTimeToDisplayLabel "23:45" `shouldBe` "11:45 PM"
+
+        it "normalizes after-midnight shift durations consistently with overnight shifts" do
+            shiftDurationMinutes (TimeOfDay 0 15 0) (TimeOfDay 4 0 0) `shouldBe` 225
+            shiftDurationMinutes (TimeOfDay 23 0 0) (TimeOfDay 1 0 0) `shouldBe` 120
 
         it "returns original text when value is not a valid HH:MM input" do
             storageTimeToDisplayLabel "not-a-time" `shouldBe` "not-a-time"
