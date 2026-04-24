@@ -331,6 +331,29 @@ CREATE TABLE fwc_mapd_pay_rates (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
+CREATE TABLE app_jobs (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    status JOB_STATUS DEFAULT 'job_status_not_started' NOT NULL,
+    last_error TEXT DEFAULT NULL,
+    attempts_count INT DEFAULT 0 NOT NULL,
+    locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    locked_by UUID DEFAULT NULL,
+    run_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    job_kind TEXT NOT NULL,
+    payload JSONB DEFAULT '{}'::JSONB NOT NULL,
+    payload_schema_version INT DEFAULT 1 NOT NULL,
+    requested_by_user_id UUID DEFAULT NULL,
+    venue_id UUID DEFAULT NULL,
+    related_table TEXT DEFAULT NULL,
+    related_id UUID DEFAULT NULL,
+    dedupe_key TEXT DEFAULT NULL,
+    progress JSONB DEFAULT '{}'::JSONB NOT NULL,
+    result JSONB DEFAULT '{}'::JSONB NOT NULL,
+    FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE SET NULL
+);
 CREATE TABLE roster_weeks (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -539,6 +562,10 @@ CREATE INDEX idx_fwc_mapd_awards_fixed_id ON fwc_mapd_awards (award_fixed_id, aw
 CREATE INDEX idx_fwc_mapd_awards_code ON fwc_mapd_awards (code);
 CREATE INDEX idx_fwc_mapd_classifications_award_current ON fwc_mapd_classifications (award_fixed_id, operative_to, classification_fixed_id);
 CREATE INDEX idx_fwc_mapd_pay_rates_award_current ON fwc_mapd_pay_rates (award_fixed_id, operative_to, classification_fixed_id);
+CREATE INDEX idx_app_jobs_pending ON app_jobs (status, run_at, created_at);
+CREATE INDEX idx_app_jobs_kind_created_at ON app_jobs (job_kind, created_at DESC);
+CREATE INDEX idx_app_jobs_venue_created_at ON app_jobs (venue_id, created_at DESC);
+CREATE UNIQUE INDEX idx_app_jobs_active_dedupe ON app_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL AND status IN ('job_status_not_started', 'job_status_running', 'job_status_retry');
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id);
 CREATE INDEX idx_timesheet_entries_venue_worked_on ON timesheet_entries (venue_id, worked_on);
 CREATE INDEX idx_timesheet_entries_snapshot ON timesheet_entries (pay_config_snapshot_id);
