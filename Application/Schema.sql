@@ -42,6 +42,19 @@ CREATE TABLE email_verification_tokens (
     UNIQUE(token),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
+CREATE TABLE passkeys (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    user_id UUID NOT NULL,
+    credential_id BYTEA NOT NULL,
+    public_key BYTEA NOT NULL,
+    sign_count BIGINT DEFAULT 0 NOT NULL,
+    name TEXT DEFAULT 'Passkey' NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    last_used_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(credential_id),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
 CREATE TABLE venue_memberships (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -506,6 +519,7 @@ CREATE TABLE venue_membership_role_events (
 CREATE INDEX idx_venue_memberships_venue_user ON venue_memberships (venue_id, user_id);
 CREATE INDEX idx_venue_memberships_user_active ON venue_memberships (user_id, is_active);
 CREATE UNIQUE INDEX idx_users_email_lower ON users (LOWER(email));
+CREATE INDEX idx_passkeys_user_id ON passkeys (user_id);
 CREATE INDEX idx_venue_invitations_venue_status ON venue_invitations (venue_id, status);
 CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, status);
 CREATE INDEX idx_venue_onboarding_invitations_email_status ON venue_onboarding_invitations (email, status);

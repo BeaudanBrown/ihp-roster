@@ -46,6 +46,7 @@ data EditView = EditView
     , preferenceWeekdays          :: [PreferenceWeekday]
     , preferenceSections          :: [StaffPreferenceGroupSection]
     , selectedShiftPreferenceKeys :: [Text]
+    , passkeys                    :: [Passkey]
     , leaveRequests               :: [LeaveRequest]
     , leaveRequestForm            :: LeaveRequest
     , openSection                 :: Text
@@ -68,19 +69,25 @@ instance View EditView where
                     , appPanelCustomHeader = mempty
                     , appPanelClass = ""
                     , appPanelBodyClass = ""
-                    , appPanelBody = renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys leaveRequests leaveRequestForm openSection
+                    , appPanelBody = renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys passkeys leaveRequests leaveRequestForm openSection
                     }
             })
 
-renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [Text] -> [LeaveRequest] -> LeaveRequest -> Text -> Html
-renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys leaveRequests leaveRequestForm openSection = [hsx|
+renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [Text] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Text -> Html
+renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys passkeys leaveRequests leaveRequestForm openSection = [hsx|
     <div id={profileContentFragmentId}>
         <div class="accordion" id={profileSectionsAccordionId}>
             {renderAccordionSection
                 "profile-details"
                 "Profile Details"
-                (openSection /= "leave")
+                (openSection == "profile")
                 (renderProfileForm staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys)
+            }
+            {renderAccordionSection
+                "profile-security"
+                "Sign-In Methods"
+                (openSection == "security")
+                (renderPasskeyManagement passkeys)
             }
             {renderAccordionSection
                 "profile-leave"
@@ -140,6 +147,68 @@ renderProfileForm staff currentUserEmail preferenceWeekdays preferenceSections s
         </div>
     </form>
 |]
+
+renderPasskeyManagement :: [Passkey] -> Html
+renderPasskeyManagement passkeys = [hsx|
+    <div class="app-form-width">
+        <div class="js-passkey-register"
+             data-begin-url={pathTo BeginPasskeyRegistrationAction}
+             data-finish-url={pathTo FinishPasskeyRegistrationAction}
+             data-status-id="profile-passkey-status"
+             data-success-redirect={appendQueryParams (pathTo EditProfileAction) [("section", "security")]}>
+            <button type="button" class="btn btn-outline-primary js-passkey-register-button">Add passkey</button>
+        </div>
+        <div id="profile-passkey-status" class="alert d-none mt-3"></div>
+        <div class="mt-4">
+            {renderPasskeyTable passkeys}
+        </div>
+    </div>
+|]
+
+renderPasskeyTable :: [Passkey] -> Html
+renderPasskeyTable [] = [hsx|
+    <p class="app-muted mb-0">No passkeys registered yet.</p>
+|]
+renderPasskeyTable passkeys = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Created</th>
+                    <th>Last used</th>
+                    <th class="text-end">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {forEach passkeys renderPasskeyRow}
+            </tbody>
+        </table>
+    </div>
+|]
+
+renderPasskeyRow :: Passkey -> Html
+renderPasskeyRow passkey = [hsx|
+    <tr>
+        <td>
+            <form method="POST" action={pathTo (UpdatePasskeyNameAction passkey.id)} class="d-flex gap-2">
+                <input type="text" class="form-control form-control-sm" name="name" value={passkey.name} aria-label="Passkey name"/>
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Rename</button>
+            </form>
+        </td>
+        <td class="app-muted small">{formatDateTime passkey.createdAt}</td>
+        <td class="app-muted small">{maybe "Never" formatDateTime passkey.lastUsedAt}</td>
+        <td class="text-end">
+            <form method="POST" action={pathTo (DeletePasskeyAction passkey.id)} class="d-inline">
+                <input type="hidden" name="_method" value="DELETE"/>
+                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+        </td>
+    </tr>
+|]
+
+formatDateTime :: UTCTime -> Text
+formatDateTime = Text.pack . formatTime defaultTimeLocale "%d/%m/%Y %H:%M"
 
 renderProfileLeaveRequestsContentFragment :: LeaveRequest -> [LeaveRequest] -> Html
 renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests = [hsx|

@@ -48,6 +48,7 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe AuditEvent)
         let _ = (Nothing :: Maybe ExportJob)
         let _ = (Nothing :: Maybe VenueMembershipRoleEvent)
+        let _ = (Nothing :: Maybe Passkey)
         True `shouldBe` True
 
     it "generates venue and venue membership models" do
@@ -205,6 +206,15 @@ tests = describe "Schema" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy`
             Text.isInfixOf "CREATE UNIQUE INDEX idx_users_email_lower ON users (LOWER(email));"
+
+    it "stores passkeys as user-owned credential records" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE passkeys"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "credential_id BYTEA NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "UNIQUE(credential_id)"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "public_key BYTEA NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_passkeys_user_id ON passkeys (user_id);"
 
     describe "Leave request helpers" do
         it "validates leave date ranges as unavailable-from to available-again" do

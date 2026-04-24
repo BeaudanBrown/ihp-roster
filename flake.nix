@@ -62,21 +62,33 @@
                     packages = with pkgs; [
                         # Native dependencies, e.g. imagemagick
                     ];
-                    haskellPackages = p: with p; [
-                        # Haskell dependencies go here
-                        aeson
-                        p.ihp
-                        p.ihp-mail
-                        p.ihp-hspec
-                        base64-bytestring
-                        base
-                        http-conduit
-                        ip
-                        wai
-                        text
-                        zip-archive
-                        hspec
-                    ];
+                    haskellPackages = p:
+                        let
+                            webauthn = pkgs.haskell.lib.doJailbreak (p.callHackageDirect {
+                                pkg = "webauthn";
+                                ver = "0.11.0.0";
+                                sha256 = "sha256-iJygaLPu0NyOHxUKwpd7vMkUnIXNRtAnnCumqKqces8=";
+                            } {});
+                        in with p; [
+                            # Haskell dependencies go here
+                            aeson
+                            p.ihp
+                            p.ihp-mail
+                            p.ihp-hspec
+                            base64-bytestring
+                            base
+                            crypton
+                            hourglass
+                            http-conduit
+                            ip
+                            postgresql-simple
+                            validation
+                            wai
+                            webauthn
+                            text
+                            zip-archive
+                            hspec
+                        ];
                     devHaskellPackages = p: with p; [
                         hlint
                         stylish-haskell

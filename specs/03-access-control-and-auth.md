@@ -69,6 +69,9 @@ The product must not rely on global in-app business roles without venue boundari
 - Login identity is keyed by a case-insensitive unique email address.
 - Alternate sign-in methods such as passkeys or future OAuth must attach to existing invitation-created accounts, not create public self-registration bypasses.
 - Successful, failed and blocked login attempts for known venue-linked users should create audit events with the authentication method.
+- Passkeys are user-owned credentials stored in `passkeys` and managed from the profile security section.
+- Passkey registration requires an authenticated existing account. Passkey authentication can sign the matching user in directly and records `login_succeeded` with `authMethod = "passkey"`.
+- Passkeys require browser WebAuthn support and a secure origin in deployed environments; local development may use browser localhost exceptions.
 
 ## Mandatory profile gate
 

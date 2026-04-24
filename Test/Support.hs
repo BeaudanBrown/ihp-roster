@@ -4,8 +4,8 @@ import Application.Helper.Controller (PlatformRole (..), currentVenueSessionKey,
                                       platformRoleToEnum, unsafeEnumFromText)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
-import Control.Monad (void)
 import Config
+import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as ByteString
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
@@ -15,6 +15,7 @@ import qualified Data.Serialize as Serialize
 import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.Vault.Lazy as Vault
+import Database.PostgreSQL.Simple.Types (Binary (Binary))
 import Generated.Types
 import IHP.Controller.Context (ControllerContext, newControllerContext)
 import IHP.Controller.Session (sessionVaultKey)
@@ -53,7 +54,7 @@ withControllerTestContext action =
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExecDiscardResult
-        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, passkeys, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
@@ -80,6 +81,15 @@ createUserRecordWithPlatformRole emailAddress globalRole platformRole isProfileC
         |> set #platformRole (platformRoleToEnum <$> platformRole)
         |> set #isProfileCompleted isProfileCompleted
         |> set #emailVerifiedAt (Just def)
+        |> createRecord
+
+createTestPasskeyRecord :: (?modelContext :: ModelContext) => User -> Text -> IO Passkey
+createTestPasskeyRecord user passkeyName =
+    newRecord @Passkey
+        |> set #userId (unpackId user.id)
+        |> set #credentialId (Binary "test-credential-id")
+        |> set #publicKey (Binary "test-public-key")
+        |> set #name passkeyName
         |> createRecord
 
 createVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
@@ -368,7 +378,7 @@ ensureStaffDefaultRosterGroup venue staff = do
         |> fetchOneOrNothing
     case existingAssignment of
         Just assignment -> pure assignment
-        Nothing -> createStaffRosterGroupRecord staff defaultRosterGroup
+        Nothing         -> createStaffRosterGroupRecord staff defaultRosterGroup
 
 withUserAndCurrentVenue ::
     forall result.

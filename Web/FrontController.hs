@@ -13,9 +13,11 @@ import Web.View.Layout (defaultLayout)
 
 -- Controller Imports
 import Web.Controller.Admin
+import Web.Controller.Auth
 import Web.Controller.Exports
 import Web.Controller.LeaveRequests
 import Web.Controller.LiveUpdates
+import Web.Controller.Passkeys
 import Web.Controller.Profiles
 import Web.Controller.RosterWeeks
 import Web.Controller.Sessions
@@ -29,6 +31,8 @@ instance FrontController WebApplication where
     controllers =
         [ startPage WelcomeAction
         , parseRoute @SessionsController
+        , parseRoute @AuthController
+        , parseRoute @PasskeysController
         , parseRoute @UsersController
         , parseRoute @ProfilesController
         , parseRoute @TimesheetsController

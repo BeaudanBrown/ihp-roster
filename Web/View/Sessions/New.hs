@@ -13,6 +13,12 @@ instance View NewView where
                 <div class="app-auth-body">
                     <h4 class="card-title mb-4 text-center">Sign In</h4>
                     {renderPendingVerification pendingVerificationEmail}
+                    {renderPasskeyLogin}
+                    <div class="d-flex align-items-center my-4">
+                        <hr class="flex-grow-1"/>
+                        <span class="px-3 app-muted small">or</span>
+                        <hr class="flex-grow-1"/>
+                    </div>
                     {renderForm user}
                     <hr/>
                     <p class="text-center mb-0 app-muted small">
@@ -55,6 +61,20 @@ renderForm user = [hsx|
             <button type="submit" class="btn btn-primary">Sign In</button>
         </div>
     </form>
+|]
+
+renderPasskeyLogin :: Html
+renderPasskeyLogin = [hsx|
+    <div class="js-passkey-login"
+         data-begin-url={pathTo BeginPasskeyAuthenticationAction}
+         data-finish-url={pathTo FinishPasskeyAuthenticationAction}
+         data-status-id="passkey-status"
+         data-success-redirect={RosterWeeksAction}>
+        <div class="d-grid">
+            <button type="button" class="btn btn-outline-primary js-passkey-login-button">Sign in with a passkey</button>
+        </div>
+    </div>
+    <div id="passkey-status" class="alert d-none mt-3"></div>
 |]
 
 renderPendingVerification :: Maybe Text -> Html

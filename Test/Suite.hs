@@ -6,8 +6,8 @@ module Test.Suite
     )
 where
 
-import IHP.Prelude
 import qualified Data.Text as Text
+import IHP.Prelude
 import System.Environment (lookupEnv)
 import Test.Hspec (Spec)
 import Text.Read (readMaybe)
@@ -16,6 +16,7 @@ import qualified Test.ConflictSpec
 import qualified Test.Controller.AdminSpec
 import qualified Test.Controller.ExportsSpec
 import qualified Test.Controller.LeaveRequestsSpec
+import qualified Test.Controller.PasskeysSpec
 import qualified Test.Controller.PayrollExportParitySpec
 import qualified Test.Controller.ProfilesSpec
 import qualified Test.Controller.RosterWeeksSpec
@@ -36,13 +37,13 @@ import qualified Test.VenueOnboardingInvitationSpec
 
 data TestSuite = TestSuite
     { suiteLabel :: String
-    , suiteSpec :: Spec
+    , suiteSpec  :: Spec
     }
 
 data ShardSelection = ShardSelection
     { shardIndex :: Int
     , shardTotal :: Int
-    , suites :: [TestSuite]
+    , suites     :: [TestSuite]
     }
 
 shardSelectionFromEnv :: IO ShardSelection
@@ -114,6 +115,7 @@ allSuites =
     [ TestSuite "StaticController" Test.Controller.StaticSpec.tests
     , TestSuite "AdminController" Test.Controller.AdminSpec.tests
     , TestSuite "ProfilesController" Test.Controller.ProfilesSpec.tests
+    , TestSuite "PasskeysController" Test.Controller.PasskeysSpec.tests
     , TestSuite "Schema" Test.SchemaSpec.tests
     , TestSuite "SessionsController" Test.Controller.SessionsSpec.tests
     , TestSuite "RosterWeeksController" Test.Controller.RosterWeeksSpec.tests

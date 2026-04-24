@@ -29,6 +29,7 @@ instance Controller ProfilesController where
         let currentUserEmail = currentUser.email
         let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
         (preferenceWeekdays, preferenceSections, selectedShiftPreferenceKeys) <- profilePreferenceViewData maybeExistingStaff
+        passkeys <- fetchCurrentUserPasskeys
         leaveRequests <- fetchCurrentUserLeaveRequests
         leaveRequestForm <- buildDefaultLeaveRequest
         render EditView { .. }
@@ -39,6 +40,7 @@ instance Controller ProfilesController where
         staff <- pure (fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff)
         let currentUserEmail = currentUser.email
         let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
+        passkeys <- fetchCurrentUserPasskeys
         (preferenceWeekdays, preferenceSections, selectedShiftPreferenceKeys) <-
             profilePreferenceViewDataWithSubmitted maybeExistingStaff submittedShiftPreferenceKeys
         leaveRequests <- fetchCurrentUserLeaveRequests
@@ -54,7 +56,7 @@ instance Controller ProfilesController where
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys leaveRequests leaveRequestForm openSection)
+                        then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys passkeys leaveRequests leaveRequestForm openSection)
                         else render EditView { .. }
                 Right staff -> do
                     staff <- upsertCurrentUserStaff staff
@@ -69,7 +71,7 @@ instance Controller ProfilesController where
                             leaveRequests <- fetchCurrentUserLeaveRequests
                             leaveRequestForm <- buildDefaultLeaveRequest
                             if isHtmxRequest
-                                then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys leaveRequests leaveRequestForm openSection)
+                                then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys passkeys leaveRequests leaveRequestForm openSection)
                                 else render EditView { .. }
                         Right submittedSelections -> do
                             rosterGroupIds <- map (.rosterGroup.id) <$> fetchStaffPreferenceGroupSections staff
@@ -89,7 +91,7 @@ instance Controller ProfilesController where
                                     then
                                         respondHtml $
                                             mconcat
-                                                [ renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys leaveRequests leaveRequestForm openSection
+                                                [ renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys passkeys leaveRequests leaveRequestForm openSection
                                                 , renderToastOverlayHostOob ToastBottomCenter
                                                     [ ToastOverlayConfig
                                                         { toastOverlayTitle = Just "Success"
@@ -159,7 +161,15 @@ profilePreferenceViewDataWithSubmitted maybeStaff submittedShiftPreferenceKeys =
 normalizeProfileOpenSection :: Text -> Text
 normalizeProfileOpenSection section
     | section == "leave" = "leave"
+    | section == "security" = "security"
     | otherwise = "profile"
+
+fetchCurrentUserPasskeys :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO [Passkey]
+fetchCurrentUserPasskeys =
+    query @Passkey
+        |> filterWhere (#userId, unpackId currentUser.id)
+        |> orderByAsc #createdAt
+        |> fetch
 
 fetchProfileRosterInvalidationTargets :: (?modelContext :: ModelContext) => Id Venue -> Staff -> IO [(Id RosterGroup, Int, [(UUID.UUID, Int)])]
 fetchProfileRosterInvalidationTargets venueId staff = do
