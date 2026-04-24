@@ -1,5 +1,6 @@
 module Web.FrontController where
 
+import Application.Helper.Profiling (initRequestProfiling)
 import IHP.LoginSupport.Middleware
 import IHP.RouterPrelude
 import Web.Controller.Prelude
@@ -25,4 +26,5 @@ instance FrontController WebApplication where
 instance InitControllerContext WebApplication where
     initContext = do
         setLayout defaultLayout
+        initRequestProfiling
         initAuthentication @User
