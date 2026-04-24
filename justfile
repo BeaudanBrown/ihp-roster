@@ -34,7 +34,7 @@ typecheck *args:
     typecheck {{args}}
 
 test *args:
-    test {{args}}
+    hspec-test {{args}}
 
 e2e *args:
     e2e {{args}}

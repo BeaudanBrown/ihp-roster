@@ -5,7 +5,7 @@
 Use project scripts via the repo environment wrapper:
 
 - `bash ./bin/in-env typecheck` after each change.
-- `bash ./bin/in-env test` for test suite.
+- `bash ./bin/in-env hspec-test` for test suite.
 - `bash ./bin/in-env lint` and `bash ./bin/in-env format` before finalizing.
 
 ## Required test coverage (minimum)

@@ -29,7 +29,7 @@ Inspect `IMPLEMENTATION_PLAN.md`, identify the **next most important uncompleted
 4. Add or update tests that fully cover the behavior introduced.
 5. Run the required verification commands defined by project guidance.
    - At minimum, run `bash ./bin/in-env typecheck`.
-   - Run `bash ./bin/in-env test` when controller or backend behavior changes.
+   - Run `bash ./bin/in-env hspec-test` when controller or backend behavior changes.
    - Run relevant end-to-end checks when UI or workflow behavior changes.
 6. Update `IMPLEMENTATION_PLAN.md`:
    - mark the task as complete,

@@ -28,7 +28,7 @@ This corresponds to:
 2. Start by identifying and fixing any currently failing verification on the branch, including tests, type errors, lint findings, or other repo-standard checks that are expected for the changed scope.
 3. Run the required verification commands from repo guidance while doing that stabilization work.
    - At minimum, run `bash ./bin/in-env typecheck`.
-   - Run `bash ./bin/in-env test` for backend, controller, or schema changes.
+   - Run `bash ./bin/in-env hspec-test` for backend, controller, or schema changes.
    - Run `bash ./bin/in-env lint` when Haskell source changes are involved.
    - Run any relevant admin or end-to-end coverage for the changed workflow if the slice touches UI flows.
 4. Commit and push the branch once the verification-fix cleanup is in a coherent passing state.

@@ -42,9 +42,9 @@
 - `bash ./bin/in-env regen-types`
 - `bash ./bin/in-env make db`
 - `bash ./bin/in-env typecheck`
-- `bash ./bin/in-env test` → `193 examples, 0 failures`
+- `bash ./bin/in-env hspec-test` → `193 examples, 0 failures`
 - `bash ./bin/in-env typecheck`
-- `bash ./bin/in-env test --match support` → `4 examples, 0 failures`
+- `bash ./bin/in-env hspec-test --match support` → `4 examples, 0 failures`
 
 ## Next Ready Work
 

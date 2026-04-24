@@ -34,7 +34,7 @@ This workstream is part of:
 1. Start with a stabilization pass on the work branch.
 2. Run baseline verification before changing behavior.
    - At minimum: `bash ./bin/in-env typecheck`
-   - Run `bash ./bin/in-env test` for backend/controller changes
+   - Run `bash ./bin/in-env hspec-test` for backend/controller changes
    - Run relevant roster e2e coverage for UI/live-update changes
 3. Implement the workstream in the phase order defined in `context.md`.
 4. Reuse server-rendered fragment helpers across:

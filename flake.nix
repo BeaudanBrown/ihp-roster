@@ -361,8 +361,8 @@ SQL
                         '';
 
                         # Run the hspec test suite.
-                        # Usage: test [hspec-args...]
-                        test.exec = ''
+                        # Usage: hspec-test [hspec-args...]
+                        hspec-test.exec = ''
                             set -euo pipefail
                             BASE_TEST_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_test}"
                             export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"

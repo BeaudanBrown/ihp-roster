@@ -8,13 +8,13 @@ Read `/home/beau/documents/projects/ihp/Guide/testing.markdown` for full IHP tes
 Tests are a devenv shell script — use `bash ./bin/in-env` outside an interactive shell:
 
 ```bash
-bash ./bin/in-env test                        # compile and run the full suite, auto-sharded across local cores
-bash ./bin/in-env test --match "PostsController"  # run tests matching a pattern
-TEST_SHARDS=1 bash ./bin/in-env test          # force serial execution
-TEST_SHARDS=4 bash ./bin/in-env test          # override shard count explicitly
+bash ./bin/in-env hspec-test                        # compile and run the full suite, auto-sharded across local cores
+bash ./bin/in-env hspec-test --match "PostsController"  # run tests matching a pattern
+TEST_SHARDS=1 bash ./bin/in-env hspec-test          # force serial execution
+TEST_SHARDS=4 bash ./bin/in-env hspec-test          # override shard count explicitly
 ```
 
-`bash ./bin/in-env test` now auto-shards the full Hspec suite across local cores when no Hspec filter args are passed. Each shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`.
+`bash ./bin/in-env hspec-test` now auto-shards the full Hspec suite across local cores when no Hspec filter args are passed. Each shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`.
 
 For debugging:
 

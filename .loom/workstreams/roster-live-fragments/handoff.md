@@ -14,15 +14,15 @@
 
 - `bash ./bin/in-env dev-start` / `bash ./bin/in-env dev-wait 120` succeeds in this environment and reports `running=true managed=true db_ok=true http_ok=true`.
 - `bash ./bin/in-env typecheck` passes after the actor/viewer roster update fixes.
-- `bash ./bin/in-env test --match "RosterWeeksController"` passes with DB-backed controller coverage.
+- `bash ./bin/in-env hspec-test --match "RosterWeeksController"` passes with DB-backed controller coverage.
 - `bash ./bin/in-env lint` passes after the roster/view/live-update changes.
 - `bash ./bin/in-env node ./node_modules/.bin/playwright test e2e/roster-assignment-sidebar.spec.ts e2e/roster-live-fragments.spec.ts e2e/roster-duplicate-conflicts.spec.ts` passes.
 - Post-bootstrap-removal verification on `2026-03-15`:
   - `bash ./bin/in-env typecheck`: passed
   - `bash ./bin/in-env lint`: passed
-  - `bash ./bin/in-env test --match "SessionsController"`: passed
-  - `bash ./bin/in-env test --match "AdminController"`: passed
-  - `bash ./bin/in-env test --match "RosterWeeksController"`: passed
+  - `bash ./bin/in-env hspec-test --match "SessionsController"`: passed
+  - `bash ./bin/in-env hspec-test --match "AdminController"`: passed
+  - `bash ./bin/in-env hspec-test --match "RosterWeeksController"`: passed
   - `bash ./bin/in-env e2e e2e/roster-live-fragments.spec.ts e2e/roster-assignment-sidebar.spec.ts e2e/roster-duplicate-conflicts.spec.ts`: passed
 
 ## Current architecture decision

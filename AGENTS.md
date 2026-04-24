@@ -100,7 +100,7 @@ Use the repo wrapper `bash ./bin/in-env` as the default entrypoint for automatio
 # Correct — works from any shell when direnv or nix is available
 bash ./bin/in-env regen-types
 bash ./bin/in-env typecheck
-bash ./bin/in-env test
+bash ./bin/in-env hspec-test
 bash ./bin/in-env lint
 bash ./bin/in-env format
 bash ./bin/in-env e2e
@@ -116,7 +116,7 @@ Available scripts:
 
 - **`typecheck`** — Fast (~2-3s) typecheck without full build. **Run after every code change** to catch errors immediately. Exit 0 = success.
 - **`regen-types`** — Regenerate `build/Generated/Types.hs` after editing `Application/Schema.sql`. Always run this before `typecheck` when schema has changed.
-- **`test`** — Compile and run the Hspec suite. The full run now auto-shards across local cores when called without Hspec filter args; each shard gets its own ephemeral database and log directory under `.devenv/test/`. Use `TEST_SHARDS=1` to force serial execution. **Add tests for every new controller** (see `Test/AGENTS.md`).
+- **`hspec-test`** — Compile and run the Hspec suite. The full run now auto-shards across local cores when called without Hspec filter args; each shard gets its own ephemeral database and log directory under `.devenv/test/`. Use `TEST_SHARDS=1` to force serial execution. **Add tests for every new controller** (see `Test/AGENTS.md`).
 - **`lint`** — Run hlint on app sources. Provides suggestions for idiomatic Haskell.
 - **`format`** — Format app sources with stylish-haskell (config in `.stylish-haskell.yaml`).
 - **`ghci-app`** — Launch GHCi with the full app loaded for testing expressions interactively.
@@ -171,9 +171,9 @@ For simple CRUD, prefer running `new-controller NAME` to scaffold all files, the
 - **After schema changes**: `bash ./bin/in-env regen-types` first, then `bash ./bin/in-env typecheck`, then `make db` (requires `devenv up`)
 - **After schema changes involving enums or constraints**: after `make db`, restart and wait for the dev server (`bash ./bin/in-env dev-stop`, `bash ./bin/in-env dev-start`, `bash ./bin/in-env dev-wait`) to catch startup-only schema-parser failures; this is why the earlier QC pass missed the `pg_dump`-roundtrip issue
 - The IHP schema-designer toast about `Unmigrated Changes` is not an authoritative sync check in this repo; it is driven by the IDE migration workflow state and can stay stale even after `make db`. Treat `make db` plus explicit DB/startup verification as the real source of truth.
-- **After adding/changing controllers**: `bash ./bin/in-env test` to run the test suite
+- **After adding/changing controllers**: `bash ./bin/in-env hspec-test` to run the test suite
 - **After UI/integration changes**: `bash ./bin/in-env e2e` to run end-to-end tests against the isolated test DB/server
-- `bash ./bin/in-env test` and `bash ./bin/in-env e2e` now both shard across isolated ephemeral databases by default for full-suite runs. Hspec shard selection is defined in `Test/Suite.hs`; Playwright shard reports are merged back into `.devenv/e2e/latest-report`.
+- `bash ./bin/in-env hspec-test` and `bash ./bin/in-env e2e` now both shard across isolated ephemeral databases by default for full-suite runs. Hspec shard selection is defined in `Test/Suite.hs`; Playwright shard reports are merged back into `.devenv/e2e/latest-report`.
 - **Before committing**: `bash ./bin/in-env lint` then `bash ./bin/in-env format`
 - **To confirm DB is in sync**: `psql -h "$PWD/build/db" app -c "\dt"` — all tables in `Schema.sql` should be present
 

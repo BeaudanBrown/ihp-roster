@@ -44,7 +44,7 @@ When the target is a branch or workstream, prioritize the changed surface relati
 ## Verification expectations
 
 - Always run `bash ./bin/in-env typecheck` if Haskell code changes.
-- Run `bash ./bin/in-env test` when backend, controller, helper, or schema behavior changes.
+- Run `bash ./bin/in-env hspec-test` when backend, controller, helper, or schema behavior changes.
 - Run `bash ./bin/in-env e2e` when UI workflows or browser-visible behavior changes, or explain clearly why e2e was not the right fit.
 
 ## Constraints

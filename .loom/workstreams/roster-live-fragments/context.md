@@ -286,7 +286,7 @@ If roster needs page-specific exceptions, document them so they do not silently 
 ## Verification expectations
 
 - `bash ./bin/in-env typecheck`
-- `bash ./bin/in-env test`
+- `bash ./bin/in-env hspec-test`
 - relevant roster e2e coverage, including multi-user checks
 - `bash ./bin/in-env lint` for Haskell changes
 
