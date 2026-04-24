@@ -28,6 +28,9 @@ test-results/
 !test-results/.gitkeep
 playwright-report/
 .playwright-cli/
+output/profile/
+output/profile-load/
+output/profile-load-suite/
 
 # devenv.sh
 .devenv*
