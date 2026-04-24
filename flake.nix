@@ -244,6 +244,7 @@
                             STATE_DIR="$(dev-agent-state-dir)"
                             LOG_FILE="$STATE_DIR/devenv.log"
                             DB_SOCKET="''${PGHOST:-$PWD/build/db}"
+                            APP_HEALTH_URL="''${APP_BASE_URL:-http://127.0.0.1:8000}"
                             APP_PID=""
                             APP_WAS_ALREADY_RUNNING=0
                             MAILHOG_STARTED=0
@@ -253,7 +254,7 @@
                             export XDG_CACHE_HOME="''${XDG_CACHE_HOME:-/tmp/nix-cache}"
                             mkdir -p "$XDG_CACHE_HOME"
 
-                            if curl -fsS "''${MAILHOG_BASE_URL:-http://127.0.0.1:8025}/api/v2/messages" >/dev/null 2>&1; then
+                            if curl --connect-timeout 1 --max-time 2 -fsS "''${MAILHOG_BASE_URL:-http://127.0.0.1:8025}/api/v2/messages" >/dev/null 2>&1; then
                                 MAILHOG_STARTED=0
                             else
                                 "$MAILHOG_BIN" \
@@ -278,10 +279,16 @@
                                 dev-ensure-postgres
                             fi
 
-                            if curl -fsS http://127.0.0.1:8000 >/dev/null 2>&1; then
+                            if curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
                                 APP_WAS_ALREADY_RUNNING=1
                                 echo "App server already running; MailHog available at http://127.0.0.1:8025"
                             else
+                                if command -v lsof >/dev/null 2>&1 && lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then
+                                    echo "Port 8000 is occupied but not responding to $APP_HEALTH_URL." >&2
+                                    echo "Stop the stale process before starting dev again:" >&2
+                                    lsof -nP -iTCP:8000 -sTCP:LISTEN >&2 || true
+                                    exit 1
+                                fi
                                 echo "[dev-foreground] launching start (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
                                 echo "Starting app server, postgres, and MailHog..."
                                 start &
@@ -1067,6 +1074,7 @@ EOF
                             MAILHOG_PID_FILE="$STATE_DIR/mailhog.pid"
                             LOG_FILE="$STATE_DIR/devenv.log"
                             DB_SOCKET="''${PGHOST:-$PWD/build/db}"
+                            APP_HEALTH_URL="''${APP_BASE_URL:-http://127.0.0.1:8000}"
 
                             mkdir -p "$STATE_DIR"
 
@@ -1091,6 +1099,15 @@ EOF
                             mkdir -p "$XDG_CACHE_HOME"
                             dev-ensure-postgres
                             dev-ensure-mailhog
+
+                            if command -v lsof >/dev/null 2>&1 \
+                                && lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1 \
+                                && ! curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
+                                echo "Port 8000 is occupied but not responding to $APP_HEALTH_URL." >&2
+                                echo "Stop the stale process before starting dev again:" >&2
+                                lsof -nP -iTCP:8000 -sTCP:LISTEN >&2 || true
+                                exit 1
+                            fi
 
                             echo "[dev-start] launching start (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
                             setsid nohup start </dev/null >>"$LOG_FILE" 2>&1 &
@@ -1185,6 +1202,7 @@ EOF
                             PID_FILE="$STATE_DIR/devenv.pid"
                             SOCKET_FILE="$STATE_DIR/pc.sock"
                             DB_SOCKET="''${PGHOST:-$PWD/build/db}"
+                            APP_HEALTH_URL="''${APP_BASE_URL:-http://127.0.0.1:8000}"
                             PID=""
 
                             if [ -f "$PID_FILE" ]; then
@@ -1218,7 +1236,7 @@ EOF
                             HTTP_OK=false
                             HTTP_BLOCKED=false
                             HTTP_ERR=""
-                            if HTTP_ERR=$(curl -fsS "http://127.0.0.1:8000" 2>&1); then
+                            if HTTP_ERR=$(curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" 2>&1); then
                                 HTTP_OK=true
                             elif echo "$HTTP_ERR" | ${pkgs.ripgrep}/bin/rg -qi "operation not permitted|permission denied"; then
                                 HTTP_BLOCKED=true
@@ -1227,7 +1245,7 @@ EOF
                             MAILHOG_OK=false
                             MAILHOG_BLOCKED=false
                             MAILHOG_ERR=""
-                            if MAILHOG_ERR=$(curl -fsS "''${MAILHOG_BASE_URL:-http://127.0.0.1:8025}/api/v2/messages" 2>&1); then
+                            if MAILHOG_ERR=$(curl --connect-timeout 1 --max-time 2 -fsS "''${MAILHOG_BASE_URL:-http://127.0.0.1:8025}/api/v2/messages" 2>&1); then
                                 MAILHOG_OK=true
                             elif echo "$MAILHOG_ERR" | ${pkgs.ripgrep}/bin/rg -qi "operation not permitted|permission denied"; then
                                 MAILHOG_BLOCKED=true
