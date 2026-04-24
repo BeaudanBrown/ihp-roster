@@ -904,6 +904,73 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "selected=\"selected\">Selected</option>"
                 response `responseBodyShouldNotContain` ">Unavailable</option>"
 
+        it "does not count shift preferences from another roster group as availability" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-cross-group-preference@example.com" "staff" True
+                staffUser <- createUserRecord "roster-cross-group-preference@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue staffUser "worker"
+                defaultSlotName <- fetchSlotNameRecord venue "Early"
+                frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
+                frontSlotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
+                staffMember <- createStaffRecord venue (Just staffUser) "CrossGroup" "Preference"
+                _ <- createStaffRosterGroupRecord staffMember frontOfHouse
+                _ <-
+                    newRecord @StaffShiftPreference
+                        |> set #venueId (unpackId venue.id)
+                        |> set #staffId (unpackId staffMember.id)
+                        |> set #rosterGroupId defaultSlotName.rosterGroupId
+                        |> set #slotNameId (unpackId defaultSlotName.id)
+                        |> set #weekdayIndex 1
+                        |> createRecord
+                rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
+                mondayRosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord mondayRosterDay frontSlotName Nothing 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffUnavailable", "true")]
+                    callAction (ShowRosterWeekRowFragmentAction 0 mondayRosterDay.id 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` ">CrossGroup Preference</option>"
+
+        it "only hides staff for approved leave overlapping the roster week" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-leave-filter@example.com" "staff" True
+                overlapUser <- createUserRecord "roster-overlap-leave@example.com" "staff" True
+                pendingUser <- createUserRecord "roster-pending-leave@example.com" "staff" True
+                endedUser <- createUserRecord "roster-ended-leave@example.com" "staff" True
+                futureUser <- createUserRecord "roster-future-leave@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue overlapUser "worker"
+                _ <- createVenueMembershipRecord venue pendingUser "worker"
+                _ <- createVenueMembershipRecord venue endedUser "worker"
+                _ <- createVenueMembershipRecord venue futureUser "worker"
+                slotName <- fetchSlotNameRecord venue "Early"
+                overlappingStaff <- createStaffRecord venue (Just overlapUser) "Approved" "Overlap"
+                pendingStaff <- createStaffRecord venue (Just pendingUser) "Pending" "Leave"
+                endedStaff <- createStaffRecord venue (Just endedUser) "Ended" "Before"
+                futureStaff <- createStaffRecord venue (Just futureUser) "Future" "After"
+                _ <- createLeaveRequestRecord venue overlappingStaff (addDays (-1) defaultWeekEpoch) (addDays 1 defaultWeekEpoch) "approved"
+                _ <- createLeaveRequestRecord venue pendingStaff defaultWeekEpoch (addDays 1 defaultWeekEpoch) "pending"
+                _ <- createLeaveRequestRecord venue endedStaff (addDays (-2) defaultWeekEpoch) defaultWeekEpoch "approved"
+                _ <- createLeaveRequestRecord venue futureStaff (addDays 7 defaultWeekEpoch) (addDays 8 defaultWeekEpoch) "approved"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                mondayRosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord mondayRosterDay slotName Nothing 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffOnApprovedLeave", "true")]
+                    callAction (ShowRosterWeekRowFragmentAction 0 mondayRosterDay.id 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` ">Approved</option>"
+                response `responseBodyShouldContain` ">Pending</option>"
+                response `responseBodyShouldContain` ">Ended</option>"
+                response `responseBodyShouldContain` ">Future</option>"
+
         it "renders unique roster field keys for each editable control in a multi-slot row fragment" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -1193,6 +1260,9 @@ tests = beforeAll testContext do
                 _ <- updateRecord (nextWeekSlotA |> set #durationMinutes (Just 240))
                 _ <- updateRecord (nextWeekSlotB |> set #durationMinutes (Just 240))
                 _ <- createLeaveRequestRecord venue staffMember (addDays 7 defaultWeekEpoch) (addDays 8 defaultWeekEpoch) "pending"
+                _ <- createLeaveRequestRecord venue staffMember (addDays 7 defaultWeekEpoch) (addDays 8 defaultWeekEpoch) "denied"
+                _ <- createLeaveRequestRecord venue staffMember (addDays 40 defaultWeekEpoch) (addDays 41 defaultWeekEpoch) "approved"
+                _ <- createLeaveRequestRecord venue staffMember (addDays (-6) defaultWeekEpoch) (addDays (-4) defaultWeekEpoch) "approved"
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekOverviewFragmentAction 0)
@@ -1203,6 +1273,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-week-overview-assigned=\"2\""
                 response `responseBodyShouldContain` "data-week-overview-hours=\"8h\""
                 response `responseBodyShouldContain` "data-week-overview-leave=\"1\""
+                response `responseBodyShouldNotContain` "data-week-overview-leave=\"2\""
+                response `responseBodyShouldContain` "data-week-overview-date=\"2025-01-01\""
                 response `responseBodyShouldContain` "weekDate=2025-01-13"
     where
         timeOfDay hour minute = TimeOfDay hour minute 0

@@ -7,10 +7,10 @@ module Web.RosterWeeks.StaffOptions
     , rosterAssignmentOptionStateFor
     ) where
 
-import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       parseLeaveRequestStatus, venueRoleToText)
 import Application.Helper.View (linkedActiveStaffForRosterPanel)
+import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
 import Data.List (find, nub)
 import qualified Data.Map.Strict as Map
@@ -19,6 +19,8 @@ import qualified Data.Set as Set
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
+import Web.RosterWeeks.AvailabilityInputs (fetchApprovedLeaveRequestsForRosterWindow,
+                                           fetchRosterShiftPreferencesForWindow)
 import Web.RosterWeeks.Types
 
 fetchRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]
@@ -63,18 +65,22 @@ fetchAssignedRosterWeekStaff allSlots = do
                 |> orderBy #lastName
                 |> fetch
 
-buildRosterStaffOptionStates :: (?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
-buildRosterStaffOptionStates assignmentFilters weekStartDate rosterDays visibleSlots staffMembers = do
+buildRosterStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterAssignmentFilters -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
+buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate rosterDays visibleSlots staffMembers = do
     let staffIds = map (coerce . (.id)) staffMembers
     if null staffIds
         then pure Map.empty
         else do
-            leaveRequests <- query @LeaveRequest
-                |> filterWhereIn (#staffId, staffIds)
-                |> fetch
-            shiftPreferences <- query @StaffShiftPreference
-                |> filterWhereIn (#staffId, staffIds)
-                |> fetch
+            let weekEndExclusive = Calendar.addDays 7 weekStartDate
+            let visibleSlotNameIdList = Set.toList (Set.fromList (map (.slotNameId) visibleSlots))
+            let visibleWeekdayIndexes =
+                    Set.toList $
+                        Set.fromList
+                            [ weekdayIndexForDay (Calendar.addDays (toInteger rosterDay.dayOffset) weekStartDate)
+                            | rosterDay <- rosterDays
+                            ]
+            leaveRequests <- fetchApprovedLeaveRequestsForRosterWindow staffIds weekStartDate weekEndExclusive
+            shiftPreferences <- fetchRosterShiftPreferencesForWindow rosterGroupId staffIds visibleSlotNameIdList visibleWeekdayIndexes
 
             let dayById = Map.fromList [ (coerce (get #id day), day) | day <- rosterDays ]
             let visibleSlotNameIds = Set.fromList (map (.slotNameId) visibleSlots)

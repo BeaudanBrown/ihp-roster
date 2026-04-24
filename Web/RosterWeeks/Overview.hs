@@ -13,6 +13,7 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isJust)
 import qualified Data.Time.Calendar as Calendar
 import Web.Controller.Prelude
+import Web.RosterWeeks.AvailabilityInputs (fetchLeaveRequestsForRosterWindowByStatus)
 import Web.RosterWeeks.StaffOptions (fetchAssignedRosterWeekStaff)
 import Web.RosterWeeks.Types
 
@@ -54,13 +55,11 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
     eligibleStaffMembers <- fetchEligibleRosterGroupStaff rosterGroupId
     assignedStaffMembers <- fetchAssignedRosterWeekStaff allSlots
     let overviewStaffIds = nub (map (coerce . (.id)) (eligibleStaffMembers <> assignedStaffMembers))
+    let monthEndExclusive = Calendar.addDays 1 monthEndDate
     leaveRequests <-
         if null overviewStaffIds
             then pure []
-            else query @LeaveRequest
-                |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhereIn (#staffId, overviewStaffIds)
-                |> fetch
+            else fetchLeaveRequestsForRosterWindowByStatus [LeavePending, LeaveApproved] overviewStaffIds monthStartDate monthEndExclusive
 
     let rosterWeekStartDates = Map.fromList
             [ (coerce rosterWeek.id, venueWeekStartDate venueConfig rosterWeek.weekOffset)

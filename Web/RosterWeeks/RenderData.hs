@@ -183,7 +183,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
             assignedStaffMembers <- profileActionSpan "roster.fetch_assigned_staff" (fetchAssignedRosterWeekStaff visibleSlots)
             let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots)
-            staffOptionStates <- profileActionSpan "roster.build_staff_option_states" (buildRosterStaffOptionStates assignmentFilters weekStartDate rosterDays visibleSlots staffMembers)
+            staffOptionStates <- profileActionSpan "roster.build_staff_option_states" (buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate rosterDays visibleSlots staffMembers)
             orderedSlotNames <- profileActionSpan "roster.fetch_ordered_slot_names" (fetchRosterWeekOrderedSlotNamesFromSlots allSlots)
             slotConflicts <-
                 if rosterWeek.isLive

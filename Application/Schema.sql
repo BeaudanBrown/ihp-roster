@@ -572,11 +572,13 @@ CREATE INDEX idx_timesheet_entries_snapshot ON timesheet_entries (pay_config_sna
 CREATE INDEX idx_timesheet_entry_versions_entry_created_at ON timesheet_entry_versions (timesheet_entry_id, created_at DESC);
 CREATE INDEX idx_leave_requests_venue_staff ON leave_requests (venue_id, staff_id);
 CREATE INDEX idx_leave_requests_venue_start_date ON leave_requests (venue_id, start_date);
+CREATE INDEX idx_leave_requests_venue_status_staff_dates ON leave_requests (venue_id, status, staff_id, start_date, end_date);
 CREATE INDEX idx_leave_request_events_request_created_at ON leave_request_events (leave_request_id, created_at DESC);
 CREATE INDEX idx_staff_availability_venue ON staff_availability (venue_id);
 CREATE INDEX idx_staff_shift_preferences_venue_staff ON staff_shift_preferences (venue_id, staff_id);
 CREATE INDEX idx_staff_shift_preferences_staff ON staff_shift_preferences (staff_id);
 CREATE INDEX idx_staff_shift_preferences_group_day ON staff_shift_preferences (roster_group_id, weekday_index);
+CREATE INDEX idx_staff_shift_preferences_group_staff_day_slot ON staff_shift_preferences (roster_group_id, staff_id, weekday_index, slot_name_id);
 CREATE INDEX idx_audit_events_venue_created_at ON audit_events (venue_id, created_at DESC);
 CREATE INDEX idx_audit_events_target ON audit_events (target_table, target_id);
 CREATE INDEX idx_export_jobs_venue_created_at ON export_jobs (venue_id, created_at DESC);
