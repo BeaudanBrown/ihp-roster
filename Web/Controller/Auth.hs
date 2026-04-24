@@ -26,17 +26,17 @@ instance Controller AuthController where
         ensureIsUser
         existingPasskeys <-
             query @Passkey
-                |> filterWhere (#userId, unpackId currentUser.id)
+                |> filterWhere (#userId, unpackId (get #id currentUser))
                 |> fetch
         challenge <- liftIO generateChallenge
         setSession registrationChallengeSessionKey (unChallenge challenge)
-        setSession registrationUserIdSessionKey (inputValue currentUser.id)
+        setSession registrationUserIdSessionKey (inputValue (get #id currentUser))
 
         renderJson $
             WebAuthnJson.wjEncodeCredentialOptionsRegistration $
                 registrationCredentialOptions
                     challenge
-                    currentUser.id
+                    (get #id currentUser)
                     currentUser.email
                     (map passkeyCredentialDescriptor existingPasskeys)
 
@@ -44,7 +44,7 @@ instance Controller AuthController where
         ensureIsUser
         challenge <- sessionChallenge registrationChallengeSessionKey
         pendingUserId <- sessionUserId registrationUserIdSessionKey
-        when (pendingUserId /= currentUser.id) do
+        when (pendingUserId /= get #id currentUser) do
             clearRegistrationSession
             jsonError status422 "The pending passkey registration is invalid."
 
@@ -57,7 +57,7 @@ instance Controller AuthController where
 
         existingPasskeys <-
             query @Passkey
-                |> filterWhere (#userId, unpackId currentUser.id)
+                |> filterWhere (#userId, unpackId (get #id currentUser))
                 |> fetch
         currentDateTime <- liftIO (timeConvert <$> getCurrentTime)
         let verification =
@@ -66,7 +66,7 @@ instance Controller AuthController where
                     rpIdHashFromRequest
                     mempty
                     currentDateTime
-                    (registrationCredentialOptions challenge currentUser.id currentUser.email (map passkeyCredentialDescriptor existingPasskeys))
+                    (registrationCredentialOptions challenge (get #id currentUser) currentUser.email (map passkeyCredentialDescriptor existingPasskeys))
                     credential
 
         clearRegistrationSession
@@ -75,7 +75,7 @@ instance Controller AuthController where
             Validation.Success result -> pure result
 
         let entry = rrEntry registrationResult
-            credentialId = unCredentialId entry.ceCredentialId
+            credentialId = unCredentialId (get #ceCredentialId entry)
 
         credentialAlreadyExists <-
             query @Passkey
@@ -84,11 +84,12 @@ instance Controller AuthController where
         when credentialAlreadyExists do
             jsonError status409 "This passkey is already registered."
 
-        _ <- createPasskeyRecord currentUser.id entry
+        _ <- createPasskeyRecord (get #id currentUser) entry
         renderJson
             ( Aeson.object
                 [ "ok" Aeson..= True
                 , "message" Aeson..= ("Passkey added." :: Text)
+                , "userId" Aeson..= inputValue (get #id currentUser)
                 ]
             )
 
@@ -122,7 +123,7 @@ instance Controller AuthController where
                 verifyAuthenticationResponse
                     allowedOrigins
                     rpIdHashFromRequest
-                    (Just (userHandleForUserId user.id))
+                    (Just (userHandleForUserId (get #id user)))
                     (credentialEntryForPasskey passkey)
                     (authenticationCredentialOptions challenge)
                     credential
@@ -153,7 +154,7 @@ instance Controller AuthController where
                 ( Aeson.object
                     [ "authMethod" Aeson..= ("passkey" :: Text)
                     , "email" Aeson..= user.email
-                    , "passkeyId" Aeson..= inputValue passkey.id
+                    , "passkeyId" Aeson..= inputValue (get #id passkey)
                     ]
                 )
         redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
@@ -161,6 +162,7 @@ instance Controller AuthController where
             ( Aeson.object
                 [ "ok" Aeson..= True
                 , "redirectTo" Aeson..= fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl
+                , "userId" Aeson..= inputValue (get #id user)
                 ]
             )
 

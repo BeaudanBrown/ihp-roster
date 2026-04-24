@@ -18,6 +18,19 @@
             });
         });
 
+        root.querySelectorAll('.js-passkey-first-login').forEach(function (container) {
+            if (container.dataset.passkeyInitialized === 'true') return;
+            container.dataset.passkeyInitialized = 'true';
+
+            const button = container.querySelector('.js-passkey-first-login-button');
+            if (!button) return;
+
+            button.addEventListener('click', function (event) {
+                event.preventDefault();
+                void runPasskeyFirstLogin(container, button);
+            });
+        });
+
         root.querySelectorAll('.js-passkey-register').forEach(function (container) {
             if (container.dataset.passkeyInitialized === 'true') return;
             container.dataset.passkeyInitialized = 'true';
@@ -29,6 +42,43 @@
                 void runPasskeyRegistration(container, button);
             });
         });
+
+        root.querySelectorAll('.js-passkey-setup-prompt').forEach(function (container) {
+            if (container.dataset.passkeyInitialized === 'true') return;
+            container.dataset.passkeyInitialized = 'true';
+            initPasskeySetupPrompt(container);
+        });
+    }
+
+    async function runPasskeyFirstLogin(container, button) {
+        if (!window.PublicKeyCredential || !window.navigator.credentials) {
+            redirectToFallback(container);
+            return;
+        }
+
+        const originalText = button.textContent;
+        button.textContent = 'Checking for passkey...';
+
+        try {
+            const beginResponse = await postJson(container.dataset.beginUrl, {});
+            const credential = await window.navigator.credentials.get({
+                publicKey: authenticationOptionsToNative(beginResponse),
+                signal: timeoutSignal(10000),
+            });
+            if (!credential) throw new Error('No passkey was selected.');
+
+            const finishResponse = await postJson(
+                container.dataset.finishUrl,
+                serializeAuthenticationCredential(credential)
+            );
+
+            markPasskeySeen(finishResponse.userId);
+            redirectAfterPasskeySuccess(container, finishResponse);
+        } catch (error) {
+            redirectToFallback(container);
+        } finally {
+            button.textContent = originalText;
+        }
     }
 
     async function runPasskeyLogin(container, button) {
@@ -45,6 +95,7 @@
                 serializeAuthenticationCredential(credential)
             );
 
+            markPasskeySeen(finishResponse.userId);
             setPasskeyStatus(container, 'success', 'Signed in.');
             redirectAfterPasskeySuccess(container, finishResponse);
         });
@@ -64,9 +115,47 @@
                 serializeRegistrationCredential(credential)
             );
 
+            markPasskeySeen(finishResponse.userId);
             setPasskeyStatus(container, 'success', finishResponse.message || 'Passkey added.');
             redirectAfterPasskeySuccess(container, finishResponse);
         });
+    }
+
+    function initPasskeySetupPrompt(container) {
+        const userId = container.dataset.userId;
+        const mode = container.dataset.mode;
+
+        if (!window.PublicKeyCredential || !window.navigator.credentials || !userId) {
+            container.remove();
+            return;
+        }
+
+        if (isPasskeyPromptDismissed(userId)) {
+            container.remove();
+            return;
+        }
+
+        if (mode === 'additional-device' && hasPasskeySeen(userId)) {
+            container.remove();
+            return;
+        }
+
+        container.classList.remove('d-none');
+
+        const setupButton = container.querySelector('.js-passkey-setup-button');
+        if (setupButton) {
+            setupButton.addEventListener('click', function () {
+                void runPasskeyRegistration(container, setupButton);
+            });
+        }
+
+        const dismissButton = container.querySelector('.js-passkey-setup-dismiss');
+        if (dismissButton) {
+            dismissButton.addEventListener('click', function () {
+                dismissPasskeyPrompt(userId);
+                container.remove();
+            });
+        }
     }
 
     async function withPasskeyButton(container, button, callback) {
@@ -124,6 +213,62 @@
         const redirectTo = response.redirectTo || container.dataset.successRedirect;
         if (!redirectTo) return;
         window.location.assign(redirectTo);
+    }
+
+    function redirectToFallback(container) {
+        window.location.assign(container.dataset.fallbackUrl || '/NewSession');
+    }
+
+    function timeoutSignal(timeoutMs) {
+        if (!window.AbortController) return undefined;
+
+        const controller = new window.AbortController();
+        window.setTimeout(function () {
+            controller.abort();
+        }, timeoutMs);
+        return controller.signal;
+    }
+
+    function localStorageKey(userId, key) {
+        return `ihpRoster.${key}.${userId}`;
+    }
+
+    function markPasskeySeen(userId) {
+        if (!userId) return;
+        try {
+            window.localStorage.setItem(localStorageKey(userId, 'passkeySeen'), '1');
+        } catch (error) {
+            // Local storage is a UX hint only; auth must not depend on it.
+        }
+    }
+
+    function hasPasskeySeen(userId) {
+        try {
+            return window.localStorage.getItem(localStorageKey(userId, 'passkeySeen')) === '1';
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function dismissPasskeyPrompt(userId) {
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        try {
+            window.localStorage.setItem(
+                localStorageKey(userId, 'passkeyPromptDismissedUntil'),
+                String(Date.now() + thirtyDaysMs)
+            );
+        } catch (error) {
+            // Ignore; dismissal is best-effort browser-local state.
+        }
+    }
+
+    function isPasskeyPromptDismissed(userId) {
+        try {
+            const dismissedUntil = Number(window.localStorage.getItem(localStorageKey(userId, 'passkeyPromptDismissedUntil')) || '0');
+            return dismissedUntil > Date.now();
+        } catch (error) {
+            return false;
+        }
     }
 
     function base64UrlToBuffer(value) {

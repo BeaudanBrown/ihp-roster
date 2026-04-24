@@ -27,6 +27,10 @@ tests = beforeAll testContext do
             response `responseStatusShouldBe` status200
             response `responseBodyShouldContain` "Sign In"
             response `responseBodyShouldContain` "Request Access"
+            response `responseBodyShouldContain` "js-passkey-first-login"
+            response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyAuthentication\""
+            response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyAuthentication\""
+            response `responseBodyShouldContain` "data-fallback-url=\"/NewSession\""
 
         it "redirects authenticated users to the roster week view" $ withContext do
             withCleanDb do

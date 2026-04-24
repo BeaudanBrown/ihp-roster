@@ -20,6 +20,7 @@ import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
+import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
@@ -98,7 +99,7 @@ instance Controller RosterWeeksController where
     action UpdateRosterAssignmentFiltersAction { weekOffset } = do
         ensureManagerRole
         rosterGroup <- resolveRequestedRosterGroup
-        setRosterAssignmentFiltersSession (rosterAssignmentFiltersFromParams)
+        setRosterAssignmentFiltersSession rosterAssignmentFiltersFromParams
         respondWithRosterContent rosterGroup.id weekOffset
 
     action CreateRosterWeekAction { weekOffset } = do
@@ -493,6 +494,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
     _ <- ensureRosterWeekExists currentRosterGroup.id weekOffset
     keepCurrentRosterWeekProjectionHot currentRosterGroup.id weekOffset
     rosterDataOrNothing <- fetchVisibleRosterRenderDataCached currentRosterGroup.id weekOffset
+    passkeySetupPrompt <- passkeySetupPromptFromSession
 
     case rosterDataOrNothing of
         Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } ->
@@ -519,6 +521,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
                         , renderIndexes
                         , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId = unpackId currentRosterGroup.id, weekOffset })
                         , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
+                        , passkeySetupPrompt
                         }
         Nothing ->
             error "Roster week should exist after ensureRosterWeekExists"
@@ -528,6 +531,15 @@ respondWithRosterWeekView showView =
     if isHtmxRequest
         then respondHtmlProfiled (renderRosterWeekShell showView)
         else renderProfiled showView
+
+passkeySetupPromptFromSession :: (?request :: Request) => IO (Maybe PasskeySetupPromptMode)
+passkeySetupPromptFromSession =
+    fmap promptModeFromText (getSessionAndClear @Text passkeySetupPromptSessionKey)
+  where
+    promptModeFromText = \case
+        Just "first-passkey"     -> Just FirstPasskeyPrompt
+        Just "additional-device" -> Just AdditionalDevicePasskeyPrompt
+        _                        -> Nothing
 
 renderRosterWeekOverviewFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Id RosterGroup -> IO Blaze.Html
 renderRosterWeekOverviewFragment weekOffset rosterGroupId = do

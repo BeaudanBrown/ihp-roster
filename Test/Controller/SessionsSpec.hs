@@ -46,7 +46,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue user "worker"
                 now <- getCurrentTime
                 tokenRecord <- newRecord @EmailVerificationToken
-                    |> set #userId (unpackId user.id)
+                    |> set #userId (unpackId (get #id user))
                     |> set #token "valid-token"
                     |> set #sentToEmail user.email
                     |> set #expiresAt (addUTCTime 3600 now)
@@ -58,8 +58,8 @@ tests = beforeAll testContext do
                     response `responseStatusShouldBe` status302
                     lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile"
 
-                    verifiedUser <- fetch user.id
-                    consumedToken <- fetch tokenRecord.id
+                    verifiedUser <- fetch (get #id user)
+                    consumedToken <- fetch (get #id tokenRecord)
                     verifiedUser.emailVerifiedAt `shouldSatisfy` isJust
                     consumedToken.consumedAt `shouldSatisfy` isJust
 
@@ -81,7 +81,7 @@ tests = beforeAll testContext do
                     >>= updateRecord . set #emailVerifiedAt Nothing
                 now <- getCurrentTime
                 token <- newRecord @EmailVerificationToken
-                    |> set #userId (unpackId user.id)
+                    |> set #userId (unpackId (get #id user))
                     |> set #token "expired-token"
                     |> set #sentToEmail user.email
                     |> set #expiresAt (addUTCTime (-3600) now)
@@ -92,8 +92,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/NewSession"
 
-                unchangedUser <- fetch user.id
-                unchangedToken <- fetch token.id
+                unchangedUser <- fetch (get #id user)
+                unchangedToken <- fetch (get #id token)
                 unchangedUser.emailVerifiedAt `shouldBe` Nothing
                 unchangedToken.consumedAt `shouldBe` Nothing
 
@@ -103,7 +103,7 @@ tests = beforeAll testContext do
                     >>= updateRecord . set #emailVerifiedAt Nothing
                 now <- getCurrentTime
                 token <- newRecord @EmailVerificationToken
-                    |> set #userId (unpackId user.id)
+                    |> set #userId (unpackId (get #id user))
                     |> set #token "one-shot-token"
                     |> set #sentToEmail user.email
                     |> set #expiresAt (addUTCTime 3600 now)
@@ -153,10 +153,49 @@ tests = beforeAll testContext do
                 auditEvent <- query @AuditEvent
                     |> filterWhere (#eventType, "login_succeeded")
                     |> fetchOne
-                auditEvent.venueId `shouldBe` unpackId venue.id
-                auditEvent.actorUserId `shouldBe` unpackId user.id
+                auditEvent.venueId `shouldBe` unpackId (get #id venue)
+                auditEvent.actorUserId `shouldBe` unpackId (get #id user)
                 auditEvent.targetTable `shouldBe` "users"
-                auditEvent.targetId `shouldBe` unpackId user.id
+                auditEvent.targetId `shouldBe` unpackId (get #id user)
+
+        it "prompts users without passkeys to set up faster sign-in after password login" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "First Passkey Prompt Venue"
+                user <- createUserRecord "first-passkey-prompt@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+
+                withSessionValues [] do
+                    loginResponse <- callActionWithParams CreateSessionAction
+                        [ ("email", cs user.email)
+                        , ("password", cs testPassword)
+                        ]
+                    loginResponse `responseStatusShouldBe` status302
+
+                    rosterResponse <- callAction (ShowRosterWeekAction 0)
+                    rosterResponse `responseStatusShouldBe` status200
+                    rosterResponse `responseBodyShouldContain` "js-passkey-setup-prompt"
+                    rosterResponse `responseBodyShouldContain` "data-mode=\"first-passkey\""
+                    rosterResponse `responseBodyShouldContain` "Use your device unlock next time"
+
+        it "prompts password users with existing passkeys to add this device" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Additional Device Prompt Venue"
+                user <- createUserRecord "additional-device-prompt@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createTestPasskeyRecord user "Phone"
+
+                withSessionValues [] do
+                    loginResponse <- callActionWithParams CreateSessionAction
+                        [ ("email", cs user.email)
+                        , ("password", cs testPassword)
+                        ]
+                    loginResponse `responseStatusShouldBe` status302
+
+                    rosterResponse <- callAction (ShowRosterWeekAction 0)
+                    rosterResponse `responseStatusShouldBe` status200
+                    rosterResponse `responseBodyShouldContain` "js-passkey-setup-prompt"
+                    rosterResponse `responseBodyShouldContain` "data-mode=\"additional-device\""
+                    rosterResponse `responseBodyShouldContain` "Set up faster sign-in on this device too"
 
         it "audits failed password logins for known invited accounts" $ withContext do
             withCleanDb do
@@ -175,10 +214,10 @@ tests = beforeAll testContext do
                 auditEvent <- query @AuditEvent
                     |> filterWhere (#eventType, "login_failed")
                     |> fetchOne
-                auditEvent.venueId `shouldBe` unpackId venue.id
-                auditEvent.actorUserId `shouldBe` unpackId user.id
+                auditEvent.venueId `shouldBe` unpackId (get #id venue)
+                auditEvent.actorUserId `shouldBe` unpackId (get #id user)
                 auditEvent.targetTable `shouldBe` "users"
-                auditEvent.targetId `shouldBe` unpackId user.id
+                auditEvent.targetId `shouldBe` unpackId (get #id user)
 
         it "resends verification for unverified accounts and surfaces the banner" $ withContext do
             withCleanDb do
@@ -191,7 +230,7 @@ tests = beforeAll testContext do
                     response `responseStatusShouldBe` status302
                     lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/NewSession"
 
-                    tokens <- query @EmailVerificationToken |> filterWhere (#userId, unpackId user.id) |> fetch
+                    tokens <- query @EmailVerificationToken |> filterWhere (#userId, unpackId (get #id user)) |> fetch
                     length tokens `shouldBe` 1
 
                     rendered <- callAction NewSessionAction
@@ -208,7 +247,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/NewSession"
 
-                tokenCount <- query @EmailVerificationToken |> filterWhere (#userId, unpackId user.id) |> fetchCount
+                tokenCount <- query @EmailVerificationToken |> filterWhere (#userId, unpackId (get #id user)) |> fetchCount
                 tokenCount `shouldBe` 0
 
         it "does not create resend tokens for unknown emails" $ withContext do
@@ -231,4 +270,4 @@ tests = beforeAll testContext do
                     Sessions.beforeLogin @User user
                     getSession @(Id Venue) currentVenueSessionKey
 
-                selectedVenueId `shouldBe` Just venue.id
+                selectedVenueId `shouldBe` Just (get #id venue)

@@ -1,8 +1,8 @@
 module Web.Controller.Sessions where
 
+import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.EmailVerification (findActiveVerificationTokenByToken,
                                              sendEmailVerification)
-import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import IHP.AuthSupport.Authentication (verifyPassword)
@@ -14,6 +14,9 @@ import Web.View.Sessions.New
 
 pendingVerificationEmailSessionKey :: ByteString
 pendingVerificationEmailSessionKey = "pendingVerificationEmail"
+
+passkeySetupPromptSessionKey :: ByteString
+passkeySetupPromptSessionKey = "passkeySetupPrompt"
 
 instance Controller SessionsController where
     action NewSessionAction = do
@@ -62,6 +65,14 @@ instance Controller SessionsController where
                                         , "email" Aeson..= submittedEmail
                                         ]
                                     )
+                            passkeyCount <-
+                                query @Passkey
+                                    |> filterWhere (#userId, unpackId (get #id user))
+                                    |> fetchCount
+                            setSession passkeySetupPromptSessionKey
+                                if passkeyCount == 0
+                                    then ("first-passkey" :: Text)
+                                    else ("additional-device" :: Text)
                             redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
                             redirectToPath (fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl)
                         else do

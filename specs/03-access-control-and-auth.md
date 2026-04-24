@@ -72,6 +72,8 @@ The product must not rely on global in-app business roles without venue boundari
 - Passkeys are user-owned credentials stored in `passkeys` and managed from the profile security section.
 - Passkey registration requires an authenticated existing account. Passkey authentication can sign the matching user in directly and records `login_succeeded` with `authMethod = "passkey"`.
 - Passkeys require browser WebAuthn support and a secure origin in deployed environments; local development may use browser localhost exceptions.
+- The public login entry point should try discoverable passkey sign-in first when the browser supports WebAuthn, then fall back to email/password without blocking the user.
+- After password login, the app may render a one-time passkey setup prompt. Browser-local markers and dismissals are only UX hints; server-side access control must not treat them as proof that a device does or does not hold a passkey.
 
 ## Mandatory profile gate
 

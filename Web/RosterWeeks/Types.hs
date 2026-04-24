@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedRecordDot #-}
-
 module Web.RosterWeeks.Types
     ( RosterAssignmentFilters (..)
     , RosterAssignmentOptionState (..)
@@ -20,6 +18,7 @@ import Data.Time.Calendar (Day)
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.Prelude
+import Web.Types (PasskeySetupPromptMode)
 
 data ShowView = ShowView
     { rosterWeek         :: Maybe RosterWeek
@@ -39,6 +38,7 @@ data ShowView = ShowView
     , renderIndexes      :: RosterRenderIndexes
     , liveUpdateScope    :: Maybe LiveUpdateScope
     , viewCapabilities   :: RosterViewCapabilities
+    , passkeySetupPrompt :: Maybe PasskeySetupPromptMode
     }
 
 data RosterViewCapabilities = RosterViewCapabilities
@@ -89,17 +89,17 @@ data RosterAssignmentOptionState = RosterAssignmentOptionState
     }
 
 data RosterRenderData = RosterRenderData
-    { rosterWeek       :: RosterWeek
-    , rosterDays       :: [RosterDay]
-    , weekStartDate    :: Day
+    { rosterWeek        :: RosterWeek
+    , rosterDays        :: [RosterDay]
+    , weekStartDate     :: Day
     , assignmentFilters :: RosterAssignmentFilters
-    , staffMembers     :: [Staff]
+    , staffMembers      :: [Staff]
     , staffOptionStates :: Map (UUID, UUID) RosterAssignmentOptionState
-    , panelStaff       :: [RosterStaffPanelEntry]
-    , orderedSlotNames :: [SlotName]
-    , allSlots         :: [RosterSlot]
-    , slotConflicts    :: [(Id RosterSlot, [RosterConflict])]
-    , renderIndexes    :: RosterRenderIndexes
+    , panelStaff        :: [RosterStaffPanelEntry]
+    , orderedSlotNames  :: [SlotName]
+    , allSlots          :: [RosterSlot]
+    , slotConflicts     :: [(Id RosterSlot, [RosterConflict])]
+    , renderIndexes     :: RosterRenderIndexes
     }
 
 data RosterProjectionScope = RosterProjectionScope
