@@ -20,12 +20,13 @@ import Web.View.Support.Index
 instance Controller SupportController where
     beforeAction = do
         ensureIsUser
-        ensureProfileCompleted
         accessDeniedUnless currentUserIsSuperAdmin
+        ensureProfileCompleted
 
     action SupportAction = do
         let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
+        passkeys <- fetchCurrentUserPasskeys
         createdVenue <- case paramOrNothing @(Id Venue) "createdVenueId" of
             Nothing      -> pure Nothing
             Just venueId -> Just <$> fetchCreatedVenue venueId
@@ -38,6 +39,7 @@ instance Controller SupportController where
     action CreateSupportVenueAction = do
         let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
+        passkeys <- fetchCurrentUserPasskeys
         let createdVenue = Nothing
         let venueTimezone = paramOrDefault defaultVenueBootstrapTimezone "timezone"
         let venueRosterWeekStartsOn = fromMaybe defaultRosterWeekStartsOn (paramOrNothing @Int "rosterWeekStartsOn")
@@ -76,6 +78,7 @@ instance Controller SupportController where
     action CreateSupportVenueOnboardingInvitationAction = do
         let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
+        passkeys <- fetchCurrentUserPasskeys
         let createdVenue = Nothing
         let venue = buildSupportVenueForm
         let venueTimezone = defaultVenueBootstrapTimezone

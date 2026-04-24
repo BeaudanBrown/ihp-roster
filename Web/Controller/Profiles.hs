@@ -22,6 +22,7 @@ instance Controller ProfilesController where
     beforeAction = do
         ensureIsUser
         ensureCurrentVenue
+        ensureStaffSelfServiceAccess
 
     action EditProfileAction = do
         maybeExistingStaff <- fetchCurrentUserStaff
@@ -163,13 +164,6 @@ normalizeProfileOpenSection section
     | section == "leave" = "leave"
     | section == "security" = "security"
     | otherwise = "profile"
-
-fetchCurrentUserPasskeys :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO [Passkey]
-fetchCurrentUserPasskeys =
-    query @Passkey
-        |> filterWhere (#userId, unpackId currentUser.id)
-        |> orderByAsc #createdAt
-        |> fetch
 
 fetchProfileRosterInvalidationTargets :: (?modelContext :: ModelContext) => Id Venue -> Staff -> IO [(Id RosterGroup, Int, [(UUID.UUID, Int)])]
 fetchProfileRosterInvalidationTargets venueId staff = do

@@ -38,6 +38,7 @@ currentUserIsSupportAdmin = currentUserIsSuperAdmin
 
 data ViewAudience
     = AnySignedInAudience
+    | StaffProfileAudience
     | ManagerAudience
     | AdminAudience
     | SupportAudience
@@ -47,6 +48,7 @@ currentUserMatchesAudience :: (?context :: ControllerContext) => ViewAudience ->
 currentUserMatchesAudience audience =
     case audience of
         AnySignedInAudience -> isJust currentUserOrNothing
+        StaffProfileAudience -> isJust currentUserOrNothing && not currentUserIsSupportAdmin
         ManagerAudience     -> currentUserIsManager
         AdminAudience       -> currentUserIsAdmin
         SupportAudience     -> currentUserIsSupportAdmin

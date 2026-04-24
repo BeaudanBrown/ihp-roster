@@ -3,6 +3,7 @@ module Web.View.Support.Index where
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
 import Data.Time.Calendar (Day)
+import Web.View.Passkeys.Management (renderPasskeyManagement)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -12,6 +13,7 @@ data IndexView = IndexView
     , venueRosterWeekStartsOn :: Int
     , onboardingInvitation :: VenueOnboardingInvitation
     , onboardingInvitations :: [VenueOnboardingInvitation]
+    , passkeys :: [Passkey]
     , createdVenue :: Maybe Venue
     }
 
@@ -97,6 +99,18 @@ instance View IndexView where
                         {renderVenueOnboardingInvitationList onboardingInvitations}
                     |]
                     }
+            signInMethodsPanel =
+                renderAppPanel AppPanelConfig
+                    { appPanelTitle = Just "Sign-In Methods"
+                    , appPanelDescription = Nothing
+                    , appPanelHasActions = False
+                    , appPanelActions = mempty
+                    , appPanelHasCustomHeader = False
+                    , appPanelCustomHeader = mempty
+                    , appPanelClass = ""
+                    , appPanelBodyClass = ""
+                    , appPanelBody = renderPasskeyManagement passkeys (pathTo SupportAction)
+                    }
          in renderAppPage (AppPageConfig
             { appPageTitle = "Support"
             , appPageDescription = Nothing
@@ -106,6 +120,7 @@ instance View IndexView where
                 {renderCreatedVenueBanner createdVenue}
                 <div class="app-page-stack">
                     {switchVenuePanel}
+                    {signInMethodsPanel}
                     {inviteVenueOwnerPanel}
                     {createVenuePanel}
                 </div>

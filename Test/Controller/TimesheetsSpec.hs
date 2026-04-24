@@ -1,6 +1,7 @@
 module Test.Controller.TimesheetsSpec where
 
-import Application.Helper.Controller (parseTimeParam)
+import Application.Helper.Controller (PlatformRole (SuperAdminRole),
+                                      parseTimeParam)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Config
@@ -69,6 +70,32 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-live-update-client-enabled=\"true\""
                 response `responseBodyShouldContain` "data-live-update-scope-kind=\"timesheet_week\""
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
+
+        it "lets super-admin create timesheet entries for venue staff without a staff identity" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Support Timesheet Venue"
+                superAdmin <- createUserRecordWithPlatformRole "timesheet-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                staff <- createStaffRecord venue Nothing "Tess" "Worker"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+
+                response <- withUserAndCurrentVenue superAdmin venue.id do
+                    callActionWithParams CreateTimesheetEntryAction
+                        [ ("weekOffset", "0")
+                        , ("staffId", idToParam staff.id)
+                        , ("shiftTypeId", idToParam shiftType.id)
+                        , ("workedOn", "2025-01-07")
+                        , ("startTime", "09:00")
+                        , ("endTime", "17:00")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                entryExists <-
+                    query @TimesheetEntry
+                        |> filterWhere (#venueId, unpackId venue.id)
+                        |> filterWhere (#staffId, unpackId staff.id)
+                        |> fetchExists
+                entryExists `shouldBe` True
 
         it "renders HTMX timesheet forms with javascript submission disabled" $ withContext do
             withCleanDb do

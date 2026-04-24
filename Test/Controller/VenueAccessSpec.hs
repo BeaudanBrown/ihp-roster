@@ -201,6 +201,7 @@ tests = beforeAll testContext do
                 venueB <- createVenueWithConfig "Beta Venue"
                 founder <- createUserRecordWithPlatformRole "founder-support-page@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                _ <- createTestPasskeyRecord founder "Support laptop"
 
                 response <- withUser founder do
                     callAction SupportAction
@@ -213,6 +214,10 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Australia/Melbourne"
                 response `responseBodyShouldContain` "Alpha Venue"
                 response `responseBodyShouldContain` "Beta Venue"
+                response `responseBodyShouldContain` "Sign-In Methods"
+                response `responseBodyShouldContain` "Support laptop"
+                response `responseBodyShouldContain` "data-success-redirect=\"/Support\""
+                response `responseBodyShouldNotContain` "href=\"/EditProfile\">profile</a>"
 
         it "lets super-admin create a venue owner onboarding invitation" $ withContext do
             withCleanDb do

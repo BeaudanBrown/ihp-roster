@@ -2,6 +2,7 @@ module Test.Controller.LeaveRequestsSpec where
 
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
+import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Config
 import qualified Data.ByteString.Lazy.Char8 as LByteString
@@ -121,6 +122,41 @@ tests = beforeAll testContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status403
+
+        it "lets super-admin review leave without self-service leave creation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Support Leave Venue"
+                superAdmin <- createUserRecordWithPlatformRole "leave-super-admin@example.com" "staff" (Just SuperAdminRole) True
+                worker <- createStaffRecord venue Nothing "Liv" "Worker"
+                _ <- createLeaveRequestRecord venue worker (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "pending"
+
+                response <- withUserAndCurrentVenue superAdmin venue.id do
+                    callAction LeaveRequestsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Pending (1)"
+                response `responseBodyShouldContain` "Approve"
+                response `responseBodyShouldNotContain` "New Request"
+
+        it "denies super-admin self-service leave creation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Support Leave Create Venue"
+                superAdmin <- createUserRecordWithPlatformRole "leave-create-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                newResponse <- withUserAndCurrentVenue superAdmin venue.id do
+                    callAction NewLeaveRequestAction
+
+                createResponse <- withUserAndCurrentVenue superAdmin venue.id do
+                    callActionWithParams CreateLeaveRequestAction
+                        [ ("startDate", "2025-01-08")
+                        , ("endDate", "2025-01-10")
+                        , ("notes", "No staff identity")
+                        ]
+
+                newResponse `responseStatusShouldBe` status403
+                createResponse `responseStatusShouldBe` status403
+                leaveExists <- query @LeaveRequest |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
+                leaveExists `shouldBe` False
 
         it "renders HTMX leave forms with javascript submission disabled" $ withContext do
             withCleanDb do

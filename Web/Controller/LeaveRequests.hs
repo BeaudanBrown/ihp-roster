@@ -46,6 +46,7 @@ instance Controller LeaveRequestsController where
         respondHtmlProfiled . fromMaybe mempty =<< renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
 
     action NewLeaveRequestAction = do
+        ensureStaffSelfServiceAccess
         maybeStaff <- fetchCurrentUserStaff
         let responseContext = requestedLeaveResponseContext
         ensureLeaveProfileAccess responseContext
@@ -59,6 +60,7 @@ instance Controller LeaveRequestsController where
                     else render NewView { .. }
 
     action CreateLeaveRequestAction = do
+        ensureStaffSelfServiceAccess
         maybeStaff <- fetchCurrentUserStaff
         let responseContext = requestedLeaveResponseContext
         ensureLeaveProfileAccess responseContext

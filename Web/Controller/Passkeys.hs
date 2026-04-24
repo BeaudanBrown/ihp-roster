@@ -25,4 +25,6 @@ instance Controller PasskeysController where
 
         deleteRecord passkey
         setSuccessMessage "Passkey removed."
-        redirectTo EditProfileAction
+        if currentUserIsSuperAdmin
+            then redirectTo SupportAction
+            else redirectTo EditProfileAction

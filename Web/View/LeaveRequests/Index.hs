@@ -44,7 +44,7 @@ renderLeaveRequestsShell IndexView { .. } =
         page = renderAppPage (AppPageConfig
             { appPageTitle = "Leave Requests"
             , appPageDescription = Nothing
-            , appPageActions = renderNewLeaveRequestAction
+            , appPageActions = if currentUserIsSupportAdmin then mempty else renderNewLeaveRequestAction
             , appPageWidthClass = ""
             , appPageBody = leaveRequestsPanel
             })

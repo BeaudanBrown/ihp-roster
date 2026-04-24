@@ -52,7 +52,7 @@ renderAppHeader =
                     <div class="collapse navbar-collapse" id="app-nav">
                         <div class="navbar-nav app-header-nav ms-auto d-flex gap-1 align-items-md-center">
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={RosterWeeksAction}>roster</a>
-                            <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={EditProfileAction}>profile</a>
+                            {renderWhenAudience StaffProfileAudience renderProfileNavLink}
                             <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={TimesheetsAction}>timesheets</a>
                             {renderWhenAudience ManagerAudience renderLeaveNavLink}
                             {renderWhenAudience AdminAudience renderAdminNavLink}
@@ -71,6 +71,11 @@ renderAppHeader =
 renderAdminNavLink :: Html
 renderAdminNavLink = [hsx|
     <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={AdminAction}>admin</a>
+|]
+
+renderProfileNavLink :: Html
+renderProfileNavLink = [hsx|
+    <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={EditProfileAction}>profile</a>
 |]
 
 renderLeaveNavLink :: Html

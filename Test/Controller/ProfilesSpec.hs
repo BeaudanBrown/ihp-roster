@@ -2,6 +2,7 @@ module Test.Controller.ProfilesSpec where
 
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
+import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  encodeShiftPreferenceKey)
@@ -38,6 +39,39 @@ tests = beforeAll testContext do
                 , ("idealShiftsPerWeek", "3")
                 ]
             response `responseStatusShouldBe` status302
+
+        it "denies super-admin access to staff profile setup" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Support Profile Venue"
+                superAdmin <- createUserRecordWithPlatformRole "profile-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withUserAndCurrentVenue superAdmin venue.id do
+                    callAction EditProfileAction
+
+                response `responseStatusShouldBe` status403
+
+        it "does not let super-admin create a staff row through profile update" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Support Profile Update Venue"
+                superAdmin <- createUserRecordWithPlatformRole "profile-update-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withUserAndCurrentVenue superAdmin venue.id do
+                    callActionWithParams UpdateProfileAction
+                        [ ("firstName", "Support")
+                        , ("lastName", "Admin")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Casey")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "3")
+                        ]
+
+                response `responseStatusShouldBe` status403
+                staffExists <-
+                    query @Staff
+                        |> filterWhere (#venueId, unpackId venue.id)
+                        |> filterWhere (#userId, Just (unpackId superAdmin.id))
+                        |> fetchExists
+                staffExists `shouldBe` False
 
         it "renders the profile form with in-place HTMX submission" $ withContext do
             withCleanDb do

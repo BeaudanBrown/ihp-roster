@@ -29,9 +29,11 @@ requiredProfileFieldsCompleted staff =
         )
 
 isOperationallyActive :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
-isOperationallyActive = do
-    maybeStaff <- fetchCurrentUserStaff
-    pure (maybe False requiredProfileFieldsCompleted maybeStaff)
+isOperationallyActive
+    | currentUserIsSuperAdmin = pure True
+    | otherwise = do
+        maybeStaff <- fetchCurrentUserStaff
+        pure (maybe False requiredProfileFieldsCompleted maybeStaff)
 
 ensureProfileCompleted :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 ensureProfileCompleted = do
@@ -56,6 +58,19 @@ ensureManagerRole = accessDeniedUnless (hasRole ManagerRole')
 
 ensureAdminRole :: (?context :: ControllerContext) => IO ()
 ensureAdminRole = accessDeniedUnless (hasRole VenueAdminRole)
+
+currentUserCanUseStaffSelfService :: (?context :: ControllerContext) => Bool
+currentUserCanUseStaffSelfService = not currentUserIsSuperAdmin
+
+ensureStaffSelfServiceAccess :: (?context :: ControllerContext) => IO ()
+ensureStaffSelfServiceAccess = accessDeniedUnless currentUserCanUseStaffSelfService
+
+fetchCurrentUserPasskeys :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Passkey]
+fetchCurrentUserPasskeys =
+    query @Passkey
+        |> filterWhere (#userId, unpackId authenticatedCurrentUser.id)
+        |> orderByAsc #createdAt
+        |> fetch
 
 fetchCurrentUserStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe Staff)
 fetchCurrentUserStaff =
