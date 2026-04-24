@@ -26,6 +26,7 @@ import IHP.Prelude
 import IHP.ViewSupport (View)
 import Network.Wai (Request)
 import qualified Network.Wai as Wai
+import qualified System.Environment as Environment
 import qualified Text.Blaze.Html as Blaze
 
 data RequestProfile = RequestProfile
@@ -46,23 +47,25 @@ data RequestProfileSpan = RequestProfileSpan
 
 initRequestProfiling :: (?context :: ControllerContext) => IO ()
 initRequestProfiling = do
-    existingProfile :: Maybe RequestProfile <- maybeFromContext
-    case existingProfile of
-        Just _ -> pure ()
-        Nothing -> do
-            startedAtNs <- getMonotonicTimeNSec
-            requestProfileId <- UUID.toText <$> UUIDv4.nextRandom
-            spansRef <- newIORef []
-            nextSpanOrderRef <- newIORef 0
-            emittedRef <- newIORef False
-            putContext
-                RequestProfile
-                    { requestProfileId
-                    , startedAtNs
-                    , spansRef
-                    , nextSpanOrderRef
-                    , emittedRef
-                    }
+    profilingEnabled <- isRequestProfilingEnabled
+    when profilingEnabled do
+        existingProfile :: Maybe RequestProfile <- maybeFromContext
+        case existingProfile of
+            Just _ -> pure ()
+            Nothing -> do
+                startedAtNs <- getMonotonicTimeNSec
+                requestProfileId <- UUID.toText <$> UUIDv4.nextRandom
+                spansRef <- newIORef []
+                nextSpanOrderRef <- newIORef 0
+                emittedRef <- newIORef False
+                putContext
+                    RequestProfile
+                        { requestProfileId
+                        , startedAtNs
+                        , spansRef
+                        , nextSpanOrderRef
+                        , emittedRef
+                        }
 
 profileActionSpan :: (?context :: ControllerContext) => Text -> IO a -> IO a
 profileActionSpan name action =
@@ -92,6 +95,14 @@ emitRequestProfileResponseHeaders = do
             setHeader ("Server-Timing", cs (renderServerTiming totalDurationMs spans))
             when isDevelopment do
                 TextIO.putStrLn (renderRequestProfileLog profile.requestProfileId totalDurationMs spans)
+
+isRequestProfilingEnabled :: IO Bool
+isRequestProfilingEnabled = do
+    maybeValue <- Environment.lookupEnv "IHP_ROSTER_PROFILING"
+    pure (maybe False isEnabledValue maybeValue)
+    where
+        isEnabledValue value =
+            value `elem` ["1", "true", "TRUE", "yes", "YES", "on", "ON"]
 
 profileActionSpanWithDetail :: (?context :: ControllerContext) => Text -> IO (a, Maybe Text) -> IO a
 profileActionSpanWithDetail name action = do

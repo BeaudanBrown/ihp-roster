@@ -24,6 +24,21 @@ db:
 seed-dev *args:
     if [ -z "{{args}}" ]; then seed-dev app; else seed-dev {{args}}; fi
 
+seed-profile *args:
+    if [ -z "{{args}}" ]; then seed-profile app_profile; else seed-profile {{args}}; fi
+
+profile *args:
+    profile-app {{args}}
+
+profile-load *args:
+    profile-load {{args}}
+
+profile-load-suite *args:
+    profile-load-suite {{args}}
+
+profile-compare before after output="":
+    if [ -z "{{output}}" ]; then profile-compare "{{before}}" "{{after}}"; else profile-compare "{{before}}" "{{after}}" "{{output}}"; fi
+
 demo-reset *args:
     if [ -z "{{args}}" ]; then bash ./bin/demo-reset; else bash ./bin/demo-reset {{args}}; fi
 
