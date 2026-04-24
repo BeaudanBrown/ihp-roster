@@ -1,8 +1,14 @@
 module Web.Controller.Support where
 
+import Application.Async.Queue
+    ( AppJobRequest (..), EnqueueAppJobResult (..), enqueueAppJob,
+      fetchActiveAppJobByDedupeKey, fetchLatestAppJobByKind )
+import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
+                                fwcMapdRefreshJobKind)
 import Application.Helper.Controller (currentSupportVenueOptions,
                                       defaultRosterWeekStartsOn,
                                       unsafeEnumFromText)
+import Application.Helper.FwcMapd (fetchFwcMapdAdminData)
 import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail,
                                                      venueOnboardingInvitationLifetime)
 import Application.Helper.View (appendQueryParams)
@@ -27,6 +33,9 @@ instance Controller SupportController where
         let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
+        fwcMapdAdminData <- fetchFwcMapdAdminData
+        latestFwcMapdRefreshJob <- fetchLatestAppJobByKind fwcMapdRefreshJobKind
+        activeFwcMapdRefreshJob <- fetchActiveAppJobByDedupeKey fwcMapdRefreshJobDedupeKey
         createdVenue <- case paramOrNothing @(Id Venue) "createdVenueId" of
             Nothing      -> pure Nothing
             Just venueId -> Just <$> fetchCreatedVenue venueId
@@ -40,6 +49,9 @@ instance Controller SupportController where
         let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
+        fwcMapdAdminData <- fetchFwcMapdAdminData
+        latestFwcMapdRefreshJob <- fetchLatestAppJobByKind fwcMapdRefreshJobKind
+        activeFwcMapdRefreshJob <- fetchActiveAppJobByDedupeKey fwcMapdRefreshJobDedupeKey
         let createdVenue = Nothing
         let venueTimezone = paramOrDefault defaultVenueBootstrapTimezone "timezone"
         let venueRosterWeekStartsOn = fromMaybe defaultRosterWeekStartsOn (paramOrNothing @Int "rosterWeekStartsOn")
@@ -79,6 +91,9 @@ instance Controller SupportController where
         let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
+        fwcMapdAdminData <- fetchFwcMapdAdminData
+        latestFwcMapdRefreshJob <- fetchLatestAppJobByKind fwcMapdRefreshJobKind
+        activeFwcMapdRefreshJob <- fetchActiveAppJobByDedupeKey fwcMapdRefreshJobDedupeKey
         let createdVenue = Nothing
         let venue = buildSupportVenueForm
         let venueTimezone = defaultVenueBootstrapTimezone
@@ -103,6 +118,27 @@ instance Controller SupportController where
                     queueVenueOnboardingInvitationDelivery invitation
                     setSuccessMessage ("Venue owner invitation queued for " <> invitation.email)
                     redirectTo SupportAction
+
+    action CreateFwcMapdRefreshJobAction = do
+        enqueueResult <-
+            enqueueAppJob
+                AppJobRequest
+                    { jobKind = fwcMapdRefreshJobKind
+                    , payload = Aeson.object []
+                    , payloadSchemaVersion = 1
+                    , requestedByUserId = Just (unpackId currentUser.id)
+                    , venueId = Nothing
+                    , relatedTable = Just "fwc_mapd_sync_runs"
+                    , relatedId = Nothing
+                    , dedupeKey = Just fwcMapdRefreshJobDedupeKey
+                    , runAt = Nothing
+                    }
+        case enqueueResult of
+            EnqueuedAppJob _ ->
+                setSuccessMessage "Award rate refresh queued."
+            ExistingActiveAppJob _ ->
+                setSuccessMessage "Award rate refresh is already queued or running."
+        redirectTo SupportAction
 
     action SwitchSupportVenueAction = do
         let venueId = (coerce (param @UUID "venueId") :: Id Venue)

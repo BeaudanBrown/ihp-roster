@@ -565,7 +565,7 @@ CREATE INDEX idx_fwc_mapd_pay_rates_award_current ON fwc_mapd_pay_rates (award_f
 CREATE INDEX idx_app_jobs_pending ON app_jobs (status, run_at, created_at);
 CREATE INDEX idx_app_jobs_kind_created_at ON app_jobs (job_kind, created_at DESC);
 CREATE INDEX idx_app_jobs_venue_created_at ON app_jobs (venue_id, created_at DESC);
-CREATE UNIQUE INDEX idx_app_jobs_active_dedupe ON app_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL AND status IN ('job_status_not_started', 'job_status_running', 'job_status_retry');
+CREATE UNIQUE INDEX idx_app_jobs_active_dedupe ON app_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL AND (status = 'job_status_not_started' OR status = 'job_status_running' OR status = 'job_status_retry');
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id);
 CREATE INDEX idx_timesheet_entries_venue_worked_on ON timesheet_entries (venue_id, worked_on);
 CREATE INDEX idx_timesheet_entries_snapshot ON timesheet_entries (pay_config_snapshot_id);

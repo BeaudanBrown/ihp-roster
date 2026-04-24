@@ -6,6 +6,8 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       currentVenueSessionKey,
                                       initCurrentVenueContext,
                                       unsafeEnumFromText)
+import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
+                                fwcMapdRefreshJobKind)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Config
 import qualified Data.ByteString.Char8 as BS
@@ -216,8 +218,55 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Beta Venue"
                 response `responseBodyShouldContain` "Sign-In Methods"
                 response `responseBodyShouldContain` "Support laptop"
+                response `responseBodyShouldContain` "Award Rates"
+                response `responseBodyShouldContain` "Refresh award rates"
                 response `responseBodyShouldContain` "data-success-redirect=\"/Support\""
                 response `responseBodyShouldNotContain` "href=\"/EditProfile\">profile</a>"
+
+        it "lets super-admin queue an award rate refresh from support" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-award-refresh@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+
+                response <- withUser founder do
+                    callAction CreateFwcMapdRefreshJobAction
+
+                response `responseStatusShouldBe` status302
+
+                job <- query @AppJob |> filterWhere (#jobKind, fwcMapdRefreshJobKind) |> fetchOne
+
+                job.dedupeKey `shouldBe` Just fwcMapdRefreshJobDedupeKey
+                job.requestedByUserId `shouldBe` Just (unpackId founder.id)
+                inputValue job.status `shouldBe` "job_status_not_started"
+
+        it "deduplicates active award rate refresh jobs" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-award-refresh-dedupe@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+
+                _ <- withUser founder do
+                    callAction CreateFwcMapdRefreshJobAction
+                response <- withUser founder do
+                    callAction CreateFwcMapdRefreshJobAction
+
+                response `responseStatusShouldBe` status302
+                jobCount <- query @AppJob |> filterWhere (#jobKind, fwcMapdRefreshJobKind) |> fetchCount
+                jobCount `shouldBe` 1
+
+        it "denies award rate refresh creation to ordinary venue admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                admin <- createUserRecord "venue-admin-award-refresh@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withUser admin do
+                    callAction CreateFwcMapdRefreshJobAction
+
+                response `responseStatusShouldBe` status403
+                jobCount <- query @AppJob |> filterWhere (#jobKind, fwcMapdRefreshJobKind) |> fetchCount
+                jobCount `shouldBe` 0
 
         it "lets super-admin create a venue owner onboarding invitation" $ withContext do
             withCleanDb do

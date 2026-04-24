@@ -42,8 +42,11 @@ enqueueAppJob ::
     AppJobRequest ->
     IO EnqueueAppJobResult
 enqueueAppJob request = do
-    existingJob <- traverse fetchActiveAppJobByDedupeKey request.dedupeKey
-    case join existingJob of
+    existingJob <-
+        case request.dedupeKey of
+            Nothing  -> pure Nothing
+            Just key -> fetchActiveAppJobByDedupeKey key
+    case existingJob of
         Just appJob -> pure (ExistingActiveAppJob appJob)
         Nothing -> do
             appJob <-

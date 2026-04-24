@@ -1,7 +1,6 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
-import Application.Helper.FwcMapd
 import Application.Helper.LiveUpdate
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
@@ -26,7 +25,6 @@ instance Controller AdminController where
 
     action AdminAction = do
         venueConfig <- fetchVenueConfig
-        fwcMapdAdminData <- fetchFwcMapdAdminData
         recentSnapshots <- fetchCurrentVenuePayConfigSnapshots
         rosterGroups <- fetchCurrentVenueRosterGroups
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")

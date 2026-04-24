@@ -1,8 +1,13 @@
 module Web.View.Support.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.FwcMapd (FwcMapdAdminData (..),
+                                   FwcMapdDisplayPayRate (..))
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
+import qualified Data.Text as Text
+import Data.Scientific (Scientific)
 import Data.Time.Calendar (Day)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Passkeys.Management (renderPasskeyManagement)
 import Web.View.Prelude
 
@@ -14,6 +19,9 @@ data IndexView = IndexView
     , onboardingInvitation :: VenueOnboardingInvitation
     , onboardingInvitations :: [VenueOnboardingInvitation]
     , passkeys :: [Passkey]
+    , fwcMapdAdminData :: FwcMapdAdminData
+    , latestFwcMapdRefreshJob :: Maybe AppJob
+    , activeFwcMapdRefreshJob :: Maybe AppJob
     , createdVenue :: Maybe Venue
     }
 
@@ -111,6 +119,18 @@ instance View IndexView where
                     , appPanelBodyClass = ""
                     , appPanelBody = renderPasskeyManagement passkeys (pathTo SupportAction)
                     }
+            awardRatesPanel =
+                renderAppPanel AppPanelConfig
+                    { appPanelTitle = Just "Award Rates"
+                    , appPanelDescription = Just "Read-only Fair Work MAPD cache and refresh controls for platform support."
+                    , appPanelHasActions = False
+                    , appPanelActions = mempty
+                    , appPanelHasCustomHeader = False
+                    , appPanelCustomHeader = mempty
+                    , appPanelClass = ""
+                    , appPanelBodyClass = ""
+                    , appPanelBody = renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob
+                    }
          in renderAppPage (AppPageConfig
             { appPageTitle = "Support"
             , appPageDescription = Nothing
@@ -121,6 +141,7 @@ instance View IndexView where
                 <div class="app-page-stack">
                     {switchVenuePanel}
                     {signInMethodsPanel}
+                    {awardRatesPanel}
                     {inviteVenueOwnerPanel}
                     {createVenuePanel}
                 </div>
@@ -133,6 +154,249 @@ renderVenueOption venue = [hsx|
         {venue.name}
     </option>
 |]
+
+renderAwardRatesSection :: FwcMapdAdminData -> Maybe AppJob -> Maybe AppJob -> Html
+renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, currentCoreClassifications, currentCoreAdultPayRates, rateTypeBreakdown } latestRefreshJob activeRefreshJob = [hsx|
+    <div class="d-flex flex-column gap-3">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+            <div>
+                {renderAwardRatesSummary latestSyncRun latestRefreshJob currentAwards currentCoreClassifications currentCoreAdultPayRates rateTypeBreakdown}
+            </div>
+            <div class="flex-shrink-0">
+                {renderAwardRefreshForm activeRefreshJob}
+            </div>
+        </div>
+        {if null currentAwards then renderAwardRatesEmptyState else renderAwardRatesTables currentAwards currentCoreClassifications currentCoreAdultPayRates}
+    </div>
+|]
+
+renderAwardRefreshForm :: Maybe AppJob -> Html
+renderAwardRefreshForm activeRefreshJob = [hsx|
+    <form method="POST" action={CreateFwcMapdRefreshJobAction} class="d-grid" data-disable-javascript-submission="true">
+        <button class={buttonClass} type="submit" disabled={isJust activeRefreshJob}>
+            {buttonLabel}
+        </button>
+    </form>
+|]
+    where
+        buttonClass :: Text
+        buttonClass =
+            if isJust activeRefreshJob
+                then "btn btn-outline-secondary"
+                else "btn btn-primary"
+        buttonLabel =
+            if isJust activeRefreshJob
+                then "Refresh queued/running" :: Text
+                else "Refresh award rates"
+
+renderAwardRatesSummary :: Maybe FwcMapdSyncRun -> Maybe AppJob -> [FwcMapdAward] -> [FwcMapdClassification] -> [FwcMapdDisplayPayRate] -> [(Text, Int)] -> Html
+renderAwardRatesSummary latestSyncRun latestRefreshJob currentAwards currentCoreClassifications currentCoreAdultPayRates rateTypeBreakdown = [hsx|
+    <div class="small app-muted">
+        <div>{renderSyncStatusText latestSyncRun}</div>
+        <div>{renderRefreshJobStatus latestRefreshJob}</div>
+        <div>
+            Cached current awards: <span class="fw-semibold">{tshow (length currentAwards)}</span>.
+            Core hospitality classifications: <span class="fw-semibold">{tshow (length currentCoreClassifications)}</span>.
+            Current adult rates shown: <span class="fw-semibold">{tshow (length currentCoreAdultPayRates)}</span>.
+            {renderOptionalRateTypeBreakdown rateTypeBreakdown}
+        </div>
+    </div>
+|]
+
+renderSyncStatusText :: Maybe FwcMapdSyncRun -> Html
+renderSyncStatusText maybeSyncRun =
+    case maybeSyncRun of
+        Nothing -> [hsx|No MAPD sync has been run yet.|]
+        Just syncRun -> [hsx|
+            Last sync <span class="fw-semibold">{syncRun.status}</span> at {formatTimestamp syncRun.startedAt}.
+        |]
+
+renderRefreshJobStatus :: Maybe AppJob -> Html
+renderRefreshJobStatus maybeJob =
+    case maybeJob of
+        Nothing -> [hsx|No award refresh job has been queued yet.|]
+        Just appJob -> [hsx|
+            Latest refresh job <span class="fw-semibold">{renderJobStatus appJob.status}</span> queued at {formatTimestamp appJob.createdAt}.
+            {renderJobError appJob}
+        |]
+
+renderJobStatus :: JobStatus -> Text
+renderJobStatus status =
+    case inputValue status of
+        "job_status_not_started" -> "queued"
+        "job_status_running"     -> "running"
+        "job_status_failed"      -> "failed"
+        "job_status_timed_out"   -> "timed out"
+        "job_status_succeeded"   -> "succeeded"
+        "job_status_retry"       -> "retrying"
+        other                    -> other
+
+renderJobError :: AppJob -> Html
+renderJobError appJob =
+    case appJob.lastError of
+        Nothing -> mempty
+        Just err -> [hsx|<span> Last error: {err}</span>|]
+
+renderRateTypeBreakdown :: [(Text, Int)] -> Html
+renderRateTypeBreakdown breakdown = [hsx|
+    <span>{Text.intercalate ", " (map renderEntry breakdown)}</span>
+|]
+    where
+        renderEntry (code, count) = renderRateTypeCode code <> "=" <> tshow count
+
+renderOptionalRateTypeBreakdown :: [(Text, Int)] -> Html
+renderOptionalRateTypeBreakdown breakdown
+    | null breakdown = mempty
+    | otherwise = [hsx|<span> Rate types in cache: {renderRateTypeBreakdown breakdown}.</span>|]
+
+renderAwardRatesEmptyState :: Html
+renderAwardRatesEmptyState = [hsx|
+    <div class="alert alert-warning mb-0">
+        No cached MAPD award data is available yet. Use the refresh button to queue a Fair Work MAPD sync.
+    </div>
+|]
+
+renderAwardRatesTables :: [FwcMapdAward] -> [FwcMapdClassification] -> [FwcMapdDisplayPayRate] -> Html
+renderAwardRatesTables currentAwards currentCoreClassifications currentCoreAdultPayRates = [hsx|
+    <div class="d-flex flex-column gap-3">
+        <div>
+            <div class="small text-uppercase app-muted mb-2">Relevant awards</div>
+            {renderAwardTable currentAwards}
+        </div>
+        <div>
+            <div class="small text-uppercase app-muted mb-2">Core classifications</div>
+            {renderClassificationTable currentCoreClassifications}
+        </div>
+        <div>
+            <div class="small text-uppercase app-muted mb-2">Current adult pay rates</div>
+            {renderAwardRateTable currentCoreAdultPayRates}
+        </div>
+    </div>
+|]
+
+renderAwardTable :: [FwcMapdAward] -> Html
+renderAwardTable currentAwards = [hsx|
+    <div class="table-responsive">
+        <table class="table table-striped align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Code</th>
+                    <th>Name</th>
+                    <th>Operative From</th>
+                    <th>Version</th>
+                </tr>
+            </thead>
+            <tbody>
+                {forEach currentAwards renderAwardRow}
+            </tbody>
+        </table>
+    </div>
+|]
+
+renderAwardRow :: FwcMapdAward -> Html
+renderAwardRow award = [hsx|
+    <tr>
+        <td class="fw-semibold">{award.code}</td>
+        <td>{award.name}</td>
+        <td>{maybe "-" tshow award.awardOperativeFrom}</td>
+        <td>{maybe "-" tshow award.versionNumber}</td>
+    </tr>
+|]
+
+renderClassificationTable :: [FwcMapdClassification] -> Html
+renderClassificationTable classifications
+    | null classifications = renderEmptyState "No relevant classifications are cached yet."
+    | otherwise = [hsx|
+        <div class="table-responsive">
+            <table class="table table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Classification</th>
+                        <th>Parent / Stream</th>
+                        <th>Clause</th>
+                        <th>Operative From</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {forEach classifications renderClassificationRow}
+                </tbody>
+            </table>
+        </div>
+    |]
+
+renderClassificationRow :: FwcMapdClassification -> Html
+renderClassificationRow classification = [hsx|
+    <tr>
+        <td>
+            <div class="fw-semibold">{classification.classification}</div>
+            <div class="small app-muted">{fromMaybe "-" classification.classificationLevel}</div>
+        </td>
+        <td>{fromMaybe "-" classification.parentClassificationName}</td>
+        <td>{fromMaybe "-" classification.clauseDescription}</td>
+        <td>{maybe "-" tshow classification.operativeFrom}</td>
+    </tr>
+|]
+
+renderAwardRateTable :: [FwcMapdDisplayPayRate] -> Html
+renderAwardRateTable payRates
+    | null payRates = renderEmptyState "No current adult pay rates are cached for the curated hospitality set."
+    | otherwise = [hsx|
+        <div class="table-responsive">
+            <table class="table table-striped align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Award</th>
+                        <th>Classification</th>
+                        <th>Parent / Stream</th>
+                        <th>Rate Type</th>
+                        <th>Base</th>
+                        <th>Calculated</th>
+                        <th>Operative From</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {forEach payRates renderAwardRateRow}
+                </tbody>
+            </table>
+        </div>
+    |]
+
+renderAwardRateRow :: FwcMapdDisplayPayRate -> Html
+renderAwardRateRow payRate = [hsx|
+    <tr>
+        <td>
+            <div class="fw-semibold">{payRate.awardCode}</div>
+            <div class="small app-muted">{payRate.awardName}</div>
+        </td>
+        <td>
+            <div class="fw-semibold">{payRate.classification}</div>
+            <div class="small app-muted">{fromMaybe "-" payRate.classificationLevel}</div>
+        </td>
+        <td>{fromMaybe "-" payRate.parentClassificationName}</td>
+        <td>{renderRateTypeCode (fromMaybe "unknown" payRate.employeeRateTypeCode)}</td>
+        <td>{renderRateAmount payRate.baseRate payRate.baseRateType}</td>
+        <td>{renderRateAmount payRate.calculatedRate payRate.calculatedRateType}</td>
+        <td>{maybe "-" tshow payRate.operativeFrom}</td>
+    </tr>
+|]
+
+renderRateAmount :: Maybe Scientific -> Maybe Text -> Html
+renderRateAmount maybeAmount maybeRateType =
+    case maybeAmount of
+        Nothing -> [hsx|<span class="app-muted">-</span>|]
+        Just amount -> [hsx|<span>${tshow amount}</span> <span class="small app-muted">{fromMaybe "" maybeRateType}</span>|]
+
+renderRateTypeCode :: Text -> Text
+renderRateTypeCode code =
+    case code of
+        "AD" -> "Adult"
+        "AP" -> "Apprentice"
+        "JU" -> "Junior"
+        "TR" -> "Trainee"
+        _    -> code
+
+renderEmptyState :: Text -> Html
+renderEmptyState message = [hsx|<p class="app-muted mb-0">{message}</p>|]
 
 renderCreatedVenueBanner :: Maybe Venue -> Html
 renderCreatedVenueBanner maybeVenue =
@@ -238,3 +502,6 @@ renderOnboardingInvitationExpiry maybeExpiresAt =
 
 renderDay :: Day -> Html
 renderDay day = [hsx|{tshow day}|]
+
+formatTimestamp :: UTCTime -> Text
+formatTimestamp = cs . formatTime defaultTimeLocale "%Y-%m-%d %H:%M UTC"

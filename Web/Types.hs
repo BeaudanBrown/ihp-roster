@@ -104,6 +104,7 @@ data SupportController
     = SupportAction
     | CreateSupportVenueAction
     | CreateSupportVenueOnboardingInvitationAction
+    | CreateFwcMapdRefreshJobAction
     | SwitchSupportVenueAction
     deriving (Eq, Show, Data)
 

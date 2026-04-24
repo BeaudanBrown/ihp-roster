@@ -2,11 +2,8 @@ module Web.View.Admin.Index where
 
 import Application.Helper.Export (ReportWeekSelection (..),
                                   VenueReportDefinition (..))
-import Application.Helper.FwcMapd (FwcMapdAdminData (..),
-                                   FwcMapdDisplayPayRate (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import qualified Data.Text as Text
-import Data.Scientific (Scientific)
 import Application.Helper.WeekBoundaries
     ( validRosterWeekStartDays, weekdayIndexLabel )
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -14,7 +11,6 @@ import Web.View.Prelude
 
 data IndexView = IndexView
     { venueConfig                     :: VenueConfig
-    , fwcMapdAdminData                :: FwcMapdAdminData
     , venueRosterWeekStartLocked      :: Bool
     , latestSnapshot                  :: Maybe PayConfigSnapshot
     , recentSnapshots                 :: [PayConfigSnapshot]
@@ -48,7 +44,7 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion venueConfig fwcMapdAdminData venueRosterWeekStartLocked rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
+                                {renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
                             </div>
                         </div>
                     |]
@@ -256,18 +252,6 @@ renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition re
             </div>
         |]
 
-renderAwardRatesSection :: FwcMapdAdminData -> Html
-renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, currentCoreClassifications, currentCoreAdultPayRates, rateTypeBreakdown } =
-    renderConfigSection
-        "award-rates"
-        "Award Rates"
-        "Read-only reference data cached from the Fair Work Commission Modern Awards Pay Database."
-        (renderAwardRatesSummary latestSyncRun currentAwards currentCoreClassifications currentCoreAdultPayRates rateTypeBreakdown)
-        mempty
-        [hsx|
-            {if null currentAwards then renderAwardRatesEmptyState else renderAwardRatesTables currentAwards currentCoreClassifications currentCoreAdultPayRates}
-        |]
-
 renderVenueConfigSection :: VenueConfig -> Bool -> Html
 renderVenueConfigSection venueConfig venueRosterWeekStartLocked =
     renderConfigSection
@@ -348,11 +332,10 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
         |]
 
-renderConfigSectionsAccordion :: VenueConfig -> FwcMapdAdminData -> Bool -> [RosterGroup] -> RosterGroup -> [PayLevel] -> [ShiftType] -> [PayLevelDayRule] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
-renderConfigSectionsAccordion venueConfig fwcMapdAdminData venueRosterWeekStartLocked rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
+renderConfigSectionsAccordion :: VenueConfig -> Bool -> [RosterGroup] -> RosterGroup -> [PayLevel] -> [ShiftType] -> [PayLevelDayRule] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
+renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "venue-config" "Venue Config" True (renderVenueConfigSection venueConfig venueRosterWeekStartLocked)}
-        {renderAccordionItem "award-rates" "Award Rates" False (renderAwardRatesSection fwcMapdAdminData)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSection rosterGroups currentRosterGroup)}
         {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "pay-levels" "Pay Levels" False (renderPayLevelsSection payLevels)}
@@ -362,185 +345,6 @@ renderConfigSectionsAccordion venueConfig fwcMapdAdminData venueRosterWeekStartL
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection)}
     </div>
 |]
-
-renderAwardRatesSummary :: Maybe FwcMapdSyncRun -> [FwcMapdAward] -> [FwcMapdClassification] -> [FwcMapdDisplayPayRate] -> [(Text, Int)] -> Html
-renderAwardRatesSummary latestSyncRun currentAwards currentCoreClassifications currentCoreAdultPayRates rateTypeBreakdown = [hsx|
-    <div class="small app-muted mb-3">
-        {renderSyncStatusText latestSyncRun}
-        Cached current awards: <span class="fw-semibold">{tshow (length currentAwards)}</span>.
-        Core hospitality classifications: <span class="fw-semibold">{tshow (length currentCoreClassifications)}</span>.
-        Current adult rates shown: <span class="fw-semibold">{tshow (length currentCoreAdultPayRates)}</span>.
-        {renderOptionalRateTypeBreakdown rateTypeBreakdown}
-    </div>
-|]
-
-renderSyncStatusText :: Maybe FwcMapdSyncRun -> Html
-renderSyncStatusText maybeSyncRun =
-    case maybeSyncRun of
-        Nothing -> [hsx|No MAPD sync has been run yet.|]
-        Just syncRun -> [hsx|
-            Last sync <span class="fw-semibold">{syncRun.status}</span> at {formatTimestamp syncRun.startedAt}.
-        |]
-
-renderRateTypeBreakdown :: [(Text, Int)] -> Html
-renderRateTypeBreakdown breakdown = [hsx|
-    <span>{Text.intercalate ", " (map renderEntry breakdown)}</span>
-|]
-    where
-        renderEntry (code, count) = renderRateTypeCode code <> "=" <> tshow count
-
-renderOptionalRateTypeBreakdown :: [(Text, Int)] -> Html
-renderOptionalRateTypeBreakdown breakdown
-    | null breakdown = mempty
-    | otherwise = [hsx|<span> Rate types in cache: {renderRateTypeBreakdown breakdown}.</span>|]
-
-renderAwardRatesEmptyState :: Html
-renderAwardRatesEmptyState = [hsx|
-    <div class="alert alert-warning mb-0">
-        No cached MAPD award data is available yet. Run <code>bash ./bin/in-env sync-fwc-mapd</code> in the repo environment to populate the cache.
-    </div>
-|]
-
-renderAwardRatesTables :: [FwcMapdAward] -> [FwcMapdClassification] -> [FwcMapdDisplayPayRate] -> Html
-renderAwardRatesTables currentAwards currentCoreClassifications currentCoreAdultPayRates = [hsx|
-    <div class="d-flex flex-column gap-3">
-        <div>
-            <div class="small text-uppercase app-muted mb-2">Relevant awards</div>
-            {renderAwardTable currentAwards}
-        </div>
-        <div>
-            <div class="small text-uppercase app-muted mb-2">Core classifications</div>
-            {renderClassificationTable currentCoreClassifications}
-        </div>
-        <div>
-            <div class="small text-uppercase app-muted mb-2">Current adult pay rates</div>
-            {renderAwardRateTable currentCoreAdultPayRates}
-        </div>
-    </div>
-|]
-
-renderAwardTable :: [FwcMapdAward] -> Html
-renderAwardTable currentAwards = [hsx|
-    <div class="table-responsive">
-        <table class="table table-striped align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Code</th>
-                    <th>Name</th>
-                    <th>Operative From</th>
-                    <th>Version</th>
-                </tr>
-            </thead>
-            <tbody>
-                {forEach currentAwards renderAwardRow}
-            </tbody>
-        </table>
-    </div>
-|]
-
-renderAwardRow :: FwcMapdAward -> Html
-renderAwardRow award = [hsx|
-    <tr>
-        <td class="fw-semibold">{award.code}</td>
-        <td>{award.name}</td>
-        <td>{maybe "-" tshow award.awardOperativeFrom}</td>
-        <td>{maybe "-" tshow award.versionNumber}</td>
-    </tr>
-|]
-
-renderClassificationTable :: [FwcMapdClassification] -> Html
-renderClassificationTable classifications
-    | null classifications = renderEmptyState "No relevant classifications are cached yet."
-    | otherwise = [hsx|
-        <div class="table-responsive">
-            <table class="table table-striped align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Classification</th>
-                        <th>Parent / Stream</th>
-                        <th>Clause</th>
-                        <th>Operative From</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {forEach classifications renderClassificationRow}
-                </tbody>
-            </table>
-        </div>
-    |]
-
-renderClassificationRow :: FwcMapdClassification -> Html
-renderClassificationRow classification = [hsx|
-    <tr>
-        <td>
-            <div class="fw-semibold">{classification.classification}</div>
-            <div class="small app-muted">{fromMaybe "-" classification.classificationLevel}</div>
-        </td>
-        <td>{fromMaybe "-" classification.parentClassificationName}</td>
-        <td>{fromMaybe "-" classification.clauseDescription}</td>
-        <td>{maybe "-" tshow classification.operativeFrom}</td>
-    </tr>
-|]
-
-renderAwardRateTable :: [FwcMapdDisplayPayRate] -> Html
-renderAwardRateTable payRates
-    | null payRates = renderEmptyState "No current adult pay rates are cached for the curated hospitality set."
-    | otherwise = [hsx|
-        <div class="table-responsive">
-            <table class="table table-striped align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Award</th>
-                        <th>Classification</th>
-                        <th>Parent / Stream</th>
-                        <th>Rate Type</th>
-                        <th>Base</th>
-                        <th>Calculated</th>
-                        <th>Operative From</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {forEach payRates renderAwardRateRow}
-                </tbody>
-            </table>
-        </div>
-    |]
-
-renderAwardRateRow :: FwcMapdDisplayPayRate -> Html
-renderAwardRateRow payRate = [hsx|
-    <tr>
-        <td>
-            <div class="fw-semibold">{payRate.awardCode}</div>
-            <div class="small app-muted">{payRate.awardName}</div>
-        </td>
-        <td>
-            <div class="fw-semibold">{payRate.classification}</div>
-            <div class="small app-muted">{fromMaybe "-" payRate.classificationLevel}</div>
-        </td>
-        <td>{fromMaybe "-" payRate.parentClassificationName}</td>
-        <td>{renderRateTypeCode (fromMaybe "unknown" payRate.employeeRateTypeCode)}</td>
-        <td>{renderRateAmount payRate.baseRate payRate.baseRateType}</td>
-        <td>{renderRateAmount payRate.calculatedRate payRate.calculatedRateType}</td>
-        <td>{maybe "-" tshow payRate.operativeFrom}</td>
-    </tr>
-|]
-
-renderRateAmount :: Maybe Scientific -> Maybe Text -> Html
-renderRateAmount maybeAmount maybeRateType =
-    case maybeAmount of
-        Nothing -> [hsx|-|]
-        Just amount -> [hsx|
-            <span>{tshow amount}{maybe mempty (\rateType -> " " <> rateType) maybeRateType}</span>
-        |]
-
-renderRateTypeCode :: Text -> Text
-renderRateTypeCode code =
-    case code of
-        "AD" -> "Adult"
-        "JN" -> "Junior"
-        "AP" -> "Apprentice"
-        "AA" -> "Adult apprentice"
-        _ -> code
 
 inviteRowId :: Id VenueInvitation -> Text
 inviteRowId invitationId = "invite-row-" <> tshow invitationId
