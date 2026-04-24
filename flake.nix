@@ -200,7 +200,7 @@ SQL
                             export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-$PWD/build/db}"
 
                             if [ -n "''${BASE_URL:-}" ]; then
-                                exec node ./node_modules/@playwright/test/cli.js test "$@"
+                                exec playwright test "$@"
                             fi
 
                             test-db-reset
@@ -245,7 +245,7 @@ SQL
                                     BASE_URL="http://127.0.0.1:$E2E_PORT"
                                     export BASE_URL
                                     echo "E2E app server ready at $BASE_URL"
-                                    node ./node_modules/@playwright/test/cli.js test "$@"
+                                    playwright test "$@"
                                     exit $?
                                 fi
 
