@@ -137,6 +137,7 @@ renderDashboardRuntimeDemoDialog =
                 </div>
             </div>
         |]
+        , dialogOverlayStartButtons = []
         , dialogOverlayButtons =
             [ OverlayButton
                 { overlayButtonLabel = "Close"

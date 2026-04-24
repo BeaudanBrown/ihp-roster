@@ -166,6 +166,28 @@ a:not(.btn):hover {
     color: #a9c6f5;
 }
 
+.app-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.app-modal-footer-start,
+.app-modal-footer-end {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.app-modal-footer-end {
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
+.app-modal-footer-form {
+    margin: 0;
+}
+
 .app-toast-host {
     position: fixed;
     bottom: 1rem;
