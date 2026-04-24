@@ -67,6 +67,23 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Ideal Shifts Per Week"
                 response `responseBodyShouldContain` "Login email is read-only here for now."
 
+        it "renders an empty profile onboarding form for a user with membership but no staff row yet" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Onboarding Venue"
+                user <- createUserRecord "profile-onboarding@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue user "worker"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction EditProfileAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Profile Details"
+                response `responseBodyShouldContain` "name=\"firstName\""
+                response `responseBodyShouldContain` "name=\"lastName\""
+                response `responseBodyShouldContain` "name=\"phone\""
+                response `responseBodyShouldContain` "name=\"emergencyContactName\""
+                response `responseBodyShouldContain` "name=\"emergencyContactPhone\""
+
         it "hides the dedicated leave header link for workers while keeping profile leave content available" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
@@ -131,6 +148,37 @@ tests = beforeAll testContext do
                 map (.rosterGroupId) preferences `shouldBe` [unpackId rosterGroup.id]
                 map (.slotNameId) preferences `shouldBe` [unpackId slotName.id]
                 map (.weekdayIndex) preferences `shouldBe` [1]
+
+        it "creates a linked staff row on the first successful profile submission" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Bootstrap Venue"
+                user <- createUserRecord "profile-bootstrap@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue user "worker"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams UpdateProfileAction
+                        [ ("firstName", "Taylor")
+                        , ("lastName", "Smith")
+                        , ("preferredName", "")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Casey Smith")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "3")
+                        ]
+
+                response `responseStatusShouldBe` status302
+
+                staff <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#userId, Just (unpackId user.id)) |> fetchOne
+                memberships <- query @VenueMembership |> filterWhere (#userId, unpackId user.id) |> fetch
+                rosterGroups <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId staff.id) |> fetch
+                refreshedUser <- fetch user.id
+
+                staff.firstName `shouldBe` "Taylor"
+                staff.lastName `shouldBe` "Smith"
+                staff.phone `shouldBe` "0400000000"
+                length memberships `shouldBe` 1
+                length rosterGroups `shouldBe` 1
+                refreshedUser.isProfileCompleted `shouldBe` True
 
         it "returns an HTMX profile fragment update instead of redirecting" $ withContext do
             withCleanDb do

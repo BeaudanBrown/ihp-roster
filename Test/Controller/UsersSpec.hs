@@ -104,14 +104,14 @@ tests = beforeAll testContext do
                 venue <- query @Venue |> filterWhere (#name, "Owner Venue") |> fetchOne
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
                 membership <- query @VenueMembership |> filterWhere (#userId, unpackId user.id) |> fetchOne
-                staff <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#userId, Just (unpackId user.id)) |> fetchOne
+                staff <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#userId, Just (unpackId user.id)) |> fetchOneOrNothing
                 updatedInvitation <- fetch invitation.id
 
                 venueConfig.timezone `shouldBe` "Australia/Melbourne"
                 venueConfig.rosterWeekStartsOn `shouldBe` 2
                 venueConfig.rosterWeekStartsOn `shouldSatisfy` (`elem` validRosterWeekStartDays)
                 inputValue membership.venueRole `shouldBe` "venue_owner"
-                staff.userId `shouldBe` Just (unpackId user.id)
+                staff `shouldBe` Nothing
                 inputValue updatedInvitation.status `shouldBe` "accepted"
                 updatedInvitation.acceptedByUserId `shouldBe` Just (unpackId user.id)
 
@@ -179,7 +179,7 @@ tests = beforeAll testContext do
                 staff <- query @Staff
                     |> filterWhere (#venueId, unpackId venue.id)
                     |> filterWhere (#userId, Just (unpackId user.id))
-                    |> fetchOne
+                    |> fetchOneOrNothing
                 updatedInvitation <- fetch invitation.id
                 unexpectedUser <- query @User
                     |> filterWhere (#email, "attacker@example.com")
@@ -187,8 +187,7 @@ tests = beforeAll testContext do
                 verificationTokenCount <- query @EmailVerificationToken |> fetchCount
 
                 membership.venueId `shouldBe` unpackId venue.id
-                staff.venueId `shouldBe` unpackId venue.id
-                staff.userId `shouldBe` Just (unpackId user.id)
+                staff `shouldBe` Nothing
                 inputValue membership.venueRole `shouldBe` "venue_owner"
                 inputValue user.userRole `shouldBe` "staff"
                 isJust user.emailVerifiedAt `shouldBe` True

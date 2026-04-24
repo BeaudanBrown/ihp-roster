@@ -176,6 +176,7 @@ tests = beforeAll testContext do
                 supportVenue <- createVenueWithConfig "Support Venue"
                 founder <- createUserRecordWithPlatformRole "founder-support@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- createStaffRecord supportVenue (Just founder) "Support" "Founder"
 
                 response <- withUserAndCurrentVenue founder supportVenue.id do
                     callAction AdminAction
@@ -413,6 +414,7 @@ tests = beforeAll testContext do
                 venueB <- createVenueWithConfig "Beta Venue"
                 founder <- createUserRecordWithPlatformRole "founder-session@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venueA founder "venue_owner"
+                _ <- createStaffRecord venueB (Just founder) "Beta" "Founder"
                 staffA <- createStaffRecord venueA Nothing "Alpha" "Person"
                 staffB <- createStaffRecord venueB Nothing "Beta" "Person"
                 _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) "pending"

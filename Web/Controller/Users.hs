@@ -7,7 +7,7 @@ import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
 import Application.Helper.Controller (defaultRosterWeekStartsOn)
 import Application.Support (createVenueWithBootstrapConfigInCurrentTransaction,
                             defaultStaffNameFromEmail,
-                            defaultVenueBootstrapTimezone, provisionVenueUser)
+                            defaultVenueBootstrapTimezone, provisionVenueMembership)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
@@ -62,7 +62,6 @@ instance Controller UsersController where
                                     render InvitationSignupView { user, venueInvitation = invitation }
                                 Right user -> do
                                     hashed <- hashPassword user.passwordHash
-                                    let (staffFirstName, staffLastName) = defaultStaffNameFromEmail invitation.email
                                     user <- withTransaction do
                                         verifiedAt <- getCurrentTime
                                         user <- user
@@ -70,7 +69,7 @@ instance Controller UsersController where
                                             |> set #emailVerifiedAt (Just verifiedAt)
                                             |> createRecord
                                         venue <- fetch (Id invitation.venueId :: Id Venue)
-                                        (membership, _) <- provisionVenueUser venue user (inputValue invitation.inviteRole) staffFirstName staffLastName
+                                        membership <- provisionVenueMembership venue user (inputValue invitation.inviteRole)
                                         _ <- invitation
                                             |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
                                             |> set #acceptedByUserId (Just (unpackId (get #id user)))
@@ -184,7 +183,6 @@ instance Controller UsersController where
                                     case venueWithName.meta.annotations of
                                         [] | venueRosterWeekStartsOn `elem` validRosterWeekStartDays && not (isEmpty venueTimezone) -> do
                                             hashed <- hashPassword user.passwordHash
-                                            let (staffFirstName, staffLastName) = defaultStaffNameFromEmail invitation.email
                                             user <- withTransaction do
                                                 verifiedAt <- getCurrentTime
                                                 user <-
@@ -193,7 +191,7 @@ instance Controller UsersController where
                                                         |> set #emailVerifiedAt (Just verifiedAt)
                                                         |> createRecord
                                                 (createdVenue, _) <- createVenueWithBootstrapConfigInCurrentTransaction venueWithName.name venueTimezone venueRosterWeekStartsOn
-                                                (membership, _) <- provisionVenueUser createdVenue user "venue_owner" staffFirstName staffLastName
+                                                membership <- provisionVenueMembership createdVenue user "venue_owner"
                                                 _ <-
                                                     invitation
                                                         |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")

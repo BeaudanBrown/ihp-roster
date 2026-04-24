@@ -242,19 +242,6 @@ tests = describe "Schema" do
         requiredProfileFieldsCompleted (completeStaff |> set #emergencyContactName "") `shouldBe` False
         requiredProfileFieldsCompleted (completeStaff |> set #emergencyContactPhone "") `shouldBe` False
 
-    it "marks users operational only after profile completion" do
-        let incompleteUser =
-                newRecord @User
-                    |> set #email "incomplete@example.com"
-                    |> set #passwordHash "hashed"
-                    |> set #userRole "staff"
-                    |> set #isProfileCompleted False
-                    |> set #emailVerifiedAt (Just def)
-        let completeUser = incompleteUser |> set #isProfileCompleted True
-
-        isOperationallyActive incompleteUser `shouldBe` False
-        isOperationallyActive completeUser `shouldBe` True
-
     describe "Venue-scoped authorization helpers" do
         it "uses venue role hierarchy worker < manager < venue_admin < venue_owner" do
             WorkerRole `shouldSatisfy` (< ManagerRole')

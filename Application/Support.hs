@@ -120,22 +120,26 @@ createVenueOnboardingInvitationRecord maybeInviter emailAddress =
         |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
         |> createRecord
 
-createStaffRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO Staff
-createStaffRecord venue maybeUser firstName lastName = do
+createStaffRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> Maybe Text -> Text -> Text -> Text -> Int -> Bool -> IO Staff
+createStaffRecord venue maybeUser firstName lastName preferredName phone emergencyContactName emergencyContactPhone idealShiftsPerWeek isActive = do
     staff <- newRecord @Staff
         |> set #venueId (unpackId (get #id venue))
         |> set #userId (fmap (unpackId . get #id) maybeUser)
         |> set #firstName firstName
         |> set #lastName lastName
-        |> set #preferredName Nothing
-        |> set #phone "0400000000"
-        |> set #emergencyContactName "Emergency Contact"
-        |> set #emergencyContactPhone "0411111111"
-        |> set #idealShiftsPerWeek 0
-        |> set #isActive True
+        |> set #preferredName preferredName
+        |> set #phone phone
+        |> set #emergencyContactName emergencyContactName
+        |> set #emergencyContactPhone emergencyContactPhone
+        |> set #idealShiftsPerWeek idealShiftsPerWeek
+        |> set #isActive isActive
         |> createRecord
     _ <- createStaffRosterGroupRecord staff =<< ensureVenueDefaultRosterGroup venue
     pure staff
+
+createPlaceholderStaffRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO Staff
+createPlaceholderStaffRecord venue maybeUser firstName lastName =
+    createStaffRecord venue maybeUser firstName lastName Nothing "0400000000" "Emergency Contact" "0411111111" 0 True
 
 ensureLinkedStaffRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> Text -> IO Staff
 ensureLinkedStaffRecord venue user firstName lastName =
@@ -151,14 +155,17 @@ ensureLinkedStaffRecord venue user firstName lastName =
                         |> set #isActive True
                         |> updateRecord
             Nothing ->
-                createStaffRecord venue (Just user) firstName lastName
+                createPlaceholderStaffRecord venue (Just user) firstName lastName
+
+provisionVenueMembership :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
+provisionVenueMembership venue user venueRole =
+    ensureVenueMembershipRecord venue user venueRole
 
 provisionVenueUser :: (?modelContext :: ModelContext) => Venue -> User -> Text -> Text -> Text -> IO (VenueMembership, Staff)
-provisionVenueUser venue user venueRole firstName lastName =
-    do
-        membership <- ensureVenueMembershipRecord venue user venueRole
-        staff <- ensureLinkedStaffRecord venue user firstName lastName
-        pure (membership, staff)
+provisionVenueUser venue user venueRole firstName lastName = do
+    membership <- provisionVenueMembership venue user venueRole
+    staff <- ensureLinkedStaffRecord venue user firstName lastName
+    pure (membership, staff)
 
 defaultStaffNameFromEmail :: Text -> (Text, Text)
 defaultStaffNameFromEmail emailAddress =

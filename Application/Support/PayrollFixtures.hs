@@ -164,9 +164,9 @@ seedCanonicalPayrollFixtureForWeek fixtureWeekStart = do
     overrideRule <- createPayLevelDayRuleRecord barShift friday levelTwo
     avaUser <- createUserRecord "payroll-parity-ava@example.com" "staff" True
     kaiUser <- createUserRecord "payroll-parity-kai@example.com" "staff" True
-    avaStaff <- createStaffRecord venue (Just avaUser) "Ava" "Worker"
-    kaiStaff <- createStaffRecord venue (Just kaiUser) "Kai" "Cook"
-    trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
+    avaStaff <- createPlaceholderStaffRecord venue (Just avaUser) "Ava" "Worker"
+    kaiStaff <- createPlaceholderStaffRecord venue (Just kaiUser) "Kai" "Cook"
+    trialStaff <- createPlaceholderStaffRecord venue Nothing "Trial" "Worker"
     snapshot <- createPayrollSnapshot venue admin [levelOne, levelTwo] [barShift, floorShift, kitchenShift] dayNames [overrideRule]
     let approvedAt = UTCTime (dayAtOffset 6) (secondsToDiffTime 3600)
 
@@ -251,12 +251,12 @@ seedExplorationPayrollFixtureForWeek fixtureWeekStart = do
     noorUser <- createUserRecord "payroll-parity-noor@example.com" "staff" True
     benUser <- createUserRecord "payroll-parity-ben@example.com" "staff" True
 
-    avaStaff <- createStaffRecord venue (Just avaUser) "Ava" "Worker"
-    kaiStaff <- createStaffRecord venue (Just kaiUser) "Kai" "Cook"
-    miaStaff <- createStaffRecord venue (Just miaUser) "Mia" "Closer"
-    noorStaff <- createStaffRecord venue (Just noorUser) "Noor" "Late"
-    benStaff <- createStaffRecord venue (Just benUser) "Ben" "Split"
-    trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
+    avaStaff <- createPlaceholderStaffRecord venue (Just avaUser) "Ava" "Worker"
+    kaiStaff <- createPlaceholderStaffRecord venue (Just kaiUser) "Kai" "Cook"
+    miaStaff <- createPlaceholderStaffRecord venue (Just miaUser) "Mia" "Closer"
+    noorStaff <- createPlaceholderStaffRecord venue (Just noorUser) "Noor" "Late"
+    benStaff <- createPlaceholderStaffRecord venue (Just benUser) "Ben" "Split"
+    trialStaff <- createPlaceholderStaffRecord venue Nothing "Trial" "Worker"
 
     snapshot <- createPayrollSnapshot venue admin [levelOne, levelTwo, levelThree] [barShift, floorShift, kitchenShift] dayNames [fridayOverride, saturdayOverride]
     let approvedAt = UTCTime (dayAtOffset 6) (secondsToDiffTime 3600)

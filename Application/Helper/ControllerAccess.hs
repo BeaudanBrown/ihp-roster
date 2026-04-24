@@ -28,12 +28,15 @@ requiredProfileFieldsCompleted staff =
             ]
         )
 
-isOperationallyActive :: User -> Bool
-isOperationallyActive user = user.isProfileCompleted
+isOperationallyActive :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
+isOperationallyActive = do
+    maybeStaff <- fetchCurrentUserStaff
+    pure (maybe False requiredProfileFieldsCompleted maybeStaff)
 
-ensureProfileCompleted :: (?context :: ControllerContext) => IO ()
-ensureProfileCompleted =
-    unless (isOperationallyActive authenticatedCurrentUser) do
+ensureProfileCompleted :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+ensureProfileCompleted = do
+    isActive <- isOperationallyActive
+    unless isActive do
         withRequestContext do
             setErrorMessage "Please complete your profile to continue."
             redirectTo EditProfileAction

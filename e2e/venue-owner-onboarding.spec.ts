@@ -90,11 +90,24 @@ test.describe('Venue owner onboarding invites', () => {
         await ownerPage.getByRole('button', { name: 'Create Account And Venue' }).click();
 
         await expect(ownerPage).toHaveURL(/EditProfile/, { timeout: 60000 });
+        await expect(ownerPage.locator('#profile-content-fragment')).toContainText(
+            'Shift preferences will appear once this staff member is assigned to at least one roster group.',
+        );
 
-        const preferenceDayLabels = ownerPage.locator('table tbody tr th[scope="row"]');
-        await expect(preferenceDayLabels).toHaveCount(7);
-        await expect(preferenceDayLabels.nth(0)).toHaveText('Tuesday');
-        await expect(preferenceDayLabels.nth(6)).toHaveText('Monday');
+        await ownerPage.fill('#firstName', 'Tuesday');
+        await ownerPage.fill('#lastName', 'Owner');
+        await ownerPage.fill('#phone', '0400000000');
+        await ownerPage.fill('#emergencyContactName', 'Emergency Owner');
+        await ownerPage.fill('#emergencyContactPhone', '0411111111');
+        await ownerPage.fill('#idealShiftsPerWeek', '3');
+        await ownerPage.getByRole('button', { name: 'Save' }).click();
+        await expect(ownerPage).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
+        await expect(ownerPage.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+
+        const rosterDaySections = ownerPage.locator('tbody[data-roster-day-section]');
+        await expect(rosterDaySections).toHaveCount(7);
+        await expect(rosterDaySections.nth(0)).toContainText('Tue');
+        await expect(rosterDaySections.nth(6)).toContainText('Mon');
 
         await gotoWhenReady(ownerPage, inviteUrl, 'body');
         await expect(ownerPage.locator('body')).toContainText('Invitation Required');

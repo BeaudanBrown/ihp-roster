@@ -184,7 +184,7 @@ createManagerUsers venue count =
 
 createManagerStaff :: (?modelContext :: ModelContext) => Venue -> (Int, User) -> IO Staff
 createManagerStaff venue (index, user) =
-    createStaffRecord venue (Just user) firstName lastName
+    createPlaceholderStaffRecord venue (Just user) firstName lastName
         >>= updateRecord . set #idealShiftsPerWeek (4 + (index `mod` 2))
     where
         (firstName, lastName) =
@@ -194,14 +194,14 @@ createGeneratedStaff :: (?modelContext :: ModelContext) => Venue -> Int -> Int -
 createGeneratedStaff venue seedValue requestedCount =
     forM (take (max 0 requestedCount) generatedStaffCatalog) \(index, firstName, lastName, preferredName) -> do
         user <- createUserRecord ("dev-" <> Text.toLower firstName <> "-" <> tshow (index + 1) <> "@example.com") "staff" True
-        createStaffRecord venue (Just user) firstName lastName
+        createPlaceholderStaffRecord venue (Just user) firstName lastName
             >>= updateRecord . set #preferredName (preferredNameFor seedValue index firstName preferredName)
             >>= updateRecord . set #idealShiftsPerWeek (1 + ((index + 2) `mod` 5))
 
 createTrialStaff :: (?modelContext :: ModelContext) => Venue -> Int -> IO [Staff]
 createTrialStaff venue requestedCount =
     forM [0 .. max 0 (requestedCount - 1)] \index ->
-        createStaffRecord venue Nothing "Taylor" ("Trial " <> tshow (index + 1))
+        createPlaceholderStaffRecord venue Nothing "Taylor" ("Trial " <> tshow (index + 1))
             >>= updateRecord . set #idealShiftsPerWeek 1
 
 takeFrontOnly :: [Staff] -> [Staff]

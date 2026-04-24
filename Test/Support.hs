@@ -4,6 +4,7 @@ import Application.Helper.Controller (PlatformRole (..), currentVenueSessionKey,
                                       platformRoleToEnum, unsafeEnumFromText)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
+import Control.Monad (void)
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString as ByteString
@@ -82,13 +83,16 @@ createUserRecordWithPlatformRole emailAddress globalRole platformRole isProfileC
         |> createRecord
 
 createVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
-createVenueMembershipRecord venue user venueRole =
-    newRecord @VenueMembership
+createVenueMembershipRecord venue user venueRole = do
+    membership <- newRecord @VenueMembership
         |> set #venueId (unpackId (get #id venue))
         |> set #userId (unpackId (get #id user))
         |> set #venueRole (unsafeEnumFromText @VenueRoleEnum venueRole)
         |> set #isActive True
         |> createRecord
+    when user.isProfileCompleted do
+        void (ensureProfileCompleteStaffRecord venue user)
+    pure membership
 
 createVenueInvitationRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO VenueInvitation
 createVenueInvitationRecord venue maybeInviter emailAddress inviteRole =
@@ -110,19 +114,40 @@ createVenueOnboardingInvitationRecord maybeInviter emailAddress =
 
 createStaffRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO Staff
 createStaffRecord venue maybeUser firstName lastName = do
-    staff <- newRecord @Staff
-        |> set #venueId (unpackId (get #id venue))
-        |> set #userId (fmap (unpackId . get #id) maybeUser)
-        |> set #firstName firstName
-        |> set #lastName lastName
-        |> set #preferredName Nothing
-        |> set #phone "0400000000"
-        |> set #emergencyContactName "Emergency Contact"
-        |> set #emergencyContactPhone "0411111111"
-        |> set #idealShiftsPerWeek 0
-        |> set #isActive True
-        |> createRecord
-    _ <- createStaffRosterGroupRecord staff =<< ensureVenueDefaultRosterGroup venue
+    staff <- case maybeUser of
+        Just user -> do
+            existingStaff <- query @Staff
+                |> filterWhere (#venueId, unpackId (get #id venue))
+                |> filterWhere (#userId, Just (unpackId (get #id user)))
+                |> fetchOneOrNothing
+            case existingStaff of
+                Just existingStaff ->
+                    existingStaff
+                        |> set #firstName firstName
+                        |> set #lastName lastName
+                        |> set #preferredName Nothing
+                        |> set #phone "0400000000"
+                        |> set #emergencyContactName "Emergency Contact"
+                        |> set #emergencyContactPhone "0411111111"
+                        |> set #idealShiftsPerWeek 0
+                        |> set #isActive True
+                        |> updateRecord
+                Nothing ->
+                    createLinkedStaffRecord venue user firstName lastName
+        Nothing ->
+            newRecord @Staff
+                |> set #venueId (unpackId (get #id venue))
+                |> set #userId Nothing
+                |> set #firstName firstName
+                |> set #lastName lastName
+                |> set #preferredName Nothing
+                |> set #phone "0400000000"
+                |> set #emergencyContactName "Emergency Contact"
+                |> set #emergencyContactPhone "0411111111"
+                |> set #idealShiftsPerWeek 0
+                |> set #isActive True
+                |> createRecord
+    _ <- ensureStaffDefaultRosterGroup venue staff
     pure staff
 
 createStaffRosterGroupRecord :: (?modelContext :: ModelContext) => Staff -> RosterGroup -> IO StaffRosterGroup
@@ -314,6 +339,36 @@ createPayConfigSnapshotRecord venue user versionNumber snapshot =
         |> set #createdByUserId (unpackId (get #id user))
         |> set #snapshot snapshot
         |> createRecord
+
+ensureProfileCompleteStaffRecord :: (?modelContext :: ModelContext) => Venue -> User -> IO Staff
+ensureProfileCompleteStaffRecord venue user =
+    createStaffRecord venue (Just user) "Profile" "Complete"
+
+createLinkedStaffRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> Text -> IO Staff
+createLinkedStaffRecord venue user firstName lastName =
+    newRecord @Staff
+        |> set #venueId (unpackId (get #id venue))
+        |> set #userId (Just (unpackId (get #id user)))
+        |> set #firstName firstName
+        |> set #lastName lastName
+        |> set #preferredName Nothing
+        |> set #phone "0400000000"
+        |> set #emergencyContactName "Emergency Contact"
+        |> set #emergencyContactPhone "0411111111"
+        |> set #idealShiftsPerWeek 0
+        |> set #isActive True
+        |> createRecord
+
+ensureStaffDefaultRosterGroup :: (?modelContext :: ModelContext) => Venue -> Staff -> IO StaffRosterGroup
+ensureStaffDefaultRosterGroup venue staff = do
+    defaultRosterGroup <- ensureVenueDefaultRosterGroup venue
+    existingAssignment <- query @StaffRosterGroup
+        |> filterWhere (#staffId, unpackId (get #id staff))
+        |> filterWhere (#rosterGroupId, unpackId (get #id defaultRosterGroup))
+        |> fetchOneOrNothing
+    case existingAssignment of
+        Just assignment -> pure assignment
+        Nothing -> createStaffRosterGroupRecord staff defaultRosterGroup
 
 withUserAndCurrentVenue ::
     forall result.

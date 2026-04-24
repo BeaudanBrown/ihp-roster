@@ -70,6 +70,18 @@ tests = beforeAll testContext do
             response <- callAction (UpdateRosterSlotAction "22222222-2222-2222-2222-222222222222")
             response `responseStatusShouldBe` status302
 
+        it "redirects venue members without a completed staff profile to edit profile" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-needs-profile@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue user "worker"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction RosterWeeksAction
+
+                response `responseStatusShouldBe` status302
+                responseHeaders response `shouldContain` [("Location", "http://localhost/EditProfile")]
+
         it "visiting a missing week auto-creates an empty draft roster" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

@@ -396,7 +396,7 @@ respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmen
                         ]
                     ]
 
-ensureLeaveProfileAccess :: (?context :: ControllerContext) => LeaveResponseContext -> IO ()
+ensureLeaveProfileAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LeaveResponseContext -> IO ()
 ensureLeaveProfileAccess responseContext =
     case responseContext of
         LeavePageResponseContext -> ensureProfileCompleted
