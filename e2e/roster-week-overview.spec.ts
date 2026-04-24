@@ -46,6 +46,38 @@ test.describe('Roster week overview', () => {
         await expect(page.locator('body')).toHaveAttribute('data-roster-export-last-status', 'success');
     });
 
+    test('keeps the desktop roster table fitted without local horizontal scrolling', async ({ page }) => {
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, e2eRosterPath, '#roster-week-shell');
+
+        const metrics = await page.locator('.roster-layout .table-responsive').first().evaluate((container) => {
+            if (!(container instanceof HTMLElement)) {
+                throw new Error('Expected roster table container to be an HTMLElement');
+            }
+
+            const table = container.querySelector('table.roster-grid');
+            const dayCell = container.querySelector('.day-label');
+
+            if (!(table instanceof HTMLElement) || !(dayCell instanceof HTMLElement)) {
+                return null;
+            }
+
+            return {
+                clientWidth: container.clientWidth,
+                scrollWidth: container.scrollWidth,
+                overflowX: getComputedStyle(container).overflowX,
+                tableMinWidth: getComputedStyle(table).minWidth,
+                dayCellPosition: getComputedStyle(dayCell).position,
+            };
+        });
+
+        expect(metrics).not.toBeNull();
+        expect(metrics?.overflowX).toBe('hidden');
+        expect(metrics?.scrollWidth).toBeLessThanOrEqual((metrics?.clientWidth ?? 0) + 1);
+        expect(metrics?.tableMinWidth).toBe('0px');
+        expect(metrics?.dayCellPosition).toBe('static');
+    });
+
     test('worker cannot see manager-only roster controls or leave metrics', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, e2eRosterPath, '#roster-week-shell');

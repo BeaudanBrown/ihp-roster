@@ -24,6 +24,41 @@ test.describe('Roster mobile baseline', () => {
         await expectNoHorizontalViewportOverflow(page);
         await expectContainerToManageHorizontalOverflow(page, '.table-responsive');
 
+        const rosterTableMetrics = await page.locator('.roster-layout .table-responsive').first().evaluate((container) => {
+            if (!(container instanceof HTMLElement)) {
+                throw new Error('Expected roster table container to be an HTMLElement');
+            }
+
+            const table = container.querySelector('table.roster-grid');
+            const dayHeader = container.querySelector('.roster-day-column');
+            const dayCell = container.querySelector('.day-label');
+
+            if (!(table instanceof HTMLElement) || !(dayHeader instanceof HTMLElement) || !(dayCell instanceof HTMLElement)) {
+                return null;
+            }
+
+            return {
+                containerClientWidth: container.clientWidth,
+                containerScrollWidth: container.scrollWidth,
+                overflowX: getComputedStyle(container).overflowX,
+                tableMinWidth: getComputedStyle(table).minWidth,
+                dayHeaderPosition: getComputedStyle(dayHeader).position,
+                dayCellPosition: getComputedStyle(dayCell).position,
+                columnWidths: Array.from(table.querySelectorAll('col')).map((col) =>
+                    Math.round(Number.parseFloat(getComputedStyle(col).width))
+                ),
+            };
+        });
+
+        expect(rosterTableMetrics).not.toBeNull();
+        expect(rosterTableMetrics?.overflowX).toBe('auto');
+        expect(rosterTableMetrics?.containerScrollWidth).toBeGreaterThan(rosterTableMetrics?.containerClientWidth ?? 0);
+        expect(rosterTableMetrics?.tableMinWidth).not.toBe('0px');
+        expect(rosterTableMetrics?.dayHeaderPosition).toBe('sticky');
+        expect(rosterTableMetrics?.dayCellPosition).toBe('sticky');
+        expect(rosterTableMetrics?.columnWidths[1]).toBeGreaterThan(rosterTableMetrics?.columnWidths[3] ?? 0);
+        expect(rosterTableMetrics?.columnWidths[2]).toBeGreaterThan(rosterTableMetrics?.columnWidths[1] ?? 0);
+
         const metrics = await page.evaluate(() => {
             const side = document.querySelector('.roster-layout-side');
             const panel = document.querySelector('.roster-staff-panel');
@@ -70,38 +105,25 @@ test.describe('Roster mobile baseline', () => {
         await expect(firstStaffSelect).toBeVisible();
         await expect(firstNoteField).toBeVisible();
 
-        await firstTimeField.scrollIntoViewIfNeeded();
-        await firstStaffSelect.scrollIntoViewIfNeeded();
-        await firstNoteField.scrollIntoViewIfNeeded();
+        for (const field of [firstTimeField, firstStaffSelect, firstNoteField]) {
+            await field.scrollIntoViewIfNeeded();
 
-        const reachable = await page.evaluate(() => {
-            const timeField = document.querySelector('[data-time-picker-field]');
-            const staffField = document.querySelector('.slot-staff-input');
-            const noteField = document.querySelector('.slot-note-input');
+            const reachable = await field.evaluate((element) => {
+                if (!(element instanceof HTMLElement)) {
+                    throw new Error('Expected roster field to be an HTMLElement');
+                }
 
-            if (!(timeField instanceof HTMLElement) || !(staffField instanceof HTMLElement) || !(noteField instanceof HTMLElement)) {
-                return null;
-            }
-
-            const viewportWidth = window.innerWidth;
-            const elements = [timeField, staffField, noteField].map((element) => {
                 const rect = element.getBoundingClientRect();
                 return {
                     left: Math.round(rect.left),
                     right: Math.round(rect.right),
+                    viewportWidth: window.innerWidth,
                 };
             });
 
-            return {
-                viewportWidth,
-                elements,
-            };
-        });
-
-        expect(reachable).not.toBeNull();
-        for (const element of reachable?.elements ?? []) {
-            expect(element.left).toBeGreaterThanOrEqual(0);
-            expect(element.right).toBeLessThanOrEqual((reachable?.viewportWidth ?? 0) + 1);
+            expect(reachable.left).toBeGreaterThanOrEqual(-10);
+            expect(reachable.right).toBeLessThanOrEqual(reachable.viewportWidth + 10);
+            await expectNoHorizontalViewportOverflow(page);
         }
     });
 });

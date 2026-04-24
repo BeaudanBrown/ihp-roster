@@ -1176,6 +1176,9 @@ h5,
 
 .roster-grid .roster-day-column {
     width: var(--roster-day-share);
+    left: 0;
+    z-index: 4;
+    background-color: var(--roster-subhead);
 }
 
 .roster-grid .roster-block-header {
@@ -1205,6 +1208,8 @@ h5,
     border-right: 2px solid var(--app-border-strong);
     vertical-align: middle;
     text-align: center;
+    left: 0;
+    z-index: 3;
 }
 
 .roster-grid .day-label.day-label-stack {
@@ -1479,6 +1484,24 @@ h5,
     .roster-week-overview-day-spacer {
         min-height: 2.6rem;
     }
+
+    .roster-grid {
+        min-width: 58rem;
+    }
+
+    .roster-layout .table-responsive {
+        position: relative;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        scrollbar-color: #64748a transparent;
+        scrollbar-width: thin;
+    }
+
+    .roster-grid .roster-day-column,
+    .roster-grid .day-label {
+        position: sticky;
+        box-shadow: 2px 0 0 var(--app-border-strong), 8px 0 14px rgba(0, 0, 0, 0.24);
+    }
 }
 
 @media (min-width: 992px) {
@@ -1580,7 +1603,6 @@ h5,
     }
 
     .roster-grid {
-        --roster-day-share: 16%;
         font-size: var(--roster-text-xs);
     }
 
