@@ -16,6 +16,15 @@ import Test.Support
 import Test.Support.DevFixtures
 import Test.Support.PayrollFixtures (ExplorationPayrollFixture (..))
 
+profileSummary :: Staff -> (Text, Text, Text, Text, Text)
+profileSummary staff =
+    ( staff.firstName
+    , staff.lastName
+    , staff.phone
+    , staff.emergencyContactName
+    , staff.emergencyContactPhone
+    )
+
 tests :: Spec
 tests = beforeAll testContext do
     describe "Dev seed fixtures" do
@@ -197,6 +206,11 @@ tests = beforeAll testContext do
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> filterWhereIn (#userId, map (unpackId . (.id)) dummyUsers)
                         |> fetch
+                dummyStaff <-
+                    query @Staff
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhereIn (#userId, map (Just . unpackId . (.id)) dummyUsers)
+                        |> fetch
                 let dummyRoleByEmail =
                         Map.fromList
                             [ ( user.email
@@ -206,16 +220,30 @@ tests = beforeAll testContext do
                             , membership <- dummyMemberships
                             , membership.userId == unpackId user.id
                             ]
+                let dummyStaffByEmail =
+                        Map.fromList
+                            [ ( user.email
+                              , staff
+                              )
+                            | user <- dummyUsers
+                            , staff <- dummyStaff
+                            , staff.userId == Just (unpackId user.id)
+                            ]
 
                 get #platformRole fixture.supportAdmin `shouldBe` Just SuperAdmin
                 supportMemberships `shouldBe` []
                 inputValue (get #venueRole managerMembership) `shouldBe` ("manager" :: Text)
                 inputValue (get #venueRole workerMembership) `shouldBe` ("worker" :: Text)
                 sort (map (.email) dummyUsers) `shouldBe` ["manager@bepis.lol", "owner@bepis.lol", "staff@bepis.lol", "venue@bepis.lol"]
+                map (.isProfileCompleted) dummyUsers `shouldBe` replicate 4 True
                 fmap inputValue (Map.lookup "staff@bepis.lol" dummyRoleByEmail) `shouldBe` Just ("worker" :: Text)
                 fmap inputValue (Map.lookup "manager@bepis.lol" dummyRoleByEmail) `shouldBe` Just ("manager" :: Text)
                 fmap inputValue (Map.lookup "venue@bepis.lol" dummyRoleByEmail) `shouldBe` Just ("venue_admin" :: Text)
                 fmap inputValue (Map.lookup "owner@bepis.lol" dummyRoleByEmail) `shouldBe` Just ("venue_owner" :: Text)
+                fmap profileSummary (Map.lookup "staff@bepis.lol" dummyStaffByEmail) `shouldBe` Just ("staff", "bepis", "0400000000", "Emergency Contact", "0411111111")
+                fmap profileSummary (Map.lookup "manager@bepis.lol" dummyStaffByEmail) `shouldBe` Just ("manager", "bepis", "0400000000", "Emergency Contact", "0411111111")
+                fmap profileSummary (Map.lookup "venue@bepis.lol" dummyStaffByEmail) `shouldBe` Just ("venue", "bepis", "0400000000", "Emergency Contact", "0411111111")
+                fmap profileSummary (Map.lookup "owner@bepis.lol" dummyStaffByEmail) `shouldBe` Just ("owner", "bepis", "0400000000", "Emergency Contact", "0411111111")
                 get #status fixture.sandboxInvitation `shouldBe` InvitationStatusEnumPending
                 get #email fixture.sandboxInvitation `shouldBe` "pending-invite@example.com"
 

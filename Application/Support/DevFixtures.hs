@@ -158,16 +158,16 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
 seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> IO ()
 seedSandboxRoleAliasAccounts venue = do
     staffUser <- createUserRecordWithPassword "staff@bepis.lol" "staff" "staff" True
-    _ <- provisionVenueUser venue staffUser "worker" "Staff" "Demo"
+    _ <- provisionVenueUser venue staffUser "worker" "staff" "bepis"
 
     managerUser <- createUserRecordWithPassword "manager@bepis.lol" "manager" "manager" True
-    _ <- provisionVenueUser venue managerUser "manager" "Manager" "Demo"
+    _ <- provisionVenueUser venue managerUser "manager" "manager" "bepis"
 
     venueAdminUser <- createUserRecordWithPassword "venue@bepis.lol" "venue" "admin" True
-    _ <- provisionVenueUser venue venueAdminUser "venue_admin" "Venue" "Admin"
+    _ <- provisionVenueUser venue venueAdminUser "venue_admin" "venue" "bepis"
 
     venueOwnerUser <- createUserRecordWithPassword "owner@bepis.lol" "owner" "admin" True
-    _ <- provisionVenueUser venue venueOwnerUser "venue_owner" "Venue" "Owner"
+    _ <- provisionVenueUser venue venueOwnerUser "venue_owner" "owner" "bepis"
 
     pure ()
 
