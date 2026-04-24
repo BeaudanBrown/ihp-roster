@@ -121,4 +121,37 @@ test.describe('HTMX submit regressions', () => {
             page.locator(`#timesheet-day-section-0 .timesheet-entry-card:has-text("E2E Manager"):has-text("${renderedRange}")`)
         ).toHaveCount(1);
     });
+
+    test('timesheet modal delete prompts for confirmation once', async ({ page }) => {
+        await login(page);
+        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+
+        const approvedEntry = page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]').first();
+        await expect(approvedEntry).toBeVisible();
+
+        const initialApprovedCount = await page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]').count();
+        await approvedEntry.getByRole('link', { name: 'Edit' }).click();
+        await expect(page.locator('#timesheet-entry-edit-form')).toBeVisible();
+
+        await page.evaluate(() => {
+            (window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls = 0;
+            window.confirm = () => {
+                (window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls =
+                    ((window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls ?? 0) + 1;
+                return true;
+            };
+        });
+
+        const deleteResponsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'DELETE' && response.url().includes('/DeleteTimesheetEntry')
+        );
+        await page.getByRole('button', { name: 'Delete' }).click();
+        await deleteResponsePromise;
+
+        await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
+        await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(initialApprovedCount - 1);
+        await expect
+            .poll(() => page.evaluate(() => (window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls ?? 0))
+            .toBe(1);
+    });
 });

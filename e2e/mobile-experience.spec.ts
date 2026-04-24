@@ -100,16 +100,18 @@ test.describe('Mobile experience smoke', () => {
         await expectDialogToFitViewport(page, '#dialog-overlay-mount .modal-dialog, #dialog-overlay-mount [role="dialog"]');
     });
 
-    test('timesheet entries use stacked mobile actions and hide edit on approved entries', async ({ page }) => {
+    test('timesheet entries use uniform mobile actions for approved and pending entries', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+        await gotoWhenReady(page, '/Timesheets?showApproved=true', '#timesheet-week-shell');
 
         const approvedEntry = page.locator('[data-timesheet-entry-approved="true"]').first();
         const pendingEntry = page.locator('[data-timesheet-entry-approved="false"]').first();
 
         await expect(approvedEntry).toBeVisible();
         await expect(pendingEntry).toBeVisible();
-        await expect(approvedEntry.locator('.timesheet-entry-actions .btn:has-text("Edit")')).toHaveCount(0);
+        await expect(approvedEntry.getByRole('button', { name: 'Approved' })).toBeVisible();
+        await expect(pendingEntry.getByRole('button', { name: 'Approve' })).toBeVisible();
+        await expect(approvedEntry.locator('.timesheet-entry-actions .btn:has-text("Edit")')).toHaveCount(1);
         await expect(pendingEntry.locator('.timesheet-entry-actions .btn:has-text("Edit")')).toHaveCount(1);
         await expect(page.locator('.timesheet-shape-bar').first()).toBeVisible();
     });

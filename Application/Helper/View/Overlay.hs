@@ -20,6 +20,7 @@ data OverlayButtonAction
     = OverlayCloseAction
     | OverlaySubmitFormAction !Text
     | OverlayNavigateAction !Text
+    | OverlayFormAction !Text !Text ![(Text, Text)] !Text !(Maybe Text)
 
 data OverlayButton = OverlayButton
     { overlayButtonLabel  :: !Text
@@ -30,6 +31,7 @@ data OverlayButton = OverlayButton
 data DialogOverlayConfig = DialogOverlayConfig
     { dialogOverlayTitle       :: !Text
     , dialogOverlayBody        :: !Html
+    , dialogOverlayStartButtons :: ![OverlayButton]
     , dialogOverlayButtons     :: ![OverlayButton]
     , dialogOverlayDialogClass :: !Text
     }
@@ -49,7 +51,7 @@ defaultOverlayButtons formId =
     ]
 
 renderDialogOverlay :: DialogOverlayConfig -> Html
-renderDialogOverlay DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
+renderDialogOverlay DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons, dialogOverlayDialogClass } = [hsx|
     <div class="modal fade show d-block"
          data-dialog-overlay="true"
          tabindex="-1"
@@ -64,19 +66,24 @@ renderDialogOverlay DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody,
                     <button type="button" class="btn-close" aria-label="Close" data-dialog-overlay-close="true"></button>
                 </div>
                 <div class="modal-body">{dialogOverlayBody}</div>
-                {renderDialogOverlayFooter dialogOverlayButtons}
+                {renderDialogOverlayFooter dialogOverlayStartButtons dialogOverlayButtons}
             </div>
         </div>
     </div>
     <div class="modal-backdrop fade show" data-dialog-overlay-backdrop="true"></div>
 |]
 
-renderDialogOverlayFooter :: [OverlayButton] -> Html
-renderDialogOverlayFooter buttons
-    | null buttons = mempty
+renderDialogOverlayFooter :: [OverlayButton] -> [OverlayButton] -> Html
+renderDialogOverlayFooter startButtons buttons
+    | null startButtons && null buttons = mempty
     | otherwise = [hsx|
-        <div class="modal-footer">
-            {forEach buttons renderDialogOverlayButton}
+        <div class="modal-footer app-modal-footer">
+            <div class="app-modal-footer-start">
+                {forEach startButtons renderDialogOverlayButton}
+            </div>
+            <div class="app-modal-footer-end">
+                {forEach buttons renderDialogOverlayButton}
+            </div>
         </div>
     |]
 
@@ -98,22 +105,53 @@ renderDialogOverlayButton button =
                 {button.overlayButtonLabel}
             </a>
         |]
+        OverlayFormAction method targetUrl fields hxTarget maybeConfirm -> [hsx|
+            <form method="POST"
+                  action={targetUrl}
+                  class="app-modal-footer-form"
+                  data-disable-javascript-submission="true"
+                  hx-delete={targetUrl}
+                  hx-target={hxTarget}
+                  hx-swap="innerHTML"
+                  hx-push-url="false"
+                  hx-confirm={maybeConfirm}>
+                <input type="hidden" name="_method" value={method} />
+                {forEach fields renderOverlayFormHiddenField}
+                <button type="submit" class={button.overlayButtonClass}>
+                    {button.overlayButtonLabel}
+                </button>
+            </form>
+        |]
+
+renderOverlayFormHiddenField :: (Text, Text) -> Html
+renderOverlayFormHiddenField (fieldName, fieldValue) = [hsx|
+    <input type="hidden" name={fieldName} value={fieldValue} />
+|]
+
+confirmSubmitAttribute :: Maybe Text -> Text
+confirmSubmitAttribute Nothing = ""
+confirmSubmitAttribute (Just message) = "return window.confirm(" <> show message <> ");"
 
 renderPageDialogModal :: Text -> DialogOverlayConfig -> Html
-renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayButtons } =
+renderPageDialogModal closeUrl DialogOverlayConfig { dialogOverlayTitle, dialogOverlayBody, dialogOverlayStartButtons, dialogOverlayButtons } =
     renderModal Modal
         { modalTitle = dialogOverlayTitle
         , modalCloseUrl = closeUrl
-        , modalFooter = Just (renderPageDialogFooter closeUrl dialogOverlayButtons)
+        , modalFooter = Just (renderPageDialogFooter closeUrl dialogOverlayStartButtons dialogOverlayButtons)
         , modalContent = dialogOverlayBody
         }
 
-renderPageDialogFooter :: Text -> [OverlayButton] -> Html
-renderPageDialogFooter closeUrl buttons
-    | null buttons = mempty
+renderPageDialogFooter :: Text -> [OverlayButton] -> [OverlayButton] -> Html
+renderPageDialogFooter closeUrl startButtons buttons
+    | null startButtons && null buttons = mempty
     | otherwise = [hsx|
-        <div class="modal-footer">
-            {forEach buttons (renderPageDialogButton closeUrl)}
+        <div class="app-modal-footer app-modal-footer-inner">
+            <div class="app-modal-footer-start">
+                {forEach startButtons (renderPageDialogButton closeUrl)}
+            </div>
+            <div class="app-modal-footer-end">
+                {forEach buttons (renderPageDialogButton closeUrl)}
+            </div>
         </div>
     |]
 
@@ -134,4 +172,16 @@ renderPageDialogButton closeUrl button =
             <a href={targetUrl} class={button.overlayButtonClass}>
                 {button.overlayButtonLabel}
             </a>
+        |]
+        OverlayFormAction method targetUrl fields _hxTarget maybeConfirm -> [hsx|
+            <form method="POST"
+                  action={targetUrl}
+                  class="app-modal-footer-form"
+                  onsubmit={confirmSubmitAttribute maybeConfirm}>
+                <input type="hidden" name="_method" value={method} />
+                {forEach fields renderOverlayFormHiddenField}
+                <button type="submit" class={button.overlayButtonClass}>
+                    {button.overlayButtonLabel}
+                </button>
+            </form>
         |]

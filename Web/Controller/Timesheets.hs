@@ -35,12 +35,11 @@ instance Controller TimesheetsController where
     action TimesheetsAction = do
         currentOffset <- currentTimesheetWeekOffset
         let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
-        let currentWeekAction = ShowTimesheetWeekAction { weekOffset = currentOffset }
         if isHtmxRequest
             then do
                 setHtmxPushUrl (timesheetWeekUrl currentOffset showApproved showAllStaff)
                 renderTimesheetWeekPage currentOffset showApproved showAllStaff
-            else redirectTo currentWeekAction
+            else redirectToPath (timesheetWeekUrl currentOffset showApproved showAllStaff)
 
     action ShowTimesheetWeekAction { weekOffset } = do
         let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
@@ -195,20 +194,17 @@ instance Controller TimesheetsController where
 
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
-        if timesheetEntry.isApproved
-            then setErrorMessage "Approved timesheet entries must be unapproved before deletion."
-            else do
-                withTransaction do
-                    void $
-                        recordCurrentUserTimesheetEntryVersion
-                            (unsafeEnumFromText @EntryVersionActionEnum "deleted")
-                            timesheetEntry
-                            Aeson.Null
-                    deleteRecord timesheetEntry
-                broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
-                if isHtmxRequest
-                    then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff "Timesheet entry deleted" False False
-                    else setSuccessMessage "Timesheet entry deleted"
+        withTransaction do
+            void $
+                recordCurrentUserTimesheetEntryVersion
+                    (unsafeEnumFromText @EntryVersionActionEnum "deleted")
+                    timesheetEntry
+                    Aeson.Null
+            deleteRecord timesheetEntry
+        broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
+        if isHtmxRequest
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff "Timesheet entry deleted" True True
+            else setSuccessMessage "Timesheet entry deleted"
         unless isHtmxRequest do
             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
 
@@ -320,6 +316,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff = 
                         applyApprovedFilter
                             (baseQuery |> filterWhere (#staffId, unpackId (get #id staff)))
                             |> orderByAsc #workedOn
+                            |> orderByAsc #isApproved
                             |> orderByAsc #startTime
                             |> fetch
                     (False, Nothing) ->
@@ -327,6 +324,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff = 
                     (True, _) ->
                         applyApprovedFilter baseQuery
                             |> orderByAsc #workedOn
+                            |> orderByAsc #isApproved
                             |> orderByAsc #startTime
                             |> fetch
             else do
@@ -340,6 +338,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff = 
                                 |> filterWhereIn (#workedOn, weekDays)
                             )
                             |> orderByAsc #workedOn
+                            |> orderByAsc #isApproved
                             |> orderByAsc #startTime
                             |> fetch
 
@@ -777,6 +776,6 @@ broadcastTimesheetDayInvalidation weekOffset workedOn = do
 
 timesheetViewFiltersFromRequest :: (?request :: Request) => (Bool, Bool)
 timesheetViewFiltersFromRequest =
-    ( paramOrDefault @Bool True "showApproved"
+    ( paramOrDefault @Bool False "showApproved"
     , paramOrDefault @Bool True "showAllStaff"
     )

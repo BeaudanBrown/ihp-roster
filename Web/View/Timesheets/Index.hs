@@ -135,10 +135,22 @@ renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff =
                 <input type="hidden" name="showApproved" id="timesheet-show-approved-value" value={boolText showApproved} />
                 <input type="hidden" name="showAllStaff" id="timesheet-show-all-staff-value" value={boolText showAllStaff} />
                 <div class="small text-uppercase fw-semibold text-body-secondary px-1 pb-2">Filters</div>
-                {renderTimesheetMenuToggle "timesheet-show-approved-toggle" "timesheet-show-approved-value" showApproved "Show approved"}
+                {renderTimesheetHideApprovedToggle showApproved}
                 {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" "timesheet-show-all-staff-value" showAllStaff "Show all staff")}
             </form>
         </div>
+    </div>
+|]
+
+renderTimesheetHideApprovedToggle :: Bool -> Html
+renderTimesheetHideApprovedToggle showApproved = [hsx|
+    <div class="form-check form-switch mb-2">
+        <input type="checkbox"
+               id="timesheet-hide-approved-toggle"
+               class="form-check-input"
+               checked={not showApproved}
+               onchange="document.getElementById('timesheet-show-approved-value').value = this.checked ? 'false' : 'true'; this.form.requestSubmit();" />
+        <label class="form-check-label small" for="timesheet-hide-approved-toggle">Hide approved</label>
     </div>
 |]
 
@@ -244,9 +256,8 @@ renderEntryCard dayOffset staffMembers shiftTypes today editWindowDays weekOffse
             </div>
 
             <div class="timesheet-entry-actions">
-                {renderApprovalBadge entry}
                 {renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff}
-                {renderEditActions dayOffset entry canEdit weekOffset showApproved showAllStaff}
+                {renderEditActions entry canEdit weekOffset showApproved showAllStaff}
             </div>
         </div>
 
@@ -262,9 +273,9 @@ renderEntryCard dayOffset staffMembers shiftTypes today editWindowDays weekOffse
             Nothing        -> "Shift"
         canEdit = currentUserIsManager || isWithinEditWindow today entry.workedOn editWindowDays
 
-renderEditActions :: Int -> TimesheetEntry -> Bool -> Int -> Bool -> Bool -> Html
-renderEditActions dayOffset entry canEdit weekOffset showApproved showAllStaff
-    | canEdit && not entry.isApproved = [hsx|
+renderEditActions :: TimesheetEntry -> Bool -> Int -> Bool -> Bool -> Html
+renderEditActions entry canEdit weekOffset showApproved showAllStaff
+    | canEdit = [hsx|
         <a href={editUrl}
            class="btn btn-sm btn-outline-secondary"
            hx-get={editUrl}
@@ -273,28 +284,10 @@ renderEditActions dayOffset entry canEdit weekOffset showApproved showAllStaff
            hx-push-url="false">
             Edit
         </a>
-        {renderDeleteButton}
     |]
     | otherwise = mempty
     where
         editUrl = appendQueryParams (pathTo (EditTimesheetEntryAction (get #id entry))) [("weekOffset", tshow weekOffset), ("showApproved", boolText showApproved), ("showAllStaff", boolText showAllStaff)]
-        deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id entry))) [("weekOffset", tshow weekOffset)]
-        deleteTarget = "#" <> timesheetDaySectionDomId dayOffset
-        renderDeleteButton = [hsx|
-            <form method="POST"
-                  action={deleteUrl}
-                  class="timesheet-entry-action-form"
-                  hx-delete={deleteUrl}
-                  hx-target={deleteTarget}
-                  hx-swap="outerHTML"
-                  hx-push-url="false">
-                <input type="hidden" name="_method" value="DELETE"/>
-                <input type="hidden" name="weekOffset" value={tshow weekOffset} />
-                <input type="hidden" name="showApproved" value={boolText showApproved} />
-                <input type="hidden" name="showAllStaff" value={boolText showAllStaff} />
-                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-            </form>
-        |]
 
 renderApprovalAction :: (?context :: ControllerContext) => Int -> TimesheetEntry -> Int -> Bool -> Bool -> Html
 renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff
@@ -311,7 +304,7 @@ renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff
             <input type="hidden" name="weekOffset" value={tshow weekOffset} />
             <input type="hidden" name="showApproved" value={boolText showApproved} />
             <input type="hidden" name="showAllStaff" value={boolText showAllStaff} />
-            <button type="submit" class="btn btn-sm btn-outline-warning">Unapprove</button>
+            <button type="submit" class="btn btn-sm btn-success timesheet-approval-toggle">Approved</button>
         </form>
     |]
     | otherwise = [hsx|
@@ -326,7 +319,7 @@ renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff
             <input type="hidden" name="weekOffset" value={tshow weekOffset} />
             <input type="hidden" name="showApproved" value={boolText showApproved} />
             <input type="hidden" name="showAllStaff" value={boolText showAllStaff} />
-            <button type="submit" class="btn btn-sm btn-outline-success">Approve</button>
+            <button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">Approve</button>
         </form>
     |]
 
@@ -347,11 +340,6 @@ renderDuration entry =
         hours = netMins `div` 60
         mins = netMins `mod` 60
     in [hsx|{show hours}h {show mins}m|]
-
-renderApprovalBadge :: TimesheetEntry -> Html
-renderApprovalBadge entry
-    | entry.isApproved = [hsx|<span class="badge bg-success timesheet-entry-status-badge">Approved</span>|]
-    | otherwise = [hsx|<span class="badge bg-warning text-dark timesheet-entry-status-badge">Pending</span>|]
 
 formatDateCompact :: Day -> Text
 formatDateCompact day =

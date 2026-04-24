@@ -183,6 +183,36 @@ a:not(.btn):hover {
     color: var(--app-muted);
 }
 
+.app-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.app-modal-footer-inner {
+    width: 100%;
+}
+
+.app-modal-footer-start,
+.app-modal-footer-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.app-modal-footer-start {
+    margin-right: auto;
+}
+
+.app-modal-footer-end {
+    margin-left: auto;
+}
+
+.app-modal-footer-form {
+    margin: 0;
+}
+
 .profile-field-grid .form-control,
 .profile-field-grid .form-select {
     height: calc(2.75rem + 2px);
@@ -1886,6 +1916,7 @@ h5,
     border-radius: 0.7rem;
     background: linear-gradient(180deg, rgba(44, 56, 77, 0.86), rgba(30, 39, 55, 0.96));
     padding: 0.65rem 0.7rem;
+    min-height: 6.2rem;
 }
 
 .timesheet-entry-main {
@@ -1933,23 +1964,26 @@ h5,
     flex-direction: column;
     align-items: stretch;
     gap: 0.28rem;
+    min-width: 5.2rem;
 }
 
 .timesheet-entry-actions .btn,
-.timesheet-entry-actions .badge,
 .timesheet-entry-action-form {
     width: 100%;
 }
 
 .timesheet-entry-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 0.2rem 0.5rem;
+    min-height: 1.85rem;
+    line-height: 1.1;
+    text-align: center;
 }
 
-.timesheet-entry-status-badge {
-    display: inline-flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 1.5rem;
+.timesheet-approval-toggle {
+    font-weight: 700;
 }
 
 .timesheet-shape-bar {

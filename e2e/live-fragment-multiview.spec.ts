@@ -205,8 +205,8 @@ test.describe('Live fragment multi-view coverage', () => {
         await loginManager(managerPage);
         await loginWorker(workerPage);
 
-        await gotoWhenReady(managerPage, '/Timesheets', '#timesheet-week-shell');
-        await gotoWhenReady(workerPage, '/Timesheets', '#timesheet-week-shell');
+        await gotoWhenReady(managerPage, '/Timesheets?showApproved=true', '#timesheet-week-shell');
+        await gotoWhenReady(workerPage, '/Timesheets?showApproved=true', '#timesheet-week-shell');
 
         await createTimesheet(workerPage, '11:15', '15:15');
 
@@ -214,14 +214,14 @@ test.describe('Live fragment multi-view coverage', () => {
         const workerEntry = workerPage.locator('#timesheet-day-section-0 .timesheet-entry-card').filter({ hasText: renderedRange });
 
         await expect(managerEntry).toHaveCount(1);
-        await expect(managerEntry).toContainText('Pending');
+        await expect(managerEntry.getByRole('button', { name: 'Approve' })).toBeVisible();
         await expect(workerEntry).toHaveCount(1);
-        await expect(workerEntry).toContainText('Pending');
+        await expect(workerEntry).not.toContainText('Approved');
 
         await managerEntry.getByRole('button', { name: 'Approve' }).click();
 
         await expect(managerEntry).toContainText('Approved');
-        await expect(workerEntry).toContainText('Approved');
+        await expect(workerEntry).toHaveAttribute('data-timesheet-entry-approved', 'true');
 
         await managerContext.close();
         await workerContext.close();

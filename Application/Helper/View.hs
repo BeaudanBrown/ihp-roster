@@ -485,20 +485,30 @@ hasErrorFor entry fieldName = isJust (lookup fieldName entry.meta.annotations)
 
 renderTimesheetEntryModal :: Text -> Text -> Text -> Html -> Html
 renderTimesheetEntryModal title closeUrl formId formContent =
+    renderTimesheetEntryModalWithStartButtons title closeUrl formId formContent []
+
+renderTimesheetEntryModalWithStartButtons :: Text -> Text -> Text -> Html -> [OverlayButton] -> Html
+renderTimesheetEntryModalWithStartButtons title closeUrl formId formContent startButtons =
     renderPageDialogModal
         closeUrl
         DialogOverlayConfig
             { dialogOverlayTitle = title
             , dialogOverlayBody = formContent
+            , dialogOverlayStartButtons = startButtons
             , dialogOverlayButtons = defaultOverlayButtons formId
             , dialogOverlayDialogClass = ""
             }
 
 renderTimesheetEntryDialog :: Text -> Text -> Html -> Html
 renderTimesheetEntryDialog title formId formContent =
+    renderTimesheetEntryDialogWithStartButtons title formId formContent []
+
+renderTimesheetEntryDialogWithStartButtons :: Text -> Text -> Html -> [OverlayButton] -> Html
+renderTimesheetEntryDialogWithStartButtons title formId formContent startButtons =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = title
         , dialogOverlayBody = formContent
+        , dialogOverlayStartButtons = startButtons
         , dialogOverlayButtons = defaultOverlayButtons formId
         , dialogOverlayDialogClass = ""
         }
@@ -510,6 +520,7 @@ renderStaffEditPageModal weekOffset formId formContent =
         DialogOverlayConfig
             { dialogOverlayTitle = "Edit Staff Member"
             , dialogOverlayBody = formContent
+            , dialogOverlayStartButtons = []
             , dialogOverlayButtons = defaultOverlayButtons formId
             , dialogOverlayDialogClass = ""
             }
@@ -519,6 +530,7 @@ renderStaffEditDialog formId formContent =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "Edit Staff Member"
         , dialogOverlayBody = formContent
+        , dialogOverlayStartButtons = []
         , dialogOverlayButtons = defaultOverlayButtons formId
         , dialogOverlayDialogClass = ""
         }

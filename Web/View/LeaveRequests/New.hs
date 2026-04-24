@@ -13,6 +13,7 @@ instance View NewView where
             DialogOverlayConfig
                 { dialogOverlayTitle = "New Leave Request"
                 , dialogOverlayBody = renderLeaveRequestForm PageOverlayForm leaveRequest
+                , dialogOverlayStartButtons = []
                 , dialogOverlayButtons = defaultOverlayButtons leaveRequestFormId
                 , dialogOverlayDialogClass = ""
                 }
@@ -25,6 +26,7 @@ renderNewLeaveRequestDialog leaveRequest =
     renderDialogOverlay DialogOverlayConfig
         { dialogOverlayTitle = "New Leave Request"
         , dialogOverlayBody = renderLeaveRequestForm HtmxOverlayForm leaveRequest
+        , dialogOverlayStartButtons = []
         , dialogOverlayButtons = defaultOverlayButtons leaveRequestFormId
         , dialogOverlayDialogClass = ""
         }
