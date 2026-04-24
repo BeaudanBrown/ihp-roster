@@ -49,7 +49,7 @@ initRequestProfiling = do
         Just _ -> pure ()
         Nothing -> do
             startedAtNs <- getMonotonicTimeNSec
-            requestProfileId <- pure ("req-" <> tshow startedAtNs)
+            let requestProfileId = "req-" <> tshow startedAtNs
             spansRef <- newIORef []
             nextSpanOrderRef <- newIORef 0
             emittedRef <- newIORef False

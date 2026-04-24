@@ -14,7 +14,7 @@ recordUserAuthenticationAuditEvent ::
     IO AuthAuditEvent
 recordUserAuthenticationAuditEvent user eventType metadata =
     newRecord @AuthAuditEvent
-        |> set #userId (Just (unpackId user.id))
+        |> set #userId (Just (unpackId (get #id user)))
         |> set #eventType eventType
         |> set #metadata metadata
         |> createRecord

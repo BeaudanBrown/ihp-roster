@@ -49,7 +49,7 @@ allowedOrigins = Origin (requestSchemeTextFromWai <> "://" <> requestHostTextFro
 
 requestHostTextFromWai :: (?context :: ControllerContext) => Text
 requestHostTextFromWai =
-    maybe rpId (Text.decodeUtf8) (Wai.requestHeaderHost request)
+    maybe rpId Text.decodeUtf8 (Wai.requestHeaderHost request)
   where
     rpId = "localhost"
 

@@ -9,7 +9,7 @@ instance Controller PasskeysController where
 
     action UpdatePasskeyNameAction { passkeyId } = do
         passkey <- fetch passkeyId
-        accessDeniedUnless (passkey.userId == unpackId currentUser.id)
+        accessDeniedUnless (passkey.userId == unpackId (get #id currentUser))
         let submittedName = Text.strip (param @Text "name")
         let newName = if Text.null submittedName then "Passkey" else submittedName
 
@@ -21,7 +21,7 @@ instance Controller PasskeysController where
 
     action DeletePasskeyAction { passkeyId } = do
         passkey <- fetch passkeyId
-        accessDeniedUnless (passkey.userId == unpackId currentUser.id)
+        accessDeniedUnless (passkey.userId == unpackId (get #id currentUser))
 
         deleteRecord passkey
         setSuccessMessage "Passkey removed."

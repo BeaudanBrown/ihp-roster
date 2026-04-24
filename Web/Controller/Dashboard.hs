@@ -13,7 +13,7 @@ instance Controller DashboardController where
         liveDemoCount <- liftIO readDashboardLiveDemoCount
         passkeys <-
             query @Passkey
-                |> filterWhere (#userId, unpackId currentUser.id)
+                |> filterWhere (#userId, unpackId (get #id currentUser))
                 |> orderByDesc #createdAt
                 |> fetch
         render IndexView { .. }
