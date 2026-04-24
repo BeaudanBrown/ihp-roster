@@ -8,6 +8,11 @@ instance View (NewView User) where
             <div class="app-auth-card">
                 <div class="app-auth-body">
                     <h4 class="card-title mb-4 text-center">Sign In</h4>
+                    {renderPasskeyLogin}
+                    <div class="position-relative my-4">
+                        <hr/>
+                        <span class="position-absolute top-50 start-50 translate-middle bg-body px-3 app-muted small">or</span>
+                    </div>
                     {renderForm user}
                     <hr/>
                     <p class="text-center mb-0 app-muted small">
@@ -50,4 +55,18 @@ renderForm user = [hsx|
             <button type="submit" class="btn btn-primary">Sign In</button>
         </div>
     </form>
+|]
+
+renderPasskeyLogin :: Html
+renderPasskeyLogin = [hsx|
+    <div class="js-passkey-login"
+         data-begin-url={pathTo BeginPasskeyAuthenticationAction}
+         data-finish-url={pathTo FinishPasskeyAuthenticationAction}
+         data-status-id="passkey-login-status"
+         data-success-redirect={pathTo DashboardAction}>
+        <div class="d-grid">
+            <button type="button" class="btn btn-outline-primary js-passkey-login-button">Sign in with passkey</button>
+        </div>
+        <div id="passkey-login-status" class="alert d-none mt-3"></div>
+    </div>
 |]

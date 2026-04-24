@@ -1,10 +1,12 @@
 module Web.View.Dashboard.Index where
 
 import Application.Helper.View
+import Web.View.Passkeys.Management
 import Web.View.Prelude
 
-newtype IndexView = IndexView
+data IndexView = IndexView
     { liveDemoCount :: Int
+    , passkeys :: [Passkey]
     }
 
 instance View IndexView where
@@ -54,6 +56,18 @@ instance View IndexView where
                                         Future pages can reuse this pattern for HTMX dialogs that need JS re-processing on swap.
                                     </span>
                                 </div>
+                            </div>
+                        </section>
+
+                        <section class="app-panel">
+                            <div class="app-panel-body d-flex flex-column gap-3">
+                                <div>
+                                    <h2 class="h5 mb-1">Passkeys</h2>
+                                    <p class="app-muted mb-0">
+                                        Register a passkey to sign in with your device unlock flow.
+                                    </p>
+                                </div>
+                                {renderPasskeyManagement passkeys (pathTo DashboardAction)}
                             </div>
                         </section>
                     </div>

@@ -27,6 +27,13 @@ executable App
   build-depends:
   	ihp,
   	base,
+  	aeson,
+  	base64-bytestring,
+  	crypton,
+  	hourglass,
+  	postgresql-simple,
+  	validation,
+  	webauthn,
   	wai,
     text
   hs-source-dirs:      .

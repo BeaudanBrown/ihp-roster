@@ -11,6 +11,11 @@ instance Controller DashboardController where
 
     action DashboardAction = do
         liveDemoCount <- liftIO readDashboardLiveDemoCount
+        passkeys <-
+            query @Passkey
+                |> filterWhere (#userId, unpackId currentUser.id)
+                |> orderByDesc #createdAt
+                |> fetch
         render IndexView { .. }
 
     action ShowDashboardLiveDemoContentAction = do

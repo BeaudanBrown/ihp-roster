@@ -16,6 +16,18 @@ data SessionsController
     | DeleteSessionAction
     deriving (Eq, Show, Data)
 
+data AuthController
+    = BeginPasskeyRegistrationAction
+    | FinishPasskeyRegistrationAction
+    | BeginPasskeyAuthenticationAction
+    | FinishPasskeyAuthenticationAction
+    deriving (Eq, Show, Data)
+
+data PasskeysController
+    = UpdatePasskeyNameAction { passkeyId :: !(Id Passkey) }
+    | DeletePasskeyAction { passkeyId :: !(Id Passkey) }
+    deriving (Eq, Show, Data)
+
 data UsersController
     = NewUserAction
     | CreateUserAction
