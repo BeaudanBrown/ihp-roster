@@ -129,10 +129,12 @@ tests = beforeAll testContext do
                     callAction EditProfileAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "href=\"/EditProfile\">profile</a>"
-                response `responseBodyShouldContain` "href=\"/Timesheets\">timesheets</a>"
+                response `responseBodyShouldContain` "href=\"/EditProfile\""
+                response `responseBodyShouldContain` "<span>profile</span>"
+                response `responseBodyShouldContain` "href=\"/Timesheets\""
+                response `responseBodyShouldContain` "<span>timesheets</span>"
                 response `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
-                response `responseBodyShouldNotContain` "href=\"/LeaveRequests\">leave</a>"
+                response `responseBodyShouldNotContain` "href=\"/LeaveRequests\""
 
         it "shows the dedicated leave header link for managers" $ withContext do
             withCleanDb do
@@ -145,7 +147,8 @@ tests = beforeAll testContext do
                     callAction EditProfileAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "href=\"/LeaveRequests\">leave</a>"
+                response `responseBodyShouldContain` "href=\"/LeaveRequests\""
+                response `responseBodyShouldContain` "<span>leave</span>"
 
         it "saves submitted shift preferences from the profile form" $ withContext do
             withCleanDb do
