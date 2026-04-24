@@ -116,8 +116,8 @@ renderRosterDaySectionFragment =
     renderRosterDaySectionFragmentWithSwap Nothing
 
 renderRosterDaySectionFragmentOob :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
-renderRosterDaySectionFragmentOob =
-    renderRosterDaySectionFragmentWithSwap (Just "outerHTML")
+renderRosterDaySectionFragmentOob isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay =
+    [hsx|<template>{renderRosterDaySectionFragmentWithSwap (Just "outerHTML") isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay}</template>|]
 
 renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
 renderRosterDaySectionFragmentWithSwap maybeSwapOob isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay = [hsx|
@@ -236,8 +236,8 @@ renderToggleClosedButton rosterDay =
                   class="d-inline"
                   data-disable-javascript-submission="true"
                   hx-post={ToggleRosterDayClosedAction rosterDay.id}
-                  hx-target={"#" <> rosterContentFragmentId}
-                  hx-swap="outerHTML"
+                  hx-target={"#" <> rosterDaySectionDomId rosterDay.id}
+                  hx-swap="none"
                   hx-push-url="false"
                   hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
                 <button type="submit"
@@ -259,8 +259,8 @@ renderAddRowButton rosterDay =
                   class="d-inline"
                   data-disable-javascript-submission="true"
                   hx-post={AddRosterRowAction rosterDay.id}
-                  hx-target={"#" <> rosterContentFragmentId}
-                  hx-swap="outerHTML"
+                  hx-target={"#" <> rosterDaySectionDomId rosterDay.id}
+                  hx-swap="none"
                   hx-push-url="false"
                   hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
                 <button type="submit"
@@ -284,8 +284,8 @@ renderDeleteLastRowButton rosterDay rowIndex =
                   class="d-inline"
                   data-disable-javascript-submission="true"
                   hx-post={RemoveRosterRowAction rosterDay.id}
-                  hx-target={"#" <> rosterContentFragmentId}
-                  hx-swap="outerHTML"
+                  hx-target={"#" <> rosterDaySectionDomId rosterDay.id}
+                  hx-swap="none"
                   hx-push-url="false"
                   hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
                 <button type="submit"

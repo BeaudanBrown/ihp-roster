@@ -18,8 +18,8 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
-import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterRowDomIdText,
-                            rosterStaffPanelFragmentId)
+import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDaySectionDomId,
+                            rosterRowDomIdText, rosterStaffPanelFragmentId)
 import Web.Routes
 import Web.Types
 
@@ -266,14 +266,16 @@ tests = beforeAll testContext do
                         callAction (ToggleRosterDayClosedAction rosterDay.id)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs rosterContentFragmentId
-                response `responseBodyShouldContain` "Roster day marked closed."
-                response `responseBodyShouldContain` "CLOSED"
-                response `responseBodyShouldNotContain` "Crew, Alpha"
-                response `responseBodyShouldNotContain` "9:00 AM"
-                response `responseBodyShouldNotContain` "OP"
-                response `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
-                response `responseBodyShouldNotContain` "data-roster-day-remove=\"true\""
+                body <- responseBody response
+                let bodyText = cs body :: String
+                bodyText `shouldBe` ""
+
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
+                fromJust triggerHeader `shouldContain` (cs (rosterDaySectionDomId rosterDay.id) :: String)
+                fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekDaySectionFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
 
                 updatedDay <- fetch rosterDay.id
                 updatedDay.isClosed `shouldBe` True
@@ -342,8 +344,16 @@ tests = beforeAll testContext do
                         callAction (AddRosterRowAction rosterDay.id)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs rosterContentFragmentId
-                response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 4)
+                body <- responseBody response
+                let bodyText = cs body :: String
+                bodyText `shouldBe` ""
+
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
+                fromJust triggerHeader `shouldContain` (cs (rosterDaySectionDomId rosterDay.id) :: String)
+                fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekDaySectionFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
 
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
@@ -353,6 +363,39 @@ tests = beforeAll testContext do
                 length slotsForDay `shouldBe` (5 * slotCount)
                 map (.rowIndex) slotsForDay `shouldBe` concatMap (replicate slotCount) [0, 1, 2, 3, 4]
                 map (.slotNameId) slotsForDay `shouldMatchList` map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames ++ map (unpackId . (.id)) slotNames
+
+        it "manager can remove the last roster row via a day-section refresh" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-remove-row-patch@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName Nothing 0
+                _ <- createRosterSlotRecord rosterDay slotName Nothing 1
+                _ <- createRosterSlotRecord rosterDay slotName Nothing 2
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (RemoveRosterRowAction rosterDay.id)
+
+                response `responseStatusShouldBe` status200
+                body <- responseBody response
+                let bodyText = cs body :: String
+                bodyText `shouldBe` ""
+
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
+                fromJust triggerHeader `shouldContain` (cs (rosterDaySectionDomId rosterDay.id) :: String)
+                fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekDaySectionFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
+
+                slotsForDay <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> fetch
+                map (.rowIndex) slotsForDay `shouldMatchList` [0, 1]
 
         it "syncs a draft week to the current slot template only when explicitly requested" $ withContext do
             withCleanDb do

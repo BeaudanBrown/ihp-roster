@@ -7,8 +7,7 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
-import Application.Helper.LiveUpdate (LiveFragmentRef,
-                                      LiveUpdateScope (..))
+import Application.Helper.LiveUpdate (LiveFragmentRef, LiveUpdateScope (..))
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.View (appendQueryParams)
@@ -245,7 +244,7 @@ instance Controller RosterWeeksController where
         broadcastRosterWeekInvalidation
             rosterGroupId
             rosterWeek.weekOffset
-            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+            [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
             , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
             ]
 
@@ -257,7 +256,10 @@ instance Controller RosterWeeksController where
         if isHtmxRequest
             then do
                 setHtmxPushUrl targetPath
-                respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset successMessage
+                respondWithActorRosterFragmentRefresh
+                    [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+                    , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+                    ]
             else do
                 setSuccessMessage successMessage
                 redirectToPath targetPath
@@ -310,7 +312,15 @@ instance Controller RosterWeeksController where
                     [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
                     , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
                     ]
-                respondWithRosterContent rosterGroupId rosterWeek.weekOffset
+                if isHtmxRequest
+                    then
+                        respondWithActorRosterFragmentRefresh
+                            [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+                            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+                            ]
+                    else do
+                        setSuccessMessage "Roster row added."
+                        redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
 
     action RemoveRosterRowAction { rosterDayId } = do
         ensureManagerRole
@@ -366,7 +376,15 @@ instance Controller RosterWeeksController where
             [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
             , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
             ]
-        respondWithRosterContent rosterGroupId rosterWeek.weekOffset
+        if isHtmxRequest
+            then
+                respondWithActorRosterFragmentRefresh
+                    [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+                    , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+                    ]
+            else do
+                setSuccessMessage "Roster row removed."
+                redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
 
     action UpdateRosterSlotAction { rosterSlotId } = do
         ensureManagerRole
@@ -452,19 +470,6 @@ respondWithActorRosterFragmentRefresh fragments = do
                         [ "fragments" Aeson..= fragments
                         ]
                 ]
-
-respondWithRosterDaySectionPatch :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> Bool -> IO ()
-respondWithRosterDaySectionPatch rosterGroupId weekOffset rosterDayId shouldRefreshStaffPanel = do
-    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
-    case rosterData of
-        Nothing -> respondHtmlProfiled [hsx||]
-        Just RosterRenderData { rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } -> do
-            let renderedDaySection =
-                    mapMaybe
-                        (renderRequestedDaySection weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts renderIndexes)
-                        [unpackId rosterDayId]
-            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId panelStaff | shouldRefreshStaffPanel]
-            respondHtmlProfiled (mconcat (renderedDaySection <> renderedStaffPanel))
 
 respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefreshStaffPanel = do
