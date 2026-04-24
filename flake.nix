@@ -335,7 +335,7 @@ SQL
                             STATE_DIR="$PWD/.devenv/agent"
                             PID_FILE="$STATE_DIR/devenv.pid"
                             LOG_FILE="$STATE_DIR/devenv.log"
-                            APP_PORT="$(dev-app-port)"
+                            APP_PORT="''${PORT:-8000}"
                             APP_HEALTH_URL="http://127.0.0.1:$APP_PORT"
 
                             mkdir -p "$STATE_DIR"
