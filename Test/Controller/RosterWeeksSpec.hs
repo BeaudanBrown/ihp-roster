@@ -775,6 +775,38 @@ tests = beforeAll testContext do
                 fromJust triggerHeader `shouldContain` "\"deferUntilBlur\":true"
                 fromJust triggerHeader `shouldContain` "\"deferUntilBlur\":false"
 
+        it "does not include rows from other weeks when refreshing related assignment rows" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-update-current-week@example.com" "staff" True
+                staffUserA <- createUserRecord "roster-staff-current-week-a@example.com" "staff" True
+                staffUserB <- createUserRecord "roster-staff-current-week-b@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue staffUserA "worker"
+                _ <- createVenueMembershipRecord venue staffUserB "worker"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffA <- createStaffRecord venue (Just staffUserA) "Alpha" "Crew"
+                staffB <- createStaffRecord venue (Just staffUserB) "Bravo" "Crew"
+                currentWeek <- createRosterWeekRecord venue 0 False
+                currentDay <- createRosterDayRecord currentWeek 0
+                currentSlot <- createRosterSlotRecord currentDay slotName (Just staffA) 0
+                relatedCurrentSlot <- createRosterSlotRecord currentDay slotName (Just staffA) 1
+                otherWeek <- createRosterWeekRecord venue 1 False
+                otherDay <- createRosterDayRecord otherWeek 0
+                _ <- createRosterSlotRecord otherDay slotName (Just staffA) 2
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateRosterSlotAction currentSlot.id) [("staffId", ByteString.pack (cs (tshow staffB.id)))]
+
+                response `responseStatusShouldBe` status200
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                let editedRowTarget = cs (rosterRowDomIdText currentDay.id 0) :: String
+                let relatedCurrentRowTarget = cs (rosterRowDomIdText currentDay.id 1) :: String
+                let otherWeekRowTarget = cs (rosterRowDomIdText otherDay.id 2) :: String
+                fromJust triggerHeader `shouldContain` editedRowTarget
+                fromJust triggerHeader `shouldContain` relatedCurrentRowTarget
+                fromJust triggerHeader `shouldNotContain` otherWeekRowTarget
+
         it "keeps selected staff labels plain when ideal-shift filters hide them" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

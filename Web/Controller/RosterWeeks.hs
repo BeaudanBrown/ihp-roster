@@ -416,7 +416,7 @@ instance Controller RosterWeeksController where
                     else do
                         _ <- updatedSlot |> updateRecord
 
-                        relatedSlots <- fetchRelatedSlotsForStaffIds (catMaybes [previousStaffId, updatedSlot.staffId])
+                        relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, updatedSlot.staffId])
                         let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
                         let actorFragments =
                                 buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset impactedRowKeys
@@ -533,13 +533,20 @@ renderRosterWeekOverviewFragment weekOffset rosterGroupId = do
     weekOverviewDays <- profileActionSpan "roster.build_month_overview" (buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate)
     pure (renderWeekOverviewPanelFragment weekOffset rosterGroupId weekStartDate todayDate weekOverviewDays (buildRosterViewCapabilities Nothing))
 
-fetchRelatedSlotsForStaffIds :: (?modelContext :: ModelContext) => [UUID.UUID] -> IO [RosterSlot]
-fetchRelatedSlotsForStaffIds staffIds =
+fetchRelatedSlotsForStaffIdsInRosterWeek :: (?modelContext :: ModelContext) => RosterWeek -> [UUID.UUID] -> IO [RosterSlot]
+fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek staffIds =
     if null staffIds
         then pure []
-        else query @RosterSlot
-            |> filterWhereIn (#staffId, map Just (nub staffIds))
-            |> fetch
+        else do
+            rosterDays <- query @RosterDay
+                |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                |> fetch
+            if null rosterDays
+                then pure []
+                else query @RosterSlot
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                    |> filterWhereIn (#staffId, map Just (nub staffIds))
+                    |> fetch
 
 ensureRosterWeekIsDraftForEdit :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> IO ()
 ensureRosterWeekIsDraftForEdit rosterWeek =
