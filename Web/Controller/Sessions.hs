@@ -2,7 +2,9 @@ module Web.Controller.Sessions where
 
 import Application.Helper.EmailVerification (findActiveVerificationTokenByToken,
                                              sendEmailVerification)
+import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Control.Monad (void)
+import qualified Data.Aeson as Aeson
 import IHP.AuthSupport.Authentication (verifyPassword)
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified IHP.AuthSupport.Lockable as Lockable
@@ -31,6 +33,16 @@ instance Controller SessionsController where
                 Just user -> do
                     isLocked <- Lockable.isLocked user
                     when isLocked do
+                        void $
+                            recordUserAuthenticationAuditEvent
+                                user
+                                "login_blocked"
+                                (Aeson.object
+                                    [ "authMethod" Aeson..= ("password" :: Text)
+                                    , "email" Aeson..= submittedEmail
+                                    , "reason" Aeson..= ("locked" :: Text)
+                                    ]
+                                )
                         setErrorMessage "User is locked"
                         redirectTo NewSessionAction
 
@@ -41,6 +53,15 @@ instance Controller SessionsController where
                             _ <- user
                                 |> set #failedLoginAttempts 0
                                 |> updateRecord
+                            void $
+                                recordUserAuthenticationAuditEvent
+                                    user
+                                    "login_succeeded"
+                                    (Aeson.object
+                                        [ "authMethod" Aeson..= ("password" :: Text)
+                                        , "email" Aeson..= submittedEmail
+                                        ]
+                                    )
                             redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
                             redirectToPath (fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl)
                         else do
@@ -48,6 +69,16 @@ instance Controller SessionsController where
                             user' <- user
                                 |> incrementField #failedLoginAttempts
                                 |> updateRecord
+                            void $
+                                recordUserAuthenticationAuditEvent
+                                    user'
+                                    "login_failed"
+                                    (Aeson.object
+                                        [ "authMethod" Aeson..= ("password" :: Text)
+                                        , "email" Aeson..= submittedEmail
+                                        , "failedLoginAttempts" Aeson..= user'.failedLoginAttempts
+                                        ]
+                                    )
                             when (user'.failedLoginAttempts >= Sessions.maxFailedLoginAttempts user') do
                                 Lockable.lock user'
                                 pure ()

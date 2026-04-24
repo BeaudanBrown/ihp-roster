@@ -251,6 +251,8 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
 
 ## Auth Model Notes
 - Current business authority is venue-scoped. `venue_memberships.venue_role` is what grants manager/admin access; `users.user_role = 'admin'` is not a cross-venue superuser.
+- `users.email` is the canonical case-insensitive login identity. Alternate sign-in methods must link to an existing invited account and must not create a public self-registration bypass.
+- Password login success/failure/locked-account attempts for known venue-linked users are recorded in `audit_events`; keep future auth methods on the same event shape with an `authMethod` payload.
 - Founder/sysadmin support access is now modelled separately on `users.platform_role = 'super_admin'`. Do not overload venue roles or create synthetic `venue_memberships` for cross-venue support access.
 - Request-scoped support mode is represented by a real `currentVenue` plus `currentVenueMembershipOrNothing = Nothing` and `currentUserIsSuperAdmin = True`. Keep that shape intact so audit/UI layers can distinguish support access from ordinary venue membership access.
 - The support switch surface lives on a dedicated `SupportController`. Keep venue switching there instead of stretching venue admin/export pages into cross-venue tooling.

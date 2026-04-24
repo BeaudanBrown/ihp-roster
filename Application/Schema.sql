@@ -505,6 +505,7 @@ CREATE TABLE venue_membership_role_events (
 -- Composite indexes for common venue-scoped access paths
 CREATE INDEX idx_venue_memberships_venue_user ON venue_memberships (venue_id, user_id);
 CREATE INDEX idx_venue_memberships_user_active ON venue_memberships (user_id, is_active);
+CREATE UNIQUE INDEX idx_users_email_lower ON users (LOWER(email));
 CREATE INDEX idx_venue_invitations_venue_status ON venue_invitations (venue_id, status);
 CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, status);
 CREATE INDEX idx_venue_onboarding_invitations_email_status ON venue_onboarding_invitations (email, status);

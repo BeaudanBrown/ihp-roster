@@ -66,6 +66,9 @@ The product must not rely on global in-app business roles without venue boundari
 - MFA should be introduced for privileged roles before broader commercial rollout.
 - Role changes, exports and other high-risk actions should be auditable and candidates for step-up auth.
 - Server-side authorisation must resolve the current venue membership rather than trusting a global business role on `users`.
+- Login identity is keyed by a case-insensitive unique email address.
+- Alternate sign-in methods such as passkeys or future OAuth must attach to existing invitation-created accounts, not create public self-registration bypasses.
+- Successful, failed and blocked login attempts for known venue-linked users should create audit events with the authentication method.
 
 ## Mandatory profile gate
 

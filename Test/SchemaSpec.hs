@@ -129,6 +129,9 @@ tests = describe "Schema" do
             , "export_generated"
             , "export_downloaded"
             , "support_access_granted"
+            , "login_succeeded"
+            , "login_failed"
+            , "login_blocked"
             ]
         allAuditSourceChannelValues `shouldBe` ["web", "htmx", "system"]
         allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip"]
@@ -197,6 +200,11 @@ tests = describe "Schema" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy`
             Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL;"
+
+    it "enforces case-insensitive uniqueness for login emails" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        schemaSqlText `shouldSatisfy`
+            Text.isInfixOf "CREATE UNIQUE INDEX idx_users_email_lower ON users (LOWER(email));"
 
     describe "Leave request helpers" do
         it "validates leave date ranges as unavailable-from to available-again" do

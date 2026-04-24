@@ -55,6 +55,9 @@ allAuditEventTypeValues =
     , "export_generated"
     , "export_downloaded"
     , "support_access_granted"
+    , "login_succeeded"
+    , "login_failed"
+    , "login_blocked"
     ]
 
 allAuditSourceChannelValues :: [Text]

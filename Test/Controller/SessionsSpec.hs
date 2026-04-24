@@ -150,6 +150,36 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
+                auditEvent <- query @AuditEvent
+                    |> filterWhere (#eventType, "login_succeeded")
+                    |> fetchOne
+                auditEvent.venueId `shouldBe` unpackId venue.id
+                auditEvent.actorUserId `shouldBe` unpackId user.id
+                auditEvent.targetTable `shouldBe` "users"
+                auditEvent.targetId `shouldBe` unpackId user.id
+
+        it "audits failed password logins for known invited accounts" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Failed Login Venue"
+                user <- createUserRecord "failed-login@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+
+                response <- callActionWithParams CreateSessionAction
+                    [ ("email", cs user.email)
+                    , ("password", "wrong-password")
+                    ]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/NewSession"
+
+                auditEvent <- query @AuditEvent
+                    |> filterWhere (#eventType, "login_failed")
+                    |> fetchOne
+                auditEvent.venueId `shouldBe` unpackId venue.id
+                auditEvent.actorUserId `shouldBe` unpackId user.id
+                auditEvent.targetTable `shouldBe` "users"
+                auditEvent.targetId `shouldBe` unpackId user.id
+
         it "resends verification for unverified accounts and surfaces the banner" $ withContext do
             withCleanDb do
                 user <- createUserRecord "resend-me@example.com" "staff" True

@@ -5,7 +5,8 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 import Application.Helper.ControllerContext (authenticatedCurrentUser,
-                                             currentVenueId)
+                                             currentVenueId,
+                                             resolveVenueContextForUser)
 import Application.Helper.Htmx (requestAuditSourceChannel)
 
 recordAuditEvent ::
@@ -45,6 +46,26 @@ recordCurrentUserAuditEvent eventType targetTable targetId payload =
         targetId
         payload
         requestAuditSourceChannel
+
+recordUserAuthenticationAuditEvent ::
+    (?modelContext :: ModelContext) =>
+    User ->
+    Text ->
+    Aeson.Value ->
+    IO (Maybe AuditEvent)
+recordUserAuthenticationAuditEvent user eventType payload =
+    resolveVenueContextForUser Nothing user >>= \case
+        Nothing -> pure Nothing
+        Just (_, venue, _) -> do
+            event <- recordAuditEvent
+                (unpackId (get #id venue))
+                (unpackId (get #id user))
+                eventType
+                "users"
+                (unpackId (get #id user))
+                payload
+                "web"
+            pure (Just event)
 
 timesheetEntrySnapshot :: TimesheetEntry -> Aeson.Value
 timesheetEntrySnapshot entry =
