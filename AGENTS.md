@@ -67,6 +67,7 @@ Agents and CI running outside an interactive direnv shell should prefer:
 bash ./bin/in-env regen-types
 bash ./bin/in-env typecheck
 bash ./bin/in-env test
+bash ./bin/in-env hspec-test
 bash ./bin/in-env lint
 bash ./bin/in-env format
 bash ./bin/in-env e2e
@@ -86,6 +87,7 @@ Available scripts:
 - `typecheck` — Fast typecheck without a full build
 - `regen-types` — Regenerate `build/Generated/Types.hs` after schema edits
 - `test` — Compile and run the test suite
+- `hspec-test` — Alias for the Hspec test suite, useful when a repo also has browser e2e tests
 - `lint` — Run hlint on app sources
 - `format` — Format app sources with stylish-haskell
 - `ghci-app` — Launch GHCi with the app loaded

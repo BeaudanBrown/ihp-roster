@@ -151,6 +151,12 @@ SQL
                             exec build/Test/Main "$@"
                         '';
 
+                        # Alias for repos that distinguish Hspec from browser e2e tests.
+                        # Usage: hspec-test [hspec-args...]
+                        hspec-test.exec = ''
+                            exec test "$@"
+                        '';
+
                         # Run hlint on app source files.
                         # Usage: lint [file_or_dir]  (default: all app sources)
                         lint.exec = ''
@@ -329,6 +335,8 @@ SQL
                             STATE_DIR="$PWD/.devenv/agent"
                             PID_FILE="$STATE_DIR/devenv.pid"
                             LOG_FILE="$STATE_DIR/devenv.log"
+                            APP_PORT="$(dev-app-port)"
+                            APP_HEALTH_URL="http://127.0.0.1:$APP_PORT"
 
                             mkdir -p "$STATE_DIR"
 
@@ -351,6 +359,15 @@ SQL
                             # nix/direnv evaluation fail while writing fetcher cache.
                             export XDG_CACHE_HOME="''${XDG_CACHE_HOME:-/tmp/nix-cache}"
                             mkdir -p "$XDG_CACHE_HOME"
+
+                            if ! curl --connect-timeout 1 --max-time 2 -fsS "$APP_HEALTH_URL" >/dev/null 2>&1; then
+                                if ! node -e "const net = require('node:net'); const server = net.createServer(); server.once('error', () => process.exit(1)); server.listen(Number(process.argv[1]), '127.0.0.1', () => server.close(() => process.exit(0)));" "$APP_PORT"; then
+                                    echo "Port $APP_PORT is occupied but not responding to $APP_HEALTH_URL." >&2
+                                    echo "Stop the stale process before starting dev again." >&2
+                                    exit 1
+                                fi
+                            fi
+
                             echo "[dev-start] launching start (XDG_CACHE_HOME=$XDG_CACHE_HOME)" >>"$LOG_FILE"
                             setsid nohup start </dev/null >>"$LOG_FILE" 2>&1 &
                             PID=$!
