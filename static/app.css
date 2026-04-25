@@ -118,6 +118,10 @@ a:not(.btn):hover {
     backdrop-filter: blur(6px);
 }
 
+.app-header-navbar {
+    min-height: 3.75rem;
+}
+
 .navbar-brand {
     color: var(--app-text);
     font-size: var(--text-lg);
@@ -643,11 +647,136 @@ h5,
 }
 
 .app-header-nav-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
     justify-content: center;
+}
+
+.app-header-nav-item.is-active {
+    background-color: var(--app-accent-soft);
+    border-color: #8bb5ff;
+    color: var(--app-text);
 }
 
 .app-header-logout-form {
     margin: 0;
+}
+
+.support-venue-switch-form {
+    min-width: 12rem;
+}
+
+.app-mobile-menu-toggle {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-color: var(--app-border-strong);
+    border-radius: 0.65rem;
+    color: var(--app-text);
+}
+
+.app-mobile-menu-toggle:focus {
+    box-shadow: 0 0 0 0.18rem var(--app-accent-soft);
+}
+
+.app-mobile-nav {
+    --bs-offcanvas-width: min(20rem, 86vw);
+    color: var(--app-text);
+    background: var(--app-surface);
+    border-right: 1px solid var(--app-border-strong);
+    box-shadow: 1rem 0 2.5rem rgba(0, 0, 0, 0.32);
+}
+
+.app-mobile-nav-header {
+    min-height: 4rem;
+    border-bottom: 1px solid var(--app-border);
+}
+
+.app-mobile-nav-close {
+    width: 2.5rem;
+    height: 2.5rem;
+    margin: 0;
+    border-radius: 0.65rem;
+    background-size: 0.85rem;
+}
+
+.app-mobile-nav-body {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+}
+
+.app-mobile-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.app-mobile-nav-link {
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.7rem 0.85rem;
+    border: 1px solid transparent;
+    border-radius: 0.65rem;
+    color: var(--app-text);
+    font-size: var(--text-base);
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.app-mobile-nav-link:hover,
+.app-mobile-nav-link:focus {
+    color: var(--app-text);
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--app-border);
+}
+
+.app-mobile-nav-link.is-active {
+    color: var(--app-text);
+    background-color: var(--app-accent-soft);
+    border-color: #6d97de;
+}
+
+.app-mobile-nav-icon {
+    width: 1.25rem;
+    flex: 0 0 1.25rem;
+    color: #8bb5ff;
+    text-align: center;
+}
+
+.app-mobile-nav-venue {
+    padding-bottom: 0.85rem;
+    border-bottom: 1px solid var(--app-border);
+}
+
+.app-mobile-nav-logout {
+    margin: auto 0 0;
+    padding-top: 1rem;
+    border-top: 1px solid var(--app-border);
+}
+
+.app-mobile-nav-logout .app-mobile-nav-link {
+    width: 100%;
+    background: transparent;
+    text-align: left;
+}
+
+.app-mobile-nav-link-danger {
+    color: #ffb1b1;
+}
+
+.app-mobile-nav-link-danger .app-mobile-nav-icon {
+    color: #ff8f8f;
+}
+
+.app-mobile-nav-link-danger:hover,
+.app-mobile-nav-link-danger:focus {
+    color: #ffe1e1;
+    background-color: rgba(244, 119, 119, 0.12);
+    border-color: rgba(244, 119, 119, 0.45);
 }
 
 .btn-sm,
@@ -1263,14 +1392,15 @@ h5,
     padding-bottom: 0.22rem;
 }
 
-.roster-grid .roster-day-label-row-closed {
-    color: #f0c572;
-}
-
 .roster-grid .roster-day-closed-label {
+    display: inline-flex;
+    min-height: 1.7rem;
+    align-items: center;
+    justify-content: center;
     font-size: 0.64rem;
     font-weight: 800;
     letter-spacing: 0.12em;
+    color: #f0c572;
 }
 
 .roster-grid .day-label-empty {
@@ -1298,18 +1428,23 @@ h5,
     font-weight: 700;
     line-height: 1;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
 }
 
 .roster-grid .roster-day-action-toggle {
     width: auto;
-    min-width: 4.6rem;
-    padding: 0 0.65rem;
+    min-width: 1.9rem;
+    padding: 0 0.48rem;
     border-radius: 0.55rem;
     font-size: 0.7rem;
     letter-spacing: 0.02em;
 }
 
 .roster-grid .roster-day-action-toggle.is-active {
+    min-width: 4.85rem;
     border-color: rgba(240, 197, 114, 0.75);
     color: #f0c572;
     background: rgba(240, 197, 114, 0.14);
@@ -1510,32 +1645,6 @@ h5,
     }
 }
 
-@media (max-width: 767.98px) {
-    .app-header .navbar-collapse {
-        padding-top: 0.85rem;
-    }
-
-    .app-header-nav {
-        align-items: center;
-        width: 100%;
-    }
-
-    .app-header-nav-item {
-        width: min(18rem, 92vw);
-        min-width: 0;
-        justify-content: center;
-    }
-
-    .app-header-logout-form {
-        display: block;
-        width: min(18rem, 92vw);
-    }
-
-    .app-header-logout-form .btn {
-        width: 100%;
-    }
-}
-
 @media (max-width: 575.98px) {
     .app-content {
         padding-left: 0.85rem;
@@ -1622,8 +1731,12 @@ h5,
     }
 
     .roster-grid .roster-day-action-toggle {
-        min-width: 4rem;
+        min-width: 1.6rem;
         font-size: 0.62rem;
+    }
+
+    .roster-grid .roster-day-action-toggle.is-active {
+        min-width: 4.25rem;
     }
 
     .roster-grid .slot-cell-input,

@@ -320,15 +320,27 @@ export async function removeRowFromFirstRosterDay(page: Page) {
 export async function openAuthenticatedNavIfCollapsed(page: Page) {
     const navToggle = page.locator('.navbar-toggler');
     if (!await navToggle.isVisible()) {
-        return;
+        return false;
     }
 
-    const expanded = await navToggle.getAttribute('aria-expanded');
-    if (expanded !== 'true') {
+    const mobileNav = page.locator('#app-mobile-nav');
+    if (!await mobileNav.isVisible()) {
         await navToggle.click();
     }
 
-    await expect(page.locator('#app-nav')).toBeVisible();
+    await expect(mobileNav).toBeVisible();
+    await expect
+        .poll(async () => {
+            return mobileNav.evaluate((element) => {
+                if (!(element instanceof HTMLElement)) {
+                    return false;
+                }
+
+                return element.classList.contains('show') && Math.round(element.getBoundingClientRect().left) >= 0;
+            });
+        })
+        .toBe(true);
+    return true;
 }
 
 export async function expectNoHorizontalViewportOverflow(page: Page, slackPx = 2) {

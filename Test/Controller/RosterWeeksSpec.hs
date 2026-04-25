@@ -284,7 +284,7 @@ tests = beforeAll testContext do
                 unchangedSlot.startTime `shouldBe` Just (timeOfDay 9 0)
                 unchangedSlot.note `shouldBe` Just "OP"
 
-        it "closed roster days stay locked at three rows and reject row additions" $ withContext do
+        it "closed roster days stay locked at two rows and reject row additions" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-closed-day-add@example.com" "staff" True
@@ -300,7 +300,7 @@ tests = beforeAll testContext do
                         callAction (AddRosterRowAction rosterDay.id)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Closed days stay locked at three blank rows until reopened."
+                response `responseBodyShouldContain` "Closed days stay locked at two blank rows until reopened."
 
         it "manager can create a draft week via HTMX without redirecting" $ withContext do
             withCleanDb do
@@ -471,6 +471,27 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "name=\"staffId\""
                 response `responseBodyShouldNotContain` "js-time-picker-trigger"
                 response `responseBodyShouldNotContain` "slot-note-input"
+
+        it "renders live closed days as read-only closed text without the lock control" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-live-closed-day@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- updateRecord (rosterDay |> set #isClosed True)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "roster-day-closed-label"
+                response `responseBodyShouldContain` "CLOSED"
+                response `responseBodyShouldNotContain` "data-roster-day-closed-toggle=\"true\""
+                response `responseBodyShouldNotContain` "bi-lock-fill"
+                response `responseBodyShouldNotContain` "data-roster-day-add=\"true\""
+                response `responseBodyShouldNotContain` "data-roster-day-remove=\"true\""
 
         it "staff can see published weeks" $ withContext do
             withCleanDb do

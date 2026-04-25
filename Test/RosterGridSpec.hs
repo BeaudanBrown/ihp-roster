@@ -28,13 +28,13 @@ tests = describe "Roster grid row grouping" do
         lastRowIndexForRows (rowsForDay (newRecord @RosterDay) [mkSlot 4, mkSlot 1, mkSlot 4, mkSlot 2])
             `shouldBe` 4
 
-    it "locks closed days to exactly three visible rows" do
+    it "locks closed days to exactly two visible rows" do
         let closedDay = newRecord @RosterDay |> set #isClosed True
         let mkSlot rowIndex =
                 (newRecord @RosterSlot)
                     |> set #rowIndex rowIndex
         let rows = rowsForDay closedDay [mkSlot 0, mkSlot 4]
-        map fst rows `shouldBe` [0, 1, 2]
+        map fst rows `shouldBe` [0, 1]
 
     it "includes the edited row and all rows assigned to old/new staff" do
         let Just staffA = UUID.fromText "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"

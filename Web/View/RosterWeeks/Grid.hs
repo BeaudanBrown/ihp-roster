@@ -190,8 +190,7 @@ renderDayLabel isEditable date rosterDay rowCount rowPosition lastRowIndex
                 <div class="roster-day-label-row roster-day-label-row-controls">
                     {renderDayRowControls isEditable rosterDay lastRowIndex}
                 </div>
-                {renderClosedDayLabel rosterDay}
-                {renderEmptyDayLabelRows rowCount (if rosterDay.isClosed then 3 else 2)}
+                {renderEmptyDayLabelRows rowCount 2}
             </div>
         </td>
     |]
@@ -201,15 +200,6 @@ renderPrimaryDayLabel :: Day -> Html
 renderPrimaryDayLabel date = [hsx|
     <div class="roster-day-date">{Text.pack (formatTime defaultTimeLocale "%a" date)} {Text.pack (formatTime defaultTimeLocale "%d/%m" date)}</div>
 |]
-
-renderClosedDayLabel :: RosterDay -> Html
-renderClosedDayLabel rosterDay
-    | rosterDay.isClosed = [hsx|
-        <div class="roster-day-label-row roster-day-label-row-closed">
-            <div class="roster-day-closed-label">CLOSED</div>
-        </div>
-    |]
-    | otherwise = mempty
 
 renderEmptyDayLabelRows :: Int -> Int -> Html
 renderEmptyDayLabelRows rowCount consumedRows =
@@ -225,12 +215,19 @@ renderDayRowControls isEditable rosterDay lastRowIndex =
                 {when (not rosterDay.isClosed) (renderAddRowButton rosterDay)}
             </span>
         |]
-        else [hsx|<span class="roster-day-actions-placeholder"></span>|]
+        else
+            if rosterDay.isClosed
+                then [hsx|<span class="roster-day-closed-label">CLOSED</span>|]
+                else [hsx|<span class="roster-day-actions-placeholder"></span>|]
 
 renderToggleClosedButton :: (?context :: ControllerContext) => RosterDay -> Html
 renderToggleClosedButton rosterDay =
     if currentUserIsManager
-        then [hsx|
+        then
+            let buttonLabel = if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)
+                iconClass = if rosterDay.isClosed then ("bi bi-lock-fill" :: Text) else ("bi bi-unlock" :: Text)
+                closedLabel = if rosterDay.isClosed then [hsx|<span class="roster-day-action-label">CLOSED</span>|] else mempty
+             in [hsx|
             <form method="POST"
                   action={ToggleRosterDayClosedAction rosterDay.id}
                   class="d-inline"
@@ -242,9 +239,11 @@ renderToggleClosedButton rosterDay =
                   hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
                 <button type="submit"
                         class={classes [("btn btn-sm roster-day-action roster-day-action-toggle", True), ("is-active", rosterDay.isClosed)]}
+                        aria-label={buttonLabel}
                         data-roster-day-closed-toggle="true"
-                        title={if rosterDay.isClosed then ("Reopen day" :: Text) else ("Mark day closed" :: Text)}>
-                    {if rosterDay.isClosed then ("open" :: Text) else ("close" :: Text)}
+                        title={buttonLabel}>
+                    <i class={iconClass} aria-hidden="true"></i>
+                    {closedLabel}
                 </button>
             </form>
         |]
@@ -265,9 +264,10 @@ renderAddRowButton rosterDay =
                   hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
                 <button type="submit"
                         class="btn btn-sm roster-day-action roster-day-action-add"
+                        aria-label="Add shift row"
                         data-roster-day-add="true"
                         title="Add shift row">
-                    +
+                    <i class="bi bi-plus-lg" aria-hidden="true"></i>
                 </button>
             </form>
         |]
@@ -290,10 +290,11 @@ renderDeleteLastRowButton rosterDay rowIndex =
                   hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
                 <button type="submit"
                         class="btn btn-sm roster-day-action roster-day-action-remove"
+                        aria-label={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}
                         data-roster-day-remove="true"
                         title={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}
                         disabled={not canDelete}>
-                    -
+                    <i class="bi bi-dash-lg" aria-hidden="true"></i>
                 </button>
             </form>
         |]

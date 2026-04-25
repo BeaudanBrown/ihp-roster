@@ -276,7 +276,7 @@ instance Controller RosterWeeksController where
 
         when rosterDay.isClosed do
             let rosterGroupId = coerce rosterWeek.rosterGroupId
-            let errorMessage = "Closed days stay locked at three blank rows until reopened."
+            let errorMessage = "Closed days stay locked at two blank rows until reopened."
             if isHtmxRequest
                 then respondWithRosterToast errorMessage "app-toast-error"
                 else do
@@ -334,7 +334,7 @@ instance Controller RosterWeeksController where
 
         when rosterDay.isClosed do
             let rosterGroupId = coerce rosterWeek.rosterGroupId
-            let errorMessage = "Closed days stay locked at three blank rows until reopened."
+            let errorMessage = "Closed days stay locked at two blank rows until reopened."
             if isHtmxRequest
                 then respondWithRosterToast errorMessage "app-toast-error"
                 else do

@@ -18,18 +18,62 @@ test.describe('Mobile experience smoke', () => {
             await expect(navToggle).toBeVisible();
         }
 
-        await openAuthenticatedNavIfCollapsed(page);
-        await expect(page.getByRole('link', { name: 'roster', exact: true })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'leave' })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'admin' })).toBeVisible();
+        const openedDrawer = await openAuthenticatedNavIfCollapsed(page);
+        if (openedDrawer) {
+            const mobileNav = page.locator('#app-mobile-nav');
+            await expect(mobileNav).toBeVisible();
+            await expect(mobileNav.getByRole('link', { name: 'Roster', exact: true })).toHaveAttribute('aria-current', 'page');
+            await expect(mobileNav.getByRole('link', { name: 'Timesheets' })).toBeVisible();
+            await expect(mobileNav.getByRole('link', { name: 'Leave' })).toBeVisible();
+            await expect(mobileNav.getByRole('link', { name: 'Admin' })).toBeVisible();
+            await expect(mobileNav.getByRole('button', { name: 'Logout' })).toBeVisible();
 
-        await page.getByRole('link', { name: 'leave' }).click();
+            const drawerMetrics = await mobileNav.evaluate((drawer) => {
+                if (!(drawer instanceof HTMLElement)) {
+                    throw new Error('Expected mobile nav drawer to be an HTMLElement');
+                }
+
+                const firstLink = drawer.querySelector('.app-mobile-nav-link');
+                if (!(firstLink instanceof HTMLElement)) {
+                    throw new Error('Expected mobile nav link to be an HTMLElement');
+                }
+
+                const drawerRect = drawer.getBoundingClientRect();
+                const linkRect = firstLink.getBoundingClientRect();
+                return {
+                    drawerLeft: Math.round(drawerRect.left),
+                    drawerRight: Math.round(drawerRect.right),
+                    viewportWidth: window.innerWidth,
+                    linkHeight: Math.round(linkRect.height),
+                    linkDisplay: getComputedStyle(firstLink).display,
+                };
+            });
+
+            expect(drawerMetrics.drawerLeft).toBeGreaterThanOrEqual(0);
+            expect(drawerMetrics.drawerRight).toBeLessThanOrEqual(drawerMetrics.viewportWidth);
+            expect(drawerMetrics.linkHeight).toBeGreaterThanOrEqual(44);
+            expect(drawerMetrics.linkDisplay).toBe('flex');
+            await mobileNav.getByRole('button', { name: 'Close navigation menu' }).click();
+            await expect(mobileNav).toBeHidden();
+
+            await openAuthenticatedNavIfCollapsed(page);
+            await page.locator('#app-mobile-nav').getByRole('link', { name: 'Leave' }).click();
+        } else {
+            await expect(page.getByRole('link', { name: 'roster', exact: true })).toHaveAttribute('aria-current', 'page');
+            await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
+            await expect(page.getByRole('link', { name: 'leave' })).toBeVisible();
+            await expect(page.getByRole('link', { name: 'admin' })).toBeVisible();
+            await page.getByRole('link', { name: 'leave' }).click();
+        }
         await expect(page).toHaveURL(/LeaveRequests/, { timeout: 60000 });
         await expect(page.locator('#leave-requests-content')).toBeVisible();
 
-        await openAuthenticatedNavIfCollapsed(page);
-        await page.getByRole('link', { name: 'timesheets' }).click();
+        const reopenedDrawer = await openAuthenticatedNavIfCollapsed(page);
+        if (reopenedDrawer) {
+            await page.locator('#app-mobile-nav').getByRole('link', { name: 'Timesheets' }).click();
+        } else {
+            await page.getByRole('link', { name: 'timesheets' }).click();
+        }
         await expect(page).toHaveURL(/(Timesheets|ShowTimesheetWeek)/, { timeout: 60000 });
         await expect(page.locator('#timesheet-week-shell')).toBeVisible();
     });
@@ -37,14 +81,25 @@ test.describe('Mobile experience smoke', () => {
     test('worker mobile navigation uses profile for leave access and hides the leave header link', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
 
-        await openAuthenticatedNavIfCollapsed(page);
-        await expect(page.getByRole('link', { name: 'roster', exact: true })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'profile' })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'leave' })).toHaveCount(0);
-        await expect(page.getByRole('link', { name: 'admin' })).toHaveCount(0);
+        const openedDrawer = await openAuthenticatedNavIfCollapsed(page);
+        if (openedDrawer) {
+            const mobileNav = page.locator('#app-mobile-nav');
+            await expect(mobileNav.getByRole('link', { name: 'Roster', exact: true })).toBeVisible();
+            await expect(mobileNav.getByRole('link', { name: 'Profile' })).toBeVisible();
+            await expect(mobileNav.getByRole('link', { name: 'Timesheets' })).toBeVisible();
+            await expect(mobileNav.getByRole('link', { name: 'Leave' })).toHaveCount(0);
+            await expect(mobileNav.getByRole('link', { name: 'Admin' })).toHaveCount(0);
 
-        await page.getByRole('link', { name: 'profile' }).click();
+            await mobileNav.getByRole('link', { name: 'Profile' }).click();
+        } else {
+            await expect(page.getByRole('link', { name: 'roster', exact: true })).toBeVisible();
+            await expect(page.getByRole('link', { name: 'profile' })).toBeVisible();
+            await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
+            await expect(page.getByRole('link', { name: 'leave' })).toHaveCount(0);
+            await expect(page.getByRole('link', { name: 'admin' })).toHaveCount(0);
+
+            await page.getByRole('link', { name: 'profile' }).click();
+        }
         await expect(page).toHaveURL(/EditProfile/, { timeout: 60000 });
         await expect(page.locator('#profile-content-fragment')).toBeVisible();
 

@@ -3,7 +3,8 @@ module Web.View.Layout (defaultLayout, Html) where
 import Application.Helper.Controller (currentSupportVenueOptions,
                                       currentVenueOrNothing)
 import Application.Helper.View
-import qualified Data.Text.Encoding as Text
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
 import IHP.ControllerSupport (getRequestPathAndQuery)
 import IHP.Environment
@@ -38,57 +39,110 @@ defaultLayout inner = [hsx|
 </html>
 |]
 
-renderAppHeader :: (?context :: ControllerContext) => Html
+renderAppHeader :: (?context :: ControllerContext, ?request :: Request) => Html
 renderAppHeader =
     case currentUserOrNothing of
         Just _ -> [hsx|
             <header class="app-header border-bottom">
-                <nav class="navbar navbar-expand-md container py-2">
+                <nav class="navbar container py-2 app-header-navbar">
                     <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Bepis</a>
-                    {renderWhenAudience SupportAudience renderSupportVenueSwitcher}
-                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#app-nav" aria-controls="app-nav" aria-expanded="false" aria-label="Toggle navigation">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
-                    <div class="collapse navbar-collapse" id="app-nav">
-                        <div class="navbar-nav app-header-nav ms-auto d-flex gap-1 align-items-md-center">
-                            <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={RosterWeeksAction}>roster</a>
-                            {renderWhenAudience StaffProfileAudience renderProfileNavLink}
-                            <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={TimesheetsAction}>timesheets</a>
-                            {renderWhenAudience ManagerAudience renderLeaveNavLink}
-                            {renderWhenAudience AdminAudience renderAdminNavLink}
-                            {renderWhenAudience SupportAudience renderSupportNavLink}
-                            <form method="POST" action={DeleteSessionAction} class="d-inline app-header-logout-form">
-                                <input type="hidden" name="_method" value="DELETE"/>
-                                <button class="btn btn-outline-danger btn-sm app-header-nav-item" type="submit">logout</button>
-                            </form>
+                    <div class="app-header-desktop-actions d-none d-md-flex align-items-center gap-2 ms-auto">
+                        {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch" "support-venue-switch-form")}
+                        <div class="navbar-nav app-header-nav d-flex flex-row gap-1 align-items-center">
+                            {renderDesktopNavLinks}
                         </div>
                     </div>
+                    <button class="navbar-toggler app-mobile-menu-toggle d-md-none ms-auto"
+                            type="button"
+                            data-bs-toggle="offcanvas"
+                            data-bs-target="#app-mobile-nav"
+                            aria-controls="app-mobile-nav"
+                            aria-label="Open navigation menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
                 </nav>
+                <div class="offcanvas offcanvas-start app-mobile-nav d-md-none" tabindex="-1" id="app-mobile-nav" aria-labelledby="app-mobile-nav-title">
+                    <div class="offcanvas-header app-mobile-nav-header">
+                        <a id="app-mobile-nav-title" class="navbar-brand fw-semibold mb-0" href={RosterWeeksAction}>Bepis</a>
+                        <button type="button" class="btn-close btn-close-white app-mobile-nav-close" data-bs-dismiss="offcanvas" aria-label="Close navigation menu"></button>
+                    </div>
+                    <div class="offcanvas-body app-mobile-nav-body">
+                        {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch-mobile" "support-venue-switch-form app-mobile-nav-venue")}
+                        <nav class="app-mobile-nav-list" aria-label="Primary navigation">
+                            {renderMobileNavLinks}
+                        </nav>
+                        {renderMobileLogoutForm}
+                    </div>
+                </div>
             </header>
         |]
         Nothing -> mempty
 
-renderAdminNavLink :: Html
-renderAdminNavLink = [hsx|
-    <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={AdminAction}>admin</a>
+renderDesktopNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
+renderDesktopNavLinks = [hsx|
+    {renderDesktopNavLink "roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWeek"]}
+    {renderWhenAudience StaffProfileAudience (renderDesktopNavLink "profile" "bi-person" (pathTo EditProfileAction) ["/EditProfile"])}
+    {renderDesktopNavLink "timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWeek"]}
+    {renderWhenAudience ManagerAudience (renderDesktopNavLink "leave" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
+    {renderWhenAudience AdminAudience (renderDesktopNavLink "admin" "bi-sliders" (pathTo AdminAction) ["/Admin"])}
+    {renderWhenAudience SupportAudience (renderDesktopNavLink "support" "bi-life-preserver" (pathTo SupportAction) ["/Support"])}
+    {renderDesktopLogoutForm}
 |]
 
-renderProfileNavLink :: Html
-renderProfileNavLink = [hsx|
-    <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={EditProfileAction}>profile</a>
+renderMobileNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
+renderMobileNavLinks = [hsx|
+    {renderMobileNavLink "Roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWeek"]}
+    {renderWhenAudience StaffProfileAudience (renderMobileNavLink "Profile" "bi-person" (pathTo EditProfileAction) ["/EditProfile"])}
+    {renderMobileNavLink "Timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWeek"]}
+    {renderWhenAudience ManagerAudience (renderMobileNavLink "Leave" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
+    {renderWhenAudience AdminAudience (renderMobileNavLink "Admin" "bi-sliders" (pathTo AdminAction) ["/Admin"])}
+    {renderWhenAudience SupportAudience (renderMobileNavLink "Support" "bi-life-preserver" (pathTo SupportAction) ["/Support"])}
 |]
 
-renderLeaveNavLink :: Html
-renderLeaveNavLink = [hsx|
-    <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={LeaveRequestsAction}>leave</a>
+renderDesktopNavLink :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Text -> [Text] -> Html
+renderDesktopNavLink label iconClass url activePrefixes = [hsx|
+    <a class={desktopNavLinkClass activePrefixes} href={url} aria-current={navAriaCurrent activePrefixes}>
+        <i class={"bi " <> iconClass} aria-hidden="true"></i>
+        <span>{label}</span>
+    </a>
 |]
 
-renderSupportVenueSwitcher :: (?context :: ControllerContext) => Html
-renderSupportVenueSwitcher = [hsx|
-    <form class="ms-2 support-venue-switch-form" method="POST" action={SwitchSupportVenueAction}>
-        <input type="hidden" name="next" value={Text.decodeUtf8 getRequestPathAndQuery}/>
-        <label class="visually-hidden" for="support-venue-switch">Support venue</label>
-        <select id="support-venue-switch" class="form-select form-select-sm" name="venueId" onchange="this.form.submit()">
+renderMobileNavLink :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Text -> [Text] -> Html
+renderMobileNavLink label iconClass url activePrefixes = [hsx|
+    <a class={mobileNavLinkClass activePrefixes} href={url} aria-current={navAriaCurrent activePrefixes}>
+        <i class={"bi " <> iconClass <> " app-mobile-nav-icon"} aria-hidden="true"></i>
+        <span>{label}</span>
+    </a>
+|]
+
+renderDesktopLogoutForm :: Html
+renderDesktopLogoutForm = [hsx|
+    <form method="POST" action={DeleteSessionAction} class="d-inline app-header-logout-form">
+        <input type="hidden" name="_method" value="DELETE"/>
+        <button class="btn btn-outline-danger btn-sm app-header-nav-item" type="submit">
+            <i class="bi bi-box-arrow-right" aria-hidden="true"></i>
+            <span>logout</span>
+        </button>
+    </form>
+|]
+
+renderMobileLogoutForm :: Html
+renderMobileLogoutForm = [hsx|
+    <form method="POST" action={DeleteSessionAction} class="app-mobile-nav-logout">
+        <input type="hidden" name="_method" value="DELETE"/>
+        <button class="app-mobile-nav-link app-mobile-nav-link-danger" type="submit">
+            <i class="bi bi-box-arrow-right app-mobile-nav-icon" aria-hidden="true"></i>
+            <span>Logout</span>
+        </button>
+    </form>
+|]
+
+renderSupportVenueSwitcher :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> Html
+renderSupportVenueSwitcher switchId formClass = [hsx|
+    <form class={formClass} method="POST" action={SwitchSupportVenueAction}>
+        <input type="hidden" name="next" value={TextEncoding.decodeUtf8 getRequestPathAndQuery}/>
+        <label class="visually-hidden" for={switchId}>Support venue</label>
+        <select id={switchId} class="form-select form-select-sm" name="venueId" onchange="this.form.submit()">
             {forEach currentSupportVenueOptions renderSupportVenueOption}
         </select>
     </form>
@@ -101,10 +155,31 @@ renderSupportVenueOption venue = [hsx|
     </option>
 |]
 
-renderSupportNavLink :: Html
-renderSupportNavLink = [hsx|
-    <a class="btn btn-outline-secondary btn-sm app-header-nav-item" href={SupportAction}>support</a>
-|]
+desktopNavLinkClass :: (?context :: ControllerContext, ?request :: Request) => [Text] -> Text
+desktopNavLinkClass activePrefixes =
+    classes
+        [ ("btn btn-outline-secondary btn-sm app-header-nav-item", True)
+        , ("is-active", navItemIsActive activePrefixes)
+        ]
+
+mobileNavLinkClass :: (?context :: ControllerContext, ?request :: Request) => [Text] -> Text
+mobileNavLinkClass activePrefixes =
+    classes
+        [ ("app-mobile-nav-link", True)
+        , ("is-active", navItemIsActive activePrefixes)
+        ]
+
+navAriaCurrent :: (?context :: ControllerContext, ?request :: Request) => [Text] -> Text
+navAriaCurrent activePrefixes =
+    if navItemIsActive activePrefixes then "page" else "false"
+
+navItemIsActive :: (?context :: ControllerContext, ?request :: Request) => [Text] -> Bool
+navItemIsActive activePrefixes =
+    any (`Text.isPrefixOf` currentRequestPath) activePrefixes
+
+currentRequestPath :: (?context :: ControllerContext, ?request :: Request) => Text
+currentRequestPath =
+    Text.takeWhile (/= '?') (TextEncoding.decodeUtf8 getRequestPathAndQuery)
 
 -- The 'assetPath' function used below appends a `?v=SOME_VERSION` to the static assets in production
 -- This is useful to avoid users having old CSS and JS files in their browser cache once a new version is deployed

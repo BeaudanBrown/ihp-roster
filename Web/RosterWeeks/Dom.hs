@@ -15,7 +15,7 @@ minimumOpenRosterRows :: Int
 minimumOpenRosterRows = 2
 
 closedRosterDayRows :: Int
-closedRosterDayRows = 3
+closedRosterDayRows = 2
 
 rosterWeekShellId :: Text
 rosterWeekShellId = "roster-week-shell"

@@ -96,6 +96,28 @@ test.describe('Roster mobile baseline', () => {
         await expectNoHorizontalViewportOverflow(page);
     });
 
+    test('uses compact closed-day controls without add or remove actions', async ({ page }) => {
+        const firstDaySection = page.locator('tbody[data-roster-day-section="true"]').first();
+        const closeButton = firstDaySection.locator('[data-roster-day-closed-toggle="true"]');
+
+        await expect(closeButton).toBeVisible();
+        await expect(closeButton.locator('.bi-unlock')).toBeVisible();
+        await expect(firstDaySection.locator('[data-roster-day-add="true"]')).toBeVisible();
+        await expect(firstDaySection.locator('[data-roster-day-remove="true"]')).toBeVisible();
+
+        await closeButton.click();
+
+        const reopenButton = firstDaySection.locator('[data-roster-day-closed-toggle="true"]');
+        await expect(reopenButton).toContainText('CLOSED');
+        await expect(reopenButton.locator('.bi-lock-fill')).toBeVisible();
+        await expect(firstDaySection.locator('[data-roster-day-add="true"]')).toHaveCount(0);
+        await expect(firstDaySection.locator('[data-roster-day-remove="true"]')).toHaveCount(0);
+        await expect(firstDaySection.locator('tr[data-roster-row]')).toHaveCount(2);
+
+        await reopenButton.click();
+        await expect(firstDaySection.locator('[data-roster-day-add="true"]')).toBeVisible();
+    });
+
     test('keeps editable roster cells reachable without requiring the staff sidebar first', async ({ page }) => {
         const firstTimeField = page.locator('[data-time-picker-field]').first();
         const firstStaffSelect = page.locator('.slot-staff-input').first();
