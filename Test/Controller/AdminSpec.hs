@@ -35,7 +35,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venueA admin "venue_admin"
                 _ <- createVenueMembershipRecord venueB admin "venue_admin"
 
-                levelA <- createPayLevelRecord venueA "Level A"
+                levelA <- createPayLevelRecordWithRates venueA "Level A" 31.50 3.15 6.30 1 1.25 1.50
                 _ <- createShiftTypeRecord venueA levelA "Kitchen"
                 _ <- createSlotNameRecord venueA "Default Only"
                 venueAGroupB <- createVenueRosterGroupWithDefaults venueA "Back of House" 10 True
@@ -74,6 +74,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldContain` "Kitchen"
                 response `responseBodyShouldContain` "Level A"
+                response `responseBodyShouldContain` "Level A (perm $31.50/hr)"
+                response `responseBodyShouldContain` "Use staff default award level"
                 response `responseBodyShouldContain` "Back of House"
                 response `responseBodyShouldContain` "Pass"
                 response `responseBodyShouldNotContain` "Bar"

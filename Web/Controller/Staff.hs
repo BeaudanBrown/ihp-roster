@@ -7,6 +7,7 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.View (appendQueryParams)
+import Data.Time.Calendar (Day)
 import Web.Controller.Prelude
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Projection (buildRosterContentFragmentRef)
@@ -29,12 +30,13 @@ instance Controller StaffController where
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
         awardLevels <- fetchAwardLevelsForStaffForm
+        awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
         selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         preferenceSections <- fetchPreferenceSectionsForRosterGroups selectedRosterGroupIds
         selectedShiftPreferenceKeys <- fetchStaffShiftPreferenceKeyTexts staff selectedRosterGroupIds
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
@@ -47,6 +49,7 @@ instance Controller StaffController where
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
         awardLevels <- fetchAwardLevelsForStaffForm
+        awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
         let submittedRosterGroupIds = nub (paramList @(Id RosterGroup) "rosterGroupIds")
         maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
         let canManageStaffPay = hasRole VenueAdminRole
@@ -60,7 +63,7 @@ instance Controller StaffController where
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels submittedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates submittedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                         else do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             render EditView { .. }
@@ -69,19 +72,19 @@ instance Controller StaffController where
                         (Nothing, _) -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
                         (_, Nothing) -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
                         (Just selectedRosterGroupIds, Just _) -> do
                             case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
                                 Left preferenceError -> do
                                     setErrorMessage preferenceError
                                     if isHtmxRequest
-                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                                         else render EditView { .. }
                                 Right submittedSelections -> do
                                     staff <- withTransaction do
@@ -134,6 +137,13 @@ fetchAwardLevelsForStaffForm =
     query @AwardLevel
         |> filterWhere (#isActive, True)
         |> orderByAsc #classification
+        |> fetch
+
+fetchAwardLevelBaseRatesForStaffForm :: (?modelContext :: ModelContext) => IO [AwardLevelBaseRate]
+fetchAwardLevelBaseRatesForStaffForm =
+    query @AwardLevelBaseRate
+        |> filterWhere (#operativeTo, Nothing :: Maybe Day)
+        |> orderByAsc #createdAt
         |> fetch
 
 parseSubmittedDefaultAwardLevelId ::

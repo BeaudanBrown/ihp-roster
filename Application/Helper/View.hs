@@ -12,6 +12,7 @@ import Application.Helper.View.Overlay
 import Application.Helper.View.Toast
 import qualified Data.Char as Char
 import Data.List (elemIndex, sortBy)
+import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
@@ -94,6 +95,41 @@ renderStaffLastInitial staff =
     case Text.find (not . Char.isSpace) (Text.strip staff.lastName) of
         Just char -> " " <> Text.singleton (Char.toUpper char) <> "."
         Nothing   -> ""
+
+awardLevelDisplayLabel :: AwardLevel -> Text
+awardLevelDisplayLabel awardLevel =
+    maybe "" (<> " - ") awardLevel.classificationLevel <> awardLevel.classification
+
+awardLevelOptionLabel :: [AwardLevelBaseRate] -> AwardLevel -> Text
+awardLevelOptionLabel awardLevelBaseRates awardLevel =
+    case awardLevelRateLabels awardLevelBaseRates awardLevel of
+        []         -> awardLevelDisplayLabel awardLevel
+        rateLabels -> awardLevelDisplayLabel awardLevel <> " (" <> Text.intercalate ", " rateLabels <> ")"
+
+awardLevelRateLabels :: [AwardLevelBaseRate] -> AwardLevel -> [Text]
+awardLevelRateLabels awardLevelBaseRates awardLevel =
+    mapMaybe rateLabel [Permanent, Casual]
+    where
+        rateLabel employmentBasis =
+            fmap
+                (\rate -> employmentBasisShortLabel employmentBasis <> " " <> formatHourlyRate rate.hourlyRate)
+                (find (matchingRate employmentBasis) awardLevelBaseRates)
+
+        matchingRate employmentBasis rate =
+            rate.awardLevelId == unpackId awardLevel.id
+                && rate.employmentBasis == employmentBasis
+
+employmentBasisShortLabel :: StaffEmploymentBasisEnum -> Text
+employmentBasisShortLabel Permanent = "perm"
+employmentBasisShortLabel Casual = "casual"
+
+formatHourlyRate :: Scientific.Scientific -> Text
+formatHourlyRate rate =
+    "$" <> trimWholeDollars rendered <> "/hr"
+    where
+        rendered = Text.pack (Scientific.formatScientific Scientific.Fixed (Just 2) rate)
+        trimWholeDollars value =
+            fromMaybe value (Text.stripSuffix ".00" value)
 
 nonBlankText :: Text -> Maybe Text
 nonBlankText text =

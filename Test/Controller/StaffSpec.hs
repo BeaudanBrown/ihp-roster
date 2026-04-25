@@ -126,6 +126,22 @@ tests = beforeAll testContext do
                 updatedStaff.employmentBasis `shouldBe` Permanent
                 updatedStaff.defaultAwardLevelId `shouldBe` Just payLevel.id
 
+        it "shows synced award level hourly rates in the staff pay selector" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                admin <- createUserRecord "staff-pay-options-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createPayLevelRecordWithRates venue "Level 3" 32.75 3.25 6.50 1 1.25 1.50
+                staff <- createStaffRecord venue Nothing "Alpha" "Crew"
+
+                response <- withUserAndCurrentVenue admin (get #id venue) do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Default Award Level"
+                response `responseBodyShouldContain` "Level 3 (perm $32.75/hr)"
+                response `responseBodyShouldContain` "Not assigned"
+
         it "ignores staff pay fields submitted by non-admin managers" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
