@@ -33,6 +33,44 @@ renderStaffPayCsv reportWeekSelection records =
                     <> map formatStaffPayHours record.bucketHours
                 )
 
+renderPayrollEarningsCsv :: [PayrollEarningsCsvRecord] -> Text
+renderPayrollEarningsCsv records =
+    Text.unlines (csvHeader : map renderRow records)
+    where
+        csvHeader =
+            Text.intercalate ","
+                [ "staff_first_name"
+                , "staff_last_name"
+                , "work_date"
+                , "earnings_rate_name"
+                , "hours"
+                , "tracking_code"
+                , "description"
+                , "staff_id"
+                , "timesheet_entry_ids"
+                , "pay_config_snapshot_version"
+                , "source_penalty_kind"
+                , "source_pay_level_name"
+                , "source_shift_type_name"
+                ]
+
+        renderRow record =
+            Text.intercalate ","
+                [ csvCell record.staffFirstName
+                , csvCell record.staffLastName
+                , csvCell (tshow record.workDate)
+                , csvCell record.earningsRateName
+                , formatStaffPayHours record.hours
+                , csvCell (fromMaybe "" record.trackingCode)
+                , csvCell record.description
+                , csvCell (tshow record.staffId)
+                , csvCell (Text.intercalate " " (map tshow record.timesheetEntryIds))
+                , csvCell (fromMaybe "" record.payConfigSnapshot)
+                , csvCell record.sourcePenaltyKind
+                , csvCell (fromMaybe "" record.sourcePayLevelName)
+                , csvCell (fromMaybe "" record.sourceShiftTypeName)
+                ]
+
 staffPayNameType :: StaffPayCsvRecord -> Text
 staffPayNameType record
     | Text.null record.label = record.staffName

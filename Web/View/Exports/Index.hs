@@ -164,6 +164,7 @@ renderReportDefinitionRow reportWeekSelection reportDefinition = [hsx|
 renderReportEngineLabel :: ReportDefinitionEngine -> Text
 renderReportEngineLabel StaffPayCsvReport        = "staff_pay_csv"
 renderReportEngineLabel HourlyBreakdownZipReport = "hourly_breakdown_zip"
+renderReportEngineLabel PayrollEarningsCsvReport = "payroll_earnings_csv"
 
 renderShiftTypeFilterSummary :: VenueReportDefinition -> Html
 renderShiftTypeFilterSummary reportDefinition
@@ -195,6 +196,7 @@ renderReportDefinitionAction reportWeekSelection reportDefinition = [hsx|
 renderGenerateButtonLabel :: ReportDefinitionEngine -> Text
 renderGenerateButtonLabel StaffPayCsvReport        = "Generate CSV"
 renderGenerateButtonLabel HourlyBreakdownZipReport = "Generate ZIP"
+renderGenerateButtonLabel PayrollEarningsCsvReport = "Generate Payroll CSV"
 
 renderReportDefinitionManagement :: [VenueReportDefinition] -> [ShiftType] -> Html
 renderReportDefinitionManagement reportDefinitions shiftTypes = [hsx|
@@ -270,6 +272,7 @@ renderReportDefinitionFields maybeReportDefinition shiftTypes = [hsx|
             <select class="form-select" name="engine">
                 {renderEngineOption maybeReportDefinition StaffPayCsvReport}
                 {renderEngineOption maybeReportDefinition HourlyBreakdownZipReport}
+                {renderEngineOption maybeReportDefinition PayrollEarningsCsvReport}
             </select>
         </div>
         <div class="col-12 col-md-2">

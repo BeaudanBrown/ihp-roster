@@ -51,6 +51,7 @@ fetchReportWeekSelection selectedWeekOffset = do
 reportDefinitionEngineImplemented :: ReportDefinitionEngine -> Bool
 reportDefinitionEngineImplemented StaffPayCsvReport        = True
 reportDefinitionEngineImplemented HourlyBreakdownZipReport = True
+reportDefinitionEngineImplemented PayrollEarningsCsvReport = True
 
 requestReportDefinitionExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -66,6 +67,7 @@ requestReportDefinitionExport reportSlug selectedWeekOffset = do
             case reportDefinition.engine of
                 StaffPayCsvReport -> requestStaffPayCsvExport reportDefinition selectedWeekOffset
                 HourlyBreakdownZipReport -> requestHourlyBreakdownZipExport reportDefinition selectedWeekOffset
+                PayrollEarningsCsvReport -> requestPayrollEarningsCsvExport reportDefinition selectedWeekOffset
 
 fetchCurrentVenueReportDefinitions ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -105,6 +107,8 @@ bootstrapCurrentVenueReportDefinitionsIfMissing = do
             _ <- wageDefinition `seq` pure ()
             staffHoursDefinition <- createReportDefinition "staff_hours" "Staff Hours Report" (Just "Staff hours broken down by pay level and day") StaffPayCsvReport 20
             _ <- staffHoursDefinition `seq` pure ()
+            payrollEarningsDefinition <- createReportDefinition "payroll_earnings" "Payroll Earnings CSV" (Just "Approved payroll earnings by staff, date, earnings bucket, and tracking code") PayrollEarningsCsvReport 25
+            _ <- payrollEarningsDefinition `seq` pure ()
             forM_ (find (\shiftType -> shiftType.name == "Kitchen") shiftTypes) \kitchenShiftType -> do
                 kitchenDefinition <- createReportDefinition "kitchen" "Kitchen Report" (Just "Kitchen staff hours by day") StaffPayCsvReport 30
                 newRecord @ReportDefinitionShiftTypeFilter
@@ -285,6 +289,69 @@ requestHourlyBreakdownZipExport reportDefinition selectedWeekOffset = do
 
             pure (Right exportJob)
 
+requestPayrollEarningsCsvExport ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    VenueReportDefinition ->
+    Int ->
+    IO (Either Text ExportJob)
+requestPayrollEarningsCsvExport reportDefinition selectedWeekOffset = do
+    payloadResult <- buildPayrollEarningsCsvPayload reportDefinition selectedWeekOffset
+    case payloadResult of
+        Left err -> pure (Left err)
+        Right payload -> do
+            exportJob <- withTransaction do
+                now <- getCurrentTime
+                let expiresAt = addUTCTime exportExpirySeconds now
+                let exportType = exportJobTypeToText PayrollEarningsCsv
+                let initialScope = buildPayrollEarningsCsvScope reportDefinition payload
+                exportJob <-
+                    newRecord @ExportJob
+                        |> set #venueId (unpackId currentVenueId)
+                        |> set #requestedByUserId (unpackId (get #id authenticatedCurrentUser))
+                        |> set #exportType exportType
+                        |> set #status (exportJobStatusToText ExportPending)
+                        |> set #schemaVersion exportSchemaVersion
+                        |> set #rangeStart (Just payload.weekSelection.weekStart)
+                        |> set #rangeEnd (Just payload.weekSelection.weekEnd)
+                        |> set #scope initialScope
+                        |> set #deliveryMethod browserDownloadMethod
+                        |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= requestAuditSourceChannel])
+                        |> set #expiresAt expiresAt
+                        |> createRecord
+
+                exportJob <-
+                    exportJob
+                        |> set #status (exportJobStatusToText ExportReady)
+                        |> set #payConfigSnapshotVersion payload.exportSnapshotVersion
+                        |> set #scope initialScope
+                        |> set #fileName (Just payload.fileName)
+                        |> set #contentType (Just "text/csv; charset=utf-8")
+                        |> set #fileEncoding "utf8"
+                        |> set #fileContents (Just payload.csvContents)
+                        |> updateRecord
+
+                void $ recordCurrentUserAuditEvent
+                    "export_generated"
+                    "export_jobs"
+                    (unpackId (get #id exportJob))
+                    (Aeson.object
+                        [ "exportType" Aeson..= exportType
+                        , "reportSlug" Aeson..= reportDefinition.definition.slug
+                        , "reportEngine" Aeson..= reportDefinitionEngineToText reportDefinition.engine
+                        , "weekOffset" Aeson..= payload.weekSelection.weekOffset
+                        , "weekStart" Aeson..= payload.weekSelection.weekStart
+                        , "weekEnd" Aeson..= payload.weekSelection.weekEnd
+                        , "entryCount" Aeson..= payload.entryCount
+                        , "rowCount" Aeson..= payload.rowCount
+                        , "payConfigSnapshotVersion" Aeson..= payload.exportSnapshotVersion
+                        , "deliveryMethod" Aeson..= exportJob.deliveryMethod
+                        ]
+                    )
+
+                pure exportJob
+
+            pure (Right exportJob)
+
 buildStaffPayCsvPayload ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     VenueReportDefinition ->
@@ -329,6 +396,65 @@ buildStaffPayCsvPayload reportDefinition selectedWeekOffset = do
 
 buildStaffPayCsvScope :: VenueReportDefinition -> StaffPayCsvPayload -> Aeson.Value
 buildStaffPayCsvScope reportDefinition payload =
+    Aeson.object
+        [ "reportDefinitionId" Aeson..= unpackId (get #id reportDefinition.definition)
+        , "reportSlug" Aeson..= reportDefinition.definition.slug
+        , "reportName" Aeson..= reportDefinition.definition.name
+        , "reportEngine" Aeson..= reportDefinitionEngineToText reportDefinition.engine
+        , "weekOffset" Aeson..= payload.weekSelection.weekOffset
+        , "weekStart" Aeson..= payload.weekSelection.weekStart
+        , "weekEnd" Aeson..= payload.weekSelection.weekEnd
+        , "dayLabels" Aeson..= payload.weekSelection.dayLabels
+        , "entryCount" Aeson..= payload.entryCount
+        , "rowCount" Aeson..= payload.rowCount
+        , "snapshotVersions" Aeson..= payload.snapshotVersions
+        , "filterShiftTypes" Aeson..= map (.name) reportDefinition.shiftTypeFilters
+        ]
+
+buildPayrollEarningsCsvPayload ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    VenueReportDefinition ->
+    Int ->
+    IO (Either Text PayrollEarningsCsvPayload)
+buildPayrollEarningsCsvPayload reportDefinition selectedWeekOffset = do
+    reportWeekSelection <- fetchReportWeekSelection selectedWeekOffset
+    entries <- fetchApprovedTimesheetEntries reportWeekSelection.weekStart reportWeekSelection.weekEnd
+    staffById <- fetchReportStaffMap entries
+    payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
+    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries entries
+    let filteredEntries = filter (shouldIncludeStaffPayEntry reportDefinition staffById) entries
+    let missingEntryIds =
+            map (tshow . get #id) $
+                filter (\entry -> Map.notMember (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) filteredEntries
+
+    if not (null missingEntryIds)
+        then pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
+        else do
+            let records = buildPayrollEarningsCsvRecords filteredEntries staffById payResultsByEntryId snapshotVersionsByEntryId
+            let exportSnapshotVersions =
+                    filteredEntries
+                        |> mapMaybe (\entry -> entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId))
+                        |> List.nub
+                        |> List.sort
+            let exportSnapshotVersion =
+                    case exportSnapshotVersions of
+                        []             -> Nothing
+                        [versionLabel] -> Just versionLabel
+                        _              -> Just "mixed"
+            pure $
+                Right
+                    PayrollEarningsCsvPayload
+                        { weekSelection = reportWeekSelection
+                        , fileName = reportDefinition.definition.slug <> "-" <> tshow reportWeekSelection.weekStart <> ".csv"
+                        , csvContents = renderPayrollEarningsCsv records
+                        , entryCount = length filteredEntries
+                        , rowCount = length records
+                        , snapshotVersions = exportSnapshotVersions
+                        , exportSnapshotVersion
+                        }
+
+buildPayrollEarningsCsvScope :: VenueReportDefinition -> PayrollEarningsCsvPayload -> Aeson.Value
+buildPayrollEarningsCsvScope reportDefinition payload =
     Aeson.object
         [ "reportDefinitionId" Aeson..= unpackId (get #id reportDefinition.definition)
         , "reportSlug" Aeson..= reportDefinition.definition.slug
@@ -488,6 +614,127 @@ buildStaffPayCsvRecords reportDefinition reportWeekSelection entries staffById p
                 , bucketHours = recordBucketHours
                 , total = sum recordBucketHours
                 }
+
+data PayrollEarningsAggregation = PayrollEarningsAggregation
+    { aggregationStaffFirstName       :: !Text
+    , aggregationStaffLastName        :: !Text
+    , aggregationWorkDate             :: !Day
+    , aggregationEarningsRateName     :: !Text
+    , aggregationTrackingCode         :: !(Maybe Text)
+    , aggregationMinutes              :: !Int
+    , aggregationStaffId              :: !UUID
+    , aggregationTimesheetEntryIds    :: ![UUID]
+    , aggregationSnapshotVersions     :: ![Text]
+    , aggregationSourcePenaltyKind    :: !Text
+    , aggregationSourcePayLevelName   :: !(Maybe Text)
+    , aggregationSourceShiftTypeName  :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
+buildPayrollEarningsCsvRecords ::
+    [TimesheetEntry] ->
+    Map.Map UUID Staff ->
+    Map.Map Text TimesheetPayResult ->
+    Map.Map UUID Text ->
+    [PayrollEarningsCsvRecord]
+buildPayrollEarningsCsvRecords entries staffById payResultsByEntryId snapshotVersionsByEntryId =
+    aggregated
+        |> Map.elems
+        |> map toRecord
+        |> List.sortOn (\record -> (record.workDate, record.staffLastName, record.staffFirstName, record.earningsRateName, record.trackingCode))
+    where
+        aggregated =
+            foldl' accumulate Map.empty entries
+
+        accumulate acc entry =
+            case (Map.lookup entry.staffId staffById, Map.lookup (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) of
+                (Just staff, Just payResult) ->
+                    foldl' (accumulateSegment entry staff payResult) acc payResult.segments
+                _ -> acc
+
+        accumulateSegment entry staff payResult acc segment =
+            case segment.segmentDate of
+                Nothing -> acc
+                Just segmentDate
+                    | segment.minutes <= 0 -> acc
+                    | otherwise ->
+                        let staffId = coerce (get #id staff)
+                            entryId = coerce (get #id entry)
+                            trackingCode = segment.shiftTypeName <|> payResult.shiftTypeName
+                            earningsRateName = payrollEarningsRateName payResult segment
+                            sourcePenaltyKind = payrollEarningsPenaltyKind segment
+                            sourcePayLevelName = segment.payLevelName <|> payResult.payLevelName
+                            sourceShiftTypeName = segment.shiftTypeName <|> payResult.shiftTypeName
+                            snapshotVersions = maybeToList (entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId))
+                            key = (staffId, segmentDate, earningsRateName, trackingCode)
+                            newAggregation =
+                                PayrollEarningsAggregation
+                                    { aggregationStaffFirstName = staff.firstName
+                                    , aggregationStaffLastName = staff.lastName
+                                    , aggregationWorkDate = segmentDate
+                                    , aggregationEarningsRateName = earningsRateName
+                                    , aggregationTrackingCode = trackingCode
+                                    , aggregationMinutes = segment.minutes
+                                    , aggregationStaffId = staffId
+                                    , aggregationTimesheetEntryIds = [entryId]
+                                    , aggregationSnapshotVersions = snapshotVersions
+                                    , aggregationSourcePenaltyKind = sourcePenaltyKind
+                                    , aggregationSourcePayLevelName = sourcePayLevelName
+                                    , aggregationSourceShiftTypeName = sourceShiftTypeName
+                                    }
+                         in Map.insertWith mergeAggregation key newAggregation acc
+
+        mergeAggregation new old =
+            old
+                { aggregationMinutes = old.aggregationMinutes + new.aggregationMinutes
+                , aggregationTimesheetEntryIds = List.sort (List.nub (old.aggregationTimesheetEntryIds <> new.aggregationTimesheetEntryIds))
+                , aggregationSnapshotVersions = List.sort (List.nub (old.aggregationSnapshotVersions <> new.aggregationSnapshotVersions))
+                }
+
+        toRecord aggregation =
+            PayrollEarningsCsvRecord
+                { staffFirstName = aggregation.aggregationStaffFirstName
+                , staffLastName = aggregation.aggregationStaffLastName
+                , workDate = aggregation.aggregationWorkDate
+                , earningsRateName = aggregation.aggregationEarningsRateName
+                , hours = paidMinutesToHours aggregation.aggregationMinutes
+                , trackingCode = aggregation.aggregationTrackingCode
+                , description = "IHP entries: " <> Text.intercalate " " (map tshow aggregation.aggregationTimesheetEntryIds)
+                , staffId = aggregation.aggregationStaffId
+                , timesheetEntryIds = aggregation.aggregationTimesheetEntryIds
+                , payConfigSnapshot = snapshotVersionForAggregation aggregation.aggregationSnapshotVersions
+                , sourcePenaltyKind = aggregation.aggregationSourcePenaltyKind
+                , sourcePayLevelName = aggregation.aggregationSourcePayLevelName
+                , sourceShiftTypeName = aggregation.aggregationSourceShiftTypeName
+                }
+
+        snapshotVersionForAggregation snapshotVersions =
+            case List.nub snapshotVersions of
+                []                -> Nothing
+                [snapshotVersion] -> Just snapshotVersion
+                _                 -> Just "mixed"
+
+payrollEarningsRateName :: TimesheetPayResult -> PaySegment -> Text
+payrollEarningsRateName payResult segment =
+    payrollEarningsBaseName payResult segment <> " - " <> payrollEarningsPenaltyLabel segment
+
+payrollEarningsBaseName :: TimesheetPayResult -> PaySegment -> Text
+payrollEarningsBaseName payResult segment =
+    fromMaybe "Unknown pay level" (segment.payLevelName <|> payResult.payLevelName)
+
+payrollEarningsPenaltyKind :: PaySegment -> Text
+payrollEarningsPenaltyKind segment =
+    fromMaybe "ordinary" segment.penaltyKind
+
+payrollEarningsPenaltyLabel :: PaySegment -> Text
+payrollEarningsPenaltyLabel segment =
+    case payrollEarningsPenaltyKind segment of
+        "saturday_penalty" -> "Saturday"
+        "sunday_penalty" -> "Sunday"
+        "public_holiday_penalty" -> "Public Holiday"
+        "evening_after_7pm" -> "Evening After 7pm"
+        "late_night_after_midnight" -> "Late Night After Midnight"
+        _ -> "Ordinary"
 
 requestApprovedTimesheetsCsvExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

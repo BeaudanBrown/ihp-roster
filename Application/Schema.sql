@@ -147,7 +147,7 @@ CREATE TABLE report_definitions (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(venue_id, slug),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
-    CHECK ((engine = 'staff_pay_csv') OR (engine = 'hourly_breakdown_zip'))
+    CHECK ((engine = 'staff_pay_csv') OR (engine = 'hourly_breakdown_zip') OR (engine = 'payroll_earnings_csv'))
 );
 CREATE TABLE report_definition_shift_type_filters (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
