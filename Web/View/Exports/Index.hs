@@ -323,7 +323,7 @@ renderReportDefinitionShiftTypeCheckbox maybeReportDefinition shiftType = [hsx|
     </div>
 |]
     where
-        selectedShiftTypeIds = fromMaybe [] (fmap (map (unpackId . get #id) . (.shiftTypeFilters)) maybeReportDefinition)
+        selectedShiftTypeIds = maybe [] (map (unpackId . get #id) . (.shiftTypeFilters)) maybeReportDefinition
         isChecked = unpackId (get #id shiftType) `elem` selectedShiftTypeIds
 
 reportDefinitionStatusClass :: VenueReportDefinition -> Text

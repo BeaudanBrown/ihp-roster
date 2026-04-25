@@ -73,9 +73,8 @@ requestReportDefinitionExport reportSlug selectedWeekOffset = do
 fetchCurrentVenueReportDefinitions ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     IO [VenueReportDefinition]
-fetchCurrentVenueReportDefinitions = do
-    definitions <- fetchCurrentVenueReportDefinitionsIncludingInactive
-    pure (filter (.definition.isActive) definitions)
+fetchCurrentVenueReportDefinitions =
+    filter (.definition.isActive) <$> fetchCurrentVenueReportDefinitionsIncludingInactive
 
 fetchCurrentVenueReportDefinitionsIncludingInactive ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
