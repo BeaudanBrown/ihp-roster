@@ -1,0 +1,6 @@
+staff_first_name,staff_last_name,work_date,earnings_rate_name,hours,tracking_code,description,staff_id,timesheet_entry_ids,pay_config_snapshot_version,source_penalty_kind,source_pay_level_name,source_shift_type_name
+Ava,Worker,2025-01-06,LVL 1 - Ordinary,2.00,Floor,<description>,<staff_id>,<timesheet_entry_ids>,v1,ordinary,LVL 1,Floor
+Ava,Worker,2025-01-06,LVL 2 - Ordinary,2.50,Bar,<description>,<staff_id>,<timesheet_entry_ids>,v1,ordinary,LVL 2,Bar
+Kai,Cook,2025-01-07,LVL 1 - Ordinary,4.00,Kitchen,<description>,<staff_id>,<timesheet_entry_ids>,v1,ordinary,LVL 1,Kitchen
+Ava,Worker,2025-01-10,LVL 2 - Evening After 7pm,5.00,Bar,<description>,<staff_id>,<timesheet_entry_ids>,v1,evening_after_7pm,LVL 2,Bar
+Ava,Worker,2025-01-11,LVL 2 - Saturday,4.50,Bar,<description>,<staff_id>,<timesheet_entry_ids>,v1,saturday_penalty,LVL 2,Bar

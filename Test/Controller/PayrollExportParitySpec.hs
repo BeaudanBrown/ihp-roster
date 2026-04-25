@@ -48,6 +48,17 @@ tests = beforeAll testContext do
                 get #fileName exportJob `shouldBe` Just "kitchen-2025-01-06.csv"
                 unsafeStripCarriageReturns (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
 
+        it "renders the canonical payroll earnings CSV shape exactly after normalizing row ids" $ withContext do
+            withCleanDb do
+                fixture <- seedCanonicalPayrollFixture
+                exportJob <- generatePayrollExportJob fixture.admin fixture.venue "payroll_earnings" 0
+                expectedCsv <- readExportFixtureText "payroll_earnings-expected.normalized.csv"
+
+                get #exportType exportJob `shouldBe` exportJobTypeToText PayrollEarningsCsv
+                get #fileName exportJob `shouldBe` Just "payroll_earnings-2025-01-06.csv"
+                get #payConfigSnapshotVersion exportJob `shouldBe` Just "v1"
+                normalizePayrollEarningsCsv (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
+
         it "keeps only approved non-trial hours and buckets canonical rows into the expected days" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture
@@ -166,6 +177,36 @@ tests = beforeAll testContext do
                     ]
     where
         unsafeStripCarriageReturns = Text.replace "\r" ""
+
+normalizePayrollEarningsCsv :: Text -> Text
+normalizePayrollEarningsCsv csvText =
+    csvText
+        |> Text.replace "\r" ""
+        |> Text.lines
+        |> map normalizeRow
+        |> Text.unlines
+    where
+        normalizeRow row =
+            if Text.isPrefixOf "staff_first_name," row
+                then row
+                else case Text.splitOn "," row of
+                firstName : lastName : workDate : earningsRateName : hours : trackingCode : _description : _staffId : _entryIds : snapshot : penaltyKind : payLevelName : shiftTypeName : [] ->
+                    Text.intercalate ","
+                        [ firstName
+                        , lastName
+                        , workDate
+                        , earningsRateName
+                        , hours
+                        , trackingCode
+                        , "<description>"
+                        , "<staff_id>"
+                        , "<timesheet_entry_ids>"
+                        , snapshot
+                        , penaltyKind
+                        , payLevelName
+                        , shiftTypeName
+                        ]
+                _ -> row
 
 data PayrollMatrixFixture = PayrollMatrixFixture
     { venue :: !Venue
