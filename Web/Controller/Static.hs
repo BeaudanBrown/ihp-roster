@@ -7,5 +7,5 @@ instance Controller StaticController where
         case currentUserOrNothing of
             Just _ -> redirectTo RosterWeeksAction
             Nothing -> do
-                setTitle "Welcome"
+                setTitle "Bepis"
                 render WelcomeView

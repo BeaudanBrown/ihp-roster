@@ -35,9 +35,8 @@ test.describe('Account Registration', () => {
         await expect(page).toHaveURL(/NewSession/);
     });
 
-    test('"Request an invitation" link on login page navigates to request access', async ({ page }) => {
+    test('login page does not link to request access', async ({ page }) => {
         await gotoWhenReady(page, '/NewSession', 'body');
-        await page.click('a:has-text("Request an invitation")');
-        await expect(page).toHaveURL(/NewUser/);
+        await expect(page.locator('a', { hasText: 'Request an invitation' })).toHaveCount(0);
     });
 });

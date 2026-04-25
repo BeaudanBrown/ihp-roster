@@ -25,8 +25,9 @@ tests = beforeAll testContext do
         it "renders the welcome page for unauthenticated users" $ withContext do
             response <- callAction WelcomeAction
             response `responseStatusShouldBe` status200
+            response `responseBodyShouldContain` "Bepis"
             response `responseBodyShouldContain` "Sign In"
-            response `responseBodyShouldContain` "Request Access"
+            response `responseBodyShouldNotContain` "Request Access"
             response `responseBodyShouldContain` "js-passkey-first-login"
             response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyAuthentication\""
             response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyAuthentication\""

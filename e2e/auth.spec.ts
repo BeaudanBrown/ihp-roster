@@ -2,13 +2,11 @@ import { test, expect } from '@playwright/test';
 import { gotoWhenReady } from './test-helpers';
 
 test.describe('Authentication', () => {
-    test('auth link navigation updates the page body', async ({ page }) => {
+    test('login page does not expose public request access', async ({ page }) => {
         await gotoWhenReady(page, '/NewSession', '#email');
 
-        await page.click('a:has-text("Request an invitation")');
-
-        await expect(page).toHaveURL(/NewUser/, { timeout: 60000 });
-        await expect(page.locator('body')).toContainText('Invitation Required');
+        await expect(page.locator('a', { hasText: 'Request an invitation' })).toHaveCount(0);
+        await expect(page.locator('body')).not.toContainText('Need venue access?');
     });
 
     test('login flow: sign in, view the roster, logout', async ({ page }) => {

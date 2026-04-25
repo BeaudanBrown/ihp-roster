@@ -20,11 +20,6 @@ instance View NewView where
                         <hr class="flex-grow-1"/>
                     </div>
                     {renderForm user}
-                    <hr/>
-                    <p class="text-center mb-0 app-muted small">
-                        Need venue access?
-                        <a href={NewUserAction}>Request an invitation</a>
-                    </p>
                 </div>
             </div>
         </div>
