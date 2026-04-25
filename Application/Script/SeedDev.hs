@@ -5,7 +5,6 @@ import Application.Script.Prelude
 import Application.Support (defaultWeekEpoch, testPassword)
 import Application.Support.DevFixtures (DevSeedFixture (..),
                                         seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth)
-import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..))
 import Application.Support.Seed.Scenario
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -38,13 +37,6 @@ run = do
         , backOfHouseGroup = backOfHouseGroup
         , currentWeekOffset = currentWeekOffset
         , scenario = scenario
-        , payrollFixture =
-            ExplorationPayrollFixture
-                { explorationVenue = payrollVenue
-                , explorationAdmin = payrollAdmin
-                , explorationApprovedEntries = approvedEntries
-                , explorationPendingEntries = pendingEntries
-                }
         } <- seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart (utctDay now)
 
     actualStaffCount <-
@@ -105,11 +97,7 @@ run = do
     TextIO.putStrLn ("Current-week roster fill: " <> tshow filledRosterSlotCount <> "/" <> tshow totalRosterSlotCount)
     TextIO.putStrLn ("Leave requests: approved=" <> tshow approvedLeaveCount <> ", pending=" <> tshow pendingLeaveCount <> ", denied=" <> tshow deniedLeaveCount)
     TextIO.putStrLn ("Sandbox timesheets: approved=" <> tshow approvedTimesheetCount <> ", pending=" <> tshow pendingTimesheetCount)
-    TextIO.putStrLn ("Seeded payroll venue: " <> get #name payrollVenue)
-    TextIO.putStrLn ("Payroll admin login: " <> get #email payrollAdmin)
-    TextIO.putStrLn ("Approved payroll entries: " <> tshow (length approvedEntries))
-    TextIO.putStrLn ("Pending payroll entries: " <> tshow (length pendingEntries))
-    TextIO.putStrLn "Manual testing surface now includes multi-group roster data, support switching, invitation/bootstrap state, leave/timesheet activity, and payroll export data."
+    TextIO.putStrLn "Manual testing surface now includes multi-group roster data, support switching, invitation/bootstrap state, leave, and timesheet activity."
 
 data SeedDevOptions = SeedDevOptions
     { selectedScenario  :: !SeedScenarioName

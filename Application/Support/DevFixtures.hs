@@ -4,15 +4,9 @@ import Application.Helper.Controller (PlatformRole (..))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
                                         fetchActiveRosterGroupSlotNames,
-                                        fetchVenueDayNames,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
 import Application.Support
-import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..),
-                                            approveEntryWithSnapshot,
-                                            createPayrollSnapshot,
-                                            dayNameForWeekday,
-                                            seedExplorationPayrollFixtureForWeek)
 import Application.Support.Seed.Scenario
 import Control.Monad (replicateM, void)
 import qualified Data.Map.Strict as Map
@@ -46,7 +40,6 @@ data DevSeedFixture = DevSeedFixture
     , backOfHouseGroup  :: !RosterGroup
     , currentWeekOffset :: !Int
     , scenario          :: !SeedScenario
-    , payrollFixture    :: !ExplorationPayrollFixture
     }
 
 seedDevelopmentFixtureForWeek :: (?modelContext :: ModelContext) => Day -> IO DevSeedFixture
@@ -83,15 +76,9 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
 
     frontSlots <- fetchActiveRosterGroupSlotNames (get #id frontGroup)
     backSlots <- fetchActiveRosterGroupSlotNames (get #id backGroup)
-    dayNames <- fetchVenueDayNames venue
 
-    frontLevel <- createPayLevelRecordWithRates venue "FOH Level" 31 0 0 1.25 1.5 1.75
-    backLevel <- createPayLevelRecordWithRates venue "BOH Level" 34 1 2 1.25 1.5 1.75
-    floorShift <- createShiftTypeRecord venue frontLevel "Floor" >>= updateRecord . set #sortOrder 10
-    kitchenShift <- createShiftTypeRecord venue backLevel "Kitchen" >>= updateRecord . set #sortOrder 20
-    let saturday = dayNameForWeekday dayNames 6
-    _ <- createPayLevelDayRuleRecord kitchenShift saturday backLevel
-    snapshot <- createPayrollSnapshot venue admin [frontLevel, backLevel] [floorShift, kitchenShift] dayNames []
+    floorShift <- createSeedShiftTypeRecord venue "Floor" 10
+    kitchenShift <- createSeedShiftTypeRecord venue "Kitchen" 20
     managerStaffs <- mapM (createManagerStaff venue) (zip [0 ..] managerUsers)
     workerStaff <- seededWorkerStaff |> set #idealShiftsPerWeek 3 |> updateRecord
     seededStaff <- createGeneratedStaff venue scenario.scenarioSeed scenario.staffCount
@@ -138,9 +125,7 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     seedLeaveRequests leaveMonthAnchor venue scenario allOperationalStaff
 
     let approvedAt = UTCTime (dayAtOffset fixtureWeekStart 6) (secondsToDiffTime 3600)
-    seedTimesheets fixtureWeekStart venue admin scenario snapshot floorShift kitchenShift allOperationalStaff approvedAt
-
-    seededPayrollFixture <- seedExplorationPayrollFixtureForWeek fixtureWeekStart
+    seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift allOperationalStaff approvedAt
 
     pure
         DevSeedFixture
@@ -155,8 +140,17 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
             , backOfHouseGroup = backGroup
             , currentWeekOffset = weekOffset
             , scenario = scenario
-            , payrollFixture = seededPayrollFixture
             }
+
+createSeedShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> Text -> Int -> IO ShiftType
+createSeedShiftTypeRecord venue shiftTypeName sortOrder =
+    newRecord @ShiftType
+        |> set #venueId (unpackId (get #id venue))
+        |> set #name shiftTypeName
+        |> set #sortOrder sortOrder
+        |> set #overrideAwardLevelId Nothing
+        |> set #isActive True
+        |> createRecord
 
 seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> IO ()
 seedSandboxRoleAliasAccounts venue = do
@@ -685,13 +679,12 @@ seedTimesheets ::
     Venue ->
     User ->
     SeedScenario ->
-    PayConfigSnapshot ->
     ShiftType ->
     ShiftType ->
     [Staff] ->
     UTCTime ->
     IO ()
-seedTimesheets fixtureWeekStart venue admin scenario snapshot floorShift kitchenShift staffPool approvedAt = do
+seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift staffPool approvedAt = do
     forM_ (zip [0 ..] (take scenario.approvedTimesheets (cycle staffPool))) \(index, staff) -> do
         let shiftTypeId =
                 if index `mod` 4 == 0
@@ -709,7 +702,9 @@ seedTimesheets fixtureWeekStart venue admin scenario snapshot floorShift kitchen
                     . set #breakStartTime breakStartTime
                     . set #breakEndTime breakEndTime
                     . set #breakMinutes breakMinutes
-                    . approveEntryWithSnapshot snapshot admin approvedAt
+                    . set #isApproved True
+                    . set #approvedAt (Just approvedAt)
+                    . set #approvedByUserId (Just (unpackId admin.id))
         pure ()
     forM_ (zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle staffPool)))) \(index, staff) -> do
         let globalIndex = scenario.approvedTimesheets + index

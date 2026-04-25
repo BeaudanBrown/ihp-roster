@@ -14,7 +14,6 @@ import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
 import Test.Support.DevFixtures
-import Test.Support.PayrollFixtures (ExplorationPayrollFixture (..))
 
 profileSummary :: Staff -> (Text, Text, Text, Text, Text)
 profileSummary staff =
@@ -247,37 +246,31 @@ tests = beforeAll testContext do
                 get #status fixture.sandboxInvitation `shouldBe` InvitationStatusEnumPending
                 get #email fixture.sandboxInvitation `shouldBe` "pending-invite@example.com"
 
-        it "also seeds the payroll parity venue for current-week export testing" $ withContext do
+        it "does not seed synthetic FWC MAPD or award-level pay data" $ withContext do
             withCleanDb do
-                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
-                let ExplorationPayrollFixture { explorationVenue = payrollVenue } = fixture.payrollFixture
+                _ <- seedDevelopmentFixtureForWeek defaultWeekEpoch
 
-                awardLevels <-
-                    query @AwardLevel
-                        |> fetch
-                shiftTypes <-
-                    query @ShiftType
-                        |> filterWhere (#venueId, unpackId (get #id payrollVenue))
-                        |> fetch
-                snapshots <-
-                    query @PayConfigSnapshot
-                        |> filterWhere (#venueId, unpackId (get #id payrollVenue))
-                        |> fetch
-                approvedCount <-
-                    query @TimesheetEntry
-                        |> filterWhere (#venueId, unpackId (get #id payrollVenue))
-                        |> filterWhere (#isApproved, True)
-                        |> fetchCount
-                pendingCount <-
-                    query @TimesheetEntry
-                        |> filterWhere (#venueId, unpackId (get #id payrollVenue))
-                        |> filterWhere (#isApproved, False)
-                        |> fetchCount
+                fwcAwardCount <- query @FwcMapdAward |> fetchCount
+                fwcClassificationCount <- query @FwcMapdClassification |> fetchCount
+                fwcPayRateCount <- query @FwcMapdPayRate |> fetchCount
+                fwcPenaltyRateCount <- query @FwcMapdPenaltyRate |> fetchCount
+                fwcWageAllowanceCount <- query @FwcMapdWageAllowance |> fetchCount
+                awardLevelCount <- query @AwardLevel |> fetchCount
+                awardLevelBaseRateCount <- query @AwardLevelBaseRate |> fetchCount
+                awardLevelPenaltyRateCount <- query @AwardLevelPenaltyRate |> fetchCount
+                awardTimePenaltyAllowanceCount <- query @AwardTimePenaltyAllowance |> fetchCount
+                payConfigSnapshotCount <- query @PayConfigSnapshot |> fetchCount
 
-                filter (`elem` ["LVL 1", "LVL 2", "LVL 3"]) (map (.classification) awardLevels) `shouldMatchList` ["LVL 1", "LVL 2", "LVL 3"]
-                map (.name) shiftTypes `shouldMatchList` ["Bar", "Floor", "Kitchen"]
-                length snapshots `shouldBe` 1
-                approvedCount `shouldSatisfy` (> pendingCount)
+                fwcAwardCount `shouldBe` 0
+                fwcClassificationCount `shouldBe` 0
+                fwcPayRateCount `shouldBe` 0
+                fwcPenaltyRateCount `shouldBe` 0
+                fwcWageAllowanceCount `shouldBe` 0
+                awardLevelCount `shouldBe` 0
+                awardLevelBaseRateCount `shouldBe` 0
+                awardLevelPenaltyRateCount `shouldBe` 0
+                awardTimePenaltyAllowanceCount `shouldBe` 0
+                payConfigSnapshotCount `shouldBe` 0
 
         it "seeds three times as many sandbox timesheets with break coverage on most entries" $ withContext do
             withCleanDb do
