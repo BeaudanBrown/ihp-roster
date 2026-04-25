@@ -98,6 +98,7 @@ data AdminController
 
 data SupportController
     = SupportAction
+    | ShowFwcMapdAwardRatesSectionAction
     | CreateSupportVenueAction
     | CreateSupportVenueOnboardingInvitationAction
     | CreateFwcMapdRefreshJobAction

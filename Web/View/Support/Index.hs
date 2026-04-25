@@ -157,7 +157,12 @@ renderVenueOption venue = [hsx|
 
 renderAwardRatesSection :: FwcMapdAdminData -> Maybe AppJob -> Maybe AppJob -> Html
 renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, currentCoreClassifications, currentCoreAdultPayRates, rateTypeBreakdown } latestRefreshJob activeRefreshJob = [hsx|
-    <div class="d-flex flex-column gap-3">
+    <div id="support-award-rates-section"
+         class="d-flex flex-column gap-3"
+         hx-get={whenActiveJob (pathTo ShowFwcMapdAwardRatesSectionAction)}
+         hx-trigger={whenActiveJob ("load delay:2s" :: Text)}
+         hx-target="#support-award-rates-section"
+         hx-swap="outerHTML">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
                 {renderAwardRatesSummary latestSyncRun latestRefreshJob currentAwards currentCoreClassifications currentCoreAdultPayRates rateTypeBreakdown}
@@ -169,6 +174,12 @@ renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, current
         {if null currentAwards then renderAwardRatesEmptyState else renderAwardRatesTables currentAwards currentCoreClassifications currentCoreAdultPayRates}
     </div>
 |]
+    where
+        whenActiveJob :: Text -> Maybe Text
+        whenActiveJob value =
+            if isJust activeRefreshJob
+                then Just value
+                else Nothing
 
 renderAwardRefreshForm :: Maybe AppJob -> Html
 renderAwardRefreshForm activeRefreshJob = [hsx|

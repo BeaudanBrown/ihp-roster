@@ -8,7 +8,7 @@ import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
 import Application.Helper.Controller (currentSupportVenueOptions,
                                       defaultRosterWeekStartsOn,
                                       unsafeEnumFromText)
-import Application.Helper.FwcMapd (fetchFwcMapdAdminData)
+import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
 import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail,
                                                      venueOnboardingInvitationLifetime)
 import Application.Helper.View (appendQueryParams)
@@ -33,9 +33,7 @@ instance Controller SupportController where
         let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
-        fwcMapdAdminData <- fetchFwcMapdAdminData
-        latestFwcMapdRefreshJob <- fetchLatestAppJobByKind fwcMapdRefreshJobKind
-        activeFwcMapdRefreshJob <- fetchActiveAppJobByDedupeKey fwcMapdRefreshJobDedupeKey
+        (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         createdVenue <- case paramOrNothing @(Id Venue) "createdVenueId" of
             Nothing      -> pure Nothing
             Just venueId -> Just <$> fetchCreatedVenue venueId
@@ -45,13 +43,15 @@ instance Controller SupportController where
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         render IndexView { .. }
 
+    action ShowFwcMapdAwardRatesSectionAction = do
+        (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
+        respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
+
     action CreateSupportVenueAction = do
         let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
-        fwcMapdAdminData <- fetchFwcMapdAdminData
-        latestFwcMapdRefreshJob <- fetchLatestAppJobByKind fwcMapdRefreshJobKind
-        activeFwcMapdRefreshJob <- fetchActiveAppJobByDedupeKey fwcMapdRefreshJobDedupeKey
+        (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         let createdVenue = Nothing
         let venueTimezone = paramOrDefault defaultVenueBootstrapTimezone "timezone"
         let venueRosterWeekStartsOn = fromMaybe defaultRosterWeekStartsOn (paramOrNothing @Int "rosterWeekStartsOn")
@@ -91,9 +91,7 @@ instance Controller SupportController where
         let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
-        fwcMapdAdminData <- fetchFwcMapdAdminData
-        latestFwcMapdRefreshJob <- fetchLatestAppJobByKind fwcMapdRefreshJobKind
-        activeFwcMapdRefreshJob <- fetchActiveAppJobByDedupeKey fwcMapdRefreshJobDedupeKey
+        (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         let createdVenue = Nothing
         let venue = buildSupportVenueForm
         let venueTimezone = defaultVenueBootstrapTimezone
@@ -182,6 +180,15 @@ fetchVenueOnboardingInvitations =
     query @VenueOnboardingInvitation
         |> orderByDesc #createdAt
         |> fetch
+
+fetchFwcMapdAwardRatesSectionData ::
+    (?modelContext :: ModelContext) =>
+    IO (FwcMapdAdminData, Maybe AppJob, Maybe AppJob)
+fetchFwcMapdAwardRatesSectionData = do
+    fwcMapdAdminData <- fetchFwcMapdAdminData
+    latestFwcMapdRefreshJob <- fetchLatestAppJobByKind fwcMapdRefreshJobKind
+    activeFwcMapdRefreshJob <- fetchActiveAppJobByDedupeKey fwcMapdRefreshJobDedupeKey
+    pure (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob)
 
 queueVenueOnboardingInvitationDelivery ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

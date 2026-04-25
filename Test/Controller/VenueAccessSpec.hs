@@ -240,6 +240,23 @@ tests = beforeAll testContext do
                 job.requestedByUserId `shouldBe` Just (unpackId founder.id)
                 inputValue job.status `shouldBe` "job_status_not_started"
 
+        it "marks the award rate support section for self-refresh while a refresh job is active" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-award-refresh-fragment@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+                _ <- withUser founder do
+                    callAction CreateFwcMapdRefreshJobAction
+
+                response <- withUser founder do
+                    callAction ShowFwcMapdAwardRatesSectionAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"support-award-rates-section\""
+                response `responseBodyShouldContain` "hx-get=\"/ShowFwcMapdAwardRatesSection\""
+                response `responseBodyShouldContain` "hx-trigger=\"load delay:2s\""
+                response `responseBodyShouldContain` "Refresh queued/running"
+
         it "deduplicates active award rate refresh jobs" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
