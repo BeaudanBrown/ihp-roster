@@ -443,6 +443,11 @@ CREATE TABLE public_holidays (
     name TEXT NOT NULL,
     region TEXT DEFAULT NULL,
     is_regional BOOLEAN DEFAULT FALSE NOT NULL,
+    source TEXT DEFAULT NULL,
+    source_id TEXT DEFAULT NULL,
+    source_url TEXT DEFAULT NULL,
+    description TEXT DEFAULT NULL,
+    imported_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(jurisdiction, holiday_date, name, region)

@@ -1,0 +1,5 @@
+ALTER TABLE public_holidays ADD COLUMN source TEXT DEFAULT NULL;
+ALTER TABLE public_holidays ADD COLUMN source_id TEXT DEFAULT NULL;
+ALTER TABLE public_holidays ADD COLUMN source_url TEXT DEFAULT NULL;
+ALTER TABLE public_holidays ADD COLUMN description TEXT DEFAULT NULL;
+ALTER TABLE public_holidays ADD COLUMN imported_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;
