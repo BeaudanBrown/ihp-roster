@@ -7,7 +7,7 @@ module Application.Helper.Export
 import Application.Helper.Controller
 import Application.Helper.Export.Render
 import Application.Helper.Export.Types
-import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..),
+import Application.Helper.Pay (PaySegment (..), PayTotals (..), TimesheetPayResult (..),
                                ensureCurrentVenuePayConfigSnapshot,
                                fetchTimesheetPayResultsForEntries,
                                timesheetEntryIdKey)
@@ -320,7 +320,7 @@ buildStaffPayCsvPayload reportDefinition selectedWeekOffset = do
                     StaffPayCsvPayload
                         { weekSelection = reportWeekSelection
                         , fileName = reportDefinition.definition.slug <> "-" <> tshow reportWeekSelection.weekStart <> ".csv"
-                        , csvContents = renderStaffPayCsv reportWeekSelection.dayLabels records
+                        , csvContents = renderStaffPayCsv reportWeekSelection records
                         , entryCount = length filteredEntries
                         , rowCount = length records
                         , snapshotVersions = exportSnapshotVersions
@@ -464,22 +464,29 @@ buildStaffPayCsvRecords reportDefinition reportWeekSelection entries staffById p
         accumulate acc entry =
             case (Map.lookup entry.staffId staffById, Map.lookup (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) of
                 (Just staff, Just payResult) ->
-                    case reportDayIndex reportWeekSelection entry.workedOn of
-                        Just dayIndex ->
-                            let key = (staffPayDisplayName staff, staffPayRecordLabel reportDefinition payResult)
-                                hours = paidMinutesToHours payResult.totals.paidMinutes
-                             in if hours <= 0
-                                    then acc
-                                    else Map.alter (Just . addDayHours dayIndex hours . fromMaybe (replicate (length reportWeekSelection.dayLabels) 0)) key acc
-                        Nothing -> acc
+                    foldl' (accumulateSegment staff payResult) acc payResult.segments
                 _ -> acc
 
-        toRecord ((recordStaffName, recordLabel), recordDayHours) =
+        buckets = staffPayBuckets reportWeekSelection
+
+        emptyBucketHours = replicate (length buckets) 0
+
+        accumulateSegment staff payResult acc segment =
+            case staffPaySegmentBucketIndex buckets segment of
+                Just bucketIndex ->
+                    let key = (staffPayDisplayName staff, staffPayRecordLabel reportDefinition payResult)
+                        hours = paidMinutesToHours segment.minutes
+                     in if hours <= 0
+                            then acc
+                            else Map.alter (Just . addDayHours bucketIndex hours . fromMaybe emptyBucketHours) key acc
+                Nothing -> acc
+
+        toRecord ((recordStaffName, recordLabel), recordBucketHours) =
             StaffPayCsvRecord
                 { staffName = recordStaffName
                 , label = recordLabel
-                , dayHours = recordDayHours
-                , total = sum recordDayHours
+                , bucketHours = recordBucketHours
+                , total = sum recordBucketHours
                 }
 
 requestApprovedTimesheetsCsvExport ::

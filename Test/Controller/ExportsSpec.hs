@@ -138,9 +138,9 @@ tests = beforeAll testContext do
                 exportJob.fileName `shouldBe` Just "staff_hours-2025-01-06.csv"
                 exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "Name,Type,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday,Total"
+                    Text.isInfixOf "Name/Type,Mond Ord,Mond 7-12,Mond 12+"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "Ava,LVL 2,8.00,0.00,0.00,0.00,6.00,0.00,0.00,14.00"
+                    Text.isInfixOf "Ava LVL 2,8.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,5.00,0.00,0.00,1.00,0.00"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
 
@@ -180,7 +180,7 @@ tests = beforeAll testContext do
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 exportJob.fileName `shouldBe` Just "kitchen-2025-01-06.csv"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "Kai,,0.00,4.00,0.00,0.00,0.00,0.00,0.00,4.00"
+                    Text.isInfixOf "Kai,0.00,0.00,0.00,4.00,0.00,0.00"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "3.00")
 

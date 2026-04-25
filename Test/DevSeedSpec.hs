@@ -64,7 +64,7 @@ tests = beforeAll testContext do
                         |> fetch
 
                 map (.name) rosterGroups `shouldBe` ["Front of House", "Back of House"]
-                map (.name) seededVenues `shouldBe` ["Development Sandbox Venue", "Payroll Parity Venue"]
+                map (.name) seededVenues `shouldBe` ["Development Sandbox Venue"]
                 map (.email) seededUsers `shouldContain` ["beaudan.brown@gmail.com"]
                 length rosterWeeks `shouldBe` 2
                 length rosterDays `shouldBe` 14

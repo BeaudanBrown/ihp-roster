@@ -37,10 +37,10 @@ data ReportWeekSelection = ReportWeekSelection
     deriving (Eq, Show)
 
 data StaffPayCsvRecord = StaffPayCsvRecord
-    { staffName :: !Text
-    , label     :: !Text
-    , dayHours  :: ![Double]
-    , total     :: !Double
+    { staffName    :: !Text
+    , label        :: !Text
+    , bucketHours  :: ![Double]
+    , total        :: !Double
     }
     deriving (Eq, Show)
 

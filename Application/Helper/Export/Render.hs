@@ -2,10 +2,11 @@ module Application.Helper.Export.Render where
 
 import Application.Helper.Controller
 import Application.Helper.Export.Types
-import Application.Helper.Pay (TimesheetPayResult (..))
+import Application.Helper.Pay (PaySegment (..), TimesheetPayResult (..))
 import qualified Codec.Archive.Zip as Zip
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
@@ -17,20 +18,87 @@ import IHP.ControllerPrelude
 import Text.Printf (printf)
 import Text.Read (readMaybe)
 
-renderStaffPayCsv :: [Text] -> [StaffPayCsvRecord] -> Text
-renderStaffPayCsv reportDayLabels records =
+renderStaffPayCsv :: ReportWeekSelection -> [StaffPayCsvRecord] -> Text
+renderStaffPayCsv reportWeekSelection records =
     Text.unlines (csvHeader : map renderRow records)
     where
+        bucketLabels = staffPayBucketLabels reportWeekSelection
         csvHeader =
             Text.intercalate ","
-                (map csvCell (["Name", "Type"] <> reportDayLabels <> ["Total"]))
+                (map csvCell (["Name/Type"] <> bucketLabels))
 
         renderRow record =
             Text.intercalate ","
-                ( map csvCell [record.staffName, record.label]
-                    <> map formatStaffPayHours record.dayHours
-                    <> [formatStaffPayHours record.total]
+                ( [csvCell (staffPayNameType record)]
+                    <> map formatStaffPayHours record.bucketHours
                 )
+
+staffPayNameType :: StaffPayCsvRecord -> Text
+staffPayNameType record
+    | Text.null record.label = record.staffName
+    | otherwise = record.staffName <> " " <> record.label
+
+data StaffPayBucket = StaffPayBucket
+    { bucketDate  :: !Day
+    , bucketKind  :: !Text
+    , bucketLabel :: !Text
+    }
+    deriving (Eq, Show)
+
+staffPayBuckets :: ReportWeekSelection -> [StaffPayBucket]
+staffPayBuckets reportWeekSelection =
+    concatMap bucketsForDay [0 .. 6]
+    where
+        bucketsForDay dayOffset =
+            let date = addDays (toInteger dayOffset) reportWeekSelection.weekStart
+                dayLabel = fromMaybe (fallbackReportDayLabel reportWeekSelection.weekStart dayOffset) (safeIndex reportWeekSelection.dayLabels dayOffset)
+             in map
+                    (\(kind, suffix) ->
+                        StaffPayBucket
+                            { bucketDate = date
+                            , bucketKind = kind
+                            , bucketLabel = shortDayLabel dayLabel <> " " <> suffix
+                            }
+                    )
+                    (bucketKindsForDate date)
+
+staffPayBucketLabels :: ReportWeekSelection -> [Text]
+staffPayBucketLabels reportWeekSelection =
+    map (.bucketLabel) (staffPayBuckets reportWeekSelection)
+
+staffPaySegmentBucketIndex :: [StaffPayBucket] -> PaySegment -> Maybe Int
+staffPaySegmentBucketIndex buckets segment =
+    segment.segmentDate >>= \date ->
+        let wantedKind = staffPaySegmentBucketKind date segment.segment
+         in List.findIndex (\bucket -> bucket.bucketDate == date && bucket.bucketKind == wantedKind) buckets
+
+staffPaySegmentBucketKind :: Day -> Text -> Text
+staffPaySegmentBucketKind date segmentName =
+    case formatTime defaultTimeLocale "%u" date :: String of
+        "6" | segmentName == "late_night_after_midnight" -> "late_night_after_midnight"
+        "6" -> "ordinary"
+        "7" -> "ordinary"
+        _ | segmentName == "evening_after_7pm" -> "evening_after_7pm"
+        _ | segmentName == "late_night_after_midnight" -> "late_night_after_midnight"
+        _ -> "ordinary"
+
+bucketKindsForDate :: Day -> [(Text, Text)]
+bucketKindsForDate date =
+    case formatTime defaultTimeLocale "%u" date :: String of
+        "6" -> [("ordinary", "Ord"), ("late_night_after_midnight", "12+")]
+        "7" -> [("ordinary", "Ord")]
+        _   -> [("ordinary", "Ord"), ("evening_after_7pm", "7-12"), ("late_night_after_midnight", "12+")]
+
+shortDayLabel :: Text -> Text
+shortDayLabel = Text.take 4
+
+safeIndex :: [a] -> Int -> Maybe a
+safeIndex values index
+    | index < 0 = Nothing
+    | otherwise =
+        case drop index values of
+            value : _ -> Just value
+            []        -> Nothing
 
 staffPayDisplayName :: Staff -> Text
 staffPayDisplayName staff = staff.firstName
