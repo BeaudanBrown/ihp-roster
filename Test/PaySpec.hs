@@ -2,7 +2,9 @@ module Test.PaySpec where
 
 import Application.Helper.Pay
 import Config
+import Control.Monad (void)
 import qualified Data.Map.Strict as Map
+import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -46,11 +48,13 @@ tests = do
                     , segments =
                         [ PaySegment
                             { segment = "evening"
+                            , segmentDate = Nothing
                             , minutes = 120
                             , shiftTypeId = Nothing
                             , shiftTypeName = Just "Ordinary"
                             , payLevelId = Nothing
                             , payLevelName = Just "Level 1"
+                            , penaltyKind = Nothing
                             , multiplier = 1.875
                             , dayRuleMultiplier = Just 1.25
                             , weekendMultiplier = Just 1.5
@@ -97,7 +101,7 @@ tests = do
             it "splits evening and after-midnight weekday penalties" $ withContext do
                 withCleanDb do
                     (venue, staff, shiftType, _) <- createPayFixture "Late Bar"
-                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 18 0 0) (TimeOfDay 2 0 0)
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 9) (TimeOfDay 18 0 0) (TimeOfDay 2 0 0)
 
                     result <- expectPayResult entry
 
@@ -173,6 +177,124 @@ tests = do
                     result.payLevelId `shouldBe` Just (unpackId shiftLevel.id)
                     result.totals.totalAmount `shouldBe` 160
 
+            it "allocates breaks to the actual penalty segment instead of trimming the end of an overnight shift" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Break Placement Bar"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 9) (TimeOfDay 18 0 0) (TimeOfDay 2 0 0)
+                        >>= updateRecord
+                            . set #hadBreak True
+                            . set #breakMinutes 30
+                            . set #breakStartTime (Just (TimeOfDay 22 0 0))
+                            . set #breakEndTime (Just (TimeOfDay 22 30 0))
+
+                    result <- expectPayResult entry
+
+                    fmap (.segment) result.segments `shouldBe` ["ordinary", "evening_after_7pm", "late_night_after_midnight"]
+                    fmap (.segmentDate) result.segments `shouldBe` map Just [fromGregorian 2025 1 9, fromGregorian 2025 1 9, fromGregorian 2025 1 10]
+                    fmap (.minutes) result.segments `shouldBe` [60, 270, 120]
+                    result.totals.paidMinutes `shouldBe` 450
+                    result.totals.totalAmount `shouldBe` 250.5
+
+            it "allocates after-midnight breaks to the next calendar day segment" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Midnight Break Bar"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 9) (TimeOfDay 18 0 0) (TimeOfDay 2 0 0)
+                        >>= updateRecord
+                            . set #hadBreak True
+                            . set #breakMinutes 30
+                            . set #breakStartTime (Just (TimeOfDay 0 15 0))
+                            . set #breakEndTime (Just (TimeOfDay 0 45 0))
+
+                    result <- expectPayResult entry
+
+                    fmap (.segment) result.segments `shouldBe` ["ordinary", "evening_after_7pm", "late_night_after_midnight"]
+                    fmap (.segmentDate) result.segments `shouldBe` map Just [fromGregorian 2025 1 9, fromGregorian 2025 1 9, fromGregorian 2025 1 10]
+                    fmap (.minutes) result.segments `shouldBe` [60, 300, 90]
+                    result.totals.paidMinutes `shouldBe` 450
+                    result.totals.totalAmount `shouldBe` 249
+
+            it "resolves weekday, Saturday, Sunday, and public holiday penalties from segment dates" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, level) <- createPayFixture "Penalty Matrix Bar"
+                    sourceRate <- query @FwcMapdPayRate |> filterWhere (#classificationFixedId, Just level.classificationFixedId) |> fetchOne
+                    createSyntheticPenalty level PublicHolidayPenalty sourceRate 75
+                    _ <- newRecord @PublicHoliday
+                        |> set #jurisdiction "VIC"
+                        |> set #holidayDate (fromGregorian 2025 1 13)
+                        |> set #name "Test Holiday"
+                        |> set #isRegional False
+                        |> createRecord
+
+                    fridayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 19 0 0) (TimeOfDay 1 0 0)
+                    saturdayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 11) (TimeOfDay 18 0 0) (TimeOfDay 2 0 0)
+                    sundayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 12) (TimeOfDay 10 0 0) (TimeOfDay 14 0 0)
+                    publicHolidayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 13) (TimeOfDay 10 0 0) (TimeOfDay 14 0 0)
+
+                    friday <- expectPayResult fridayEntry
+                    saturday <- expectPayResult saturdayEntry
+                    sunday <- expectPayResult sundayEntry
+                    publicHoliday <- expectPayResult publicHolidayEntry
+
+                    fmap (.penaltyKind) friday.segments `shouldBe` [Just "evening_after_7pm", Just "saturday_penalty"]
+                    fmap (.minutes) friday.segments `shouldBe` [300, 60]
+                    friday.totals.totalAmount `shouldBe` 202.5
+
+                    fmap (.penaltyKind) saturday.segments `shouldBe` [Just "saturday_penalty", Just "saturday_penalty", Just "sunday_penalty"]
+                    fmap (.minutes) saturday.segments `shouldBe` [60, 300, 120]
+                    saturday.totals.totalAmount `shouldBe` 315
+
+                    fmap (.penaltyKind) sunday.segments `shouldBe` [Just "sunday_penalty"]
+                    sunday.totals.totalAmount `shouldBe` 180
+
+                    fmap (.penaltyKind) publicHoliday.segments `shouldBe` [Just "public_holiday_penalty"]
+                    publicHoliday.totals.totalAmount `shouldBe` 300
+
+            it "uses casual base and casual weekend penalty rows when the staff member is casual" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, level) <- createPayFixture "Casual Penalty Bar"
+                    permanentPayRate <- query @FwcMapdPayRate |> filterWhere (#classificationFixedId, Just level.classificationFixedId) |> fetchOne
+                    casualPayRate <- newRecord @FwcMapdPayRate
+                        |> set #awardFixedId level.awardFixedId
+                        |> set #classificationFixedId (Just level.classificationFixedId)
+                        |> set #classification level.classification
+                        |> set #employeeRateTypeCode (Just "AD")
+                        |> set #calculatedRate (Just 37.5)
+                        |> set #calculatedRateType (Just "Casual Hourly")
+                        |> createRecord
+                    _ <- newRecord @AwardLevelBaseRate
+                        |> set #awardLevelId (unpackId level.id)
+                        |> set #employmentBasis Casual
+                        |> set #fwcMapdPayRateId (unpackId casualPayRate.id)
+                        |> set #hourlyRate 37.5
+                        |> set #rateLabel ("Casual Hourly" :: Text)
+                        |> createRecord
+                    _ <- createSyntheticEmploymentPenalty level Casual SaturdayPenalty permanentPayRate 60
+                    _ <- staff |> set #employmentBasis Casual |> updateRecord
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 11) (TimeOfDay 10 0 0) (TimeOfDay 14 0 0)
+
+                    result <- expectPayResult entry
+
+                    fmap (.baseRate) result.segments `shouldBe` [37.5]
+                    fmap (.penaltyKind) result.segments `shouldBe` [Just "saturday_penalty"]
+                    fmap (.amount) result.segments `shouldBe` [240]
+                    result.totals.totalAmount `shouldBe` 240
+
+            it "emits zero paid minutes for breaks that consume the whole shift" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Zero Paid Bar"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 10 0 0)
+                        >>= updateRecord
+                            . set #hadBreak True
+                            . set #breakMinutes 60
+                            . set #breakStartTime (Just (TimeOfDay 9 0 0))
+                            . set #breakEndTime (Just (TimeOfDay 10 0 0))
+
+                    result <- expectPayResult entry
+
+                    result.segments `shouldBe` []
+                    result.totals.paidMinutes `shouldBe` 0
+                    result.totals.totalAmount `shouldBe` 0
+
 createPayFixture :: (?modelContext :: ModelContext) => Text -> IO (Venue, Staff, ShiftType, AwardLevel)
 createPayFixture shiftTypeName = do
     venue <- createVenueWithConfig "Pay Calc Venue"
@@ -205,3 +327,25 @@ expectPayResult entry = do
     case payResult of
         Left err     -> fail ("Expected pay result, got: " <> Text.unpack err)
         Right result -> pure result
+
+createSyntheticEmploymentPenalty :: (?modelContext :: ModelContext) => AwardLevel -> StaffEmploymentBasisEnum -> AwardPenaltyKindEnum -> FwcMapdPayRate -> Scientific -> IO ()
+createSyntheticEmploymentPenalty awardLevel employmentBasis penaltyKind payRate hourlyRate = do
+    penaltyRate <-
+        newRecord @FwcMapdPenaltyRate
+            |> set #awardFixedId awardLevel.awardFixedId
+            |> set #classificationFixedId (Just awardLevel.classificationFixedId)
+            |> set #classification awardLevel.classification
+            |> set #employeeRateTypeCode (Just "AD")
+            |> set #basePayRateId payRate.basePayRateId
+            |> set #penaltyDescription (Just (inputValue penaltyKind))
+            |> set #penaltyCalculatedValue (Just hourlyRate)
+            |> createRecord
+    void
+        ( newRecord @AwardLevelPenaltyRate
+            |> set #awardLevelId (unpackId awardLevel.id)
+            |> set #employmentBasis employmentBasis
+            |> set #penaltyKind penaltyKind
+            |> set #fwcMapdPenaltyRateId (unpackId penaltyRate.id)
+            |> set #hourlyRate hourlyRate
+            |> createRecord
+        )

@@ -472,22 +472,27 @@ tests = describe "Schema" do
             schemaSqlText `shouldSatisfy` Text.isInfixOf "('evening_after_7pm'::TEXT, 1140, 1440, 3)"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(r.start_minute_of_day + r.paid_minutes, 1860)"
 
-        it "builds segment minute overlaps from the break-adjusted paid window" do
+        it "builds segment minute overlaps from the paid window and subtracts positioned breaks" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "GREATEST("
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "break_start_minute_of_day"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "break_end_minute_of_day"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(pw.paid_end_minute_of_day, sw.window_end_minute)"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "- GREATEST(pw.start_minute_of_day, sw.window_start_minute)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "- GREATEST(pw.break_start_minute_of_day, sw.window_start_minute)"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "FILTER (WHERE sr.segment_minutes > 0)"
 
         it "uses projected award rates and penalty kinds in pay segments" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_level_base_rates"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_level_penalty_rates"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN pw.is_public_holiday THEN 'public_holiday_penalty'::award_penalty_kind_enum"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN EXTRACT(DOW FROM pw.worked_on)::INT = 6 THEN 'saturday_penalty'::award_penalty_kind_enum"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_time_penalty_allowances"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "ph.holiday_date = (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 6 THEN 'saturday_penalty'::award_penalty_kind_enum"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN sw.segment_name = 'evening_after_7pm' THEN 'evening_after_7pm'::award_penalty_kind_enum"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN sw.segment_name = 'late_night_after_midnight' THEN 'late_night_after_midnight'::award_penalty_kind_enum"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "SELECT alpr.hourly_rate"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "SELECT atpa.hourly_amount"
 
     describe "Timesheet validation helpers" do
         it "parseTimeParam parses valid HH:MM values" do

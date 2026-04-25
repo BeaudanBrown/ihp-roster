@@ -301,6 +301,8 @@ createAwardLevelRecordWithRates levelName baseRate eveningPenalty after12Penalty
     createSyntheticPenalty awardLevel SundayPenalty payRate (baseRate * sundayMultiplier)
     createSyntheticPenalty awardLevel EveningAfter7Pm payRate (baseRate + eveningPenalty)
     createSyntheticPenalty awardLevel LateNightAfterMidnight payRate (baseRate + after12Penalty)
+    createSyntheticTimeAllowanceIfMissing awardLevel EveningAfter7Pm eveningPenalty
+    createSyntheticTimeAllowanceIfMissing awardLevel LateNightAfterMidnight after12Penalty
     pure awardLevel
 
 createSyntheticPenalty :: (?modelContext :: ModelContext) => AwardLevel -> AwardPenaltyKindEnum -> FwcMapdPayRate -> Scientific -> IO ()
@@ -324,6 +326,31 @@ createSyntheticPenalty awardLevel penaltyKind payRate hourlyRate = do
             |> set #hourlyRate hourlyRate
             |> createRecord
         )
+
+createSyntheticTimeAllowanceIfMissing :: (?modelContext :: ModelContext) => AwardLevel -> AwardPenaltyKindEnum -> Scientific -> IO ()
+createSyntheticTimeAllowanceIfMissing awardLevel penaltyKind hourlyAmount =
+    when (hourlyAmount > 0) do
+        existingAllowance <- query @AwardTimePenaltyAllowance
+            |> filterWhere (#awardFixedId, awardLevel.awardFixedId)
+            |> filterWhere (#penaltyKind, penaltyKind)
+            |> fetchOneOrNothing
+        case existingAllowance of
+            Just _ -> pure ()
+            Nothing -> do
+                wageAllowance <-
+                    newRecord @FwcMapdWageAllowance
+                        |> set #awardFixedId awardLevel.awardFixedId
+                        |> set #allowance (Just (inputValue penaltyKind))
+                        |> set #allowanceAmount (Just hourlyAmount)
+                        |> createRecord
+                void
+                    ( newRecord @AwardTimePenaltyAllowance
+                        |> set #awardFixedId awardLevel.awardFixedId
+                        |> set #penaltyKind penaltyKind
+                        |> set #fwcMapdWageAllowanceId (unpackId wageAllowance.id)
+                        |> set #hourlyAmount hourlyAmount
+                        |> createRecord
+                    )
 
 createShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> AwardLevel -> Text -> IO ShiftType
 createShiftTypeRecord venue awardLevel shiftTypeName =

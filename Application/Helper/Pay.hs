@@ -17,11 +17,13 @@ import IHP.Prelude
 
 data PaySegment = PaySegment
     { segment           :: !Text
+    , segmentDate       :: !(Maybe Day)
     , minutes           :: !Int
     , shiftTypeId       :: !(Maybe UUID)
     , shiftTypeName     :: !(Maybe Text)
     , payLevelId        :: !(Maybe UUID)
     , payLevelName      :: !(Maybe Text)
+    , penaltyKind       :: !(Maybe Text)
     , multiplier        :: !Scientific.Scientific
     , dayRuleMultiplier :: !(Maybe Scientific.Scientific)
     , weekendMultiplier :: !(Maybe Scientific.Scientific)
@@ -34,11 +36,13 @@ instance Aeson.FromJSON PaySegment where
     parseJSON = Aeson.withObject "PaySegment" \obj ->
         PaySegment
             <$> obj .: "segment"
+            <*> obj .:? "segmentDate"
             <*> obj .: "minutes"
             <*> obj .:? "shiftTypeId"
             <*> obj .:? "shiftTypeName"
             <*> obj .:? "payLevelId"
             <*> obj .:? "payLevelName"
+            <*> obj .:? "penaltyKind"
             <*> obj .: "multiplier"
             <*> obj .:? "dayRuleMultiplier"
             <*> obj .:? "weekendMultiplier"

@@ -770,6 +770,9 @@ AS $$
             e.worked_on,
             e.start_time,
             e.end_time,
+            e.had_break,
+            e.break_start_time,
+            e.break_end_time,
             e.break_minutes,
             e.pay_config_snapshot_id,
             e.pay_config_snapshot_version,
@@ -788,6 +791,34 @@ AS $$
                     ELSE (EXTRACT(EPOCH FROM e.end_time) / 60)::INT
                 END
             ) AS end_minute_of_day,
+            CASE
+                WHEN e.had_break
+                    AND e.break_start_time IS NOT NULL
+                    AND e.break_end_time IS NOT NULL
+                    AND e.break_minutes > 0
+                THEN
+                    CASE
+                        WHEN (EXTRACT(EPOCH FROM e.break_start_time) / 60)::INT < (EXTRACT(EPOCH FROM e.start_time) / 60)::INT
+                            THEN (EXTRACT(EPOCH FROM e.break_start_time) / 60)::INT + 1440
+                        ELSE (EXTRACT(EPOCH FROM e.break_start_time) / 60)::INT
+                    END
+                ELSE NULL
+            END AS break_start_minute_of_day,
+            CASE
+                WHEN e.had_break
+                    AND e.break_start_time IS NOT NULL
+                    AND e.break_end_time IS NOT NULL
+                    AND e.break_minutes > 0
+                THEN
+                    CASE
+                        WHEN (EXTRACT(EPOCH FROM e.break_end_time) / 60)::INT <= (EXTRACT(EPOCH FROM e.break_start_time) / 60)::INT
+                            THEN (EXTRACT(EPOCH FROM e.break_end_time) / 60)::INT + 1440
+                        WHEN (EXTRACT(EPOCH FROM e.break_end_time) / 60)::INT < (EXTRACT(EPOCH FROM e.start_time) / 60)::INT
+                            THEN (EXTRACT(EPOCH FROM e.break_end_time) / 60)::INT + 1440
+                        ELSE (EXTRACT(EPOCH FROM e.break_end_time) / 60)::INT
+                    END
+                ELSE NULL
+            END AS break_end_minute_of_day,
             GREATEST(
                 (
                     CASE
@@ -830,6 +861,12 @@ AS $$
                 WHERE al.id = r.pay_level_id
                 LIMIT 1
             ) AS pay_level_name,
+            (
+                SELECT al.award_fixed_id
+                FROM award_levels al
+                WHERE al.id = r.pay_level_id
+                LIMIT 1
+            ) AS award_fixed_id,
             COALESCE(
                 (
                     SELECT albr.hourly_rate
@@ -858,7 +895,11 @@ AS $$
     paid_window AS (
         SELECT
             r.*,
-            LEAST(r.start_minute_of_day + r.paid_minutes, 1860) AS paid_end_minute_of_day
+            CASE
+                WHEN r.break_start_minute_of_day IS NOT NULL AND r.break_end_minute_of_day IS NOT NULL
+                    THEN LEAST(r.end_minute_of_day, 1860)
+                ELSE LEAST(r.start_minute_of_day + r.paid_minutes, 1860)
+            END AS paid_end_minute_of_day
         FROM labelled r
     ),
     segment_windows AS (
@@ -873,20 +914,49 @@ AS $$
     ),
     segment_rows AS (
         SELECT scoped.*,
-            COALESCE(
-                (
-                    SELECT alpr.hourly_rate
-                    FROM award_level_penalty_rates alpr
-                    WHERE alpr.award_level_id = scoped.pay_level_id
-                        AND alpr.employment_basis = scoped.employment_basis
-                        AND alpr.penalty_kind = scoped.penalty_kind
-                        AND (alpr.operative_from IS NULL OR alpr.operative_from <= scoped.worked_on)
-                        AND (alpr.operative_to IS NULL OR alpr.operative_to >= scoped.worked_on)
-                    ORDER BY alpr.operative_from DESC NULLS LAST, alpr.created_at DESC
-                    LIMIT 1
-                ),
-                scoped.base_rate
-            ) AS segment_hourly_rate
+            CASE
+                WHEN scoped.penalty_kind IN ('saturday_penalty', 'sunday_penalty', 'public_holiday_penalty') THEN
+                    COALESCE(
+                        (
+                            SELECT alpr.hourly_rate
+                            FROM award_level_penalty_rates alpr
+                            WHERE alpr.award_level_id = scoped.pay_level_id
+                                AND alpr.employment_basis = scoped.employment_basis
+                                AND alpr.penalty_kind = scoped.penalty_kind
+                                AND (alpr.operative_from IS NULL OR alpr.operative_from <= scoped.segment_date)
+                                AND (alpr.operative_to IS NULL OR alpr.operative_to >= scoped.segment_date)
+                            ORDER BY alpr.operative_from DESC NULLS LAST, alpr.created_at DESC
+                            LIMIT 1
+                        ),
+                        scoped.base_rate
+                    )
+                WHEN scoped.penalty_kind IN ('evening_after_7pm', 'late_night_after_midnight') THEN
+                    scoped.base_rate + COALESCE(
+                        (
+                            SELECT atpa.hourly_amount
+                            FROM award_time_penalty_allowances atpa
+                            WHERE atpa.award_fixed_id = scoped.award_fixed_id
+                                AND atpa.penalty_kind = scoped.penalty_kind
+                                AND (atpa.operative_from IS NULL OR atpa.operative_from <= scoped.segment_date)
+                                AND (atpa.operative_to IS NULL OR atpa.operative_to >= scoped.segment_date)
+                            ORDER BY atpa.operative_from DESC NULLS LAST, atpa.created_at DESC
+                            LIMIT 1
+                        ),
+                        (
+                            SELECT GREATEST(alpr.hourly_rate - scoped.base_rate, 0)
+                            FROM award_level_penalty_rates alpr
+                            WHERE alpr.award_level_id = scoped.pay_level_id
+                                AND alpr.employment_basis = scoped.employment_basis
+                                AND alpr.penalty_kind = scoped.penalty_kind
+                                AND (alpr.operative_from IS NULL OR alpr.operative_from <= scoped.segment_date)
+                                AND (alpr.operative_to IS NULL OR alpr.operative_to >= scoped.segment_date)
+                            ORDER BY alpr.operative_from DESC NULLS LAST, alpr.created_at DESC
+                            LIMIT 1
+                        ),
+                        0::NUMERIC(12,4)
+                    )
+                ELSE scoped.base_rate
+            END AS segment_hourly_rate
         FROM (
             SELECT
                 pw.id,
@@ -894,19 +964,32 @@ AS $$
                 pw.worked_on,
                 pw.break_minutes,
                 pw.paid_minutes,
+                pw.break_start_minute_of_day,
+                pw.break_end_minute_of_day,
                 pw.shift_type_id,
                 pw.shift_type_name,
                 pw.pay_level_id,
                 pw.pay_level_name,
+                pw.award_fixed_id,
                 pw.employment_basis,
                 pw.pay_config_snapshot_id,
                 pw.pay_config_snapshot_version,
                 pw.pay_config_snapshot,
                 sw.segment_name,
+                (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END) AS segment_date,
                 CASE
-                    WHEN pw.is_public_holiday THEN 'public_holiday_penalty'::award_penalty_kind_enum
-                    WHEN EXTRACT(DOW FROM pw.worked_on)::INT = 6 THEN 'saturday_penalty'::award_penalty_kind_enum
-                    WHEN EXTRACT(DOW FROM pw.worked_on)::INT = 0 THEN 'sunday_penalty'::award_penalty_kind_enum
+                    WHEN EXISTS (
+                        SELECT 1
+                        FROM staff s
+                        JOIN venue_config vc ON vc.venue_id = s.venue_id
+                        JOIN public_holidays ph ON ph.jurisdiction = vc.public_holiday_jurisdiction
+                            AND ph.holiday_date = (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END)
+                            AND ph.is_regional = FALSE
+                        WHERE s.id = pw.staff_id
+                        LIMIT 1
+                    ) THEN 'public_holiday_penalty'::award_penalty_kind_enum
+                    WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 6 THEN 'saturday_penalty'::award_penalty_kind_enum
+                    WHEN EXTRACT(DOW FROM (pw.worked_on + CASE WHEN sw.window_start_minute >= 1440 THEN 1 ELSE 0 END))::INT = 0 THEN 'sunday_penalty'::award_penalty_kind_enum
                     WHEN sw.segment_name = 'evening_after_7pm' THEN 'evening_after_7pm'::award_penalty_kind_enum
                     WHEN sw.segment_name = 'late_night_after_midnight' THEN 'late_night_after_midnight'::award_penalty_kind_enum
                     ELSE NULL::award_penalty_kind_enum
@@ -915,7 +998,16 @@ AS $$
                     LEAST(pw.paid_end_minute_of_day, sw.window_end_minute)
                     - GREATEST(pw.start_minute_of_day, sw.window_start_minute),
                     0
-                )::INT AS segment_minutes,
+                )::INT
+                - CASE
+                    WHEN pw.break_start_minute_of_day IS NOT NULL AND pw.break_end_minute_of_day IS NOT NULL THEN
+                        GREATEST(
+                            LEAST(pw.break_end_minute_of_day, sw.window_end_minute)
+                            - GREATEST(pw.break_start_minute_of_day, sw.window_start_minute),
+                            0
+                        )::INT
+                    ELSE 0
+                END AS segment_minutes,
                 pw.base_rate,
                 sw.sort_index
             FROM paid_window pw
@@ -929,6 +1021,7 @@ AS $$
                 jsonb_agg(
                     jsonb_build_object(
                         'segment', sr.segment_name,
+                        'segmentDate', sr.segment_date,
                         'minutes', sr.segment_minutes,
                         'shiftTypeId', sr.shift_type_id,
                         'shiftTypeName', sr.shift_type_name,
