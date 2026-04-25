@@ -13,8 +13,8 @@ import {
     listZipEntries,
 } from './test-helpers';
 
-function rowByNameAndType(rows: string[][], staffName: string, payType: string) {
-    return rows.find((row) => row[0] === staffName && row[1] === payType);
+function rowByNameType(rows: string[][], nameType: string) {
+    return rows.find((row) => row[0] === nameType);
 }
 
 function rowByHour(rows: string[][], hour: string) {
@@ -43,49 +43,54 @@ test.describe('Payroll export downloads', () => {
         expect(staffHoursDownload.suggestedFilename()).toBe(`staff_hours-${currentWeek.weekStart}.csv`);
 
         const staffHoursRows = parseCsv(await readDownloadText(staffHoursDownload));
-        expect(staffHoursRows[0]).toEqual(['Name', 'Type', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Total']);
-        expect(rowByNameAndType(staffHoursRows, 'Alpha', 'LVL 1')).toEqual([
-            'Alpha',
-            'LVL 1',
-            '8.00',
-            '4.00',
-            '0.00',
-            '0.00',
-            '0.00',
-            '0.00',
-            '0.00',
-            '12.00',
+        expect(staffHoursRows[0]).toEqual([
+            'Name/Type',
+            'Mond Ord',
+            'Mond 7-12',
+            'Mond 12+',
+            'Tues Ord',
+            'Tues 7-12',
+            'Tues 12+',
+            'Wedn Ord',
+            'Wedn 7-12',
+            'Wedn 12+',
+            'Thur Ord',
+            'Thur 7-12',
+            'Thur 12+',
+            'Frid Ord',
+            'Frid 7-12',
+            'Frid 12+',
+            'Satu Ord',
+            'Satu 12+',
+            'Sund Ord',
         ]);
-        expect(rowByNameAndType(staffHoursRows, 'Alpha', 'LVL 2')).toEqual([
-            'Alpha',
-            'LVL 2',
+        expect(rowByNameType(staffHoursRows, 'Alpha LVL 1')).toEqual([
+            'Alpha LVL 1',
+            '8.00', '0.00', '0.00',
+            '4.00', '0.00', '0.00',
+            '0.00', '0.00', '0.00',
+            '0.00', '0.00', '0.00',
+            '0.00', '5.00', '0.00',
+            '0.00', '1.00',
             '0.00',
-            '0.00',
-            '0.00',
-            '0.00',
-            '6.00',
-            '0.00',
-            '0.00',
-            '6.00',
         ]);
+        expect(rowByNameType(staffHoursRows, 'Alpha LVL 2')).toBeUndefined();
 
         await generatePayrollReport(page, 'Kitchen Report');
         const kitchenDownload = await downloadExport(page, `kitchen-${currentWeek.weekStart}.csv`);
         expect(kitchenDownload.suggestedFilename()).toBe(`kitchen-${currentWeek.weekStart}.csv`);
 
         const kitchenRows = parseCsv(await readDownloadText(kitchenDownload));
-        expect(kitchenRows[0]).toEqual(['Name', 'Type', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday', 'Total']);
-        expect(rowByNameAndType(kitchenRows, 'Alpha', '')).toEqual([
+        expect(kitchenRows[0]).toEqual(staffHoursRows[0]);
+        expect(rowByNameType(kitchenRows, 'Alpha')).toEqual([
             'Alpha',
-            '',
+            '0.00', '0.00', '0.00',
+            '4.00', '0.00', '0.00',
+            '0.00', '0.00', '0.00',
+            '0.00', '0.00', '0.00',
+            '0.00', '0.00', '0.00',
+            '0.00', '0.00',
             '0.00',
-            '4.00',
-            '0.00',
-            '0.00',
-            '0.00',
-            '0.00',
-            '0.00',
-            '4.00',
         ]);
 
         await generatePayrollReport(page, 'Wage Report');

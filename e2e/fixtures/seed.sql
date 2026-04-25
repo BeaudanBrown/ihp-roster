@@ -25,13 +25,6 @@ WHERE report_definition_id IN (
 DELETE FROM report_definitions
 WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
 
-DELETE FROM pay_level_day_rules
-WHERE shift_type_id IN (
-    SELECT id
-    FROM shift_types
-    WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002')
-);
-
 DELETE FROM day_names
 WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
 
@@ -57,9 +50,6 @@ DELETE FROM roster_weeks
 WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
 
 DELETE FROM shift_types
-WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
-
-DELETE FROM pay_levels
 WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
 
 INSERT INTO venues (id, name, status)
@@ -205,7 +195,209 @@ ON CONFLICT (id) DO UPDATE SET
     created_at = EXCLUDED.created_at,
     updated_at = EXCLUDED.updated_at;
 
-INSERT INTO staff (id, venue_id, user_id, first_name, last_name, phone, emergency_contact_name, emergency_contact_phone, ideal_shifts_per_week, is_active)
+INSERT INTO award_levels (
+    id,
+    award_fixed_id,
+    classification_fixed_id,
+    classification,
+    classification_level,
+    operative_from,
+    published_year,
+    is_active,
+    raw_json
+)
+VALUES
+    ('a1000000-0000-0000-0000-000000000111', 900001, 1, 'LVL 1', NULL, '2025-07-01', 2025, TRUE, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000112', 900001, 2, 'LVL 2', NULL, '2025-07-01', 2025, TRUE, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000113', 900001, 3, 'Floor Level', NULL, '2025-07-01', 2025, TRUE, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000121', 900001, 4, 'Beta Level', NULL, '2025-07-01', 2025, TRUE, '{}'::jsonb)
+ON CONFLICT (id) DO UPDATE SET
+    award_fixed_id = EXCLUDED.award_fixed_id,
+    classification_fixed_id = EXCLUDED.classification_fixed_id,
+    classification = EXCLUDED.classification,
+    classification_level = EXCLUDED.classification_level,
+    operative_from = EXCLUDED.operative_from,
+    published_year = EXCLUDED.published_year,
+    is_active = EXCLUDED.is_active,
+    raw_json = EXCLUDED.raw_json,
+    updated_at = NOW();
+
+INSERT INTO fwc_mapd_pay_rates (
+    id,
+    award_fixed_id,
+    classification_fixed_id,
+    classification,
+    classification_level,
+    employee_rate_type_code,
+    calculated_rate,
+    calculated_rate_type,
+    operative_from,
+    published_year,
+    raw_json
+)
+VALUES
+    ('a1000000-0000-0000-0000-000000000711', 900001, 1, 'LVL 1', NULL, 'AD', 30.00, 'Hourly', '2025-07-01', 2025, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000712', 900001, 2, 'LVL 2', NULL, 'AD', 35.00, 'Hourly', '2025-07-01', 2025, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000713', 900001, 3, 'Floor Level', NULL, 'AD', 28.00, 'Hourly', '2025-07-01', 2025, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000714', 900001, 4, 'Beta Level', NULL, 'AD', 27.00, 'Hourly', '2025-07-01', 2025, '{}'::jsonb)
+ON CONFLICT (id) DO UPDATE SET
+    award_fixed_id = EXCLUDED.award_fixed_id,
+    classification_fixed_id = EXCLUDED.classification_fixed_id,
+    classification = EXCLUDED.classification,
+    classification_level = EXCLUDED.classification_level,
+    employee_rate_type_code = EXCLUDED.employee_rate_type_code,
+    calculated_rate = EXCLUDED.calculated_rate,
+    calculated_rate_type = EXCLUDED.calculated_rate_type,
+    operative_from = EXCLUDED.operative_from,
+    published_year = EXCLUDED.published_year,
+    raw_json = EXCLUDED.raw_json,
+    updated_at = NOW();
+
+INSERT INTO award_level_base_rates (
+    id,
+    award_level_id,
+    employment_basis,
+    fwc_mapd_pay_rate_id,
+    hourly_rate,
+    rate_label,
+    operative_from,
+    published_year
+)
+VALUES
+    ('a1000000-0000-0000-0000-000000000721', 'a1000000-0000-0000-0000-000000000111', 'permanent', 'a1000000-0000-0000-0000-000000000711', 30.00, 'Permanent hourly', '2025-07-01', 2025),
+    ('a1000000-0000-0000-0000-000000000722', 'a1000000-0000-0000-0000-000000000112', 'permanent', 'a1000000-0000-0000-0000-000000000712', 35.00, 'Permanent hourly', '2025-07-01', 2025),
+    ('a1000000-0000-0000-0000-000000000723', 'a1000000-0000-0000-0000-000000000113', 'permanent', 'a1000000-0000-0000-0000-000000000713', 28.00, 'Permanent hourly', '2025-07-01', 2025),
+    ('a1000000-0000-0000-0000-000000000724', 'a1000000-0000-0000-0000-000000000121', 'permanent', 'a1000000-0000-0000-0000-000000000714', 27.00, 'Permanent hourly', '2025-07-01', 2025)
+ON CONFLICT (id) DO UPDATE SET
+    award_level_id = EXCLUDED.award_level_id,
+    employment_basis = EXCLUDED.employment_basis,
+    fwc_mapd_pay_rate_id = EXCLUDED.fwc_mapd_pay_rate_id,
+    hourly_rate = EXCLUDED.hourly_rate,
+    rate_label = EXCLUDED.rate_label,
+    operative_from = EXCLUDED.operative_from,
+    published_year = EXCLUDED.published_year,
+    updated_at = NOW();
+
+INSERT INTO fwc_mapd_wage_allowances (
+    id,
+    award_fixed_id,
+    wage_allowance_fixed_id,
+    allowance,
+    rate_unit,
+    allowance_amount,
+    operative_from,
+    published_year,
+    raw_json
+)
+VALUES
+    ('a1000000-0000-0000-0000-000000000731', 900001, 7001, 'Monday to Friday - 7pm to midnight allowance', 'Hourly', 2.81, '2025-07-01', 2025, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000732', 900001, 7002, 'Monday to Friday - midnight to 7am allowance', 'Hourly', 4.22, '2025-07-01', 2025, '{}'::jsonb)
+ON CONFLICT (id) DO UPDATE SET
+    award_fixed_id = EXCLUDED.award_fixed_id,
+    wage_allowance_fixed_id = EXCLUDED.wage_allowance_fixed_id,
+    allowance = EXCLUDED.allowance,
+    rate_unit = EXCLUDED.rate_unit,
+    allowance_amount = EXCLUDED.allowance_amount,
+    operative_from = EXCLUDED.operative_from,
+    published_year = EXCLUDED.published_year,
+    raw_json = EXCLUDED.raw_json,
+    updated_at = NOW();
+
+INSERT INTO award_time_penalty_allowances (
+    id,
+    award_fixed_id,
+    penalty_kind,
+    fwc_mapd_wage_allowance_id,
+    hourly_amount,
+    starts_at_time,
+    ends_at_time,
+    operative_from,
+    published_year
+)
+VALUES
+    ('a1000000-0000-0000-0000-000000000741', 900001, 'evening_after_7pm', 'a1000000-0000-0000-0000-000000000731', 2.81, '19:00', '00:00', '2025-07-01', 2025),
+    ('a1000000-0000-0000-0000-000000000742', 900001, 'late_night_after_midnight', 'a1000000-0000-0000-0000-000000000732', 4.22, '00:00', '07:00', '2025-07-01', 2025)
+ON CONFLICT (id) DO UPDATE SET
+    award_fixed_id = EXCLUDED.award_fixed_id,
+    penalty_kind = EXCLUDED.penalty_kind,
+    fwc_mapd_wage_allowance_id = EXCLUDED.fwc_mapd_wage_allowance_id,
+    hourly_amount = EXCLUDED.hourly_amount,
+    starts_at_time = EXCLUDED.starts_at_time,
+    ends_at_time = EXCLUDED.ends_at_time,
+    operative_from = EXCLUDED.operative_from,
+    published_year = EXCLUDED.published_year,
+    updated_at = NOW();
+
+INSERT INTO fwc_mapd_penalty_rates (
+    id,
+    award_fixed_id,
+    classification_fixed_id,
+    classification,
+    classification_level,
+    employee_rate_type_code,
+    penalty_fixed_id,
+    penalty_description,
+    penalty_calculated_value,
+    operative_from,
+    published_year,
+    raw_json
+)
+VALUES
+    ('a1000000-0000-0000-0000-000000000751', 900001, 1, 'LVL 1', NULL, 'AD', 7501, 'Saturday', 45.00, '2025-07-01', 2025, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000752', 900001, 1, 'LVL 1', NULL, 'AD', 7502, 'Sunday', 52.50, '2025-07-01', 2025, '{}'::jsonb),
+    ('a1000000-0000-0000-0000-000000000753', 900001, 1, 'LVL 1', NULL, 'AD', 7503, 'Public holiday', 67.50, '2025-07-01', 2025, '{}'::jsonb)
+ON CONFLICT (id) DO UPDATE SET
+    award_fixed_id = EXCLUDED.award_fixed_id,
+    classification_fixed_id = EXCLUDED.classification_fixed_id,
+    classification = EXCLUDED.classification,
+    classification_level = EXCLUDED.classification_level,
+    employee_rate_type_code = EXCLUDED.employee_rate_type_code,
+    penalty_fixed_id = EXCLUDED.penalty_fixed_id,
+    penalty_description = EXCLUDED.penalty_description,
+    penalty_calculated_value = EXCLUDED.penalty_calculated_value,
+    operative_from = EXCLUDED.operative_from,
+    published_year = EXCLUDED.published_year,
+    raw_json = EXCLUDED.raw_json,
+    updated_at = NOW();
+
+INSERT INTO award_level_penalty_rates (
+    id,
+    award_level_id,
+    employment_basis,
+    penalty_kind,
+    fwc_mapd_penalty_rate_id,
+    hourly_rate,
+    operative_from,
+    published_year
+)
+VALUES
+    ('a1000000-0000-0000-0000-000000000761', 'a1000000-0000-0000-0000-000000000111', 'permanent', 'saturday_penalty', 'a1000000-0000-0000-0000-000000000751', 45.00, '2025-07-01', 2025),
+    ('a1000000-0000-0000-0000-000000000762', 'a1000000-0000-0000-0000-000000000111', 'permanent', 'sunday_penalty', 'a1000000-0000-0000-0000-000000000752', 52.50, '2025-07-01', 2025),
+    ('a1000000-0000-0000-0000-000000000763', 'a1000000-0000-0000-0000-000000000111', 'permanent', 'public_holiday_penalty', 'a1000000-0000-0000-0000-000000000753', 67.50, '2025-07-01', 2025)
+ON CONFLICT (id) DO UPDATE SET
+    award_level_id = EXCLUDED.award_level_id,
+    employment_basis = EXCLUDED.employment_basis,
+    penalty_kind = EXCLUDED.penalty_kind,
+    fwc_mapd_penalty_rate_id = EXCLUDED.fwc_mapd_penalty_rate_id,
+    hourly_rate = EXCLUDED.hourly_rate,
+    operative_from = EXCLUDED.operative_from,
+    published_year = EXCLUDED.published_year,
+    updated_at = NOW();
+
+INSERT INTO staff (
+    id,
+    venue_id,
+    user_id,
+    first_name,
+    last_name,
+    phone,
+    emergency_contact_name,
+    emergency_contact_phone,
+    ideal_shifts_per_week,
+    employment_basis,
+    default_award_level_id,
+    is_active
+)
 VALUES
     (
         'a0000000-0000-0000-0000-000000000101',
@@ -217,6 +409,8 @@ VALUES
         'Emergency Manager',
         '0400000101',
         0,
+        'permanent',
+        'a1000000-0000-0000-0000-000000000111',
         TRUE
     ),
     (
@@ -229,6 +423,8 @@ VALUES
         'Emergency Alpha',
         '0400000102',
         0,
+        'permanent',
+        'a1000000-0000-0000-0000-000000000111',
         TRUE
     ),
     (
@@ -241,6 +437,8 @@ VALUES
         'Emergency Admin',
         '0400000103',
         0,
+        'permanent',
+        'a1000000-0000-0000-0000-000000000111',
         TRUE
     ),
     (
@@ -253,6 +451,8 @@ VALUES
         'Emergency Beta',
         '0400000104',
         0,
+        'permanent',
+        'a1000000-0000-0000-0000-000000000121',
         TRUE
     ),
     (
@@ -265,6 +465,8 @@ VALUES
         'Emergency Support',
         '0400000105',
         0,
+        'permanent',
+        'a1000000-0000-0000-0000-000000000111',
         TRUE
     )
 ON CONFLICT (id) DO UPDATE SET
@@ -276,37 +478,11 @@ ON CONFLICT (id) DO UPDATE SET
     emergency_contact_name = EXCLUDED.emergency_contact_name,
     emergency_contact_phone = EXCLUDED.emergency_contact_phone,
     ideal_shifts_per_week = EXCLUDED.ideal_shifts_per_week,
+    employment_basis = EXCLUDED.employment_basis,
+    default_award_level_id = EXCLUDED.default_award_level_id,
     is_active = EXCLUDED.is_active;
 
-INSERT INTO pay_levels (
-    id,
-    venue_id,
-    name,
-    base_rate,
-    evening_penalty,
-    after_12_penalty,
-    weekday_multiplier,
-    saturday_multiplier,
-    sunday_multiplier,
-    is_active
-)
-VALUES
-    ('a1000000-0000-0000-0000-000000000111', 'a1000000-0000-0000-0000-000000000001', 'LVL 1', 30.00, 0.00, 0.00, 1.250, 1.500, 1.750, TRUE),
-    ('a1000000-0000-0000-0000-000000000112', 'a1000000-0000-0000-0000-000000000001', 'LVL 2', 35.00, 0.00, 0.00, 1.250, 1.500, 1.750, TRUE),
-    ('a1000000-0000-0000-0000-000000000113', 'a1000000-0000-0000-0000-000000000001', 'Floor Level', 28.00, 0.00, 0.00, 1.250, 1.500, 1.750, TRUE),
-    ('a1000000-0000-0000-0000-000000000121', 'a1000000-0000-0000-0000-000000000002', 'Beta Level', 27.00, 0.00, 0.00, 1.100, 1.250, 1.500, TRUE)
-ON CONFLICT (id) DO UPDATE SET
-    venue_id = EXCLUDED.venue_id,
-    name = EXCLUDED.name,
-    base_rate = EXCLUDED.base_rate,
-    evening_penalty = EXCLUDED.evening_penalty,
-    after_12_penalty = EXCLUDED.after_12_penalty,
-    weekday_multiplier = EXCLUDED.weekday_multiplier,
-    saturday_multiplier = EXCLUDED.saturday_multiplier,
-    sunday_multiplier = EXCLUDED.sunday_multiplier,
-    is_active = EXCLUDED.is_active;
-
-INSERT INTO shift_types (id, venue_id, name, sort_order, default_pay_level_id, is_active)
+INSERT INTO shift_types (id, venue_id, name, sort_order, override_award_level_id, is_active)
 VALUES
     ('a1000000-0000-0000-0000-000000000131', 'a1000000-0000-0000-0000-000000000001', 'Bar', 10, 'a1000000-0000-0000-0000-000000000111', TRUE),
     ('a1000000-0000-0000-0000-000000000132', 'a1000000-0000-0000-0000-000000000001', 'Kitchen', 20, 'a1000000-0000-0000-0000-000000000111', TRUE),
@@ -316,7 +492,7 @@ ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
     name = EXCLUDED.name,
     sort_order = EXCLUDED.sort_order,
-    default_pay_level_id = EXCLUDED.default_pay_level_id,
+    override_award_level_id = EXCLUDED.override_award_level_id,
     is_active = EXCLUDED.is_active;
 
 INSERT INTO day_names (id, venue_id, weekday_index, name, is_active)
@@ -341,14 +517,6 @@ ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     is_active = EXCLUDED.is_active;
 
-INSERT INTO pay_level_day_rules (id, shift_type_id, day_name_id, pay_level_id)
-VALUES
-    ('a1000000-0000-0000-0000-000000000171', 'a1000000-0000-0000-0000-000000000131', 'a1000000-0000-0000-0000-000000000155', 'a1000000-0000-0000-0000-000000000112')
-ON CONFLICT (id) DO UPDATE SET
-    shift_type_id = EXCLUDED.shift_type_id,
-    day_name_id = EXCLUDED.day_name_id,
-    pay_level_id = EXCLUDED.pay_level_id;
-
 INSERT INTO pay_config_snapshots (id, venue_id, version_number, version_label, created_by_user_id, snapshot)
 VALUES
     (
@@ -366,15 +534,15 @@ VALUES
                 'lateToEarlyMinStartGapMinutes', 600,
                 'staffTimesheetEditWindowDays', 7
             ),
-            'payLevels', jsonb_build_array(
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000111', 'name', 'LVL 1', 'baseRate', 30.00, 'eveningPenalty', 0.00, 'after12Penalty', 0.00, 'weekdayMultiplier', 1.250, 'saturdayMultiplier', 1.500, 'sundayMultiplier', 1.750, 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000112', 'name', 'LVL 2', 'baseRate', 35.00, 'eveningPenalty', 0.00, 'after12Penalty', 0.00, 'weekdayMultiplier', 1.250, 'saturdayMultiplier', 1.500, 'sundayMultiplier', 1.750, 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000113', 'name', 'Floor Level', 'baseRate', 28.00, 'eveningPenalty', 0.00, 'after12Penalty', 0.00, 'weekdayMultiplier', 1.250, 'saturdayMultiplier', 1.500, 'sundayMultiplier', 1.750, 'isActive', TRUE)
+            'awardLevels', jsonb_build_array(
+                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000111', 'classificationLevel', NULL, 'classification', 'LVL 1', 'isActive', TRUE),
+                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000112', 'classificationLevel', NULL, 'classification', 'LVL 2', 'isActive', TRUE),
+                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000113', 'classificationLevel', NULL, 'classification', 'Floor Level', 'isActive', TRUE)
             ),
             'shiftTypes', jsonb_build_array(
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000131', 'name', 'Bar', 'defaultPayLevelId', 'a1000000-0000-0000-0000-000000000111', 'sortOrder', 10, 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000132', 'name', 'Kitchen', 'defaultPayLevelId', 'a1000000-0000-0000-0000-000000000111', 'sortOrder', 20, 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000133', 'name', 'Floor', 'defaultPayLevelId', 'a1000000-0000-0000-0000-000000000113', 'sortOrder', 30, 'isActive', TRUE)
+                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000131', 'name', 'Bar', 'overrideAwardLevelId', 'a1000000-0000-0000-0000-000000000111', 'sortOrder', 10, 'isActive', TRUE),
+                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000132', 'name', 'Kitchen', 'overrideAwardLevelId', 'a1000000-0000-0000-0000-000000000111', 'sortOrder', 20, 'isActive', TRUE),
+                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000133', 'name', 'Floor', 'overrideAwardLevelId', 'a1000000-0000-0000-0000-000000000113', 'sortOrder', 30, 'isActive', TRUE)
             ),
             'dayNames', jsonb_build_array(
                 jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000151', 'weekdayIndex', 1, 'name', 'Monday', 'isActive', TRUE),
@@ -384,9 +552,6 @@ VALUES
                 jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000155', 'weekdayIndex', 5, 'name', 'Friday', 'isActive', TRUE),
                 jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000156', 'weekdayIndex', 6, 'name', 'Saturday', 'isActive', TRUE),
                 jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000157', 'weekdayIndex', 0, 'name', 'Sunday', 'isActive', TRUE)
-            ),
-            'payLevelDayRules', jsonb_build_array(
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000171', 'shiftTypeId', 'a1000000-0000-0000-0000-000000000131', 'dayNameId', 'a1000000-0000-0000-0000-000000000155', 'payLevelId', 'a1000000-0000-0000-0000-000000000112')
             )
         )
     )

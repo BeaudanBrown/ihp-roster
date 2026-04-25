@@ -110,20 +110,7 @@ export default function globalTeardown() {
         )
            OR user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%');
 
-        DELETE FROM pay_level_day_rules
-        WHERE shift_type_id IN (
-            SELECT id FROM shift_types WHERE venue_id IN (SELECT id FROM venues WHERE name LIKE 'e2e-owner-%')
-        )
-           OR pay_level_id IN (
-            SELECT id FROM pay_levels WHERE venue_id IN (SELECT id FROM venues WHERE name LIKE 'e2e-owner-%')
-        );
-
         DELETE FROM shift_types
-        WHERE venue_id IN (
-            SELECT id FROM venues WHERE name LIKE 'e2e-owner-%'
-        );
-
-        DELETE FROM pay_levels
         WHERE venue_id IN (
             SELECT id FROM venues WHERE name LIKE 'e2e-owner-%'
         );
