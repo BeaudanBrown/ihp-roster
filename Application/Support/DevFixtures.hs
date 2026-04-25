@@ -6,8 +6,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames,
                                         fetchVenueDayNames,
                                         syncStaffRosterGroupAssignments)
-import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
-                                                 replaceStaffShiftPreferences)
+import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
 import Application.Support
 import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..),
                                             approveEntryWithSnapshot,
@@ -15,14 +14,18 @@ import Application.Support.PayrollFixtures (ExplorationPayrollFixture (..),
                                             dayNameForWeekday,
                                             seedExplorationPayrollFixtureForWeek)
 import Application.Support.Seed.Scenario
+import Control.Monad (replicateM, void)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, dayOfWeek, diffDays, fromGregorian,
                            toGregorian)
-import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
+import Data.UUID (UUID)
+import qualified Data.UUID.V4 as UUIDv4
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.ModelSupport.Types (CanCreate (createMany))
 import IHP.Prelude
 
 data DevRosterSlotSeed = DevRosterSlotSeed
@@ -125,8 +128,8 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     frontWeek <- createRosterWeekRecordForRosterGroup venue frontGroup weekOffset True
     backWeek <- createRosterWeekRecordForRosterGroup venue backGroup weekOffset False
 
-    frontDays <- mapM (createRosterDayRecord frontWeek) [0 .. 6]
-    backDays <- mapM (createRosterDayRecord backWeek) [0 .. 6]
+    frontDays <- createRosterDayRecords frontWeek [0 .. 6]
+    backDays <- createRosterDayRecords backWeek [0 .. 6]
     seedRosterGroup scenario.scenarioSeed scenario.rosterFillPercent fixtureWeekStart frontGroup frontDays frontSlots allFrontCandidates
     seedRosterGroup (scenario.scenarioSeed + 97) (max 40 (scenario.rosterFillPercent - 8)) fixtureWeekStart backGroup backDays backSlots allBackCandidates
 
@@ -303,42 +306,39 @@ seedStaffAvailabilityRecords seedValue fixtureWeekStart staffIndex staff = do
     let recurringAvailableWeekdays =
             take recurringAvailableCount
                 (filter (`notElem` recurringUnavailableWeekdays) (uniqueWeekdaySequence seedValue [staffIndex, 304]))
-    forM_ (zip [0 :: Int ..] recurringUnavailableWeekdays) \(noteIndex, weekdayIndex) -> do
-        _ <-
-            newRecord @StaffAvailability
-                |> set #venueId venueId
-                |> set #staffId (unpackId staff.id)
-                |> set #weekdayIndex (Just weekdayIndex)
-                |> set #specificDate Nothing
-                |> set #isAvailable False
-                |> set #note (Just (availabilityNoteFor seedValue staffIndex noteIndex))
-                |> createRecord
-        pure ()
-    forM_ recurringAvailableWeekdays \weekdayIndex -> do
-        _ <-
-            newRecord @StaffAvailability
-                |> set #venueId venueId
-                |> set #staffId (unpackId staff.id)
-                |> set #weekdayIndex (Just weekdayIndex)
-                |> set #specificDate Nothing
-                |> set #isAvailable True
-                |> set #note Nothing
-                |> createRecord
-        pure ()
-    when (deterministicPercent seedValue [staffIndex, 305] < 45) do
-        let dateOffset = toInteger (deterministicIndex seedValue [staffIndex, 306] 7)
-        let specificDate = dayAtOffset fixtureWeekStart dateOffset
-        let isAvailable = deterministicPercent seedValue [staffIndex, 307] < 35
-        _ <-
-            newRecord @StaffAvailability
-                |> set #venueId venueId
-                |> set #staffId (unpackId staff.id)
-                |> set #weekdayIndex Nothing
-                |> set #specificDate (Just specificDate)
-                |> set #isAvailable isAvailable
-                |> set #note (Just (if isAvailable then "Requested swap" else "Study / childcare"))
-                |> createRecord
-        pure ()
+    let recurringUnavailableSeeds =
+            [ (Just weekdayIndex, Nothing, False, Just (availabilityNoteFor seedValue staffIndex noteIndex))
+            | (noteIndex, weekdayIndex) <- zip [0 :: Int ..] recurringUnavailableWeekdays
+            ]
+    let recurringAvailableSeeds =
+            [ (Just weekdayIndex, Nothing, True, Nothing)
+            | weekdayIndex <- recurringAvailableWeekdays
+            ]
+    let specificDateSeeds =
+            if deterministicPercent seedValue [staffIndex, 305] < 45
+                then
+                    let dateOffset = toInteger (deterministicIndex seedValue [staffIndex, 306] 7)
+                        specificDate = dayAtOffset fixtureWeekStart dateOffset
+                        isAvailable = deterministicPercent seedValue [staffIndex, 307] < 35
+                     in [(Nothing, Just specificDate, isAvailable, Just (if isAvailable then "Requested swap" else "Study / childcare"))]
+                else []
+    let availabilitySeeds = recurringUnavailableSeeds <> recurringAvailableSeeds <> specificDateSeeds
+    availabilityIds <- map Id <$> freshUUIDs (length availabilitySeeds)
+    now <- getCurrentTime
+    void (createMany (zipWith (availabilityRecord now venueId (unpackId staff.id)) availabilityIds availabilitySeeds))
+
+availabilityRecord :: UTCTime -> UUID -> UUID -> Id StaffAvailability -> (Maybe Int, Maybe Day, Bool, Maybe Text) -> StaffAvailability
+availabilityRecord now venueId staffId availabilityId (weekdayIndex, specificDate, isAvailable, note) =
+    newRecord @StaffAvailability
+        |> set #id availabilityId
+        |> set #venueId venueId
+        |> set #staffId staffId
+        |> set #weekdayIndex weekdayIndex
+        |> set #specificDate specificDate
+        |> set #isAvailable isAvailable
+        |> set #note note
+        |> set #createdAt now
+        |> set #updatedAt now
 
 seedStaffShiftPreferenceRecords ::
     (?modelContext :: ModelContext) =>
@@ -349,12 +349,30 @@ seedStaffShiftPreferenceRecords ::
     IO ()
 seedStaffShiftPreferenceRecords _ _ _ [] = pure ()
 seedStaffShiftPreferenceRecords seedValue staffIndex staff groupSlots = do
-    let rosterGroupIds = map (get #id . fst) groupSlots
     let desiredPreferenceCount = 1 + deterministicIndex seedValue [staffIndex, 401] 5
     let preferenceSelections =
             take desiredPreferenceCount
                 (buildShiftPreferenceSelections seedValue staffIndex groupSlots)
-    replaceStaffShiftPreferences staff rosterGroupIds preferenceSelections
+    createStaffShiftPreferenceRecords staff (nub preferenceSelections)
+
+createStaffShiftPreferenceRecords :: (?modelContext :: ModelContext) => Staff -> [ShiftPreferenceSelection] -> IO ()
+createStaffShiftPreferenceRecords _ [] = pure ()
+createStaffShiftPreferenceRecords staff selections = do
+    preferenceIds <- map Id <$> freshUUIDs (length selections)
+    now <- getCurrentTime
+    void (createMany (zipWith (staffShiftPreferenceRecord now staff) preferenceIds selections))
+
+staffShiftPreferenceRecord :: UTCTime -> Staff -> Id StaffShiftPreference -> ShiftPreferenceSelection -> StaffShiftPreference
+staffShiftPreferenceRecord now staff preferenceId selection =
+    newRecord @StaffShiftPreference
+        |> set #id preferenceId
+        |> set #venueId staff.venueId
+        |> set #staffId (unpackId staff.id)
+        |> set #rosterGroupId (unpackId selection.rosterGroupId)
+        |> set #slotNameId (unpackId selection.slotNameId)
+        |> set #weekdayIndex selection.weekdayIndex
+        |> set #createdAt now
+        |> set #updatedAt now
 
 buildShiftPreferenceSelections ::
     Int ->
@@ -537,15 +555,16 @@ backfillAssignedShiftPreferences rosterGroup existingTargets missingTargets rema
             | target `elem` coveredTargets =
                 go coveredTargets remainingTargets (needed - 1)
             | otherwise = do
-                _ <-
-                    newRecord @StaffShiftPreference
-                        |> set #venueId venueId
-                        |> set #staffId target.targetStaffId
-                        |> set #rosterGroupId (unpackId target.targetSelection.rosterGroupId)
-                        |> set #slotNameId (unpackId target.targetSelection.slotNameId)
-                        |> set #weekdayIndex target.targetSelection.weekdayIndex
-                        |> createRecord
+                createStaffShiftPreferenceRecords
+                    (preferenceTargetStaff venueId target)
+                    [target.targetSelection]
                 go (target : coveredTargets) remainingTargets (needed - 1)
+
+preferenceTargetStaff :: UUID -> StaffPreferenceTarget -> Staff
+preferenceTargetStaff venueId target =
+    newRecord @Staff
+        |> set #venueId venueId
+        |> set #id (Id target.targetStaffId)
 
 missingPreferenceTarget ::
     Day ->
@@ -724,6 +743,23 @@ addBreakMinutes startTime minutes =
     let totalMinutes = todHour startTime * 60 + todMin startTime + minutes
      in TimeOfDay (totalMinutes `div` 60) (totalMinutes `mod` 60) 0
 
+createRosterDayRecords :: (?modelContext :: ModelContext) => RosterWeek -> [Int] -> IO [RosterDay]
+createRosterDayRecords _ [] = pure []
+createRosterDayRecords rosterWeek dayOffsets = do
+    rosterDayIds <- map Id <$> freshUUIDs (length dayOffsets)
+    now <- getCurrentTime
+    createMany (zipWith (rosterDayRecord now rosterWeek) rosterDayIds dayOffsets)
+
+rosterDayRecord :: UTCTime -> RosterWeek -> Id RosterDay -> Int -> RosterDay
+rosterDayRecord now rosterWeek rosterDayId dayOffset =
+    newRecord @RosterDay
+        |> set #id rosterDayId
+        |> set #rosterWeekId (unpackId (get #id rosterWeek))
+        |> set #dayOffset dayOffset
+        |> set #isClosed False
+        |> set #createdAt now
+        |> set #updatedAt now
+
 createRosterRow ::
     (?modelContext :: ModelContext) =>
     RosterDay ->
@@ -731,17 +767,25 @@ createRosterRow ::
     Int ->
     [(Text, DevRosterSlotSeed)] ->
     IO ()
-createRosterRow rosterDay slotNames rowIndex assignments =
-    forM_ slotNames \slotName -> do
-        let slotSeed = fromMaybe emptySeed (lookup (get #name slotName) assignments)
-        _ <-
-            createRosterSlotRecord rosterDay slotName slotSeed.slotStaff rowIndex
-                >>= updateRecord
-                    . set #startTime slotSeed.slotStartTime
-                    . set #note slotSeed.slotNote
-        pure ()
+createRosterRow rosterDay slotNames rowIndex assignments = do
+    rosterSlotIds <- map Id <$> freshUUIDs (length slotNames)
+    now <- getCurrentTime
+    void (createMany (zipWith (rosterSlotRecord now rosterDay rowIndex) rosterSlotIds slotNames))
     where
         emptySeed = DevRosterSlotSeed { slotStaff = Nothing, slotStartTime = Nothing, slotNote = Nothing }
+        rosterSlotRecord now rosterDay rowIndex rosterSlotId slotName =
+            let slotSeed = fromMaybe emptySeed (lookup (get #name slotName) assignments)
+             in newRecord @RosterSlot
+                    |> set #id rosterSlotId
+                    |> set #rosterDayId (unpackId (get #id rosterDay))
+                    |> set #slotNameId (unpackId (get #id slotName))
+                    |> set #slotSortOrder slotName.sortOrder
+                    |> set #staffId (fmap (unpackId . get #id) slotSeed.slotStaff)
+                    |> set #rowIndex rowIndex
+                    |> set #startTime slotSeed.slotStartTime
+                    |> set #note slotSeed.slotNote
+                    |> set #createdAt now
+                    |> set #updatedAt now
 
 seededRosterSlot :: Maybe Staff -> TimeOfDay -> Text -> DevRosterSlotSeed
 seededRosterSlot maybeStaff startTime note =
@@ -855,6 +899,10 @@ safeIndex :: [a] -> Int -> Maybe a
 safeIndex values index
     | index < 0 = Nothing
     | otherwise = listToMaybe (drop index values)
+
+freshUUIDs :: Int -> IO [UUID]
+freshUUIDs count =
+    replicateM count UUIDv4.nextRandom
 
 dayAtOffset :: Day -> Integer -> Day
 dayAtOffset weekStart offset = addDays offset weekStart
