@@ -27,7 +27,7 @@ tests = beforeAll testContext do
             response <- callAction AdminAction
             response `responseStatusShouldBe` status302
 
-        it "shows current-venue admin sections without editable pay level management" $ withContext do
+        it "shows current-venue admin sections with FWC-backed award level data" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"
                 venueB <- createVenueWithConfig "Venue B"
@@ -60,6 +60,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Venue Config"
                 response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldContain` "Shift Types"
+                response `responseBodyShouldContain` "Award Levels"
                 response `responseBodyShouldContain` "Slot Names"
                 response `responseBodyShouldContain` "Invites"
                 response `responseBodyShouldContain` "Exports"
@@ -72,10 +73,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldContain` "Kitchen"
+                response `responseBodyShouldContain` "Level A"
                 response `responseBodyShouldContain` "Back of House"
                 response `responseBodyShouldContain` "Pass"
-                response `responseBodyShouldNotContain` "Level A"
-                response `responseBodyShouldNotContain` "Level B"
                 response `responseBodyShouldNotContain` "Bar"
                 response `responseBodyShouldNotContain` "Graveyard"
                 response `responseBodyShouldNotContain` "Default Only"
@@ -132,6 +132,7 @@ tests = beforeAll testContext do
                     callActionWithParams CreateShiftTypeAction
                         [ ("name", "Supervisor")
                         , ("isActive", "true")
+                        , ("overrideAwardLevelId", "")
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
 
@@ -172,6 +173,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 level <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue level "Kitchen"
+                overrideLevel <- createPayLevelRecord venue "Level 2"
                 slotName <- fetchSlotNameRecord venue "Early"
                 middleSlotName <- fetchSlotNameRecord venue "Mid"
                 lastSlotName <- fetchSlotNameRecord venue "Late"
@@ -193,6 +195,7 @@ tests = beforeAll testContext do
                     callActionWithParams (UpdateShiftTypeAction shiftType.id)
                         [ ("name", "Kitchen Updated")
                         , ("isActive", "false")
+                        , ("overrideAwardLevelId", idToParam overrideLevel.id)
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
 
@@ -224,7 +227,7 @@ tests = beforeAll testContext do
                 updatedRosterGroup.isActive `shouldBe` True
                 get #id defaultRosterGroup `shouldBe` get #id updatedRosterGroup
                 updatedShiftType.name `shouldBe` "Kitchen Updated"
-                updatedShiftType.overrideAwardLevelId `shouldBe` Just level.id
+                updatedShiftType.overrideAwardLevelId `shouldBe` Just overrideLevel.id
                 updatedShiftType.isActive `shouldBe` False
                 updatedSlotName.name `shouldBe` "Early Updated"
                 updatedSlotName.isActive `shouldBe` True
@@ -266,6 +269,7 @@ tests = beforeAll testContext do
                     callActionWithParams (UpdateShiftTypeAction foreignShiftType.id)
                         [ ("name", "Should Not Work")
                         , ("isActive", "false")
+                        , ("overrideAwardLevelId", "")
                         ]
 
                 response `responseStatusShouldBe` status403
@@ -295,6 +299,7 @@ tests = beforeAll testContext do
                     callActionWithParams CreateShiftTypeAction
                         [ ("name", "Supervisor")
                         , ("isActive", "true")
+                        , ("overrideAwardLevelId", "")
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
                 (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v1"]

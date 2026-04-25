@@ -17,6 +17,8 @@ data IndexView = IndexView
     , rosterGroups                    :: [RosterGroup]
     , currentRosterGroup              :: RosterGroup
     , shiftTypes                      :: [ShiftType]
+    , awardLevels                     :: [AwardLevel]
+    , awardLevelBaseRates             :: [AwardLevelBaseRate]
     , slotNames                       :: [SlotName]
     , weekdays                        :: [DayName]
     , staffPayReportDefinition        :: Maybe VenueReportDefinition
@@ -42,7 +44,7 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup shiftTypes slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
+                                {renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup shiftTypes awardLevels awardLevelBaseRates slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
                             </div>
                         </div>
                     |]
@@ -76,15 +78,29 @@ instance View IndexView where
             |]
             })
 
-renderShiftTypesSection :: [ShiftType] -> Html
-renderShiftTypesSection shiftTypes =
+renderShiftTypesSection :: [ShiftType] -> [AwardLevel] -> Html
+renderShiftTypesSection shiftTypes awardLevels =
     renderConfigSection
         "shift-types"
         "Shift Types"
-        "Configure venue shift types. Award-level overrides will be assigned from the FWC-backed level UI."
+        "Configure venue shift types. Leave the award level blank when a shift should use the staff member's default."
         (renderRowCountSummary shiftTypes)
-        renderShiftTypeCreateForm
-        (if null shiftTypes then renderEmptyState "No shift types yet." else forEach shiftTypes renderShiftTypeRow)
+        (renderShiftTypeCreateForm awardLevels)
+        (if null shiftTypes then renderEmptyState "No shift types yet." else forEach shiftTypes (renderShiftTypeRow awardLevels))
+
+renderAwardLevelsSection :: [AwardLevel] -> [AwardLevelBaseRate] -> Html
+renderAwardLevelsSection awardLevels awardLevelBaseRates =
+    renderConfigSection
+        "award-levels"
+        "Award Levels"
+        "Synced FWC adult hourly classifications available for staff defaults and shift-type overrides."
+        [hsx|
+            <p class="small app-muted mb-3">
+                {tshow (length awardLevels)} active levels synced from FWC.
+            </p>
+        |]
+        mempty
+        (if null awardLevels then renderEmptyState "No synced award levels yet. Run the FWC sync before assigning staff or shift pay levels." else renderAwardLevelTable awardLevels awardLevelBaseRates)
 
 renderRosterGroupsSection :: [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupsSection rosterGroups currentRosterGroup =
@@ -310,13 +326,14 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
         |]
 
-renderConfigSectionsAccordion :: VenueConfig -> Bool -> [RosterGroup] -> RosterGroup -> [ShiftType] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
-renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup shiftTypes slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
+renderConfigSectionsAccordion :: VenueConfig -> Bool -> [RosterGroup] -> RosterGroup -> [ShiftType] -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
+renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup shiftTypes awardLevels awardLevelBaseRates slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "venue-config" "Venue Config" True (renderVenueConfigSection venueConfig venueRosterWeekStartLocked)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSection rosterGroups currentRosterGroup)}
         {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment invitations currentRosterGroup.id)}
-        {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes)}
+        {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes awardLevels)}
+        {renderAccordionItem "award-levels" "Award Levels" False (renderAwardLevelsSection awardLevels awardLevelBaseRates)}
         {renderAccordionItem "slot-names" "Slot Names" False (renderSlotNamesSectionFragment currentRosterGroup slotNames)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection)}
     </div>
@@ -417,61 +434,123 @@ renderConfigSection anchorId title description summary createForm rows =
         |]
         }
 
-renderShiftTypeCreateForm :: Html
-renderShiftTypeCreateForm = [hsx|
+renderShiftTypeCreateForm :: [AwardLevel] -> Html
+renderShiftTypeCreateForm awardLevels = [hsx|
     <form method="POST" action={CreateShiftTypeAction} class="border rounded p-3" data-disable-javascript-submission="true">
         <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-5">
+            <div class="col-12 col-lg-3">
                 <label class="form-label" for="new-shift-type-name">Name</label>
                 <input id="new-shift-type-name" class="form-control" type="text" name="name" placeholder="Standard Shift" />
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-lg-2">
                 <label class="form-label" for="new-shift-type-sort-order">Sort Order</label>
                 <input id="new-shift-type-sort-order" class="form-control" type="number" name="sortOrder" value="0" />
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-lg-3">
+                <label class="form-label" for="new-shift-type-award-level">Award Override</label>
+                <select id="new-shift-type-award-level" class="form-select" name="overrideAwardLevelId">
+                    <option value="" selected={True}>Use staff default</option>
+                    {forEach awardLevels (renderAwardLevelOption Nothing)}
+                </select>
+            </div>
+            <div class="col-12 col-lg-2">
                 <label class="form-label" for="new-shift-type-active">Status</label>
                 <select id="new-shift-type-active" class="form-select" name="isActive">
                     <option value="true" selected={True}>Active</option>
                     <option value="false">Inactive</option>
                 </select>
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-lg-2">
                 <button class="btn btn-outline-primary w-100" type="submit">Add</button>
             </div>
         </div>
     </form>
 |]
 
-renderShiftTypeRow :: ShiftType -> Html
-renderShiftTypeRow shiftType = [hsx|
+renderShiftTypeRow :: [AwardLevel] -> ShiftType -> Html
+renderShiftTypeRow awardLevels shiftType = [hsx|
     <form method="POST" action={UpdateShiftTypeAction (get #id shiftType)} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <span class="fw-semibold">Shift Type</span>
             {renderActiveBadge shiftType.isActive}
         </div>
         <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-4">
+            <div class="col-12 col-lg-3">
                 <label class="form-label">Name</label>
                 <input class="form-control" type="text" name="name" value={shiftType.name} />
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-lg-2">
                 <label class="form-label">Sort Order</label>
                 <input class="form-control" type="number" name="sortOrder" value={tshow shiftType.sortOrder} />
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-lg-3">
+                <label class="form-label">Award Override</label>
+                <select class="form-select" name="overrideAwardLevelId">
+                    <option value="" selected={isNothing shiftType.overrideAwardLevelId}>Use staff default</option>
+                    {forEach awardLevels (renderAwardLevelOption shiftType.overrideAwardLevelId)}
+                </select>
+            </div>
+            <div class="col-12 col-lg-2">
                 <label class="form-label">Status</label>
                 <select class="form-select" name="isActive">
                     <option value="true" selected={shiftType.isActive}>Active</option>
                     <option value="false" selected={not shiftType.isActive}>Inactive</option>
                 </select>
             </div>
-            <div class="col-12 col-md-2">
+            <div class="col-12 col-lg-2">
                 <button class="btn btn-outline-secondary w-100" type="submit">Update</button>
             </div>
         </div>
     </form>
 |]
+
+renderAwardLevelTable :: [AwardLevel] -> [AwardLevelBaseRate] -> Html
+renderAwardLevelTable awardLevels awardLevelBaseRates = [hsx|
+    <div class="table-responsive">
+        <table class="table table-striped align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Classification</th>
+                    <th>Permanent Hourly</th>
+                    <th>Casual Hourly</th>
+                </tr>
+            </thead>
+            <tbody>
+                {forEach awardLevels (renderAwardLevelRow awardLevelBaseRates)}
+            </tbody>
+        </table>
+    </div>
+|]
+
+renderAwardLevelRow :: [AwardLevelBaseRate] -> AwardLevel -> Html
+renderAwardLevelRow awardLevelBaseRates awardLevel = [hsx|
+    <tr>
+        <td>{renderAwardLevelLabel awardLevel}</td>
+        <td>{renderAwardLevelBaseRate awardLevelBaseRates Permanent awardLevel}</td>
+        <td>{renderAwardLevelBaseRate awardLevelBaseRates Casual awardLevel}</td>
+    </tr>
+|]
+
+renderAwardLevelOption :: Maybe (Id AwardLevel) -> AwardLevel -> Html
+renderAwardLevelOption selectedAwardLevelId awardLevel = [hsx|
+    <option value={inputValue awardLevel.id} selected={selectedAwardLevelId == Just awardLevel.id}>
+        {renderAwardLevelLabel awardLevel}
+    </option>
+|]
+
+renderAwardLevelLabel :: AwardLevel -> Text
+renderAwardLevelLabel awardLevel =
+    maybe "" (<> " - ") awardLevel.classificationLevel <> awardLevel.classification
+
+renderAwardLevelBaseRate :: [AwardLevelBaseRate] -> StaffEmploymentBasisEnum -> AwardLevel -> Text
+renderAwardLevelBaseRate awardLevelBaseRates employmentBasis awardLevel =
+    case find matchingRate awardLevelBaseRates of
+        Just rate -> "$" <> tshow rate.hourlyRate
+        Nothing   -> "Not synced"
+    where
+        matchingRate rate =
+            rate.awardLevelId == unpackId awardLevel.id
+                && rate.employmentBasis == employmentBasis
 
 renderRosterGroupCreateForm :: Html
 renderRosterGroupCreateForm = [hsx|

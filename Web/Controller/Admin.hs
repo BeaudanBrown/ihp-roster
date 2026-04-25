@@ -28,6 +28,8 @@ instance Controller AdminController where
         rosterGroups <- fetchCurrentVenueRosterGroups
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         shiftTypes <- fetchCurrentVenueShiftTypes
+        awardLevels <- fetchActiveAwardLevels
+        awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
         slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
         weekdays <- fetchCurrentVenueDayNames
         activeReportDefinitions <- fetchCurrentVenueReportDefinitions
@@ -182,19 +184,23 @@ instance Controller AdminController where
             Just name -> do
                 let isActive = parseIsActiveParam
                 let sortOrder = parseSortOrderParam
-                _ <- withTransaction do
-                    shiftType <-
-                        newRecord @ShiftType
-                            |> set #venueId (unpackId currentVenueId)
-                            |> set #name name
-                            |> set #sortOrder sortOrder
-                            |> set #overrideAwardLevelId (Nothing :: Maybe (Id AwardLevel))
-                            |> set #isActive isActive
-                            |> createRecord
-                    _ <- syncCurrentVenuePayConfigSnapshot
-                    pure shiftType
-                setSuccessMessage "Shift type added"
-                redirectToAdminFor (paramOrNothing "rosterGroupId")
+                maybeOverrideAwardLevelId <- parseSubmittedOverrideAwardLevelId
+                case maybeOverrideAwardLevelId of
+                    Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
+                    Just overrideAwardLevelId -> do
+                        _ <- withTransaction do
+                            shiftType <-
+                                newRecord @ShiftType
+                                    |> set #venueId (unpackId currentVenueId)
+                                    |> set #name name
+                                    |> set #sortOrder sortOrder
+                                    |> set #overrideAwardLevelId overrideAwardLevelId
+                                    |> set #isActive isActive
+                                    |> createRecord
+                            _ <- syncCurrentVenuePayConfigSnapshot
+                            pure shiftType
+                        setSuccessMessage "Shift type added"
+                        redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action UpdateShiftTypeAction { shiftTypeId } = do
         shiftType <- fetch shiftTypeId
@@ -205,17 +211,22 @@ instance Controller AdminController where
             Just name -> do
                 let isActive = parseIsActiveParam
                 let sortOrder = parseSortOrderParam
-                _ <- withTransaction do
-                    updatedShiftType <-
-                        shiftType
-                            |> set #name name
-                            |> set #sortOrder sortOrder
-                            |> set #isActive isActive
-                            |> updateRecord
-                    _ <- syncCurrentVenuePayConfigSnapshot
-                    pure updatedShiftType
-                setSuccessMessage "Shift type updated"
-                redirectToAdminFor (paramOrNothing "rosterGroupId")
+                maybeOverrideAwardLevelId <- parseSubmittedOverrideAwardLevelId
+                case maybeOverrideAwardLevelId of
+                    Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
+                    Just overrideAwardLevelId -> do
+                        _ <- withTransaction do
+                            updatedShiftType <-
+                                shiftType
+                                    |> set #name name
+                                    |> set #sortOrder sortOrder
+                                    |> set #overrideAwardLevelId overrideAwardLevelId
+                                    |> set #isActive isActive
+                                    |> updateRecord
+                            _ <- syncCurrentVenuePayConfigSnapshot
+                            pure updatedShiftType
+                        setSuccessMessage "Shift type updated"
+                        redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action CreateSlotNameAction = do
         maybeName <- parseRequiredName "name" "Slot name is required."
@@ -282,6 +293,21 @@ fetchCurrentVenueShiftTypes =
     query @ShiftType
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> orderByAsc #sortOrder
+        |> orderByAsc #createdAt
+        |> fetch
+
+fetchActiveAwardLevels :: (?modelContext :: ModelContext) => IO [AwardLevel]
+fetchActiveAwardLevels =
+    query @AwardLevel
+        |> filterWhere (#isActive, True)
+        |> orderByAsc #classification
+        |> orderByAsc #classificationLevel
+        |> fetch
+
+fetchCurrentAwardLevelBaseRates :: (?modelContext :: ModelContext) => IO [AwardLevelBaseRate]
+fetchCurrentAwardLevelBaseRates =
+    query @AwardLevelBaseRate
+        |> filterWhere (#operativeTo, Nothing :: Maybe Day)
         |> orderByAsc #createdAt
         |> fetch
 
@@ -498,6 +524,24 @@ parseIsActiveParam = paramOrDefault "true" "isActive" == ("true" :: Text)
 
 parseSortOrderParam :: (?context :: ControllerContext, ?request :: Request) => Int
 parseSortOrderParam = paramOrDefault @Int 0 "sortOrder"
+
+parseSubmittedOverrideAwardLevelId ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO (Maybe (Maybe (Id AwardLevel)))
+parseSubmittedOverrideAwardLevelId =
+    case paramOrNothing @(Id AwardLevel) "overrideAwardLevelId" of
+        Nothing -> pure (Just Nothing)
+        Just awardLevelId -> do
+            maybeAwardLevel <-
+                query @AwardLevel
+                    |> filterWhere (#id, awardLevelId)
+                    |> filterWhere (#isActive, True)
+                    |> fetchOneOrNothing
+            case maybeAwardLevel of
+                Just _ -> pure (Just (Just awardLevelId))
+                Nothing -> do
+                    setErrorMessage "Choose a synced award level, or leave the shift type using the staff default."
+                    pure Nothing
 
 parseRosterWeekStartsOn ::
     (?context :: ControllerContext, ?request :: Request) =>
