@@ -39,10 +39,10 @@ data ReportWeekSelection = ReportWeekSelection
     deriving (Eq, Show)
 
 data StaffPayCsvRecord = StaffPayCsvRecord
-    { staffName    :: !Text
-    , label        :: !Text
-    , bucketHours  :: ![Double]
-    , total        :: !Double
+    { staffName   :: !Text
+    , label       :: !Text
+    , bucketHours :: ![Double]
+    , total       :: !Double
     }
     deriving (Eq, Show)
 
@@ -58,19 +58,19 @@ data StaffPayCsvPayload = StaffPayCsvPayload
     deriving (Eq, Show)
 
 data PayrollEarningsCsvRecord = PayrollEarningsCsvRecord
-    { staffFirstName       :: !Text
-    , staffLastName        :: !Text
-    , workDate             :: !Day
-    , earningsRateName     :: !Text
-    , hours                :: !Double
-    , trackingCode         :: !(Maybe Text)
-    , description          :: !Text
-    , staffId              :: !UUID
-    , timesheetEntryIds    :: ![UUID]
-    , payConfigSnapshot    :: !(Maybe Text)
-    , sourcePenaltyKind    :: !Text
-    , sourcePayLevelName   :: !(Maybe Text)
-    , sourceShiftTypeName  :: !(Maybe Text)
+    { staffFirstName      :: !Text
+    , staffLastName       :: !Text
+    , workDate            :: !Day
+    , earningsRateName    :: !Text
+    , hours               :: !Double
+    , trackingCode        :: !(Maybe Text)
+    , description         :: !Text
+    , staffId             :: !UUID
+    , timesheetEntryIds   :: ![UUID]
+    , payConfigSnapshot   :: !(Maybe Text)
+    , sourcePenaltyKind   :: !Text
+    , sourcePayLevelName  :: !(Maybe Text)
+    , sourceShiftTypeName :: !(Maybe Text)
     }
     deriving (Eq, Show)
 
@@ -107,19 +107,19 @@ allExportJobStatusValues = ["pending", "ready", "expired"]
 
 exportJobTypeToText :: ExportJobType -> Text
 exportJobTypeToText ApprovedTimesheetsCsv = "approved_timesheets_csv"
-exportJobTypeToText StaffPayCsv = "staff_pay_csv"
-exportJobTypeToText HourlyBreakdownZip = "hourly_breakdown_zip"
-exportJobTypeToText PayrollEarningsCsv = "payroll_earnings_csv"
+exportJobTypeToText StaffPayCsv           = "staff_pay_csv"
+exportJobTypeToText HourlyBreakdownZip    = "hourly_breakdown_zip"
+exportJobTypeToText PayrollEarningsCsv    = "payroll_earnings_csv"
 
 parseExportJobType :: Text -> Maybe ExportJobType
 parseExportJobType "approved_timesheets_csv" = Just ApprovedTimesheetsCsv
-parseExportJobType "staff_pay_csv" = Just StaffPayCsv
-parseExportJobType "hourly_breakdown_zip" = Just HourlyBreakdownZip
-parseExportJobType "payroll_earnings_csv" = Just PayrollEarningsCsv
-parseExportJobType _ = Nothing
+parseExportJobType "staff_pay_csv"           = Just StaffPayCsv
+parseExportJobType "hourly_breakdown_zip"    = Just HourlyBreakdownZip
+parseExportJobType "payroll_earnings_csv"    = Just PayrollEarningsCsv
+parseExportJobType _                         = Nothing
 
 reportDefinitionEngineToText :: ReportDefinitionEngine -> Text
-reportDefinitionEngineToText StaffPayCsvReport = "staff_pay_csv"
+reportDefinitionEngineToText StaffPayCsvReport        = "staff_pay_csv"
 reportDefinitionEngineToText HourlyBreakdownZipReport = "hourly_breakdown_zip"
 reportDefinitionEngineToText PayrollEarningsCsvReport = "payroll_earnings_csv"
 
@@ -131,14 +131,14 @@ parseReportDefinitionEngine _ = Nothing
 
 exportJobStatusToText :: ExportJobStatus -> Text
 exportJobStatusToText ExportPending = "pending"
-exportJobStatusToText ExportReady = "ready"
+exportJobStatusToText ExportReady   = "ready"
 exportJobStatusToText ExportExpired = "expired"
 
 parseExportJobStatus :: Text -> Maybe ExportJobStatus
 parseExportJobStatus "pending" = Just ExportPending
-parseExportJobStatus "ready" = Just ExportReady
+parseExportJobStatus "ready"   = Just ExportReady
 parseExportJobStatus "expired" = Just ExportExpired
-parseExportJobStatus _ = Nothing
+parseExportJobStatus _         = Nothing
 
 browserDownloadMethod :: Text
 browserDownloadMethod = "browser_download"

@@ -290,7 +290,7 @@ renderApprovedTimesheetCsv entries staffById approversById snapshotVersionsByEnt
         staffDisplayNameForEntry staffId =
             case Map.lookup staffId staffById of
                 Just staff -> staff.lastName <> ", " <> staff.firstName
-                Nothing -> "Unknown staff"
+                Nothing    -> "Unknown staff"
 
 formatTimeOfDay :: TimeOfDay -> Text
 formatTimeOfDay timeOfDay = Text.pack (formatTime defaultTimeLocale "%H:%M" timeOfDay)

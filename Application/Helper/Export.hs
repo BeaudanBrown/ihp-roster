@@ -7,7 +7,8 @@ module Application.Helper.Export
 import Application.Helper.Controller
 import Application.Helper.Export.Render
 import Application.Helper.Export.Types
-import Application.Helper.Pay (PaySegment (..), PayTotals (..), TimesheetPayResult (..),
+import Application.Helper.Pay (PaySegment (..), PayTotals (..),
+                               TimesheetPayResult (..),
                                ensureCurrentVenuePayConfigSnapshot,
                                fetchTimesheetPayResultsForEntries,
                                timesheetEntryIdKey)
@@ -103,19 +104,15 @@ bootstrapCurrentVenueReportDefinitionsIfMissing = do
             |> orderByAsc #createdAt
             |> fetch
         void $ withTransaction do
-            wageDefinition <- createReportDefinition "wage" "Wage Report" (Just "Hourly staff count breakdown per day (ZIP of CSVs)") HourlyBreakdownZipReport 10
-            _ <- wageDefinition `seq` pure ()
-            staffHoursDefinition <- createReportDefinition "staff_hours" "Staff Hours Report" (Just "Staff hours broken down by pay level and day") StaffPayCsvReport 20
-            _ <- staffHoursDefinition `seq` pure ()
-            payrollEarningsDefinition <- createReportDefinition "payroll_earnings" "Payroll Earnings CSV" (Just "Approved payroll earnings by staff, date, earnings bucket, and tracking code") PayrollEarningsCsvReport 25
-            _ <- payrollEarningsDefinition `seq` pure ()
+            _ <- createReportDefinition "wage" "Wage Report" (Just "Hourly staff count breakdown per day (ZIP of CSVs)") HourlyBreakdownZipReport 10
+            _ <- createReportDefinition "staff_hours" "Staff Hours Report" (Just "Staff hours broken down by pay level and day") StaffPayCsvReport 20
+            _ <- createReportDefinition "payroll_earnings" "Payroll Earnings CSV" (Just "Approved payroll earnings by staff, date, earnings bucket, and tracking code") PayrollEarningsCsvReport 25
             forM_ (find (\shiftType -> shiftType.name == "Kitchen") shiftTypes) \kitchenShiftType -> do
                 kitchenDefinition <- createReportDefinition "kitchen" "Kitchen Report" (Just "Kitchen staff hours by day") StaffPayCsvReport 30
                 newRecord @ReportDefinitionShiftTypeFilter
                     |> set #reportDefinitionId (unpackId (get #id kitchenDefinition))
                     |> set #shiftTypeId (unpackId (get #id kitchenShiftType))
                     |> createRecord
-            pure ()
     where
         createReportDefinition slug name description engine sortOrder =
             newRecord @ReportDefinition
@@ -616,18 +613,18 @@ buildStaffPayCsvRecords reportDefinition reportWeekSelection entries staffById p
                 }
 
 data PayrollEarningsAggregation = PayrollEarningsAggregation
-    { aggregationStaffFirstName       :: !Text
-    , aggregationStaffLastName        :: !Text
-    , aggregationWorkDate             :: !Day
-    , aggregationEarningsRateName     :: !Text
-    , aggregationTrackingCode         :: !(Maybe Text)
-    , aggregationMinutes              :: !Int
-    , aggregationStaffId              :: !UUID
-    , aggregationTimesheetEntryIds    :: ![UUID]
-    , aggregationSnapshotVersions     :: ![Text]
-    , aggregationSourcePenaltyKind    :: !Text
-    , aggregationSourcePayLevelName   :: !(Maybe Text)
-    , aggregationSourceShiftTypeName  :: !(Maybe Text)
+    { aggregationStaffFirstName      :: !Text
+    , aggregationStaffLastName       :: !Text
+    , aggregationWorkDate            :: !Day
+    , aggregationEarningsRateName    :: !Text
+    , aggregationTrackingCode        :: !(Maybe Text)
+    , aggregationMinutes             :: !Int
+    , aggregationStaffId             :: !UUID
+    , aggregationTimesheetEntryIds   :: ![UUID]
+    , aggregationSnapshotVersions    :: ![Text]
+    , aggregationSourcePenaltyKind   :: !Text
+    , aggregationSourcePayLevelName  :: !(Maybe Text)
+    , aggregationSourceShiftTypeName :: !(Maybe Text)
     }
     deriving (Eq, Show)
 
@@ -729,12 +726,12 @@ payrollEarningsPenaltyKind segment =
 payrollEarningsPenaltyLabel :: PaySegment -> Text
 payrollEarningsPenaltyLabel segment =
     case payrollEarningsPenaltyKind segment of
-        "saturday_penalty" -> "Saturday"
-        "sunday_penalty" -> "Sunday"
-        "public_holiday_penalty" -> "Public Holiday"
-        "evening_after_7pm" -> "Evening After 7pm"
+        "saturday_penalty"          -> "Saturday"
+        "sunday_penalty"            -> "Sunday"
+        "public_holiday_penalty"    -> "Public Holiday"
+        "evening_after_7pm"         -> "Evening After 7pm"
         "late_night_after_midnight" -> "Late Night After Midnight"
-        _ -> "Ordinary"
+        _                           -> "Ordinary"
 
 requestApprovedTimesheetsCsvExport ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
