@@ -23,6 +23,7 @@ data MapdSyncSummary = MapdSyncSummary
     , fetchedClassificationCount :: !Int
     , fetchedPayRateCount     :: !Int
     , fetchedPenaltyRateCount :: !Int
+    , fetchedWageAllowanceCount :: !Int
     }
     deriving (Eq, Show)
 
@@ -96,6 +97,27 @@ data PenaltyRatePayload = PenaltyRatePayload
     , penaltyPublishedYear :: !(Maybe Int)
     , penaltyVersionNumber :: !(Maybe Int)
     , penaltyLastModifiedDatetime :: !(Maybe UTCTime)
+    }
+    deriving (Eq, Show)
+
+data WageAllowancePayload = WageAllowancePayload
+    { wageAllowanceFixedId :: !(Maybe Int)
+    , wageAllowanceClauseFixedId :: !(Maybe Int)
+    , wageAllowanceClauses :: !(Maybe Text)
+    , wageAllowance :: !(Maybe Text)
+    , wageAllowanceType :: !(Maybe Text)
+    , wageAllowanceIsAllPurpose :: !(Maybe Bool)
+    , wageAllowanceRate :: !(Maybe Scientific)
+    , wageAllowanceBaseRate :: !(Maybe Scientific)
+    , wageAllowanceBasePayRateId :: !(Maybe Text)
+    , wageAllowanceRateUnit :: !(Maybe Text)
+    , wageAllowanceAmount :: !(Maybe Scientific)
+    , wageAllowancePaymentFrequency :: !(Maybe Text)
+    , wageAllowanceOperativeFrom :: !(Maybe Day)
+    , wageAllowanceOperativeTo :: !(Maybe Day)
+    , wageAllowancePublishedYear :: !(Maybe Int)
+    , wageAllowanceVersionNumber :: !(Maybe Int)
+    , wageAllowanceLastModifiedDatetime :: !(Maybe UTCTime)
     }
     deriving (Eq, Show)
 
@@ -214,6 +236,27 @@ instance Aeson.FromJSON PenaltyRatePayload where
             <*> object Aeson..:? "version_number"
             <*> object Aeson..:? "last_modified_datetime"
 
+instance Aeson.FromJSON WageAllowancePayload where
+    parseJSON = Aeson.withObject "WageAllowancePayload" \object ->
+        WageAllowancePayload
+            <$> object Aeson..:? "wage_allowance_fixed_id"
+            <*> object Aeson..:? "clause_fixed_id"
+            <*> parseOptionalTextishField object "clauses"
+            <*> object Aeson..:? "allowance"
+            <*> object Aeson..:? "type"
+            <*> object Aeson..:? "is_all_purpose"
+            <*> object Aeson..:? "rate"
+            <*> object Aeson..:? "base_rate"
+            <*> parseOptionalTextishField object "base_pay_rate_id"
+            <*> object Aeson..:? "rate_unit"
+            <*> object Aeson..:? "allowance_amount"
+            <*> object Aeson..:? "payment_frequency"
+            <*> object Aeson..:? "operative_from"
+            <*> object Aeson..:? "operative_to"
+            <*> object Aeson..:? "published_year"
+            <*> object Aeson..:? "version_number"
+            <*> object Aeson..:? "last_modified_datetime"
+
 parseOptionalTextishField :: Aeson.Object -> Text -> Aeson.Parser (Maybe Text)
 parseOptionalTextishField object fieldName = do
     maybeValue <- object Aeson..:? AesonKey.fromText fieldName
@@ -269,6 +312,7 @@ runMapdSync config = do
                     |> set #fetchedClassificationCount summary.fetchedClassificationCount
                     |> set #fetchedPayRateCount summary.fetchedPayRateCount
                     |> set #fetchedPenaltyRateCount summary.fetchedPenaltyRateCount
+                    |> set #fetchedWageAllowanceCount summary.fetchedWageAllowanceCount
                     |> set #finishedAt (Just finishedAt)
                     |> updateRecord
                 )
@@ -281,9 +325,11 @@ fetchAndStore config = do
         awardValues <- liftIO (fetchAwardValues config awardFixedId)
         classificationValues <- liftIO (fetchClassificationValues config awardFixedId)
         payRateValues <- liftIO (fetchPayRateValues config awardFixedId)
+        wageAllowanceValues <- liftIO (fetchWageAllowanceValues config awardFixedId)
         awards <- decodePayloads "awards" awardValues :: IO [(AwardPayload, Aeson.Value)]
         classifications <- decodePayloads "classifications" classificationValues :: IO [(ClassificationPayload, Aeson.Value)]
         payRates <- decodePayloads "pay rates" payRateValues :: IO [(PayRatePayload, Aeson.Value)]
+        wageAllowances <- decodePayloads "wage allowances" wageAllowanceValues :: IO [(WageAllowancePayload, Aeson.Value)]
         let (_, _, _, retainedPayRatesForPenaltyFetch, _) =
                 curateAwardData barVenueCurationProfile asOfDate (awardFixedId, awards, classifications, payRates, [])
             retainedBasePayRateIds =
@@ -293,13 +339,15 @@ fetchAndStore config = do
                     |> Set.toList
         penaltyRateValues <- liftIO (concat <$> forM retainedBasePayRateIds (fetchPenaltyRateValuesForBasePayRateId config awardFixedId))
         penaltyRates <- decodePayloads "penalty rates" penaltyRateValues :: IO [(PenaltyRatePayload, Aeson.Value)]
-        pure (curateAwardData barVenueCurationProfile asOfDate (awardFixedId, awards, classifications, payRates, penaltyRates))
+        let curatedAwardData = curateAwardData barVenueCurationProfile asOfDate (awardFixedId, awards, classifications, payRates, penaltyRates)
+            retainedWageAllowances = curateWageAllowances barVenueCurationProfile asOfDate wageAllowances
+        pure (curatedAwardData, retainedWageAllowances)
 
     withTransaction do
-        let requestedAwardIds = map (\(awardFixedId, _, _, _, _) -> awardFixedId) fetchedAwards
+        let requestedAwardIds = map (\((awardFixedId, _, _, _, _), _) -> awardFixedId) fetchedAwards
         clearExistingCache requestedAwardIds
         syncedAt <- getCurrentTime
-        forM_ fetchedAwards \(awardFixedId, awards, classifications, payRates, penaltyRates) -> do
+        forM_ fetchedAwards \((awardFixedId, awards, classifications, payRates, penaltyRates), wageAllowances) -> do
             forM_ awards \(payload, rawValue) ->
                 void
                     ( newRecord @FwcMapdAward
@@ -388,12 +436,38 @@ fetchAndStore config = do
                         |> set #syncedAt syncedAt
                         |> createRecord
                     )
+            forM_ wageAllowances \(payload, rawValue) ->
+                void
+                    ( newRecord @FwcMapdWageAllowance
+                        |> set #awardFixedId awardFixedId
+                        |> set #wageAllowanceFixedId payload.wageAllowanceFixedId
+                        |> set #clauseFixedId payload.wageAllowanceClauseFixedId
+                        |> set #clauses payload.wageAllowanceClauses
+                        |> set #allowance payload.wageAllowance
+                        |> set #allowanceType payload.wageAllowanceType
+                        |> set #isAllPurpose payload.wageAllowanceIsAllPurpose
+                        |> set #rate payload.wageAllowanceRate
+                        |> set #baseRate payload.wageAllowanceBaseRate
+                        |> set #basePayRateId payload.wageAllowanceBasePayRateId
+                        |> set #rateUnit payload.wageAllowanceRateUnit
+                        |> set #allowanceAmount payload.wageAllowanceAmount
+                        |> set #paymentFrequency payload.wageAllowancePaymentFrequency
+                        |> set #operativeFrom payload.wageAllowanceOperativeFrom
+                        |> set #operativeTo payload.wageAllowanceOperativeTo
+                        |> set #publishedYear payload.wageAllowancePublishedYear
+                        |> set #versionNumber payload.wageAllowanceVersionNumber
+                        |> set #lastModifiedDatetime payload.wageAllowanceLastModifiedDatetime
+                        |> set #rawJson rawValue
+                        |> set #syncedAt syncedAt
+                        |> createRecord
+                    )
             populateAwardLevelProjection awardFixedId syncedAt
 
-        let fetchedAwardCount = sum (map (\(_, awards, _, _, _) -> length awards) fetchedAwards)
-        let fetchedClassificationCount = sum (map (\(_, _, classifications, _, _) -> length classifications) fetchedAwards)
-        let fetchedPayRateCount = sum (map (\(_, _, _, payRates, _) -> length payRates) fetchedAwards)
-        let fetchedPenaltyRateCount = sum (map (\(_, _, _, _, penaltyRates) -> length penaltyRates) fetchedAwards)
+        let fetchedAwardCount = sum (map (\((_, awards, _, _, _), _) -> length awards) fetchedAwards)
+        let fetchedClassificationCount = sum (map (\((_, _, classifications, _, _), _) -> length classifications) fetchedAwards)
+        let fetchedPayRateCount = sum (map (\((_, _, _, payRates, _), _) -> length payRates) fetchedAwards)
+        let fetchedPenaltyRateCount = sum (map (\((_, _, _, _, penaltyRates), _) -> length penaltyRates) fetchedAwards)
+        let fetchedWageAllowanceCount = sum (map (\(_, wageAllowances) -> length wageAllowances) fetchedAwards)
         pure
             MapdSyncSummary
                 { syncedAwardFixedIds = requestedAwardIds
@@ -401,6 +475,7 @@ fetchAndStore config = do
                 , fetchedClassificationCount = fetchedClassificationCount
                 , fetchedPayRateCount = fetchedPayRateCount
                 , fetchedPenaltyRateCount = fetchedPenaltyRateCount
+                , fetchedWageAllowanceCount = fetchedWageAllowanceCount
                 }
 
 decodePayloads :: Aeson.FromJSON a => Text -> [Aeson.Value] -> IO [(a, Aeson.Value)]
@@ -480,6 +555,7 @@ populateAwardLevelProjection awardFixedId syncedAt = do
             (createPenaltyRateIfNew awardLevelByClassificationFixedId awardLevelByBasePayRateId)
             Set.empty
             penaltyRates
+    populateTimePenaltyAllowances awardFixedId
 
 createBaseRateIfNew ::
     (?modelContext :: ModelContext) =>
@@ -574,6 +650,48 @@ createPenaltyRateIfNew awardLevelByClassificationFixedId awardLevelByBasePayRate
                     pure (Set.insert key seen)
         _ -> pure seen
 
+populateTimePenaltyAllowances :: (?modelContext :: ModelContext) => Int -> IO ()
+populateTimePenaltyAllowances awardFixedId = do
+    wageAllowances <-
+        query @FwcMapdWageAllowance
+            |> filterWhere (#awardFixedId, awardFixedId)
+            |> orderByAsc #createdAt
+            |> fetch
+    void $
+        foldM
+            createTimePenaltyAllowanceIfNew
+            Set.empty
+            wageAllowances
+
+createTimePenaltyAllowanceIfNew ::
+    (?modelContext :: ModelContext) =>
+    Set.Set (Int, AwardPenaltyKindEnum, Maybe Day, Maybe Day) ->
+    FwcMapdWageAllowance ->
+    IO (Set.Set (Int, AwardPenaltyKindEnum, Maybe Day, Maybe Day))
+createTimePenaltyAllowanceIfNew seen wageAllowance =
+    case (normaliseTimePenaltyKindFromWageAllowance wageAllowance, wageAllowance.allowanceAmount) of
+        (Just penaltyKind, Just hourlyAmount) -> do
+            let key = (wageAllowance.awardFixedId, penaltyKind, wageAllowance.operativeFrom, wageAllowance.operativeTo)
+            if Set.member key seen
+                then pure seen
+                else do
+                    void
+                        ( newRecord @AwardTimePenaltyAllowance
+                            |> set #awardFixedId wageAllowance.awardFixedId
+                            |> set #penaltyKind penaltyKind
+                            |> set #fwcMapdWageAllowanceId (unpackId wageAllowance.id)
+                            |> set #ratePercent wageAllowance.rate
+                            |> set #hourlyAmount hourlyAmount
+                            |> set #startsAtTime (penaltyWindowStart penaltyKind)
+                            |> set #endsAtTime (penaltyWindowEnd penaltyKind)
+                            |> set #operativeFrom wageAllowance.operativeFrom
+                            |> set #operativeTo wageAllowance.operativeTo
+                            |> set #publishedYear wageAllowance.publishedYear
+                            |> createRecord
+                        )
+                    pure (Set.insert key seen)
+        _ -> pure seen
+
 resolvePenaltyAwardLevel :: Map.Map Int AwardLevel -> Map.Map Text AwardLevel -> FwcMapdPenaltyRate -> Maybe AwardLevel
 resolvePenaltyAwardLevel awardLevelByClassificationFixedId awardLevelByBasePayRateId penaltyRate =
     case penaltyRate.basePayRateId >>= (`Map.lookup` awardLevelByBasePayRateId) of
@@ -608,13 +726,27 @@ normalisePenaltyKind penaltyRate =
     normalisePenaltyKindText
         (Text.intercalate " " [fromMaybe "" penaltyRate.penaltyDescription, fromMaybe "" penaltyRate.penaltyText])
 
+normaliseTimePenaltyKindFromWageAllowance :: FwcMapdWageAllowance -> Maybe AwardPenaltyKindEnum
+normaliseTimePenaltyKindFromWageAllowance wageAllowance =
+    case normalisePenaltyKindText (searchableWageAllowanceRecordText wageAllowance) of
+        Just EveningAfter7Pm -> Just EveningAfter7Pm
+        Just LateNightAfterMidnight -> Just LateNightAfterMidnight
+        _ -> Nothing
+
+normaliseTimePenaltyKind :: WageAllowancePayload -> Maybe AwardPenaltyKindEnum
+normaliseTimePenaltyKind wageAllowance =
+    case normalisePenaltyKindText (searchableWageAllowanceText wageAllowance) of
+        Just EveningAfter7Pm -> Just EveningAfter7Pm
+        Just LateNightAfterMidnight -> Just LateNightAfterMidnight
+        _ -> Nothing
+
 normalisePenaltyKindText :: Text -> Maybe AwardPenaltyKindEnum
 normalisePenaltyKindText rawText
     | containsAny ["public holiday", "public holidays"] text = Just PublicHolidayPenalty
     | containsAny ["saturday"] text = Just SaturdayPenalty
     | containsAny ["sunday"] text = Just SundayPenalty
-    | containsAny ["midnight", "after 12", "after midnight"] text = Just LateNightAfterMidnight
     | containsAny ["7.00 pm", "7pm", "after 7", "evening"] text = Just EveningAfter7Pm
+    | containsAny ["midnight", "after 12", "after midnight"] text = Just LateNightAfterMidnight
     | otherwise = Nothing
     where
         text = Text.toLower rawText
@@ -656,6 +788,12 @@ clearExistingCache awardFixedIds = do
             |> fetch
     mapM_ deleteRecord existingAwardLevelPenaltyRates
 
+    existingAwardTimePenaltyAllowances <-
+        query @AwardTimePenaltyAllowance
+            |> filterWhereIn (#awardFixedId, awardFixedIds)
+            |> fetch
+    mapM_ deleteRecord existingAwardTimePenaltyAllowances
+
     existingAwardLevelBaseRates <-
         query @AwardLevelBaseRate
             |> fetch
@@ -672,6 +810,12 @@ clearExistingCache awardFixedIds = do
             |> filterWhereIn (#awardFixedId, awardFixedIds)
             |> fetch
     mapM_ deleteRecord existingPenaltyRates
+
+    existingWageAllowances <-
+        query @FwcMapdWageAllowance
+            |> filterWhereIn (#awardFixedId, awardFixedIds)
+            |> fetch
+    mapM_ deleteRecord existingWageAllowances
 
     existingPayRates <-
         query @FwcMapdPayRate
@@ -782,6 +926,21 @@ isRelevantCasualOrdinaryPenaltyRate profile penaltyRate =
         isIncludedRateType = penaltyRate.penaltyEmployeeRateTypeCode `elem` map Just profile.employeeRateTypeCodes
         searchableText = searchablePenaltyRateText penaltyRate
 
+curateWageAllowances :: MapdCurationProfile -> Day -> [(WageAllowancePayload, Aeson.Value)] -> [(WageAllowancePayload, Aeson.Value)]
+curateWageAllowances profile asOfDate wageAllowances =
+    wageAllowances
+        |> filter (isActiveWageAllowanceOn asOfDate . fst)
+        |> applyAwardYearScope profile.awardYearScope (.wageAllowancePublishedYear)
+        |> filter (isRelevantWageAllowance profile . fst)
+
+isRelevantWageAllowance :: MapdCurationProfile -> WageAllowancePayload -> Bool
+isRelevantWageAllowance profile wageAllowance =
+    hasPayableWageAllowanceAmount wageAllowance
+        && not (hasAnyKeyword profile.excludedKeywords searchableText)
+        && isJust (normaliseTimePenaltyKind wageAllowance)
+    where
+        searchableText = searchableWageAllowanceText wageAllowance
+
 isRelevantClassification :: MapdCurationProfile -> ClassificationPayload -> Bool
 isRelevantClassification profile classification =
     matchesCurationText profile (searchableClassificationText classification)
@@ -804,6 +963,10 @@ hasPayablePenaltyAmount :: PenaltyRatePayload -> Bool
 hasPayablePenaltyAmount penaltyRate =
     isJust penaltyRate.penaltyCalculatedValue
 
+hasPayableWageAllowanceAmount :: WageAllowancePayload -> Bool
+hasPayableWageAllowanceAmount wageAllowance =
+    isJust wageAllowance.wageAllowanceAmount
+
 isActiveAwardOn :: Day -> AwardPayload -> Bool
 isActiveAwardOn asOfDate award =
     startsOnOrBefore asOfDate award.awardOperativeFrom && endsOnOrAfter asOfDate award.awardOperativeTo
@@ -819,6 +982,10 @@ isActivePayRateOn asOfDate payRate =
 isActivePenaltyRateOn :: Day -> PenaltyRatePayload -> Bool
 isActivePenaltyRateOn asOfDate penaltyRate =
     startsOnOrBefore asOfDate penaltyRate.penaltyOperativeFrom && endsOnOrAfter asOfDate penaltyRate.penaltyOperativeTo
+
+isActiveWageAllowanceOn :: Day -> WageAllowancePayload -> Bool
+isActiveWageAllowanceOn asOfDate wageAllowance =
+    startsOnOrBefore asOfDate wageAllowance.wageAllowanceOperativeFrom && endsOnOrAfter asOfDate wageAllowance.wageAllowanceOperativeTo
 
 startsOnOrBefore :: Day -> Maybe Day -> Bool
 startsOnOrBefore asOfDate = maybe True (<= asOfDate)
@@ -872,6 +1039,38 @@ searchablePenaltyRateText penaltyRate =
                 , fromMaybe "" penaltyRate.penaltyEmployeeRateTypeCode
                 , fromMaybe "" penaltyRate.penaltyDescription
                 , fromMaybe "" penaltyRate.penaltyText
+                ]
+            )
+        )
+
+searchableWageAllowanceText :: WageAllowancePayload -> Text
+searchableWageAllowanceText wageAllowance =
+    Text.toLower
+        ( Text.intercalate
+            " "
+            ( filter
+                (not . Text.null)
+                [ fromMaybe "" wageAllowance.wageAllowanceClauses
+                , fromMaybe "" wageAllowance.wageAllowance
+                , fromMaybe "" wageAllowance.wageAllowanceType
+                , fromMaybe "" wageAllowance.wageAllowanceRateUnit
+                , fromMaybe "" wageAllowance.wageAllowancePaymentFrequency
+                ]
+            )
+        )
+
+searchableWageAllowanceRecordText :: FwcMapdWageAllowance -> Text
+searchableWageAllowanceRecordText wageAllowance =
+    Text.toLower
+        ( Text.intercalate
+            " "
+            ( filter
+                (not . Text.null)
+                [ fromMaybe "" wageAllowance.clauses
+                , fromMaybe "" wageAllowance.allowance
+                , fromMaybe "" wageAllowance.allowanceType
+                , fromMaybe "" wageAllowance.rateUnit
+                , fromMaybe "" wageAllowance.paymentFrequency
                 ]
             )
         )

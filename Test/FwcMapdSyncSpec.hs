@@ -4,6 +4,7 @@ import Application.FwcMapd.Sync
 import qualified Data.Aeson as Aeson
 import Data.Scientific (Scientific)
 import Data.Time.Calendar (fromGregorian)
+import Generated.Enums (AwardPenaltyKindEnum (..))
 import IHP.Prelude
 import Test.Hspec
 
@@ -105,6 +106,26 @@ tests =
             map (specPayRatePayloadClassificationFixedId . fst) payRates `shouldBe` [Just 101]
             map (specPenaltyRatePayloadClassificationFixedId . fst) penalties `shouldBe` [Just 101]
 
+        it "keeps hospitality weekday time penalties from wage allowances" do
+            let asOfDate = fromGregorian 2026 4 24
+                eveningAllowance = wageAllowancePayload 2025 "Penalty-Monday to Friday-7.00 pm to midnight" 10 2.81
+                lateNightAllowance = wageAllowancePayload 2025 "Penalty-Monday to Friday-midnight to 7.00 am" 15 4.22
+                oldAllowance = wageAllowancePayload 2024 "Penalty-Monday to Friday-7.00 pm to midnight" 10 2.65
+                unrelatedAllowance = wageAllowancePayload 2025 "First aid allowance" 0 3.14
+
+                wageAllowances =
+                    curateWageAllowances
+                        barVenueCurationProfile
+                        asOfDate
+                        [ (eveningAllowance, Aeson.Null)
+                        , (lateNightAllowance, Aeson.Null)
+                        , (oldAllowance, Aeson.Null)
+                        , (unrelatedAllowance, Aeson.Null)
+                        ]
+
+            map (normaliseTimePenaltyKind . fst) wageAllowances `shouldBe` [Just EveningAfter7Pm, Just LateNightAfterMidnight]
+            map (wageAllowancePayloadAmount . fst) wageAllowances `shouldBe` [Just 2.81, Just 4.22]
+
 awardPayloadPublishedYear :: AwardPayload -> Maybe Int
 awardPayloadPublishedYear payload = payload.publishedYear
 
@@ -116,6 +137,9 @@ specPayRatePayloadClassificationFixedId payload = payload.classificationFixedId
 
 specPenaltyRatePayloadClassificationFixedId :: PenaltyRatePayload -> Maybe Int
 specPenaltyRatePayloadClassificationFixedId payload = payload.penaltyClassificationFixedId
+
+wageAllowancePayloadAmount :: WageAllowancePayload -> Maybe Scientific
+wageAllowancePayloadAmount payload = payload.wageAllowanceAmount
 
 awardPayload :: Int -> AwardPayload
 awardPayload publishedYear =
@@ -206,4 +230,26 @@ payRatePayload classificationFixedId publishedYear employeeRateTypeCode classifi
         , publishedYear = Just publishedYear
         , versionNumber = Just 1
         , lastModifiedDatetime = Nothing
+        }
+
+wageAllowancePayload :: Int -> Text -> Scientific -> Scientific -> WageAllowancePayload
+wageAllowancePayload publishedYear allowance rate allowanceAmount =
+    WageAllowancePayload
+        { wageAllowanceFixedId = Just (2000 + publishedYear)
+        , wageAllowanceClauseFixedId = Just 738
+        , wageAllowanceClauses = Just "29.2"
+        , wageAllowance = Just allowance
+        , wageAllowanceType = Just "Detail"
+        , wageAllowanceIsAllPurpose = Just False
+        , wageAllowanceRate = Just rate
+        , wageAllowanceBaseRate = Just 1068.4
+        , wageAllowanceBasePayRateId = Just "BR89895"
+        , wageAllowanceRateUnit = Just "Percent"
+        , wageAllowanceAmount = Just allowanceAmount
+        , wageAllowancePaymentFrequency = Just "per hour or part thereof"
+        , wageAllowanceOperativeFrom = Just (fromGregorian 2025 7 1)
+        , wageAllowanceOperativeTo = Nothing
+        , wageAllowancePublishedYear = Just publishedYear
+        , wageAllowanceVersionNumber = Just 1
+        , wageAllowanceLastModifiedDatetime = Nothing
         }

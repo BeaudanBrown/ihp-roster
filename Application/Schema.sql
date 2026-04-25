@@ -240,6 +240,7 @@ CREATE TABLE fwc_mapd_sync_runs (
     fetched_classification_count INT DEFAULT 0 NOT NULL,
     fetched_pay_rate_count INT DEFAULT 0 NOT NULL,
     fetched_penalty_rate_count INT DEFAULT 0 NOT NULL,
+    fetched_wage_allowance_count INT DEFAULT 0 NOT NULL,
     error_message TEXT DEFAULT NULL,
     started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     finished_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -335,6 +336,31 @@ CREATE TABLE fwc_mapd_penalty_rates (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
+CREATE TABLE fwc_mapd_wage_allowances (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    award_fixed_id INT NOT NULL,
+    wage_allowance_fixed_id INT DEFAULT NULL,
+    clause_fixed_id INT DEFAULT NULL,
+    clauses TEXT DEFAULT NULL,
+    allowance TEXT DEFAULT NULL,
+    allowance_type TEXT DEFAULT NULL,
+    is_all_purpose BOOLEAN DEFAULT NULL,
+    rate NUMERIC(12,4) DEFAULT NULL,
+    base_rate NUMERIC(12,4) DEFAULT NULL,
+    base_pay_rate_id TEXT DEFAULT NULL,
+    rate_unit TEXT DEFAULT NULL,
+    allowance_amount NUMERIC(12,4) DEFAULT NULL,
+    payment_frequency TEXT DEFAULT NULL,
+    operative_from DATE DEFAULT NULL,
+    operative_to DATE DEFAULT NULL,
+    published_year INT DEFAULT NULL,
+    version_number INT DEFAULT NULL,
+    last_modified_datetime TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    raw_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    synced_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+);
 CREATE TABLE award_levels (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     award_fixed_id INT NOT NULL,
@@ -392,6 +418,23 @@ CREATE TABLE award_level_penalty_rates (
     UNIQUE(award_level_id, employment_basis, penalty_kind, operative_from, operative_to),
     FOREIGN KEY (award_level_id) REFERENCES award_levels (id) ON DELETE CASCADE,
     FOREIGN KEY (fwc_mapd_penalty_rate_id) REFERENCES fwc_mapd_penalty_rates (id) ON DELETE CASCADE
+);
+CREATE TABLE award_time_penalty_allowances (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    award_fixed_id INT NOT NULL,
+    penalty_kind award_penalty_kind_enum NOT NULL,
+    fwc_mapd_wage_allowance_id UUID NOT NULL,
+    rate_percent NUMERIC(12,4) DEFAULT NULL,
+    hourly_amount NUMERIC(12,4) NOT NULL,
+    starts_at_time TIME DEFAULT NULL,
+    ends_at_time TIME DEFAULT NULL,
+    operative_from DATE DEFAULT NULL,
+    operative_to DATE DEFAULT NULL,
+    published_year INT DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(award_fixed_id, penalty_kind, operative_from, operative_to),
+    FOREIGN KEY (fwc_mapd_wage_allowance_id) REFERENCES fwc_mapd_wage_allowances (id) ON DELETE CASCADE
 );
 CREATE TABLE public_holidays (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -637,9 +680,11 @@ CREATE INDEX idx_fwc_mapd_awards_code ON fwc_mapd_awards (code);
 CREATE INDEX idx_fwc_mapd_classifications_award_current ON fwc_mapd_classifications (award_fixed_id, operative_to, classification_fixed_id);
 CREATE INDEX idx_fwc_mapd_pay_rates_award_current ON fwc_mapd_pay_rates (award_fixed_id, operative_to, classification_fixed_id);
 CREATE INDEX idx_fwc_mapd_penalty_rates_award_current ON fwc_mapd_penalty_rates (award_fixed_id, operative_to, classification_fixed_id);
+CREATE INDEX idx_fwc_mapd_wage_allowances_award_current ON fwc_mapd_wage_allowances (award_fixed_id, operative_to, wage_allowance_fixed_id);
 CREATE INDEX idx_award_levels_classification ON award_levels (award_fixed_id, classification_fixed_id, is_active);
 CREATE INDEX idx_award_level_base_rates_lookup ON award_level_base_rates (award_level_id, employment_basis, operative_from, operative_to);
 CREATE INDEX idx_award_level_penalty_rates_lookup ON award_level_penalty_rates (award_level_id, employment_basis, penalty_kind, operative_from, operative_to);
+CREATE INDEX idx_award_time_penalty_allowances_lookup ON award_time_penalty_allowances (award_fixed_id, penalty_kind, operative_from, operative_to);
 CREATE INDEX idx_public_holidays_lookup ON public_holidays (jurisdiction, holiday_date);
 CREATE INDEX idx_app_jobs_pending ON app_jobs (status, run_at, created_at);
 CREATE INDEX idx_app_jobs_kind_created_at ON app_jobs (job_kind, created_at DESC);

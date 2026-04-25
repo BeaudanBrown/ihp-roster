@@ -16,3 +16,4 @@ run =
                 TextIO.putStrLn ("Classification rows: " <> tshow summary.fetchedClassificationCount)
                 TextIO.putStrLn ("Pay rate rows: " <> tshow summary.fetchedPayRateCount)
                 TextIO.putStrLn ("Penalty rate rows: " <> tshow summary.fetchedPenaltyRateCount)
+                TextIO.putStrLn ("Wage allowance rows: " <> tshow summary.fetchedWageAllowanceCount)

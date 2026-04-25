@@ -44,6 +44,10 @@ fetchPayRateValues :: MapdConfig -> Int -> IO [Aeson.Value]
 fetchPayRateValues config awardFixedId =
     fetchPagedEndpoint config (awardPath awardFixedId <> "/pay-rates") []
 
+fetchWageAllowanceValues :: MapdConfig -> Int -> IO [Aeson.Value]
+fetchWageAllowanceValues config awardFixedId =
+    fetchPagedEndpoint config (awardPath awardFixedId <> "/wage-allowances") []
+
 fetchPenaltyRateValues :: MapdConfig -> Int -> IO [Aeson.Value]
 fetchPenaltyRateValues config awardFixedId =
     fetchPagedEndpoint config (awardPath awardFixedId <> "/penalties") []
