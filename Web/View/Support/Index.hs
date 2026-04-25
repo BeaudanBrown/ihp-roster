@@ -22,6 +22,9 @@ data IndexView = IndexView
     , fwcMapdAdminData :: FwcMapdAdminData
     , latestFwcMapdRefreshJob :: Maybe AppJob
     , activeFwcMapdRefreshJob :: Maybe AppJob
+    , publicHolidayCount :: Int
+    , latestPublicHolidayRefreshJob :: Maybe AppJob
+    , activePublicHolidayRefreshJob :: Maybe AppJob
     , createdVenue :: Maybe Venue
     }
 
@@ -131,6 +134,18 @@ instance View IndexView where
                     , appPanelBodyClass = ""
                     , appPanelBody = renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob
                     }
+            publicHolidaysPanel =
+                renderAppPanel AppPanelConfig
+                    { appPanelTitle = Just "Public Holidays"
+                    , appPanelDescription = Just "Victorian public holiday cache used by payroll penalty calculations."
+                    , appPanelHasActions = False
+                    , appPanelActions = mempty
+                    , appPanelHasCustomHeader = False
+                    , appPanelCustomHeader = mempty
+                    , appPanelClass = ""
+                    , appPanelBodyClass = ""
+                    , appPanelBody = renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob
+                    }
          in renderAppPage (AppPageConfig
             { appPageTitle = "Support"
             , appPageDescription = Nothing
@@ -142,6 +157,7 @@ instance View IndexView where
                     {switchVenuePanel}
                     {signInMethodsPanel}
                     {awardRatesPanel}
+                    {publicHolidaysPanel}
                     {inviteVenueOwnerPanel}
                     {createVenuePanel}
                 </div>
@@ -180,6 +196,49 @@ renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, current
             if isJust activeRefreshJob
                 then Just value
                 else Nothing
+
+renderPublicHolidaysSection :: Int -> Maybe AppJob -> Maybe AppJob -> Html
+renderPublicHolidaysSection publicHolidayCount latestRefreshJob activeRefreshJob = [hsx|
+    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+        <div class="small app-muted">
+            <div>
+                Cached statewide VIC public holidays: <span class="fw-semibold">{tshow publicHolidayCount}</span>.
+            </div>
+            <div>{renderPublicHolidayRefreshJobStatus latestRefreshJob}</div>
+        </div>
+        <div class="flex-shrink-0">
+            {renderPublicHolidayRefreshForm activeRefreshJob}
+        </div>
+    </div>
+|]
+
+renderPublicHolidayRefreshForm :: Maybe AppJob -> Html
+renderPublicHolidayRefreshForm activeRefreshJob = [hsx|
+    <form method="POST" action={CreatePublicHolidayRefreshJobAction} class="d-grid" data-disable-javascript-submission="true">
+        <button class={buttonClass} type="submit" disabled={isJust activeRefreshJob}>
+            {buttonLabel}
+        </button>
+    </form>
+|]
+    where
+        buttonClass :: Text
+        buttonClass =
+            if isJust activeRefreshJob
+                then "btn btn-outline-secondary"
+                else "btn btn-primary"
+        buttonLabel =
+            if isJust activeRefreshJob
+                then "Refresh queued/running" :: Text
+                else "Refresh public holidays"
+
+renderPublicHolidayRefreshJobStatus :: Maybe AppJob -> Html
+renderPublicHolidayRefreshJobStatus maybeJob =
+    case maybeJob of
+        Nothing -> [hsx|No public holiday refresh job has been queued yet.|]
+        Just appJob -> [hsx|
+            Latest refresh job <span class="fw-semibold">{renderJobStatus appJob.status}</span> queued at {formatTimestamp appJob.createdAt}.
+            {renderJobError appJob}
+        |]
 
 renderAwardRefreshForm :: Maybe AppJob -> Html
 renderAwardRefreshForm activeRefreshJob = [hsx|

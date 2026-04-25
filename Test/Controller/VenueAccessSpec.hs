@@ -9,6 +9,7 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole),
 import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Config
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.Serialize as Serialize
@@ -283,6 +284,34 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status403
                 jobCount <- query @AppJob |> filterWhere (#jobKind, fwcMapdRefreshJobKind) |> fetchCount
+                jobCount `shouldBe` 0
+
+        it "deduplicates active public holiday refresh jobs" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-public-holiday-refresh-dedupe@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+
+                _ <- withUser founder do
+                    callAction CreatePublicHolidayRefreshJobAction
+                response <- withUser founder do
+                    callAction CreatePublicHolidayRefreshJobAction
+
+                response `responseStatusShouldBe` status302
+                jobCount <- query @AppJob |> filterWhere (#jobKind, publicHolidayRefreshJobKind) |> fetchCount
+                jobCount `shouldBe` 1
+
+        it "denies public holiday refresh creation to ordinary venue admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                admin <- createUserRecord "venue-admin-public-holiday-refresh@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withUser admin do
+                    callAction CreatePublicHolidayRefreshJobAction
+
+                response `responseStatusShouldBe` status403
+                jobCount <- query @AppJob |> filterWhere (#jobKind, publicHolidayRefreshJobKind) |> fetchCount
                 jobCount `shouldBe` 0
 
         it "lets super-admin create a venue owner onboarding invitation" $ withContext do

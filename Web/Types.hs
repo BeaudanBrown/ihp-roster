@@ -102,6 +102,7 @@ data SupportController
     | CreateSupportVenueAction
     | CreateSupportVenueOnboardingInvitationAction
     | CreateFwcMapdRefreshJobAction
+    | CreatePublicHolidayRefreshJobAction
     | SwitchSupportVenueAction
     deriving (Eq, Show, Data)
 

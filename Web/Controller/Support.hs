@@ -13,6 +13,8 @@ import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvit
                                                      venueOnboardingInvitationLifetime)
 import Application.Helper.View (appendQueryParams)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
+import Application.PublicHolidays.Job (publicHolidayRefreshJobDedupeKey,
+                                       publicHolidayRefreshJobKind)
 import Application.Support (createVenueWithBootstrapConfigInCurrentTransaction,
                             defaultVenueBootstrapTimezone)
 import Control.Concurrent (forkIO)
@@ -34,6 +36,7 @@ instance Controller SupportController where
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
+        (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
         createdVenue <- case paramOrNothing @(Id Venue) "createdVenueId" of
             Nothing      -> pure Nothing
             Just venueId -> Just <$> fetchCreatedVenue venueId
@@ -52,6 +55,7 @@ instance Controller SupportController where
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
+        (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
         let createdVenue = Nothing
         let venueTimezone = paramOrDefault defaultVenueBootstrapTimezone "timezone"
         let venueRosterWeekStartsOn = fromMaybe defaultRosterWeekStartsOn (paramOrNothing @Int "rosterWeekStartsOn")
@@ -92,6 +96,7 @@ instance Controller SupportController where
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
+        (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
         let createdVenue = Nothing
         let venue = buildSupportVenueForm
         let venueTimezone = defaultVenueBootstrapTimezone
@@ -136,6 +141,27 @@ instance Controller SupportController where
                 setSuccessMessage "Award rate refresh queued."
             ExistingActiveAppJob _ ->
                 setSuccessMessage "Award rate refresh is already queued or running."
+        redirectTo SupportAction
+
+    action CreatePublicHolidayRefreshJobAction = do
+        enqueueResult <-
+            enqueueAppJob
+                AppJobRequest
+                    { jobKind = publicHolidayRefreshJobKind
+                    , payload = Aeson.object ["jurisdiction" Aeson..= ("VIC" :: Text)]
+                    , payloadSchemaVersion = 1
+                    , requestedByUserId = Just (unpackId currentUser.id)
+                    , venueId = Nothing
+                    , relatedTable = Just "public_holidays"
+                    , relatedId = Nothing
+                    , dedupeKey = Just publicHolidayRefreshJobDedupeKey
+                    , runAt = Nothing
+                    }
+        case enqueueResult of
+            EnqueuedAppJob _ ->
+                setSuccessMessage "Public holiday refresh queued."
+            ExistingActiveAppJob _ ->
+                setSuccessMessage "Public holiday refresh is already queued or running."
         redirectTo SupportAction
 
     action SwitchSupportVenueAction = do
@@ -189,6 +215,19 @@ fetchFwcMapdAwardRatesSectionData = do
     latestFwcMapdRefreshJob <- fetchLatestAppJobByKind fwcMapdRefreshJobKind
     activeFwcMapdRefreshJob <- fetchActiveAppJobByDedupeKey fwcMapdRefreshJobDedupeKey
     pure (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob)
+
+fetchPublicHolidaySectionData ::
+    (?modelContext :: ModelContext) =>
+    IO (Int, Maybe AppJob, Maybe AppJob)
+fetchPublicHolidaySectionData = do
+    publicHolidayCount <-
+        query @PublicHoliday
+            |> filterWhere (#jurisdiction, "VIC")
+            |> filterWhere (#isRegional, False)
+            |> fetchCount
+    latestPublicHolidayRefreshJob <- fetchLatestAppJobByKind publicHolidayRefreshJobKind
+    activePublicHolidayRefreshJob <- fetchActiveAppJobByDedupeKey publicHolidayRefreshJobDedupeKey
+    pure (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob)
 
 queueVenueOnboardingInvitationDelivery ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
