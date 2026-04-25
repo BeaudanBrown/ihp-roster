@@ -30,6 +30,7 @@ import qualified Test.DevSeedSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.PaySpec
+import qualified Test.PublicHolidaySyncSpec
 import qualified Test.RosterGridSpec
 import qualified Test.SchemaSpec
 import qualified Test.SurfaceProjectionSpec
@@ -126,6 +127,7 @@ allSuites =
     , TestSuite "ExportsController" Test.Controller.ExportsSpec.tests
     , TestSuite "TimesheetsController" Test.Controller.TimesheetsSpec.tests
     , TestSuite "Pay" Test.PaySpec.tests
+    , TestSuite "PublicHolidaySync" Test.PublicHolidaySyncSpec.tests
     , TestSuite "FwcMapdSync" Test.FwcMapdSyncSpec.tests
     , TestSuite "VenueAccess" Test.Controller.VenueAccessSpec.tests
     , TestSuite "PayrollExportParity" Test.Controller.PayrollExportParitySpec.tests
