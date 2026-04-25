@@ -27,6 +27,7 @@ import qualified Test.Controller.TimesheetsSpec
 import qualified Test.Controller.UsersSpec
 import qualified Test.Controller.VenueAccessSpec
 import qualified Test.DevSeedSpec
+import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.PaySpec
 import qualified Test.RosterGridSpec
@@ -125,6 +126,7 @@ allSuites =
     , TestSuite "ExportsController" Test.Controller.ExportsSpec.tests
     , TestSuite "TimesheetsController" Test.Controller.TimesheetsSpec.tests
     , TestSuite "Pay" Test.PaySpec.tests
+    , TestSuite "FwcMapdSync" Test.FwcMapdSyncSpec.tests
     , TestSuite "VenueAccess" Test.Controller.VenueAccessSpec.tests
     , TestSuite "PayrollExportParity" Test.Controller.PayrollExportParitySpec.tests
     , TestSuite "StaffController" Test.Controller.StaffSpec.tests

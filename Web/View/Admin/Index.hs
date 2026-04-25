@@ -16,8 +16,6 @@ data IndexView = IndexView
     , recentSnapshots                 :: [PayConfigSnapshot]
     , rosterGroups                    :: [RosterGroup]
     , currentRosterGroup              :: RosterGroup
-    , payLevels                       :: [PayLevel]
-    , payLevelDayRules                :: [PayLevelDayRule]
     , shiftTypes                      :: [ShiftType]
     , slotNames                       :: [SlotName]
     , weekdays                        :: [DayName]
@@ -44,7 +42,7 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
+                                {renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup shiftTypes slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
                             </div>
                         </div>
                     |]
@@ -78,35 +76,15 @@ instance View IndexView where
             |]
             })
 
-renderPayLevelsSection :: [PayLevel] -> Html
-renderPayLevelsSection payLevels =
-    renderConfigSection
-        "pay-levels"
-        "Pay Levels"
-        "Configure venue pay level names, rates, penalties, and day multipliers."
-        (renderRowCountSummary payLevels)
-        renderPayLevelCreateForm
-        (if null payLevels then renderEmptyState "No pay levels yet." else forEach payLevels renderPayLevelRow)
-
-renderShiftTypesSection :: [ShiftType] -> [PayLevel] -> Html
-renderShiftTypesSection shiftTypes payLevels =
+renderShiftTypesSection :: [ShiftType] -> Html
+renderShiftTypesSection shiftTypes =
     renderConfigSection
         "shift-types"
         "Shift Types"
-        "Each shift type points to a default pay level used by pay resolution and report ordering."
+        "Configure venue shift types. Award-level overrides will be assigned from the FWC-backed level UI."
         (renderRowCountSummary shiftTypes)
-        (renderShiftTypeCreateForm payLevels)
-        (if null shiftTypes then renderEmptyState "No shift types yet." else forEach shiftTypes (renderShiftTypeRow payLevels))
-
-renderPayLevelDayRulesSection :: [PayLevelDayRule] -> [ShiftType] -> [PayLevel] -> [DayName] -> Html
-renderPayLevelDayRulesSection payLevelDayRules shiftTypes payLevels dayNames =
-    renderConfigSection
-        "pay-level-day-rules"
-        "Pay Level Day Rules"
-        "Override the effective pay level for a shift type on specific weekdays."
-        (renderRuleCountSummary payLevelDayRules)
-        (renderPayLevelDayRuleCreateForm shiftTypes payLevels dayNames)
-        (if null payLevelDayRules then renderEmptyState "No pay overrides yet." else forEach payLevelDayRules (renderPayLevelDayRuleRow shiftTypes payLevels dayNames))
+        renderShiftTypeCreateForm
+        (if null shiftTypes then renderEmptyState "No shift types yet." else forEach shiftTypes renderShiftTypeRow)
 
 renderRosterGroupsSection :: [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupsSection rosterGroups currentRosterGroup =
@@ -332,15 +310,13 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
         |]
 
-renderConfigSectionsAccordion :: VenueConfig -> Bool -> [RosterGroup] -> RosterGroup -> [PayLevel] -> [ShiftType] -> [PayLevelDayRule] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
-renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup payLevels shiftTypes payLevelDayRules slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
+renderConfigSectionsAccordion :: VenueConfig -> Bool -> [RosterGroup] -> RosterGroup -> [ShiftType] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
+renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup shiftTypes slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "venue-config" "Venue Config" True (renderVenueConfigSection venueConfig venueRosterWeekStartLocked)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSection rosterGroups currentRosterGroup)}
         {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment invitations currentRosterGroup.id)}
-        {renderAccordionItem "pay-levels" "Pay Levels" False (renderPayLevelsSection payLevels)}
-        {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes payLevels)}
-        {renderAccordionItem "pay-level-day-rules" "Pay Level Day Rules" False (renderPayLevelDayRulesSection payLevelDayRules shiftTypes payLevels weekdays)}
+        {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes)}
         {renderAccordionItem "slot-names" "Slot Names" False (renderSlotNamesSectionFragment currentRosterGroup slotNames)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection)}
     </div>
@@ -441,142 +417,34 @@ renderConfigSection anchorId title description summary createForm rows =
         |]
         }
 
-renderPayLevelCreateForm :: Html
-renderPayLevelCreateForm = [hsx|
-    <form method="POST" action={CreatePayLevelAction} class="border rounded p-3" data-disable-javascript-submission="true">
+renderShiftTypeCreateForm :: Html
+renderShiftTypeCreateForm = [hsx|
+    <form method="POST" action={CreateShiftTypeAction} class="border rounded p-3" data-disable-javascript-submission="true">
         <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-4">
-                <label class="form-label" for="new-pay-level-name">Name</label>
-                <input id="new-pay-level-name" class="form-control" type="text" name="name" placeholder="Level 1" />
+            <div class="col-12 col-md-5">
+                <label class="form-label" for="new-shift-type-name">Name</label>
+                <input id="new-shift-type-name" class="form-control" type="text" name="name" placeholder="Standard Shift" />
             </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label" for="new-pay-level-base-rate">Base Rate</label>
-                <input id="new-pay-level-base-rate" class="form-control" type="number" name="baseRate" step="0.01" value="0" />
+            <div class="col-12 col-md-2">
+                <label class="form-label" for="new-shift-type-sort-order">Sort Order</label>
+                <input id="new-shift-type-sort-order" class="form-control" type="number" name="sortOrder" value="0" />
             </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label" for="new-pay-level-evening-penalty">Evening Penalty</label>
-                <input id="new-pay-level-evening-penalty" class="form-control" type="number" name="eveningPenalty" step="0.01" value="0" />
-            </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label" for="new-pay-level-after12-penalty">After 12 Penalty</label>
-                <input id="new-pay-level-after12-penalty" class="form-control" type="number" name="after12Penalty" step="0.01" value="0" />
-            </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label" for="new-pay-level-active">Status</label>
-                <select id="new-pay-level-active" class="form-select" name="isActive">
+            <div class="col-12 col-md-2">
+                <label class="form-label" for="new-shift-type-active">Status</label>
+                <select id="new-shift-type-active" class="form-select" name="isActive">
                     <option value="true" selected={True}>Active</option>
                     <option value="false">Inactive</option>
                 </select>
             </div>
-            <div class="col-4 col-md-2">
-                <label class="form-label" for="new-pay-level-weekday-multiplier">Weekday Mult</label>
-                <input id="new-pay-level-weekday-multiplier" class="form-control" type="number" name="weekdayMultiplier" step="0.001" value="1" />
-            </div>
-            <div class="col-4 col-md-2">
-                <label class="form-label" for="new-pay-level-saturday-multiplier">Saturday Mult</label>
-                <input id="new-pay-level-saturday-multiplier" class="form-control" type="number" name="saturdayMultiplier" step="0.001" value="1" />
-            </div>
-            <div class="col-4 col-md-2">
-                <label class="form-label" for="new-pay-level-sunday-multiplier">Sunday Mult</label>
-                <input id="new-pay-level-sunday-multiplier" class="form-control" type="number" name="sundayMultiplier" step="0.001" value="1" />
-            </div>
             <div class="col-12 col-md-2">
-                <button class="btn btn-outline-primary w-100" type="submit">Add Pay Level</button>
+                <button class="btn btn-outline-primary w-100" type="submit">Add</button>
             </div>
         </div>
     </form>
 |]
 
-renderPayLevelRow :: PayLevel -> Html
-renderPayLevelRow payLevel = [hsx|
-    <form method="POST" action={UpdatePayLevelAction (get #id payLevel)} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-semibold">Pay Level</span>
-            {renderActiveBadge payLevel.isActive}
-        </div>
-        <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-4">
-                <label class="form-label">Name</label>
-                <input class="form-control" type="text" name="name" value={payLevel.name} />
-            </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label">Base Rate</label>
-                <input class="form-control" type="number" name="baseRate" step="0.01" value={tshow payLevel.baseRate} />
-            </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label">Evening Penalty</label>
-                <input class="form-control" type="number" name="eveningPenalty" step="0.01" value={tshow payLevel.eveningPenalty} />
-            </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label">After 12 Penalty</label>
-                <input class="form-control" type="number" name="after12Penalty" step="0.01" value={tshow payLevel.after12Penalty} />
-            </div>
-            <div class="col-6 col-md-2">
-                <label class="form-label">Status</label>
-                <select class="form-select" name="isActive">
-                    <option value="true" selected={payLevel.isActive}>Active</option>
-                    <option value="false" selected={not payLevel.isActive}>Inactive</option>
-                </select>
-            </div>
-            <div class="col-4 col-md-2">
-                <label class="form-label">Weekday Mult</label>
-                <input class="form-control" type="number" name="weekdayMultiplier" step="0.001" value={tshow payLevel.weekdayMultiplier} />
-            </div>
-            <div class="col-4 col-md-2">
-                <label class="form-label">Saturday Mult</label>
-                <input class="form-control" type="number" name="saturdayMultiplier" step="0.001" value={tshow payLevel.saturdayMultiplier} />
-            </div>
-            <div class="col-4 col-md-2">
-                <label class="form-label">Sunday Mult</label>
-                <input class="form-control" type="number" name="sundayMultiplier" step="0.001" value={tshow payLevel.sundayMultiplier} />
-            </div>
-            <div class="col-12 col-md-2">
-                <button class="btn btn-outline-secondary w-100" type="submit">Update</button>
-            </div>
-        </div>
-    </form>
-|]
-
-renderShiftTypeCreateForm :: [PayLevel] -> Html
-renderShiftTypeCreateForm payLevels
-    | null payLevels = [hsx|
-        <div class="alert alert-warning mb-0">
-            Add a pay level before creating shift types.
-        </div>
-    |]
-    | otherwise = [hsx|
-        <form method="POST" action={CreateShiftTypeAction} class="border rounded p-3" data-disable-javascript-submission="true">
-            <div class="row g-2 align-items-end">
-                <div class="col-12 col-md-4">
-                    <label class="form-label" for="new-shift-type-name">Name</label>
-                    <input id="new-shift-type-name" class="form-control" type="text" name="name" placeholder="Standard Shift" />
-                </div>
-                <div class="col-12 col-md-2">
-                    <label class="form-label" for="new-shift-type-sort-order">Sort Order</label>
-                    <input id="new-shift-type-sort-order" class="form-control" type="number" name="sortOrder" value="0" />
-                </div>
-                <div class="col-12 col-md-3">
-                    <label class="form-label" for="new-shift-type-pay-level">Default Pay Level</label>
-                    <select id="new-shift-type-pay-level" class="form-select" name="defaultPayLevelId">
-                        {forEach payLevels renderPayLevelOption}
-                    </select>
-                </div>
-                <div class="col-12 col-md-2">
-                    <label class="form-label" for="new-shift-type-active">Status</label>
-                    <select id="new-shift-type-active" class="form-select" name="isActive">
-                        <option value="true" selected={True}>Active</option>
-                        <option value="false">Inactive</option>
-                    </select>
-                </div>
-                <div class="col-12 col-md-2">
-                    <button class="btn btn-outline-primary w-100" type="submit">Add</button>
-                </div>
-            </div>
-        </form>
-    |]
-
-renderShiftTypeRow :: [PayLevel] -> ShiftType -> Html
-renderShiftTypeRow payLevels shiftType = [hsx|
+renderShiftTypeRow :: ShiftType -> Html
+renderShiftTypeRow shiftType = [hsx|
     <form method="POST" action={UpdateShiftTypeAction (get #id shiftType)} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <span class="fw-semibold">Shift Type</span>
@@ -591,85 +459,11 @@ renderShiftTypeRow payLevels shiftType = [hsx|
                 <label class="form-label">Sort Order</label>
                 <input class="form-control" type="number" name="sortOrder" value={tshow shiftType.sortOrder} />
             </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label">Default Pay Level</label>
-                <select class="form-select" name="defaultPayLevelId">
-                    {forEach payLevels (renderSelectedPayLevelOption shiftType.defaultPayLevelId)}
-                </select>
-            </div>
             <div class="col-12 col-md-2">
                 <label class="form-label">Status</label>
                 <select class="form-select" name="isActive">
                     <option value="true" selected={shiftType.isActive}>Active</option>
                     <option value="false" selected={not shiftType.isActive}>Inactive</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-2">
-                <button class="btn btn-outline-secondary w-100" type="submit">Update</button>
-            </div>
-        </div>
-    </form>
-|]
-
-renderPayLevelDayRuleCreateForm :: [ShiftType] -> [PayLevel] -> [DayName] -> Html
-renderPayLevelDayRuleCreateForm shiftTypes payLevels dayNames
-    | null shiftTypes || null payLevels || null dayNames = [hsx|
-        <div class="alert alert-warning mb-0">
-            Add at least one shift type, pay level, and day name before creating pay overrides.
-        </div>
-    |]
-    | otherwise = [hsx|
-        <form method="POST" action={CreatePayLevelDayRuleAction} class="border rounded p-3" data-disable-javascript-submission="true">
-            <div class="row g-2 align-items-end">
-                <div class="col-12 col-md-4">
-                    <label class="form-label" for="new-day-rule-shift-type">Shift Type</label>
-                    <select id="new-day-rule-shift-type" class="form-select" name="shiftTypeId">
-                        {forEach shiftTypes renderShiftTypeRuleOption}
-                    </select>
-                </div>
-                <div class="col-12 col-md-3">
-                    <label class="form-label" for="new-day-rule-day-name">Day Name</label>
-                    <select id="new-day-rule-day-name" class="form-select" name="dayNameId">
-                        {forEach dayNames renderDayNameOption}
-                    </select>
-                </div>
-                <div class="col-12 col-md-3">
-                    <label class="form-label" for="new-day-rule-pay-level">Pay Level</label>
-                    <select id="new-day-rule-pay-level" class="form-select" name="payLevelId">
-                        {forEach payLevels renderPayLevelOption}
-                    </select>
-                </div>
-                <div class="col-12 col-md-2">
-                    <button class="btn btn-outline-primary w-100" type="submit">Add</button>
-                </div>
-            </div>
-        </form>
-    |]
-
-renderPayLevelDayRuleRow :: [ShiftType] -> [PayLevel] -> [DayName] -> PayLevelDayRule -> Html
-renderPayLevelDayRuleRow shiftTypes payLevels dayNames payLevelDayRule = [hsx|
-    <form method="POST" action={UpdatePayLevelDayRuleAction (get #id payLevelDayRule)} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-semibold">{renderPayLevelDayRuleHeading shiftTypes payLevels dayNames payLevelDayRule}</span>
-            <span class="badge text-bg-info">override</span>
-        </div>
-        <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-4">
-                <label class="form-label">Shift Type</label>
-                <select class="form-select" name="shiftTypeId">
-                    {forEach shiftTypes (renderSelectedShiftTypeRuleOption payLevelDayRule.shiftTypeId)}
-                </select>
-            </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label">Day Name</label>
-                <select class="form-select" name="dayNameId">
-                    {forEach dayNames (renderSelectedDayNameOption payLevelDayRule.dayNameId)}
-                </select>
-            </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label">Pay Level</label>
-                <select class="form-select" name="payLevelId">
-                    {forEach payLevels (renderSelectedPayLevelOption payLevelDayRule.payLevelId)}
                 </select>
             </div>
             <div class="col-12 col-md-2">
@@ -861,13 +655,6 @@ renderRowCountSummary rows = [hsx|
     </p>
 |]
 
-renderRuleCountSummary :: [PayLevelDayRule] -> Html
-renderRuleCountSummary rules = [hsx|
-    <p class="small app-muted mb-3">
-        {tshow (length rules)} shift-type weekday overrides configured for this venue.
-    </p>
-|]
-
 renderSnapshotTable :: [PayConfigSnapshot] -> Html
 renderSnapshotTable snapshots
     | null snapshots = [hsx|<p class="app-muted mb-0">No saved versions yet.</p>|]
@@ -928,16 +715,6 @@ rosterGroupSelectorClass selectedRosterGroupId rosterGroup =
         then "btn btn-sm btn-primary"
         else "btn btn-sm btn-outline-secondary"
 
-renderPayLevelOption :: PayLevel -> Html
-renderPayLevelOption payLevel = [hsx|
-    <option value={tshow (unpackId (get #id payLevel))}>{renderPayLevelLabel payLevel}</option>
-|]
-
-renderSelectedPayLevelOption :: UUID -> PayLevel -> Html
-renderSelectedPayLevelOption selectedPayLevelId payLevel = [hsx|
-    <option value={tshow (unpackId (get #id payLevel))} selected={unpackId (get #id payLevel) == selectedPayLevelId}>{renderPayLevelLabel payLevel}</option>
-|]
-
 renderShiftTypeRuleOption :: ShiftType -> Html
 renderShiftTypeRuleOption shiftType = [hsx|
     <option value={tshow (unpackId (get #id shiftType))}>{renderShiftTypeLabel shiftType}</option>
@@ -963,23 +740,9 @@ renderSelectedDayNameOption selectedDayNameId dayName = [hsx|
     <option value={tshow (unpackId (get #id dayName))} selected={unpackId (get #id dayName) == selectedDayNameId}>{renderDayNameLabel dayName}</option>
 |]
 
-renderPayLevelLabel :: PayLevel -> Text
-renderPayLevelLabel payLevel =
-    if payLevel.isActive
-        then payLevel.name
-        else payLevel.name <> " (inactive)"
-
 renderDayNameLabel :: DayName -> Text
 renderDayNameLabel dayName =
     renderWeekdayName dayName.weekdayIndex
-
-renderPayLevelDayRuleHeading :: [ShiftType] -> [PayLevel] -> [DayName] -> PayLevelDayRule -> Text
-renderPayLevelDayRuleHeading shiftTypes payLevels dayNames payLevelDayRule =
-    shiftTypeLabel <> " -> " <> payLevelLabel <> " on " <> dayNameLabel
-    where
-        shiftTypeLabel = maybe "Unknown shift type" renderShiftTypeLabel (find (\shiftType -> unpackId (get #id shiftType) == payLevelDayRule.shiftTypeId) shiftTypes)
-        payLevelLabel = maybe "Unknown pay level" renderPayLevelLabel (find (\payLevel -> unpackId (get #id payLevel) == payLevelDayRule.payLevelId) payLevels)
-        dayNameLabel = maybe "Unknown day name" renderDayNameLabel (find (\dayName -> unpackId (get #id dayName) == payLevelDayRule.dayNameId) dayNames)
 
 renderShiftTypeLabel :: ShiftType -> Text
 renderShiftTypeLabel shiftType =

@@ -28,12 +28,13 @@ instance Controller StaffController where
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
+        awardLevels <- fetchAwardLevelsForStaffForm
         selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         preferenceSections <- fetchPreferenceSectionsForRosterGroups selectedRosterGroupIds
         selectedShiftPreferenceKeys <- fetchStaffShiftPreferenceKeyTexts staff selectedRosterGroupIds
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
@@ -45,34 +46,42 @@ instance Controller StaffController where
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
+        awardLevels <- fetchAwardLevelsForStaffForm
         let submittedRosterGroupIds = nub (paramList @(Id RosterGroup) "rosterGroupIds")
         maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
+        let canManageStaffPay = hasRole VenueAdminRole
+        maybeSubmittedDefaultAwardLevelId <- parseSubmittedDefaultAwardLevelId canManageStaffPay
         previousRosterGroupIds <- fetchStaffRosterGroupIds staff
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         preferenceSections <- fetchPreferenceSectionsForRosterGroups submittedRosterGroupIds
         let selectedShiftPreferenceKeys = submittedShiftPreferenceKeys
         staff
-            |> buildStaff
+            |> buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups submittedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels submittedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                         else do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             render EditView { .. }
                 Right staff -> do
-                    case maybeSelectedRosterGroupIds of
-                        Nothing -> do
+                    case (maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId) of
+                        (Nothing, _) -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
-                        Just selectedRosterGroupIds -> do
+                        (_, Nothing) -> do
+                            let selectedRosterGroupIds = submittedRosterGroupIds
+                            if isHtmxRequest
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                                else render EditView { .. }
+                        (Just selectedRosterGroupIds, Just _) -> do
                             case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
                                 Left preferenceError -> do
                                     setErrorMessage preferenceError
                                     if isHtmxRequest
-                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
+                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                                         else render EditView { .. }
                                 Right submittedSelections -> do
                                     staff <- withTransaction do
@@ -100,14 +109,54 @@ instance Controller StaffController where
                                                     (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
                                                     maybeRosterGroupId
 
-buildStaff staff = staff
-    |> fill @'["firstName", "lastName", "preferredName", "phone", "emergencyContactName", "emergencyContactPhone", "idealShiftsPerWeek", "isActive"]
-    |> validateField #firstName nonEmpty
-    |> validateField #lastName nonEmpty
-    |> validateField #phone nonEmpty
-    |> validateField #emergencyContactName nonEmpty
-    |> validateField #emergencyContactPhone nonEmpty
-    |> validateField #idealShiftsPerWeek (isInRange (0, 7))
+buildStaff :: (?request :: Request) => Bool -> Maybe (Maybe (Id AwardLevel)) -> Staff -> Staff
+buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId staff =
+    staff
+        |> fill @'["firstName", "lastName", "preferredName", "phone", "emergencyContactName", "emergencyContactPhone", "idealShiftsPerWeek", "isActive"]
+        |> applyStaffPayFields
+        |> validateField #firstName nonEmpty
+        |> validateField #lastName nonEmpty
+        |> validateField #phone nonEmpty
+        |> validateField #emergencyContactName nonEmpty
+        |> validateField #emergencyContactPhone nonEmpty
+        |> validateField #idealShiftsPerWeek (isInRange (0, 7))
+    where
+        applyStaffPayFields currentStaff
+            | not canManageStaffPay = currentStaff
+            | otherwise =
+                let withEmploymentBasis = currentStaff |> fill @'["employmentBasis"]
+                 in case maybeSubmittedDefaultAwardLevelId of
+                        Just defaultAwardLevelId -> withEmploymentBasis |> set #defaultAwardLevelId defaultAwardLevelId
+                        Nothing -> withEmploymentBasis
+
+fetchAwardLevelsForStaffForm :: (?modelContext :: ModelContext) => IO [AwardLevel]
+fetchAwardLevelsForStaffForm =
+    query @AwardLevel
+        |> filterWhere (#isActive, True)
+        |> orderByAsc #classification
+        |> fetch
+
+parseSubmittedDefaultAwardLevelId ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Bool ->
+    IO (Maybe (Maybe (Id AwardLevel)))
+parseSubmittedDefaultAwardLevelId canManageStaffPay
+    | not canManageStaffPay = pure (Just Nothing)
+    | otherwise = do
+        let maybeAwardLevelId = paramOrNothing @(Id AwardLevel) "defaultAwardLevelId"
+        case maybeAwardLevelId of
+            Nothing -> pure (Just Nothing)
+            Just awardLevelId -> do
+                maybeAwardLevel <-
+                    query @AwardLevel
+                        |> filterWhere (#id, awardLevelId)
+                        |> filterWhere (#isActive, True)
+                        |> fetchOneOrNothing
+                case maybeAwardLevel of
+                    Just _ -> pure (Just (Just awardLevelId))
+                    Nothing -> do
+                        setErrorMessage "Choose a synced award level."
+                        pure Nothing
 
 fetchStaffLinkedUserEmail :: (?modelContext :: ModelContext) => Staff -> IO (Maybe Text)
 fetchStaffLinkedUserEmail staff =

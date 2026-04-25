@@ -4,7 +4,8 @@ import Application.Helper.Pay
 import Config
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (fromGregorian)
+import Data.Time.Calendar (Day, fromGregorian)
+import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -77,41 +78,130 @@ tests = do
                     fmap (.weekendApplied) (Map.lookup "b" summaries) `shouldBe` Just True
 
     beforeAll testContext do
-        describe "Historical pay snapshots" do
-            it "keeps approved timesheet pay stable after later config changes" $ withContext do
+        describe "Award-backed pay calculations" do
+            it "uses the staff default award level for ordinary weekday hours" $ withContext do
                 withCleanDb do
-                    venue <- createVenueWithConfig "Pay Snapshot Venue"
-                    admin <- createUserRecord "pay-admin@example.com" "staff" True
-                    _ <- createVenueMembershipRecord venue admin "venue_admin"
+                    (venue, staff, shiftType, level) <- createPayFixture "Ordinary"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)
+
+                    result <- expectPayResult entry
+
+                    result.payLevelName `shouldBe` Just "Level 1"
+                    result.totals.paidMinutes `shouldBe` 480
+                    result.totals.totalAmount `shouldBe` 240
+                    fmap (.segment) result.segments `shouldBe` ["ordinary"]
+                    fmap (.baseRate) result.segments `shouldBe` [30]
+                    fmap (.amount) result.segments `shouldBe` [240]
+                    result.payLevelId `shouldBe` Just (unpackId level.id)
+
+            it "splits evening and after-midnight weekday penalties" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Late Bar"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 18 0 0) (TimeOfDay 2 0 0)
+
+                    result <- expectPayResult entry
+
+                    fmap (.segment) result.segments `shouldBe` ["ordinary", "evening_after_7pm", "late_night_after_midnight"]
+                    fmap (.minutes) result.segments `shouldBe` [60, 300, 120]
+                    fmap (.amount) result.segments `shouldBe` [30, 165, 72]
+                    result.totals.totalAmount `shouldBe` 267
+
+            it "uses weekend and public holiday penalty rows when applicable" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, level) <- createPayFixture "Weekend Bar"
+                    sourceRate <- query @FwcMapdPayRate |> filterWhere (#classificationFixedId, Just level.classificationFixedId) |> fetchOne
+                    createSyntheticPenalty level PublicHolidayPenalty sourceRate 75
+                    _ <- newRecord @PublicHoliday
+                        |> set #jurisdiction "VIC"
+                        |> set #holidayDate (fromGregorian 2025 1 10)
+                        |> set #name "Test Holiday"
+                        |> set #isRegional False
+                        |> createRecord
+
+                    saturdayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 11) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                    publicHolidayEntry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+
+                    saturdayResult <- expectPayResult saturdayEntry
+                    publicHolidayResult <- expectPayResult publicHolidayEntry
+
+                    fmap (.amount) saturdayResult.segments `shouldBe` [150]
+                    saturdayResult.totals.totalAmount `shouldBe` 150
+                    fmap (.amount) publicHolidayResult.segments `shouldBe` [300]
+                    publicHolidayResult.totals.totalAmount `shouldBe` 300
+
+            it "uses casual base rates for casual staff" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, level) <- createPayFixture "Casual Bar"
+                    casualPayRate <- newRecord @FwcMapdPayRate
+                        |> set #awardFixedId level.awardFixedId
+                        |> set #classificationFixedId (Just level.classificationFixedId)
+                        |> set #classification level.classification
+                        |> set #employeeRateTypeCode (Just "AD")
+                        |> set #calculatedRate (Just 37.5)
+                        |> set #calculatedRateType (Just "Casual Hourly")
+                        |> createRecord
+                    _ <- newRecord @AwardLevelBaseRate
+                        |> set #awardLevelId (unpackId level.id)
+                        |> set #employmentBasis Casual
+                        |> set #fwcMapdPayRateId (unpackId casualPayRate.id)
+                        |> set #hourlyRate 37.5
+                        |> set #rateLabel ("Casual Hourly" :: Text)
+                        |> createRecord
+                    _ <- staff |> set #employmentBasis Casual |> updateRecord
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+
+                    result <- expectPayResult entry
+
+                    fmap (.baseRate) result.segments `shouldBe` [37.5]
+                    result.totals.totalAmount `shouldBe` 150
+
+            it "lets a shift type award level override the staff default" $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Override Venue"
+                    staffLevel <- createPayLevelRecordWithRates venue "Staff Level" 30 3 6 1 1.25 1.5
+                    shiftLevel <- createPayLevelRecordWithRates venue "Shift Level" 40 4 8 1 1.25 1.5
                     staff <- createStaffRecord venue Nothing "Pat" "Rate"
-                    payLevel <- createPayLevelRecord venue "Level 1"
-                    shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
-                    friday <- fetchDayNameRecord venue 5
-                    overrideLevel <- createPayLevelRecord venue "Friday Level"
-                    _ <- createPayLevelDayRuleRecord shiftType friday overrideLevel
-                    entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 10)
-                        >>= updateRecord . set #shiftTypeId (unpackId shiftType.id)
+                        >>= updateRecord
+                            . set #employmentBasis Permanent
+                            . set #defaultAwardLevelId (Just staffLevel.id)
+                    shiftType <- createShiftTypeRecord venue shiftLevel "Manager"
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
 
-                    _ <- withUserAndCurrentVenue admin venue.id do
-                        callAction (ApproveTimesheetEntryAction entry.id)
+                    result <- expectPayResult entry
 
-                    snapshots <- query @PayConfigSnapshot |> orderByAsc #versionNumber |> fetch
+                    result.payLevelName `shouldBe` Just "Shift Level"
+                    result.payLevelId `shouldBe` Just (unpackId shiftLevel.id)
+                    result.totals.totalAmount `shouldBe` 160
 
-                    _ <- shiftType
-                        |> set #defaultPayLevelId (unpackId (get #id payLevel))
-                        |> updateRecord
-                    _ <- query @PayLevelDayRule
-                        |> filterWhere (#shiftTypeId, unpackId (get #id shiftType))
-                        |> fetchOne
-                        >>= updateRecord . set #payLevelId (unpackId (get #id payLevel))
+createPayFixture :: (?modelContext :: ModelContext) => Text -> IO (Venue, Staff, ShiftType, AwardLevel)
+createPayFixture shiftTypeName = do
+    venue <- createVenueWithConfig "Pay Calc Venue"
+    level <- createPayLevelRecordWithRates venue "Level 1" 30 3 6 1 1.25 1.5
+    staff <- createStaffRecord venue Nothing "Pat" "Rate"
+        >>= updateRecord
+            . set #employmentBasis Permanent
+            . set #defaultAwardLevelId (Just level.id)
+    shiftType <-
+        newRecord @ShiftType
+            |> set #venueId (unpackId venue.id)
+            |> set #name shiftTypeName
+            |> set #sortOrder 0
+            |> set #overrideAwardLevelId Nothing
+            |> set #isActive True
+            |> createRecord
+    pure (venue, staff, shiftType, level)
 
-                    payResult <- fetchTimesheetPay entry.id
+createEntry :: (?modelContext :: ModelContext) => Venue -> Staff -> ShiftType -> Day -> TimeOfDay -> TimeOfDay -> IO TimesheetEntry
+createEntry venue staff shiftType workedOn startTime endTime =
+    createTimesheetEntryRecord venue staff workedOn
+        >>= updateRecord
+            . set #shiftTypeId (unpackId shiftType.id)
+            . set #startTime startTime
+            . set #endTime endTime
 
-                    case payResult of
-                        Left err -> expectationFailure ("Expected pay result, got: " <> Text.unpack err)
-                        Right result -> do
-                            map (.versionLabel) snapshots `shouldBe` ["v1"]
-                            result.payConfigSnapshotVersion `shouldBe` Just "v1"
-                            result.shiftTypeName `shouldBe` Just "Ordinary"
-                            result.payLevelName `shouldBe` Just "Friday Level"
-                            fmap (.payLevelName) result.segments `shouldBe` [Just "Friday Level"]
+expectPayResult :: (?modelContext :: ModelContext) => TimesheetEntry -> IO TimesheetPayResult
+expectPayResult entry = do
+    payResult <- fetchTimesheetPay entry.id
+    case payResult of
+        Left err     -> fail ("Expected pay result, got: " <> Text.unpack err)
+        Right result -> pure result

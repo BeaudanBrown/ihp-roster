@@ -44,15 +44,10 @@ INSERT INTO venue_memberships (id, venue_id, user_id, venue_role, is_active) VAL
 INSERT INTO staff (id, venue_id, user_id, first_name, last_name, preferred_name, phone, emergency_contact_name, emergency_contact_phone, ideal_shifts_per_week, is_active) VALUES
 ('b2000000-0000-0000-0000-000000000001', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'b0000000-0000-0000-0000-000000000001', 'Beau', 'Brown', NULL, '0400000000', 'Emergency Contact', '0411111111', 0, true);
 
--- Pay Levels
-INSERT INTO pay_levels (id, venue_id, name, is_active) VALUES
-('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Standard Level 1', true),
-('22222222-2222-2222-2222-222222222222', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Supervisor Level 2', true);
-
 -- Shift Types
-INSERT INTO shift_types (id, venue_id, name, default_pay_level_id, is_active) VALUES
-('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Ordinary', '11111111-1111-1111-1111-111111111111', true),
-('44444444-4444-4444-4444-444444444444', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Management', '22222222-2222-2222-2222-222222222222', true);
+INSERT INTO shift_types (id, venue_id, name, override_award_level_id, is_active) VALUES
+('33333333-3333-3333-3333-333333333333', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Ordinary', NULL, true),
+('44444444-4444-4444-4444-444444444444', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'Management', NULL, true);
 
 -- Slot Names
 INSERT INTO slot_names (id, venue_id, roster_group_id, name, sort_order, is_active) VALUES

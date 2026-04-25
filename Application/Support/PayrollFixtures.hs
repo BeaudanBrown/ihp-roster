@@ -16,8 +16,8 @@ data CanonicalPayrollFixture = CanonicalPayrollFixture
     { venue        :: !Venue
     , admin        :: !User
     , dayNames     :: ![DayName]
-    , levelOne     :: !PayLevel
-    , levelTwo     :: !PayLevel
+    , levelOne     :: !AwardLevel
+    , levelTwo     :: !AwardLevel
     , barShift     :: !ShiftType
     , floorShift   :: !ShiftType
     , kitchenShift :: !ShiftType
@@ -77,10 +77,10 @@ createPayrollSnapshot ::
     (?modelContext :: ModelContext) =>
     Venue ->
     User ->
-    [PayLevel] ->
+    [AwardLevel] ->
     [ShiftType] ->
     [DayName] ->
-    [PayLevelDayRule] ->
+    [ShiftType] ->
     IO PayConfigSnapshot
 createPayrollSnapshot venue admin payLevels shiftTypes dayNames rules =
     createPayrollSnapshotWithVersion venue admin 1 payLevels shiftTypes dayNames rules
@@ -90,15 +90,17 @@ createPayrollSnapshotWithVersion ::
     Venue ->
     User ->
     Int ->
-    [PayLevel] ->
+    [AwardLevel] ->
     [ShiftType] ->
     [DayName] ->
-    [PayLevelDayRule] ->
+    [ShiftType] ->
     IO PayConfigSnapshot
-createPayrollSnapshotWithVersion venue admin versionNumber payLevels shiftTypes dayNames rules = do
+createPayrollSnapshotWithVersion venue admin versionNumber awardLevels shiftTypes _dayNames _rules = do
     venueConfig <- query @VenueConfig
         |> filterWhere (#venueId, unpackId venue.id)
         |> fetchOne
+    awardLevelBaseRates <- query @AwardLevelBaseRate |> orderByAsc #createdAt |> fetch
+    awardLevelPenaltyRates <- query @AwardLevelPenaltyRate |> orderByAsc #createdAt |> fetch
     createPayConfigSnapshotRecord venue admin versionNumber $
         Aeson.object
             [ "venueConfig" Aeson..= Aeson.object
@@ -108,23 +110,47 @@ createPayrollSnapshotWithVersion venue admin versionNumber payLevels shiftTypes 
                 , "weekOffsetEpoch" Aeson..= venueConfig.weekOffsetEpoch
                 , "lateToEarlyMinStartGapMinutes" Aeson..= venueConfig.lateToEarlyMinStartGapMinutes
                 , "staffTimesheetEditWindowDays" Aeson..= venueConfig.staffTimesheetEditWindowDays
+                , "publicHolidayJurisdiction" Aeson..= venueConfig.publicHolidayJurisdiction
                 ]
-            , "payLevels" Aeson..= map serializePayLevel payLevels
+            , "awardLevels" Aeson..= map serializeAwardLevel awardLevels
+            , "awardLevelBaseRates" Aeson..= map serializeAwardLevelBaseRate awardLevelBaseRates
+            , "awardLevelPenaltyRates" Aeson..= map serializeAwardLevelPenaltyRate awardLevelPenaltyRates
             , "shiftTypes" Aeson..= map serializeShiftType shiftTypes
-            , "payLevelDayRules" Aeson..= map (serializePayLevelDayRule dayNames) rules
             ]
     where
-        serializePayLevel payLevel =
+        serializeAwardLevel awardLevel =
             Aeson.object
-                [ "id" Aeson..= unpackId payLevel.id
-                , "name" Aeson..= payLevel.name
-                , "baseRate" Aeson..= payLevel.baseRate
-                , "eveningPenalty" Aeson..= payLevel.eveningPenalty
-                , "after12Penalty" Aeson..= payLevel.after12Penalty
-                , "weekdayMultiplier" Aeson..= payLevel.weekdayMultiplier
-                , "saturdayMultiplier" Aeson..= payLevel.saturdayMultiplier
-                , "sundayMultiplier" Aeson..= payLevel.sundayMultiplier
-                , "isActive" Aeson..= payLevel.isActive
+                [ "id" Aeson..= unpackId awardLevel.id
+                , "awardFixedId" Aeson..= awardLevel.awardFixedId
+                , "classificationFixedId" Aeson..= awardLevel.classificationFixedId
+                , "classification" Aeson..= awardLevel.classification
+                , "classificationLevel" Aeson..= awardLevel.classificationLevel
+                , "parentClassificationName" Aeson..= awardLevel.parentClassificationName
+                , "isActive" Aeson..= awardLevel.isActive
+                ]
+
+        serializeAwardLevelBaseRate rate =
+            Aeson.object
+                [ "id" Aeson..= unpackId rate.id
+                , "awardLevelId" Aeson..= rate.awardLevelId
+                , "employmentBasis" Aeson..= inputValue rate.employmentBasis
+                , "hourlyRate" Aeson..= rate.hourlyRate
+                , "rateLabel" Aeson..= rate.rateLabel
+                , "operativeFrom" Aeson..= rate.operativeFrom
+                , "operativeTo" Aeson..= rate.operativeTo
+                ]
+
+        serializeAwardLevelPenaltyRate rate =
+            Aeson.object
+                [ "id" Aeson..= unpackId rate.id
+                , "awardLevelId" Aeson..= rate.awardLevelId
+                , "employmentBasis" Aeson..= inputValue rate.employmentBasis
+                , "penaltyKind" Aeson..= inputValue rate.penaltyKind
+                , "hourlyRate" Aeson..= rate.hourlyRate
+                , "startsAtTime" Aeson..= rate.startsAtTime
+                , "endsAtTime" Aeson..= rate.endsAtTime
+                , "operativeFrom" Aeson..= rate.operativeFrom
+                , "operativeTo" Aeson..= rate.operativeTo
                 ]
 
         serializeShiftType shiftType =
@@ -132,17 +158,8 @@ createPayrollSnapshotWithVersion venue admin versionNumber payLevels shiftTypes 
                 [ "id" Aeson..= unpackId shiftType.id
                 , "name" Aeson..= shiftType.name
                 , "sortOrder" Aeson..= shiftType.sortOrder
-                , "defaultPayLevelId" Aeson..= shiftType.defaultPayLevelId
+                , "overrideAwardLevelId" Aeson..= shiftType.overrideAwardLevelId
                 , "isActive" Aeson..= shiftType.isActive
-                ]
-
-        serializePayLevelDayRule currentDayNames rule =
-            Aeson.object
-                [ "id" Aeson..= unpackId rule.id
-                , "shiftTypeId" Aeson..= rule.shiftTypeId
-                , "payLevelId" Aeson..= rule.payLevelId
-                , "dayNameId" Aeson..= rule.dayNameId
-                , "weekdayIndex" Aeson..= fmap (.weekdayIndex) (find (\dayName -> unpackId dayName.id == rule.dayNameId) currentDayNames)
                 ]
 
 seedCanonicalPayrollFixture :: (?modelContext :: ModelContext) => IO CanonicalPayrollFixture

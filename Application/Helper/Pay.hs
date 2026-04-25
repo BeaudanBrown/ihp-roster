@@ -198,24 +198,10 @@ buildCurrentVenuePayConfigSnapshotPayload ::
     IO Aeson.Value
 buildCurrentVenuePayConfigSnapshotPayload = do
     venueConfig <- fetchVenueConfig
-    payLevels <- query @PayLevel |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #createdAt |> fetch
+    awardLevels <- query @AwardLevel |> orderByAsc #classification |> fetch
+    awardLevelBaseRates <- query @AwardLevelBaseRate |> orderByAsc #createdAt |> fetch
+    awardLevelPenaltyRates <- query @AwardLevelPenaltyRate |> orderByAsc #createdAt |> fetch
     shiftTypes <- query @ShiftType |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #createdAt |> fetch
-    let shiftTypeIds = map (unpackId . get #id) shiftTypes
-    payLevelDayRules <-
-        if null shiftTypeIds
-            then pure []
-            else query @PayLevelDayRule
-                |> filterWhereIn (#shiftTypeId, shiftTypeIds)
-                |> orderByAsc #createdAt
-                |> fetch
-                >>= \rules -> do
-                    let dayNameIds = map (Id . (.dayNameId)) rules
-                    dayNames <-
-                        if null dayNameIds
-                            then pure []
-                            else query @DayName |> filterWhereIn (#id, dayNameIds) |> fetch
-                    let dayNamesById = Map.fromList (map (\dayName -> (unpackId (get #id dayName), dayName)) dayNames)
-                    pure (map (serializePayLevelDayRule dayNamesById) rules)
 
     pure $
         Aeson.object
@@ -226,23 +212,47 @@ buildCurrentVenuePayConfigSnapshotPayload = do
                 , "weekOffsetEpoch" Aeson..= venueConfig.weekOffsetEpoch
                 , "lateToEarlyMinStartGapMinutes" Aeson..= venueConfig.lateToEarlyMinStartGapMinutes
                 , "staffTimesheetEditWindowDays" Aeson..= venueConfig.staffTimesheetEditWindowDays
+                , "publicHolidayJurisdiction" Aeson..= venueConfig.publicHolidayJurisdiction
                 ]
-            , "payLevels" Aeson..= map serializePayLevel payLevels
+            , "awardLevels" Aeson..= map serializeAwardLevel awardLevels
+            , "awardLevelBaseRates" Aeson..= map serializeAwardLevelBaseRate awardLevelBaseRates
+            , "awardLevelPenaltyRates" Aeson..= map serializeAwardLevelPenaltyRate awardLevelPenaltyRates
             , "shiftTypes" Aeson..= map serializeShiftType shiftTypes
-            , "payLevelDayRules" Aeson..= payLevelDayRules
             ]
     where
-        serializePayLevel payLevel =
+        serializeAwardLevel awardLevel =
             Aeson.object
-                [ "id" Aeson..= unpackId (get #id payLevel)
-                , "name" Aeson..= payLevel.name
-                , "baseRate" Aeson..= payLevel.baseRate
-                , "eveningPenalty" Aeson..= payLevel.eveningPenalty
-                , "after12Penalty" Aeson..= payLevel.after12Penalty
-                , "weekdayMultiplier" Aeson..= payLevel.weekdayMultiplier
-                , "saturdayMultiplier" Aeson..= payLevel.saturdayMultiplier
-                , "sundayMultiplier" Aeson..= payLevel.sundayMultiplier
-                , "isActive" Aeson..= payLevel.isActive
+                [ "id" Aeson..= unpackId (get #id awardLevel)
+                , "awardFixedId" Aeson..= awardLevel.awardFixedId
+                , "classificationFixedId" Aeson..= awardLevel.classificationFixedId
+                , "classification" Aeson..= awardLevel.classification
+                , "classificationLevel" Aeson..= awardLevel.classificationLevel
+                , "parentClassificationName" Aeson..= awardLevel.parentClassificationName
+                , "isActive" Aeson..= awardLevel.isActive
+                ]
+
+        serializeAwardLevelBaseRate rate =
+            Aeson.object
+                [ "id" Aeson..= unpackId (get #id rate)
+                , "awardLevelId" Aeson..= rate.awardLevelId
+                , "employmentBasis" Aeson..= inputValue rate.employmentBasis
+                , "hourlyRate" Aeson..= rate.hourlyRate
+                , "rateLabel" Aeson..= rate.rateLabel
+                , "operativeFrom" Aeson..= rate.operativeFrom
+                , "operativeTo" Aeson..= rate.operativeTo
+                ]
+
+        serializeAwardLevelPenaltyRate rate =
+            Aeson.object
+                [ "id" Aeson..= unpackId (get #id rate)
+                , "awardLevelId" Aeson..= rate.awardLevelId
+                , "employmentBasis" Aeson..= inputValue rate.employmentBasis
+                , "penaltyKind" Aeson..= inputValue rate.penaltyKind
+                , "hourlyRate" Aeson..= rate.hourlyRate
+                , "startsAtTime" Aeson..= rate.startsAtTime
+                , "endsAtTime" Aeson..= rate.endsAtTime
+                , "operativeFrom" Aeson..= rate.operativeFrom
+                , "operativeTo" Aeson..= rate.operativeTo
                 ]
 
         serializeShiftType shiftType =
@@ -250,17 +260,8 @@ buildCurrentVenuePayConfigSnapshotPayload = do
                 [ "id" Aeson..= unpackId (get #id shiftType)
                 , "name" Aeson..= shiftType.name
                 , "sortOrder" Aeson..= shiftType.sortOrder
-                , "defaultPayLevelId" Aeson..= shiftType.defaultPayLevelId
+                , "overrideAwardLevelId" Aeson..= shiftType.overrideAwardLevelId
                 , "isActive" Aeson..= shiftType.isActive
-                ]
-
-        serializePayLevelDayRule dayNamesById rule =
-            Aeson.object
-                [ "id" Aeson..= unpackId (get #id rule)
-                , "shiftTypeId" Aeson..= rule.shiftTypeId
-                , "payLevelId" Aeson..= rule.payLevelId
-                , "dayNameId" Aeson..= rule.dayNameId
-                , "weekdayIndex" Aeson..= fmap (.weekdayIndex) (Map.lookup rule.dayNameId dayNamesById)
                 ]
 
 fetchTimesheetPay :: (?modelContext :: ModelContext) => Id TimesheetEntry -> IO (Either Text TimesheetPayResult)

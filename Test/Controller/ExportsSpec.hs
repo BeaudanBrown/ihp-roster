@@ -140,9 +140,7 @@ tests = beforeAll testContext do
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     Text.isInfixOf "Name,Type,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday,Total"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "Ava,LVL 1,8.00,0.00,0.00,0.00,0.00,0.00,0.00,8.00"
-                fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "Ava,LVL 2,0.00,0.00,0.00,0.00,6.00,0.00,0.00,6.00"
+                    Text.isInfixOf "Ava,LVL 2,8.00,0.00,0.00,0.00,6.00,0.00,0.00,14.00"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
 

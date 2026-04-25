@@ -5,6 +5,7 @@ import Application.Helper.Controller (PlatformRole (..),
                                       platformRoleToEnum, unsafeEnumFromText)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
+import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
 import qualified Data.Text as Text
@@ -19,7 +20,7 @@ import IHP.Prelude
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExecDiscardResult
-        "TRUNCATE TABLE app_jobs, fwc_mapd_pay_rates, fwc_mapd_classifications, fwc_mapd_awards, fwc_mapd_sync_runs, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, pay_levels, staff, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE app_jobs, award_level_penalty_rates, award_level_base_rates, award_levels, fwc_mapd_penalty_rates, fwc_mapd_pay_rates, fwc_mapd_classifications, fwc_mapd_awards, fwc_mapd_sync_runs, public_holidays, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, staff_availability, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
@@ -251,7 +252,7 @@ createLeaveRequestRecordWithNotes venue staff startDate endDate leaveStatus note
         |> set #notes notes
         |> createRecord
 
-createPayLevelRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO PayLevel
+createPayLevelRecord :: (?modelContext :: ModelContext) => Venue -> Text -> IO AwardLevel
 createPayLevelRecord venue levelName =
     createPayLevelRecordWithRates venue levelName 0 0 0 1 1 1
 
@@ -265,37 +266,80 @@ createPayLevelRecordWithRates ::
     Scientific ->
     Scientific ->
     Scientific ->
-    IO PayLevel
+    IO AwardLevel
 createPayLevelRecordWithRates venue levelName baseRate eveningPenalty after12Penalty weekdayMultiplier saturdayMultiplier sundayMultiplier =
-    newRecord @PayLevel
-        |> set #venueId (unpackId (get #id venue))
-        |> set #name levelName
-        |> set #baseRate baseRate
-        |> set #eveningPenalty eveningPenalty
-        |> set #after12Penalty after12Penalty
-        |> set #weekdayMultiplier weekdayMultiplier
-        |> set #saturdayMultiplier saturdayMultiplier
-        |> set #sundayMultiplier sundayMultiplier
-        |> set #isActive True
-        |> createRecord
+    createAwardLevelRecordWithRates levelName baseRate eveningPenalty after12Penalty saturdayMultiplier sundayMultiplier
 
-createShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> PayLevel -> Text -> IO ShiftType
-createShiftTypeRecord venue payLevel shiftTypeName =
+createAwardLevelRecordWithRates :: (?modelContext :: ModelContext) => Text -> Scientific -> Scientific -> Scientific -> Scientific -> Scientific -> IO AwardLevel
+createAwardLevelRecordWithRates levelName baseRate eveningPenalty after12Penalty saturdayMultiplier sundayMultiplier = do
+    awardLevel <-
+        newRecord @AwardLevel
+            |> set #awardFixedId 9
+            |> set #classificationFixedId (abs (Text.foldl' (\acc ch -> acc * 31 + Char.ord ch) 7 levelName))
+            |> set #classification levelName
+            |> set #isActive True
+            |> createRecord
+    payRate <-
+        newRecord @FwcMapdPayRate
+            |> set #awardFixedId 9
+            |> set #classificationFixedId (Just awardLevel.classificationFixedId)
+            |> set #classification levelName
+            |> set #employeeRateTypeCode (Just "AD")
+            |> set #calculatedRate (Just baseRate)
+            |> set #calculatedRateType (Just "Hourly")
+            |> createRecord
+    void
+        ( newRecord @AwardLevelBaseRate
+            |> set #awardLevelId (unpackId awardLevel.id)
+            |> set #employmentBasis Permanent
+            |> set #fwcMapdPayRateId (unpackId payRate.id)
+            |> set #hourlyRate baseRate
+            |> set #rateLabel ("Hourly" :: Text)
+            |> createRecord
+        )
+    createSyntheticPenalty awardLevel SaturdayPenalty payRate (baseRate * saturdayMultiplier)
+    createSyntheticPenalty awardLevel SundayPenalty payRate (baseRate * sundayMultiplier)
+    createSyntheticPenalty awardLevel EveningAfter7Pm payRate (baseRate + eveningPenalty)
+    createSyntheticPenalty awardLevel LateNightAfterMidnight payRate (baseRate + after12Penalty)
+    pure awardLevel
+
+createSyntheticPenalty :: (?modelContext :: ModelContext) => AwardLevel -> AwardPenaltyKindEnum -> FwcMapdPayRate -> Scientific -> IO ()
+createSyntheticPenalty awardLevel penaltyKind payRate hourlyRate = do
+    penaltyRate <-
+        newRecord @FwcMapdPenaltyRate
+            |> set #awardFixedId awardLevel.awardFixedId
+            |> set #classificationFixedId (Just awardLevel.classificationFixedId)
+            |> set #classification awardLevel.classification
+            |> set #employeeRateTypeCode (Just "AD")
+            |> set #basePayRateId payRate.basePayRateId
+            |> set #penaltyDescription (Just (inputValue penaltyKind))
+            |> set #penaltyCalculatedValue (Just hourlyRate)
+            |> createRecord
+    void
+        ( newRecord @AwardLevelPenaltyRate
+            |> set #awardLevelId (unpackId awardLevel.id)
+            |> set #employmentBasis Permanent
+            |> set #penaltyKind penaltyKind
+            |> set #fwcMapdPenaltyRateId (unpackId penaltyRate.id)
+            |> set #hourlyRate hourlyRate
+            |> createRecord
+        )
+
+createShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> AwardLevel -> Text -> IO ShiftType
+createShiftTypeRecord venue awardLevel shiftTypeName =
     newRecord @ShiftType
         |> set #venueId (unpackId (get #id venue))
         |> set #name shiftTypeName
         |> set #sortOrder 0
-        |> set #defaultPayLevelId (unpackId (get #id payLevel))
+        |> set #overrideAwardLevelId (Just awardLevel.id)
         |> set #isActive True
         |> createRecord
 
-createPayLevelDayRuleRecord :: (?modelContext :: ModelContext) => ShiftType -> DayName -> PayLevel -> IO PayLevelDayRule
-createPayLevelDayRuleRecord shiftType dayName payLevel =
-    newRecord @PayLevelDayRule
-        |> set #shiftTypeId (unpackId (get #id shiftType))
-        |> set #payLevelId (unpackId (get #id payLevel))
-        |> set #dayNameId (unpackId (get #id dayName))
-        |> createRecord
+createPayLevelDayRuleRecord :: (?modelContext :: ModelContext) => ShiftType -> DayName -> AwardLevel -> IO ShiftType
+createPayLevelDayRuleRecord shiftType _dayName awardLevel =
+    shiftType
+        |> set #overrideAwardLevelId (Just awardLevel.id)
+        |> updateRecord
 
 ensureVenueDefaultShiftType :: (?modelContext :: ModelContext) => Venue -> IO ShiftType
 ensureVenueDefaultShiftType venue = do

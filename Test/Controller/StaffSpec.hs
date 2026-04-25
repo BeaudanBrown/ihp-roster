@@ -95,3 +95,63 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
                 assignments <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId staff.id) |> fetch
                 sort (map (.rosterGroupId) assignments) `shouldBe` sort [unpackId frontOfHouse.id, unpackId backOfHouse.id]
+
+        it "allows venue admins to update staff employment basis and default pay level" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                admin <- createUserRecord "staff-pay-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                payLevel <- createPayLevelRecord venue "Level 2"
+                staff <- createStaffRecord venue Nothing "Alpha" "Crew"
+
+                response <- withUserAndCurrentVenue admin (get #id venue) do
+                    callActionWithParams
+                        (UpdateStaffAction staff.id)
+                        [ ("firstName", "Alpha")
+                        , ("lastName", "Crew")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Jordan Crew")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "4")
+                        , ("isActive", "on")
+                        , ("employmentBasis", "permanent")
+                        , ("defaultAwardLevelId", cs (tshow payLevel.id))
+                        , ("weekOffset", "0")
+                        , ("rosterGroupIds", cs (tshow rosterGroup.id))
+                        ]
+
+                response `responseStatusShouldBe` status302
+                updatedStaff <- fetch staff.id
+                updatedStaff.employmentBasis `shouldBe` Permanent
+                updatedStaff.defaultAwardLevelId `shouldBe` Just payLevel.id
+
+        it "ignores staff pay fields submitted by non-admin managers" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "staff-pay-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                payLevel <- createPayLevelRecord venue "Level 2"
+                staff <- createStaffRecord venue Nothing "Alpha" "Crew"
+
+                response <- withUserAndCurrentVenue manager (get #id venue) do
+                    callActionWithParams
+                        (UpdateStaffAction staff.id)
+                        [ ("firstName", "Alpha")
+                        , ("lastName", "Crew")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Jordan Crew")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "4")
+                        , ("isActive", "on")
+                        , ("employmentBasis", "permanent")
+                        , ("defaultAwardLevelId", cs (tshow payLevel.id))
+                        , ("weekOffset", "0")
+                        , ("rosterGroupIds", cs (tshow rosterGroup.id))
+                        ]
+
+                response `responseStatusShouldBe` status302
+                updatedStaff <- fetch staff.id
+                updatedStaff.employmentBasis `shouldBe` Casual
+                updatedStaff.defaultAwardLevelId `shouldBe` Nothing

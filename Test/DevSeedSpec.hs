@@ -252,9 +252,8 @@ tests = beforeAll testContext do
                 fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
                 let ExplorationPayrollFixture { explorationVenue = payrollVenue } = fixture.payrollFixture
 
-                payLevels <-
-                    query @PayLevel
-                        |> filterWhere (#venueId, unpackId (get #id payrollVenue))
+                awardLevels <-
+                    query @AwardLevel
                         |> fetch
                 shiftTypes <-
                     query @ShiftType
@@ -275,7 +274,7 @@ tests = beforeAll testContext do
                         |> filterWhere (#isApproved, False)
                         |> fetchCount
 
-                map (.name) payLevels `shouldMatchList` ["LVL 1", "LVL 2", "LVL 3"]
+                filter (`elem` ["LVL 1", "LVL 2", "LVL 3"]) (map (.classification) awardLevels) `shouldMatchList` ["LVL 1", "LVL 2", "LVL 3"]
                 map (.name) shiftTypes `shouldMatchList` ["Bar", "Floor", "Kitchen"]
                 length snapshots `shouldBe` 1
                 approvedCount `shouldSatisfy` (> pendingCount)

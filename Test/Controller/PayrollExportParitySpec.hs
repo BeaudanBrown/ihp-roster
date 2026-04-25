@@ -52,21 +52,17 @@ tests = beforeAll testContext do
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
                 Map.keys csvRows `shouldBe` [("Ava", "LVL 1"), ("Ava", "LVL 2"), ("Kai", "LVL 1")]
-                lookupCsvRow csvRows "Ava" "LVL 1" `shouldBe` ["4.50", "0.00", "0.00", "0.00", "0.00", "3.50", "0.00", "8.00"]
-                lookupCsvRow csvRows "Ava" "LVL 2" `shouldBe` ["0.00", "0.00", "0.00", "0.00", "6.00", "0.00", "0.00", "6.00"]
+                lookupCsvRow csvRows "Ava" "LVL 1" `shouldBe` ["2.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "2.00"]
+                lookupCsvRow csvRows "Ava" "LVL 2" `shouldBe` ["2.50", "0.00", "0.00", "0.00", "6.00", "3.50", "0.00", "12.00"]
                 lookupCsvRow csvRows "Kai" "LVL 1" `shouldBe` ["0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "4.00"]
 
         it "keeps snapshot-pinned payroll CSV output stable after later pay-config changes" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture
                 expectedCsv <- readExportFixtureText "staff_hours-expected.csv"
-                fridayRule <- query @PayLevelDayRule |> fetchOne
 
                 _ <- fixture.barShift
-                    |> set #defaultPayLevelId (unpackId fixture.levelTwo.id)
-                    |> updateRecord
-                _ <- fridayRule
-                    |> set #payLevelId (unpackId fixture.levelOne.id)
+                    |> set #overrideAwardLevelId (Just fixture.levelTwo.id)
                     |> updateRecord
 
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue "staff_hours" 0

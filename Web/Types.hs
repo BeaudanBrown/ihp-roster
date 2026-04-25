@@ -87,10 +87,6 @@ data AdminController
     | CreateRosterGroupAction
     | UpdateRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
     | MakeDefaultRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
-    | CreatePayLevelAction
-    | UpdatePayLevelAction { payLevelId :: !(Id PayLevel) }
-    | CreatePayLevelDayRuleAction
-    | UpdatePayLevelDayRuleAction { payLevelDayRuleId :: !(Id PayLevelDayRule) }
     | CreateShiftTypeAction
     | UpdateShiftTypeAction { shiftTypeId :: !(Id ShiftType) }
     | CreateSlotNameAction

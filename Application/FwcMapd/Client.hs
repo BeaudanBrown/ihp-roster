@@ -44,6 +44,17 @@ fetchPayRateValues :: MapdConfig -> Int -> IO [Aeson.Value]
 fetchPayRateValues config awardFixedId =
     fetchPagedEndpoint config (awardPath awardFixedId <> "/pay-rates") []
 
+fetchPenaltyRateValues :: MapdConfig -> Int -> IO [Aeson.Value]
+fetchPenaltyRateValues config awardFixedId =
+    fetchPagedEndpoint config (awardPath awardFixedId <> "/penalties") []
+
+fetchPenaltyRateValuesForBasePayRateId :: MapdConfig -> Int -> Text -> IO [Aeson.Value]
+fetchPenaltyRateValuesForBasePayRateId config awardFixedId basePayRateId =
+    fetchPagedEndpoint
+        config
+        (awardPath awardFixedId <> "/penalties")
+        [("base_pay_rate_id", Just (cs basePayRateId))]
+
 fetchPagedEndpoint :: MapdConfig -> Text -> [(ByteString.ByteString, Maybe ByteString.ByteString)] -> IO [Aeson.Value]
 fetchPagedEndpoint config path extraQueryParams = do
     firstPage <- fetchPage config path 1 extraQueryParams

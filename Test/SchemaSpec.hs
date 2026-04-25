@@ -36,7 +36,11 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe VenueConfig)
         let _ = (Nothing :: Maybe StaffAvailability)
         let _ = (Nothing :: Maybe StaffShiftPreference)
-        let _ = (Nothing :: Maybe PayLevel)
+        let _ = (Nothing :: Maybe AwardLevel)
+        let _ = (Nothing :: Maybe AwardLevelBaseRate)
+        let _ = (Nothing :: Maybe AwardLevelPenaltyRate)
+        let _ = (Nothing :: Maybe FwcMapdPenaltyRate)
+        let _ = (Nothing :: Maybe PublicHoliday)
         let _ = (Nothing :: Maybe PayConfigSnapshot)
         let _ = (Nothing :: Maybe ShiftType)
         let _ = (Nothing :: Maybe ReportDefinition)
@@ -44,7 +48,6 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe RosterGroup)
         let _ = (Nothing :: Maybe SlotName)
         let _ = (Nothing :: Maybe DayName)
-        let _ = (Nothing :: Maybe PayLevelDayRule)
         let _ = (Nothing :: Maybe AuditEvent)
         let _ = (Nothing :: Maybe ExportJob)
         let _ = (Nothing :: Maybe VenueMembershipRoleEvent)
@@ -86,7 +89,6 @@ tests = describe "Schema" do
         let _shiftPreferenceVenueId = get #venueId (newRecord @StaffShiftPreference)
         let _shiftPreferenceRosterGroupId = get #rosterGroupId (newRecord @StaffShiftPreference)
         let _shiftPreferenceSlotNameId = get #slotNameId (newRecord @StaffShiftPreference)
-        let _payLevelVenueId = get #venueId (newRecord @PayLevel)
         let _shiftTypeVenueId = get #venueId (newRecord @ShiftType)
         let _reportDefinitionVenueId = get #venueId (newRecord @ReportDefinition)
         let _slotNameVenueId = get #venueId (newRecord @SlotName)
@@ -411,9 +413,9 @@ tests = describe "Schema" do
                 , "platform_role", "is_profile_completed", "email_verified_at", "locked_at", "failed_login_attempts"
                 , "created_at", "updated_at", "user_id", "first_name"
                 , "last_name", "preferred_name", "phone", "emergency_contact_name"
-                , "emergency_contact_phone", "ideal_shifts_per_week", "is_active"
-                , "name", "default_pay_level_id"
-                , "weekday_index", "shift_type_id", "pay_level_id", "day_name_id"
+                , "emergency_contact_phone", "ideal_shifts_per_week", "employment_basis", "is_active"
+                , "name", "default_award_level_id", "override_award_level_id"
+                , "weekday_index", "shift_type_id", "day_name_id"
                 , "venue_id", "venue_role", "invited_by_user_id", "accepted_by_user_id"
                 , "invite_role", "accepted_at", "expires_at"
                 , "timezone", "week_offset_epoch"
@@ -465,9 +467,9 @@ tests = describe "Schema" do
 
         it "defines weekday segmentation windows and boundaries" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "('after_midnight'::TEXT, 0, 420, 1)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "('late_night_after_midnight'::TEXT, 0, 420, 1)"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "('ordinary'::TEXT, 420, 1140, 2)"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "('evening'::TEXT, 1140, 1440, 3)"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "('evening_after_7pm'::TEXT, 1140, 1440, 3)"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "LEAST(r.start_minute_of_day + r.paid_minutes, 1860)"
 
         it "builds segment minute overlaps from the break-adjusted paid window" do
@@ -477,19 +479,15 @@ tests = describe "Schema" do
             schemaSqlText `shouldSatisfy` Text.isInfixOf "- GREATEST(pw.start_minute_of_day, sw.window_start_minute)"
             schemaSqlText `shouldSatisfy` Text.isInfixOf "FILTER (WHERE sr.segment_minutes > 0)"
 
-        it "uses configured pay-level multipliers and rate fields in pay segments" do
+        it "uses projected award rates and penalty kinds in pay segments" do
             schemaSqlText <- TextIO.readFile "Application/Schema.sql"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "base_rate NUMERIC(10,2) DEFAULT 0 NOT NULL"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "evening_penalty NUMERIC(10,2) DEFAULT 0 NOT NULL"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "after_12_penalty NUMERIC(10,2) DEFAULT 0 NOT NULL"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "weekday_multiplier NUMERIC(10,3) DEFAULT 1.000 NOT NULL"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "saturday_multiplier NUMERIC(10,3) DEFAULT 1.000 NOT NULL"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "sunday_multiplier NUMERIC(10,3) DEFAULT 1.000 NOT NULL"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'dayRuleMultiplier', sr.day_rule_multiplier"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'weekendMultiplier', sr.weekend_multiplier"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "'multiplier', sr.day_rule_multiplier"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN EXTRACT(DOW FROM pw.worked_on)::INT = 6 THEN pw.saturday_multiplier"
-            schemaSqlText `shouldSatisfy` Text.isInfixOf "ELSE pw.weekday_multiplier"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_level_base_rates"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE award_level_penalty_rates"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN pw.is_public_holiday THEN 'public_holiday_penalty'::award_penalty_kind_enum"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN EXTRACT(DOW FROM pw.worked_on)::INT = 6 THEN 'saturday_penalty'::award_penalty_kind_enum"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN sw.segment_name = 'evening_after_7pm' THEN 'evening_after_7pm'::award_penalty_kind_enum"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "WHEN sw.segment_name = 'late_night_after_midnight' THEN 'late_night_after_midnight'::award_penalty_kind_enum"
+            schemaSqlText `shouldSatisfy` Text.isInfixOf "SELECT alpr.hourly_rate"
 
     describe "Timesheet validation helpers" do
         it "parseTimeParam parses valid HH:MM values" do
