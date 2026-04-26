@@ -4,9 +4,8 @@ import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
 import Application.Helper.LiveSurface (liveSurfaceConfigJson)
-import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
-import Application.Support.LiveUpdates (supportLiveSurface, supportLiveUpdateScope)
+import Application.Support.LiveUpdates (supportLiveSurface)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -170,14 +169,6 @@ instance View IndexView where
          in [hsx|
             <section id="support-shell"
                      hx-history-elt="true"
-                     data-live-update-owner="true"
-                     data-live-update-feature="support"
-                     data-live-updates-path="/live-updates"
-                     data-live-update-client-enabled="true"
-                     data-live-update-client-id=""
-                     data-live-update-scope-kind={liveUpdateScopeKind supportLiveUpdateScope}
-                     data-live-update-award-rates-url={pathTo ShowFwcMapdAwardRatesSectionAction}
-                     data-live-update-public-holidays-url={pathTo ShowPublicHolidaysSectionAction}
                      data-live-update-surface={liveSurfaceConfigJson supportLiveSurface}>
                 {page}
             </section>
@@ -292,15 +283,6 @@ renderAwardRefreshForm activeRefreshJob = [hsx|
             if isJust activeRefreshJob
                 then "Refresh queued/running" :: Text
                 else "Refresh award rates"
-
-liveUpdateScopeKind :: LiveUpdateScope -> Text
-liveUpdateScopeKind SupportPlatformScope      = "support_platform"
-liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
-liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
-liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
-liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
-liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
-liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
 
 renderAwardRatesSummary :: Maybe FwcMapdSyncRun -> Maybe AppJob -> [FwcMapdAward] -> [FwcMapdClassification] -> [FwcMapdDisplayPayRate] -> [(Text, Int)] -> Html
 renderAwardRatesSummary latestSyncRun latestRefreshJob currentAwards currentCoreClassifications currentCoreAdultPayRates rateTypeBreakdown = [hsx|

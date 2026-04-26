@@ -64,14 +64,6 @@ renderTimesheetWeekShell IndexView { .. } =
      in [hsx|
     <section id={timesheetWeekShellId}
              hx-history-elt="true"
-             data-live-update-owner="true"
-             data-live-update-feature="timesheets"
-             data-live-updates-path="/live-updates"
-             data-live-update-client-enabled={isJust liveUpdateScope}
-             data-live-update-client-id=""
-             data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
-             data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
-             data-live-update-week-offset={liveUpdateWeekOffsetText =<< liveUpdateScope}
              data-live-update-surface={liveSurfaceConfigJson . timesheetWeekLiveSurface weekOffset showApproved showAllStaff <$> liveUpdateScope}>
         {page}
     </section>
@@ -467,30 +459,3 @@ renderTimesheetShapeSegment segment = [hsx|
     <div class={"timesheet-shape-segment " <> segmentClass segment}
          style={"left:" <> tshow (segmentLeft segment) <> "%;width:" <> tshow (segmentWidth segment) <> "%;"}></div>
 |]
-
-liveUpdateScopeKind :: LiveUpdateScope -> Text
-liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
-liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
-liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
-liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
-liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
-liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
-liveUpdateScopeKind SupportPlatformScope      = "support_platform"
-
-liveUpdateVenueId :: LiveUpdateScope -> Text
-liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
-liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
-liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
-liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
-liveUpdateVenueId AdminInvitesScope { venueId }      = tshow venueId
-liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
-liveUpdateVenueId SupportPlatformScope               = ""
-
-liveUpdateWeekOffsetText :: LiveUpdateScope -> Maybe Text
-liveUpdateWeekOffsetText LeaveRequestsScope {}          = Nothing
-liveUpdateWeekOffsetText RosterWeekScope { weekOffset } = Just (tshow weekOffset)
-liveUpdateWeekOffsetText RosterGroupConfigScope {}      = Nothing
-liveUpdateWeekOffsetText AdminSlotNamesScope {}         = Nothing
-liveUpdateWeekOffsetText AdminInvitesScope {}           = Nothing
-liveUpdateWeekOffsetText TimesheetWeekScope { weekOffset } = Just (tshow weekOffset)
-liveUpdateWeekOffsetText SupportPlatformScope           = Nothing

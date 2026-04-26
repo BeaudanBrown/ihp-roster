@@ -77,10 +77,10 @@ data LiveFragmentKey
     deriving (Eq, Ord, Show)
 
 data FocusedFieldProtectionConfig = FocusedFieldProtectionConfig
-    { activeSelector     :: !Text
-    , fieldKeyAttr       :: !Text
-    , fieldNameFallback  :: !Bool
-    , containerSelector  :: !(Maybe Text)
+    { activeSelector    :: !Text
+    , fieldKeyAttr      :: !Text
+    , fieldNameFallback :: !Bool
+    , containerSelector :: !(Maybe Text)
     }
     deriving (Eq, Show)
 
@@ -90,11 +90,11 @@ data LiveFragmentProtection
     deriving (Eq, Show)
 
 data LiveFragmentRef = LiveFragmentRef
-    { fragmentKey       :: !LiveFragmentKey
-    , targetId          :: !Text
-    , url               :: !Text
-    , deferUntilBlur    :: !Bool
-    , protectionPolicy  :: !LiveFragmentProtection
+    { fragmentKey      :: !LiveFragmentKey
+    , targetId         :: !Text
+    , url              :: !Text
+    , deferUntilBlur   :: !Bool
+    , protectionPolicy :: !LiveFragmentProtection
     }
     deriving (Eq, Show)
 

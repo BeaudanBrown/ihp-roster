@@ -137,7 +137,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "roster-grid"
                 response `responseBodyShouldNotContain` "Crew, Alpha"
 
-        it "empty roster pages still expose live-update scope metadata" $ withContext do
+        it "empty roster pages still expose declarative live-update surface metadata" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-empty-live-scope@example.com" "staff" True
@@ -148,15 +148,15 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-live-update-client-enabled=\"true\""
-                response `responseBodyShouldContain` "data-live-update-scope-kind=\"roster_week\""
-                response `responseBodyShouldContain` "data-live-update-roster-group-id=\""
-                response `responseBodyShouldContain` "data-live-update-week-offset=\"0\""
+                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "roster_week"
+                response `responseBodyShouldContain` "rosterGroupId"
+                response `responseBodyShouldContain` "weekOffset"
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldNotContain` "ihp-auto-refresh-id"
 
-        it "staff on hidden draft pages still expose live-update scope metadata" $ withContext do
+        it "staff on hidden draft pages still expose declarative live-update surface metadata" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "roster-hidden-draft-live-scope@example.com" "staff" True
@@ -167,10 +167,10 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-live-update-client-enabled=\"true\""
-                response `responseBodyShouldContain` "data-live-update-scope-kind=\"roster_week\""
-                response `responseBodyShouldContain` "data-live-update-roster-group-id=\""
-                response `responseBodyShouldContain` "data-live-update-week-offset=\"0\""
+                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "roster_week"
+                response `responseBodyShouldContain` "rosterGroupId"
+                response `responseBodyShouldContain` "weekOffset"
 
         it "manager can see draft weeks" $ withContext do
             withCleanDb do

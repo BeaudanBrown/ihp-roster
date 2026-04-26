@@ -76,9 +76,8 @@ tests = beforeAll testContext do
                     callAction ShowTimesheetWeekAction { weekOffset = 0 }
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-live-update-feature=\"timesheets\""
-                response `responseBodyShouldContain` "data-live-update-client-enabled=\"true\""
-                response `responseBodyShouldContain` "data-live-update-scope-kind=\"timesheet_week\""
+                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "timesheet_week"
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
 
         it "lets super-admin create timesheet entries for venue staff without a staff identity" $ withContext do

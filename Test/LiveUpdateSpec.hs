@@ -1,7 +1,7 @@
 module Test.LiveUpdateSpec where
 
-import Application.Helper.LiveUpdate
 import Application.Helper.LiveSurface
+import Application.Helper.LiveUpdate
 import Application.Support.LiveUpdates
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS

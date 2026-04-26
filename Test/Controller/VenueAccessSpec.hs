@@ -253,8 +253,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Support"
                 response `responseBodyShouldContain` "Create Venue"
-                response `responseBodyShouldContain` "data-live-update-feature=\"support\""
-                response `responseBodyShouldContain` "data-live-update-scope-kind=\"support_platform\""
+                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "support_platform"
 
         it "lets super-admin queue an award rate refresh from support" $ withContext do
             withCleanDb do

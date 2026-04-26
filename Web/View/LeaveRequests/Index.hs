@@ -56,14 +56,6 @@ renderLeaveRequestsShell IndexView { .. } =
             })
      in [hsx|
         <section id={leaveRequestsShellId}
-                 data-live-update-owner="true"
-                 data-live-update-feature="leave-requests"
-                 data-live-updates-path="/live-updates"
-                 data-live-update-content-url={pathTo ShowLeaveRequestsContentFragmentAction}
-                 data-live-update-client-enabled={isJust liveUpdateScope}
-                 data-live-update-client-id=""
-                 data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
-                 data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
                  data-live-update-surface={liveSurfaceConfigJson . leaveRequestsLiveSurface <$> liveUpdateScope}>
             {page}
         </section>
@@ -329,21 +321,3 @@ renderDeleteAction currentViewerStaffId leaveRequest =
 isCurrentUsersLeaveRequest :: Maybe UUID -> LeaveRequest -> Bool
 isCurrentUsersLeaveRequest currentViewerStaffId leaveRequest =
     maybe False (== leaveRequest.staffId) currentViewerStaffId
-
-liveUpdateScopeKind :: LiveUpdateScope -> Text
-liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
-liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
-liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
-liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
-liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
-liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
-liveUpdateScopeKind SupportPlatformScope      = "support_platform"
-
-liveUpdateVenueId :: LiveUpdateScope -> Text
-liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
-liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
-liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
-liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
-liveUpdateVenueId AdminInvitesScope { venueId }      = tshow venueId
-liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
-liveUpdateVenueId SupportPlatformScope               = ""

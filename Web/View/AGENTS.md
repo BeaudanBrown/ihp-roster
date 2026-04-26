@@ -66,10 +66,10 @@ renderForm post = formFor post [hsx|
 
 ## Shared Live Shell Pattern
 - Treat the page shell as the subscription owner. Render scope metadata on a stable shell element so the shared client can subscribe/unsubscribe as HTMX navigation swaps shells in and out.
-- Mark each subscribing shell with `data-live-update-owner="true"` and a feature tag such as `data-live-update-feature="roster"` so the shared client can discover owners without hard-coded page ids.
+- Mark each subscribing shell with `data-live-update-surface={liveSurfaceConfigJson surface}`. The JSON surface config owns the feature name, socket path, scope, resync fragments, and request-decoration selectors.
 - A shell may subscribe to more than one scope, but scopes should represent logical data slices rather than page names.
 - Fragment invalidations should name explicit target ids and refetch URLs. Keep the fragment GET route canonical for that DOM region instead of rebuilding HTML inside websocket handlers.
-- Use feature adapters only for DOM-specific behavior such as row replacement, scope-level resync, or focus deferral. Keep websocket lifecycle, reconnect, dedupe, version tracking, and refetch queueing in the shared client runtime.
+- Use `LiveFragmentProtection` policies for reusable browser-side protection such as focused-field deferral. Do not add feature adapters for generic websocket lifecycle, reconnect, dedupe, version tracking, request decoration, resync, refetch queueing, or swapping.
 - Shared reconnect contract: subscriptions should carry a `lastSeenVersion`, subscribe acks should report `currentVersion` plus whether a scope resync is needed, and a gap in scope versions should trigger a full scope resync through the feature adapter instead of guessing which invalidations were missed.
 - When a reconnect resync falls back to a coarse content fragment, keep the same focus-protection rules as normal live invalidations: defer the content refetch until blur if a `.slot-cell-input` inside that fragment is still focused, while allowing unrelated mounted fragments such as side panels to refresh immediately.
 

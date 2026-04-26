@@ -5,8 +5,8 @@ module Application.Support.LiveUpdates
     , supportPublicHolidaysSectionFragmentRef
     ) where
 
-import Application.Helper.LiveUpdate
 import Application.Helper.LiveSurface
+import Application.Helper.LiveUpdate
 import IHP.Prelude
 
 supportLiveUpdateScope :: LiveUpdateScope
@@ -41,7 +41,7 @@ supportLiveSurface =
         , supportPublicHolidaysSectionFragmentRef
         ])
         { decorateRequestsWithin =
-            [ "[data-live-update-feature=\"support\"]"
+            [ "#support-shell"
             , "#support-award-rates-section"
             , "#support-public-holidays-section"
             ]

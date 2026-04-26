@@ -230,6 +230,8 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
   - venue-only surfaces such as leave lists should use a venue scope kind carrying `venueId`
   - week-based surfaces such as roster and timesheets should use a scope kind carrying `venueId` plus `weekOffset`
   - client scope keys must be derived by scope kind, not by assuming every feature has a week offset
+- New live-update surfaces should be declared from Haskell with `Application.Helper.LiveSurface.LiveSurfaceConfig` and rendered as `data-live-update-surface` on the stable owner shell. Avoid adding feature-specific JavaScript adapters for ordinary subscribe/resync/request-decoration behavior.
+- Standard live-fragment adoption pattern: add a fragment action that returns the section HTML, give the section a stable `id`, define a `LiveFragmentRef`, include it in a `LiveSurfaceConfig`, render `data-live-update-surface`, broadcast `broadcastLiveInvalidation scope sourceClientId [fragmentRef]` after mutations, and cover both the fragment response and surface metadata in Hspec.
 - Post-`helpers.js` migration policy:
   - use HTMX for partial and in-place workflows
   - keep low-frequency full-page forms such as admin/config, exports, profile, login, and invitation/bootstrap as native browser submits by default

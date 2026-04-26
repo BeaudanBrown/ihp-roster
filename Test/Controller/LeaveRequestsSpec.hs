@@ -118,9 +118,8 @@ tests = beforeAll testContext do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-live-update-feature=\"leave-requests\""
-                response `responseBodyShouldContain` "data-live-update-client-enabled=\"true\""
-                response `responseBodyShouldContain` "data-live-update-scope-kind=\"leave_requests\""
+                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "leave_requests"
                 response `responseBodyShouldContain` "id=\"leave-requests-content\""
 
         it "denies the leave review page to ordinary staff" $ withContext do

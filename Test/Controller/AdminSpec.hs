@@ -130,8 +130,10 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "Back Pass"
                 pageResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
                 pageResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
-                pageResponse `responseBodyShouldContain` ("data-live-update-target-id=\"admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
-                pageResponse `responseBodyShouldContain` ("data-live-update-target-id=\"admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
+                pageResponse `responseBodyShouldContain` "data-live-update-surface=\""
+                pageResponse `responseBodyShouldContain` "admin_slot_names"
+                pageResponse `responseBodyShouldContain` ("admin-slot-names-fragment-" <> tshow firstGroup.id)
+                pageResponse `responseBodyShouldContain` ("admin-slot-names-fragment-" <> tshow secondGroup.id)
                 pageResponse `responseBodyShouldContain` ("hx-target=\"#admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
                 pageResponse `responseBodyShouldContain` ("hx-target=\"#admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
 

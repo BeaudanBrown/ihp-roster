@@ -3,8 +3,6 @@ module Web.View.RosterWeeks.Show where
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
                                        liveSurfaceConfigJson, mkLiveSurface)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
-import Application.Helper.View (appendQueryParams)
-import Data.Maybe (isJust)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Projection (buildDeferredRosterContentFragmentRef,
@@ -32,28 +30,8 @@ renderRosterWeekShell ShowView { .. } =
      in [hsx|
     <section id={rosterWeekShellId}
              hx-history-elt="true"
-             data-live-update-owner="true"
-             data-live-update-feature="roster"
-             data-live-updates-path="/live-updates"
-             data-live-update-content-url={appendQueryParams (pathTo (ShowRosterWeekContentFragmentAction weekOffset)) [("rosterGroupId", tshow currentRosterGroup.id)]}
-             data-live-update-staff-panel-url={appendQueryParams (pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset)) [("rosterGroupId", tshow currentRosterGroup.id)]}
-             data-live-update-client-enabled={isJust liveUpdateScope}
-             data-live-update-client-id=""
-             data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
-             data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
-             data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< liveUpdateScope}
-             data-live-update-week-offset={liveUpdateWeekOffsetText =<< liveUpdateScope}
              data-live-update-surface={liveSurfaceConfigJson . rosterWeekLiveSurface currentRosterGroup.id weekOffset <$> liveUpdateScope}>
-        <div data-live-update-owner="true"
-             data-live-update-feature="roster-group-config"
-             data-live-updates-path="/live-updates"
-             data-live-update-content-url={appendQueryParams (pathTo (ShowRosterWeekContentFragmentAction weekOffset)) [("rosterGroupId", tshow currentRosterGroup.id)]}
-             data-live-update-client-enabled={isJust liveUpdateScope}
-             data-live-update-client-id=""
-             data-live-update-scope-kind={liveUpdateRosterGroupScopeKind <$> liveUpdateScope}
-             data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
-             data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< liveUpdateScope}
-             data-live-update-surface={liveSurfaceConfigJson . rosterGroupConfigLiveSurface currentRosterGroup.id weekOffset <$> liveUpdateScope}
+        <div data-live-update-surface={liveSurfaceConfigJson . rosterGroupConfigLiveSurface currentRosterGroup.id weekOffset <$> liveUpdateScope}
              hidden="hidden"></div>
         {page}
     </section>
@@ -119,48 +97,3 @@ passkeyPromptBody FirstPasskeyPrompt =
     "Create a passkey so you can sign in with Face ID, Touch ID, Windows Hello or your screen lock instead of typing your password."
 passkeyPromptBody AdditionalDevicePasskeyPrompt =
     "This account already has a passkey. Add one here if you want this browser to offer the same quick sign-in."
-
-liveUpdateScopeKind :: LiveUpdateScope -> Text
-liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
-liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
-liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
-liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
-liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
-liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
-liveUpdateScopeKind SupportPlatformScope      = "support_platform"
-
-liveUpdateRosterGroupScopeKind :: LiveUpdateScope -> Maybe Text
-liveUpdateRosterGroupScopeKind RosterWeekScope {}        = Just "roster_group_config"
-liveUpdateRosterGroupScopeKind RosterGroupConfigScope {} = Just "roster_group_config"
-liveUpdateRosterGroupScopeKind AdminSlotNamesScope {}    = Nothing
-liveUpdateRosterGroupScopeKind AdminInvitesScope {}      = Nothing
-liveUpdateRosterGroupScopeKind LeaveRequestsScope {}     = Nothing
-liveUpdateRosterGroupScopeKind TimesheetWeekScope {}     = Nothing
-liveUpdateRosterGroupScopeKind SupportPlatformScope      = Nothing
-
-liveUpdateVenueId :: LiveUpdateScope -> Text
-liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
-liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
-liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
-liveUpdateVenueId AdminInvitesScope { venueId }      = tshow venueId
-liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
-liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
-liveUpdateVenueId SupportPlatformScope               = ""
-
-liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
-liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId } = Just (tshow rosterGroupId)
-liveUpdateRosterGroupIdText RosterGroupConfigScope { rosterGroupId } = Just (tshow rosterGroupId)
-liveUpdateRosterGroupIdText AdminSlotNamesScope { rosterGroupId } = Just (tshow rosterGroupId)
-liveUpdateRosterGroupIdText AdminInvitesScope {} = Nothing
-liveUpdateRosterGroupIdText LeaveRequestsScope {} = Nothing
-liveUpdateRosterGroupIdText TimesheetWeekScope {} = Nothing
-liveUpdateRosterGroupIdText SupportPlatformScope = Nothing
-
-liveUpdateWeekOffsetText :: LiveUpdateScope -> Maybe Text
-liveUpdateWeekOffsetText RosterWeekScope { weekOffset } = Just (tshow weekOffset)
-liveUpdateWeekOffsetText RosterGroupConfigScope {} = Nothing
-liveUpdateWeekOffsetText AdminSlotNamesScope {} = Nothing
-liveUpdateWeekOffsetText AdminInvitesScope {} = Nothing
-liveUpdateWeekOffsetText LeaveRequestsScope {} = Nothing
-liveUpdateWeekOffsetText TimesheetWeekScope { weekOffset } = Just (tshow weekOffset)
-liveUpdateWeekOffsetText SupportPlatformScope = Nothing

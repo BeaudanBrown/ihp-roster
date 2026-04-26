@@ -112,7 +112,7 @@
             activeClientId = makeClientId();
         }
 
-        document.querySelectorAll('[data-live-update-owner="true"]').forEach(function (ownerEl) {
+        document.querySelectorAll('[data-live-update-surface]').forEach(function (ownerEl) {
             if (ownerEl instanceof HTMLElement) {
                 ownerEl.dataset.liveUpdateClientId = activeClientId;
             }
@@ -281,8 +281,7 @@
                 return Boolean(
                     fragment &&
                     fragment.deferUntilBlur &&
-                    target instanceof HTMLElement &&
-                    target.closest('[data-live-update-feature="roster"]')
+                    target instanceof HTMLElement
                 );
             },
             hasActiveInput: function (target) {
@@ -323,33 +322,9 @@
         };
     }
 
-    function legacyRosterProtection() {
-        return {
-            matches: function (fragment, target) {
-                return Boolean(
-                    fragment &&
-                    fragment.deferUntilBlur &&
-                    !fragment.protectionPolicy &&
-                    target instanceof HTMLElement &&
-                    target.closest('[data-live-update-feature="roster"]')
-                );
-            },
-            create: function () {
-                return focusedFieldProtection({
-                    activeSelector: '.slot-note-input:focus',
-                    fieldKeyAttr: 'data-roster-field-key',
-                    fieldNameFallback: true,
-                    containerSelector: 'tr[data-roster-row]',
-                });
-            },
-        };
-    }
-
     const protectionPolicies = {
         focused_field: focusedFieldProtection,
     };
-
-    const legacyProtectionAdapters = [legacyRosterProtection()];
 
     function matchingFragmentProtection(fragment, target) {
         if (fragment && fragment.protectionPolicy && fragment.protectionPolicy.kind) {
@@ -357,10 +332,7 @@
             return typeof factory === 'function' ? factory(fragment.protectionPolicy) : null;
         }
 
-        const legacy = legacyProtectionAdapters.find(function (adapter) {
-            return adapter.matches(fragment, target);
-        });
-        return legacy ? legacy.create() : null;
+        return null;
     }
 
     function hasProtectedActiveInput(target, fragment) {
@@ -525,10 +497,10 @@
         }
 
         return {
-            feature: config.feature || ownerEl.dataset.liveUpdateFeature || null,
+            feature: config.feature || null,
             scope: config.scope,
             scopeKey,
-            path: config.socketPath || ownerEl.dataset.liveUpdatesPath || '/live-updates',
+            path: config.socketPath || '/live-updates',
             resyncFragments: Array.isArray(config.resyncFragments) ? config.resyncFragments : [],
             decorateRequestsWithin: Array.isArray(config.decorateRequestsWithin) ? config.decorateRequestsWithin : [],
             resync: function (subscription) {
@@ -540,7 +512,7 @@
     function reportSurfaceConfigError(ownerEl, error) {
         const detail = {
             id: ownerEl && ownerEl.id ? ownerEl.id : null,
-            feature: ownerEl && ownerEl.dataset ? ownerEl.dataset.liveUpdateFeature || null : null,
+            feature: null,
             error: error instanceof Error ? error.message : String(error),
         };
 
@@ -582,354 +554,7 @@
         };
     }
 
-    function rosterAdapter() {
-        function readScope(ownerEl) {
-            if (!(ownerEl instanceof HTMLElement)) return null;
-            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
-            if (ownerEl.dataset.liveUpdateFeature !== 'roster') return null;
-            if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
-
-            const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
-            const venueId = ownerEl.dataset.liveUpdateVenueId;
-            const rosterGroupId = ownerEl.dataset.liveUpdateRosterGroupId;
-            const weekOffsetRaw = ownerEl.dataset.liveUpdateWeekOffset;
-            if (!scopeKind || !venueId || !rosterGroupId || typeof weekOffsetRaw !== 'string') return null;
-
-            const weekOffset = Number.parseInt(weekOffsetRaw, 10);
-            if (!Number.isInteger(weekOffset)) return null;
-
-            return {
-                scope: {
-                    kind: scopeKind,
-                    venueId,
-                    rosterGroupId,
-                    weekOffset,
-                },
-                scopeKey: buildScopeKey({
-                    kind: scopeKind,
-                    venueId,
-                    rosterGroupId,
-                    weekOffset,
-                }),
-                path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
-                resync: function () {
-                    const contentUrl = ownerEl.dataset.liveUpdateContentUrl;
-                    const staffPanelUrl = ownerEl.dataset.liveUpdateStaffPanelUrl;
-
-                    if (contentUrl) {
-                        handleFragmentRefreshRequest({
-                            targetId: 'roster-content',
-                            url: contentUrl,
-                            deferUntilBlur: true,
-                        });
-                    }
-
-                    if (staffPanelUrl) {
-                        handleFragmentRefreshRequest({
-                            targetId: 'roster-staff-panel-fragment',
-                            url: staffPanelUrl,
-                            deferUntilBlur: false,
-                        });
-                    }
-                },
-            };
-        }
-
-        return {
-            collectSubscriptions: function () {
-                const subscriptions = [];
-                document.querySelectorAll('[data-live-update-owner="true"]').forEach(function (ownerEl) {
-                    const scopeInfo = readScope(ownerEl);
-                    if (!scopeInfo) return;
-
-                    subscriptions.push({
-                        ...scopeInfo,
-                        ownerEl,
-                    });
-                });
-                return subscriptions;
-            },
-            shouldDecorateRequest: function (event) {
-                const sourceEl = event.detail && event.detail.elt;
-                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="roster"]'));
-            },
-        };
-    }
-
-    function leaveRequestsAdapter() {
-        function readScope(ownerEl) {
-            if (!(ownerEl instanceof HTMLElement)) return null;
-            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
-            if (ownerEl.dataset.liveUpdateFeature !== 'leave-requests') return null;
-            if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
-
-            const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
-            const venueId = ownerEl.dataset.liveUpdateVenueId;
-            if (!scopeKind || !venueId) return null;
-
-            return {
-                scope: {
-                    kind: scopeKind,
-                    venueId,
-                },
-                scopeKey: buildScopeKey({
-                    kind: scopeKind,
-                    venueId,
-                }),
-                path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
-                resync: function () {
-                    const contentUrl = ownerEl.dataset.liveUpdateContentUrl;
-                    if (contentUrl) {
-                        handleFragmentRefreshRequest({
-                            targetId: 'leave-requests-content',
-                            url: contentUrl,
-                            deferUntilBlur: false,
-                        });
-                    }
-                },
-            };
-        }
-
-        return {
-            collectSubscriptions: function () {
-                const subscriptions = [];
-                document.querySelectorAll('[data-live-update-owner="true"]').forEach(function (ownerEl) {
-                    const scopeInfo = readScope(ownerEl);
-                    if (!scopeInfo || !scopeInfo.scopeKey) return;
-                    subscriptions.push({ ...scopeInfo, ownerEl });
-                });
-                return subscriptions;
-            },
-            shouldDecorateRequest: function (event) {
-                const sourceEl = event.detail && event.detail.elt;
-                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="leave-requests"]'));
-            },
-        };
-    }
-
-    function timesheetsAdapter() {
-        function readScope(ownerEl) {
-            if (!(ownerEl instanceof HTMLElement)) return null;
-            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
-            if (ownerEl.dataset.liveUpdateFeature !== 'timesheets') return null;
-            if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
-
-            const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
-            const venueId = ownerEl.dataset.liveUpdateVenueId;
-            const weekOffsetRaw = ownerEl.dataset.liveUpdateWeekOffset;
-            if (!scopeKind || !venueId || typeof weekOffsetRaw !== 'string') return null;
-
-            const weekOffset = Number.parseInt(weekOffsetRaw, 10);
-            if (!Number.isInteger(weekOffset)) return null;
-
-            return {
-                scope: {
-                    kind: scopeKind,
-                    venueId,
-                    weekOffset,
-                },
-                scopeKey: buildScopeKey({
-                    kind: scopeKind,
-                    venueId,
-                    weekOffset,
-                }),
-                path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
-                resync: function () {
-                    ownerEl.querySelectorAll('[data-timesheet-day-offset]').forEach(function (sectionEl) {
-                        if (!(sectionEl instanceof HTMLElement)) return;
-                        const url = sectionEl.dataset.liveUpdateUrl;
-                        if (!url || !sectionEl.id) return;
-                        handleFragmentRefreshRequest({
-                            targetId: sectionEl.id,
-                            url,
-                            deferUntilBlur: false,
-                        });
-                    });
-                },
-            };
-        }
-
-        return {
-            collectSubscriptions: function () {
-                const subscriptions = [];
-                document.querySelectorAll('[data-live-update-owner="true"]').forEach(function (ownerEl) {
-                    const scopeInfo = readScope(ownerEl);
-                    if (!scopeInfo || !scopeInfo.scopeKey) return;
-                    subscriptions.push({ ...scopeInfo, ownerEl });
-                });
-                return subscriptions;
-            },
-            shouldDecorateRequest: function (event) {
-                const sourceEl = event.detail && event.detail.elt;
-                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="timesheets"]'));
-            },
-        };
-    }
-
-    function adminSlotNamesAdapter() {
-        function readScope(ownerEl) {
-            if (!(ownerEl instanceof HTMLElement)) return null;
-            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
-            if (ownerEl.dataset.liveUpdateFeature !== 'admin-slot-names') return null;
-            if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
-
-            const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
-            const venueId = ownerEl.dataset.liveUpdateVenueId;
-            const rosterGroupId = ownerEl.dataset.liveUpdateRosterGroupId;
-            if (!scopeKind || !venueId || !rosterGroupId) return null;
-
-            return {
-                scope: {
-                    kind: scopeKind,
-                    venueId,
-                    rosterGroupId,
-                },
-                scopeKey: buildScopeKey({
-                    kind: scopeKind,
-                    venueId,
-                    rosterGroupId,
-                }),
-                path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
-                resync: function () {
-                    const contentUrl = ownerEl.dataset.liveUpdateContentUrl;
-                    const targetId = ownerEl.dataset.liveUpdateTargetId || 'admin-slot-names-fragment';
-                    if (contentUrl) {
-                        handleFragmentRefreshRequest({
-                            targetId,
-                            url: contentUrl,
-                            deferUntilBlur: false,
-                        });
-                    }
-                },
-            };
-        }
-
-        return {
-            collectSubscriptions: function () {
-                const subscriptions = [];
-                document.querySelectorAll('[data-live-update-owner="true"]').forEach(function (ownerEl) {
-                    const scopeInfo = readScope(ownerEl);
-                    if (!scopeInfo || !scopeInfo.scopeKey) return;
-                    subscriptions.push({ ...scopeInfo, ownerEl });
-                });
-                return subscriptions;
-            },
-            shouldDecorateRequest: function (event) {
-                const sourceEl = event.detail && event.detail.elt;
-                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="admin-slot-names"]') || sourceEl.closest('[id^="admin-slot-names-fragment"]'));
-            },
-        };
-    }
-
-    function adminInvitesAdapter() {
-        function readScope(ownerEl) {
-            if (!(ownerEl instanceof HTMLElement)) return null;
-            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
-            if (ownerEl.dataset.liveUpdateFeature !== 'admin-invites') return null;
-            if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
-
-            const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
-            const venueId = ownerEl.dataset.liveUpdateVenueId;
-            if (!scopeKind || !venueId) return null;
-
-            return {
-                scope: {
-                    kind: scopeKind,
-                    venueId,
-                },
-                scopeKey: buildScopeKey({
-                    kind: scopeKind,
-                    venueId,
-                }),
-                path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
-                resync: function () {
-                    const contentUrl = ownerEl.dataset.liveUpdateContentUrl;
-                    if (contentUrl) {
-                        handleFragmentRefreshRequest({
-                            targetId: 'admin-invites-fragment',
-                            url: contentUrl,
-                            deferUntilBlur: false,
-                        });
-                    }
-                },
-            };
-        }
-
-        return {
-            collectSubscriptions: function () {
-                const subscriptions = [];
-                document.querySelectorAll('[data-live-update-owner="true"]').forEach(function (ownerEl) {
-                    const scopeInfo = readScope(ownerEl);
-                    if (!scopeInfo || !scopeInfo.scopeKey) return;
-                    subscriptions.push({ ...scopeInfo, ownerEl });
-                });
-                return subscriptions;
-            },
-            shouldDecorateRequest: function (event) {
-                const sourceEl = event.detail && event.detail.elt;
-                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="admin-invites"]') || sourceEl.closest('#admin-invites-fragment'));
-            },
-        };
-    }
-
-    function supportAdapter() {
-        function readScope(ownerEl) {
-            if (!(ownerEl instanceof HTMLElement)) return null;
-            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
-            if (ownerEl.dataset.liveUpdateFeature !== 'support') return null;
-            if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
-
-            const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
-            if (!scopeKind) return null;
-
-            return {
-                scope: {
-                    kind: scopeKind,
-                },
-                scopeKey: buildScopeKey({
-                    kind: scopeKind,
-                }),
-                path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
-                resync: function () {
-                    const awardRatesUrl = ownerEl.dataset.liveUpdateAwardRatesUrl;
-                    if (awardRatesUrl) {
-                        handleFragmentRefreshRequest({
-                            targetId: 'support-award-rates-section',
-                            url: awardRatesUrl,
-                            deferUntilBlur: false,
-                        });
-                    }
-
-                    const publicHolidaysUrl = ownerEl.dataset.liveUpdatePublicHolidaysUrl;
-                    if (publicHolidaysUrl) {
-                        handleFragmentRefreshRequest({
-                            targetId: 'support-public-holidays-section',
-                            url: publicHolidaysUrl,
-                            deferUntilBlur: false,
-                        });
-                    }
-                },
-            };
-        }
-
-        return {
-            collectSubscriptions: function () {
-                const subscriptions = [];
-                document.querySelectorAll('[data-live-update-owner="true"]').forEach(function (ownerEl) {
-                    const scopeInfo = readScope(ownerEl);
-                    if (!scopeInfo || !scopeInfo.scopeKey) return;
-                    subscriptions.push({ ...scopeInfo, ownerEl });
-                });
-                return subscriptions;
-            },
-            shouldDecorateRequest: function (event) {
-                const sourceEl = event.detail && event.detail.elt;
-                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="support"]') || sourceEl.closest('#support-award-rates-section') || sourceEl.closest('#support-public-holidays-section'));
-            },
-        };
-    }
-
-    const adapters = [declarativeSurfaceAdapter(), rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter(), adminSlotNamesAdapter(), adminInvitesAdapter(), supportAdapter()];
+    const adapters = [declarativeSurfaceAdapter()];
 
     function desiredSubscriptions() {
         const desired = new Map();

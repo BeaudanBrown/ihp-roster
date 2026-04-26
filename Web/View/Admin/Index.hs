@@ -56,15 +56,7 @@ instance View IndexView where
             , appPageWidthClass = ""
             , appPageBody = [hsx|
                 {adminContentPanel}
-                <div data-live-update-owner="true"
-                     data-live-update-feature="admin-invites"
-                     data-live-updates-path="/live-updates"
-                     data-live-update-content-url={appendQueryParams (pathTo ShowAdminInvitesFragmentAction) [("rosterGroupId", tshow currentRosterGroup.id)]}
-                     data-live-update-client-enabled={isJust invitesLiveUpdateScope}
-                     data-live-update-client-id=""
-                     data-live-update-scope-kind={liveUpdateScopeKind <$> invitesLiveUpdateScope}
-                     data-live-update-venue-id={liveUpdateVenueId <$> invitesLiveUpdateScope}
-                     data-live-update-surface={liveSurfaceConfigJson . adminInvitesLiveSurface currentRosterGroup.id <$> invitesLiveUpdateScope}
+                <div data-live-update-surface={liveSurfaceConfigJson . adminInvitesLiveSurface currentRosterGroup.id <$> invitesLiveUpdateScope}
                      hidden="hidden"></div>
             |]
             })
@@ -108,7 +100,7 @@ renderRosterGroupsSectionFragment rosterGroups slotNames showInactive = [hsx|
 
 renderRosterGroupSlotNamesFragment :: RosterGroup -> [SlotName] -> Html
 renderRosterGroupSlotNamesFragment rosterGroup slotNames = [hsx|
-    <div id={slotNameFragmentId rosterGroup.id} data-live-update-feature="admin-slot-names" class="mt-3 pt-3 border-top">
+    <div id={slotNameFragmentId rosterGroup.id} class="mt-3 pt-3 border-top">
         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
             <h3 class="h6 mb-0">Slot Names</h3>
             <span class="small app-muted">{tshow (length slotNames)} active</span>
@@ -191,17 +183,7 @@ renderSlotNamesLiveUpdateOwner :: RosterGroup -> Html
 renderSlotNamesLiveUpdateOwner rosterGroup =
     let scope = adminSlotNamesScopeForRosterGroup rosterGroup
      in [hsx|
-        <div data-live-update-owner="true"
-             data-live-update-feature="admin-slot-names"
-             data-live-updates-path="/live-updates"
-             data-live-update-content-url={appendQueryParams (pathTo ShowAdminSlotNamesFragmentAction) [("rosterGroupId", tshow rosterGroup.id)]}
-             data-live-update-target-id={slotNameFragmentId rosterGroup.id}
-             data-live-update-client-enabled="true"
-             data-live-update-client-id=""
-             data-live-update-scope-kind={liveUpdateScopeKind scope}
-             data-live-update-venue-id={liveUpdateVenueId scope}
-             data-live-update-roster-group-id={liveUpdateRosterGroupIdText scope}
-             data-live-update-surface={liveSurfaceConfigJson (adminSlotNamesLiveSurface rosterGroup scope)}
+        <div data-live-update-surface={liveSurfaceConfigJson (adminSlotNamesLiveSurface rosterGroup scope)}
              hidden="hidden"></div>
     |]
 
@@ -789,33 +771,6 @@ weekdayOptions =
 renderWeekdayName :: Int -> Text
 renderWeekdayName weekdayIndex =
     fromMaybe ("Weekday " <> tshow weekdayIndex) (lookup weekdayIndex weekdayOptions)
-
-liveUpdateScopeKind :: LiveUpdateScope -> Text
-liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
-liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
-liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
-liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
-liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
-liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
-liveUpdateScopeKind SupportPlatformScope      = "support_platform"
-
-liveUpdateVenueId :: LiveUpdateScope -> Text
-liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
-liveUpdateVenueId RosterGroupConfigScope { venueId } = tshow venueId
-liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
-liveUpdateVenueId AdminInvitesScope { venueId }      = tshow venueId
-liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
-liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
-liveUpdateVenueId SupportPlatformScope               = ""
-
-liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
-liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId }        = Just (tshow rosterGroupId)
-liveUpdateRosterGroupIdText RosterGroupConfigScope { rosterGroupId } = Just (tshow rosterGroupId)
-liveUpdateRosterGroupIdText AdminSlotNamesScope { rosterGroupId }    = Just (tshow rosterGroupId)
-liveUpdateRosterGroupIdText AdminInvitesScope {}                     = Nothing
-liveUpdateRosterGroupIdText LeaveRequestsScope {}                    = Nothing
-liveUpdateRosterGroupIdText TimesheetWeekScope {}                    = Nothing
-liveUpdateRosterGroupIdText SupportPlatformScope                     = Nothing
 
 formatTimestamp :: UTCTime -> Text
 formatTimestamp = cs . formatTime defaultTimeLocale "%Y-%m-%d %H:%M UTC"
