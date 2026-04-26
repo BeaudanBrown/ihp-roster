@@ -6,8 +6,8 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Config
 import qualified Data.ByteString.Lazy.Char8 as LByteString
-import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.Time.Calendar (addDays, fromGregorian)
+import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime, utctDay)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -125,10 +125,11 @@ tests = beforeAll testContext do
 
         it "lets super-admin review leave without self-service leave creation" $ withContext do
             withCleanDb do
+                today <- utctDay <$> getCurrentTime
                 venue <- createVenueWithConfig "Support Leave Venue"
                 superAdmin <- createUserRecordWithPlatformRole "leave-super-admin@example.com" "staff" (Just SuperAdminRole) True
                 worker <- createStaffRecord venue Nothing "Liv" "Worker"
-                _ <- createLeaveRequestRecord venue worker (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "pending"
+                _ <- createLeaveRequestRecord venue worker (addDays 10 today) (addDays 12 today) "pending"
 
                 response <- withUserAndCurrentVenue superAdmin venue.id do
                     callAction LeaveRequestsAction
@@ -193,16 +194,17 @@ tests = beforeAll testContext do
 
         it "renders manager accordion headings with counts inline after the title" $ withContext do
             withCleanDb do
+                today <- utctDay <$> getCurrentTime
                 venue <- createVenueWithConfig "Leave Venue"
                 manager <- createUserRecord "leave-manager-headings@example.com" "staff" True
                 workerUser <- createUserRecord "leave-worker-headings@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 _ <- createVenueMembershipRecord venue workerUser "worker"
                 staff <- createStaffRecord venue (Just workerUser) "Hana" "Headings"
-                _ <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 10) "pending"
-                _ <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 11) (fromGregorian 2025 1 12) "pending"
-                _ <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 13) (fromGregorian 2025 1 14) "approved"
-                _ <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 15) (fromGregorian 2025 1 16) "denied"
+                _ <- createLeaveRequestRecord venue staff (addDays 10 today) (addDays 12 today) "pending"
+                _ <- createLeaveRequestRecord venue staff (addDays 13 today) (addDays 14 today) "pending"
+                _ <- createLeaveRequestRecord venue staff (addDays 15 today) (addDays 16 today) "approved"
+                _ <- createLeaveRequestRecord venue staff (addDays 17 today) (addDays 18 today) "denied"
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction LeaveRequestsAction
@@ -211,9 +213,34 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Pending (2)"
                 response `responseBodyShouldContain` "Approved (1)"
                 response `responseBodyShouldContain` "Denied (1)"
+                response `responseBodyShouldContain` "Archive (0)"
                 response `responseBodyShouldNotContain` "Needs a decision"
                 response `responseBodyShouldNotContain` "Already confirmed"
                 response `responseBodyShouldNotContain` "Rejected requests"
+
+        it "archives manager leave requests whose date window is fully in the past" $ withContext do
+            withCleanDb do
+                today <- utctDay <$> getCurrentTime
+                venue <- createVenueWithConfig "Leave Venue"
+                manager <- createUserRecord "leave-manager-archive@example.com" "staff" True
+                workerUser <- createUserRecord "leave-worker-archive@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                staff <- createStaffRecord venue (Just workerUser) "Ari" "Archive"
+                _ <- createLeaveRequestRecord venue staff (addDays (-20) today) (addDays (-18) today) "pending"
+                _ <- createLeaveRequestRecord venue staff (addDays (-17) today) (addDays (-16) today) "approved"
+                _ <- createLeaveRequestRecord venue staff (addDays (-15) today) (addDays (-14) today) "denied"
+                _ <- createLeaveRequestRecord venue staff (addDays (-1) today) today "approved"
+                _ <- createLeaveRequestRecord venue staff (addDays 1 today) (addDays 2 today) "pending"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction LeaveRequestsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Pending (1)"
+                response `responseBodyShouldContain` "Approved (1)"
+                response `responseBodyShouldContain` "Denied (0)"
+                response `responseBodyShouldContain` "Archive (3)"
 
         it "renders manager accordions with zero counts instead of empty-state copy when there are no leave requests" $ withContext do
             withCleanDb do
@@ -228,6 +255,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Pending (0)"
                 response `responseBodyShouldContain` "Approved (0)"
                 response `responseBodyShouldContain` "Denied (0)"
+                response `responseBodyShouldContain` "Archive (0)"
                 response `responseBodyShouldNotContain` "No leave requests yet."
                 response `responseBodyShouldNotContain` "No requests in this section."
 

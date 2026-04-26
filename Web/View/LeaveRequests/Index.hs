@@ -15,6 +15,7 @@ data IndexView = IndexView
     { leaveRequests        :: [LeaveRequest]
     , staffMembers         :: [Staff]
     , currentViewerStaffId :: Maybe UUID
+    , today                :: Day
     , liveUpdateScope      :: Maybe LiveUpdateScope
     }
 
@@ -39,7 +40,7 @@ renderLeaveRequestsShell IndexView { .. } =
                 , appPanelCustomHeader = mempty
                 , appPanelClass = "overflow-hidden"
                 , appPanelBodyClass = ""
-                , appPanelBody = renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId
+                , appPanelBody = renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId today
                 }
         page = renderAppPage (AppPageConfig
             { appPageTitle = "Leave Requests"
@@ -75,19 +76,19 @@ renderNewLeaveRequestAction = [hsx|
     </a>
 |]
 
-renderLeaveRequestsContentFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
+renderLeaveRequestsContentFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Html
 renderLeaveRequestsContentFragment =
     renderLeaveRequestsContentFragmentWithSwap Nothing
 
-renderLeaveRequestsContentFragmentOob :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
+renderLeaveRequestsContentFragmentOob :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Html
 renderLeaveRequestsContentFragmentOob =
     renderLeaveRequestsContentFragmentWithSwap (Just "outerHTML")
 
-renderLeaveRequestsContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
-renderLeaveRequestsContentFragmentWithSwap maybeSwapOob leaveRequests staffMembers currentViewerStaffId = [hsx|
+renderLeaveRequestsContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Html
+renderLeaveRequestsContentFragmentWithSwap maybeSwapOob leaveRequests staffMembers currentViewerStaffId today = [hsx|
     <div id={leaveRequestsContentFragmentId} hx-swap-oob={maybeSwapOob}>
         {if currentUserIsManager
-            then renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId
+            then renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today
             else if null leaveRequests
                 then renderEmptyState
                 else renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId
@@ -119,18 +120,25 @@ renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId = [hsx|
     </div>
 |]
 
-renderManagerLeaveRequests :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
-renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId = [hsx|
+renderManagerLeaveRequests :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Html
+renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today = [hsx|
     <div class="accordion leave-request-accordion" id="leave-request-manager-sections">
         {renderManagerSection "leave-pending" "Pending" pendingRequests staffMembers currentViewerStaffId True}
         {renderManagerSection "leave-approved" "Approved" approvedRequests staffMembers currentViewerStaffId False}
         {renderManagerSection "leave-denied" "Denied" deniedRequests staffMembers currentViewerStaffId False}
+        {renderManagerSection "leave-archive" "Archive" archivedRequests staffMembers currentViewerStaffId False}
     </div>
 |]
     where
-        pendingRequests = sortOn (Down . (.startDate)) (filter ((== Just LeavePending) . parseLeaveRequestStatus . (.status)) leaveRequests)
-        approvedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveApproved) . parseLeaveRequestStatus . (.status)) leaveRequests)
-        deniedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveDenied) . parseLeaveRequestStatus . (.status)) leaveRequests)
+        activeRequests = filter (not . leaveRequestIsArchived today) leaveRequests
+        archivedRequests = sortOn (Down . (.endDate)) (filter (leaveRequestIsArchived today) leaveRequests)
+        pendingRequests = sortOn (Down . (.startDate)) (filter ((== Just LeavePending) . parseLeaveRequestStatus . (.status)) activeRequests)
+        approvedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveApproved) . parseLeaveRequestStatus . (.status)) activeRequests)
+        deniedRequests = sortOn (Down . (.startDate)) (filter ((== Just LeaveDenied) . parseLeaveRequestStatus . (.status)) activeRequests)
+
+leaveRequestIsArchived :: Day -> LeaveRequest -> Bool
+leaveRequestIsArchived today leaveRequest =
+    leaveRequest.endDate < today
 
 renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
 renderManagerSection sectionId title requests staffMembers currentViewerStaffId isOpen = [hsx|

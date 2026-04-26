@@ -16,6 +16,7 @@ import Application.Helper.View (ToastOverlayConfig (..),
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
+import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
@@ -244,6 +245,7 @@ data LeaveRequestsProjection = LeaveRequestsProjection
     { leaveProjectionRequests             :: [LeaveRequest]
     , leaveProjectionStaffMembers         :: [Staff]
     , leaveProjectionCurrentViewerStaffId :: Maybe UUID
+    , leaveProjectionToday                :: Day
     }
 
 data LeaveRequestsProjectionFragment
@@ -288,6 +290,7 @@ fetchLeaveRequestsProjection = do
     leaveProjectionStaffMembers <- profileActionSpan "leave.fetch_staff_members" fetchStaffMembersForCurrentVenue
     leaveProjectionRequests <- profileActionSpan "leave.fetch_requests" fetchVisibleLeaveRequests
     leaveProjectionCurrentViewerStaffId <- fmap (fmap (coerce . get #id)) fetchCurrentUserStaff
+    leaveProjectionToday <- liftIO (utctDay <$> getCurrentTime)
     pure LeaveRequestsProjection { .. }
 
 renderLeaveRequestsProjectionHtml :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsProjection -> LeaveRequestsProjectionFragment -> Maybe Blaze.Html
@@ -301,14 +304,16 @@ renderLeaveRequestsProjectionHtml projection fragment =
                     projection.leaveProjectionRequests
                     projection.leaveProjectionStaffMembers
                     projection.leaveProjectionCurrentViewerStaffId
+                    projection.leaveProjectionToday
                 )
 
 leaveRequestsIndexView :: (?context :: ControllerContext) => LeaveRequestsProjection -> IndexView
-leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveProjectionStaffMembers, leaveProjectionCurrentViewerStaffId } =
+leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveProjectionStaffMembers, leaveProjectionCurrentViewerStaffId, leaveProjectionToday } =
     IndexView
         { leaveRequests = leaveProjectionRequests
         , staffMembers = leaveProjectionStaffMembers
         , currentViewerStaffId = leaveProjectionCurrentViewerStaffId
+        , today = leaveProjectionToday
         , liveUpdateScope = Just (buildLeaveRequestsScope currentVenueId)
         }
 
@@ -317,8 +322,8 @@ respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
     projection <- fetchLeaveRequestsProjectionCached
     let mainFragment =
             if renderMainFragmentOob
-                then renderLeaveRequestsContentFragmentOob projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId
-                else renderLeaveRequestsContentFragment projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId
+                then renderLeaveRequestsContentFragmentOob projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday
+                else renderLeaveRequestsContentFragment projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday
     respondHtmlProfiled $
         mconcat
             [ mainFragment
