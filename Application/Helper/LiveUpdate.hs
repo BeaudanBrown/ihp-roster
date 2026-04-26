@@ -6,6 +6,8 @@ module Application.Helper.LiveUpdate
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
+    , activeLiveUpdateScopes
+    , activeRosterWeekScopes
     , broadcastLiveInvalidation
     , broadcastLiveInvalidationWithoutContext
     , currentLiveUpdateVersion
@@ -18,6 +20,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as Aeson
 import Data.IORef
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import IHP.Controller.Context (ControllerContext)
@@ -431,6 +434,19 @@ unregisterLiveSubscription :: UUID.UUID -> IO ()
 unregisterLiveSubscription subscriptionId =
     atomicModifyIORef' liveSubscriptionsRef \subscriptions ->
         (filter (\subscription -> subscription.subscriptionId /= subscriptionId) subscriptions, ())
+
+activeLiveUpdateScopes :: IO [LiveUpdateScope]
+activeLiveUpdateScopes =
+    Set.toList . Set.fromList . map (.subscriptionScope) <$> readIORef liveSubscriptionsRef
+
+activeRosterWeekScopes :: IO [(UUID.UUID, UUID.UUID, Int)]
+activeRosterWeekScopes =
+    mapMaybe rosterWeekScopeParts <$> activeLiveUpdateScopes
+    where
+        rosterWeekScopeParts RosterWeekScope { venueId, rosterGroupId, weekOffset } =
+            Just (venueId, rosterGroupId, weekOffset)
+        rosterWeekScopeParts _ =
+            Nothing
 
 currentLiveUpdateVersion :: LiveUpdateScope -> IO Int
 currentLiveUpdateVersion scope =

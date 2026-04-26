@@ -50,6 +50,10 @@ tests = describe "LiveUpdate runtime types" do
         forM_ fragmentKeys \fragmentKey ->
             Aeson.decode (Aeson.encode fragmentKey) `shouldBe` Just fragmentKey
 
+    it "exposes active live scopes without leaking websocket subscription internals" do
+        activeLiveUpdateScopes `shouldReturn` []
+        activeRosterWeekScopes `shouldReturn` []
+
     it "encodes support live surface config with stable JSON" do
         let surface =
                 mkLiveSurface
