@@ -1,5 +1,6 @@
 module Test.Controller.RosterWeeksSpec where
 
+import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Config
@@ -30,6 +31,16 @@ tests = beforeAll testContext do
         it "redirects unauthenticated users from RosterWeeksAction" $ withContext do
             response <- callAction RosterWeeksAction
             response `responseStatusShouldBe` status302
+
+        it "redirects venue-less super-admins from roster weeks to support" $ withContext do
+            withCleanDb do
+                user <- createUserRecordWithPlatformRole "roster-bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withUser user do
+                    callAction RosterWeeksAction
+
+                response `responseStatusShouldBe` status302
+                responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
 
         it "redirects unauthenticated users from ShowRosterWeekAction" $ withContext do
             response <- callAction (ShowRosterWeekAction 0)
