@@ -3,9 +3,10 @@ module Web.View.Support.Index where
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
+import Application.Helper.LiveSurface (liveSurfaceConfigJson)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
-import Application.Support.LiveUpdates (supportLiveUpdateScope)
+import Application.Support.LiveUpdates (supportLiveSurface, supportLiveUpdateScope)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -176,7 +177,8 @@ instance View IndexView where
                      data-live-update-client-id=""
                      data-live-update-scope-kind={liveUpdateScopeKind supportLiveUpdateScope}
                      data-live-update-award-rates-url={pathTo ShowFwcMapdAwardRatesSectionAction}
-                     data-live-update-public-holidays-url={pathTo ShowPublicHolidaysSectionAction}>
+                     data-live-update-public-holidays-url={pathTo ShowPublicHolidaysSectionAction}
+                     data-live-update-surface={liveSurfaceConfigJson supportLiveSurface}>
                 {page}
             </section>
         |]

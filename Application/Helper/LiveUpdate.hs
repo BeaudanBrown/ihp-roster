@@ -68,6 +68,10 @@ data LiveFragmentKey
     | TimesheetDaySectionFragment
         { dayOffset :: !Int
         }
+    | AdminInvitesFragment
+    | AdminSlotNamesFragment
+        { rosterGroupId :: !UUID.UUID
+        }
     | SupportAwardRatesSectionFragment
     | SupportPublicHolidaysSectionFragment
     deriving (Eq, Ord, Show)
@@ -216,6 +220,13 @@ instance Aeson.ToJSON LiveFragmentKey where
             [ "kind" Aeson..= ("timesheet_day_section" :: Text)
             , "dayOffset" Aeson..= dayOffset
             ]
+    toJSON AdminInvitesFragment =
+        Aeson.object ["kind" Aeson..= ("admin_invites" :: Text)]
+    toJSON AdminSlotNamesFragment { rosterGroupId } =
+        Aeson.object
+            [ "kind" Aeson..= ("admin_slot_names" :: Text)
+            , "rosterGroupId" Aeson..= UUID.toText rosterGroupId
+            ]
     toJSON SupportAwardRatesSectionFragment =
         Aeson.object ["kind" Aeson..= ("support_award_rates_section" :: Text)]
     toJSON SupportPublicHolidaysSectionFragment =
@@ -238,6 +249,10 @@ instance Aeson.FromJSON LiveFragmentKey where
             "timesheet_day_section" ->
                 TimesheetDaySectionFragment
                     <$> object Aeson..: "dayOffset"
+            "admin_invites" -> pure AdminInvitesFragment
+            "admin_slot_names" ->
+                AdminSlotNamesFragment
+                    <$> (parseUuid =<< object Aeson..: "rosterGroupId")
             "support_award_rates_section" -> pure SupportAwardRatesSectionFragment
             "support_public_holidays_section" -> pure SupportPublicHolidaysSectionFragment
             _ -> fail ("Unknown live fragment kind: " <> cs kind)

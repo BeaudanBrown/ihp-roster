@@ -3,7 +3,12 @@ module Web.View.LeaveRequests.Index where
 import Application.Helper.Controller (LeaveRequestStatus (..),
                                       leaveRequestCanBeDeleted,
                                       parseLeaveRequestStatus)
-import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
+                                       liveSurfaceConfigJson, mkLiveSurface)
+import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
+                                      LiveFragmentRef (..),
+                                      LiveUpdateScope (..))
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
@@ -58,10 +63,26 @@ renderLeaveRequestsShell IndexView { .. } =
                  data-live-update-client-enabled={isJust liveUpdateScope}
                  data-live-update-client-id=""
                  data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
-                 data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}>
+                 data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
+                 data-live-update-surface={liveSurfaceConfigJson . leaveRequestsLiveSurface <$> liveUpdateScope}>
             {page}
         </section>
     |]
+
+leaveRequestsLiveSurface :: (?context :: ControllerContext) => LiveUpdateScope -> LiveSurfaceConfig
+leaveRequestsLiveSurface scope =
+    (mkLiveSurface
+        "leave-requests"
+        scope
+        [ LiveFragmentRef
+            { fragmentKey = LeaveRequestsContentFragment
+            , targetId = leaveRequestsContentFragmentId
+            , url = pathTo ShowLeaveRequestsContentFragmentAction
+            , deferUntilBlur = False
+            , protectionPolicy = NoProtection
+            }
+        ])
+        { decorateRequestsWithin = ["#" <> leaveRequestsShellId] }
 
 renderNewLeaveRequestAction :: Html
 renderNewLeaveRequestAction = [hsx|

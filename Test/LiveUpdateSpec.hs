@@ -28,12 +28,15 @@ tests = describe "LiveUpdate runtime types" do
 
     it "round-trips roster, leave, timesheet, and support fragment keys through JSON" do
         let rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222"
+        let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let fragmentKeys =
                 [ RosterContentFragment
                 , RosterStaffPanelFragment
                 , RosterRowFragment { rosterDayId, rowIndex = 1 }
                 , LeaveRequestsContentFragment
                 , TimesheetDaySectionFragment { dayOffset = 4 }
+                , AdminInvitesFragment
+                , AdminSlotNamesFragment { rosterGroupId }
                 , SupportAwardRatesSectionFragment
                 , SupportPublicHolidaysSectionFragment
                 ]

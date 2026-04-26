@@ -2,7 +2,12 @@ module Web.View.Admin.Index where
 
 import Application.Helper.Export (ReportWeekSelection (..),
                                   VenueReportDefinition (..))
-import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
+                                       liveSurfaceConfigJson, mkLiveSurface)
+import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
+                                      LiveFragmentRef (..),
+                                      LiveUpdateScope (..))
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
@@ -59,6 +64,7 @@ instance View IndexView where
                      data-live-update-client-id=""
                      data-live-update-scope-kind={liveUpdateScopeKind <$> invitesLiveUpdateScope}
                      data-live-update-venue-id={liveUpdateVenueId <$> invitesLiveUpdateScope}
+                     data-live-update-surface={liveSurfaceConfigJson . adminInvitesLiveSurface currentRosterGroup.id <$> invitesLiveUpdateScope}
                      hidden="hidden"></div>
             |]
             })
@@ -195,6 +201,7 @@ renderSlotNamesLiveUpdateOwner rosterGroup =
              data-live-update-scope-kind={liveUpdateScopeKind scope}
              data-live-update-venue-id={liveUpdateVenueId scope}
              data-live-update-roster-group-id={liveUpdateRosterGroupIdText scope}
+             data-live-update-surface={liveSurfaceConfigJson (adminSlotNamesLiveSurface rosterGroup scope)}
              hidden="hidden"></div>
     |]
 
@@ -204,6 +211,36 @@ adminSlotNamesScopeForRosterGroup rosterGroup =
         { venueId = rosterGroup.venueId
         , rosterGroupId = unpackId rosterGroup.id
         }
+
+adminInvitesLiveSurface :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope -> LiveSurfaceConfig
+adminInvitesLiveSurface rosterGroupId scope =
+    (mkLiveSurface
+        "admin-invites"
+        scope
+        [ LiveFragmentRef
+            { fragmentKey = AdminInvitesFragment
+            , targetId = "admin-invites-fragment"
+            , url = appendQueryParams (pathTo ShowAdminInvitesFragmentAction) [("rosterGroupId", tshow rosterGroupId)]
+            , deferUntilBlur = False
+            , protectionPolicy = NoProtection
+            }
+        ])
+        { decorateRequestsWithin = ["#admin-invites-fragment"] }
+
+adminSlotNamesLiveSurface :: (?context :: ControllerContext) => RosterGroup -> LiveUpdateScope -> LiveSurfaceConfig
+adminSlotNamesLiveSurface rosterGroup scope =
+    (mkLiveSurface
+        "admin-slot-names"
+        scope
+        [ LiveFragmentRef
+            { fragmentKey = AdminSlotNamesFragment { rosterGroupId = unpackId rosterGroup.id }
+            , targetId = slotNameFragmentId rosterGroup.id
+            , url = appendQueryParams (pathTo ShowAdminSlotNamesFragmentAction) [("rosterGroupId", tshow rosterGroup.id)]
+            , deferUntilBlur = False
+            , protectionPolicy = NoProtection
+            }
+        ])
+        { decorateRequestsWithin = ["#" <> slotNameFragmentId rosterGroup.id] }
 
 renderInviteTable :: [VenueInvitation] -> Id RosterGroup -> Html
 renderInviteTable invitations rosterGroupId = [hsx|

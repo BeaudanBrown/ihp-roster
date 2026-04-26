@@ -1,7 +1,12 @@
 module Web.View.Timesheets.Index where
 
 import Application.Helper.Controller (isWithinEditWindow, shiftDurationMinutes)
-import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
+                                       liveSurfaceConfigJson, mkLiveSurface)
+import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
+                                      LiveFragmentRef (..),
+                                      LiveUpdateScope (..))
 import Data.Fixed (Pico)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
@@ -66,10 +71,34 @@ renderTimesheetWeekShell IndexView { .. } =
              data-live-update-client-id=""
              data-live-update-scope-kind={liveUpdateScopeKind <$> liveUpdateScope}
              data-live-update-venue-id={liveUpdateVenueId <$> liveUpdateScope}
-             data-live-update-week-offset={liveUpdateWeekOffsetText =<< liveUpdateScope}>
+             data-live-update-week-offset={liveUpdateWeekOffsetText =<< liveUpdateScope}
+             data-live-update-surface={liveSurfaceConfigJson . timesheetWeekLiveSurface weekOffset showApproved showAllStaff <$> liveUpdateScope}>
         {page}
     </section>
 |]
+
+timesheetWeekLiveSurface :: (?context :: ControllerContext) => Int -> Bool -> Bool -> LiveUpdateScope -> LiveSurfaceConfig
+timesheetWeekLiveSurface weekOffset showApproved showAllStaff scope =
+    (mkLiveSurface
+        "timesheets"
+        scope
+        (map (timesheetDayFragmentRef weekOffset showApproved showAllStaff) [0 .. 6]))
+        { decorateRequestsWithin = ["#" <> timesheetWeekShellId] }
+
+timesheetDayFragmentRef :: (?context :: ControllerContext) => Int -> Bool -> Bool -> Int -> LiveFragmentRef
+timesheetDayFragmentRef weekOffset showApproved showAllStaff dayOffset =
+    LiveFragmentRef
+        { fragmentKey = TimesheetDaySectionFragment { dayOffset }
+        , targetId = timesheetDaySectionDomId dayOffset
+        , url =
+            appendQueryParams
+                (pathTo ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset })
+                [ ("showApproved", boolText showApproved)
+                , ("showAllStaff", boolText showAllStaff)
+                ]
+        , deferUntilBlur = False
+        , protectionPolicy = NoProtection
+        }
 
 renderTimesheetWeekNavigationLink :: Text -> Text -> Html
 renderTimesheetWeekNavigationLink label url =
