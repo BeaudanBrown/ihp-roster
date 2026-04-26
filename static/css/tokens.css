@@ -1,0 +1,79 @@
+/* App-wide design tokens. Add semantic variables here before component CSS. */
+:root {
+    color-scheme: dark;
+
+    --app-bg: #0d1119;
+    --app-bg-elevated: #172033;
+    --app-surface: #141a24;
+    --app-surface-2: #1a2230;
+    --app-surface-raised: var(--app-surface-2);
+    --app-surface-muted: #101825;
+
+    --app-border: #2a3446;
+    --app-border-strong: #3a465d;
+    --app-border-subtle: rgba(255, 255, 255, 0.08);
+
+    --app-text: #e8edf7;
+    --app-muted: #9aa8c0;
+    --app-text-muted: var(--app-muted);
+    --app-text-subtle: #7f8da5;
+    --app-text-inverse: #0d1119;
+
+    --app-link: #8bb5ff;
+    --app-link-hover: #b7cfff;
+    --app-accent: #8bb5ff;
+    --app-accent-hover: #b7cfff;
+    --app-accent-soft: rgba(139, 181, 255, 0.15);
+    --app-focus-ring: rgba(139, 181, 255, 0.28);
+
+    --app-success: #42b883;
+    --app-success-soft: rgba(66, 184, 131, 0.16);
+    --app-warning: #f0c572;
+    --app-warning-soft: rgba(240, 197, 114, 0.18);
+    --app-danger: #f47777;
+    --app-danger-soft: rgba(244, 119, 119, 0.16);
+    --app-info: #75c7f0;
+    --app-info-soft: rgba(117, 199, 240, 0.16);
+
+    --app-panel-bg: var(--app-surface);
+    --app-panel-border: var(--app-border);
+    --app-menu-bg: var(--app-surface);
+    --app-modal-bg: var(--app-surface);
+
+    --app-radius-sm: 0.45rem;
+    --app-radius-md: 0.65rem;
+    --app-radius-lg: 0.9rem;
+    --app-radius-pill: 999px;
+
+    --app-shadow-sm: 0 0.35rem 0.9rem rgba(0, 0, 0, 0.18);
+    --app-shadow-md: 0 0.7rem 1.7rem rgba(0, 0, 0, 0.25);
+    --app-shadow-lg: 0 1rem 2.5rem rgba(0, 0, 0, 0.32);
+
+    --app-space-1: 0.25rem;
+    --app-space-2: 0.5rem;
+    --app-space-3: 0.75rem;
+    --app-space-4: 1rem;
+    --app-space-5: 1.5rem;
+    --app-control-height-sm: 2rem;
+    --app-control-height-md: 2.5rem;
+    --app-control-height-lg: 2.75rem;
+
+    --roster-header: #2c3a4f;
+    --roster-subhead: #243041;
+    --roster-day-a: #1a2433;
+    --roster-day-b: #131d2c;
+    --roster-empty: #101825;
+    --roster-danger: #5e1e23;
+    --roster-warning: #4a3a1c;
+    --roster-row-height: 1.2rem;
+
+    --text-xs: clamp(0.68rem, 0.66rem + 0.14vw, 0.8rem);
+    --text-sm: clamp(0.8rem, 0.77rem + 0.18vw, 0.94rem);
+    --text-base: clamp(0.92rem, 0.87rem + 0.24vw, 1.06rem);
+    --text-lg: clamp(1.02rem, 0.95rem + 0.42vw, 1.3rem);
+    --text-xl: clamp(1.56rem, 1.26rem + 0.96vw, 2.45rem);
+
+    --roster-text-xs: clamp(0.58rem, 0.57rem + 0.11vw, 0.72rem);
+    --roster-text-sm: clamp(0.66rem, 0.64rem + 0.14vw, 0.8rem);
+    --roster-text-base: clamp(0.74rem, 0.71rem + 0.18vw, 0.9rem);
+}

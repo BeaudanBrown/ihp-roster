@@ -1,0 +1,21 @@
+/* Bootstrap variable bridge. Keep framework defaults aligned to app tokens. */
+:root,
+[data-bs-theme="dark"] {
+    --bs-body-bg: var(--app-bg);
+    --bs-body-color: var(--app-text);
+    --bs-border-color: var(--app-border);
+    --bs-primary: var(--app-accent);
+    --bs-secondary: var(--app-muted);
+    --bs-success: var(--app-success);
+    --bs-warning: var(--app-warning);
+    --bs-danger: var(--app-danger);
+    --bs-info: var(--app-info);
+    --bs-link-color: var(--app-link);
+    --bs-link-hover-color: var(--app-link-hover);
+    --bs-modal-bg: var(--app-modal-bg);
+    --bs-dropdown-bg: var(--app-menu-bg);
+    --bs-tertiary-bg: var(--app-surface-muted);
+    --bs-emphasis-color: var(--app-text);
+    --bs-secondary-color: var(--app-muted);
+    --bs-secondary-bg: var(--app-surface-2);
+}

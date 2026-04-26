@@ -29,7 +29,7 @@ instance View IndexView where
                     , appPanelClass = "h-100"
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
-                        <div id="payroll-reports-panel" class="border rounded p-3 mb-4 bg-light-subtle">
+                        <div id="payroll-reports-panel" class={appSurfaceClasses "p-3 mb-4 app-surface-muted"}>
                             <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
                                 <div>
                                     <div class="fw-semibold mb-1">Payroll Reports</div>
@@ -59,7 +59,7 @@ instance View IndexView where
                             {renderReportDefinitionList reportWeekSelection reportDefinitions}
                             {if canManageReportDefinitions then renderReportDefinitionManagement allReportDefinitions shiftTypes else mempty}
                         </div>
-                        <div class="border rounded p-3">
+                        <div class={appSurfaceClasses "p-3"}>
                             <div class="fw-semibold mb-2">Approved Timesheets CSV</div>
                             <div class="small app-muted mb-3">
                                 Range-based CSV export for approved timesheet entries. This is separate from the legacy payroll report definitions.
@@ -141,7 +141,7 @@ renderReportDefinitionList reportWeekSelection reportDefinitions
 renderReportDefinitionRow :: ReportWeekSelection -> VenueReportDefinition -> Html
 renderReportDefinitionRow reportWeekSelection reportDefinition = [hsx|
     <div
-        class="border rounded p-2 bg-white"
+        class={appSurfaceClasses "p-2"}
         data-payroll-report-card="true"
         data-report-slug={reportDefinition.definition.slug}
         data-report-engine={renderReportEngineLabel reportDefinition.engine}
@@ -151,7 +151,7 @@ renderReportDefinitionRow reportWeekSelection reportDefinition = [hsx|
                 <div class="fw-semibold">{reportDefinition.definition.name}</div>
                 <div class="small app-muted font-monospace">{reportDefinition.definition.slug}</div>
             </div>
-            <span class="badge bg-secondary-subtle text-secondary-emphasis">{renderReportEngineLabel reportDefinition.engine}</span>
+            {renderAppStatusBadge AppStatusNeutral (renderReportEngineLabel reportDefinition.engine)}
         </div>
         <div class="small mt-2">{fromMaybe "" reportDefinition.definition.description}</div>
         {renderShiftTypeFilterSummary reportDefinition}
@@ -218,7 +218,7 @@ renderReportDefinitionCreateForm shiftTypes = [hsx|
         id="report-definition-create-form"
         method="POST"
         action={CreateReportDefinitionAction}
-        class="border rounded p-3 bg-white"
+        class={appSurfaceClasses "p-3"}
         data-disable-javascript-submission="true"
     >
         <div class="fw-semibold mb-3">Add Report Definition</div>
@@ -234,7 +234,7 @@ renderReportDefinitionEditor shiftTypes reportDefinition = [hsx|
     <form
         method="POST"
         action={UpdateReportDefinitionAction (get #id reportDefinition.definition)}
-        class="border rounded p-3 bg-white"
+        class={appSurfaceClasses "p-3"}
         data-disable-javascript-submission="true"
         data-report-definition-editor="true"
         data-report-definition-slug={reportDefinition.definition.slug}
@@ -329,8 +329,8 @@ renderReportDefinitionShiftTypeCheckbox maybeReportDefinition shiftType = [hsx|
 reportDefinitionStatusClass :: VenueReportDefinition -> Text
 reportDefinitionStatusClass reportDefinition =
     if reportDefinition.definition.isActive
-        then "badge bg-success-subtle text-success-emphasis"
-        else "badge bg-secondary-subtle text-secondary-emphasis"
+        then appStatusBadgeClass AppStatusSuccess
+        else appStatusBadgeClass AppStatusNeutral
 
 renderExportTable :: [ExportJob] -> Html
 renderExportTable exportJobs = [hsx|
@@ -374,9 +374,9 @@ renderRange exportJob =
 renderStatusBadge :: ExportJob -> Html
 renderStatusBadge exportJob =
     case parseExportJobStatus exportJob.status of
-        Just ExportReady -> [hsx|<span class="badge bg-success-subtle text-success-emphasis" data-export-job-status-badge="ready">ready</span>|]
-        Just ExportExpired -> [hsx|<span class="badge bg-secondary" data-export-job-status-badge="expired">expired</span>|]
-        _ -> [hsx|<span class="badge bg-warning-subtle text-warning-emphasis" data-export-job-status-badge="pending">pending</span>|]
+        Just ExportReady -> [hsx|<span class={appStatusBadgeClass AppStatusSuccess} data-export-job-status-badge="ready">ready</span>|]
+        Just ExportExpired -> [hsx|<span class={appStatusBadgeClass AppStatusNeutral} data-export-job-status-badge="expired">expired</span>|]
+        _ -> [hsx|<span class={appStatusBadgeClass AppStatusWarning} data-export-job-status-badge="pending">pending</span>|]
 
 renderExportDescriptor :: ExportJob -> Html
 renderExportDescriptor exportJob = [hsx|

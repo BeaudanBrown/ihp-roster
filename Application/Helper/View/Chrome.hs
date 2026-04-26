@@ -37,6 +37,10 @@ data PartialNavigationLink = PartialNavigationLink
     , partialNavigationPushUrl  :: !Bool
     }
 
+appSurfaceClasses :: Text -> Text
+appSurfaceClasses extraClasses =
+    Text.unwords (filter (not . Text.null) ["app-surface", extraClasses])
+
 renderAppPage :: AppPageConfig -> Html
 renderAppPage AppPageConfig { appPageTitle, appPageDescription, appPageActions, appPageWidthClass, appPageBody } = [hsx|
     <section class={classes [("app-page", True), (appPageWidthClass, not (Text.null appPageWidthClass))]}>

@@ -190,6 +190,8 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/vendor/bootstrap-5.3.8/bootstrap.min.css"}/>
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"/>
         <link rel="stylesheet" href={assetPath "/vendor/flatpickr.min.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/tokens.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/bootstrap-bridge.css"}/>
         <link rel="stylesheet" href={assetPath "/app.css"}/>
     |]
 

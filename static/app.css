@@ -1,39 +1,3 @@
-:root {
-    color-scheme: dark;
-    --app-bg: #0d1119;
-    --app-surface: #141a24;
-    --app-surface-2: #1a2230;
-    --app-border: #2a3446;
-    --app-border-strong: #3a465d;
-    --app-text: #e8edf7;
-    --app-muted: #9aa8c0;
-    --app-link: #8bb5ff;
-    --app-link-hover: #b7cfff;
-    --app-accent-soft: rgba(139, 181, 255, 0.15);
-    --app-success: #42b883;
-    --app-warning: #f0c572;
-    --app-danger: #f47777;
-
-    --roster-header: #2c3a4f;
-    --roster-subhead: #243041;
-    --roster-day-a: #1a2433;
-    --roster-day-b: #131d2c;
-    --roster-empty: #101825;
-    --roster-danger: #5e1e23;
-    --roster-warning: #4a3a1c;
-    --roster-row-height: 1.2rem;
-
-    --text-xs: clamp(0.68rem, 0.66rem + 0.14vw, 0.8rem);
-    --text-sm: clamp(0.8rem, 0.77rem + 0.18vw, 0.94rem);
-    --text-base: clamp(0.92rem, 0.87rem + 0.24vw, 1.06rem);
-    --text-lg: clamp(1.02rem, 0.95rem + 0.42vw, 1.3rem);
-    --text-xl: clamp(1.56rem, 1.26rem + 0.96vw, 2.45rem);
-
-    --roster-text-xs: clamp(0.58rem, 0.57rem + 0.11vw, 0.72rem);
-    --roster-text-sm: clamp(0.66rem, 0.64rem + 0.14vw, 0.8rem);
-    --roster-text-base: clamp(0.74rem, 0.71rem + 0.18vw, 0.9rem);
-}
-
 html {
     scrollbar-gutter: stable;
 }
@@ -150,6 +114,51 @@ a:not(.btn):hover {
 
 .app-auth-card {
     max-width: 26rem;
+}
+
+.app-surface {
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-md);
+    background: var(--app-surface-raised);
+}
+
+.app-surface-muted {
+    background: var(--app-surface-muted);
+}
+
+.app-status-badge {
+    border: 1px solid transparent;
+    font-weight: 600;
+}
+
+.app-status-neutral {
+    color: var(--app-text-muted);
+    background: var(--app-surface-muted);
+    border-color: var(--app-border-subtle);
+}
+
+.app-status-success {
+    color: var(--app-success);
+    background: var(--app-success-soft);
+    border-color: var(--app-success-soft);
+}
+
+.app-status-warning {
+    color: var(--app-warning);
+    background: var(--app-warning-soft);
+    border-color: var(--app-warning-soft);
+}
+
+.app-status-danger {
+    color: var(--app-danger);
+    background: var(--app-danger-soft);
+    border-color: var(--app-danger-soft);
+}
+
+.app-status-info {
+    color: var(--app-info);
+    background: var(--app-info-soft);
+    border-color: var(--app-info-soft);
 }
 
 .app-auth-card.app-auth-card-wide {

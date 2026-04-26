@@ -2,6 +2,7 @@ module Application.Helper.View
     ( module Application.Helper.View
     , module Application.Helper.View.Chrome
     , module Application.Helper.View.Overlay
+    , module Application.Helper.View.Status
     , module Application.Helper.View.Toast
     ) where
 
@@ -9,6 +10,7 @@ import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
                                       hasRole)
 import Application.Helper.View.Chrome
 import Application.Helper.View.Overlay
+import Application.Helper.View.Status
 import Application.Helper.View.Toast
 import qualified Data.Char as Char
 import Data.List (elemIndex, sortBy)

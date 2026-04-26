@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+token_files=(
+  static/css/tokens.css
+  static/css/bootstrap-bridge.css
+)
+
+scan_files=(
+  static
+  Web
+  Application/Helper
+)
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+defined="$tmp_dir/defined.txt"
+used="$tmp_dir/used.txt"
+undefined="$tmp_dir/undefined.txt"
+
+rg --no-heading --only-matching --replace '$2' --glob '!static/vendor/**' '(^|[;{"'\''[:space:]])(--[A-Za-z0-9_-]+)[[:space:]]*:' "${scan_files[@]}" \
+  | sed 's/^.*://' \
+  | sort -u > "$defined"
+
+rg --no-heading --only-matching --replace '$1' --glob '!static/vendor/**' 'var\((--[A-Za-z0-9_-]+)' "${scan_files[@]}" \
+  | sed 's/^.*://' \
+  | sort -u > "$used"
+
+comm -23 "$used" "$defined" \
+  | rg -v '^--bs-' > "$undefined" || true
+
+echo "style-audit: undefined CSS variables"
+if [[ -s "$undefined" ]]; then
+  sed 's/^/  /' "$undefined"
+else
+  echo "  none"
+fi
+
+echo
+echo "style-audit: hardcoded colors outside token files"
+rg -n '#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\(' static --glob '*.css' --glob '!static/vendor/**' \
+  | rg -v "$(printf '%s|' "${token_files[@]}" | sed 's/|$//')" \
+  | head -80 \
+  || true
+
+echo
+echo "style-audit: banned light-mode Bootstrap utilities in HSX"
+rg -n 'bg-white|bg-light|bg-light-subtle|text-muted|text-body-secondary' Web Application --glob '*.hs' \
+  || true
+
+echo
+echo "style-audit: inline style attributes requiring review"
+rg -n 'style=' Web Application --glob '*.hs' \
+  | rg -v 'style=\{"--|style=\{\("width: var\(|timesheetMidnightStyle|segmentLeft|segmentWidth' \
+  || true
+
+if [[ -s "$undefined" ]]; then
+  exit 1
+fi
