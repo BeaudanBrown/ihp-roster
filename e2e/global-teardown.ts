@@ -5,6 +5,11 @@ export default function globalTeardown() {
     const projectRoot = path.resolve(__dirname, '..');
     const dbSocket = process.env.TEST_DB_SOCKET ?? path.join(projectRoot, 'build', 'db');
     const dbName = process.env.TEST_DATABASE_NAME ?? 'app_e2e';
+    if (/^app_e2e_.+_shard_\d+$/.test(dbName)) {
+        console.log(`E2E teardown: skipping row cleanup for ephemeral database ${dbName}.`);
+        return;
+    }
+
     const cleanupSql = `
         DELETE FROM venue_onboarding_invitations
         WHERE email LIKE 'e2e-%';
