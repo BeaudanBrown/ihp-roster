@@ -136,7 +136,7 @@ renderRosterExportMenuSection viewCapabilities
     | not viewCapabilities.canExportRosterImage = mempty
     | otherwise = [hsx|
         <div class="px-1 py-1">
-            <div class="small text-uppercase fw-semibold text-body-secondary px-1 pb-2">Share roster</div>
+            <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Share roster</div>
             <div class="d-grid gap-2">
                 {renderRosterExportButton "png" "Export PNG"}
                 {renderRosterExportButton "jpg" "Export JPG"}
@@ -174,7 +174,7 @@ renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId menuTriggerId 
           hx-swap="outerHTML"
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-        <div class="small text-uppercase fw-semibold text-body-secondary px-1 pb-2">Hide from dropdowns</div>
+        <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Hide from dropdowns</div>
         <div class="roster-assignment-filter-grid">
             {renderRosterAssignmentFilterToggle "hide-staff-at-ideal" "hideStaffAtIdealShifts" filters.hideStaffAtIdealShifts "At ideal shifts or greater"}
             {renderRosterAssignmentFilterToggle "hide-staff-unavailable" "hideStaffUnavailable" filters.hideStaffUnavailable "No preferred shifts that day"}

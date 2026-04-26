@@ -79,7 +79,7 @@ renderPendingVerification (Just email) = [hsx|
         <div class="mb-2">Verify your email before signing in.</div>
         <form method="POST" action={ResendVerificationAction} class="d-flex gap-2 align-items-center">
             <input type="hidden" name="email" value={email} />
-            <span class="small text-muted flex-grow-1">{email}</span>
+            <span class="small app-muted flex-grow-1">{email}</span>
             <button type="submit" class="btn btn-sm btn-outline-primary">Resend email</button>
         </form>
     </div>

@@ -134,7 +134,7 @@ renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff =
                 <input type="hidden" name="weekOffset" value={tshow weekOffset} />
                 <input type="hidden" name="showApproved" id="timesheet-show-approved-value" value={boolText showApproved} />
                 <input type="hidden" name="showAllStaff" id="timesheet-show-all-staff-value" value={boolText showAllStaff} />
-                <div class="small text-uppercase fw-semibold text-body-secondary px-1 pb-2">Filters</div>
+                <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Filters</div>
                 {renderTimesheetHideApprovedToggle showApproved}
                 {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" "timesheet-show-all-staff-value" showAllStaff "Show all staff")}
             </form>

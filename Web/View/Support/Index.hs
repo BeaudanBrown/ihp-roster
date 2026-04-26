@@ -41,7 +41,7 @@ instance View IndexView where
                     , appPanelClass = ""
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
-                        <div class="border rounded p-3 bg-light-subtle mb-4">
+                        <div class={appSurfaceClasses "p-3 mb-4 app-surface-muted"}>
                             <div class="small text-uppercase app-muted mb-1">Current support venue</div>
                             <div class="fw-semibold">
                                 {maybe "No active venue selected" (.name) currentVenueOrNothing}
