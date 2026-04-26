@@ -1,5 +1,5 @@
 CSS_FILES += static/vendor/bootstrap-5.3.8/bootstrap.min.css
-CSS_FILES += static/vendor/flatpickr.min.css
+CSS_FILES += ${IHP}/static/vendor/flatpickr.min.css
 CSS_FILES += static/css/tokens.css
 CSS_FILES += static/css/bootstrap-bridge.css
 CSS_FILES += static/css/layout.css
@@ -13,8 +13,8 @@ CSS_FILES += static/css/features/timesheets.css
 CSS_FILES += static/app.css
 
 JS_FILES += static/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js
-JS_FILES += static/vendor/flatpickr.js
-JS_FILES += static/vendor/morphdom-umd.min.js
+JS_FILES += ${IHP}/static/vendor/flatpickr.js
+JS_FILES += ${IHP}/static/vendor/morphdom-umd.min.js
 
 # Resolve IHPSchema.sql across IHP env layouts.
 # Some environments expose IHP_LIB without IHPSchema.sql (e.g. env-var compatibility wrapper).
