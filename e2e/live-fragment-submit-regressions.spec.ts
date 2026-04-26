@@ -29,7 +29,7 @@ test.describe('HTMX submit regressions', () => {
     test('profile leave submit appends a leave request without nesting the whole profile page', async ({ page }) => {
         const note = 'profile-leave-submit-check';
 
-        await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/EditProfile', '#profile-content-fragment');
 
         const leaveSectionToggle = page.getByRole('button', { name: 'Leave Requests' });

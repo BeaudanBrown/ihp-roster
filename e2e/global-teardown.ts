@@ -104,6 +104,9 @@ export default function globalTeardown() {
         WHERE requested_by_user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%')
            OR downloaded_by_user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%');
 
+        DELETE FROM passkeys
+        WHERE user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%');
+
         DELETE FROM staff
         WHERE venue_id IN (
             SELECT id FROM venues WHERE name LIKE 'e2e-owner-%'

@@ -1,12 +1,15 @@
 import { test, expect } from '@playwright/test';
-import { gotoExports, loginAs, payrollReportCard } from './test-helpers';
+import { gotoExports, loginAs, loginAsPrivilegedUserWithFreshPasskey, payrollReportCard } from './test-helpers';
+
+const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
+test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Export report definition management', () => {
     test('venue admin can create and update report definitions and inactive ones disappear from payroll actions', async ({ page, browser }, testInfo) => {
         const createdSlug = `front-bar-${testInfo.retry}`;
         const updatedSlug = `front-house-${testInfo.retry}`;
 
-        await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
+        await loginAsPrivilegedUserWithFreshPasskey(page);
         await gotoExports(page);
 
         await expect(page.locator('#report-definition-management')).toBeVisible();

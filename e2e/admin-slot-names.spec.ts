@@ -1,29 +1,38 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs } from './test-helpers';
+import { gotoWhenReady, loginAs, openAdminWithFreshPasskey } from './test-helpers';
+
+const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
+test.use({ baseURL: webauthnBaseURL });
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
+async function openSlotNamesFragment(page: import('@playwright/test').Page) {
+    const rosterGroupsToggle = page.getByRole('button', { name: 'Roster Groups' });
+    if ((await rosterGroupsToggle.getAttribute('aria-expanded')) !== 'true') {
+        await rosterGroupsToggle.click();
+    }
+    const fragment = page.locator('[id^="admin-slot-names-fragment-"]').first();
+    await expect(fragment).toBeVisible();
+    return fragment;
+}
+
 test.describe('Admin slot names', () => {
     test('deleting a slot name succeeds and updates the slot-name fragment', async ({ page }) => {
-        await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/Admin', '#admin-config-sections');
+        await openAdminWithFreshPasskey(page);
 
-        const slotNamesToggle = page.getByRole('button', { name: 'Slot Names' });
-        if ((await slotNamesToggle.getAttribute('aria-expanded')) !== 'true') {
-            await slotNamesToggle.click();
-        }
+        const slotNamesFragment = await openSlotNamesFragment(page);
 
         const addedSlotName = `Delete Me ${Date.now()}`;
-        const slotNameInputs = page.locator('#admin-slot-names-fragment input[aria-label="Slot name"]');
-        const deleteButtons = page.locator('#admin-slot-names-fragment button:has-text("Delete")');
+        const slotNameInputs = slotNamesFragment.locator('input[aria-label="Slot name"]');
+        const deleteButtons = slotNamesFragment.locator('button:has-text("Delete")');
         const initialSlotCount = await slotNameInputs.count();
 
         const createResponsePromise = page.waitForResponse((response) => {
             return response.request().method() === 'POST' && response.url().includes('/CreateSlotName');
         });
 
-        await page.fill('#new-slot-name', addedSlotName);
-        await page.getByRole('button', { name: 'Add Slot' }).click();
+        await slotNamesFragment.locator('input[name="name"]').first().fill(addedSlotName);
+        await slotNamesFragment.getByRole('button', { name: 'Add Slot' }).click();
 
         const createResponse = await createResponsePromise;
         expect(createResponse.status(), await createResponse.text()).toBe(200);
@@ -40,7 +49,7 @@ test.describe('Admin slot names', () => {
         expect(deleteResponse.status(), deleteResponseText).toBe(200);
 
         await expect(slotNameInputs).toHaveCount(initialSlotCount);
-        await expect(page.locator('#admin-slot-names-fragment')).not.toContainText(addedSlotName);
+        await expect(slotNamesFragment).not.toContainText(addedSlotName);
     });
 
     test('creating a slot name leaves an existing roster unchanged until the draft week is synced', async ({ browser }) => {
@@ -50,24 +59,20 @@ test.describe('Admin slot names', () => {
         const viewerPage = await viewerContext.newPage();
         const addedSlotName = `Graveyard ${Date.now()}`;
 
-        await loginAs(adminPage, 'e2e-admin@example.com', 'test-password-123');
-        await gotoWhenReady(adminPage, '/Admin', '#admin-config-sections');
-        await loginAs(viewerPage, 'e2e-admin@example.com', 'test-password-123');
+        await openAdminWithFreshPasskey(adminPage);
+        await loginAs(viewerPage, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(viewerPage, e2eRosterPath, 'table.roster-grid');
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: 60000 });
 
-        const slotNamesToggle = adminPage.getByRole('button', { name: 'Slot Names' });
-        if ((await slotNamesToggle.getAttribute('aria-expanded')) !== 'true') {
-            await slotNamesToggle.click();
-        }
+        const slotNamesFragment = await openSlotNamesFragment(adminPage);
 
         async function addSlot(name: string) {
             const createResponsePromise = adminPage.waitForResponse((response) => {
                 return response.request().method() === 'POST' && response.url().includes('/CreateSlotName');
             });
 
-            await adminPage.fill('#new-slot-name', name);
-            await adminPage.getByRole('button', { name: 'Add Slot' }).click();
+            await slotNamesFragment.locator('input[name="name"]').first().fill(name);
+            await slotNamesFragment.getByRole('button', { name: 'Add Slot' }).click();
 
             const createResponse = await createResponsePromise;
             const createResponseText = await createResponse.text();
@@ -75,7 +80,7 @@ test.describe('Admin slot names', () => {
         }
 
         const viewerRow = viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }).first();
-        if (await adminPage.locator('#admin-slot-names-fragment').getByText('No slot names yet for this roster group.').isVisible().catch(() => false)) {
+        if (await slotNamesFragment.getByText('No slot names yet for this roster group.').isVisible().catch(() => false)) {
             await addSlot('Early');
         }
 

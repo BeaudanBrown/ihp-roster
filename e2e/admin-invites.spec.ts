@@ -4,11 +4,14 @@ import {
     expectMailhogMessageCount,
     extractFirstUrl,
     gotoWhenReady,
-    loginAs,
     mailhogMessageSubject,
     mailhogMessageText,
+    openAdminWithFreshPasskey,
     waitForMailhogMessage,
 } from './test-helpers';
+
+const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
+test.use({ baseURL: webauthnBaseURL });
 
 function inviteUrlForCurrentBase(rawUrl: string, baseURL: string) {
     const parsed = new URL(rawUrl);
@@ -16,8 +19,15 @@ function inviteUrlForCurrentBase(rawUrl: string, baseURL: string) {
 }
 
 async function openInvitesSection(page: Page) {
-    await page.locator('#invites-heading button').click();
+    const toggle = page.locator('#invites-heading button');
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') {
+        await toggle.click();
+    }
     await expect(page.locator('#admin-invites-fragment')).toBeVisible();
+}
+
+function inviteRow(page: Page, email: string) {
+    return page.locator('#admin-invites-fragment tbody tr').filter({ hasText: email }).first();
 }
 
 test.describe('Admin invites', () => {
@@ -30,24 +40,27 @@ test.describe('Admin invites', () => {
     test('admin can queue and revoke an invite, and revoked links stop working', async ({ page, request, baseURL }) => {
         const inviteeEmail = `e2e-revoke-${Date.now()}@example.com`;
 
-        await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/Admin', '#admin-config-sections');
+        await openAdminWithFreshPasskey(page);
         await openInvitesSection(page);
 
         await page.fill('#new-invite-email', inviteeEmail);
         await page.getByRole('button', { name: 'Queue Invite Email' }).click();
 
-        const row = page.locator('#admin-invites-fragment tbody tr').filter({ hasText: inviteeEmail }).first();
+        const row = inviteRow(page, inviteeEmail);
         await expect(row).toBeVisible();
         await expect(row).toContainText(/Queued|Sent/);
+        await expect(row.getByRole('button', { name: 'Revoke' })).toBeVisible();
 
         const message = await waitForMailhogMessage(request, inviteeEmail, 30000);
         expect(mailhogMessageSubject(message)).toContain("You're invited");
         const inviteUrl = inviteUrlForCurrentBase(extractFirstUrl(mailhogMessageText(message)), baseURL!);
 
-        await row.getByRole('button', { name: 'Revoke' }).click();
-        await expect(row).toContainText('Revoked');
-        await expect(row.getByRole('button', { name: 'Revoke' })).toHaveCount(0);
+        await openInvitesSection(page);
+        const revokableRow = inviteRow(page, inviteeEmail);
+        await expect(revokableRow.getByRole('button', { name: 'Revoke' })).toBeVisible();
+        await revokableRow.getByRole('button', { name: 'Revoke' }).click();
+        await expect(revokableRow).toContainText('Revoked');
+        await expect(revokableRow.getByRole('button', { name: 'Revoke' })).toHaveCount(0);
 
         await gotoWhenReady(page, inviteUrl, 'body');
         await expect(page.locator('body')).toContainText('Invitation Required');
@@ -56,14 +69,13 @@ test.describe('Admin invites', () => {
     test('accepted invites verify the email, avoid a second email, and show accepted status when the admin revisits invites', async ({ browser, page, request, baseURL }) => {
         const inviteeEmail = `e2e-accept-${Date.now()}@example.com`;
 
-        await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/Admin', '#admin-config-sections');
+        await openAdminWithFreshPasskey(page);
         await openInvitesSection(page);
 
         await page.fill('#new-invite-email', inviteeEmail);
         await page.getByRole('button', { name: 'Queue Invite Email' }).click();
 
-        const row = page.locator('#admin-invites-fragment tbody tr').filter({ hasText: inviteeEmail }).first();
+        const row = inviteRow(page, inviteeEmail);
         await expect(row).toBeVisible();
         await expect(row).toContainText(/Queued|Sent/);
 
@@ -83,7 +95,7 @@ test.describe('Admin invites', () => {
 
         await gotoWhenReady(page, '/Admin', '#admin-config-sections');
         await openInvitesSection(page);
-        await expect(page.locator('#admin-invites-fragment tbody tr').filter({ hasText: inviteeEmail }).first()).toContainText('Accepted');
+        await expect(inviteRow(page, inviteeEmail)).toContainText('Accepted');
         await expectMailhogMessageCount(request, inviteeEmail, 1, 10000);
 
         await inviteeContext.close();

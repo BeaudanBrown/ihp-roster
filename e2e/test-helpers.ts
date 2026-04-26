@@ -171,6 +171,138 @@ export async function loginAs(page: Page, email: string, password: string) {
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
 }
 
+function e2eDatabaseArgs() {
+    const dbSocket = process.env.TEST_DB_SOCKET ?? join(process.cwd(), 'build', 'db');
+    const dbName = process.env.TEST_DATABASE_NAME ?? 'app_e2e';
+    return { dbSocket, dbName };
+}
+
+function sqlString(value: string) {
+    return `'${value.replace(/'/g, "''")}'`;
+}
+
+export function clearE2EUserPasskeys(email: string) {
+    const { dbSocket, dbName } = e2eDatabaseArgs();
+    execFileSync(
+        'psql',
+        [
+            '-h',
+            dbSocket,
+            dbName,
+            '-v',
+            'ON_ERROR_STOP=1',
+            '-c',
+            `DELETE FROM passkeys WHERE user_id = (SELECT id FROM users WHERE email = ${sqlString(email)});`,
+        ],
+        { stdio: 'inherit' },
+    );
+}
+
+export function resetE2EUserPasskeySignCount(email: string) {
+    const { dbSocket, dbName } = e2eDatabaseArgs();
+    execFileSync(
+        'psql',
+        [
+            '-h',
+            dbSocket,
+            dbName,
+            '-v',
+            'ON_ERROR_STOP=1',
+            '-c',
+            `UPDATE passkeys SET sign_count = 0 WHERE user_id = (SELECT id FROM users WHERE email = ${sqlString(email)});`,
+        ],
+        { stdio: 'inherit' },
+    );
+}
+
+export async function enableVirtualPasskeyAuthenticator(page: Page) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('WebAuthn.enable');
+    const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+        options: {
+            protocol: 'ctap2',
+            transport: 'internal',
+            hasResidentKey: true,
+            hasUserVerification: true,
+            isUserVerified: true,
+            automaticPresenceSimulation: true,
+        },
+    });
+    await cdp.send('WebAuthn.setAutomaticPresenceSimulation', {
+        authenticatorId,
+        enabled: true,
+    });
+    return { cdp, authenticatorId };
+}
+
+export async function removeVirtualPasskeyAuthenticator(authenticator: Awaited<ReturnType<typeof enableVirtualPasskeyAuthenticator>>) {
+    await authenticator.cdp.send('WebAuthn.removeVirtualAuthenticator', {
+        authenticatorId: authenticator.authenticatorId,
+    });
+}
+
+export async function registerFirstPasskeyForCurrentUser(page: Page) {
+    await openProfileSecuritySection(page);
+    await expect(page.getByRole('button', { name: 'Add passkey' })).toBeVisible();
+    await page.getByRole('button', { name: 'Add passkey' }).click();
+    await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: 60000 });
+}
+
+export async function registerFirstSupportPasskeyForCurrentUser(page: Page) {
+    await gotoWhenReady(page, '/Support', '.js-passkey-register');
+    await expect(page.getByRole('button', { name: 'Add passkey' })).toBeVisible();
+    await page.getByRole('button', { name: 'Add passkey' }).click();
+    await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: 60000 });
+}
+
+function currentPasskeyManagement(page: Page) {
+    return page.locator('.js-passkey-register').locator('xpath=ancestor::div[contains(@class, "app-form-width")][1]');
+}
+
+export async function openProfileSecuritySection(page: Page) {
+    await gotoWhenReady(page, '/EditProfile?section=security', '#profile-content-fragment');
+    const securityToggle = page.getByRole('button', { name: 'Sign-In Methods' });
+    if ((await securityToggle.getAttribute('aria-expanded')) !== 'true') {
+        await securityToggle.click();
+    }
+    await expect(page.locator('#profile-security-collapse .js-passkey-register')).toBeVisible();
+}
+
+export async function verifyCurrentUserPasskeyStepUp(page: Page) {
+    await expect(page).toHaveURL(/PasskeyStepUp/, { timeout: 60000 });
+    await expect(page.getByRole('button', { name: 'Verify with passkey' })).toBeVisible();
+    await page.getByRole('button', { name: 'Verify with passkey' }).click();
+    await expect(page).not.toHaveURL(/PasskeyStepUp/, { timeout: 60000 });
+}
+
+export async function loginAsPrivilegedUserWithFreshPasskey(
+    page: Page,
+    email = 'e2e-admin@example.com',
+    password = 'test-password-123',
+) {
+    clearE2EUserPasskeys(email);
+    await enableVirtualPasskeyAuthenticator(page);
+
+    await gotoWhenReady(page, '/NewSession', '#email');
+    await page.fill('#email', email);
+    await page.fill('#password', password);
+    await page.click('button[type="submit"]');
+    await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWeek|Support)/, { timeout: 60000 });
+
+    if (page.url().includes('/EditProfile')) {
+        await registerFirstPasskeyForCurrentUser(page);
+    } else if (page.url().includes('/Support')) {
+        await registerFirstSupportPasskeyForCurrentUser(page);
+    }
+
+    await gotoWhenReady(page, '/RosterWeeks', '#roster-content');
+}
+
+export async function openAdminWithFreshPasskey(page: Page) {
+    await loginAsPrivilegedUserWithFreshPasskey(page);
+    await gotoWhenReady(page, '/Admin', '#admin-config-sections');
+}
+
 export async function openNewLeaveRequestDialog(page: Page) {
     const trigger = page
         .getByRole('link', { name: 'New Request', exact: true })
@@ -192,7 +324,7 @@ type OpenRosterOptions = {
 
 export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
     const {
-        email = 'e2e-admin@example.com',
+        email = 'e2e-test@example.com',
         password = 'test-password-123',
         weekOffset = 0,
         rosterGroupId = defaultE2ERosterGroupId,

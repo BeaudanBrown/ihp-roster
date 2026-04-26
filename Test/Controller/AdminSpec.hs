@@ -54,7 +54,7 @@ tests = beforeAll testContext do
                 _ <- createShiftTypeRecord venueB levelB "Bar"
                 _ <- createSlotNameRecord venueB "Graveyard"
 
-                response <- withUserAndCurrentVenue admin venueA.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venueA.id do
                     callActionWithParams AdminAction [("rosterGroupId", idToParam venueAGroupB.id)]
 
                 response `responseStatusShouldBe` status200
@@ -109,7 +109,7 @@ tests = beforeAll testContext do
                     |> set #isActive True
                     |> createRecord
 
-                pageResponse <- withUserAndCurrentVenue admin venue.id do
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction AdminAction
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Front Lane"
@@ -123,7 +123,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` ("hx-target=\"#admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
                 pageResponse `responseBodyShouldContain` ("hx-target=\"#admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
 
-                firstFragmentResponse <- withUserAndCurrentVenue admin venue.id do
+                firstFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams ShowAdminSlotNamesFragmentAction
                         [("rosterGroupId", idToParam firstGroup.id)]
                 firstFragmentResponse `responseStatusShouldBe` status200
@@ -132,7 +132,7 @@ tests = beforeAll testContext do
                 firstFragmentResponse `responseBodyShouldNotContain` "Back Pass"
                 firstFragmentResponse `responseBodyShouldNotContain` "id=\"app\""
 
-                secondFragmentResponse <- withUserAndCurrentVenue admin venue.id do
+                secondFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams ShowAdminSlotNamesFragmentAction
                         [("rosterGroupId", idToParam secondGroup.id)]
                 secondFragmentResponse `responseStatusShouldBe` status200
@@ -157,7 +157,7 @@ tests = beforeAll testContext do
                 owner <- createUserRecord "owner-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
 
-                response <- withUserAndCurrentVenue owner venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     callAction AdminAction
 
                 response `responseStatusShouldBe` status200
@@ -179,7 +179,7 @@ tests = beforeAll testContext do
                 _ <- createVenueRosterGroupWithDefaults venue "Active Group" 10 True
                 _ <- createVenueRosterGroupWithDefaults venue "Inactive Group" 20 False
 
-                hiddenShiftTypesResponse <- withUserAndCurrentVenue admin venue.id do
+                hiddenShiftTypesResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams ShowAdminShiftTypesFragmentAction
                         [("showInactiveShiftTypes", "false")]
                 hiddenShiftTypesResponse `responseStatusShouldBe` status200
@@ -190,7 +190,7 @@ tests = beforeAll testContext do
                 hiddenShiftTypesResponse `responseBodyShouldNotContain` "Inactive Shift"
                 hiddenShiftTypesResponse `responseBodyShouldNotContain` "id=\"app\""
 
-                visibleShiftTypesResponse <- withUserAndCurrentVenue admin venue.id do
+                visibleShiftTypesResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams ShowAdminShiftTypesFragmentAction
                         [("showInactiveShiftTypes", "true")]
                 visibleShiftTypesResponse `responseStatusShouldBe` status200
@@ -199,7 +199,7 @@ tests = beforeAll testContext do
                 (cs visibleShiftTypesBody :: String) `shouldContainInOrder` ["Active Shift", "Inactive Shift"]
                 visibleShiftTypesResponse `responseBodyShouldContain` "checked=\"checked\""
 
-                hiddenRosterGroupsResponse <- withUserAndCurrentVenue admin venue.id do
+                hiddenRosterGroupsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams ShowAdminRosterGroupsFragmentAction
                         [("showInactiveRosterGroups", "false")]
                 hiddenRosterGroupsResponse `responseStatusShouldBe` status200
@@ -209,7 +209,7 @@ tests = beforeAll testContext do
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "Active Group"
                 hiddenRosterGroupsResponse `responseBodyShouldNotContain` "Inactive Group"
 
-                visibleRosterGroupsResponse <- withUserAndCurrentVenue admin venue.id do
+                visibleRosterGroupsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams ShowAdminRosterGroupsFragmentAction
                         [("showInactiveRosterGroups", "true")]
                 visibleRosterGroupsResponse `responseStatusShouldBe` status200
@@ -228,7 +228,7 @@ tests = beforeAll testContext do
                 rosterGroup <- createVenueRosterGroupWithDefaults venue "Starter Group" 10 True
                 inactiveRosterGroup <- createVenueRosterGroupWithDefaults venue "Archived Group" 20 False
 
-                pageResponse <- withUserAndCurrentVenue admin venue.id do
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams AdminAction [("showInactiveRosterGroups", "true"), ("showInactiveShiftTypes", "true")]
                 pageResponse `responseBodyShouldContain` "hx-post=\"/CreateShiftType\""
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
@@ -239,7 +239,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "name=\"showInactiveRosterGroups\" value=\"true\""
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateRosterGroup?rosterGroupId=" <> tshow rosterGroup.id)
 
-                createShiftResponse <- withUserAndCurrentVenue admin venue.id do
+                createShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateShiftTypeAction
                             [ ("name", "Fragment Shift")
@@ -253,7 +253,7 @@ tests = beforeAll testContext do
                 createShiftResponse `responseBodyShouldContain` "checked=\"checked\""
                 createShiftResponse `responseBodyShouldNotContain` "id=\"app\""
 
-                updateShiftResponse <- withUserAndCurrentVenue admin venue.id do
+                updateShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (UpdateShiftTypeAction shiftType.id)
                             [ ("name", "Updated Fragment Shift")
@@ -265,7 +265,7 @@ tests = beforeAll testContext do
                 updateShiftResponse `responseBodyShouldContain` "Updated Fragment Shift"
                 updateShiftResponse `responseBodyShouldContain` "inactive"
 
-                createRosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                createRosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateRosterGroupAction
                             [ ("name", "Fragment Group")
@@ -279,7 +279,7 @@ tests = beforeAll testContext do
                 createRosterGroupResponse `responseBodyShouldContain` "checked=\"checked\""
                 createRosterGroupResponse `responseBodyShouldNotContain` "id=\"app\""
 
-                updateRosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                updateRosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (UpdateRosterGroupAction rosterGroup.id)
                             [ ("name", "Updated Fragment Group")
@@ -297,7 +297,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 inviteNow <- getCurrentTime
 
-                rosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                rosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateRosterGroupAction
                         [ ("name", "Back of House")
                         , ("isActive", "true")
@@ -305,14 +305,14 @@ tests = beforeAll testContext do
                 rosterGroupResponse `responseStatusShouldBe` status302
                 createdRosterGroup <- query @RosterGroup |> filterWhere (#name, "Back of House") |> fetchOne
 
-                slotResponse <- withUserAndCurrentVenue admin venue.id do
+                slotResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateSlotNameAction
                         [ ("name", "Swing")
                         , ("rosterGroupId", idToParam createdRosterGroup.id)
                         ]
                 slotResponse `responseStatusShouldBe` status302
 
-                shiftTypeResponse <- withUserAndCurrentVenue admin venue.id do
+                shiftTypeResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
                         [ ("name", "Supervisor")
                         , ("isActive", "true")
@@ -320,7 +320,7 @@ tests = beforeAll testContext do
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
 
-                inviteResponse <- withUserAndCurrentVenue admin venue.id do
+                inviteResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateVenueInvitationAction
                         [ ("email", "new-worker@example.com")
                         , ("rosterGroupId", idToParam createdRosterGroup.id)
@@ -363,18 +363,18 @@ tests = beforeAll testContext do
                 lastSlotName <- fetchSlotNameRecord venue "Late"
                 rosterGroup <- createVenueRosterGroupWithDefaults venue "Back of House" 5 True
 
-                moveGroupUpResponse <- withUserAndCurrentVenue admin venue.id do
+                moveGroupUpResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (MoveRosterGroupUpAction rosterGroup.id)
                 moveGroupUpResponse `responseStatusShouldBe` status302
 
-                rosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                rosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateRosterGroupAction rosterGroup.id)
                         [ ("name", "Back of House Updated")
                         , ("isActive", "true")
                         ]
                 rosterGroupResponse `responseStatusShouldBe` status302
 
-                shiftTypeResponse <- withUserAndCurrentVenue admin venue.id do
+                shiftTypeResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateShiftTypeAction shiftType.id)
                         [ ("name", "Kitchen Updated")
                         , ("isActive", "false")
@@ -382,21 +382,21 @@ tests = beforeAll testContext do
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
 
-                slotResponse <- withUserAndCurrentVenue admin venue.id do
+                slotResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateSlotNameAction slotName.id)
                         [ ("name", "Early Updated")
                         ]
                 slotResponse `responseStatusShouldBe` status302
 
-                moveDownResponse <- withUserAndCurrentVenue admin venue.id do
+                moveDownResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (MoveSlotNameDownAction slotName.id)
                 moveDownResponse `responseStatusShouldBe` status302
 
-                moveUpResponse <- withUserAndCurrentVenue admin venue.id do
+                moveUpResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (MoveSlotNameUpAction lastSlotName.id)
                 moveUpResponse `responseStatusShouldBe` status302
 
-                deleteSlotResponse <- withUserAndCurrentVenue admin venue.id do
+                deleteSlotResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (DeleteSlotNameAction middleSlotName.id)
                 deleteSlotResponse `responseStatusShouldBe` status302
 
@@ -425,7 +425,7 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "admin-week-start@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
 
-                response <- withUserAndCurrentVenue admin venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams UpdateVenueConfigAction
                         [("rosterWeekStartsOn", "2")]
 
@@ -448,7 +448,7 @@ tests = beforeAll testContext do
                 foreignLevel <- createPayLevelRecord venueB "Foreign Level"
                 foreignShiftType <- createShiftTypeRecord venueB foreignLevel "Foreign Shift"
 
-                response <- withUserAndCurrentVenue admin venueA.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venueA.id do
                     callActionWithParams (UpdateShiftTypeAction foreignShiftType.id)
                         [ ("name", "Should Not Work")
                         , ("isActive", "false")
@@ -467,7 +467,7 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "admin-save@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
 
-                rosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                rosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateRosterGroupAction
                         [ ("name", "Back of House")
                         , ("isActive", "true")
@@ -477,7 +477,7 @@ tests = beforeAll testContext do
 
                 _ <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
 
-                shiftTypeResponse <- withUserAndCurrentVenue admin venue.id do
+                shiftTypeResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
                         [ ("name", "Supervisor")
                         , ("isActive", "true")
@@ -487,7 +487,7 @@ tests = beforeAll testContext do
                 (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v1"]
 
                 createdRosterGroup <- query @RosterGroup |> filterWhere (#name, "Back of House") |> fetchOne
-                slotResponse <- withUserAndCurrentVenue admin venue.id do
+                slotResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateSlotNameAction
                         [ ("name", "Swing")
                         , ("rosterGroupId", idToParam createdRosterGroup.id)

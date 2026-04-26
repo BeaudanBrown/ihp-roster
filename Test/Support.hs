@@ -1,6 +1,9 @@
 module Test.Support where
 
 import Application.Helper.Controller (PlatformRole (..), currentVenueSessionKey,
+                                      formatPasskeyVerifiedAt,
+                                      passkeyVerifiedAtSessionKey,
+                                      passkeyVerifiedUserSessionKey,
                                       platformRoleToEnum, unsafeEnumFromText)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
@@ -15,6 +18,7 @@ import Data.Scientific (Scientific)
 import qualified Data.Serialize as Serialize
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, fromGregorian)
+import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.Vault.Lazy as Vault
 import Database.PostgreSQL.Simple.Types (Binary (Binary))
@@ -466,6 +470,49 @@ withUserAndCurrentVenue user venueId callback =
         , (currentVenueSessionKey, Serialize.encode venueId)
         ]
         callback
+
+withPasskeyVerifiedUser ::
+    forall result.
+    (?mocking :: MockContext WebApplication, ?modelContext :: ModelContext, ?request :: Wai.Request) =>
+    User ->
+    ((?request :: Wai.Request) => IO result) ->
+    IO result
+withPasskeyVerifiedUser user callback = do
+    ensureTestUserHasPasskey user
+    now <- getCurrentTime
+    withSessionValues
+        [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
+        , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
+        , (passkeyVerifiedAtSessionKey, Serialize.encode (formatPasskeyVerifiedAt now))
+        ]
+        callback
+
+withPasskeyVerifiedUserAndCurrentVenue ::
+    forall result.
+    (?mocking :: MockContext WebApplication, ?modelContext :: ModelContext, ?request :: Wai.Request) =>
+    User ->
+    Id Venue ->
+    ((?request :: Wai.Request) => IO result) ->
+    IO result
+withPasskeyVerifiedUserAndCurrentVenue user venueId callback = do
+    ensureTestUserHasPasskey user
+    now <- getCurrentTime
+    withSessionValues
+        [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
+        , (currentVenueSessionKey, Serialize.encode venueId)
+        , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
+        , (passkeyVerifiedAtSessionKey, Serialize.encode (formatPasskeyVerifiedAt now))
+        ]
+        callback
+
+ensureTestUserHasPasskey :: (?modelContext :: ModelContext) => User -> IO ()
+ensureTestUserHasPasskey user = do
+    hasPasskey <-
+        query @Passkey
+            |> filterWhere (#userId, unpackId user.id)
+            |> fetchExists
+    unless hasPasskey do
+        void (createTestPasskeyRecord user "Test passkey")
 
 withSessionValues ::
     forall result.

@@ -95,7 +95,7 @@ registrationCredentialOptions challenge userId displayName excludeCredentials =
             Just
                 AuthenticatorSelectionCriteria
                     { ascAuthenticatorAttachment = Nothing
-                    , ascResidentKey = ResidentKeyRequirementPreferred
+                    , ascResidentKey = ResidentKeyRequirementRequired
                     , ascUserVerification = UserVerificationRequirementPreferred
                     }
         , corAttestation = AttestationConveyancePreferenceNone

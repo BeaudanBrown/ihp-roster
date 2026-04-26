@@ -1,5 +1,8 @@
 import { test, expect } from '@playwright/test';
-import { gotoExports, loginAs, payrollReportCard } from './test-helpers';
+import { gotoExports, loginAs, loginAsPrivilegedUserWithFreshPasskey, payrollReportCard } from './test-helpers';
+
+const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
+test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Export authorization and negative cases', () => {
     test('manager only sees current-venue payroll reports and no management controls', async ({ page }) => {
@@ -27,7 +30,7 @@ test.describe('Export authorization and negative cases', () => {
         const duplicateSlug = 'wage';
         const transientName = `Duplicate Wage ${testInfo.retry}`;
 
-        await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
+        await loginAsPrivilegedUserWithFreshPasskey(page);
         await gotoExports(page);
 
         const createForm = page.locator('#report-definition-create-form');

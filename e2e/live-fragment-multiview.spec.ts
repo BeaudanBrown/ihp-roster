@@ -155,12 +155,12 @@ test.describe('Live fragment multi-view coverage', () => {
         const requesterPage = await requesterContext.newPage();
         const viewerPage = await viewerContext.newPage();
         const note = `roster-live-leave-${Date.now()}`;
-        const adminStaffId = 'a1000000-0000-0000-0000-000000000033';
+        const managerStaffId = 'a0000000-0000-0000-0000-000000000101';
 
         await loginManager(actorPage);
         await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
 
-        await loginAs(requesterPage, 'e2e-admin@example.com', 'test-password-123');
+        await loginAs(requesterPage, 'e2e-test@example.com', 'test-password-123');
         const startDate = await isoCurrentWeekStart(requesterPage);
         const endDate = await requesterPage.evaluate((start) => {
             const next = new Date(`${start}T00:00:00Z`);
@@ -172,8 +172,8 @@ test.describe('Live fragment multi-view coverage', () => {
         await loginAndOpenRoster(viewerPage);
         const viewerTargetRow = await ensureEditableRosterRow(viewerPage, 1);
         const viewerTargetSelect = viewerTargetRow.locator('select[name="staffId"]').first();
-        await viewerTargetSelect.selectOption(adminStaffId);
-        await expect(viewerTargetSelect).toHaveValue(adminStaffId);
+        await viewerTargetSelect.selectOption(managerStaffId);
+        await expect(viewerTargetSelect).toHaveValue(managerStaffId);
         const viewerTargetStaffCell = viewerTargetRow.locator('.slot-staff-cell').first();
 
         const leaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note });

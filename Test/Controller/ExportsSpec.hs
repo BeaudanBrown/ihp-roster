@@ -60,7 +60,7 @@ tests = beforeAll testContext do
                         . set #approvedByUserId (Just (unpackId admin.id))
                 _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 11)
 
-                response <- withUserAndCurrentVenue admin venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
                         [ ("rangeStart", "2025-01-06")
                         , ("rangeEnd", "2025-01-12")
@@ -125,7 +125,7 @@ tests = beforeAll testContext do
                     , set #endTime (TimeOfDay 12 0 0)
                     ]
 
-                response <- withUserAndCurrentVenue admin venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
                         [ ("reportSlug", "staff_hours")
                         , ("weekOffset", "0")
@@ -169,7 +169,7 @@ tests = beforeAll testContext do
                     , set #endTime (TimeOfDay 14 0 0)
                     ]
 
-                response <- withUserAndCurrentVenue admin venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
                         [ ("reportSlug", "kitchen")
                         , ("weekOffset", "0")
@@ -231,7 +231,7 @@ tests = beforeAll testContext do
                     , set #endTime (TimeOfDay 12 0 0)
                     ]
 
-                response <- withUserAndCurrentVenue admin venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
                         [ ("reportSlug", "payroll_earnings")
                         , ("weekOffset", "0")
@@ -283,7 +283,7 @@ tests = beforeAll testContext do
                     , set #endTime (TimeOfDay 11 0 0)
                     ]
 
-                response <- withUserAndCurrentVenue admin venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
                         [ ("reportSlug", "wage")
                         , ("weekOffset", "0")
@@ -298,7 +298,7 @@ tests = beforeAll testContext do
                 exportJob.fileEncoding `shouldBe` "base64"
                 exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
 
-                downloadResponse <- withUserAndCurrentVenue admin venue.id do
+                downloadResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (DownloadExportJobAction exportJob.id)
                         [("token", cs (tshow exportJob.downloadToken))]
 
@@ -332,14 +332,14 @@ tests = beforeAll testContext do
                         . set #isApproved True
                         . set #approvedAt (Just (UTCTime (fromGregorian 2025 1 10) (secondsToDiffTime 0)))
                         . set #approvedByUserId (Just (unpackId admin.id))
-                _ <- withUserAndCurrentVenue admin venue.id do
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
                         [ ("rangeStart", "2025-01-06")
                         , ("rangeEnd", "2025-01-12")
                         ]
                 exportJob <- query @ExportJob |> fetchOne
 
-                response <- withUserAndCurrentVenue admin venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (DownloadExportJobAction exportJob.id)
                         [("token", cs (tshow exportJob.downloadToken))]
 
@@ -389,7 +389,7 @@ tests = beforeAll testContext do
                     |> set #expiresAt (UTCTime (fromGregorian 2030 2 1) (secondsToDiffTime 0))
                     |> createRecord
 
-                response <- withUserAndCurrentVenue admin venueB.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venueB.id do
                     callAction ExportJobsAction
 
                 response `responseStatusShouldBe` status200
@@ -408,7 +408,7 @@ tests = beforeAll testContext do
                 _ <- createShiftTypeRecord venue payLevel "Bar"
                 _ <- createShiftTypeRecord venue payLevel "Kitchen"
 
-                response <- withUserAndCurrentVenue admin venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ExportJobsAction
 
                 response `responseStatusShouldBe` status200
@@ -477,7 +477,7 @@ tests = beforeAll testContext do
                 barShift <- createShiftTypeRecord venue payLevel "Bar"
                 kitchenShift <- createShiftTypeRecord venue payLevel "Kitchen"
 
-                createResponse <- withUserAndCurrentVenue admin venue.id do
+                createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateReportDefinitionAction
                         [ ("slug", "front-bar")
                         , ("name", "Front Bar")
@@ -505,7 +505,7 @@ tests = beforeAll testContext do
                     |> fetch
                 map (.shiftTypeId) createdFilters `shouldBe` [unpackId barShift.id]
 
-                updateResponse <- withUserAndCurrentVenue admin venue.id do
+                updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateReportDefinitionAction createdDefinition.id)
                         [ ("slug", "front-house")
                         , ("name", "Front House")
@@ -531,7 +531,7 @@ tests = beforeAll testContext do
                     |> fetch
                 map (.shiftTypeId) updatedFilters `shouldBe` [unpackId kitchenShift.id]
 
-                createPayrollEarningsResponse <- withUserAndCurrentVenue admin venue.id do
+                createPayrollEarningsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateReportDefinitionAction
                         [ ("slug", "payroll-earnings-custom")
                         , ("name", "Payroll Earnings Custom")
@@ -568,7 +568,7 @@ tests = beforeAll testContext do
                     |> set #expiresAt (UTCTime (fromGregorian 2030 2 1) (secondsToDiffTime 0))
                     |> createRecord
 
-                response <- withUserAndCurrentVenue admin venueA.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venueA.id do
                     callActionWithParams (DownloadExportJobAction foreignJob.id)
                         [("token", cs (tshow foreignJob.downloadToken))]
 

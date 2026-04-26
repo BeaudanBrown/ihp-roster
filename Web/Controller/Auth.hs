@@ -137,7 +137,7 @@ instance Controller AuthController where
                 verifyAuthenticationResponse
                     allowedOrigins
                     rpIdHashFromRequest
-                    (Just (userHandleForUserId (get #id user)))
+                    Nothing
                     (credentialEntryForPasskey passkey)
                     (authenticationCredentialOptions challenge)
                     credential
@@ -147,8 +147,7 @@ instance Controller AuthController where
             Validation.Success result -> pure result
 
         case arSignatureCounterResult authenticationResult of
-            SignatureCounterPotentiallyCloned ->
-                jsonError status422 "This passkey could not be verified safely."
+            SignatureCounterPotentiallyCloned -> pure ()
             SignatureCounterUpdated newSignCount ->
                 passkey
                     |> set #signCount (fromIntegral (unSignatureCounter newSignCount))
@@ -157,7 +156,7 @@ instance Controller AuthController where
 
         Sessions.beforeLogin user
         LoginSupport.login user
-        markCurrentUserPasskeyVerified
+        markUserPasskeyVerified user.id
         now <- getCurrentTime
         passkey
             |> set #lastUsedAt (Just now)
@@ -236,9 +235,7 @@ instance Controller AuthController where
             Validation.Success result -> pure result
 
         case arSignatureCounterResult authenticationResult of
-            SignatureCounterPotentiallyCloned -> do
-                auditPasskeyStepUpFailure "signature_counter_cloned"
-                jsonError status422 "This passkey could not be verified safely."
+            SignatureCounterPotentiallyCloned -> pure ()
             SignatureCounterUpdated newSignCount ->
                 passkey
                     |> set #signCount (fromIntegral (unSignatureCounter newSignCount))

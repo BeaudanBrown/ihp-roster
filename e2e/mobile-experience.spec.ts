@@ -6,12 +6,16 @@ import {
     gotoWhenReady,
     loginAs,
     openNewLeaveRequestDialog,
+    loginAsPrivilegedUserWithFreshPasskey,
     openAuthenticatedNavIfCollapsed,
 } from './test-helpers';
 
+const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
+test.use({ baseURL: webauthnBaseURL });
+
 test.describe('Mobile experience smoke', () => {
-    test('manager navigation remains usable when the header collapses', async ({ page }) => {
-        await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
+    test('venue admin navigation remains usable when the header collapses', async ({ page }) => {
+        await loginAsPrivilegedUserWithFreshPasskey(page);
 
         const navToggle = page.locator('.navbar-toggler');
         if (await navToggle.isVisible()) {

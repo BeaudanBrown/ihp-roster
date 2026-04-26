@@ -105,7 +105,7 @@ tests = beforeAll testContext do
                 payLevel <- createPayLevelRecord venue "Level 2"
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
-                response <- withUserAndCurrentVenue admin (get #id venue) do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin (get #id venue) do
                     callActionWithParams
                         (UpdateStaffAction staff.id)
                         [ ("firstName", "Alpha")
@@ -134,7 +134,7 @@ tests = beforeAll testContext do
                 _ <- createPayLevelRecordWithRates venue "Level 3" 32.75 3.25 6.50 1 1.25 1.50
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
-                response <- withUserAndCurrentVenue admin (get #id venue) do
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin (get #id venue) do
                     callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
 
                 response `responseStatusShouldBe` status200

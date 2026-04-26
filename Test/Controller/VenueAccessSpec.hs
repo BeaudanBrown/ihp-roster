@@ -181,7 +181,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
                 _ <- createStaffRecord supportVenue (Just founder) "Support" "Founder"
 
-                response <- withUserAndCurrentVenue founder supportVenue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder supportVenue.id do
                     callAction AdminAction
 
                 response `responseStatusShouldBe` status200
@@ -206,7 +206,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venueA founder "venue_owner"
                 _ <- createTestPasskeyRecord founder "Support laptop"
 
-                response <- withUser founder do
+                response <- withPasskeyVerifiedUser founder do
                     callAction SupportAction
 
                 response `responseStatusShouldBe` status200
@@ -230,7 +230,7 @@ tests = beforeAll testContext do
                 founder <- createUserRecordWithPlatformRole "founder-award-refresh@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
 
-                response <- withUser founder do
+                response <- withPasskeyVerifiedUser founder do
                     callAction CreateFwcMapdRefreshJobAction
 
                 response `responseStatusShouldBe` status302
@@ -246,10 +246,10 @@ tests = beforeAll testContext do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-award-refresh-fragment@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
-                _ <- withUser founder do
+                _ <- withPasskeyVerifiedUser founder do
                     callAction CreateFwcMapdRefreshJobAction
 
-                response <- withUser founder do
+                response <- withPasskeyVerifiedUser founder do
                     callAction ShowFwcMapdAwardRatesSectionAction
 
                 response `responseStatusShouldBe` status200
@@ -264,9 +264,9 @@ tests = beforeAll testContext do
                 founder <- createUserRecordWithPlatformRole "founder-award-refresh-dedupe@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
 
-                _ <- withUser founder do
+                _ <- withPasskeyVerifiedUser founder do
                     callAction CreateFwcMapdRefreshJobAction
-                response <- withUser founder do
+                response <- withPasskeyVerifiedUser founder do
                     callAction CreateFwcMapdRefreshJobAction
 
                 response `responseStatusShouldBe` status302
@@ -292,9 +292,9 @@ tests = beforeAll testContext do
                 founder <- createUserRecordWithPlatformRole "founder-public-holiday-refresh-dedupe@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
 
-                _ <- withUser founder do
+                _ <- withPasskeyVerifiedUser founder do
                     callAction CreatePublicHolidayRefreshJobAction
-                response <- withUser founder do
+                response <- withPasskeyVerifiedUser founder do
                     callAction CreatePublicHolidayRefreshJobAction
 
                 response `responseStatusShouldBe` status302
@@ -320,7 +320,7 @@ tests = beforeAll testContext do
                 founder <- createUserRecordWithPlatformRole "founder-create-owner-invite@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
 
-                response <- withUser founder do
+                response <- withPasskeyVerifiedUser founder do
                     callActionWithParams CreateSupportVenueOnboardingInvitationAction
                         [ ("email", "new-owner@example.com")
                         ]
@@ -343,7 +343,7 @@ tests = beforeAll testContext do
                         >>= updateRecord
                             . set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "sent")
 
-                response <- withUser founder do
+                response <- withPasskeyVerifiedUser founder do
                     callAction SupportAction
 
                 response `responseStatusShouldBe` status200
@@ -371,7 +371,7 @@ tests = beforeAll testContext do
                 founder <- createUserRecordWithPlatformRole "founder-create-venue@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
 
-                response <- withUser founder do
+                response <- withPasskeyVerifiedUser founder do
                     callActionWithParams CreateSupportVenueAction
                         [ ("name", "Fresh Venue")
                         , ("timezone", "Pacific/Auckland")
@@ -483,7 +483,7 @@ tests = beforeAll testContext do
                 founder <- createUserRecordWithPlatformRole "founder-switch@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venueA founder "venue_owner"
 
-                response <- withUserAndCurrentVenue founder venueA.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
                     callActionWithParams SwitchSupportVenueAction
                         [ ("venueId", cs (tshow venueB.id))
                         , ("next", "/LeaveRequests")
@@ -499,7 +499,7 @@ tests = beforeAll testContext do
                 founder <- createUserRecordWithPlatformRole "founder-switch-unsafe@example.com" "staff" (Just SuperAdminRole) True
                 _ <- createVenueMembershipRecord venueA founder "venue_owner"
 
-                response <- withUserAndCurrentVenue founder venueA.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venueA.id do
                     callActionWithParams SwitchSupportVenueAction
                         [ ("venueId", cs (tshow venueB.id))
                         , ("next", "https://evil.example.com/")
@@ -520,7 +520,7 @@ tests = beforeAll testContext do
                 _ <- createLeaveRequestRecord venueA staffA defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
                 _ <- createLeaveRequestRecord venueB staffB defaultWeekEpoch (fromGregorian 2025 1 8) "pending"
 
-                response <- withUserAndCurrentVenue founder venueB.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue founder venueB.id do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200

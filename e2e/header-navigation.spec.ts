@@ -1,9 +1,12 @@
 import { test, expect } from '@playwright/test';
-import { loginAs } from './test-helpers';
+import { loginAs, loginAsPrivilegedUserWithFreshPasskey, verifyCurrentUserPasskeyStepUp } from './test-helpers';
+
+const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
+test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Authenticated header navigation', () => {
-    test('manager header links navigate across roster, profile, timesheets, leave, and admin', async ({ page }) => {
-        await loginAs(page, 'e2e-admin@example.com', 'test-password-123');
+    test('venue admin header links navigate across roster, profile, timesheets, leave, and admin', async ({ page }) => {
+        await loginAsPrivilegedUserWithFreshPasskey(page);
         await expect(page.locator('#roster-week-shell')).toBeVisible();
 
         await page.evaluate(() => {
@@ -25,6 +28,9 @@ test.describe('Authenticated header navigation', () => {
         await expect(page.locator('#leave-requests-content')).toBeVisible();
 
         await page.getByRole('link', { name: 'admin' }).click();
+        if (page.url().includes('/PasskeyStepUp')) {
+            await verifyCurrentUserPasskeyStepUp(page);
+        }
         await expect(page).toHaveURL(/Admin/, { timeout: 60000 });
         await expect(page.locator('#admin-config-sections')).toBeVisible();
         await expect(page.getByRole('heading', { name: 'Roster Groups' }).first()).toBeVisible();

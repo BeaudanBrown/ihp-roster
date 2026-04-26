@@ -12,7 +12,8 @@ import qualified Network.Wai as Wai
 import Text.Read (readMaybe)
 import Web.Routes ()
 import Web.Types (PasskeysController (PasskeyStepUpAction),
-                  ProfilesController (EditProfileAction))
+                  ProfilesController (EditProfileAction),
+                  SupportController (SupportAction))
 
 import Application.Helper.ControllerContext
 import Application.Helper.ControllerSupport
@@ -84,7 +85,7 @@ ensureAdminRole = do
 
 currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => Bool
 currentUserRequiresMandatoryPasskey =
-    maybe False (`hasVenueRole` VenueAdminRole) currentVenueRoleOrNothing
+    currentUserIsSuperAdmin || maybe False (`hasVenueRole` VenueAdminRole) currentVenueRoleOrNothing
 
 currentUserHasPasskey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
 currentUserHasPasskey =
@@ -98,8 +99,10 @@ ensurePrivilegedPasskeySetupComplete = do
         hasPasskey <- currentUserHasPasskey
         unless hasPasskey do
             withRequestContext do
-                setErrorMessage "Venue admins and owners must add a passkey before continuing."
-                redirectToPath profileSecurityPath
+                let setupPath = mandatoryPasskeySetupPath
+                unless (currentRequestPath == setupPath) do
+                    setErrorMessage "Venue admins and owners must add a passkey before continuing."
+                    redirectToPath setupPath
 
 isCurrentUserPasskeyVerified :: (?context :: ControllerContext) => IO Bool
 isCurrentUserPasskeyVerified =
@@ -114,9 +117,13 @@ isCurrentUserPasskeyVerified =
 
 markCurrentUserPasskeyVerified :: (?context :: ControllerContext) => IO ()
 markCurrentUserPasskeyVerified =
+    markUserPasskeyVerified authenticatedCurrentUser.id
+
+markUserPasskeyVerified :: (?context :: ControllerContext) => Id User -> IO ()
+markUserPasskeyVerified userId =
     withRequestContext do
         now <- liftIO getCurrentTime
-        setSession passkeyVerifiedUserSessionKey (inputValue authenticatedCurrentUser.id)
+        setSession passkeyVerifiedUserSessionKey (inputValue userId)
         setSession passkeyVerifiedAtSessionKey (formatPasskeyVerifiedAt now)
 
 clearCurrentUserPasskeyVerification :: (?request :: Request) => IO ()
@@ -140,6 +147,11 @@ currentRequestPath =
 
 profileSecurityPath :: Text
 profileSecurityPath = pathTo EditProfileAction <> "?section=security"
+
+mandatoryPasskeySetupPath :: (?context :: ControllerContext) => Text
+mandatoryPasskeySetupPath
+    | currentUserIsSuperAdmin = pathTo SupportAction
+    | otherwise = profileSecurityPath
 
 formatPasskeyVerifiedAt :: UTCTime -> Text
 formatPasskeyVerifiedAt =

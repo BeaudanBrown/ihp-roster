@@ -1,18 +1,16 @@
 import { expect, test } from '@playwright/test';
-import { gotoWhenReady } from './test-helpers';
+import { gotoWhenReady, loginAsPrivilegedUserWithFreshPasskey } from './test-helpers';
+
+const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
+test.use({ baseURL: webauthnBaseURL });
 
 async function loginAsSuperAdmin(page: import('@playwright/test').Page) {
-    await gotoWhenReady(page, '/NewSession', '#email');
-    await page.fill('#email', 'e2e-super-admin@example.com');
-    await page.fill('#password', 'test-password-123');
-    await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
-    await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+    await loginAsPrivilegedUserWithFreshPasskey(page, 'e2e-super-admin@example.com', 'test-password-123');
 }
 
 async function loginAsManager(page: import('@playwright/test').Page) {
     await gotoWhenReady(page, '/NewSession', '#email');
-    await page.fill('#email', 'e2e-admin@example.com');
+    await page.fill('#email', 'e2e-test@example.com');
     await page.fill('#password', 'test-password-123');
     await page.click('button[type="submit"]');
     await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
