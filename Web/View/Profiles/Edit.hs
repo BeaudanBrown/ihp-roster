@@ -101,32 +101,17 @@ renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenc
 |]
 
 renderAccordionSection :: Text -> Text -> Bool -> Html -> Html
-renderAccordionSection sectionId title isOpen body = [hsx|
-    <section class="accordion-item app-panel mb-3" id={sectionId}>
-        <h2 class="accordion-header" id={sectionId <> "-heading"}>
-            <button
-                class={accordionButtonClass isOpen}
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target={"#" <> sectionId <> "-collapse"}
-                aria-expanded={if isOpen then ("true" :: Text) else "false"}
-                aria-controls={sectionId <> "-collapse"}
-            >
-                <span class="fw-semibold">{title}</span>
-            </button>
-        </h2>
-        <div
-            id={sectionId <> "-collapse"}
-            class={accordionCollapseClass isOpen}
-            aria-labelledby={sectionId <> "-heading"}
-            data-bs-parent={"#" <> profileSectionsAccordionId}
-        >
-            <div class="accordion-body">
-                {body}
-            </div>
-        </div>
-    </section>
-|]
+renderAccordionSection sectionId title isOpen body =
+    renderAppAccordionItem AppAccordionItemConfig
+        { appAccordionItemId = sectionId
+        , appAccordionItemParentId = profileSectionsAccordionId
+        , appAccordionItemTitle = title
+        , appAccordionItemIsOpen = isOpen
+        , appAccordionItemClass = ""
+        , appAccordionItemBodyClass = ""
+        , appAccordionItemButtonContent = [hsx|<span class="fw-semibold">{title}</span>|]
+        , appAccordionItemBody = body
+        }
 
 renderProfileForm :: Staff -> Text -> [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [Text] -> Html
 renderProfileForm staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys = [hsx|
@@ -258,18 +243,6 @@ renderProfileLeaveDeleteAction leaveRequest =
             </form>
         |]
         else mempty
-
-accordionButtonClass :: Bool -> Text
-accordionButtonClass isOpen =
-    if isOpen
-        then "accordion-button"
-        else "accordion-button collapsed"
-
-accordionCollapseClass :: Bool -> Text
-accordionCollapseClass isOpen =
-    if isOpen
-        then "accordion-collapse collapse show"
-        else "accordion-collapse collapse"
 
 renderDateRangeText :: LeaveRequest -> Text
 renderDateRangeText leaveRequest =

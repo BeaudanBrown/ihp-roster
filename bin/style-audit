@@ -20,6 +20,8 @@ trap 'rm -rf "$tmp_dir"' EXIT
 defined="$tmp_dir/defined.txt"
 used="$tmp_dir/used.txt"
 undefined="$tmp_dir/undefined.txt"
+missing_assets="$tmp_dir/missing-assets.txt"
+missing_makefile_entries="$tmp_dir/missing-makefile-entries.txt"
 
 rg --no-heading --only-matching --replace '$2' --glob '!static/vendor/**' '(^|[;{"'\''[:space:]])(--[A-Za-z0-9_-]+)[[:space:]]*:' "${scan_files[@]}" \
   | sed 's/^.*://' \
@@ -40,6 +42,59 @@ else
 fi
 
 echo
+echo "style-audit: layout stylesheet assets"
+mapfile -t linked_css_assets < <(
+  rg --only-matching --replace '$1' 'assetPath "([^"]+\.css)"' Web/View/Layout.hs \
+    | sed 's/^.*://' \
+    | sort -u
+)
+
+mapfile -t imported_css_assets < <(
+  rg --only-matching --replace '/$1' '@import url\("([^"]+\.css)"\)' static/app.css \
+    | sed 's/^.*://' \
+    | sort -u
+)
+
+mapfile -t makefile_css_files < <(
+  rg --only-matching --replace '$1' '^CSS_FILES \+= (.+\.css)$' Makefile \
+    | sed 's/^.*://' \
+    | sort -u
+)
+
+printf '' > "$missing_assets"
+printf '' > "$missing_makefile_entries"
+
+layout_and_imported_css_assets=("${linked_css_assets[@]}" "${imported_css_assets[@]}")
+
+for asset in "${layout_and_imported_css_assets[@]}"; do
+  asset_file="static${asset}"
+  ihp_asset_file="${IHP:-}/lib/IHP${asset}"
+  ihp_dev_asset_file="${IHP_DEV_CHECKOUT:-}/ihp/data/static${asset}"
+  if [[ "$asset" != /vendor/* && ! -f "$asset_file" && ! -f "$ihp_asset_file" && ! -f "$ihp_dev_asset_file" ]]; then
+    echo "$asset -> $asset_file" >> "$missing_assets"
+  fi
+
+  makefile_entry="${asset#/}"
+  if [[ ! " ${makefile_css_files[*]} " =~ " static/${makefile_entry} " ]]; then
+    echo "$asset -> static/${makefile_entry}" >> "$missing_makefile_entries"
+  fi
+done
+
+if [[ -s "$missing_assets" ]]; then
+  echo "  missing files:"
+  sed 's/^/    /' "$missing_assets"
+else
+  echo "  all linked local stylesheets exist"
+fi
+
+if [[ -s "$missing_makefile_entries" ]]; then
+  echo "  missing Makefile CSS_FILES entries:"
+  sed 's/^/    /' "$missing_makefile_entries"
+else
+  echo "  all linked local stylesheets are in CSS_FILES"
+fi
+
+echo
 echo "style-audit: hardcoded colors outside token files"
 rg -n '#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\(' static --glob '*.css' --glob '!static/vendor/**' \
   | rg -v "$(printf '%s|' "${token_files[@]}" | sed 's/|$//')" \
@@ -57,6 +112,6 @@ rg -n 'style=' Web Application --glob '*.hs' \
   | rg -v 'style=\{"--|style=\{\("width: var\(|timesheetMidnightStyle|segmentLeft|segmentWidth' \
   || true
 
-if [[ -s "$undefined" ]]; then
+if [[ -s "$undefined" || -s "$missing_assets" || -s "$missing_makefile_entries" ]]; then
   exit 1
 fi

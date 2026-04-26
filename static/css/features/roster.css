@@ -49,6 +49,16 @@
     box-shadow: inset 0 0 0 1px var(--app-slate-alpha-14);
 }
 
+.app-week-nav-group.btn-group > .btn,
+.app-week-nav-group.btn-group > .dropdown,
+.app-week-nav-group.btn-group > a,
+.app-week-nav-group.btn-group > .app-week-nav-label,
+.roster-week-nav-group.btn-group > .btn,
+.roster-week-nav-group.btn-group > .dropdown,
+.roster-week-nav-group.btn-group > a {
+    margin-left: 0 !important;
+}
+
 .app-week-nav-group > .btn,
 .app-week-nav-group > .dropdown,
 .app-week-nav-group > a,
@@ -56,6 +66,11 @@
 .roster-week-nav-group > .btn,
 .roster-week-nav-group > .dropdown,
 .roster-week-nav-group > a {
+    border-radius: 999px !important;
+}
+
+.app-week-nav-group > .dropdown > .btn,
+.roster-week-nav-group > .dropdown > .btn {
     border-radius: 999px !important;
 }
 
@@ -90,14 +105,16 @@
     justify-content: center;
     font-weight: 600;
     line-height: 1;
-    border-color: var(--app-slate-alpha-45);
+    border-color: transparent;
     background: var(--app-white-alpha-02);
+    box-shadow: inset 0 0 0 1px var(--app-slate-alpha-45);
 }
 
 .roster-week-nav-button:hover,
 .roster-week-nav-button:focus {
     background: var(--app-white-alpha-06);
-    border-color: var(--app-slate-alpha-70);
+    border-color: transparent;
+    box-shadow: inset 0 0 0 1px var(--app-slate-alpha-70);
 }
 
 .roster-week-nav-arrow {
@@ -373,6 +390,7 @@
     color: var(--app-text);
     background-color: var(--app-surface-2);
     border-color: var(--app-border) var(--app-border) var(--app-surface-2);
+}
 
 .roster-layout-side {
     display: flex;
@@ -1149,10 +1167,12 @@
 }
 
 .roster-grid tr.day-row.day-alt-dark {
+    --bs-table-bg: var(--roster-day-a);
     background-color: var(--roster-day-a);
 }
 
 .roster-grid tr.day-row.day-alt-light {
+    --bs-table-bg: var(--roster-day-b);
     background-color: var(--roster-day-b);
 }
 

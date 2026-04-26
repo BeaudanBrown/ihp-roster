@@ -26,6 +26,17 @@ data AppPanelConfig = AppPanelConfig
     , appPanelBody            :: !Html
     }
 
+data AppAccordionItemConfig = AppAccordionItemConfig
+    { appAccordionItemId            :: !Text
+    , appAccordionItemParentId      :: !Text
+    , appAccordionItemTitle         :: !Text
+    , appAccordionItemIsOpen        :: !Bool
+    , appAccordionItemClass         :: !Text
+    , appAccordionItemBodyClass     :: !Text
+    , appAccordionItemButtonContent :: !Html
+    , appAccordionItemBody          :: !Html
+    }
+
 data PartialNavigationLink = PartialNavigationLink
     { partialNavigationLabel    :: !Text
     , partialNavigationUrl      :: !Text
@@ -95,6 +106,47 @@ renderAppPanelDescription :: Text -> Html
 renderAppPanelDescription description = [hsx|
     <p class="app-panel-description">{description}</p>
 |]
+
+renderAppAccordionItem :: AppAccordionItemConfig -> Html
+renderAppAccordionItem AppAccordionItemConfig { appAccordionItemId, appAccordionItemParentId, appAccordionItemTitle, appAccordionItemIsOpen, appAccordionItemClass, appAccordionItemBodyClass, appAccordionItemButtonContent, appAccordionItemBody } = [hsx|
+    <section class={classes [("accordion-item app-panel mb-3", True), (appAccordionItemClass, not (Text.null appAccordionItemClass))]} id={appAccordionItemId}>
+        <h2 class="accordion-header" id={appAccordionItemId <> "-heading"}>
+            <button
+                class={accordionButtonClass appAccordionItemIsOpen}
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target={"#" <> appAccordionItemId <> "-collapse"}
+                aria-expanded={if appAccordionItemIsOpen then ("true" :: Text) else "false"}
+                aria-controls={appAccordionItemId <> "-collapse"}
+                aria-label={appAccordionItemTitle}
+            >
+                {appAccordionItemButtonContent}
+            </button>
+        </h2>
+        <div
+            id={appAccordionItemId <> "-collapse"}
+            class={accordionCollapseClass appAccordionItemIsOpen}
+            aria-labelledby={appAccordionItemId <> "-heading"}
+            data-bs-parent={"#" <> appAccordionItemParentId}
+        >
+            <div class={classes [("accordion-body", True), (appAccordionItemBodyClass, not (Text.null appAccordionItemBodyClass))]}>
+                {appAccordionItemBody}
+            </div>
+        </div>
+    </section>
+|]
+
+accordionButtonClass :: Bool -> Text
+accordionButtonClass isOpen =
+    if isOpen
+        then "accordion-button"
+        else "accordion-button collapsed"
+
+accordionCollapseClass :: Bool -> Text
+accordionCollapseClass isOpen =
+    if isOpen
+        then "accordion-collapse collapse show"
+        else "accordion-collapse collapse"
 
 renderPartialNavigationLink :: PartialNavigationLink -> Html
 renderPartialNavigationLink PartialNavigationLink { partialNavigationLabel, partialNavigationUrl, partialNavigationTargetId, partialNavigationSelectId, partialNavigationClass, partialNavigationSwap, partialNavigationSync, partialNavigationPushUrl } = [hsx|

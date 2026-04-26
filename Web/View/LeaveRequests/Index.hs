@@ -141,32 +141,19 @@ leaveRequestIsArchived today leaveRequest =
     leaveRequest.endDate < today
 
 renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
-renderManagerSection sectionId title requests staffMembers currentViewerStaffId isOpen = [hsx|
-    <div class="accordion-item app-panel mb-3 leave-request-section">
-        <h2 class="accordion-header" id={sectionId <> "-heading"}>
-            <button
-                class={accordionButtonClass isOpen}
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target={"#" <> sectionId <> "-collapse"}
-                aria-expanded={if isOpen then ("true" :: Text) else "false"}
-                aria-controls={sectionId <> "-collapse"}
-            >
-                <span class="leave-request-accordion-title">{title <> " (" <> tshow (length requests) <> ")"}</span>
-            </button>
-        </h2>
-        <div
-            id={sectionId <> "-collapse"}
-            class={accordionCollapseClass isOpen}
-            aria-labelledby={sectionId <> "-heading"}
-            data-bs-parent="#leave-request-manager-sections"
-        >
-            <div class="accordion-body">
-                {sectionBody}
-            </div>
-        </div>
-    </div>
-|]
+renderManagerSection sectionId title requests staffMembers currentViewerStaffId isOpen =
+    renderAppAccordionItem AppAccordionItemConfig
+        { appAccordionItemId = sectionId
+        , appAccordionItemParentId = "leave-request-manager-sections"
+        , appAccordionItemTitle = title
+        , appAccordionItemIsOpen = isOpen
+        , appAccordionItemClass = "leave-request-section"
+        , appAccordionItemBodyClass = ""
+        , appAccordionItemButtonContent = [hsx|
+            <span class="leave-request-accordion-title">{title <> " (" <> tshow (length requests) <> ")"}</span>
+        |]
+        , appAccordionItemBody = sectionBody
+        }
     where
         sectionBody
             | null requests =
@@ -198,18 +185,6 @@ renderManagerLeaveRequestRow staffMembers currentViewerStaffId leaveRequest = [h
         <div class="leave-request-row-actions">{renderActions currentViewerStaffId leaveRequest}</div>
     </article>
 |]
-
-accordionButtonClass :: Bool -> Text
-accordionButtonClass isOpen =
-    if isOpen
-        then "accordion-button"
-        else "accordion-button collapsed"
-
-accordionCollapseClass :: Bool -> Text
-accordionCollapseClass isOpen =
-    if isOpen
-        then "accordion-collapse collapse show"
-        else "accordion-collapse collapse"
 
 nonEmptyText :: Text -> Maybe Text
 nonEmptyText text =

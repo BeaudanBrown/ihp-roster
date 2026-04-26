@@ -19,3 +19,47 @@
     --bs-secondary-color: var(--app-muted);
     --bs-secondary-bg: var(--app-surface-2);
 }
+
+.modal {
+    --bs-modal-color: var(--app-text);
+    --bs-modal-bg: var(--app-modal-bg);
+    --bs-modal-border-color: var(--app-border-strong);
+    --bs-modal-border-radius: var(--app-radius-lg);
+    --bs-modal-inner-border-radius: calc(var(--app-radius-lg) - 1px);
+    --bs-modal-header-border-color: var(--app-border);
+    --bs-modal-footer-border-color: var(--app-border);
+    --bs-modal-box-shadow: var(--app-shadow-lg);
+}
+
+.modal-content {
+    background: linear-gradient(180deg, var(--app-surface-2), var(--app-modal-bg));
+    box-shadow: var(--app-shadow-lg);
+}
+
+.modal-content.shadow {
+    box-shadow: var(--app-shadow-lg) !important;
+}
+
+.modal-header {
+    background: var(--app-surface-2);
+}
+
+.modal-footer {
+    background: var(--app-modal-bg);
+}
+
+.btn-primary {
+    --bs-btn-color: var(--app-text-inverse);
+    --bs-btn-bg: var(--app-accent);
+    --bs-btn-border-color: var(--app-accent);
+    --bs-btn-hover-color: var(--app-text-inverse);
+    --bs-btn-hover-bg: var(--app-accent-hover);
+    --bs-btn-hover-border-color: var(--app-accent-hover);
+    --bs-btn-focus-shadow-rgb: 139, 181, 255;
+    --bs-btn-active-color: var(--app-text-inverse);
+    --bs-btn-active-bg: var(--app-accent-hover);
+    --bs-btn-active-border-color: var(--app-accent-hover);
+    --bs-btn-disabled-color: var(--app-text-inverse);
+    --bs-btn-disabled-bg: var(--app-accent);
+    --bs-btn-disabled-border-color: var(--app-accent);
+}

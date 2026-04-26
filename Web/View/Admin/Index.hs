@@ -333,54 +333,34 @@ renderInviteRowActions rosterGroupId invitation
     |]
 
 renderAccordionItem :: Text -> Text -> Bool -> Html -> Html
-renderAccordionItem sectionId title isOpen content = [hsx|
-    <div class="accordion-item app-panel mb-3">
-        <h2 class="accordion-header" id={sectionId <> "-heading"}>
-            <button
-                class={accordionButtonClass isOpen}
-                type="button"
-                data-bs-toggle="collapse"
-                data-bs-target={"#" <> sectionId <> "-collapse"}
-                aria-expanded={if isOpen then ("true" :: Text) else "false"}
-                aria-controls={sectionId <> "-collapse"}
-            >
-                {title}
-            </button>
-        </h2>
-        <div
-            id={sectionId <> "-collapse"}
-            class={accordionCollapseClass isOpen}
-            aria-labelledby={sectionId <> "-heading"}
-            data-bs-parent="#admin-config-sections"
-        >
-            <div class="accordion-body p-0">
-                {content}
+renderAccordionItem sectionId title isOpen content =
+    renderAppAccordionItem AppAccordionItemConfig
+        { appAccordionItemId = sectionId
+        , appAccordionItemParentId = "admin-config-sections"
+        , appAccordionItemTitle = title
+        , appAccordionItemIsOpen = isOpen
+        , appAccordionItemClass = ""
+        , appAccordionItemBodyClass = ""
+        , appAccordionItemButtonContent = [hsx|<span class="fw-semibold">{title}</span>|]
+        , appAccordionItemBody = content
+        }
+
+renderConfigSection :: Text -> Text -> Text -> Html -> Html -> Html -> Html
+renderConfigSection anchorId title description summary createForm rows = [hsx|
+    <div class="app-accordion-section" id={anchorId}>
+        <header class="app-accordion-section-header">
+            <h2 class="app-panel-title h5">{title}</h2>
+            <p class="app-panel-description">{description}</p>
+        </header>
+        <div class="app-accordion-section-body">
+            {summary}
+            {createForm}
+            <div class="mt-3">
+                {rows}
             </div>
         </div>
     </div>
 |]
-
-renderConfigSection :: Text -> Text -> Text -> Html -> Html -> Html -> Html
-renderConfigSection anchorId title description summary createForm rows =
-    renderAppPanel AppPanelConfig
-        { appPanelTitle = Just title
-        , appPanelDescription = Just description
-        , appPanelHasActions = False
-        , appPanelActions = mempty
-        , appPanelHasCustomHeader = False
-        , appPanelCustomHeader = mempty
-        , appPanelClass = "h-100"
-        , appPanelBodyClass = ""
-        , appPanelBody = [hsx|
-            <div id={anchorId}>
-                {summary}
-                {createForm}
-                <div class="mt-3">
-                    {rows}
-                </div>
-            </div>
-        |]
-        }
 
 renderShiftTypeCreateForm :: Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderShiftTypeCreateForm showInactive awardLevels awardLevelBaseRates = [hsx|
@@ -573,18 +553,18 @@ renderSlotNameCreateForm :: Id RosterGroup -> Html
 renderSlotNameCreateForm rosterGroupId = [hsx|
     <form method="POST"
           action={appendQueryParams (pathTo CreateSlotNameAction) [("rosterGroupId", tshow rosterGroupId)]}
-          class="border rounded p-3"
+          class="admin-slot-name-create-form border rounded p-3"
           data-disable-javascript-submission="true"
           hx-post={appendQueryParams (pathTo CreateSlotNameAction) [("rosterGroupId", tshow rosterGroupId)]}
           hx-target={slotNameTarget rosterGroupId}
           hx-swap="outerHTML">
-        <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-8">
+        <div class="admin-slot-name-create-controls">
+            <div class="admin-slot-name-create-field">
                 <label class="form-label" for={"new-slot-name-" <> tshow rosterGroupId}>Name</label>
                 <input id={"new-slot-name-" <> tshow rosterGroupId} class="form-control" type="text" name="name" placeholder="Early" />
             </div>
-            <div class="col-12 col-md-4">
-                <button class="btn btn-outline-primary w-100" type="submit">Add Slot</button>
+            <div class="admin-slot-add-action">
+                <button class="btn btn-outline-primary admin-slot-add-button" type="submit">Add Slot</button>
             </div>
         </div>
     </form>
@@ -592,14 +572,14 @@ renderSlotNameCreateForm rosterGroupId = [hsx|
 
 renderSlotNameRow :: Id RosterGroup -> Int -> (Int, SlotName) -> Html
 renderSlotNameRow rosterGroupId slotCount (slotIndex, slotName) = [hsx|
-    <div class="border rounded p-2">
-        <div class="d-flex flex-column flex-md-row gap-2 align-items-stretch align-items-md-center">
-            <div class="btn-group" role="group" aria-label="Reorder slot">
+    <div class="admin-slot-name-row border rounded p-2">
+        <div class="admin-slot-name-controls">
+            <div class="admin-slot-move-group" role="group" aria-label="Reorder slot">
                 {renderSlotMoveButton rosterGroupId (slotIndex == 0) (appendQueryParams (pathTo (MoveSlotNameUpAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]) "Up"}
                 {renderSlotMoveButton rosterGroupId (slotIndex == slotCount - 1) (appendQueryParams (pathTo (MoveSlotNameDownAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]) "Down"}
             </div>
-            <form class="m-0 flex-grow-1" data-disable-javascript-submission="true">
-                <input class="form-control"
+            <form class="admin-slot-name-edit-form m-0" data-disable-javascript-submission="true">
+                <input class="form-control admin-slot-name-input"
                        type="text"
                        name="name"
                        value={slotName.name}
@@ -612,13 +592,13 @@ renderSlotNameRow rosterGroupId slotCount (slotIndex, slotName) = [hsx|
             </form>
             <form method="POST"
                   action={appendQueryParams (pathTo (DeleteSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]}
-                  class="m-0"
+                  class="admin-slot-delete-form m-0"
                   data-disable-javascript-submission="true"
                   hx-delete={appendQueryParams (pathTo (DeleteSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]}
                   hx-target={slotNameTarget rosterGroupId}
                   hx-swap="outerHTML">
                 <input type="hidden" name="_method" value="DELETE" />
-                <button class="btn btn-outline-danger" type="submit">Delete</button>
+                <button class="btn btn-outline-danger admin-slot-delete-button" type="submit">Delete</button>
             </form>
         </div>
     </div>
@@ -628,17 +608,17 @@ renderSlotMoveButton :: Id RosterGroup -> Bool -> Text -> Text -> Html
 renderSlotMoveButton rosterGroupId isDisabled action label =
     if isDisabled
         then [hsx|
-            <button class="btn btn-outline-secondary" type="button" disabled={True}>{label}</button>
+            <button class="btn btn-outline-secondary admin-slot-move-button" type="button" disabled={True}>{label}</button>
         |]
         else [hsx|
             <form method="POST"
                   action={action}
-                  class="m-0"
+                  class="admin-slot-move-form"
                   data-disable-javascript-submission="true"
                   hx-post={action}
                   hx-target={slotNameTarget rosterGroupId}
                   hx-swap="outerHTML">
-                <button class="btn btn-outline-secondary" type="submit">{label}</button>
+                <button class="btn btn-outline-secondary admin-slot-move-button" type="submit">{label}</button>
             </form>
         |]
 
@@ -730,18 +710,6 @@ renderActiveBadge isActive =
     if isActive
         then [hsx|<span class="badge text-bg-success">active</span>|]
         else [hsx|<span class="badge text-bg-secondary">inactive</span>|]
-
-accordionButtonClass :: Bool -> Text
-accordionButtonClass isOpen =
-    if isOpen
-        then "accordion-button"
-        else "accordion-button collapsed"
-
-accordionCollapseClass :: Bool -> Text
-accordionCollapseClass isOpen =
-    if isOpen
-        then "accordion-collapse collapse show"
-        else "accordion-collapse collapse"
 
 renderEmptyState :: Text -> Html
 renderEmptyState message = [hsx|<p class="app-muted mb-0">{message}</p>|]
