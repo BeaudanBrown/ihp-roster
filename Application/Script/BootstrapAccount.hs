@@ -8,26 +8,106 @@ import qualified Data.Text.IO as TextIO
 import Generated.Types
 import System.Environment (lookupEnv)
 
+data BootstrapConfig = BootstrapConfig
+    { email     :: !Text
+    , password  :: !Text
+    , venueName :: !Text
+    , firstName :: !Text
+    , lastName  :: !Text
+    }
+
 run :: Script
 run = do
+    bootstrapConfig <- liftIO loadBootstrapConfig
+    existingSuperAdmin <- fetchExistingSuperAdmin
+    case existingSuperAdmin of
+        Just _ -> liftIO (putStrLn "Super-admin already exists; bootstrap skipped.")
+        Nothing -> do
+            user <- createBootstrapUser bootstrapConfig.email bootstrapConfig.password
+            venue <- findOrCreateBootstrapVenue bootstrapConfig.venueName
+            _ <- provisionVenueUser venue user "venue_owner" bootstrapConfig.firstName bootstrapConfig.lastName
+            pure ()
+
+loadBootstrapConfig :: IO BootstrapConfig
+loadBootstrapConfig = do
+    lookupEnv "BOOTSTRAP_ACCOUNT_SECRET_FILE" >>= \case
+        Just secretFile -> loadBootstrapConfigFromSecretFile (cs secretFile)
+        Nothing -> loadBootstrapConfigFromLegacyEnv
+
+loadBootstrapConfigFromSecretFile :: Text -> IO BootstrapConfig
+loadBootstrapConfigFromSecretFile secretFile = do
+    secretValues <- parseSecretFile <$> TextIO.readFile (cs secretFile)
+    config <-
+        BootstrapConfig
+            <$> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_EMAIL"
+            <*> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_PASSWORD"
+            <*> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_VENUE_NAME"
+            <*> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_FIRST_NAME"
+            <*> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_LAST_NAME"
+    validateBootstrapConfig config
+    pure config
+
+loadBootstrapConfigFromLegacyEnv :: IO BootstrapConfig
+loadBootstrapConfigFromLegacyEnv = do
     email <- requireEnvText "BOOTSTRAP_ACCOUNT_EMAIL"
     passwordFile <- requireEnvText "BOOTSTRAP_ACCOUNT_PASSWORD_FILE"
     venueName <- requireEnvText "BOOTSTRAP_ACCOUNT_VENUE_NAME"
-    password <- Text.strip <$> liftIO (TextIO.readFile (cs passwordFile))
+    password <- Text.strip <$> TextIO.readFile (cs passwordFile)
+    let (firstName, lastName) = defaultBootstrapName email
+    let config = BootstrapConfig { email, password, venueName, firstName, lastName }
+    validateBootstrapConfig config
+    pure config
 
-    when (Text.null password) do
-        error "BOOTSTRAP_ACCOUNT_PASSWORD_FILE is empty"
+parseSecretFile :: Text -> [(Text, Text)]
+parseSecretFile rawSecret =
+    rawSecret
+        |> Text.lines
+        |> map Text.strip
+        |> filter (not . Text.null)
+        |> filter (not . Text.isPrefixOf "#")
+        |> mapMaybe parseLine
+    where
+        parseLine line = do
+            let (key, rawValue) = Text.breakOn "=" line
+            guard (not (Text.null key) && Text.isPrefixOf "=" rawValue)
+            Just (Text.strip key, unquote (Text.strip (Text.drop 1 rawValue)))
 
-    venue <- findOrCreateBootstrapVenue venueName
-    user <- findOrCreateBootstrapUser email password
-    _ <- provisionVenueUser venue user "venue_owner" "Bootstrap" "Admin"
-    pure ()
+unquote :: Text -> Text
+unquote value
+    | Text.length value >= 2 && Text.head value == '"' && Text.last value == '"' = Text.init (Text.tail value)
+    | Text.length value >= 2 && Text.head value == '\'' && Text.last value == '\'' = Text.init (Text.tail value)
+    | otherwise = value
+
+requireSecretValue :: [(Text, Text)] -> Text -> IO Text
+requireSecretValue values key =
+    case lookup key values of
+        Just value -> pure value
+        Nothing -> error ("Missing required bootstrap secret key: " <> cs key)
+
+validateBootstrapConfig :: BootstrapConfig -> IO ()
+validateBootstrapConfig config = do
+    requireNonEmpty "BOOTSTRAP_ACCOUNT_EMAIL" config.email
+    requireNonEmpty "BOOTSTRAP_ACCOUNT_PASSWORD" config.password
+    requireNonEmpty "BOOTSTRAP_ACCOUNT_VENUE_NAME" config.venueName
+    requireNonEmpty "BOOTSTRAP_ACCOUNT_FIRST_NAME" config.firstName
+    requireNonEmpty "BOOTSTRAP_ACCOUNT_LAST_NAME" config.lastName
+
+requireNonEmpty :: Text -> Text -> IO ()
+requireNonEmpty name value =
+    when (Text.null (Text.strip value)) do
+        error (cs name <> " is empty")
 
 requireEnvText :: String -> IO Text
 requireEnvText name =
     lookupEnv name >>= \case
         Just value -> pure (cs value)
         Nothing -> error ("Missing required environment variable: " <> cs name)
+
+fetchExistingSuperAdmin :: (?modelContext :: ModelContext) => IO (Maybe User)
+fetchExistingSuperAdmin =
+    query @User
+        |> filterWhere (#platformRole, Just (platformRoleToEnum SuperAdminRole))
+        |> fetchOneOrNothing
 
 findOrCreateBootstrapVenue :: (?modelContext :: ModelContext) => Text -> IO Venue
 findOrCreateBootstrapVenue venueName =
@@ -38,13 +118,13 @@ findOrCreateBootstrapVenue venueName =
             Just venue -> pure venue
             Nothing -> createVenueWithConfig venueName
 
-findOrCreateBootstrapUser :: (?modelContext :: ModelContext) => Text -> Text -> IO User
-findOrCreateBootstrapUser email password =
+createBootstrapUser :: (?modelContext :: ModelContext) => Text -> Text -> IO User
+createBootstrapUser email password =
     query @User
         |> filterWhere (#email, email)
         |> fetchOneOrNothing
         >>= \case
-            Just user -> pure user
+            Just _ -> error "Bootstrap account email already exists, but no super-admin exists; refusing to modify existing user."
             Nothing -> do
                 passwordHash <- hashPassword password
                 newRecord @User
@@ -55,3 +135,9 @@ findOrCreateBootstrapUser email password =
                     |> set #isProfileCompleted True
                     |> set #emailVerifiedAt (Just def)
                     |> createRecord
+
+defaultBootstrapName :: Text -> (Text, Text)
+defaultBootstrapName email =
+    case Text.breakOn "@" email of
+        (localPart, _) | not (Text.null localPart) -> (localPart, "Admin")
+        _ -> ("Bootstrap", "Admin")
