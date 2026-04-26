@@ -5,20 +5,24 @@ import Application.Helper.Controller (currentVenueSessionKey,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey,
                                       unsafeEnumFromText)
+import Application.Helper.Passkeys (allowedOrigins, rpIdTextFromRequest)
 import Config
+import Crypto.WebAuthn.Model.Types (Origin (..))
+import qualified Data.ByteString.Char8 as ByteString
+import Data.List.NonEmpty (NonEmpty ((:|)))
+import qualified Data.Serialize as Serialize
+import Data.Time.Clock (getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
-import IHP.Prelude
-import qualified Data.ByteString.Char8 as ByteString
-import qualified Data.Serialize as Serialize
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
+import IHP.Prelude
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
-import Data.Time.Clock (getCurrentTime)
+import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
 import Web.FrontController ()
@@ -28,6 +32,13 @@ import Web.Types
 tests :: Spec
 tests = beforeAll testContext do
     describe "PasskeysController" do
+        it "uses forwarded HTTPS origin when running behind a reverse proxy" $ withContext do
+            withRequestHeaders [("X-Forwarded-Proto", "https")] do
+                let ?request = ?request { Wai.requestHeaderHost = Just "bepis.lol" }
+
+                allowedOrigins `shouldBe` (Origin "https://bepis.lol" :| [])
+                rpIdTextFromRequest `shouldBe` "bepis.lol"
+
         it "renders passkey login entry points on the login form" $ withContext do
             response <- callAction NewSessionAction
 

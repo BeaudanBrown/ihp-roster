@@ -9,9 +9,8 @@ import Application.Helper.Pay (ensureCurrentVenuePayConfigSnapshot)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayConfig (..),
-                                ToastOverlayPosition (..),
-                                appendQueryParams, dialogOverlayMountId,
-                                renderToastOverlayHostOob)
+                                ToastOverlayPosition (..), appendQueryParams,
+                                dialogOverlayMountId, renderToastOverlayHostOob)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
@@ -29,7 +28,7 @@ import Web.View.Timesheets.New
 instance Controller TimesheetsController where
     beforeAction = do
         ensureIsUser
-        ensureCurrentVenue
+        ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
 
     action TimesheetsAction = do
@@ -462,17 +461,17 @@ respondWithTimesheetWeekView indexView =
         else renderProfiled indexView
 
 data TimesheetWeekProjection = TimesheetWeekProjection
-    { timesheetEntries               :: [TimesheetEntry]
-    , timesheetStaffMembers          :: [Staff]
-    , timesheetShiftTypes            :: [ShiftType]
-    , timesheetToday                 :: Day
-    , timesheetEditWindowDays        :: Int
-    , timesheetWeekOffset            :: Int
-    , timesheetWeekStartDate         :: Day
-    , timesheetWeekEndDate           :: Day
-    , timesheetShowApproved          :: Bool
-    , timesheetShowAllStaff          :: Bool
-    , timesheetCurrentViewerStaffId  :: Maybe UUID
+    { timesheetEntries              :: [TimesheetEntry]
+    , timesheetStaffMembers         :: [Staff]
+    , timesheetShiftTypes           :: [ShiftType]
+    , timesheetToday                :: Day
+    , timesheetEditWindowDays       :: Int
+    , timesheetWeekOffset           :: Int
+    , timesheetWeekStartDate        :: Day
+    , timesheetWeekEndDate          :: Day
+    , timesheetShowApproved         :: Bool
+    , timesheetShowAllStaff         :: Bool
+    , timesheetCurrentViewerStaffId :: Maybe UUID
     }
 
 data TimesheetProjectionRequest = TimesheetProjectionRequest

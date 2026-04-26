@@ -21,6 +21,7 @@ import Crypto.WebAuthn.Cose.SignAlg
 import Crypto.WebAuthn.Model.Kinds (CeremonyKind (Authentication, Registration))
 import Crypto.WebAuthn.Model.Types
 import Crypto.WebAuthn.Operation.CredentialEntry
+import qualified Data.ByteString.Char8 as ByteString
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
@@ -29,6 +30,7 @@ import Database.PostgreSQL.Simple.Types (Binary (Binary))
 import Generated.Types
 import IHP.InputValue (inputValue)
 import IHP.Prelude
+import Network.HTTP.Types (HeaderName)
 import Network.Wai (Request)
 import qualified Network.Wai as Wai
 
@@ -49,13 +51,30 @@ allowedOrigins = Origin (requestSchemeTextFromWai <> "://" <> requestHostTextFro
 
 requestHostTextFromWai :: (?request :: Request) => Text
 requestHostTextFromWai =
-    maybe rpId (Text.decodeUtf8) (Wai.requestHeaderHost ?request)
+    maybe rpId decodeHeader (forwardedHeader "X-Forwarded-Host" <|> Wai.requestHeaderHost ?request)
   where
     rpId = "localhost"
 
 requestSchemeTextFromWai :: (?request :: Request) => Text
 requestSchemeTextFromWai =
-    if Wai.isSecure ?request then "https" else "http"
+    case forwardedHeader "X-Forwarded-Proto" of
+        Just proto -> decodeHeader proto
+        Nothing ->
+            if Wai.isSecure ?request then "https" else "http"
+
+forwardedHeader :: (?request :: Request) => HeaderName -> Maybe ByteString.ByteString
+forwardedHeader name =
+    fmap firstForwardedValue (lookup name (Wai.requestHeaders ?request))
+
+firstForwardedValue :: ByteString.ByteString -> ByteString.ByteString
+firstForwardedValue value =
+    value
+        |> ByteString.takeWhile (/= ',')
+        |> ByteString.dropWhileEnd (== ' ')
+        |> ByteString.dropWhile (== ' ')
+
+decodeHeader :: ByteString.ByteString -> Text
+decodeHeader = Text.decodeUtf8 . firstForwardedValue
 
 userHandleForUserId :: Id User -> UserHandle
 userHandleForUserId userId = UserHandle (cs (inputValue userId))

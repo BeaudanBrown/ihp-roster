@@ -75,6 +75,13 @@ hasRole minimumRole =
 ensureCurrentVenue :: (?context :: ControllerContext) => IO ()
 ensureCurrentVenue = accessDeniedUnless (isJust currentVenueOrNothing)
 
+ensureCurrentVenueOrSupportRedirect :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureCurrentVenueOrSupportRedirect =
+    case currentVenueOrNothing of
+        Just _                            -> pure ()
+        Nothing | currentUserIsSuperAdmin -> redirectTo SupportAction
+        Nothing                           -> ensureCurrentVenue
+
 ensureManagerRole :: (?context :: ControllerContext) => IO ()
 ensureManagerRole = accessDeniedUnless (hasRole ManagerRole')
 

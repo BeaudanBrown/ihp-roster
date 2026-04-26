@@ -29,6 +29,16 @@ tests = beforeAll testContext do
             response <- callAction TimesheetsAction
             response `responseStatusShouldBe` status302
 
+        it "redirects venue-less super-admins from timesheets to support" $ withContext do
+            withCleanDb do
+                user <- createUserRecordWithPlatformRole "timesheets-bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withUser user do
+                    callAction TimesheetsAction
+
+                response `responseStatusShouldBe` status302
+                responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
+
         it "redirects unauthenticated users from weekly timesheets page" $ withContext do
             response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
             response `responseStatusShouldBe` status302

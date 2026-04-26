@@ -39,17 +39,10 @@ import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment,
                                         renderRosterStaffPanelFragmentOob)
 
-ensureRosterVenueOrSupportRedirect :: (?context :: ControllerContext, ?request :: Request) => IO ()
-ensureRosterVenueOrSupportRedirect =
-    case currentVenueOrNothing of
-        Just _ -> pure ()
-        Nothing | currentUserIsSuperAdmin -> redirectTo SupportAction
-        Nothing -> ensureCurrentVenue
-
 instance Controller RosterWeeksController where
     beforeAction = do
         ensureIsUser
-        ensureRosterVenueOrSupportRedirect
+        ensureCurrentVenueOrSupportRedirect
         ensureProfileCompleted
 
     action RosterWeeksAction = do

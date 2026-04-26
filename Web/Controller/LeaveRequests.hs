@@ -24,17 +24,17 @@ import Web.RosterWeeks.Projection (buildRosterContentFragmentRef,
                                    buildRosterStaffPanelFragmentRef)
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
-import Web.View.Profiles.Edit (renderProfileLeaveRequestFormFragment,
-                               renderProfileLeaveRequestsContentFragment,
-                               renderProfileLeaveRequestsListFragmentOob,
-                               profileLeaveRequestFormFragmentId,
+import Web.View.Profiles.Edit (profileLeaveRequestFormFragmentId,
                                profileLeaveRequestsContentFragmentId,
-                               profileLeaveRequestsListFragmentId)
+                               profileLeaveRequestsListFragmentId,
+                               renderProfileLeaveRequestFormFragment,
+                               renderProfileLeaveRequestsContentFragment,
+                               renderProfileLeaveRequestsListFragmentOob)
 
 instance Controller LeaveRequestsController where
     beforeAction = do
         ensureIsUser
-        ensureCurrentVenue
+        ensureCurrentVenueOrSupportRedirect
 
     action LeaveRequestsAction = do
         ensureProfileCompleted
@@ -418,7 +418,7 @@ respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmen
 ensureLeaveProfileAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LeaveResponseContext -> IO ()
 ensureLeaveProfileAccess responseContext =
     case responseContext of
-        LeavePageResponseContext -> ensureProfileCompleted
+        LeavePageResponseContext    -> ensureProfileCompleted
         LeaveProfileResponseContext -> pure ()
 
 respondWithLeaveContextError :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> IO ()

@@ -1,13 +1,14 @@
 module Test.Controller.LeaveRequestsSpec where
 
+import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
 import Config
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import Data.Time.Calendar (addDays, fromGregorian)
-import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime, utctDay)
+import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime,
+                        utctDay)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -16,6 +17,7 @@ import IHP.ModelSupport (inputValue)
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
+import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import Web.Controller.LeaveRequests ()
@@ -29,6 +31,16 @@ tests = beforeAll testContext do
         it "redirects unauthenticated users from leave requests page" $ withContext do
             response <- callAction LeaveRequestsAction
             response `responseStatusShouldBe` status302
+
+        it "redirects venue-less super-admins from leave to support" $ withContext do
+            withCleanDb do
+                user <- createUserRecordWithPlatformRole "leave-bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withUser user do
+                    callAction LeaveRequestsAction
+
+                response `responseStatusShouldBe` status302
+                responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
 
         it "redirects unauthenticated users from leave requests fragment page" $ withContext do
             response <- callAction ShowLeaveRequestsContentFragmentAction

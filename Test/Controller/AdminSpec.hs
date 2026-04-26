@@ -1,5 +1,6 @@
 module Test.Controller.AdminSpec where
 
+import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
@@ -14,6 +15,7 @@ import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
+import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import Web.Controller.Admin ()
@@ -27,6 +29,16 @@ tests = beforeAll testContext do
         it "redirects unauthenticated users from admin page" $ withContext do
             response <- callAction AdminAction
             response `responseStatusShouldBe` status302
+
+        it "redirects venue-less super-admins from admin to support" $ withContext do
+            withCleanDb do
+                user <- createUserRecordWithPlatformRole "admin-bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withUser user do
+                    callAction AdminAction
+
+                response `responseStatusShouldBe` status302
+                responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
 
         it "shows current-venue admin sections with FWC-backed award level data" $ withContext do
             withCleanDb do
