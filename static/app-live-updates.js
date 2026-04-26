@@ -75,11 +75,12 @@
         if (!(root instanceof HTMLElement) || !preserveField) return null;
 
         const fieldKey = preserveField.fieldKey;
+        const fieldKeyAttr = preserveField.fieldKeyAttr || 'data-roster-field-key';
         if (fieldKey) {
             const escapedKey = window.CSS && typeof window.CSS.escape === 'function'
                 ? window.CSS.escape(fieldKey)
                 : fieldKey;
-            const keyedField = root.querySelector(`[data-roster-field-key="${escapedKey}"]`);
+            const keyedField = root.querySelector(`[${fieldKeyAttr}="${escapedKey}"]`);
             if (keyedField instanceof HTMLInputElement || keyedField instanceof HTMLSelectElement || keyedField instanceof HTMLTextAreaElement) {
                 return keyedField;
             }
@@ -258,11 +259,16 @@
         }));
     }
 
-    function rosterFragmentProtection() {
+    function focusedFieldProtection(policy) {
+        const activeSelector = policy && policy.activeSelector ? policy.activeSelector : '.slot-note-input:focus';
+        const fieldKeyAttr = policy && policy.fieldKeyAttr ? policy.fieldKeyAttr : 'data-roster-field-key';
+        const fieldNameFallback = !policy || policy.fieldNameFallback !== false;
+        const containerSelector = policy && policy.containerSelector ? policy.containerSelector : 'tr[data-roster-row]';
+
         function findActiveInput(target) {
             if (!(target instanceof HTMLElement)) return null;
 
-            const activeInput = target.querySelector('.slot-note-input:focus');
+            const activeInput = target.querySelector(activeSelector);
             if (activeInput instanceof HTMLInputElement || activeInput instanceof HTMLSelectElement || activeInput instanceof HTMLTextAreaElement) {
                 return activeInput;
             }
@@ -289,14 +295,15 @@
                 if (!activeInput) return fragment;
 
                 const name = activeInput.getAttribute('name');
-                if (!name) return fragment;
+                if (!fieldNameFallback && !activeInput.getAttribute(fieldKeyAttr)) return fragment;
 
-                const rowEl = activeInput.closest('tr[data-roster-row]');
+                const containerEl = containerSelector ? activeInput.closest(containerSelector) : null;
                 return {
                     ...fragment,
                     preserveField: {
-                        rowId: rowEl instanceof HTMLElement ? rowEl.id : null,
-                        fieldKey: activeInput.dataset.rosterFieldKey || null,
+                        rowId: containerEl instanceof HTMLElement ? containerEl.id : null,
+                        fieldKey: activeInput.getAttribute(fieldKeyAttr) || null,
+                        fieldKeyAttr,
                         name,
                         value: activeInput.value,
                     },
@@ -316,12 +323,44 @@
         };
     }
 
-    const fragmentProtectionAdapters = [rosterFragmentProtection()];
+    function legacyRosterProtection() {
+        return {
+            matches: function (fragment, target) {
+                return Boolean(
+                    fragment &&
+                    fragment.deferUntilBlur &&
+                    !fragment.protectionPolicy &&
+                    target instanceof HTMLElement &&
+                    target.closest('[data-live-update-feature="roster"]')
+                );
+            },
+            create: function () {
+                return focusedFieldProtection({
+                    activeSelector: '.slot-note-input:focus',
+                    fieldKeyAttr: 'data-roster-field-key',
+                    fieldNameFallback: true,
+                    containerSelector: 'tr[data-roster-row]',
+                });
+            },
+        };
+    }
+
+    const protectionPolicies = {
+        focused_field: focusedFieldProtection,
+    };
+
+    const legacyProtectionAdapters = [legacyRosterProtection()];
 
     function matchingFragmentProtection(fragment, target) {
-        return fragmentProtectionAdapters.find(function (adapter) {
+        if (fragment && fragment.protectionPolicy && fragment.protectionPolicy.kind) {
+            const factory = protectionPolicies[fragment.protectionPolicy.kind];
+            return typeof factory === 'function' ? factory(fragment.protectionPolicy) : null;
+        }
+
+        const legacy = legacyProtectionAdapters.find(function (adapter) {
             return adapter.matches(fragment, target);
-        }) || null;
+        });
+        return legacy ? legacy.create() : null;
     }
 
     function hasProtectedActiveInput(target, fragment) {
@@ -463,9 +502,90 @@
         });
     }
 
+    function readDeclarativeSurface(ownerEl) {
+        if (!(ownerEl instanceof HTMLElement)) return null;
+
+        const rawConfig = ownerEl.getAttribute('data-live-update-surface');
+        if (!rawConfig) return null;
+
+        let config = null;
+        try {
+            config = JSON.parse(rawConfig);
+        } catch (error) {
+            reportSurfaceConfigError(ownerEl, error);
+            return null;
+        }
+
+        if (!config || !config.scope) return null;
+
+        const scopeKey = buildScopeKey(config.scope);
+        if (!scopeKey) {
+            reportSurfaceConfigError(ownerEl, new Error('Invalid live-update surface scope'));
+            return null;
+        }
+
+        return {
+            feature: config.feature || ownerEl.dataset.liveUpdateFeature || null,
+            scope: config.scope,
+            scopeKey,
+            path: config.socketPath || ownerEl.dataset.liveUpdatesPath || '/live-updates',
+            resyncFragments: Array.isArray(config.resyncFragments) ? config.resyncFragments : [],
+            decorateRequestsWithin: Array.isArray(config.decorateRequestsWithin) ? config.decorateRequestsWithin : [],
+            resync: function (subscription) {
+                subscription.resyncFragments.forEach(handleFragmentRefreshRequest);
+            },
+        };
+    }
+
+    function reportSurfaceConfigError(ownerEl, error) {
+        const detail = {
+            id: ownerEl && ownerEl.id ? ownerEl.id : null,
+            feature: ownerEl && ownerEl.dataset ? ownerEl.dataset.liveUpdateFeature || null : null,
+            error: error instanceof Error ? error.message : String(error),
+        };
+
+        if (typeof window.console !== 'undefined' && typeof window.console.error === 'function') {
+            window.console.error('Invalid live-update surface config', detail);
+        }
+
+        document.dispatchEvent(new CustomEvent('app:live-update-surface-config-failed', {
+            detail,
+        }));
+    }
+
+    function declarativeSurfaceAdapter() {
+        return {
+            collectSubscriptions: function () {
+                const subscriptions = [];
+                document.querySelectorAll('[data-live-update-surface]').forEach(function (ownerEl) {
+                    const scopeInfo = readDeclarativeSurface(ownerEl);
+                    if (!scopeInfo || !scopeInfo.scopeKey) return;
+                    subscriptions.push({ ...scopeInfo, ownerEl });
+                });
+                return subscriptions;
+            },
+            shouldDecorateRequest: function (event) {
+                const sourceEl = event.detail && event.detail.elt;
+                if (!(sourceEl instanceof HTMLElement)) return false;
+
+                const ownerEl = sourceEl.closest('[data-live-update-surface]');
+                if (!(ownerEl instanceof HTMLElement)) return false;
+
+                const scopeInfo = readDeclarativeSurface(ownerEl);
+                if (!scopeInfo) return false;
+                if (scopeInfo.decorateRequestsWithin.length === 0) return true;
+
+                return scopeInfo.decorateRequestsWithin.some(function (selector) {
+                    return Boolean(selector && sourceEl.closest(selector));
+                });
+            },
+        };
+    }
+
     function rosterAdapter() {
         function readScope(ownerEl) {
             if (!(ownerEl instanceof HTMLElement)) return null;
+            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
             if (ownerEl.dataset.liveUpdateFeature !== 'roster') return null;
             if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
 
@@ -539,6 +659,7 @@
     function leaveRequestsAdapter() {
         function readScope(ownerEl) {
             if (!(ownerEl instanceof HTMLElement)) return null;
+            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
             if (ownerEl.dataset.liveUpdateFeature !== 'leave-requests') return null;
             if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
 
@@ -589,6 +710,7 @@
     function timesheetsAdapter() {
         function readScope(ownerEl) {
             if (!(ownerEl instanceof HTMLElement)) return null;
+            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
             if (ownerEl.dataset.liveUpdateFeature !== 'timesheets') return null;
             if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
 
@@ -647,6 +769,7 @@
     function adminSlotNamesAdapter() {
         function readScope(ownerEl) {
             if (!(ownerEl instanceof HTMLElement)) return null;
+            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
             if (ownerEl.dataset.liveUpdateFeature !== 'admin-slot-names') return null;
             if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
 
@@ -701,6 +824,7 @@
     function adminInvitesAdapter() {
         function readScope(ownerEl) {
             if (!(ownerEl instanceof HTMLElement)) return null;
+            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
             if (ownerEl.dataset.liveUpdateFeature !== 'admin-invites') return null;
             if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
 
@@ -751,6 +875,7 @@
     function supportAdapter() {
         function readScope(ownerEl) {
             if (!(ownerEl instanceof HTMLElement)) return null;
+            if (ownerEl.hasAttribute('data-live-update-surface')) return null;
             if (ownerEl.dataset.liveUpdateFeature !== 'support') return null;
             if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
 
@@ -804,7 +929,7 @@
         };
     }
 
-    const adapters = [rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter(), adminSlotNamesAdapter(), adminInvitesAdapter(), supportAdapter()];
+    const adapters = [declarativeSurfaceAdapter(), rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter(), adminSlotNamesAdapter(), adminInvitesAdapter(), supportAdapter()];
 
     function desiredSubscriptions() {
         const desired = new Map();
