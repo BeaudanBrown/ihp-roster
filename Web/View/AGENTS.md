@@ -73,10 +73,10 @@ renderForm post = formFor post [hsx|
 - Shared reconnect contract: subscriptions should carry a `lastSeenVersion`, subscribe acks should report `currentVersion` plus whether a scope resync is needed, and a gap in scope versions should trigger a full scope resync using the surface's `resyncFragments` instead of guessing which invalidations were missed.
 - When a reconnect resync falls back to a coarse content fragment, keep the same focus-protection rules as normal live invalidations: defer the content refetch until blur if a `.slot-cell-input` inside that fragment is still focused, while allowing unrelated mounted fragments such as side panels to refresh immediately.
 - Do not use a live surface just because a form currently redirects. A surface is warranted when the mounted page can become stale from another actor, another tab, or an async job. For actor-only edits, prefer HTMX fragments/OOB swaps. For auth, passkey, support venue switching, and other session/security flows, prefer normal browser navigation unless the product explicitly needs in-place behavior.
+- Fan-out invalidations should not search every historical table row just to discover possible cold targets. Use the active live-scope snapshot helpers in `Application.Helper.LiveUpdate` to narrow broad mutations to currently mounted scopes, then fetch detailed fragment data for those scopes only.
 - Existing non-live candidate areas:
   - export job/recent exports/report definitions can become a live surface when job progress or cross-admin report-definition edits matter while the page is open
-  - admin shift types and roster groups can become live surfaces if concurrent admin configuration should refresh across tabs
-  - profile self-service leave/profile content can become a live surface if external approval or manager edits should update an already-open profile page
+  - support venue switching, venue creation, owner invitations, passkeys, and auth/session flows should stay full-page or explicit HTMX workflows unless there is a concrete collaborative stale-DOM requirement
 
 ## Reusable Time Picker Pattern
 - Use a shared picker overlay + JS behavior for quarter-hour time selection instead of native `<input type="time">` in dense grids.

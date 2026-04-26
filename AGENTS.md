@@ -220,6 +220,7 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
   - clients refetch only the invalidated fragments they currently have mounted
   - one mutation may invalidate multiple scopes, and only a subset of fragments within each scope
 - The transport/client pattern is reusable across collaborative pages. Keep websocket/refetch, request decoration, resync, queueing, swapping, and focus-protection policy handling in the generic declarative runtime; do not add feature-specific JavaScript adapters for ordinary live surfaces.
+- Direct mutations that know the affected scope should broadcast that scope directly. Fan-out mutations that could touch many historical/cold scopes should first intersect with active subscriptions using `Application.Helper.LiveUpdate.activeLiveUpdateScopes` or `activeRosterWeekScopes`, then build fragment refs only for those currently mounted scopes. Closed pages can fresh-render when opened unless durable missed-update semantics are an explicit requirement.
 - The leave/timesheet live-fragment rollout is verified with manager/worker Playwright coverage:
   - leave approvals update the worker leave page live
   - leave approvals update an already-open manager roster page live
@@ -235,8 +236,8 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
 - Use the live-fragment pattern when another open tab, another user, or an async job can make the current DOM stale while the viewer remains on the page. Use plain HTMX for actor-local in-place updates, and use native full-page requests for low-frequency session/auth/security flows unless the surrounding screen genuinely needs to stay in place.
 - Candidate audit as of `2026-04-26`:
   - `Web/View/Exports/Index.hs` still uses full-page week navigation and native report/export generation and report-definition management forms. Keep this native while exports are request/download workflows, but migrate to declarative live fragments if export job progress, recent exports, or report definitions need to refresh across tabs/users.
-  - `Web/View/Admin/Index.hs` has live surfaces for invites and slot names. Shift types and roster groups are HTMX actor-local fragments only; add declarative surfaces for those sections if concurrent admin edits should appear without reload.
-  - The profile page uses HTMX for local profile and self-service leave changes, and broadcasts roster invalidations from preference changes. Add a profile-owned live surface only if external leave approvals or manager profile edits must update an already-open profile page.
+  - `Web/View/Admin/Index.hs` has live surfaces for invites, slot names, shift types, and roster groups. Keep adding admin config surfaces only when concurrent admin edits should appear without reload.
+  - The profile page uses HTMX for local profile edits and a live surface for self-service leave content. Profile-driven roster invalidations should use active roster week scopes so profile changes do not scan or bump closed historical roster weeks.
   - Support award-rate and public-holiday job sections already use declarative live fragments. Support venue switching, venue creation, owner invitations, and passkey management intentionally remain full-page/session/security workflows unless a future product requirement needs in-place collaboration.
 - Post-`helpers.js` migration policy:
   - use HTMX for partial and in-place workflows
