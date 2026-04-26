@@ -94,50 +94,60 @@ isAuthorizedScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     LiveUpdateScope ->
     IO Bool
-isAuthorizedScope RosterWeekScope { venueId, rosterGroupId, weekOffset } = do
-    case currentVenueOrNothing of
-        Nothing -> pure False
-        Just venue ->
-            if venueId /= unpackId venue.id
-                then pure False
-                else do
-                    let _ = weekOffset
-                    isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
-isAuthorizedScope RosterGroupConfigScope { venueId, rosterGroupId } = do
-    case currentVenueOrNothing of
-        Nothing -> pure False
-        Just venue ->
-            if venueId /= unpackId venue.id
-                then pure False
-                else isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
-isAuthorizedScope AdminSlotNamesScope { venueId, rosterGroupId } = do
-    case currentVenueOrNothing of
-        Nothing -> pure False
-        Just venue ->
-            if venueId /= unpackId venue.id
-                then pure False
-                else do
-                    hasRosterGroupAccess <- isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
-                    pure (hasRosterGroupAccess && hasRole VenueAdminRole)
-isAuthorizedScope AdminInvitesScope { venueId } =
-    pure (maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing && hasRole VenueAdminRole)
-isAuthorizedScope AdminShiftTypesScope { venueId } =
-    pure (maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing && hasRole VenueAdminRole)
-isAuthorizedScope AdminRosterGroupsScope { venueId } =
-    pure (maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing && hasRole VenueAdminRole)
-isAuthorizedScope LeaveRequestsScope { venueId } =
-    pure (maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing)
-isAuthorizedScope TimesheetWeekScope { venueId, weekOffset } = do
-    case currentVenueOrNothing of
-        Nothing -> pure False
-        Just venue ->
-            if venueId /= unpackId venue.id
-                then pure False
-                else do
-                    let _ = weekOffset
-                    pure True
-isAuthorizedScope SupportPlatformScope =
+isAuthorizedScope =
+    authorizeScopeRequirement . scopeAuthorizationRequirement
+
+data ScopeAuthorizationRequirement
+    = RequireCurrentVenue UUID.UUID
+    | RequireCurrentVenueRosterGroup UUID.UUID UUID.UUID
+    | RequireCurrentVenueAdmin UUID.UUID
+    | RequireCurrentVenueAdminRosterGroup UUID.UUID UUID.UUID
+    | RequireSupportSuperAdmin
+
+scopeAuthorizationRequirement :: LiveUpdateScope -> ScopeAuthorizationRequirement
+scopeAuthorizationRequirement RosterWeekScope { venueId, rosterGroupId } =
+    RequireCurrentVenueRosterGroup venueId rosterGroupId
+scopeAuthorizationRequirement RosterGroupConfigScope { venueId, rosterGroupId } =
+    RequireCurrentVenueRosterGroup venueId rosterGroupId
+scopeAuthorizationRequirement AdminSlotNamesScope { venueId, rosterGroupId } =
+    RequireCurrentVenueAdminRosterGroup venueId rosterGroupId
+scopeAuthorizationRequirement AdminInvitesScope { venueId } =
+    RequireCurrentVenueAdmin venueId
+scopeAuthorizationRequirement AdminShiftTypesScope { venueId } =
+    RequireCurrentVenueAdmin venueId
+scopeAuthorizationRequirement AdminRosterGroupsScope { venueId } =
+    RequireCurrentVenueAdmin venueId
+scopeAuthorizationRequirement LeaveRequestsScope { venueId } =
+    RequireCurrentVenue venueId
+scopeAuthorizationRequirement TimesheetWeekScope { venueId } =
+    RequireCurrentVenue venueId
+scopeAuthorizationRequirement SupportPlatformScope =
+    RequireSupportSuperAdmin
+
+authorizeScopeRequirement ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    ScopeAuthorizationRequirement ->
+    IO Bool
+authorizeScopeRequirement (RequireCurrentVenue venueId) =
+    pure (currentVenueMatches venueId)
+authorizeScopeRequirement (RequireCurrentVenueRosterGroup venueId rosterGroupId) =
+    if currentVenueMatches venueId
+        then isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
+        else pure False
+authorizeScopeRequirement (RequireCurrentVenueAdmin venueId) =
+    pure (currentVenueMatches venueId && hasRole VenueAdminRole)
+authorizeScopeRequirement (RequireCurrentVenueAdminRosterGroup venueId rosterGroupId) =
+    if currentVenueMatches venueId
+        then do
+            hasRosterGroupAccess <- isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
+            pure (hasRosterGroupAccess && hasRole VenueAdminRole)
+        else pure False
+authorizeScopeRequirement RequireSupportSuperAdmin =
     pure currentUserIsSuperAdmin
+
+currentVenueMatches :: (?context :: ControllerContext) => UUID.UUID -> Bool
+currentVenueMatches venueId =
+    maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing
 
 isAuthorizedCurrentVenueRosterGroupScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
