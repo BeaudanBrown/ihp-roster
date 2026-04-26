@@ -2,6 +2,31 @@ CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_af
 
 ALTER TABLE staff DROP CONSTRAINT IF EXISTS staff_default_pay_level_id_fk;
 ALTER TABLE shift_types DROP CONSTRAINT IF EXISTS shift_types_default_pay_level_id_fk;
+
+DO $$
+DECLARE
+    dependent_constraint RECORD;
+BEGIN
+    FOR dependent_constraint IN
+        SELECT conrelid::regclass AS table_name, conname AS constraint_name
+        FROM pg_constraint
+        WHERE contype = 'f'
+            AND confrelid IN (
+                SELECT oid
+                FROM pg_class
+                WHERE relnamespace = 'public'::regnamespace
+                    AND relname IN ('pay_levels', 'pay_level_day_rules')
+            )
+    LOOP
+        EXECUTE format(
+            'ALTER TABLE %s DROP CONSTRAINT IF EXISTS %I',
+            dependent_constraint.table_name,
+            dependent_constraint.constraint_name
+        );
+    END LOOP;
+END
+$$;
+
 DROP TABLE IF EXISTS pay_level_day_rules;
 DROP TABLE IF EXISTS pay_levels;
 
