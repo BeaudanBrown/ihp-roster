@@ -2,6 +2,7 @@ module Application.Script.BootstrapAccount where
 
 import Application.Helper.Controller (PlatformRole (..), platformRoleToEnum)
 import Application.Script.Prelude
+import Control.Monad (guard)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Generated.Types
