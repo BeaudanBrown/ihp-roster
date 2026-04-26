@@ -97,6 +97,7 @@ liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
 liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
 liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
 liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
+liveUpdateScopeKind SupportPlatformScope      = "support_platform"
 
 liveUpdateRosterGroupScopeKind :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupScopeKind RosterWeekScope {}        = Just "roster_group_config"
@@ -105,6 +106,7 @@ liveUpdateRosterGroupScopeKind AdminSlotNamesScope {}    = Nothing
 liveUpdateRosterGroupScopeKind AdminInvitesScope {}      = Nothing
 liveUpdateRosterGroupScopeKind LeaveRequestsScope {}     = Nothing
 liveUpdateRosterGroupScopeKind TimesheetWeekScope {}     = Nothing
+liveUpdateRosterGroupScopeKind SupportPlatformScope      = Nothing
 
 liveUpdateVenueId :: LiveUpdateScope -> Text
 liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
@@ -113,6 +115,7 @@ liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
 liveUpdateVenueId AdminInvitesScope { venueId }      = tshow venueId
 liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
 liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
+liveUpdateVenueId SupportPlatformScope               = ""
 
 liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId } = Just (tshow rosterGroupId)
@@ -121,6 +124,7 @@ liveUpdateRosterGroupIdText AdminSlotNamesScope { rosterGroupId } = Just (tshow 
 liveUpdateRosterGroupIdText AdminInvitesScope {} = Nothing
 liveUpdateRosterGroupIdText LeaveRequestsScope {} = Nothing
 liveUpdateRosterGroupIdText TimesheetWeekScope {} = Nothing
+liveUpdateRosterGroupIdText SupportPlatformScope = Nothing
 
 liveUpdateWeekOffsetText :: LiveUpdateScope -> Maybe Text
 liveUpdateWeekOffsetText RosterWeekScope { weekOffset } = Just (tshow weekOffset)
@@ -129,3 +133,4 @@ liveUpdateWeekOffsetText AdminSlotNamesScope {} = Nothing
 liveUpdateWeekOffsetText AdminInvitesScope {} = Nothing
 liveUpdateWeekOffsetText LeaveRequestsScope {} = Nothing
 liveUpdateWeekOffsetText TimesheetWeekScope { weekOffset } = Just (tshow weekOffset)
+liveUpdateWeekOffsetText SupportPlatformScope = Nothing

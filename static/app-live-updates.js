@@ -420,20 +420,26 @@
     }
 
     function buildScopeKey(scope) {
-        if (!scope || !scope.kind || !scope.venueId) return null;
+        if (!scope || !scope.kind) return null;
 
         switch (scope.kind) {
+            case 'support_platform':
+                return scope.kind;
             case 'roster_week':
+                if (!scope.venueId) return null;
                 if (!scope.rosterGroupId || !Number.isInteger(scope.weekOffset)) return null;
                 return `${scope.kind}:${scope.venueId}:${scope.rosterGroupId}:${scope.weekOffset}`;
             case 'roster_group_config':
             case 'admin_slot_names':
+                if (!scope.venueId) return null;
                 if (!scope.rosterGroupId) return null;
                 return `${scope.kind}:${scope.venueId}:${scope.rosterGroupId}`;
             case 'timesheet_week':
+                if (!scope.venueId) return null;
                 if (!Number.isInteger(scope.weekOffset)) return null;
                 return `${scope.kind}:${scope.venueId}:${scope.weekOffset}`;
             case 'leave_requests':
+                if (!scope.venueId) return null;
                 return `${scope.kind}:${scope.venueId}`;
             default:
                 return null;
@@ -742,7 +748,63 @@
         };
     }
 
-    const adapters = [rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter(), adminSlotNamesAdapter(), adminInvitesAdapter()];
+    function supportAdapter() {
+        function readScope(ownerEl) {
+            if (!(ownerEl instanceof HTMLElement)) return null;
+            if (ownerEl.dataset.liveUpdateFeature !== 'support') return null;
+            if (ownerEl.dataset.liveUpdateClientEnabled !== 'true') return null;
+
+            const scopeKind = ownerEl.dataset.liveUpdateScopeKind;
+            if (!scopeKind) return null;
+
+            return {
+                scope: {
+                    kind: scopeKind,
+                },
+                scopeKey: buildScopeKey({
+                    kind: scopeKind,
+                }),
+                path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
+                resync: function () {
+                    const awardRatesUrl = ownerEl.dataset.liveUpdateAwardRatesUrl;
+                    if (awardRatesUrl) {
+                        handleFragmentRefreshRequest({
+                            targetId: 'support-award-rates-section',
+                            url: awardRatesUrl,
+                            deferUntilBlur: false,
+                        });
+                    }
+
+                    const publicHolidaysUrl = ownerEl.dataset.liveUpdatePublicHolidaysUrl;
+                    if (publicHolidaysUrl) {
+                        handleFragmentRefreshRequest({
+                            targetId: 'support-public-holidays-section',
+                            url: publicHolidaysUrl,
+                            deferUntilBlur: false,
+                        });
+                    }
+                },
+            };
+        }
+
+        return {
+            collectSubscriptions: function () {
+                const subscriptions = [];
+                document.querySelectorAll('[data-live-update-owner="true"]').forEach(function (ownerEl) {
+                    const scopeInfo = readScope(ownerEl);
+                    if (!scopeInfo || !scopeInfo.scopeKey) return;
+                    subscriptions.push({ ...scopeInfo, ownerEl });
+                });
+                return subscriptions;
+            },
+            shouldDecorateRequest: function (event) {
+                const sourceEl = event.detail && event.detail.elt;
+                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="support"]') || sourceEl.closest('#support-award-rates-section') || sourceEl.closest('#support-public-holidays-section'));
+            },
+        };
+    }
+
+    const adapters = [rosterAdapter(), leaveRequestsAdapter(), timesheetsAdapter(), adminSlotNamesAdapter(), adminInvitesAdapter(), supportAdapter()];
 
     function desiredSubscriptions() {
         const desired = new Map();

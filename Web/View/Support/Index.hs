@@ -3,29 +3,31 @@ module Web.View.Support.Index where
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
+import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.View.VenueBootstrap (renderVenueBootstrapFields)
-import qualified Data.Text as Text
+import Application.Support.LiveUpdates (supportLiveUpdateScope)
 import Data.Scientific (Scientific)
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Passkeys.Management (renderPasskeyManagement)
 import Web.View.Prelude
 
 data IndexView = IndexView
-    { venues       :: [Venue]
-    , venue        :: Venue
-    , venueTimezone :: Text
-    , venueRosterWeekStartsOn :: Int
-    , onboardingInvitation :: VenueOnboardingInvitation
-    , onboardingInvitations :: [VenueOnboardingInvitation]
-    , passkeys :: [Passkey]
-    , fwcMapdAdminData :: FwcMapdAdminData
-    , latestFwcMapdRefreshJob :: Maybe AppJob
-    , activeFwcMapdRefreshJob :: Maybe AppJob
-    , publicHolidayCount :: Int
+    { venues                        :: [Venue]
+    , venue                         :: Venue
+    , venueTimezone                 :: Text
+    , venueRosterWeekStartsOn       :: Int
+    , onboardingInvitation          :: VenueOnboardingInvitation
+    , onboardingInvitations         :: [VenueOnboardingInvitation]
+    , passkeys                      :: [Passkey]
+    , fwcMapdAdminData              :: FwcMapdAdminData
+    , latestFwcMapdRefreshJob       :: Maybe AppJob
+    , activeFwcMapdRefreshJob       :: Maybe AppJob
+    , publicHolidayCount            :: Int
     , latestPublicHolidayRefreshJob :: Maybe AppJob
     , activePublicHolidayRefreshJob :: Maybe AppJob
-    , createdVenue :: Maybe Venue
+    , createdVenue                  :: Maybe Venue
     }
 
 instance View IndexView where
@@ -146,23 +148,38 @@ instance View IndexView where
                     , appPanelBodyClass = ""
                     , appPanelBody = renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob
                     }
-         in renderAppPage (AppPageConfig
-            { appPageTitle = "Support"
-            , appPageDescription = Nothing
-            , appPageActions = mempty
-            , appPageWidthClass = ""
-            , appPageBody = [hsx|
-                {renderCreatedVenueBanner createdVenue}
-                <div class="app-page-stack">
-                    {switchVenuePanel}
-                    {signInMethodsPanel}
-                    {awardRatesPanel}
-                    {publicHolidaysPanel}
-                    {inviteVenueOwnerPanel}
-                    {createVenuePanel}
-                </div>
-            |]
-            })
+            page =
+                renderAppPage (AppPageConfig
+                    { appPageTitle = "Support"
+                    , appPageDescription = Nothing
+                    , appPageActions = mempty
+                    , appPageWidthClass = ""
+                    , appPageBody = [hsx|
+                        {renderCreatedVenueBanner createdVenue}
+                        <div class="app-page-stack">
+                            {switchVenuePanel}
+                            {signInMethodsPanel}
+                            {awardRatesPanel}
+                            {publicHolidaysPanel}
+                            {inviteVenueOwnerPanel}
+                            {createVenuePanel}
+                        </div>
+                    |]
+                    })
+         in [hsx|
+            <section id="support-shell"
+                     hx-history-elt="true"
+                     data-live-update-owner="true"
+                     data-live-update-feature="support"
+                     data-live-updates-path="/live-updates"
+                     data-live-update-client-enabled="true"
+                     data-live-update-client-id=""
+                     data-live-update-scope-kind={liveUpdateScopeKind supportLiveUpdateScope}
+                     data-live-update-award-rates-url={pathTo ShowFwcMapdAwardRatesSectionAction}
+                     data-live-update-public-holidays-url={pathTo ShowPublicHolidaysSectionAction}>
+                {page}
+            </section>
+        |]
 
 renderVenueOption :: Venue -> Html
 renderVenueOption venue = [hsx|
@@ -175,6 +192,7 @@ renderAwardRatesSection :: FwcMapdAdminData -> Maybe AppJob -> Maybe AppJob -> H
 renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, currentCoreClassifications, currentCoreAdultPayRates, rateTypeBreakdown } latestRefreshJob activeRefreshJob = [hsx|
     <div id="support-award-rates-section"
          class="d-flex flex-column gap-3"
+         data-live-update-url={pathTo ShowFwcMapdAwardRatesSectionAction}
          hx-get={whenActiveJob (pathTo ShowFwcMapdAwardRatesSectionAction)}
          hx-trigger={whenActiveJob ("load delay:2s" :: Text)}
          hx-target="#support-award-rates-section"
@@ -199,7 +217,9 @@ renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, current
 
 renderPublicHolidaysSection :: Int -> Maybe AppJob -> Maybe AppJob -> Html
 renderPublicHolidaysSection publicHolidayCount latestRefreshJob activeRefreshJob = [hsx|
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+    <div id="support-public-holidays-section"
+         class="d-flex flex-column flex-lg-row justify-content-between gap-3"
+         data-live-update-url={pathTo ShowPublicHolidaysSectionAction}>
         <div class="small app-muted">
             <div>
                 Cached statewide VIC public holidays: <span class="fw-semibold">{tshow publicHolidayCount}</span>.
@@ -214,7 +234,13 @@ renderPublicHolidaysSection publicHolidayCount latestRefreshJob activeRefreshJob
 
 renderPublicHolidayRefreshForm :: Maybe AppJob -> Html
 renderPublicHolidayRefreshForm activeRefreshJob = [hsx|
-    <form method="POST" action={CreatePublicHolidayRefreshJobAction} class="d-grid" data-disable-javascript-submission="true">
+    <form method="POST"
+          action={CreatePublicHolidayRefreshJobAction}
+          class="d-grid"
+          data-disable-javascript-submission="true"
+          hx-post={CreatePublicHolidayRefreshJobAction}
+          hx-target="#support-public-holidays-section"
+          hx-swap="outerHTML">
         <button class={buttonClass} type="submit" disabled={isJust activeRefreshJob}>
             {buttonLabel}
         </button>
@@ -242,7 +268,13 @@ renderPublicHolidayRefreshJobStatus maybeJob =
 
 renderAwardRefreshForm :: Maybe AppJob -> Html
 renderAwardRefreshForm activeRefreshJob = [hsx|
-    <form method="POST" action={CreateFwcMapdRefreshJobAction} class="d-grid" data-disable-javascript-submission="true">
+    <form method="POST"
+          action={CreateFwcMapdRefreshJobAction}
+          class="d-grid"
+          data-disable-javascript-submission="true"
+          hx-post={CreateFwcMapdRefreshJobAction}
+          hx-target="#support-award-rates-section"
+          hx-swap="outerHTML">
         <button class={buttonClass} type="submit" disabled={isJust activeRefreshJob}>
             {buttonLabel}
         </button>
@@ -258,6 +290,15 @@ renderAwardRefreshForm activeRefreshJob = [hsx|
             if isJust activeRefreshJob
                 then "Refresh queued/running" :: Text
                 else "Refresh award rates"
+
+liveUpdateScopeKind :: LiveUpdateScope -> Text
+liveUpdateScopeKind SupportPlatformScope      = "support_platform"
+liveUpdateScopeKind RosterWeekScope {}        = "roster_week"
+liveUpdateScopeKind RosterGroupConfigScope {} = "roster_group_config"
+liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
+liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
+liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
+liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
 
 renderAwardRatesSummary :: Maybe FwcMapdSyncRun -> Maybe AppJob -> [FwcMapdAward] -> [FwcMapdClassification] -> [FwcMapdDisplayPayRate] -> [(Text, Int)] -> Html
 renderAwardRatesSummary latestSyncRun latestRefreshJob currentAwards currentCoreClassifications currentCoreAdultPayRates rateTypeBreakdown = [hsx|
@@ -304,7 +345,7 @@ renderJobStatus status =
 renderJobError :: AppJob -> Html
 renderJobError appJob =
     case appJob.lastError of
-        Nothing -> mempty
+        Nothing  -> mempty
         Just err -> [hsx|<span> Last error: {err}</span>|]
 
 renderRateTypeBreakdown :: [(Text, Int)] -> Html
@@ -552,9 +593,9 @@ renderOnboardingInvitationDeliveryBadge invitation = [hsx|
     where
         (label, badgeClass) =
             case inputValue invitation.deliveryStatus of
-                "sent" -> ("Sent" :: Text, "badge text-bg-success" :: Text)
+                "sent"   -> ("Sent" :: Text, "badge text-bg-success" :: Text)
                 "failed" -> ("Send Failed", "badge text-bg-danger")
-                _ -> ("Queued", "badge text-bg-warning text-dark")
+                _        -> ("Queued", "badge text-bg-warning text-dark")
 
 renderOnboardingInvitationDeliveryError :: VenueOnboardingInvitation -> Html
 renderOnboardingInvitationDeliveryError invitation =
@@ -567,7 +608,7 @@ renderOnboardingInvitationDeliveryError invitation =
 renderOnboardingInvitationExpiry :: Maybe UTCTime -> Html
 renderOnboardingInvitationExpiry maybeExpiresAt =
     case maybeExpiresAt of
-        Nothing -> [hsx|<span class="app-muted">Never</span>|]
+        Nothing        -> [hsx|<span class="app-muted">Never</span>|]
         Just expiresAt -> [hsx|{renderDay expiresAt.utctDay}|]
 
 renderDay :: Day -> Html

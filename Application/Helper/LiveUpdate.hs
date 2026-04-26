@@ -5,6 +5,7 @@ module Application.Helper.LiveUpdate
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
     , broadcastLiveInvalidation
+    , broadcastLiveInvalidationWithoutContext
     , currentLiveUpdateVersion
     , registerLiveSubscription
     , unregisterLiveSubscription
@@ -48,6 +49,7 @@ data LiveUpdateScope
         { venueId    :: !UUID.UUID
         , weekOffset :: !Int
         }
+    | SupportPlatformScope
     deriving (Eq, Ord, Show)
 
 data LiveFragmentKey
@@ -64,6 +66,8 @@ data LiveFragmentKey
     | TimesheetDaySectionFragment
         { dayOffset :: !Int
         }
+    | SupportAwardRatesSectionFragment
+    | SupportPublicHolidaysSectionFragment
     deriving (Eq, Ord, Show)
 
 data LiveFragmentRef = LiveFragmentRef
@@ -138,6 +142,10 @@ instance Aeson.ToJSON LiveUpdateScope where
             , "venueId" Aeson..= UUID.toText venueId
             , "weekOffset" Aeson..= weekOffset
             ]
+    toJSON SupportPlatformScope =
+        Aeson.object
+            [ "kind" Aeson..= ("support_platform" :: Text)
+            ]
 
 instance Aeson.FromJSON LiveUpdateScope where
     parseJSON = Aeson.withObject "LiveUpdateScope" \object -> do
@@ -166,6 +174,7 @@ instance Aeson.FromJSON LiveUpdateScope where
                 TimesheetWeekScope
                     <$> (parseUuid =<< object Aeson..: "venueId")
                     <*> object Aeson..: "weekOffset"
+            "support_platform" -> pure SupportPlatformScope
             _ -> fail ("Unknown live update scope kind: " <> cs kind)
 
 instance Aeson.ToJSON LiveFragmentKey where
@@ -191,6 +200,10 @@ instance Aeson.ToJSON LiveFragmentKey where
             [ "kind" Aeson..= ("timesheet_day_section" :: Text)
             , "dayOffset" Aeson..= dayOffset
             ]
+    toJSON SupportAwardRatesSectionFragment =
+        Aeson.object ["kind" Aeson..= ("support_award_rates_section" :: Text)]
+    toJSON SupportPublicHolidaysSectionFragment =
+        Aeson.object ["kind" Aeson..= ("support_public_holidays_section" :: Text)]
 
 instance Aeson.FromJSON LiveFragmentKey where
     parseJSON = Aeson.withObject "LiveFragmentKey" \object -> do
@@ -209,6 +222,8 @@ instance Aeson.FromJSON LiveFragmentKey where
             "timesheet_day_section" ->
                 TimesheetDaySectionFragment
                     <$> object Aeson..: "dayOffset"
+            "support_award_rates_section" -> pure SupportAwardRatesSectionFragment
+            "support_public_holidays_section" -> pure SupportPublicHolidaysSectionFragment
             _ -> fail ("Unknown live fragment kind: " <> cs kind)
 
 instance Aeson.ToJSON LiveFragmentRef where
@@ -316,11 +331,16 @@ incrementLiveUpdateVersion scope =
          in (Map.insert scope nextVersion versions, nextVersion)
 
 broadcastLiveInvalidation :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO ()
-broadcastLiveInvalidation scope sourceClientId fragments = do
-    version <- profileActionSpan "live_updates.increment_version" (incrementLiveUpdateVersion scope)
+broadcastLiveInvalidation scope sourceClientId fragments =
+    profileActionSpan "live_updates.broadcast_invalidation" $
+        broadcastLiveInvalidationWithoutContext scope sourceClientId fragments
+
+broadcastLiveInvalidationWithoutContext :: LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO ()
+broadcastLiveInvalidationWithoutContext scope sourceClientId fragments = do
+    version <- incrementLiveUpdateVersion scope
     subscriptions <- readIORef liveSubscriptionsRef
     let matchingSubscriptions = filter (\subscription -> subscription.subscriptionScope == scope) subscriptions
-    staleIds <- profileActionSpan "live_updates.broadcast" (mapMaybeM (sendInvalidation scope version sourceClientId fragments) matchingSubscriptions)
+    staleIds <- mapMaybeM (sendInvalidation scope version sourceClientId fragments) matchingSubscriptions
     unless (null staleIds) do
         atomicModifyIORef' liveSubscriptionsRef \activeSubscriptions ->
             ( filter (\subscription -> subscription.subscriptionId `notElem` staleIds) activeSubscriptions

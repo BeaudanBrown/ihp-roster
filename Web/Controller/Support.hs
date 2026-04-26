@@ -1,14 +1,15 @@
 module Web.Controller.Support where
 
-import Application.Async.Queue
-    ( AppJobRequest (..), EnqueueAppJobResult (..), enqueueAppJob,
-      fetchActiveAppJobByDedupeKey, fetchLatestAppJobByKind )
+import Application.Async.Queue (AppJobRequest (..), EnqueueAppJobResult (..),
+                                enqueueAppJob, fetchActiveAppJobByDedupeKey,
+                                fetchLatestAppJobByKind)
 import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
 import Application.Helper.Controller (currentSupportVenueOptions,
                                       defaultRosterWeekStartsOn,
                                       unsafeEnumFromText)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
+import Application.Helper.LiveUpdate (broadcastLiveInvalidation)
 import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail,
                                                      venueOnboardingInvitationLifetime)
 import Application.Helper.View (appendQueryParams)
@@ -17,6 +18,7 @@ import Application.PublicHolidays.Job (publicHolidayRefreshJobDedupeKey,
                                        publicHolidayRefreshJobKind)
 import Application.Support (createVenueWithBootstrapConfigInCurrentTransaction,
                             defaultVenueBootstrapTimezone)
+import Application.Support.LiveUpdates
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -49,6 +51,10 @@ instance Controller SupportController where
     action ShowFwcMapdAwardRatesSectionAction = do
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
+
+    action ShowPublicHolidaysSectionAction = do
+        (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        respondHtml (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
 
     action CreateSupportVenueAction = do
         let venues = currentSupportVenueOptions
@@ -141,7 +147,11 @@ instance Controller SupportController where
                 setSuccessMessage "Award rate refresh queued."
             ExistingActiveAppJob _ ->
                 setSuccessMessage "Award rate refresh is already queued or running."
-        redirectTo SupportAction
+        broadcastLiveInvalidation
+            supportLiveUpdateScope
+            (cs <$> getHeader "X-Live-Update-Client-Id")
+            [supportAwardRatesSectionFragmentRef]
+        respondToAwardRatesRefresh
 
     action CreatePublicHolidayRefreshJobAction = do
         enqueueResult <-
@@ -162,7 +172,11 @@ instance Controller SupportController where
                 setSuccessMessage "Public holiday refresh queued."
             ExistingActiveAppJob _ ->
                 setSuccessMessage "Public holiday refresh is already queued or running."
-        redirectTo SupportAction
+        broadcastLiveInvalidation
+            supportLiveUpdateScope
+            (cs <$> getHeader "X-Live-Update-Client-Id")
+            [supportPublicHolidaysSectionFragmentRef]
+        respondToPublicHolidayRefresh
 
     action SwitchSupportVenueAction = do
         let venueId = (coerce (param @UUID "venueId") :: Id Venue)
@@ -228,6 +242,22 @@ fetchPublicHolidaySectionData = do
     latestPublicHolidayRefreshJob <- fetchLatestAppJobByKind publicHolidayRefreshJobKind
     activePublicHolidayRefreshJob <- fetchActiveAppJobByDedupeKey publicHolidayRefreshJobDedupeKey
     pure (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob)
+
+respondToAwardRatesRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+respondToAwardRatesRefresh =
+    if isHtmxRequest
+        then do
+            (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
+            respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
+        else redirectTo SupportAction
+
+respondToPublicHolidayRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+respondToPublicHolidayRefresh =
+    if isHtmxRequest
+        then do
+            (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+            respondHtml (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
+        else redirectTo SupportAction
 
 queueVenueOnboardingInvitationDelivery ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

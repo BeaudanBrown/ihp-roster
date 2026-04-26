@@ -4,7 +4,9 @@ module Application.PublicHolidays.Job
     , publicHolidayRefreshJobKind
     ) where
 
+import Application.Helper.LiveUpdate (broadcastLiveInvalidationWithoutContext)
 import Application.PublicHolidays.Sync
+import Application.Support.LiveUpdates
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
@@ -33,5 +35,10 @@ performPublicHolidayRefreshJob appJob = do
     void
         ( appJob
             |> set #result resultPayload
+            |> set #status JobStatusSucceeded
             |> updateRecord
         )
+    broadcastLiveInvalidationWithoutContext
+        supportLiveUpdateScope
+        Nothing
+        [supportPublicHolidaysSectionFragmentRef]

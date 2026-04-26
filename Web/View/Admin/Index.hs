@@ -760,6 +760,7 @@ liveUpdateScopeKind AdminSlotNamesScope {}    = "admin_slot_names"
 liveUpdateScopeKind AdminInvitesScope {}      = "admin_invites"
 liveUpdateScopeKind LeaveRequestsScope {}     = "leave_requests"
 liveUpdateScopeKind TimesheetWeekScope {}     = "timesheet_week"
+liveUpdateScopeKind SupportPlatformScope      = "support_platform"
 
 liveUpdateVenueId :: LiveUpdateScope -> Text
 liveUpdateVenueId RosterWeekScope { venueId }        = tshow venueId
@@ -768,6 +769,7 @@ liveUpdateVenueId AdminSlotNamesScope { venueId }    = tshow venueId
 liveUpdateVenueId AdminInvitesScope { venueId }      = tshow venueId
 liveUpdateVenueId LeaveRequestsScope { venueId }     = tshow venueId
 liveUpdateVenueId TimesheetWeekScope { venueId }     = tshow venueId
+liveUpdateVenueId SupportPlatformScope               = ""
 
 liveUpdateRosterGroupIdText :: LiveUpdateScope -> Maybe Text
 liveUpdateRosterGroupIdText RosterWeekScope { rosterGroupId }        = Just (tshow rosterGroupId)
@@ -776,6 +778,7 @@ liveUpdateRosterGroupIdText AdminSlotNamesScope { rosterGroupId }    = Just (tsh
 liveUpdateRosterGroupIdText AdminInvitesScope {}                     = Nothing
 liveUpdateRosterGroupIdText LeaveRequestsScope {}                    = Nothing
 liveUpdateRosterGroupIdText TimesheetWeekScope {}                    = Nothing
+liveUpdateRosterGroupIdText SupportPlatformScope                     = Nothing
 
 formatTimestamp :: UTCTime -> Text
 formatTimestamp = cs . formatTime defaultTimeLocale "%Y-%m-%d %H:%M UTC"

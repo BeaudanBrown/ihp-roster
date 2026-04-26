@@ -15,7 +15,6 @@ instance WSApp LiveUpdatesWSApp where
 
     run = do
         ensureIsUser
-        ensureCurrentVenue
         ensureProfileCompleted
 
         forever do
@@ -96,40 +95,57 @@ isAuthorizedScope ::
     LiveUpdateScope ->
     IO Bool
 isAuthorizedScope RosterWeekScope { venueId, rosterGroupId, weekOffset } = do
-    if venueId /= unpackId currentVenueId
-        then pure False
-        else do
-            let _ = weekOffset
-            isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
+    case currentVenueOrNothing of
+        Nothing -> pure False
+        Just venue ->
+            if venueId /= unpackId venue.id
+                then pure False
+                else do
+                    let _ = weekOffset
+                    isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
 isAuthorizedScope RosterGroupConfigScope { venueId, rosterGroupId } = do
-    if venueId /= unpackId currentVenueId
-        then pure False
-        else isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
+    case currentVenueOrNothing of
+        Nothing -> pure False
+        Just venue ->
+            if venueId /= unpackId venue.id
+                then pure False
+                else isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
 isAuthorizedScope AdminSlotNamesScope { venueId, rosterGroupId } = do
-    if venueId /= unpackId currentVenueId
-        then pure False
-        else do
-            hasRosterGroupAccess <- isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
-            pure (hasRosterGroupAccess && hasRole VenueAdminRole)
+    case currentVenueOrNothing of
+        Nothing -> pure False
+        Just venue ->
+            if venueId /= unpackId venue.id
+                then pure False
+                else do
+                    hasRosterGroupAccess <- isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
+                    pure (hasRosterGroupAccess && hasRole VenueAdminRole)
 isAuthorizedScope AdminInvitesScope { venueId } =
-    pure (venueId == unpackId currentVenueId && hasRole VenueAdminRole)
+    pure (maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing && hasRole VenueAdminRole)
 isAuthorizedScope LeaveRequestsScope { venueId } =
-    pure (venueId == unpackId currentVenueId)
+    pure (maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing)
 isAuthorizedScope TimesheetWeekScope { venueId, weekOffset } = do
-    if venueId /= unpackId currentVenueId
-        then pure False
-        else do
-            let _ = weekOffset
-            pure True
+    case currentVenueOrNothing of
+        Nothing -> pure False
+        Just venue ->
+            if venueId /= unpackId venue.id
+                then pure False
+                else do
+                    let _ = weekOffset
+                    pure True
+isAuthorizedScope SupportPlatformScope =
+    pure currentUserIsSuperAdmin
 
 isAuthorizedCurrentVenueRosterGroupScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     UUID.UUID ->
     IO Bool
 isAuthorizedCurrentVenueRosterGroupScope rosterGroupId = do
-    rosterGroupOrNothing <-
-        query @RosterGroup
-            |> filterWhere (#id, coerce rosterGroupId)
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchOneOrNothing
-    pure (isJust rosterGroupOrNothing)
+    case currentVenueOrNothing of
+        Nothing -> pure False
+        Just venue -> do
+            rosterGroupOrNothing <-
+                query @RosterGroup
+                    |> filterWhere (#id, coerce rosterGroupId)
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> fetchOneOrNothing
+            pure (isJust rosterGroupOrNothing)

@@ -2,12 +2,12 @@
 
 module Test.Controller.VenueAccessSpec where
 
+import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
+                                fwcMapdRefreshJobKind)
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       currentVenueSessionKey,
                                       initCurrentVenueContext,
                                       unsafeEnumFromText)
-import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
-                                fwcMapdRefreshJobKind)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Config
@@ -26,18 +26,18 @@ import IHP.Prelude
 import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
-import qualified Network.Wai as Wai
 import Network.Wai (responseHeaders)
+import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
 import Web.Controller.Admin ()
 import Web.Controller.LeaveRequests ()
+import Web.Controller.LiveUpdates (isAuthorizedScope)
 import Web.Controller.RosterWeeks ()
 import Web.Controller.Sessions ()
 import Web.Controller.Staff ()
 import Web.Controller.Support ()
 import Web.Controller.Timesheets ()
-import Web.Controller.LiveUpdates (isAuthorizedScope)
 import Web.FrontController ()
 import Web.Types
 
@@ -173,6 +173,24 @@ tests = beforeAll testContext do
                 slotNamesAuthorized `shouldBe` True
                 invitesAuthorized `shouldBe` True
 
+        it "lets super-admins subscribe to the support live scope without an active venue" $ withContext do
+            withCleanDb do
+                founder <- createUserRecordWithPlatformRole "founder-support-live@example.com" "staff" (Just SuperAdminRole) True
+
+                authorized <- withAuthenticatedControllerContextNoVenue founder do
+                    isAuthorizedScope SupportPlatformScope
+
+                authorized `shouldBe` True
+
+        it "does not let ordinary users subscribe to the support live scope" $ withContext do
+            withCleanDb do
+                user <- createUserRecord "ordinary-support-live@example.com" "staff" True
+
+                authorized <- withAuthenticatedControllerContextNoVenue user do
+                    isAuthorizedScope SupportPlatformScope
+
+                authorized `shouldBe` False
+
         it "lets super-admin bypass venue membership for admin screens in another active venue" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
@@ -235,6 +253,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Support"
                 response `responseBodyShouldContain` "Create Venue"
+                response `responseBodyShouldContain` "data-live-update-feature=\"support\""
+                response `responseBodyShouldContain` "data-live-update-scope-kind=\"support_platform\""
 
         it "lets super-admin queue an award rate refresh from support" $ withContext do
             withCleanDb do
@@ -252,6 +272,21 @@ tests = beforeAll testContext do
                 job.dedupeKey `shouldBe` Just fwcMapdRefreshJobDedupeKey
                 job.requestedByUserId `shouldBe` Just (unpackId founder.id)
                 inputValue job.status `shouldBe` "job_status_not_started"
+
+        it "returns the award rate section for HTMX award refresh submissions" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-award-refresh-htmx@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+
+                response <- withPasskeyVerifiedUser founder do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction CreateFwcMapdRefreshJobAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"support-award-rates-section\""
+                response `responseBodyShouldContain` "Refresh queued/running"
+                response `responseBodyShouldContain` "hx-post=\"/CreateFwcMapdRefreshJob\""
 
         it "marks the award rate support section for self-refresh while a refresh job is active" $ withContext do
             withCleanDb do
@@ -312,6 +347,21 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
                 jobCount <- query @AppJob |> filterWhere (#jobKind, publicHolidayRefreshJobKind) |> fetchCount
                 jobCount `shouldBe` 1
+
+        it "returns the public holiday section for HTMX public holiday refresh submissions" $ withContext do
+            withCleanDb do
+                homeVenue <- createVenueWithConfig "Home Venue"
+                founder <- createUserRecordWithPlatformRole "founder-public-holiday-refresh-htmx@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
+
+                response <- withPasskeyVerifiedUser founder do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction CreatePublicHolidayRefreshJobAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"support-public-holidays-section\""
+                response `responseBodyShouldContain` "Refresh queued/running"
+                response `responseBodyShouldContain` "hx-post=\"/CreatePublicHolidayRefreshJob\""
 
         it "denies public holiday refresh creation to ordinary venue admins" $ withContext do
             withCleanDb do
@@ -642,6 +692,24 @@ withAuthenticatedControllerContext user venueId action =
     withSessionValues
         [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
         , (currentVenueSessionKey, Serialize.encode venueId)
+        ]
+        do
+            let ?frameworkConfig = config
+            controllerContext <- newControllerContext
+            let ?context = controllerContext
+            initAuthentication @User
+            initCurrentVenueContext
+            action
+
+withAuthenticatedControllerContextNoVenue ::
+    forall result.
+    (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?modelContext :: ModelContext) =>
+    User ->
+    ((?context :: ControllerContext) => IO result) ->
+    IO result
+withAuthenticatedControllerContextNoVenue user action =
+    withSessionValues
+        [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
         ]
         do
             let ?frameworkConfig = config

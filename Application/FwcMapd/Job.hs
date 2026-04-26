@@ -5,6 +5,8 @@ module Application.FwcMapd.Job
     ) where
 
 import Application.FwcMapd.Sync
+import Application.Helper.LiveUpdate (broadcastLiveInvalidationWithoutContext)
+import Application.Support.LiveUpdates
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
@@ -37,5 +39,10 @@ performFwcMapdRefreshJob appJob = do
             void
                 ( appJob
                     |> set #result resultPayload
+                    |> set #status JobStatusSucceeded
                     |> updateRecord
                 )
+            broadcastLiveInvalidationWithoutContext
+                supportLiveUpdateScope
+                Nothing
+                [supportAwardRatesSectionFragmentRef]
