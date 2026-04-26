@@ -57,17 +57,18 @@ tests = beforeAll testContext do
                     callActionWithParams AdminAction [("rosterGroupId", idToParam venueAGroupB.id)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Venue Config"
                 response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldContain` "Shift Types"
-                response `responseBodyShouldContain` "Award Levels"
                 response `responseBodyShouldContain` "Slot Names"
                 response `responseBodyShouldContain` "Invites"
                 response `responseBodyShouldContain` "Exports"
                 response `responseBodyShouldContain` "Generate Staff Pay CSV"
                 response `responseBodyShouldContain` "Generate Hourly Breakdown ZIP"
+                response `responseBodyShouldContain` "Generate Payroll Earnings CSV"
                 response `responseBodyShouldContain` "admin-slot-names-fragment"
                 response `responseBodyShouldContain` "admin-invites-fragment"
+                response `responseBodyShouldNotContain` "Venue Config"
+                response `responseBodyShouldNotContain` "Award Levels"
                 response `responseBodyShouldNotContain` "Pay Levels"
                 response `responseBodyShouldNotContain` "Pay Level Day Rules"
                 response `responseBodyShouldNotContain` "/helpers.js"
@@ -103,9 +104,9 @@ tests = beforeAll testContext do
                     callAction AdminAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Venue Config"
                 response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldContain` "Exports"
+                response `responseBodyShouldNotContain` "Venue Config"
 
         it "creates venue-scoped non-pay config rows from the admin page" $ withContext do
             withCleanDb do
@@ -117,7 +118,6 @@ tests = beforeAll testContext do
                 rosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateRosterGroupAction
                         [ ("name", "Back of House")
-                        , ("sortOrder", "7")
                         , ("isActive", "true")
                         ]
                 rosterGroupResponse `responseStatusShouldBe` status302
@@ -151,7 +151,7 @@ tests = beforeAll testContext do
                 let inviteExpiryDeltaSeconds = diffUTCTime (fromMaybe inviteNow createdInvitation.expiresAt) inviteNow
 
                 createdRosterGroup.venueId `shouldBe` unpackId venue.id
-                createdRosterGroup.sortOrder `shouldBe` 7
+                createdRosterGroup.sortOrder `shouldBe` 1
                 createdRosterGroup.isActive `shouldBe` True
                 createdSlotName.name `shouldBe` "Swing"
                 createdSlotName.rosterGroupId `shouldBe` unpackId createdRosterGroup.id
@@ -181,14 +181,13 @@ tests = beforeAll testContext do
                 lastSlotName <- fetchSlotNameRecord venue "Late"
                 rosterGroup <- createVenueRosterGroupWithDefaults venue "Back of House" 5 True
 
-                makeDefaultResponse <- withUserAndCurrentVenue admin venue.id do
-                    callAction (MakeDefaultRosterGroupAction rosterGroup.id)
-                makeDefaultResponse `responseStatusShouldBe` status302
+                moveGroupUpResponse <- withUserAndCurrentVenue admin venue.id do
+                    callAction (MoveRosterGroupUpAction rosterGroup.id)
+                moveGroupUpResponse `responseStatusShouldBe` status302
 
                 rosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams (UpdateRosterGroupAction rosterGroup.id)
                         [ ("name", "Back of House Updated")
-                        , ("sortOrder", "8")
                         , ("isActive", "true")
                         ]
                 rosterGroupResponse `responseStatusShouldBe` status302
@@ -225,7 +224,7 @@ tests = beforeAll testContext do
                 defaultRosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
 
                 updatedRosterGroup.name `shouldBe` "Back of House Updated"
-                updatedRosterGroup.sortOrder `shouldBe` 8
+                updatedRosterGroup.sortOrder `shouldBe` 0
                 updatedRosterGroup.isActive `shouldBe` True
                 get #id defaultRosterGroup `shouldBe` get #id updatedRosterGroup
                 updatedShiftType.name `shouldBe` "Kitchen Updated"
@@ -289,7 +288,6 @@ tests = beforeAll testContext do
                 rosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateRosterGroupAction
                         [ ("name", "Back of House")
-                        , ("sortOrder", "7")
                         , ("isActive", "true")
                         ]
                 rosterGroupResponse `responseStatusShouldBe` status302

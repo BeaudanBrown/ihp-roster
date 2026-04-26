@@ -4,29 +4,25 @@ import Application.Helper.Export (ReportWeekSelection (..),
                                   VenueReportDefinition (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import qualified Data.Text as Text
-import Application.Helper.WeekBoundaries
-    ( validRosterWeekStartDays, weekdayIndexLabel )
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 data IndexView = IndexView
-    { venueConfig                     :: VenueConfig
-    , venueRosterWeekStartLocked      :: Bool
-    , latestSnapshot                  :: Maybe PayConfigSnapshot
-    , recentSnapshots                 :: [PayConfigSnapshot]
-    , rosterGroups                    :: [RosterGroup]
+    { rosterGroups                    :: [RosterGroup]
     , currentRosterGroup              :: RosterGroup
     , shiftTypes                      :: [ShiftType]
     , awardLevels                     :: [AwardLevel]
     , awardLevelBaseRates             :: [AwardLevelBaseRate]
     , slotNames                       :: [SlotName]
-    , weekdays                        :: [DayName]
     , staffPayReportDefinition        :: Maybe VenueReportDefinition
     , hourlyBreakdownReportDefinition :: Maybe VenueReportDefinition
+    , payrollEarningsReportDefinition :: Maybe VenueReportDefinition
     , reportWeekSelection             :: ReportWeekSelection
     , invitations                     :: [VenueInvitation]
     , slotNamesLiveUpdateScope        :: Maybe LiveUpdateScope
     , invitesLiveUpdateScope          :: Maybe LiveUpdateScope
+    , showInactiveRosterGroups        :: Bool
+    , showInactiveShiftTypes          :: Bool
     }
 
 instance View IndexView where
@@ -44,7 +40,7 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup shiftTypes awardLevels awardLevelBaseRates slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection}
+                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection}
                             </div>
                         </div>
                     |]
@@ -78,47 +74,27 @@ instance View IndexView where
             |]
             })
 
-renderShiftTypesSection :: [ShiftType] -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderShiftTypesSection shiftTypes awardLevels awardLevelBaseRates =
+renderShiftTypesSection :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
+renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates =
     renderConfigSection
         "shift-types"
         "Shift Types"
         "Configure venue shift types. Choose an override only when a shift should pay a different award level from the staff member's default."
-        (renderRowCountSummary shiftTypes)
+        (renderInactiveToggleSummary "showInactiveShiftTypes" shiftTypes showInactive)
         (renderShiftTypeCreateForm awardLevels awardLevelBaseRates)
-        (if null shiftTypes then renderEmptyState "No shift types yet." else forEach shiftTypes (renderShiftTypeRow awardLevels awardLevelBaseRates))
+        (renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates)
 
-renderAwardLevelsSection :: [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderAwardLevelsSection awardLevels awardLevelBaseRates =
-    renderConfigSection
-        "award-levels"
-        "Award Levels"
-        "Synced FWC adult hourly classifications available for staff defaults and shift-type overrides."
-        [hsx|
-            <p class="small app-muted mb-3">
-                {tshow (length awardLevels)} active levels synced from FWC.
-            </p>
-        |]
-        mempty
-        (if null awardLevels then renderEmptyState "No synced award levels yet. Run the FWC sync before assigning staff or shift pay levels." else renderAwardLevelTable awardLevels awardLevelBaseRates)
-
-renderRosterGroupsSection :: [RosterGroup] -> RosterGroup -> Html
-renderRosterGroupsSection rosterGroups currentRosterGroup =
+renderRosterGroupsSection :: [RosterGroup] -> RosterGroup -> Bool -> Html
+renderRosterGroupsSection rosterGroups currentRosterGroup showInactive =
     renderConfigSection
         "roster-groups"
         "Roster Groups"
         "Define the roster lanes inside this venue. Slot names below are edited for the selected roster group."
-        (renderRowCountSummary rosterGroups)
+        (renderInactiveToggleSummary "showInactiveRosterGroups" rosterGroups showInactive)
         [hsx|
-            <div class="mb-3">
-                <div class="small text-uppercase app-muted mb-2">Selected roster group</div>
-                <div class="d-flex flex-wrap gap-2">
-                    {forEach rosterGroups (renderRosterGroupSelector currentRosterGroup.id)}
-                </div>
-            </div>
             {renderRosterGroupCreateForm}
         |]
-        (if null rosterGroups then renderEmptyState "No roster groups yet." else forEach rosterGroups (renderRosterGroupRow currentRosterGroup.id))
+        (renderRosterGroupRows rosterGroups showInactive)
 
 renderSlotNamesSection :: RosterGroup -> [SlotName] -> Html
 renderSlotNamesSection currentRosterGroup slotNames =
@@ -230,87 +206,32 @@ renderInviteRow rosterGroupId invitation = [hsx|
     </tr>
 |]
 
-renderExportsSection :: Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
-renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection =
+renderExportsSection :: Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
+renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection =
     renderConfigSection
         "exports"
         "Exports"
         ("Generate the built-in payroll exports for the current report week: " <> tshow reportWeekSelection.weekStart <> " to " <> tshow reportWeekSelection.weekEnd <> ".")
-        (renderExportSummary staffPayReportDefinition hourlyBreakdownReportDefinition)
+        (renderExportSummary [staffPayReportDefinition, hourlyBreakdownReportDefinition, payrollEarningsReportDefinition])
         mempty
         [hsx|
             <div class="d-flex flex-wrap gap-2">
                 {renderExportButton staffPayReportDefinition reportWeekSelection "Generate Staff Pay CSV"}
                 {renderExportButton hourlyBreakdownReportDefinition reportWeekSelection "Generate Hourly Breakdown ZIP"}
+                {renderExportButton payrollEarningsReportDefinition reportWeekSelection "Generate Payroll Earnings CSV"}
                 <a href={ExportJobsAction} class="btn btn-outline-secondary">Export History</a>
             </div>
         |]
 
-renderVenueConfigSection :: VenueConfig -> Bool -> Html
-renderVenueConfigSection venueConfig venueRosterWeekStartLocked =
-    renderConfigSection
-        "venue-config"
-        "Venue Config"
-        "Choose which weekday a venue roster week starts on. This is write-once once live roster or payroll data exists."
-        (renderVenueConfigSummary venueConfig venueRosterWeekStartLocked)
-        (renderVenueConfigForm venueConfig venueRosterWeekStartLocked)
-        mempty
-
-renderVenueConfigSummary :: VenueConfig -> Bool -> Html
-renderVenueConfigSummary venueConfig venueRosterWeekStartLocked = [hsx|
-    <p class="small app-muted mb-3">
-        Current roster week start: <span class="fw-semibold">{weekdayIndexLabel venueConfig.rosterWeekStartsOn}</span>.
-        {venueConfigSummarySuffix venueRosterWeekStartLocked}
-    </p>
-|]
-
-venueConfigSummarySuffix :: Bool -> Text
-venueConfigSummarySuffix venueRosterWeekStartLocked =
-    if venueRosterWeekStartLocked
-        then " This setting is now locked for this venue."
-        else " Configure it now before any roster, timesheet, leave, export, or payroll snapshot history exists."
-
-renderVenueConfigForm :: VenueConfig -> Bool -> Html
-renderVenueConfigForm venueConfig venueRosterWeekStartLocked = [hsx|
-    <form method="POST" action={UpdateVenueConfigAction} class="border rounded p-3" data-disable-javascript-submission="true">
-        <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-6">
-                <label class="form-label" for="venue-config-roster-week-starts-on">Roster Week Starts On</label>
-                <select id="venue-config-roster-week-starts-on" class="form-select" name="rosterWeekStartsOn" disabled={venueRosterWeekStartLocked}>
-                    {forEach validRosterWeekStartDays (renderRosterWeekStartOption venueConfig.rosterWeekStartsOn)}
-                </select>
-            </div>
-            <div class="col-12 col-md-6">
-                {renderVenueConfigFormAction venueRosterWeekStartLocked}
-            </div>
-        </div>
-    </form>
-|]
-
-renderVenueConfigFormAction :: Bool -> Html
-renderVenueConfigFormAction venueRosterWeekStartLocked
-    | venueRosterWeekStartLocked = [hsx|
-        <div class="small app-muted">Locked after roster, timesheet, leave, export, or payroll snapshot records are created.</div>
-    |]
-    | otherwise = [hsx|
-        <button class="btn btn-outline-primary w-100" type="submit">Save Venue Config</button>
-    |]
-
-renderExportSummary :: Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Html
-renderExportSummary staffPayReportDefinition hourlyBreakdownReportDefinition = [hsx|
+renderExportSummary :: [Maybe VenueReportDefinition] -> Html
+renderExportSummary reportDefinitions = [hsx|
     <div class="small app-muted mb-3">
-        {availableCount} of 2 built-in exports are currently available for this venue.
+        {availableCount} of {tshow totalCount} built-in exports are currently available for this venue.
     </div>
 |]
     where
-        availableCount =
-            length
-                (filter
-                    isJust
-                    [ staffPayReportDefinition
-                    , hourlyBreakdownReportDefinition
-                    ]
-                )
+        totalCount = length reportDefinitions
+        availableCount = length (filter isJust reportDefinitions)
 
 renderExportButton :: Maybe VenueReportDefinition -> ReportWeekSelection -> Text -> Html
 renderExportButton maybeReportDefinition reportWeekSelection label =
@@ -326,16 +247,14 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
         |]
 
-renderConfigSectionsAccordion :: VenueConfig -> Bool -> [RosterGroup] -> RosterGroup -> [ShiftType] -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [DayName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
-renderConfigSectionsAccordion venueConfig venueRosterWeekStartLocked rosterGroups currentRosterGroup shiftTypes awardLevels awardLevelBaseRates slotNames weekdays invitations staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection = [hsx|
+renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
+renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
-        {renderAccordionItem "venue-config" "Venue Config" True (renderVenueConfigSection venueConfig venueRosterWeekStartLocked)}
-        {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSection rosterGroups currentRosterGroup)}
-        {renderAccordionItem "invites" "Invites" False (renderInvitesSectionFragment invitations currentRosterGroup.id)}
-        {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes awardLevels awardLevelBaseRates)}
-        {renderAccordionItem "award-levels" "Award Levels" False (renderAwardLevelsSection awardLevels awardLevelBaseRates)}
+        {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
+        {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection)}
+        {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
+        {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSection rosterGroups currentRosterGroup showInactiveRosterGroups)}
         {renderAccordionItem "slot-names" "Slot Names" False (renderSlotNamesSectionFragment currentRosterGroup slotNames)}
-        {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition reportWeekSelection)}
     </div>
 |]
 
@@ -438,15 +357,11 @@ renderShiftTypeCreateForm :: [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderShiftTypeCreateForm awardLevels awardLevelBaseRates = [hsx|
     <form method="POST" action={CreateShiftTypeAction} class="border rounded p-3" data-disable-javascript-submission="true">
         <div class="row g-2 align-items-end">
-            <div class="col-12 col-lg-3">
+            <div class="col-12 col-lg-4">
                 <label class="form-label" for="new-shift-type-name">Name</label>
                 <input id="new-shift-type-name" class="form-control" type="text" name="name" placeholder="Standard Shift" />
             </div>
-            <div class="col-12 col-lg-2">
-                <label class="form-label" for="new-shift-type-sort-order">Sort Order</label>
-                <input id="new-shift-type-sort-order" class="form-control" type="number" name="sortOrder" value="0" />
-            </div>
-            <div class="col-12 col-lg-3">
+            <div class="col-12 col-lg-4">
                 <label class="form-label" for="new-shift-type-award-level">Award Override</label>
                 <select id="new-shift-type-award-level" class="form-select" name="overrideAwardLevelId">
                     <option value="" selected={True}>Use staff default award level</option>
@@ -467,23 +382,39 @@ renderShiftTypeCreateForm awardLevels awardLevelBaseRates = [hsx|
     </form>
 |]
 
-renderShiftTypeRow :: [AwardLevel] -> [AwardLevelBaseRate] -> ShiftType -> Html
-renderShiftTypeRow awardLevels awardLevelBaseRates shiftType = [hsx|
+renderShiftTypeRows :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
+renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates
+    | null visibleRows = renderEmptyState "No shift types yet."
+    | otherwise = [hsx|
+        <div class="d-flex flex-column gap-2">
+            {forEach (zip [0 :: Int ..] visibleRows) (renderShiftTypeRow awardLevels awardLevelBaseRates activeCount)}
+        </div>
+    |]
+    where
+        activeRows = filter (.isActive) shiftTypes
+        inactiveRows = filter (not . (.isActive)) shiftTypes
+        activeCount = length activeRows
+        visibleRows = activeRows <> if showInactive then inactiveRows else []
+
+renderShiftTypeRow :: [AwardLevel] -> [AwardLevelBaseRate] -> Int -> (Int, ShiftType) -> Html
+renderShiftTypeRow awardLevels awardLevelBaseRates activeCount (shiftTypeIndex, shiftType) = [hsx|
     <form method="POST" action={UpdateShiftTypeAction (get #id shiftType)} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <span class="fw-semibold">Shift Type</span>
-            {renderActiveBadge shiftType.isActive}
+        <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+                <span class="fw-semibold">Shift Type</span>
+                {renderActiveBadge shiftType.isActive}
+            </div>
+            <div class="btn-group btn-group-sm" role="group" aria-label="Reorder shift type">
+                {renderMoveButton (not shiftType.isActive || shiftTypeIndex == 0) (MoveShiftTypeUpAction shiftType.id) "Up"}
+                {renderMoveButton (not shiftType.isActive || shiftTypeIndex == activeCount - 1) (MoveShiftTypeDownAction shiftType.id) "Down"}
+            </div>
         </div>
         <div class="row g-2 align-items-end">
-            <div class="col-12 col-lg-3">
+            <div class="col-12 col-lg-4">
                 <label class="form-label">Name</label>
                 <input class="form-control" type="text" name="name" value={shiftType.name} />
             </div>
-            <div class="col-12 col-lg-2">
-                <label class="form-label">Sort Order</label>
-                <input class="form-control" type="number" name="sortOrder" value={tshow shiftType.sortOrder} />
-            </div>
-            <div class="col-12 col-lg-3">
+            <div class="col-12 col-lg-4">
                 <label class="form-label">Award Override</label>
                 <select class="form-select" name="overrideAwardLevelId">
                     <option value="" selected={isNothing shiftType.overrideAwardLevelId}>Use staff default award level</option>
@@ -504,33 +435,6 @@ renderShiftTypeRow awardLevels awardLevelBaseRates shiftType = [hsx|
     </form>
 |]
 
-renderAwardLevelTable :: [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderAwardLevelTable awardLevels awardLevelBaseRates = [hsx|
-    <div class="table-responsive">
-        <table class="table table-striped align-middle mb-0">
-            <thead>
-                <tr>
-                    <th>Classification</th>
-                    <th>Permanent Hourly</th>
-                    <th>Casual Hourly</th>
-                </tr>
-            </thead>
-            <tbody>
-                {forEach awardLevels (renderAwardLevelRow awardLevelBaseRates)}
-            </tbody>
-        </table>
-    </div>
-|]
-
-renderAwardLevelRow :: [AwardLevelBaseRate] -> AwardLevel -> Html
-renderAwardLevelRow awardLevelBaseRates awardLevel = [hsx|
-    <tr>
-        <td>{awardLevelDisplayLabel awardLevel}</td>
-        <td>{renderAwardLevelBaseRate awardLevelBaseRates Permanent awardLevel}</td>
-        <td>{renderAwardLevelBaseRate awardLevelBaseRates Casual awardLevel}</td>
-    </tr>
-|]
-
 renderAwardLevelOption :: [AwardLevelBaseRate] -> Maybe (Id AwardLevel) -> AwardLevel -> Html
 renderAwardLevelOption awardLevelBaseRates selectedAwardLevelId awardLevel = [hsx|
     <option value={inputValue awardLevel.id} selected={selectedAwardLevelId == Just awardLevel.id}>
@@ -538,27 +442,13 @@ renderAwardLevelOption awardLevelBaseRates selectedAwardLevelId awardLevel = [hs
     </option>
 |]
 
-renderAwardLevelBaseRate :: [AwardLevelBaseRate] -> StaffEmploymentBasisEnum -> AwardLevel -> Text
-renderAwardLevelBaseRate awardLevelBaseRates employmentBasis awardLevel =
-    case find matchingRate awardLevelBaseRates of
-        Just rate -> formatHourlyRate rate.hourlyRate
-        Nothing   -> "Not synced"
-    where
-        matchingRate rate =
-            rate.awardLevelId == unpackId awardLevel.id
-                && rate.employmentBasis == employmentBasis
-
 renderRosterGroupCreateForm :: Html
 renderRosterGroupCreateForm = [hsx|
     <form method="POST" action={CreateRosterGroupAction} class="border rounded p-3" data-disable-javascript-submission="true">
         <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-5">
+            <div class="col-12 col-md-8">
                 <label class="form-label" for="new-roster-group-name">Name</label>
                 <input id="new-roster-group-name" class="form-control" type="text" name="name" placeholder="Front of House" />
-            </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label" for="new-roster-group-sort-order">Sort Order</label>
-                <input id="new-roster-group-sort-order" class="form-control" type="number" name="sortOrder" value="0" />
             </div>
             <div class="col-12 col-md-2">
                 <label class="form-label" for="new-roster-group-active">Status</label>
@@ -574,26 +464,38 @@ renderRosterGroupCreateForm = [hsx|
     </form>
 |]
 
-renderRosterGroupRow :: Id RosterGroup -> RosterGroup -> Html
-renderRosterGroupRow currentRosterGroupId rosterGroup = [hsx|
+renderRosterGroupRows :: [RosterGroup] -> Bool -> Html
+renderRosterGroupRows rosterGroups showInactive
+    | null visibleRows = renderEmptyState "No roster groups yet."
+    | otherwise = [hsx|
+        <div class="d-flex flex-column gap-2">
+            {forEach (zip [0 :: Int ..] visibleRows) (renderRosterGroupRow activeCount)}
+        </div>
+    |]
+    where
+        activeRows = filter (.isActive) rosterGroups
+        inactiveRows = filter (not . (.isActive)) rosterGroups
+        activeCount = length activeRows
+        visibleRows = activeRows <> if showInactive then inactiveRows else []
+
+renderRosterGroupRow :: Int -> (Int, RosterGroup) -> Html
+renderRosterGroupRow activeCount (rosterGroupIndex, rosterGroup) = [hsx|
     <form method="POST" action={appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
         <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
             <div class="d-flex align-items-center gap-2">
                 <span class="fw-semibold">Roster Group</span>
                 {renderActiveBadge rosterGroup.isActive}
                 {renderRosterGroupDefaultBadge rosterGroup}
-                {renderRosterGroupSelectedBadge currentRosterGroupId rosterGroup}
             </div>
-            {renderRosterGroupDefaultControl rosterGroup}
+            <div class="btn-group btn-group-sm" role="group" aria-label="Reorder roster group">
+                {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (MoveRosterGroupUpAction rosterGroup.id) "Up"}
+                {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (MoveRosterGroupDownAction rosterGroup.id) "Down"}
+            </div>
         </div>
         <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-5">
+            <div class="col-12 col-md-8">
                 <label class="form-label">Name</label>
                 <input class="form-control" type="text" name="name" value={rosterGroup.name} />
-            </div>
-            <div class="col-12 col-md-3">
-                <label class="form-label">Sort Order</label>
-                <input class="form-control" type="number" name="sortOrder" value={tshow rosterGroup.sortOrder} />
             </div>
             <div class="col-12 col-md-2">
                 <label class="form-label">Status</label>
@@ -682,47 +584,6 @@ renderSlotMoveButton isDisabled action label =
             </form>
         |]
 
-renderSnapshotSummary :: Maybe PayConfigSnapshot -> Html
-renderSnapshotSummary maybeSnapshot =
-    case maybeSnapshot of
-        Nothing -> [hsx|
-            <div class="alert alert-warning mb-0">
-                No pay/config snapshots exist yet. The first one will be created automatically when payroll-relevant config is saved or when payroll flow first requires it.
-            </div>
-        |]
-        Just snapshot -> [hsx|
-            <div class="border rounded p-3">
-                <div class="fw-semibold">Active snapshot: {snapshot.versionLabel}</div>
-                <div class="small app-muted">Saved {formatTimestamp snapshot.createdAt}</div>
-                <div class="small app-muted">Approvals and exports use the snapshot version they were bound to at approval or generation time.</div>
-            </div>
-        |]
-
-renderConfigTableCard :: HasField "isActive" record Bool => Text -> Text -> [record] -> Html
-renderConfigTableCard title anchorId rows = [hsx|
-    <div class="col-12 col-md-6 col-xl-4">
-        <a href={"#" <> anchorId} class="text-decoration-none">
-            <div class="border rounded p-3 h-100">
-                <div class="fw-semibold text-body">{title}</div>
-                <div class="small app-muted">{tshow (length rows)} rows</div>
-                <div class="small app-muted">{tshow (countActiveRows rows)} active</div>
-            </div>
-        </a>
-    </div>
-|]
-
-renderCountTableCard :: Text -> Text -> [record] -> Html
-renderCountTableCard title anchorId rows = [hsx|
-    <div class="col-12 col-md-6 col-xl-4">
-        <a href={"#" <> anchorId} class="text-decoration-none">
-            <div class="border rounded p-3 h-100">
-                <div class="fw-semibold text-body">{title}</div>
-                <div class="small app-muted">{tshow (length rows)} rows</div>
-            </div>
-        </a>
-    </div>
-|]
-
 renderRowCountSummary :: HasField "isActive" record Bool => [record] -> Html
 renderRowCountSummary rows = [hsx|
     <p class="small app-muted mb-3">
@@ -730,65 +591,36 @@ renderRowCountSummary rows = [hsx|
     </p>
 |]
 
-renderSnapshotTable :: [PayConfigSnapshot] -> Html
-renderSnapshotTable snapshots
-    | null snapshots = [hsx|<p class="app-muted mb-0">No saved versions yet.</p>|]
-    | otherwise = [hsx|
-        <div class="table-responsive">
-            <table class="table table-striped align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Version</th>
-                        <th>Saved At</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {forEach snapshots renderSnapshotRow}
-                </tbody>
-            </table>
-        </div>
-    |]
-
-renderSnapshotRow :: PayConfigSnapshot -> Html
-renderSnapshotRow snapshot = [hsx|
-    <tr>
-        <td>{snapshot.versionLabel}</td>
-        <td>{formatTimestamp snapshot.createdAt}</td>
-    </tr>
+renderInactiveToggleSummary :: HasField "isActive" record Bool => Text -> [record] -> Bool -> Html
+renderInactiveToggleSummary paramName rows showInactive = [hsx|
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <p class="small app-muted mb-0">
+            {tshow (length rows)} rows total, {tshow activeCount} active, {tshow inactiveCount} inactive.
+        </p>
+        <a class="btn btn-sm btn-outline-secondary" href={toggleHref}>
+            {if showInactive then ("Hide inactive" :: Text) else "Show inactive"}
+        </a>
+    </div>
 |]
-
-renderRosterGroupSelector :: Id RosterGroup -> RosterGroup -> Html
-renderRosterGroupSelector selectedRosterGroupId rosterGroup = [hsx|
-    <a
-        href={appendQueryParams (pathTo AdminAction) [("rosterGroupId", tshow rosterGroup.id)]}
-        class={rosterGroupSelectorClass selectedRosterGroupId rosterGroup}
-    >
-        {rosterGroup.name}
-    </a>
-|]
+    where
+        activeCount = countActiveRows rows
+        inactiveCount = length rows - activeCount
+        toggleHref = appendQueryParams (pathTo AdminAction) [(paramName, if showInactive then "false" else "true")]
 
 renderRosterGroupDefaultBadge :: RosterGroup -> Html
 renderRosterGroupDefaultBadge rosterGroup
     | rosterGroup.isDefault = [hsx|<span class="badge text-bg-primary">Default</span>|]
     | otherwise = mempty
 
-renderRosterGroupSelectedBadge :: Id RosterGroup -> RosterGroup -> Html
-renderRosterGroupSelectedBadge selectedRosterGroupId rosterGroup
-    | rosterGroup.id == selectedRosterGroupId = [hsx|<span class="badge text-bg-light">Selected</span>|]
-    | otherwise = mempty
-
-renderRosterGroupDefaultControl :: RosterGroup -> Html
-renderRosterGroupDefaultControl rosterGroup
-    | rosterGroup.isDefault = [hsx|<span class="small app-muted">Used for default roster navigation.</span>|]
-    | otherwise = [hsx|
-        <button class="btn btn-sm btn-outline-primary" type="submit" formaction={appendQueryParams (pathTo (MakeDefaultRosterGroupAction rosterGroup.id)) [("rosterGroupId", tshow rosterGroup.id)]}>Make Default</button>
-    |]
-
-rosterGroupSelectorClass :: Id RosterGroup -> RosterGroup -> Text
-rosterGroupSelectorClass selectedRosterGroupId rosterGroup =
-    if rosterGroup.id == selectedRosterGroupId
-        then "btn btn-sm btn-primary"
-        else "btn btn-sm btn-outline-secondary"
+renderMoveButton :: Bool -> AdminController -> Text -> Html
+renderMoveButton isDisabled action label =
+    if isDisabled
+        then [hsx|
+            <button class="btn btn-outline-secondary" type="button" disabled={True}>{label}</button>
+        |]
+        else [hsx|
+            <button class="btn btn-outline-secondary" type="submit" formaction={action}>{label}</button>
+        |]
 
 renderShiftTypeRuleOption :: ShiftType -> Html
 renderShiftTypeRuleOption shiftType = [hsx|
@@ -807,7 +639,7 @@ renderDayNameOption dayName = [hsx|
 
 renderRosterWeekStartOption :: Int -> Int -> Html
 renderRosterWeekStartOption selectedWeekdayIndex weekdayIndex = [hsx|
-    <option value={tshow weekdayIndex} selected={weekdayIndex == selectedWeekdayIndex}>{weekdayIndexLabel weekdayIndex}</option>
+    <option value={tshow weekdayIndex} selected={weekdayIndex == selectedWeekdayIndex}>{renderWeekdayName weekdayIndex}</option>
 |]
 
 renderSelectedDayNameOption :: UUID -> DayName -> Html

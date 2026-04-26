@@ -53,6 +53,18 @@ createVenueRosterGroupWithDefaults venue name sortOrder isActive = do
         pure ()
     pure rosterGroup
 
+syncVenueDefaultRosterGroupToTopActive :: (?modelContext :: ModelContext) => Id Venue -> IO ()
+syncVenueDefaultRosterGroupToTopActive venueId = do
+    rosterGroups <-
+        query @RosterGroup
+            |> filterWhere (#venueId, unpackId venueId)
+            |> orderByAsc #sortOrder
+            |> orderByAsc #createdAt
+            |> fetch
+    forM_ (find (.isActive) rosterGroups) \topActiveGroup -> do
+        _ <- setVenueDefaultRosterGroup venueId topActiveGroup.id
+        pure ()
+
 fetchCurrentVenueDefaultRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO RosterGroup
 fetchCurrentVenueDefaultRosterGroup = do
     venue <- fetch currentVenueId
@@ -231,15 +243,6 @@ ensureVenueDayNames venue = do
 
 ensureVenueDefaultRosterGroup :: (?modelContext :: ModelContext) => Venue -> IO RosterGroup
 ensureVenueDefaultRosterGroup venue = do
-    defaultGroupOrNothing <-
-        query @RosterGroup
-            |> filterWhere (#venueId, unpackId venue.id)
-            |> filterWhere (#isActive, True)
-            |> filterWhere (#isDefault, True)
-            |> orderByAsc #sortOrder
-            |> orderByAsc #createdAt
-            |> fetchOneOrNothing
-
     activeGroupOrNothing <-
         query @RosterGroup
             |> filterWhere (#venueId, unpackId venue.id)
@@ -248,13 +251,10 @@ ensureVenueDefaultRosterGroup venue = do
             |> orderByAsc #createdAt
             |> fetchOneOrNothing
 
-    case defaultGroupOrNothing <|> activeGroupOrNothing of
-        Just rosterGroup
-            | rosterGroup.isDefault -> pure rosterGroup
-            | otherwise ->
-                rosterGroup
-                    |> set #isDefault True
-                    |> updateRecord
+    case activeGroupOrNothing of
+        Just rosterGroup -> do
+            syncVenueDefaultRosterGroupToTopActive venue.id
+            fetch rosterGroup.id
         Nothing ->
             newRecord @RosterGroup
                 |> set #venueId (unpackId venue.id)

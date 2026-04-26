@@ -86,9 +86,12 @@ data AdminController
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | CreateRosterGroupAction
     | UpdateRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
-    | MakeDefaultRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
+    | MoveRosterGroupUpAction { rosterGroupId :: !(Id RosterGroup) }
+    | MoveRosterGroupDownAction { rosterGroupId :: !(Id RosterGroup) }
     | CreateShiftTypeAction
     | UpdateShiftTypeAction { shiftTypeId :: !(Id ShiftType) }
+    | MoveShiftTypeUpAction { shiftTypeId :: !(Id ShiftType) }
+    | MoveShiftTypeDownAction { shiftTypeId :: !(Id ShiftType) }
     | CreateSlotNameAction
     | UpdateSlotNameAction { slotNameId :: !(Id SlotName) }
     | MoveSlotNameUpAction { slotNameId :: !(Id SlotName) }

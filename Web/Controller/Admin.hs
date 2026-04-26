@@ -23,23 +23,22 @@ instance Controller AdminController where
         ensureAdminRole
 
     action AdminAction = do
-        venueConfig <- fetchVenueConfig
-        recentSnapshots <- fetchCurrentVenuePayConfigSnapshots
+        syncVenueDefaultRosterGroupToTopActive currentVenueId
         rosterGroups <- fetchCurrentVenueRosterGroups
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         shiftTypes <- fetchCurrentVenueShiftTypes
         awardLevels <- fetchActiveAwardLevels
         awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
         slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
-        weekdays <- fetchCurrentVenueDayNames
         activeReportDefinitions <- fetchCurrentVenueReportDefinitions
         currentWeekOffset <- currentReportWeekOffset
         reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
         let staffPayReportDefinition = findReportDefinitionByEngine StaffPayCsvReport activeReportDefinitions
         let hourlyBreakdownReportDefinition = findReportDefinitionByEngine HourlyBreakdownZipReport activeReportDefinitions
-        let latestSnapshot = listToMaybe recentSnapshots
+        let payrollEarningsReportDefinition = findReportDefinitionByEngine PayrollEarningsCsvReport activeReportDefinitions
+        let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
+        let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
         invitations <- fetchCurrentVenueInvitations
-        venueRosterWeekStartLocked <- isVenueRosterWeekStartLocked
         let slotNamesLiveUpdateScope = Just (adminSlotNamesScope currentRosterGroup.id)
         let invitesLiveUpdateScope = Just (adminInvitesScope currentVenueId)
         render IndexView { .. }
@@ -125,8 +124,9 @@ instance Controller AdminController where
             Nothing -> redirectToAdminFor Nothing
             Just name -> do
                 let isActive = parseIsActiveParam
-                let sortOrder = parseSortOrderParam
+                sortOrder <- nextRosterGroupSortOrder
                 rosterGroup <- createVenueRosterGroupWithDefaults venue name sortOrder isActive
+                syncVenueDefaultRosterGroupToTopActive currentVenueId
                 setSuccessMessage "Roster group added"
                 redirectToAdminFor (Just rosterGroup.id)
 
@@ -139,7 +139,6 @@ instance Controller AdminController where
             Nothing -> redirectToAdminFor (Just rosterGroup.id)
             Just name -> do
                 let isActive = parseIsActiveParam
-                let sortOrder = parseSortOrderParam
                 rosterGroups <- fetchCurrentVenueRosterGroups
                 let otherActiveGroups = filter (\group -> group.id /= rosterGroup.id && group.isActive) rosterGroups
                 if not isActive && null otherActiveGroups
@@ -147,6 +146,10 @@ instance Controller AdminController where
                         setErrorMessage "Each venue needs at least one active roster group."
                         redirectToAdminFor (Just rosterGroup.id)
                     else do
+                        sortOrder <-
+                            if not rosterGroup.isActive && isActive
+                                then nextRosterGroupSortOrder
+                                else pure rosterGroup.sortOrder
                         updatedRosterGroup <-
                             rosterGroup
                                 |> set #name name
@@ -156,26 +159,27 @@ instance Controller AdminController where
                         when isActive do
                             _ <- ensureDefaultRosterSlots venue updatedRosterGroup
                             pure ()
-                        when (rosterGroup.isDefault && not isActive) do
-                            case listToMaybe otherActiveGroups of
-                                Nothing -> pure ()
-                                Just fallbackGroup -> do
-                                    _ <- setVenueDefaultRosterGroup currentVenueId fallbackGroup.id
-                                    pure ()
+                        syncVenueDefaultRosterGroupToTopActive currentVenueId
                         setSuccessMessage "Roster group updated"
                         redirectToAdminFor (Just updatedRosterGroup.id)
 
-    action MakeDefaultRosterGroupAction { rosterGroupId } = do
+    action MoveRosterGroupUpAction { rosterGroupId } = do
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        if not rosterGroup.isActive
-            then do
-                setErrorMessage "Only active roster groups can be the default."
-                redirectToAdminFor (Just rosterGroup.id)
-            else do
-                _ <- setVenueDefaultRosterGroup currentVenueId rosterGroup.id
-                setSuccessMessage "Default roster group updated"
-                redirectToAdminFor (Just rosterGroup.id)
+        withTransaction do
+            reorderActiveRosterGroups rosterGroup.id (-1)
+            syncVenueDefaultRosterGroupToTopActive currentVenueId
+        setSuccessMessage "Roster group order updated"
+        redirectToAdminFor (Just rosterGroup.id)
+
+    action MoveRosterGroupDownAction { rosterGroupId } = do
+        rosterGroup <- fetch rosterGroupId
+        ensureRecordInCurrentVenue rosterGroup.venueId
+        withTransaction do
+            reorderActiveRosterGroups rosterGroup.id 1
+            syncVenueDefaultRosterGroupToTopActive currentVenueId
+        setSuccessMessage "Roster group order updated"
+        redirectToAdminFor (Just rosterGroup.id)
 
     action CreateShiftTypeAction = do
         maybeName <- parseRequiredName "name" "Shift type name is required."
@@ -183,7 +187,7 @@ instance Controller AdminController where
             Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just name -> do
                 let isActive = parseIsActiveParam
-                let sortOrder = parseSortOrderParam
+                sortOrder <- nextShiftTypeSortOrder
                 maybeOverrideAwardLevelId <- parseSubmittedOverrideAwardLevelId
                 case maybeOverrideAwardLevelId of
                     Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
@@ -210,11 +214,14 @@ instance Controller AdminController where
             Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
             Just name -> do
                 let isActive = parseIsActiveParam
-                let sortOrder = parseSortOrderParam
                 maybeOverrideAwardLevelId <- parseSubmittedOverrideAwardLevelId
                 case maybeOverrideAwardLevelId of
                     Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
                     Just overrideAwardLevelId -> do
+                        sortOrder <-
+                            if not shiftType.isActive && isActive
+                                then nextShiftTypeSortOrder
+                                else pure shiftType.sortOrder
                         _ <- withTransaction do
                             updatedShiftType <-
                                 shiftType
@@ -227,6 +234,26 @@ instance Controller AdminController where
                             pure updatedShiftType
                         setSuccessMessage "Shift type updated"
                         redirectToAdminFor (paramOrNothing "rosterGroupId")
+
+    action MoveShiftTypeUpAction { shiftTypeId } = do
+        shiftType <- fetch shiftTypeId
+        ensureRecordInCurrentVenue shiftType.venueId
+        withTransaction do
+            reorderActiveShiftTypes shiftType.id (-1)
+            _ <- syncCurrentVenuePayConfigSnapshot
+            pure ()
+        setSuccessMessage "Shift type order updated"
+        redirectToAdminFor (paramOrNothing "rosterGroupId")
+
+    action MoveShiftTypeDownAction { shiftTypeId } = do
+        shiftType <- fetch shiftTypeId
+        ensureRecordInCurrentVenue shiftType.venueId
+        withTransaction do
+            reorderActiveShiftTypes shiftType.id 1
+            _ <- syncCurrentVenuePayConfigSnapshot
+            pure ()
+        setSuccessMessage "Shift type order updated"
+        redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action CreateSlotNameAction = do
         maybeName <- parseRequiredName "name" "Slot name is required."
@@ -315,6 +342,22 @@ nextSlotNameSortOrder :: (?modelContext :: ModelContext) => Id RosterGroup -> IO
 nextSlotNameSortOrder rosterGroupId =
     query @SlotName
         |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+        |> orderByDesc #sortOrder
+        |> fetchOneOrNothing
+        >>= pure . maybe 0 ((+ 1) . get #sortOrder)
+
+nextRosterGroupSortOrder :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
+nextRosterGroupSortOrder =
+    query @RosterGroup
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> orderByDesc #sortOrder
+        |> fetchOneOrNothing
+        >>= pure . maybe 0 ((+ 1) . get #sortOrder)
+
+nextShiftTypeSortOrder :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
+nextShiftTypeSortOrder =
+    query @ShiftType
+        |> filterWhere (#venueId, unpackId currentVenueId)
         |> orderByDesc #sortOrder
         |> fetchOneOrNothing
         >>= pure . maybe 0 ((+ 1) . get #sortOrder)
@@ -443,6 +486,44 @@ reorderActiveSlotNames rosterGroupId slotNameId direction = do
                                 |> updateRecord
                             pure ()
 
+reorderActiveRosterGroups :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO ()
+reorderActiveRosterGroups rosterGroupId direction = do
+    activeRosterGroups <- filter (.isActive) <$> fetchCurrentVenueRosterGroups
+    let currentIndex = List.findIndex (\rosterGroup -> rosterGroup.id == rosterGroupId) activeRosterGroups
+    case currentIndex of
+        Nothing -> pure ()
+        Just index -> do
+            let targetIndex = index + direction
+            if targetIndex < 0 || targetIndex >= length activeRosterGroups
+                then pure ()
+                else do
+                    let reordered = moveListItem index targetIndex activeRosterGroups
+                    forM_ (zip [0 :: Int ..] reordered) \(sortOrder, rosterGroup) ->
+                        when (rosterGroup.sortOrder /= sortOrder) do
+                            _ <- rosterGroup
+                                |> set #sortOrder sortOrder
+                                |> updateRecord
+                            pure ()
+
+reorderActiveShiftTypes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id ShiftType -> Int -> IO ()
+reorderActiveShiftTypes shiftTypeId direction = do
+    activeShiftTypes <- filter (.isActive) <$> fetchCurrentVenueShiftTypes
+    let currentIndex = List.findIndex (\shiftType -> shiftType.id == shiftTypeId) activeShiftTypes
+    case currentIndex of
+        Nothing -> pure ()
+        Just index -> do
+            let targetIndex = index + direction
+            if targetIndex < 0 || targetIndex >= length activeShiftTypes
+                then pure ()
+                else do
+                    let reordered = moveListItem index targetIndex activeShiftTypes
+                    forM_ (zip [0 :: Int ..] reordered) \(sortOrder, shiftType) ->
+                        when (shiftType.sortOrder /= sortOrder) do
+                            _ <- shiftType
+                                |> set #sortOrder sortOrder
+                                |> updateRecord
+                            pure ()
+
 moveListItem :: Int -> Int -> [a] -> [a]
 moveListItem sourceIndex targetIndex items
     | sourceIndex == targetIndex = items
@@ -522,8 +603,8 @@ parseRequiredEmail paramName emptyMessage =
 parseIsActiveParam :: (?context :: ControllerContext, ?request :: Request) => Bool
 parseIsActiveParam = paramOrDefault "true" "isActive" == ("true" :: Text)
 
-parseSortOrderParam :: (?context :: ControllerContext, ?request :: Request) => Int
-parseSortOrderParam = paramOrDefault @Int 0 "sortOrder"
+parseShowInactiveParam :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Bool
+parseShowInactiveParam paramName = paramOrDefault "false" paramName == ("true" :: Text)
 
 parseSubmittedOverrideAwardLevelId ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
