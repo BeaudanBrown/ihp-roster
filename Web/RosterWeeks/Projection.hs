@@ -37,13 +37,10 @@ buildRosterWeekScope rosterGroupId weekOffset =
 
 buildRosterContentFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
 buildRosterContentFragmentRef rosterGroupId weekOffset =
-    LiveFragmentRef
-        { fragmentKey = RosterContentFragment
-        , targetId = rosterContentFragmentId
-        , url = appendQueryParams (pathTo ShowRosterWeekContentFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
+    mkLiveFragmentRef
+        RosterContentFragment
+        rosterContentFragmentId
+        (appendQueryParams (pathTo ShowRosterWeekContentFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
 
 buildDeferredRosterContentFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
 buildDeferredRosterContentFragmentRef rosterGroupId weekOffset =
@@ -54,13 +51,10 @@ buildDeferredRosterContentFragmentRef rosterGroupId weekOffset =
 
 buildRosterStaffPanelFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
 buildRosterStaffPanelFragmentRef rosterGroupId weekOffset =
-    LiveFragmentRef
-        { fragmentKey = RosterStaffPanelFragment
-        , targetId = rosterStaffPanelFragmentId
-        , url = appendQueryParams (pathTo ShowRosterWeekStaffPanelFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
+    mkLiveFragmentRef
+        RosterStaffPanelFragment
+        rosterStaffPanelFragmentId
+        (appendQueryParams (pathTo ShowRosterWeekStaffPanelFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
 
 buildRosterDaySectionFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> UUID.UUID -> LiveFragmentRef
 buildRosterDaySectionFragmentRef rosterGroupId weekOffset rosterDayId =

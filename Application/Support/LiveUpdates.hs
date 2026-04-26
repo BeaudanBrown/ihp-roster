@@ -14,23 +14,17 @@ supportLiveUpdateScope = SupportPlatformScope
 
 supportAwardRatesSectionFragmentRef :: LiveFragmentRef
 supportAwardRatesSectionFragmentRef =
-    LiveFragmentRef
-        { fragmentKey = SupportAwardRatesSectionFragment
-        , targetId = "support-award-rates-section"
-        , url = "/ShowFwcMapdAwardRatesSection"
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
+    mkLiveFragmentRef
+        SupportAwardRatesSectionFragment
+        "support-award-rates-section"
+        "/ShowFwcMapdAwardRatesSection"
 
 supportPublicHolidaysSectionFragmentRef :: LiveFragmentRef
 supportPublicHolidaysSectionFragmentRef =
-    LiveFragmentRef
-        { fragmentKey = SupportPublicHolidaysSectionFragment
-        , targetId = "support-public-holidays-section"
-        , url = "/ShowPublicHolidaysSection"
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
+    mkLiveFragmentRef
+        SupportPublicHolidaysSectionFragment
+        "support-public-holidays-section"
+        "/ShowPublicHolidaysSection"
 
 supportLiveSurface :: LiveSurfaceConfig
 supportLiveSurface =

@@ -8,7 +8,8 @@ import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
-                                      LiveUpdateScope (..))
+                                      LiveUpdateScope (..),
+                                      mkLiveFragmentRef)
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
@@ -202,13 +203,10 @@ adminInvitesLiveSurface rosterGroupId scope =
     (mkLiveSurface
         "admin-invites"
         scope
-        [ LiveFragmentRef
-            { fragmentKey = AdminInvitesFragment
-            , targetId = "admin-invites-fragment"
-            , url = appendQueryParams (pathTo ShowAdminInvitesFragmentAction) [("rosterGroupId", tshow rosterGroupId)]
-            , deferUntilBlur = False
-            , protectionPolicy = NoProtection
-            }
+        [ mkLiveFragmentRef
+            AdminInvitesFragment
+            "admin-invites-fragment"
+            (appendQueryParams (pathTo ShowAdminInvitesFragmentAction) [("rosterGroupId", tshow rosterGroupId)])
         ])
         { decorateRequestsWithin = ["#admin-invites-fragment"] }
 
@@ -219,13 +217,10 @@ adminShiftTypesLiveSurface =
         (mkLiveSurface
             "admin-shift-types"
             AdminShiftTypesScope { venueId = unpackId venue.id }
-            [ LiveFragmentRef
-                { fragmentKey = AdminShiftTypesFragment
-                , targetId = "admin-shift-types-fragment"
-                , url = pathTo ShowAdminShiftTypesFragmentAction
-                , deferUntilBlur = False
-                , protectionPolicy = NoProtection
-                }
+            [ mkLiveFragmentRef
+                AdminShiftTypesFragment
+                "admin-shift-types-fragment"
+                (pathTo ShowAdminShiftTypesFragmentAction)
             ])
             { decorateRequestsWithin = ["#admin-shift-types-fragment"] }
         )
@@ -238,13 +233,10 @@ adminRosterGroupsLiveSurface =
         (mkLiveSurface
             "admin-roster-groups"
             AdminRosterGroupsScope { venueId = unpackId venue.id }
-            [ LiveFragmentRef
-                { fragmentKey = AdminRosterGroupsFragment
-                , targetId = "admin-roster-groups-fragment"
-                , url = pathTo ShowAdminRosterGroupsFragmentAction
-                , deferUntilBlur = False
-                , protectionPolicy = NoProtection
-                }
+            [ mkLiveFragmentRef
+                AdminRosterGroupsFragment
+                "admin-roster-groups-fragment"
+                (pathTo ShowAdminRosterGroupsFragmentAction)
             ])
             { decorateRequestsWithin = ["#admin-roster-groups-fragment"] }
         )
@@ -255,13 +247,10 @@ adminSlotNamesLiveSurface rosterGroup scope =
     (mkLiveSurface
         "admin-slot-names"
         scope
-        [ LiveFragmentRef
-            { fragmentKey = AdminSlotNamesFragment { rosterGroupId = unpackId rosterGroup.id }
-            , targetId = slotNameFragmentId rosterGroup.id
-            , url = appendQueryParams (pathTo ShowAdminSlotNamesFragmentAction) [("rosterGroupId", tshow rosterGroup.id)]
-            , deferUntilBlur = False
-            , protectionPolicy = NoProtection
-            }
+        [ mkLiveFragmentRef
+            (AdminSlotNamesFragment { rosterGroupId = unpackId rosterGroup.id })
+            (slotNameFragmentId rosterGroup.id)
+            (appendQueryParams (pathTo ShowAdminSlotNamesFragmentAction) [("rosterGroupId", tshow rosterGroup.id)])
         ])
         { decorateRequestsWithin = ["#" <> slotNameFragmentId rosterGroup.id] }
 

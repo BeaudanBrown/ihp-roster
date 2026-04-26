@@ -12,6 +12,7 @@ module Application.Helper.LiveUpdate
     , broadcastLiveInvalidationWithoutContext
     , currentLiveUpdateVersion
     , liveUpdateScopeKey
+    , mkLiveFragmentRef
     , registerLiveSubscription
     , unregisterLiveSubscription
     ) where
@@ -110,6 +111,16 @@ data LiveFragmentRef = LiveFragmentRef
     , protectionPolicy :: !LiveFragmentProtection
     }
     deriving (Eq, Show)
+
+mkLiveFragmentRef :: LiveFragmentKey -> Text -> Text -> LiveFragmentRef
+mkLiveFragmentRef fragmentKey targetId url =
+    LiveFragmentRef
+        { fragmentKey
+        , targetId
+        , url
+        , deferUntilBlur = False
+        , protectionPolicy = NoProtection
+        }
 
 data LiveUpdateCommand
     = SubscribeLiveUpdates

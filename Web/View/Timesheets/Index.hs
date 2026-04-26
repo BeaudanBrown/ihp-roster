@@ -6,7 +6,8 @@ import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
-                                      LiveUpdateScope (..))
+                                      LiveUpdateScope (..),
+                                      mkLiveFragmentRef)
 import Data.Fixed (Pico)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)
@@ -79,18 +80,15 @@ timesheetWeekLiveSurface weekOffset showApproved showAllStaff scope =
 
 timesheetDayFragmentRef :: (?context :: ControllerContext) => Int -> Bool -> Bool -> Int -> LiveFragmentRef
 timesheetDayFragmentRef weekOffset showApproved showAllStaff dayOffset =
-    LiveFragmentRef
-        { fragmentKey = TimesheetDaySectionFragment { dayOffset }
-        , targetId = timesheetDaySectionDomId dayOffset
-        , url =
-            appendQueryParams
-                (pathTo ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset })
-                [ ("showApproved", boolText showApproved)
-                , ("showAllStaff", boolText showAllStaff)
-                ]
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
+    mkLiveFragmentRef
+        (TimesheetDaySectionFragment { dayOffset })
+        (timesheetDaySectionDomId dayOffset)
+        ( appendQueryParams
+            (pathTo ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset })
+            [ ("showApproved", boolText showApproved)
+            , ("showAllStaff", boolText showAllStaff)
+            ]
+        )
 
 renderTimesheetWeekNavigationLink :: Text -> Text -> Html
 renderTimesheetWeekNavigationLink label url =

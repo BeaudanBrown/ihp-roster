@@ -5,7 +5,8 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentRef (..),
                                       LiveUpdateScope (..),
                                       broadcastLiveInvalidation,
-                                      currentLiveUpdateVersion)
+                                      currentLiveUpdateVersion,
+                                      mkLiveFragmentRef)
 import Application.Helper.Pay (ensureCurrentVenuePayConfigSnapshot)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
@@ -765,28 +766,22 @@ buildTimesheetWeekScope venueId weekOffset =
 
 buildTimesheetDaySectionFragmentRef :: (?context :: ControllerContext) => TimesheetProjectionRequest -> Int -> LiveFragmentRef
 buildTimesheetDaySectionFragmentRef requestKey dayOffset =
-    LiveFragmentRef
-        { fragmentKey = TimesheetDaySectionFragment { dayOffset }
-        , targetId = timesheetDaySectionDomId dayOffset
-        , url =
-            appendQueryParams
-                (pathTo ShowTimesheetDaySectionFragmentAction { weekOffset = requestKey.projectionWeekOffset, dayOffset })
-                [ ("showApproved", if requestKey.projectionShowApproved then "true" else "false")
-                , ("showAllStaff", if requestKey.projectionShowAllStaff then "true" else "false")
-                ]
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
+    mkLiveFragmentRef
+        (TimesheetDaySectionFragment { dayOffset })
+        (timesheetDaySectionDomId dayOffset)
+        ( appendQueryParams
+            (pathTo ShowTimesheetDaySectionFragmentAction { weekOffset = requestKey.projectionWeekOffset, dayOffset })
+            [ ("showApproved", if requestKey.projectionShowApproved then "true" else "false")
+            , ("showAllStaff", if requestKey.projectionShowAllStaff then "true" else "false")
+            ]
+        )
 
 buildTimesheetWeekPageFragmentRef :: (?context :: ControllerContext) => TimesheetProjectionRequest -> LiveFragmentRef
 buildTimesheetWeekPageFragmentRef requestKey =
-    LiveFragmentRef
-        { fragmentKey = TimesheetDaySectionFragment { dayOffset = 0 }
-        , targetId = timesheetWeekShellId
-        , url = timesheetWeekUrl requestKey.projectionWeekOffset requestKey.projectionShowApproved requestKey.projectionShowAllStaff
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
+    mkLiveFragmentRef
+        (TimesheetDaySectionFragment { dayOffset = 0 })
+        timesheetWeekShellId
+        (timesheetWeekUrl requestKey.projectionWeekOffset requestKey.projectionShowApproved requestKey.projectionShowAllStaff)
 
 broadcastTimesheetDayInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> IO ()
 broadcastTimesheetDayInvalidation weekOffset workedOn = do

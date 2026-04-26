@@ -8,7 +8,8 @@ import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
-                                      LiveUpdateScope (..))
+                                      LiveUpdateScope (..),
+                                      mkLiveFragmentRef)
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
@@ -66,13 +67,10 @@ leaveRequestsLiveSurface scope =
     (mkLiveSurface
         "leave-requests"
         scope
-        [ LiveFragmentRef
-            { fragmentKey = LeaveRequestsContentFragment
-            , targetId = leaveRequestsContentFragmentId
-            , url = pathTo ShowLeaveRequestsContentFragmentAction
-            , deferUntilBlur = False
-            , protectionPolicy = NoProtection
-            }
+        [ mkLiveFragmentRef
+            LeaveRequestsContentFragment
+            leaveRequestsContentFragmentId
+            (pathTo ShowLeaveRequestsContentFragmentAction)
         ])
         { decorateRequestsWithin = ["#" <> leaveRequestsShellId] }
 

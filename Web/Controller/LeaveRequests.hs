@@ -6,7 +6,8 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..),
                                       activeRosterWeekScopes,
                                       broadcastLiveInvalidation,
-                                      currentLiveUpdateVersion)
+                                      currentLiveUpdateVersion,
+                                      mkLiveFragmentRef)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling
@@ -508,13 +509,10 @@ buildLeaveRequestsScope venueId =
 
 buildLeaveRequestsContentFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
 buildLeaveRequestsContentFragmentRef =
-    LiveFragmentRef
-        { fragmentKey = LeaveRequestsContentFragment
-        , targetId = leaveRequestsContentFragmentId
-        , url = pathTo ShowLeaveRequestsContentFragmentAction
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
+    mkLiveFragmentRef
+        LeaveRequestsContentFragment
+        leaveRequestsContentFragmentId
+        (pathTo ShowLeaveRequestsContentFragmentAction)
 
 leaveRequestsContentFragmentRefs :: (?context :: ControllerContext) => [LiveFragmentRef]
 leaveRequestsContentFragmentRefs =
@@ -524,13 +522,10 @@ leaveRequestsContentFragmentRefs =
 
 buildLeaveRequestsPageFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
 buildLeaveRequestsPageFragmentRef =
-    LiveFragmentRef
-        { fragmentKey = LeaveRequestsContentFragment
-        , targetId = leaveRequestsShellId
-        , url = pathTo LeaveRequestsAction
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
+    mkLiveFragmentRef
+        LeaveRequestsContentFragment
+        leaveRequestsShellId
+        (pathTo LeaveRequestsAction)
 
 broadcastLeaveRequestsInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>

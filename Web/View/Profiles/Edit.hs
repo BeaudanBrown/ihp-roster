@@ -7,7 +7,8 @@ import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
-                                      LiveUpdateScope (..))
+                                      LiveUpdateScope (..),
+                                      mkLiveFragmentRef)
 import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
 import Data.Ord (Down (..))
@@ -170,13 +171,10 @@ profileLeaveRequestsLiveSurface =
 
 profileLeaveRequestsContentFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
 profileLeaveRequestsContentFragmentRef =
-    LiveFragmentRef
-        { fragmentKey = ProfileLeaveRequestsContentFragment
-        , targetId = profileLeaveRequestsContentFragmentId
-        , url = pathTo ShowProfileLeaveRequestsContentFragmentAction
-        , deferUntilBlur = False
-        , protectionPolicy = NoProtection
-        }
+    mkLiveFragmentRef
+        ProfileLeaveRequestsContentFragment
+        profileLeaveRequestsContentFragmentId
+        (pathTo ShowProfileLeaveRequestsContentFragmentAction)
 
 renderProfileLeaveRequestFormFragment :: LeaveRequest -> Html
 renderProfileLeaveRequestFormFragment leaveRequest = [hsx|
