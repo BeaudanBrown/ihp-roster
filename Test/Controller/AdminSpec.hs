@@ -1,6 +1,8 @@
 module Test.Controller.AdminSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.LiveUpdate (LiveUpdateScope (..),
+                                      currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
@@ -198,6 +200,8 @@ tests = beforeAll testContext do
                         [("showInactiveShiftTypes", "false")]
                 hiddenShiftTypesResponse `responseStatusShouldBe` status200
                 hiddenShiftTypesResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
+                hiddenShiftTypesResponse `responseBodyShouldContain` "data-live-update-surface=\""
+                hiddenShiftTypesResponse `responseBodyShouldContain` "admin_shift_types"
                 hiddenShiftTypesResponse `responseBodyShouldContain` "hx-get=\"/ShowAdminShiftTypesFragment?showInactiveShiftTypes=true\""
                 hiddenShiftTypesResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
                 hiddenShiftTypesResponse `responseBodyShouldContain` "Active Shift"
@@ -218,6 +222,8 @@ tests = beforeAll testContext do
                         [("showInactiveRosterGroups", "false")]
                 hiddenRosterGroupsResponse `responseStatusShouldBe` status200
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\""
+                hiddenRosterGroupsResponse `responseBodyShouldContain` "data-live-update-surface=\""
+                hiddenRosterGroupsResponse `responseBodyShouldContain` "admin_roster_groups"
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "hx-get=\"/ShowAdminRosterGroupsFragment?showInactiveRosterGroups=true\""
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
                 hiddenRosterGroupsResponse `responseBodyShouldContain` "Active Group"
@@ -245,14 +251,17 @@ tests = beforeAll testContext do
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams AdminAction [("showInactiveRosterGroups", "true"), ("showInactiveShiftTypes", "true")]
                 pageResponse `responseBodyShouldContain` "hx-post=\"/CreateShiftType\""
+                pageResponse `responseBodyShouldContain` "admin_shift_types"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
                 pageResponse `responseBodyShouldContain` "name=\"showInactiveShiftTypes\" value=\"true\""
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateShiftType?shiftTypeId=" <> tshow shiftType.id <> "\"")
                 pageResponse `responseBodyShouldContain` "hx-post=\"/CreateRosterGroup\""
+                pageResponse `responseBodyShouldContain` "admin_roster_groups"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
                 pageResponse `responseBodyShouldContain` "name=\"showInactiveRosterGroups\" value=\"true\""
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateRosterGroup?rosterGroupId=" <> tshow rosterGroup.id)
 
+                shiftTypesVersionBefore <- currentLiveUpdateVersion AdminShiftTypesScope { venueId = unpackId venue.id }
                 createShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateShiftTypeAction
@@ -266,6 +275,8 @@ tests = beforeAll testContext do
                 createShiftResponse `responseBodyShouldContain` "Fragment Shift"
                 createShiftResponse `responseBodyShouldContain` "checked=\"checked\""
                 createShiftResponse `responseBodyShouldNotContain` "id=\"app\""
+                shiftTypesVersionAfter <- currentLiveUpdateVersion AdminShiftTypesScope { venueId = unpackId venue.id }
+                shiftTypesVersionAfter `shouldBe` (shiftTypesVersionBefore + 1)
 
                 updateShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -279,6 +290,7 @@ tests = beforeAll testContext do
                 updateShiftResponse `responseBodyShouldContain` "Updated Fragment Shift"
                 updateShiftResponse `responseBodyShouldContain` "inactive"
 
+                rosterGroupsVersionBefore <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
                 createRosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateRosterGroupAction
@@ -292,6 +304,8 @@ tests = beforeAll testContext do
                 createRosterGroupResponse `responseBodyShouldContain` "Archived Group"
                 createRosterGroupResponse `responseBodyShouldContain` "checked=\"checked\""
                 createRosterGroupResponse `responseBodyShouldNotContain` "id=\"app\""
+                rosterGroupsVersionAfter <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
+                rosterGroupsVersionAfter `shouldBe` (rosterGroupsVersionBefore + 1)
 
                 updateRosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do

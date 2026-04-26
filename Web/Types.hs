@@ -46,6 +46,7 @@ data UsersController
 
 data ProfilesController
     = EditProfileAction
+    | ShowProfileLeaveRequestsContentFragmentAction
     | UpdateProfileAction
     deriving (Eq, Show, Data)
 

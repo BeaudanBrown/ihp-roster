@@ -2,6 +2,7 @@ module Web.View.Admin.Index where
 
 import Application.Helper.Export (ReportWeekSelection (..),
                                   VenueReportDefinition (..))
+import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
                                        liveSurfaceConfigJson, mkLiveSurface)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
@@ -73,7 +74,8 @@ renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates 
 
 renderShiftTypesSectionFragment :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBaseRates = [hsx|
-    <div id="admin-shift-types-fragment">
+    <div id="admin-shift-types-fragment"
+         data-live-update-surface={liveSurfaceConfigJson <$> adminShiftTypesLiveSurface}>
         {renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates}
     </div>
 |]
@@ -92,7 +94,8 @@ renderRosterGroupsSection rosterGroups slotNames showInactive =
 
 renderRosterGroupsSectionFragment :: [RosterGroup] -> [SlotName] -> Bool -> Html
 renderRosterGroupsSectionFragment rosterGroups slotNames showInactive = [hsx|
-    <div id="admin-roster-groups-fragment">
+    <div id="admin-roster-groups-fragment"
+         data-live-update-surface={liveSurfaceConfigJson <$> adminRosterGroupsLiveSurface}>
         {renderRosterGroupsSection rosterGroups slotNames showInactive}
         {forEach (visibleRosterGroupsForAdmin rosterGroups showInactive) renderSlotNamesLiveUpdateOwner}
     </div>
@@ -208,6 +211,44 @@ adminInvitesLiveSurface rosterGroupId scope =
             }
         ])
         { decorateRequestsWithin = ["#admin-invites-fragment"] }
+
+adminShiftTypesLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
+adminShiftTypesLiveSurface =
+    fmap
+        (\venue ->
+        (mkLiveSurface
+            "admin-shift-types"
+            AdminShiftTypesScope { venueId = unpackId venue.id }
+            [ LiveFragmentRef
+                { fragmentKey = AdminShiftTypesFragment
+                , targetId = "admin-shift-types-fragment"
+                , url = pathTo ShowAdminShiftTypesFragmentAction
+                , deferUntilBlur = False
+                , protectionPolicy = NoProtection
+                }
+            ])
+            { decorateRequestsWithin = ["#admin-shift-types-fragment"] }
+        )
+        currentVenueOrNothing
+
+adminRosterGroupsLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
+adminRosterGroupsLiveSurface =
+    fmap
+        (\venue ->
+        (mkLiveSurface
+            "admin-roster-groups"
+            AdminRosterGroupsScope { venueId = unpackId venue.id }
+            [ LiveFragmentRef
+                { fragmentKey = AdminRosterGroupsFragment
+                , targetId = "admin-roster-groups-fragment"
+                , url = pathTo ShowAdminRosterGroupsFragmentAction
+                , deferUntilBlur = False
+                , protectionPolicy = NoProtection
+                }
+            ])
+            { decorateRequestsWithin = ["#admin-roster-groups-fragment"] }
+        )
+        currentVenueOrNothing
 
 adminSlotNamesLiveSurface :: (?context :: ControllerContext) => RosterGroup -> LiveUpdateScope -> LiveSurfaceConfig
 adminSlotNamesLiveSurface rosterGroup scope =

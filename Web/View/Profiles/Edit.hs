@@ -1,6 +1,13 @@
 module Web.View.Profiles.Edit where
 
-import Application.Helper.Controller (leaveRequestCanBeDeleted)
+import Application.Helper.Controller (currentVenueOrNothing,
+                                      leaveRequestCanBeDeleted)
+import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
+                                       liveSurfaceConfigJson, mkLiveSurface)
+import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
+                                      LiveFragmentRef (..),
+                                      LiveUpdateScope (..))
 import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
 import Data.Ord (Down (..))
@@ -136,7 +143,8 @@ renderProfileForm staff currentUserEmail preferenceWeekdays preferenceSections s
 
 renderProfileLeaveRequestsContentFragment :: LeaveRequest -> [LeaveRequest] -> Html
 renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests = [hsx|
-    <div id={profileLeaveRequestsContentFragmentId}>
+    <div id={profileLeaveRequestsContentFragmentId}
+         data-live-update-surface={liveSurfaceConfigJson <$> profileLeaveRequestsLiveSurface}>
         <div class="row g-4 align-items-start">
             <div class="col-12 col-xl-5">
                 {renderProfileLeaveRequestFormFragment leaveRequest}
@@ -147,6 +155,28 @@ renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests = [hsx|
         </div>
     </div>
 |]
+
+profileLeaveRequestsLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
+profileLeaveRequestsLiveSurface =
+    fmap
+        (\venue ->
+        (mkLiveSurface
+            "profile-leave-requests"
+            LeaveRequestsScope { venueId = unpackId venue.id }
+            [profileLeaveRequestsContentFragmentRef])
+            { decorateRequestsWithin = ["#" <> profileLeaveRequestsContentFragmentId] }
+        )
+        currentVenueOrNothing
+
+profileLeaveRequestsContentFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
+profileLeaveRequestsContentFragmentRef =
+    LiveFragmentRef
+        { fragmentKey = ProfileLeaveRequestsContentFragment
+        , targetId = profileLeaveRequestsContentFragmentId
+        , url = pathTo ShowProfileLeaveRequestsContentFragmentAction
+        , deferUntilBlur = False
+        , protectionPolicy = NoProtection
+        }
 
 renderProfileLeaveRequestFormFragment :: LeaveRequest -> Html
 renderProfileLeaveRequestFormFragment leaveRequest = [hsx|

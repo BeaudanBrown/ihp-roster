@@ -121,6 +121,10 @@ isAuthorizedScope AdminSlotNamesScope { venueId, rosterGroupId } = do
                     pure (hasRosterGroupAccess && hasRole VenueAdminRole)
 isAuthorizedScope AdminInvitesScope { venueId } =
     pure (maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing && hasRole VenueAdminRole)
+isAuthorizedScope AdminShiftTypesScope { venueId } =
+    pure (maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing && hasRole VenueAdminRole)
+isAuthorizedScope AdminRosterGroupsScope { venueId } =
+    pure (maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing && hasRole VenueAdminRole)
 isAuthorizedScope LeaveRequestsScope { venueId } =
     pure (maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing)
 isAuthorizedScope TimesheetWeekScope { venueId, weekOffset } = do

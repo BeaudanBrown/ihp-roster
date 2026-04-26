@@ -40,6 +40,10 @@ tests = beforeAll testContext do
                 ]
             response `responseStatusShouldBe` status302
 
+        it "redirects unauthenticated users away from profile leave fragments" $ withContext do
+            response <- callAction ShowProfileLeaveRequestsContentFragmentAction
+            response `responseStatusShouldBe` status302
+
         it "denies super-admin access to staff profile setup" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Support Profile Venue"
@@ -90,6 +94,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Profile Details"
                 response `responseBodyShouldContain` "Leave Requests"
                 response `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
+                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "profile_leave_requests_content"
+                response `responseBodyShouldContain` "leave_requests"
                 response `responseBodyShouldContain` "id=\"profile-leave-request-form-fragment\""
                 response `responseBodyShouldContain` "id=\"profile-leave-requests-list-fragment\""
                 response `responseBodyShouldContain` "responseContext\" value=\"profile\""
@@ -100,6 +107,14 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Emergency Contact Name"
                 response `responseBodyShouldContain` "Ideal Shifts Per Week"
                 response `responseBodyShouldContain` "Login email is read-only here for now."
+
+                fragmentResponse <- withUserAndCurrentVenue user venue.id do
+                    callAction ShowProfileLeaveRequestsContentFragmentAction
+                fragmentResponse `responseStatusShouldBe` status200
+                fragmentResponse `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
+                fragmentResponse `responseBodyShouldContain` "data-live-update-surface=\""
+                fragmentResponse `responseBodyShouldContain` "profile_leave_requests_content"
+                fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
 
         it "renders an empty profile onboarding form for a user with membership but no staff row yet" $ withContext do
             withCleanDb do

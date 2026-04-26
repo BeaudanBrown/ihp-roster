@@ -450,6 +450,8 @@
                 if (!Number.isInteger(scope.weekOffset)) return null;
                 return `${scope.kind}:${scope.venueId}:${scope.weekOffset}`;
             case 'leave_requests':
+            case 'admin_shift_types':
+            case 'admin_roster_groups':
                 if (!scope.venueId) return null;
                 return `${scope.kind}:${scope.venueId}`;
             default:

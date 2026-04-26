@@ -27,6 +27,7 @@ import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
 import Web.View.Profiles.Edit (profileLeaveRequestFormFragmentId,
                                profileLeaveRequestsContentFragmentId,
+                               profileLeaveRequestsContentFragmentRef,
                                profileLeaveRequestsListFragmentId,
                                renderProfileLeaveRequestFormFragment,
                                renderProfileLeaveRequestsContentFragment,
@@ -94,7 +95,7 @@ instance Controller LeaveRequestsController where
                                         (Just createdLeaveRequest.status)
                                         Aeson.Null
                                 pure createdLeaveRequest
-                            broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
+                            broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
                             if isHtmxRequest
                                 then respondWithLeaveMutationSuccess responseContext "Leave request submitted" True
                                 else do
@@ -136,7 +137,7 @@ instance Controller LeaveRequestsController where
         let (savedLeaveRequest, wasApproved) = updatedLeaveRequest
         unless wasApproved do
             invalidateAffectedRosterWeeksForLeave savedLeaveRequest
-        broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
+        broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
         if isHtmxRequest
             then respondWithLeaveRequestsContent "Leave request approved" False
             else do
@@ -178,7 +179,7 @@ instance Controller LeaveRequestsController where
         let (savedLeaveRequest, wasApproved) = deniedLeaveRequest
         when wasApproved do
             invalidateAffectedRosterWeeksForLeave savedLeaveRequest
-        broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
+        broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
         if isHtmxRequest
             then respondWithLeaveRequestsContent "Leave request denied" False
             else do
@@ -222,7 +223,7 @@ instance Controller LeaveRequestsController where
                     , "deletedAt" Aeson..= now
                     ]
                 )
-        broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
+        broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
         if isHtmxRequest
             then respondWithLeaveMutationSuccess responseContext "Leave request cancelled" False
             else do
@@ -497,6 +498,12 @@ buildLeaveRequestsContentFragmentRef =
         , deferUntilBlur = False
         , protectionPolicy = NoProtection
         }
+
+leaveRequestsContentFragmentRefs :: (?context :: ControllerContext) => [LiveFragmentRef]
+leaveRequestsContentFragmentRefs =
+    [ buildLeaveRequestsContentFragmentRef
+    , profileLeaveRequestsContentFragmentRef
+    ]
 
 buildLeaveRequestsPageFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
 buildLeaveRequestsPageFragmentRef =

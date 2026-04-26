@@ -141,6 +141,7 @@ instance Controller AdminController where
                 rosterGroup <- createVenueRosterGroupWithDefaults venue name sortOrder isActive
                 syncVenueDefaultRosterGroupToTopActive currentVenueId
                 setSuccessMessage "Roster group added"
+                broadcastAdminRosterGroupsInvalidation currentVenueId
                 respondToRosterGroupsSectionMutation (Just rosterGroup.id)
 
     action UpdateRosterGroupAction { rosterGroupId } = do
@@ -174,6 +175,7 @@ instance Controller AdminController where
                             pure ()
                         syncVenueDefaultRosterGroupToTopActive currentVenueId
                         setSuccessMessage "Roster group updated"
+                        broadcastAdminRosterGroupsInvalidation currentVenueId
                         respondToRosterGroupsSectionMutation (Just updatedRosterGroup.id)
 
     action MoveRosterGroupUpAction { rosterGroupId } = do
@@ -183,6 +185,7 @@ instance Controller AdminController where
             reorderActiveRosterGroups rosterGroup.id (-1)
             syncVenueDefaultRosterGroupToTopActive currentVenueId
         setSuccessMessage "Roster group order updated"
+        broadcastAdminRosterGroupsInvalidation currentVenueId
         redirectToAdminFor (Just rosterGroup.id)
 
     action MoveRosterGroupDownAction { rosterGroupId } = do
@@ -192,6 +195,7 @@ instance Controller AdminController where
             reorderActiveRosterGroups rosterGroup.id 1
             syncVenueDefaultRosterGroupToTopActive currentVenueId
         setSuccessMessage "Roster group order updated"
+        broadcastAdminRosterGroupsInvalidation currentVenueId
         redirectToAdminFor (Just rosterGroup.id)
 
     action CreateShiftTypeAction = do
@@ -217,6 +221,7 @@ instance Controller AdminController where
                             _ <- syncCurrentVenuePayConfigSnapshot
                             pure shiftType
                         setSuccessMessage "Shift type added"
+                        broadcastAdminShiftTypesInvalidation currentVenueId
                         respondToShiftTypesSectionMutation
 
     action UpdateShiftTypeAction { shiftTypeId } = do
@@ -246,6 +251,7 @@ instance Controller AdminController where
                             _ <- syncCurrentVenuePayConfigSnapshot
                             pure updatedShiftType
                         setSuccessMessage "Shift type updated"
+                        broadcastAdminShiftTypesInvalidation currentVenueId
                         respondToShiftTypesSectionMutation
 
     action MoveShiftTypeUpAction { shiftTypeId } = do
@@ -256,6 +262,7 @@ instance Controller AdminController where
             _ <- syncCurrentVenuePayConfigSnapshot
             pure ()
         setSuccessMessage "Shift type order updated"
+        broadcastAdminShiftTypesInvalidation currentVenueId
         redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action MoveShiftTypeDownAction { shiftTypeId } = do
@@ -266,6 +273,7 @@ instance Controller AdminController where
             _ <- syncCurrentVenuePayConfigSnapshot
             pure ()
         setSuccessMessage "Shift type order updated"
+        broadcastAdminShiftTypesInvalidation currentVenueId
         redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action CreateSlotNameAction = do
@@ -483,6 +491,26 @@ broadcastAdminInvitesInvalidation venueId =
         (cs <$> getHeader "X-Live-Update-Client-Id")
         []
 
+broadcastAdminShiftTypesInvalidation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Id Venue ->
+    IO ()
+broadcastAdminShiftTypesInvalidation venueId =
+    broadcastLiveInvalidation
+        (adminShiftTypesScope venueId)
+        (cs <$> getHeader "X-Live-Update-Client-Id")
+        []
+
+broadcastAdminRosterGroupsInvalidation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Id Venue ->
+    IO ()
+broadcastAdminRosterGroupsInvalidation venueId =
+    broadcastLiveInvalidation
+        (adminRosterGroupsScope venueId)
+        (cs <$> getHeader "X-Live-Update-Client-Id")
+        []
+
 slotNamesScope :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope
 slotNamesScope rosterGroupId =
     RosterGroupConfigScope
@@ -500,6 +528,18 @@ adminSlotNamesScope rosterGroupId =
 adminInvitesScope :: Id Venue -> LiveUpdateScope
 adminInvitesScope venueId =
     AdminInvitesScope
+        { venueId = unpackId venueId
+        }
+
+adminShiftTypesScope :: Id Venue -> LiveUpdateScope
+adminShiftTypesScope venueId =
+    AdminShiftTypesScope
+        { venueId = unpackId venueId
+        }
+
+adminRosterGroupsScope :: Id Venue -> LiveUpdateScope
+adminRosterGroupsScope venueId =
+    AdminRosterGroupsScope
         { venueId = unpackId venueId
         }
 

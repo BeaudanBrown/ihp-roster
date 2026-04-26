@@ -41,6 +41,12 @@ data LiveUpdateScope
         { venueId       :: !UUID.UUID
         , rosterGroupId :: !UUID.UUID
         }
+    | AdminShiftTypesScope
+        { venueId :: !UUID.UUID
+        }
+    | AdminRosterGroupsScope
+        { venueId :: !UUID.UUID
+        }
     | AdminInvitesScope
         { venueId :: !UUID.UUID
         }
@@ -72,6 +78,9 @@ data LiveFragmentKey
     | AdminSlotNamesFragment
         { rosterGroupId :: !UUID.UUID
         }
+    | AdminShiftTypesFragment
+    | AdminRosterGroupsFragment
+    | ProfileLeaveRequestsContentFragment
     | SupportAwardRatesSectionFragment
     | SupportPublicHolidaysSectionFragment
     deriving (Eq, Ord, Show)
@@ -146,6 +155,16 @@ instance Aeson.ToJSON LiveUpdateScope where
             , "venueId" Aeson..= UUID.toText venueId
             , "rosterGroupId" Aeson..= UUID.toText rosterGroupId
             ]
+    toJSON AdminShiftTypesScope { venueId } =
+        Aeson.object
+            [ "kind" Aeson..= ("admin_shift_types" :: Text)
+            , "venueId" Aeson..= UUID.toText venueId
+            ]
+    toJSON AdminRosterGroupsScope { venueId } =
+        Aeson.object
+            [ "kind" Aeson..= ("admin_roster_groups" :: Text)
+            , "venueId" Aeson..= UUID.toText venueId
+            ]
     toJSON AdminInvitesScope { venueId } =
         Aeson.object
             [ "kind" Aeson..= ("admin_invites" :: Text)
@@ -184,6 +203,12 @@ instance Aeson.FromJSON LiveUpdateScope where
                 AdminSlotNamesScope
                     <$> (parseUuid =<< object Aeson..: "venueId")
                     <*> (parseUuid =<< object Aeson..: "rosterGroupId")
+            "admin_shift_types" ->
+                AdminShiftTypesScope
+                    <$> (parseUuid =<< object Aeson..: "venueId")
+            "admin_roster_groups" ->
+                AdminRosterGroupsScope
+                    <$> (parseUuid =<< object Aeson..: "venueId")
             "admin_invites" ->
                 AdminInvitesScope
                     <$> (parseUuid =<< object Aeson..: "venueId")
@@ -227,6 +252,12 @@ instance Aeson.ToJSON LiveFragmentKey where
             [ "kind" Aeson..= ("admin_slot_names" :: Text)
             , "rosterGroupId" Aeson..= UUID.toText rosterGroupId
             ]
+    toJSON AdminShiftTypesFragment =
+        Aeson.object ["kind" Aeson..= ("admin_shift_types" :: Text)]
+    toJSON AdminRosterGroupsFragment =
+        Aeson.object ["kind" Aeson..= ("admin_roster_groups" :: Text)]
+    toJSON ProfileLeaveRequestsContentFragment =
+        Aeson.object ["kind" Aeson..= ("profile_leave_requests_content" :: Text)]
     toJSON SupportAwardRatesSectionFragment =
         Aeson.object ["kind" Aeson..= ("support_award_rates_section" :: Text)]
     toJSON SupportPublicHolidaysSectionFragment =
@@ -253,6 +284,9 @@ instance Aeson.FromJSON LiveFragmentKey where
             "admin_slot_names" ->
                 AdminSlotNamesFragment
                     <$> (parseUuid =<< object Aeson..: "rosterGroupId")
+            "admin_shift_types" -> pure AdminShiftTypesFragment
+            "admin_roster_groups" -> pure AdminRosterGroupsFragment
+            "profile_leave_requests_content" -> pure ProfileLeaveRequestsContentFragment
             "support_award_rates_section" -> pure SupportAwardRatesSectionFragment
             "support_public_holidays_section" -> pure SupportPublicHolidaysSectionFragment
             _ -> fail ("Unknown live fragment kind: " <> cs kind)

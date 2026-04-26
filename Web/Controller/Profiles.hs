@@ -35,6 +35,11 @@ instance Controller ProfilesController where
         leaveRequestForm <- buildDefaultLeaveRequest
         render EditView { .. }
 
+    action ShowProfileLeaveRequestsContentFragmentAction = do
+        leaveRequests <- fetchCurrentUserLeaveRequests
+        leaveRequestForm <- buildDefaultLeaveRequest
+        respondHtml (renderProfileLeaveRequestsContentFragment leaveRequestForm leaveRequests)
+
     action UpdateProfileAction = do
         maybeExistingStaff <- fetchCurrentUserStaff
         let submittedShiftPreferenceKeys = nub (paramList @Text "shiftPreferenceKeys")
