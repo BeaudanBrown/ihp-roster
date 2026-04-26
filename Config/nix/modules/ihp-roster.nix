@@ -22,6 +22,7 @@ let
   hasJobRunner = builtins.pathExists ../../../Application/Job;
   hasServiceUser = cfg.serviceUser != null;
   effectiveServiceGroup = if cfg.serviceGroup != null then cfg.serviceGroup else cfg.serviceUser;
+  schemaReadyService = if cfg.enableMigrations then "migrate.service" else "loadSchema.service";
 
   serviceUserConfig = optionalAttrs hasServiceUser {
     User = cfg.serviceUser;
@@ -256,6 +257,15 @@ in
       description = "Whether to provision a local Postgres database for the app.";
     };
 
+    enableMigrations = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        Whether to run IHP migrations before starting the app.
+        Disable only for pre-V1 disposable deployments that wipe and initialise the database from Schema.sql.
+      '';
+    };
+
     postgresAuthentication = mkOption {
       type = types.lines;
       default = ''
@@ -351,7 +361,7 @@ in
         enable = true;
         domain = cfg.domain;
         baseUrl = cfg.baseUrl;
-        migrations = ../../../Application/Migration;
+        migrations = if cfg.enableMigrations then ../../../Application/Migration else null;
         schema = ../../../Application/Schema.sql;
         httpsEnabled = cfg.httpsEnabled;
         databaseName = cfg.databaseName;
@@ -388,8 +398,7 @@ in
       systemd.services.loadSchema = {
         after = [ "postgresql.service" ];
         requires = [ "postgresql.service" ];
-        before = [
-          "migrate.service"
+        before = optional cfg.enableMigrations "migrate.service" ++ [
           "app.service"
           "worker.service"
         ];
@@ -408,7 +417,7 @@ in
           ${pkgs.postgresql}/bin/psql "$DB_URL" < ${self.packages.${pkgs.system}.schema}/Schema.sql
         '';
       };
-      systemd.services.migrate = {
+      systemd.services.migrate = mkIf cfg.enableMigrations {
         after = [ "loadSchema.service" ];
         requires = [ "loadSchema.service" ];
         before = [
@@ -418,25 +427,25 @@ in
         serviceConfig = serviceUserConfig;
       };
       systemd.services.app.after = [
-        "migrate.service"
+        schemaReadyService
       ]
       ++ optional cfg.bootstrap.enable "bootstrap-account.service";
       systemd.services.app.requires = [
-        "migrate.service"
+        schemaReadyService
       ]
       ++ optional cfg.bootstrap.enable "bootstrap-account.service";
       systemd.services.worker.after = [
-        "migrate.service"
+        schemaReadyService
       ]
       ++ optional cfg.bootstrap.enable "bootstrap-account.service";
       systemd.services.worker.requires = [
-        "migrate.service"
+        schemaReadyService
       ]
       ++ optional cfg.bootstrap.enable "bootstrap-account.service";
       systemd.services.bootstrap-account = mkIf cfg.bootstrap.enable {
         description = "Seed bootstrap account for ihp-roster";
-        after = [ "migrate.service" ];
-        requires = [ "migrate.service" ];
+        after = [ schemaReadyService ];
+        requires = [ schemaReadyService ];
         before = [
           "app.service"
           "worker.service"
