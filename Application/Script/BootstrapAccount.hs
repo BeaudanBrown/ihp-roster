@@ -2,18 +2,14 @@ module Application.Script.BootstrapAccount where
 
 import Application.Helper.Controller (PlatformRole (..), platformRoleToEnum)
 import Application.Script.Prelude
-import Application.Support (createVenueWithConfig, provisionVenueUser)
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Generated.Types
 import System.Environment (lookupEnv)
 
 data BootstrapConfig = BootstrapConfig
-    { email     :: !Text
-    , password  :: !Text
-    , venueName :: !Text
-    , firstName :: !Text
-    , lastName  :: !Text
+    { email    :: !Text
+    , password :: !Text
     }
 
 run :: Script
@@ -23,9 +19,7 @@ run = do
     case existingSuperAdmin of
         Just _ -> liftIO (putStrLn "Super-admin already exists; bootstrap skipped.")
         Nothing -> do
-            user <- createBootstrapUser bootstrapConfig.email bootstrapConfig.password
-            venue <- findOrCreateBootstrapVenue bootstrapConfig.venueName
-            _ <- provisionVenueUser venue user "venue_owner" bootstrapConfig.firstName bootstrapConfig.lastName
+            _ <- createBootstrapUser bootstrapConfig.email bootstrapConfig.password
             pure ()
 
 loadBootstrapConfig :: IO BootstrapConfig
@@ -41,9 +35,6 @@ loadBootstrapConfigFromSecretFile secretFile = do
         BootstrapConfig
             <$> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_EMAIL"
             <*> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_PASSWORD"
-            <*> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_VENUE_NAME"
-            <*> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_FIRST_NAME"
-            <*> requireSecretValue secretValues "BOOTSTRAP_ACCOUNT_LAST_NAME"
     validateBootstrapConfig config
     pure config
 
@@ -51,10 +42,8 @@ loadBootstrapConfigFromLegacyEnv :: IO BootstrapConfig
 loadBootstrapConfigFromLegacyEnv = do
     email <- requireEnvText "BOOTSTRAP_ACCOUNT_EMAIL"
     passwordFile <- requireEnvText "BOOTSTRAP_ACCOUNT_PASSWORD_FILE"
-    venueName <- requireEnvText "BOOTSTRAP_ACCOUNT_VENUE_NAME"
     password <- Text.strip <$> TextIO.readFile (cs passwordFile)
-    let (firstName, lastName) = defaultBootstrapName email
-    let config = BootstrapConfig { email, password, venueName, firstName, lastName }
+    let config = BootstrapConfig { email, password }
     validateBootstrapConfig config
     pure config
 
@@ -88,9 +77,6 @@ validateBootstrapConfig :: BootstrapConfig -> IO ()
 validateBootstrapConfig config = do
     requireNonEmpty "BOOTSTRAP_ACCOUNT_EMAIL" config.email
     requireNonEmpty "BOOTSTRAP_ACCOUNT_PASSWORD" config.password
-    requireNonEmpty "BOOTSTRAP_ACCOUNT_VENUE_NAME" config.venueName
-    requireNonEmpty "BOOTSTRAP_ACCOUNT_FIRST_NAME" config.firstName
-    requireNonEmpty "BOOTSTRAP_ACCOUNT_LAST_NAME" config.lastName
 
 requireNonEmpty :: Text -> Text -> IO ()
 requireNonEmpty name value =
@@ -109,15 +95,6 @@ fetchExistingSuperAdmin =
         |> filterWhere (#platformRole, Just (platformRoleToEnum SuperAdminRole))
         |> fetchOneOrNothing
 
-findOrCreateBootstrapVenue :: (?modelContext :: ModelContext) => Text -> IO Venue
-findOrCreateBootstrapVenue venueName =
-    query @Venue
-        |> filterWhere (#name, venueName)
-        |> fetchOneOrNothing
-        >>= \case
-            Just venue -> pure venue
-            Nothing -> createVenueWithConfig venueName
-
 createBootstrapUser :: (?modelContext :: ModelContext) => Text -> Text -> IO User
 createBootstrapUser email password =
     query @User
@@ -135,9 +112,3 @@ createBootstrapUser email password =
                     |> set #isProfileCompleted True
                     |> set #emailVerifiedAt (Just def)
                     |> createRecord
-
-defaultBootstrapName :: Text -> (Text, Text)
-defaultBootstrapName email =
-    case Text.breakOn "@" email of
-        (localPart, _) | not (Text.null localPart) -> (localPart, "Admin")
-        _ -> ("Bootstrap", "Admin")

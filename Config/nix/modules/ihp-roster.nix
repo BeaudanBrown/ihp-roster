@@ -315,10 +315,8 @@ in
         type = types.nullOr types.path;
         default = null;
         description = ''
-          Path to a sops-nix managed dotenv-style file containing all bootstrap account details.
-          Expected keys: BOOTSTRAP_ACCOUNT_EMAIL, BOOTSTRAP_ACCOUNT_PASSWORD,
-          BOOTSTRAP_ACCOUNT_VENUE_NAME, BOOTSTRAP_ACCOUNT_FIRST_NAME, and
-          BOOTSTRAP_ACCOUNT_LAST_NAME.
+          Path to a sops-nix managed dotenv-style file containing the bootstrap account details.
+          Expected keys: BOOTSTRAP_ACCOUNT_EMAIL and BOOTSTRAP_ACCOUNT_PASSWORD.
         '';
       };
     };
