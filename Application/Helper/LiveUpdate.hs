@@ -10,6 +10,8 @@ module Application.Helper.LiveUpdate
     , activeRosterWeekScopes
     , broadcastLiveInvalidation
     , broadcastLiveInvalidationWithoutContext
+    , broadcastLiveResync
+    , broadcastLiveResyncWithoutContext
     , currentLiveUpdateVersion
     , liveUpdateScopeKey
     , mkLiveFragmentRef
@@ -506,6 +508,17 @@ broadcastLiveInvalidationWithoutContext scope sourceClientId fragments = do
             ( filter (\subscription -> subscription.subscriptionId `notElem` staleIds) activeSubscriptions
             , ()
             )
+
+broadcastLiveResync :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> IO ()
+broadcastLiveResync scope sourceClientId =
+    profileActionSpan "live_updates.broadcast_resync" $
+        broadcastLiveResyncWithoutContext scope sourceClientId
+
+broadcastLiveResyncWithoutContext :: LiveUpdateScope -> Maybe Text -> IO ()
+broadcastLiveResyncWithoutContext scope sourceClientId =
+    -- The declarative client treats an invalidation with no explicit fragments as
+    -- "resync every fragment configured for this subscribed surface".
+    broadcastLiveInvalidationWithoutContext scope sourceClientId []
 
 sendInvalidation :: LiveUpdateScope -> Int -> Maybe Text -> [LiveFragmentRef] -> LiveSubscription -> IO (Maybe UUID.UUID)
 sendInvalidation scope version sourceClientId fragments subscription = do

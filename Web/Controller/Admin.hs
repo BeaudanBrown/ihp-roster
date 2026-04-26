@@ -466,50 +466,45 @@ broadcastSlotNameInvalidation ::
     Id RosterGroup ->
     IO ()
 broadcastSlotNameInvalidation rosterGroupId =
-    broadcastLiveInvalidation
+    broadcastLiveResync
         (slotNamesScope rosterGroupId)
         (cs <$> getHeader "X-Live-Update-Client-Id")
-        []
 
 broadcastAdminSlotNamesInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id RosterGroup ->
     IO ()
 broadcastAdminSlotNamesInvalidation rosterGroupId =
-    broadcastLiveInvalidation
+    broadcastLiveResync
         (adminSlotNamesScope rosterGroupId)
         (cs <$> getHeader "X-Live-Update-Client-Id")
-        []
 
 broadcastAdminInvitesInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id Venue ->
     IO ()
 broadcastAdminInvitesInvalidation venueId =
-    broadcastLiveInvalidation
+    broadcastLiveResync
         (adminInvitesScope venueId)
         (cs <$> getHeader "X-Live-Update-Client-Id")
-        []
 
 broadcastAdminShiftTypesInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id Venue ->
     IO ()
 broadcastAdminShiftTypesInvalidation venueId =
-    broadcastLiveInvalidation
+    broadcastLiveResync
         (adminShiftTypesScope venueId)
         (cs <$> getHeader "X-Live-Update-Client-Id")
-        []
 
 broadcastAdminRosterGroupsInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id Venue ->
     IO ()
 broadcastAdminRosterGroupsInvalidation venueId =
-    broadcastLiveInvalidation
+    broadcastLiveResync
         (adminRosterGroupsScope venueId)
         (cs <$> getHeader "X-Live-Update-Client-Id")
-        []
 
 slotNamesScope :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope
 slotNamesScope rosterGroupId =
