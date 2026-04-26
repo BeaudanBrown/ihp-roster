@@ -150,6 +150,26 @@ test.describe('Declarative live-update adapter', () => {
         expect(requestHeaders.outsideClientId).toBeNull();
     });
 
+    test('subscribes venue-only admin invite scopes', async ({ page }) => {
+        await installLiveUpdateHarness(page);
+        await openBlankRuntimePage(page);
+
+        await addSyntheticSurface(page, {
+            feature: 'synthetic-admin-invites',
+            socketPath: '/live-updates',
+            scope: {
+                kind: 'admin_invites',
+                venueId: fixtureVenueId,
+            },
+            resyncFragments: [],
+            decorateRequestsWithin: [],
+        });
+
+        await expect
+            .poll(async () => (await liveUpdateCommands(page)).map((command: any) => `${command.type}:${command.scope?.kind}`))
+            .toContain('subscribe:admin_invites');
+    });
+
     test('resyncs declarative fragments after a subscribed message asks for resync', async ({ page }) => {
         await installLiveUpdateHarness(page);
         await openBlankRuntimePage(page);
