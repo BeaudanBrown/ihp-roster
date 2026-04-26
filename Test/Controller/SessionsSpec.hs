@@ -2,7 +2,8 @@
 
 module Test.Controller.SessionsSpec where
 
-import Application.Helper.Controller (currentVenueSessionKey)
+import Application.Helper.Controller (PlatformRole (SuperAdminRole),
+                                      currentVenueSessionKey)
 import Config
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
@@ -158,6 +159,18 @@ tests = beforeAll testContext do
                 auditEvent.actorUserId `shouldBe` unpackId (get #id user)
                 auditEvent.targetTable `shouldBe` "users"
                 auditEvent.targetId `shouldBe` unpackId (get #id user)
+
+        it "redirects a bootstrap super-admin without venues to support" $ withContext do
+            withCleanDb do
+                user <- createUserRecordWithPlatformRole "bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- callActionWithParams CreateSessionAction
+                    [ ("email", cs user.email)
+                    , ("password", cs testPassword)
+                    ]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/Support"
 
         it "prompts users without passkeys to set up faster sign-in after password login" $ withContext do
             withCleanDb do

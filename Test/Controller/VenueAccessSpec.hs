@@ -224,6 +224,18 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-success-redirect=\"/Support\""
                 response `responseBodyShouldNotContain` "href=\"/EditProfile\">profile</a>"
 
+        it "lets bootstrap super-admin open support before any venue exists" $ withContext do
+            withCleanDb do
+                founder <- createUserRecordWithPlatformRole "founder-empty-support@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withUser founder do
+                    let ?request = ?request { Wai.rawPathInfo = "/Support" }
+                    callAction SupportAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Support"
+                response `responseBodyShouldContain` "Create Venue"
+
         it "lets super-admin queue an award rate refresh from support" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"

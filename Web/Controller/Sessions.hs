@@ -20,8 +20,11 @@ passkeySetupPromptSessionKey = "passkeySetupPrompt"
 
 instance Controller SessionsController where
     action NewSessionAction = do
-        let alreadyLoggedIn = isJust (currentUserOrNothing @User)
-        when alreadyLoggedIn (redirectToPath (Sessions.afterLoginRedirectPath @User))
+        case currentUserOrNothing @User of
+            Just user -> do
+                redirectPath <- defaultLoginRedirectPath user
+                redirectToPath redirectPath
+            Nothing -> pure ()
 
         let user = newRecord @User
         pendingVerificationEmail <- getSessionAndClear pendingVerificationEmailSessionKey
@@ -75,7 +78,8 @@ instance Controller SessionsController where
                                     then ("first-passkey" :: Text)
                                     else ("additional-device" :: Text)
                             redirectUrl <- getSessionAndClear "IHP.LoginSupport.redirectAfterLogin"
-                            redirectToPath (fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl)
+                            defaultRedirectPath <- defaultLoginRedirectPath user
+                            redirectToPath (fromMaybe defaultRedirectPath redirectUrl)
                         else do
                             setErrorMessage "Invalid Credentials"
                             user' <- user
@@ -157,3 +161,11 @@ instance Sessions.SessionsControllerConfig User where
     beforeLogout _ = do
         deleteSession currentVenueSessionKey
         clearCurrentUserPasskeyVerification
+
+defaultLoginRedirectPath :: (?modelContext :: ModelContext) => User -> IO Text
+defaultLoginRedirectPath user = do
+    maybeVenueContext <- resolveVenueContextForUser Nothing user
+    pure
+        if user.platformRole == Just (platformRoleToEnum SuperAdminRole) && isNothing maybeVenueContext
+            then pathTo SupportAction
+            else Sessions.afterLoginRedirectPath @User
