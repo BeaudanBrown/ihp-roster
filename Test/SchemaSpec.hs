@@ -52,6 +52,7 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe ExportJob)
         let _ = (Nothing :: Maybe VenueMembershipRoleEvent)
         let _ = (Nothing :: Maybe Passkey)
+        let _ = (Nothing :: Maybe AppJob)
         True `shouldBe` True
 
     it "generates venue and venue membership models" do
@@ -228,6 +229,15 @@ tests = describe "Schema" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy`
             Text.isInfixOf "CREATE UNIQUE INDEX idx_users_email_lower ON users (LOWER(email));"
+
+    it "keeps app_jobs available for upgraded databases" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1777070900.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE app_jobs"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE IF NOT EXISTS app_jobs"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "status JOB_STATUS DEFAULT 'job_status_not_started' NOT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX IF NOT EXISTS idx_app_jobs_pending ON app_jobs"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_app_jobs_active_dedupe"
 
     it "stores passkeys as user-owned credential records" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
