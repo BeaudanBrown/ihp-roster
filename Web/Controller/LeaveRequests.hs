@@ -4,12 +4,12 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
                                       LiveUpdateScope (..),
+                                      activeRosterWeekScopes,
                                       broadcastLiveInvalidation,
                                       currentLiveUpdateVersion)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling
-import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroups)
 import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (..), dialogOverlayMountId,
@@ -17,7 +17,9 @@ import Application.Helper.View (ToastOverlayConfig (..),
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
+import qualified Data.Set as Set
 import Data.Time.Clock (getCurrentTime, utctDay)
+import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
@@ -467,21 +469,36 @@ buildLeaveRequest leaveRequest =
 invalidateAffectedRosterWeeksForLeave :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO ()
 invalidateAffectedRosterWeeksForLeave leaveRequest = do
     venueConfig <- fetchVenueConfig
-    let affectedOffsets =
-            affectedVenueWeekOffsetsForDateRange
-                venueConfig
-                leaveRequest.startDate
-                leaveRequest.endDate
+    activeScopes <- activeRosterWeekScopes
+    forM_ (affectedRosterWeekInvalidationTargetsForScopes currentVenueId venueConfig leaveRequest activeScopes) \(rosterGroupId, weekOffset) ->
+        broadcastRosterWeekInvalidation
+            rosterGroupId
+            weekOffset
+            [ buildRosterContentFragmentRef rosterGroupId weekOffset
+            , buildRosterStaffPanelFragmentRef rosterGroupId weekOffset
+            ]
 
-    rosterGroups <- fetchCurrentVenueRosterGroups
-    forM_ rosterGroups \rosterGroup ->
-        forM_ affectedOffsets \weekOffset ->
-            broadcastRosterWeekInvalidation
-                rosterGroup.id
-                weekOffset
-                [ buildRosterContentFragmentRef rosterGroup.id weekOffset
-                , buildRosterStaffPanelFragmentRef rosterGroup.id weekOffset
-                ]
+affectedRosterWeekInvalidationTargetsForScopes ::
+    Id Venue ->
+    VenueConfig ->
+    LeaveRequest ->
+    [(UUID.UUID, UUID.UUID, Int)] ->
+    [(Id RosterGroup, Int)]
+affectedRosterWeekInvalidationTargetsForScopes venueId venueConfig leaveRequest activeScopes =
+    Set.toList $
+        Set.fromList
+            [ (Id rosterGroupUuid, weekOffset)
+            | (activeVenueUuid, rosterGroupUuid, weekOffset) <- activeScopes
+            , activeVenueUuid == unpackId venueId
+            , weekOffset `Set.member` affectedOffsets
+            ]
+    where
+        affectedOffsets =
+            Set.fromList $
+                affectedVenueWeekOffsetsForDateRange
+                    venueConfig
+                    leaveRequest.startDate
+                    leaveRequest.endDate
 
 buildLeaveRequestsScope :: Id Venue -> LiveUpdateScope
 buildLeaveRequestsScope venueId =

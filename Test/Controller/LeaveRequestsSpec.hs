@@ -20,7 +20,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
-import Web.Controller.LeaveRequests ()
+import Web.Controller.LeaveRequests (affectedRosterWeekInvalidationTargetsForScopes)
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
@@ -69,7 +69,7 @@ tests = beforeAll testContext do
             response <- callAction DeleteLeaveRequestAction { leaveRequestId = requestId }
             response `responseStatusShouldBe` status302
 
-        it "approving leave invalidates affected roster week scopes only in the current venue" $ withContext do
+        it "selects leave roster invalidation targets from active roster week scopes in the current venue" $ withContext do
             withCleanDb do
                 let staleTimestamp = UTCTime (fromGregorian 2024 12 1) (secondsToDiffTime 0)
                 venueA <- createVenueWithConfig "Venue A"
@@ -83,6 +83,17 @@ tests = beforeAll testContext do
                 rosterWeekA1 <- createRosterWeekRecord venueA 1 False >>= updateRecord . set #updatedAt staleTimestamp
                 rosterWeekB <- createRosterWeekRecord venueB 0 False >>= updateRecord . set #updatedAt staleTimestamp
                 leaveRequest <- createLeaveRequestRecord venueA staffA (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) "pending"
+                venueConfigA <- query @VenueConfig |> filterWhere (#venueId, unpackId venueA.id) |> fetchOne
+                let activeTargets =
+                        affectedRosterWeekInvalidationTargetsForScopes
+                            venueA.id
+                            venueConfigA
+                            leaveRequest
+                            [ (unpackId venueA.id, unpackId rosterGroupA.id, 0)
+                            , (unpackId venueA.id, unpackId rosterGroupA.id, 1)
+                            , (unpackId venueB.id, unpackId rosterGroupB.id, 0)
+                            ]
+                activeTargets `shouldBe` [(rosterGroupA.id, 0), (rosterGroupA.id, 1)]
 
                 versionA0Before <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venueA.id, rosterGroupId = unpackId rosterGroupA.id, weekOffset = 0 }
                 versionA1Before <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venueA.id, rosterGroupId = unpackId rosterGroupA.id, weekOffset = 1 }
@@ -100,8 +111,8 @@ tests = beforeAll testContext do
                 refreshedWeekA1 <- fetch rosterWeekA1.id
                 refreshedWeekB <- fetch rosterWeekB.id
 
-                versionA0After `shouldBe` versionA0Before + 1
-                versionA1After `shouldBe` versionA1Before + 1
+                versionA0After `shouldBe` versionA0Before
+                versionA1After `shouldBe` versionA1Before
                 versionB0After `shouldBe` versionB0Before
                 refreshedWeekA.updatedAt `shouldBe` staleTimestamp
                 refreshedWeekA1.updatedAt `shouldBe` staleTimestamp
@@ -294,7 +305,7 @@ tests = beforeAll testContext do
                 managerResponse `responseBodyShouldContain` "Bea Viewer"
                 workerResponse `responseStatusShouldBe` status403
 
-        it "denying previously approved leave invalidates the affected roster week scope" $ withContext do
+        it "does not bump cold roster week scopes when denying previously approved leave" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
                 rosterGroup <- ensureVenueDefaultRosterGroup venue
@@ -312,7 +323,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
 
                 versionAfter <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId rosterGroup.id, weekOffset = 0 }
-                versionAfter `shouldBe` versionBefore + 1
+                versionAfter `shouldBe` versionBefore
 
         it "creating leave via HTMX updates the actor fragment and bumps the leave scope version" $ withContext do
             withCleanDb do
