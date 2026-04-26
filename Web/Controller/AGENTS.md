@@ -94,6 +94,7 @@ Every controller requires changes in **four files** (missing any will cause comp
 - For collaborative pages, split delivery paths:
   - actor response returns immediate HTMX fragments/OOB swaps
   - cross-viewer updates use `broadcastLiveInvalidation` with fragment refs that point to dedicated GET fragment actions
+- Declare ordinary live surfaces from Haskell with `Application.Helper.LiveSurface.mkLiveSurface` and render them with `liveSurfaceConfigJson`; the browser runtime discovers `data-live-update-surface` and owns subscription, request decoration, resync, refetch queueing, swapping, and reusable protection policies.
 - Treat scopes as authorized logical data slices, not pages. A mutation may invalidate multiple scopes, and only a subset of fragments within each scope.
 - Prefer one websocket connection per browser tab/client with many active scope subscriptions instead of one socket per page.
 - Keep fragment refs explicit (`targetId`, `url`, defer/swap metadata) so the transport stays structural and controllers do not need to know mounted DOM state.
@@ -103,3 +104,4 @@ Every controller requires changes in **four files** (missing any will cause comp
 - Broadcast invalidations for affected scopes after the business transaction commits, not before.
 - When a slot mutation can change conflict state across multiple rows, it is acceptable for the actor response to return a full `#roster-content` OOB refresh instead of trying to keep actor-side row patches perfectly minimal.
 - Keep the roster week shell subscribed even when the week is empty or hidden so create/copy/publish transitions can invalidate passive viewers already sitting on that offset.
+- For new candidates, add the controller surface in this order: fragment GET action, authorized `LiveFragmentRef` builder, `LiveSurfaceConfig` in the view layer, actor-path HTMX response, post-commit `broadcastLiveInvalidation`, Hspec coverage for unauthorized/authorized fragment responses and rendered surface metadata, then Playwright coverage when browser behavior such as resync, focus protection, or no-full-page navigation is part of the feature.

@@ -204,14 +204,14 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
 ## Current UI Patterns
 - Roster and timesheet week pagers use HTMX shell swaps with pushed canonical URLs instead of full-page week navigations
 - The roster staff sidebar uses CSS-only desktop behavior: sticky positioning, viewport-capped height, and internal list scrolling
-- Roster collaboration uses a split live-update path:
+- Live-update collaboration uses a split path:
   - actor browser gets immediate HTMX fragments/OOB swaps from the mutation response
   - concurrent viewers get websocket invalidation payloads plus authorized fragment refetch
 - Roster week pages now subscribe even on empty/hidden-week shells so create/copy/publish transitions can update passive viewers without IHP Auto Refresh
 - The app no longer loads `ihp-auto-refresh.js`, emits Auto Refresh meta, or calls `initAutoRefresh`; page freshness is expected to come from explicit HTMX/live-fragment flows instead of framework-wide polling.
 - Auto Refresh audit result as of `2026-03-15`: there are no remaining app-runtime `autoRefresh` consumers under `Web/Controller/`, `Application/`, `Web/FrontController.hs`, or `Web/View/Layout.hs`.
-- Keep live invalidation payloads structural (`scope`, `fragmentKey`, `targetId`, `url`, `deferUntilBlur`) rather than broadcasting rendered HTML across viewers
-- When a roster mutation should not clobber focused inputs remotely, mark that fragment `deferUntilBlur = true` and let the client replay it after row blur
+- Keep live invalidation payloads structural (`scope`, `fragmentKey`, `targetId`, `url`, `protectionPolicy`) rather than broadcasting rendered HTML across viewers
+- When a mutation should not clobber focused inputs remotely, set a `FocusedFieldProtection` policy on the `LiveFragmentRef`; keep `deferUntilBlur` only as compatibility metadata, not as the primary extension point.
 - The app-wide live-update direction is:
   - one websocket connection per browser tab/client
   - many scope subscriptions per connection
@@ -219,7 +219,7 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
   - invalidations are routed by scope and carry explicit fragment refs
   - clients refetch only the invalidated fragments they currently have mounted
   - one mutation may invalidate multiple scopes, and only a subset of fragments within each scope
-- The transport/client pattern is reusable across other collaborative pages. Keep the websocket/refetch core shared, and add small per-feature adapters for DOM discovery, swap rules, and focus deferral where needed.
+- The transport/client pattern is reusable across collaborative pages. Keep websocket/refetch, request decoration, resync, queueing, swapping, and focus-protection policy handling in the generic declarative runtime; do not add feature-specific JavaScript adapters for ordinary live surfaces.
 - The leave/timesheet live-fragment rollout is verified with manager/worker Playwright coverage:
   - leave approvals update the worker leave page live
   - leave approvals update an already-open manager roster page live
@@ -232,6 +232,12 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
   - client scope keys must be derived by scope kind, not by assuming every feature has a week offset
 - New live-update surfaces should be declared from Haskell with `Application.Helper.LiveSurface.LiveSurfaceConfig` and rendered as `data-live-update-surface` on the stable owner shell. Avoid adding feature-specific JavaScript adapters for ordinary subscribe/resync/request-decoration behavior.
 - Standard live-fragment adoption pattern: add a fragment action that returns the section HTML, give the section a stable `id`, define a `LiveFragmentRef`, include it in a `LiveSurfaceConfig`, render `data-live-update-surface`, broadcast `broadcastLiveInvalidation scope sourceClientId [fragmentRef]` after mutations, and cover both the fragment response and surface metadata in Hspec.
+- Use the live-fragment pattern when another open tab, another user, or an async job can make the current DOM stale while the viewer remains on the page. Use plain HTMX for actor-local in-place updates, and use native full-page requests for low-frequency session/auth/security flows unless the surrounding screen genuinely needs to stay in place.
+- Candidate audit as of `2026-04-26`:
+  - `Web/View/Exports/Index.hs` still uses full-page week navigation and native report/export generation and report-definition management forms. Keep this native while exports are request/download workflows, but migrate to declarative live fragments if export job progress, recent exports, or report definitions need to refresh across tabs/users.
+  - `Web/View/Admin/Index.hs` has live surfaces for invites and slot names. Shift types and roster groups are HTMX actor-local fragments only; add declarative surfaces for those sections if concurrent admin edits should appear without reload.
+  - The profile page uses HTMX for local profile and self-service leave changes, and broadcasts roster invalidations from preference changes. Add a profile-owned live surface only if external leave approvals or manager profile edits must update an already-open profile page.
+  - Support award-rate and public-holiday job sections already use declarative live fragments. Support venue switching, venue creation, owner invitations, and passkey management intentionally remain full-page/session/security workflows unless a future product requirement needs in-place collaboration.
 - Post-`helpers.js` migration policy:
   - use HTMX for partial and in-place workflows
   - keep low-frequency full-page forms such as admin/config, exports, profile, login, and invitation/bootstrap as native browser submits by default

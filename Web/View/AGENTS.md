@@ -65,13 +65,18 @@ renderForm post = formFor post [hsx|
 - Keep blur deferral narrow. On the roster grid it should protect the delayed flag input (`.slot-note-input`), not discrete controls like staff selects or committed time-picker changes.
 
 ## Shared Live Shell Pattern
-- Treat the page shell as the subscription owner. Render scope metadata on a stable shell element so the shared client can subscribe/unsubscribe as HTMX navigation swaps shells in and out.
+- Treat the page shell or stable section shell as the subscription owner. Render declarative surface metadata on that owner so the shared client can subscribe/unsubscribe as HTMX navigation swaps shells in and out.
 - Mark each subscribing shell with `data-live-update-surface={liveSurfaceConfigJson surface}`. The JSON surface config owns the feature name, socket path, scope, resync fragments, and request-decoration selectors.
 - A shell may subscribe to more than one scope, but scopes should represent logical data slices rather than page names.
 - Fragment invalidations should name explicit target ids and refetch URLs. Keep the fragment GET route canonical for that DOM region instead of rebuilding HTML inside websocket handlers.
 - Use `LiveFragmentProtection` policies for reusable browser-side protection such as focused-field deferral. Do not add feature adapters for generic websocket lifecycle, reconnect, dedupe, version tracking, request decoration, resync, refetch queueing, or swapping.
-- Shared reconnect contract: subscriptions should carry a `lastSeenVersion`, subscribe acks should report `currentVersion` plus whether a scope resync is needed, and a gap in scope versions should trigger a full scope resync through the feature adapter instead of guessing which invalidations were missed.
+- Shared reconnect contract: subscriptions should carry a `lastSeenVersion`, subscribe acks should report `currentVersion` plus whether a scope resync is needed, and a gap in scope versions should trigger a full scope resync using the surface's `resyncFragments` instead of guessing which invalidations were missed.
 - When a reconnect resync falls back to a coarse content fragment, keep the same focus-protection rules as normal live invalidations: defer the content refetch until blur if a `.slot-cell-input` inside that fragment is still focused, while allowing unrelated mounted fragments such as side panels to refresh immediately.
+- Do not use a live surface just because a form currently redirects. A surface is warranted when the mounted page can become stale from another actor, another tab, or an async job. For actor-only edits, prefer HTMX fragments/OOB swaps. For auth, passkey, support venue switching, and other session/security flows, prefer normal browser navigation unless the product explicitly needs in-place behavior.
+- Existing non-live candidate areas:
+  - export job/recent exports/report definitions can become a live surface when job progress or cross-admin report-definition edits matter while the page is open
+  - admin shift types and roster groups can become live surfaces if concurrent admin configuration should refresh across tabs
+  - profile self-service leave/profile content can become a live surface if external approval or manager edits should update an already-open profile page
 
 ## Reusable Time Picker Pattern
 - Use a shared picker overlay + JS behavior for quarter-hour time selection instead of native `<input type="time">` in dense grids.
