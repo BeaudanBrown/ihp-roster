@@ -69,14 +69,20 @@ createUserRecordWithPlatformRole emailAddress globalRole platformRole isProfileC
 
 createUserRecordWithPasswordAndPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRole -> Bool -> IO User
 createUserRecordWithPasswordAndPlatformRole emailAddress password globalRole platformRole isProfileCompleted = do
+    createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRole platformRole isProfileCompleted Nothing
+
+createUserRecordWithPasswordAndPlatformRoleAndId :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRole -> Bool -> Maybe (Id User) -> IO User
+createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRole platformRole isProfileCompleted maybeUserId = do
     passwordHash <- hashPassword password
-    newRecord @User
-        |> set #email emailAddress
-        |> set #passwordHash passwordHash
-        |> set #userRole globalRole
-        |> set #platformRole (platformRoleToEnum <$> platformRole)
-        |> set #isProfileCompleted isProfileCompleted
-        |> set #emailVerifiedAt (Just def)
+    let user =
+            newRecord @User
+                |> set #email emailAddress
+                |> set #passwordHash passwordHash
+                |> set #userRole globalRole
+                |> set #platformRole (platformRoleToEnum <$> platformRole)
+                |> set #isProfileCompleted isProfileCompleted
+                |> set #emailVerifiedAt (Just def)
+    maybe user (\userId -> user |> set #id userId) maybeUserId
         |> createRecord
 
 createVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership

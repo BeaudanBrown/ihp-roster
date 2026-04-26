@@ -2,7 +2,7 @@ module Application.Script.SeedDev where
 
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Script.Prelude
-import Application.Support (defaultWeekEpoch, testPassword)
+import Application.Support (defaultWeekEpoch)
 import Application.Support.DevFixtures (DevSeedFixture (..),
                                         seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth)
 import Application.Support.Seed.Scenario
@@ -17,6 +17,9 @@ import qualified Text.Read as TextRead
 
 seededSupportAdminPassword :: Text
 seededSupportAdminPassword = "admin"
+
+seededSandboxAdminPassword :: Text
+seededSandboxAdminPassword = "venue2"
 
 run :: Script
 run = do
@@ -86,7 +89,7 @@ run = do
         TextIO.putStrLn ("Additional manager logins: " <> intercalate ", " (map (get #email) (drop 1 sandboxManagers)))
     TextIO.putStrLn ("Sandbox worker login: " <> get #email sandboxWorker)
     TextIO.putStrLn ("Support admin login: " <> get #email supportAdmin)
-    TextIO.putStrLn ("Sandbox admin password: " <> testPassword)
+    TextIO.putStrLn ("Sandbox admin password: " <> seededSandboxAdminPassword)
     TextIO.putStrLn ("Support admin password: " <> seededSupportAdminPassword)
     TextIO.putStrLn ("Pending invitation email: " <> get #email sandboxInvitation)
     TextIO.putStrLn ("Current week start: " <> tshow fixtureWeekStart)

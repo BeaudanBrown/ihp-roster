@@ -16,6 +16,7 @@ import Data.Time.Calendar (Day, addDays, dayOfWeek, diffDays, fromGregorian,
 import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
+import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import Generated.Types
 import IHP.ControllerPrelude
@@ -57,11 +58,9 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     -- seeded venue set that remains afterwards.
     resetDatabase
     venue <- createVenueWithConfig "Development Sandbox Venue"
-    founder <- createUserRecordWithPlatformRole "beaudan.brown@gmail.com" "staff" (Just SuperAdminRole) True
-    _ <- provisionVenueUser venue founder "venue_owner" "Beaudan" "Brown"
-    admin <- createUserRecord "dev-admin@example.com" "admin" True
-    _ <- provisionVenueUser venue admin "venue_admin" "Dev" "Admin"
-    supportAdmin <- createUserRecordWithPasswordAndPlatformRole "admin@bepis.lol" "admin" "admin" (Just SuperAdminRole) True
+    admin <- createSeededUserRecordWithPassword "venue2@bepis.lol" "venue2" "admin" True
+    _ <- provisionVenueUser venue admin "venue_admin" "venue2" "bepis"
+    supportAdmin <- createSeededUserRecordWithPasswordAndPlatformRole "admin@bepis.lol" "admin" "admin" (Just SuperAdminRole) True
     managerUsers <- createManagerUsers venue scenario.managerCount
     let managerUser = fromMaybe (error "Expected at least one seeded manager user") (listToMaybe managerUsers)
     workerUser <- createUserRecord "dev-worker@example.com" "staff" True
@@ -154,19 +153,42 @@ createSeedShiftTypeRecord venue shiftTypeName sortOrder =
 
 seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> IO ()
 seedSandboxRoleAliasAccounts venue = do
-    staffUser <- createUserRecordWithPassword "staff@bepis.lol" "staff" "staff" True
+    staffUser <- createSeededUserRecordWithPassword "staff@bepis.lol" "staff" "staff" True
     _ <- provisionVenueUser venue staffUser "worker" "staff" "bepis"
 
-    managerUser <- createUserRecordWithPassword "manager@bepis.lol" "manager" "manager" True
+    managerUser <- createSeededUserRecordWithPassword "manager@bepis.lol" "manager" "manager" True
     _ <- provisionVenueUser venue managerUser "manager" "manager" "bepis"
 
-    venueAdminUser <- createUserRecordWithPassword "venue@bepis.lol" "venue" "admin" True
+    venueAdminUser <- createSeededUserRecordWithPassword "venue@bepis.lol" "venue" "admin" True
     _ <- provisionVenueUser venue venueAdminUser "venue_admin" "venue" "bepis"
 
-    venueOwnerUser <- createUserRecordWithPassword "owner@bepis.lol" "owner" "admin" True
+    venueOwnerUser <- createSeededUserRecordWithPassword "owner@bepis.lol" "owner" "admin" True
     _ <- provisionVenueUser venue venueOwnerUser "venue_owner" "owner" "bepis"
 
     pure ()
+
+createSeededUserRecordWithPassword :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Bool -> IO User
+createSeededUserRecordWithPassword emailAddress password globalRole isProfileCompleted =
+    createSeededUserRecordWithPasswordAndPlatformRole emailAddress password globalRole Nothing isProfileCompleted
+
+createSeededUserRecordWithPasswordAndPlatformRole :: (?modelContext :: ModelContext) => Text -> Text -> Text -> Maybe PlatformRole -> Bool -> IO User
+createSeededUserRecordWithPasswordAndPlatformRole emailAddress password globalRole platformRole isProfileCompleted =
+    createUserRecordWithPasswordAndPlatformRoleAndId emailAddress password globalRole platformRole isProfileCompleted (seededUserIdForPasskeyEmail emailAddress)
+
+seededUserIdForPasskeyEmail :: Text -> Maybe (Id User)
+seededUserIdForPasskeyEmail emailAddress =
+    Id <$> (Map.lookup emailAddress seededUserIdsForPasskeys >>= UUID.fromText)
+
+seededUserIdsForPasskeys :: Map.Map Text Text
+seededUserIdsForPasskeys =
+    Map.fromList
+        [ ("admin@bepis.lol", "a1642410-7297-46fd-916f-9d1ce464c388")
+        , ("manager@bepis.lol", "71ced305-dc24-414c-9471-e891468e0120")
+        , ("owner@bepis.lol", "7fe0607d-32aa-4a63-8a02-147b44987b43")
+        , ("staff@bepis.lol", "0342d268-4d58-4c11-b925-124db23b4758")
+        , ("venue@bepis.lol", "c3b1be9d-12de-49d1-9f21-e507af4c14ab")
+        , ("venue2@bepis.lol", "4c83e177-4d6e-4ef2-abf3-92e9781cfc90")
+        ]
 
 createManagerUsers :: (?modelContext :: ModelContext) => Venue -> Int -> IO [User]
 createManagerUsers venue count =

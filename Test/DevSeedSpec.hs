@@ -65,7 +65,8 @@ tests = beforeAll testContext do
 
                 map (.name) rosterGroups `shouldBe` ["Front of House", "Back of House"]
                 map (.name) seededVenues `shouldBe` ["Development Sandbox Venue"]
-                map (.email) seededUsers `shouldContain` ["beaudan.brown@gmail.com"]
+                map (.email) seededUsers `shouldContain` ["venue2@bepis.lol"]
+                map (.email) seededUsers `shouldNotContain` ["beaudan.brown@gmail.com"]
                 length rosterWeeks `shouldBe` 2
                 length rosterDays `shouldBe` 14
                 length rosterSlots `shouldSatisfy` (> 30)
@@ -344,8 +345,7 @@ tests = beforeAll testContext do
                 let preferenceStaffIds = sort (nub (map (.staffId) shiftPreferences))
                 let linkedUserEmailById = Map.fromList (map (\user -> (unpackId user.id, user.email)) linkedUsers)
                 let exemptPreferenceEmails =
-                        [ "beaudan.brown@gmail.com"
-                        , "dev-admin@example.com"
+                        [ "venue2@bepis.lol"
                         , "admin@bepis.lol"
                         , "staff@bepis.lol"
                         , "manager@bepis.lol"

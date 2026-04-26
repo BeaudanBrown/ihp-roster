@@ -13,7 +13,8 @@ const DEFAULT_POST_LOGIN_URL_PATTERN = process.env.PWCLI_AUTH_POST_LOGIN_URL_PAT
 
 const ROLE_CONFIGS = {
     admin: {
-        email: 'dev-admin@example.com',
+        email: 'venue2@bepis.lol',
+        password: 'venue2',
         readySelector: '#roster-content',
         targetPath: '/RosterWeeks',
     },
