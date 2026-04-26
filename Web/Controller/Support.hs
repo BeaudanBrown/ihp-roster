@@ -9,7 +9,7 @@ import Application.Helper.Controller (currentSupportVenueOptions,
                                       defaultRosterWeekStartsOn,
                                       unsafeEnumFromText)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
-import Application.Helper.LiveUpdate (broadcastLiveInvalidation)
+import Application.Helper.LiveUpdate (broadcastLiveInvalidation, liveUpdateSourceClientId)
 import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail,
                                                      venueOnboardingInvitationLifetime)
 import Application.Helper.View (appendQueryParams)
@@ -149,7 +149,7 @@ instance Controller SupportController where
                 setSuccessMessage "Award rate refresh is already queued or running."
         broadcastLiveInvalidation
             supportLiveUpdateScope
-            (cs <$> getHeader "X-Live-Update-Client-Id")
+            liveUpdateSourceClientId
             [supportAwardRatesSectionFragmentRef]
         respondToAwardRatesRefresh
 
@@ -174,7 +174,7 @@ instance Controller SupportController where
                 setSuccessMessage "Public holiday refresh is already queued or running."
         broadcastLiveInvalidation
             supportLiveUpdateScope
-            (cs <$> getHeader "X-Live-Update-Client-Id")
+            liveUpdateSourceClientId
             [supportPublicHolidaysSectionFragmentRef]
         respondToPublicHolidayRefresh
 

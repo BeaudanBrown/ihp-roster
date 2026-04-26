@@ -7,6 +7,7 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       activeRosterWeekScopes,
                                       broadcastLiveInvalidation,
                                       currentLiveUpdateVersion,
+                                      liveUpdateSourceClientId,
                                       mkLiveFragmentRef)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
@@ -536,5 +537,5 @@ broadcastLeaveRequestsInvalidation fragments =
         liftIO $
             broadcastLiveInvalidation
                 (buildLeaveRequestsScope currentVenueId)
-                (cs <$> getHeader "X-Live-Update-Client-Id")
+                liveUpdateSourceClientId
                 fragments

@@ -2,7 +2,7 @@ module Web.RosterWeeks.LiveUpdates
     ( broadcastRosterWeekInvalidation
     ) where
 
-import Application.Helper.LiveUpdate (LiveFragmentRef, broadcastLiveInvalidation)
+import Application.Helper.LiveUpdate (LiveFragmentRef, broadcastLiveInvalidation, liveUpdateSourceClientId)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Projection (buildRosterWeekScope)
 import Web.RosterWeeks.RenderData (keepCurrentRosterWeekProjectionHot)
@@ -18,6 +18,6 @@ broadcastRosterWeekInvalidation rosterGroupId weekOffset fragments =
         liftIO $
             broadcastLiveInvalidation
                 (buildRosterWeekScope rosterGroupId weekOffset)
-                (cs <$> getHeader "X-Live-Update-Client-Id")
+                liveUpdateSourceClientId
                 fragments
         keepCurrentRosterWeekProjectionHot rosterGroupId weekOffset

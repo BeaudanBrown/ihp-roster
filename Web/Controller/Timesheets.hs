@@ -6,6 +6,7 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..),
                                       broadcastLiveInvalidation,
                                       currentLiveUpdateVersion,
+                                      liveUpdateSourceClientId,
                                       mkLiveFragmentRef)
 import Application.Helper.Pay (ensureCurrentVenuePayConfigSnapshot)
 import Application.Helper.Profiling
@@ -791,7 +792,7 @@ broadcastTimesheetDayInvalidation weekOffset workedOn = do
     liftIO $
         broadcastLiveInvalidation
             (buildTimesheetWeekScope currentVenueId weekOffset)
-            (cs <$> getHeader "X-Live-Update-Client-Id")
+            liveUpdateSourceClientId
             [buildTimesheetDaySectionFragmentRef (TimesheetProjectionRequest weekOffset True True) dayOffset]
 
 timesheetViewFiltersFromRequest :: (?request :: Request) => (Bool, Bool)

@@ -13,6 +13,7 @@ module Application.Helper.LiveUpdate
     , broadcastLiveResync
     , broadcastLiveResyncWithoutContext
     , currentLiveUpdateVersion
+    , liveUpdateSourceClientId
     , liveUpdateScopeKey
     , mkLiveFragmentRef
     , registerLiveSubscription
@@ -28,6 +29,7 @@ import qualified Data.Set as Set
 import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import IHP.Controller.Context (ControllerContext)
+import IHP.ControllerSupport (Request, getHeader)
 import IHP.Prelude
 import qualified Network.WebSockets as WebSocket
 import System.IO.Unsafe (unsafePerformIO)
@@ -171,6 +173,10 @@ liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset } =
     Text.intercalate ":" ["timesheet_week", UUID.toText venueId, tshow weekOffset]
 liveUpdateScopeKey SupportPlatformScope =
     "support_platform"
+
+liveUpdateSourceClientId :: (?request :: Request) => Maybe Text
+liveUpdateSourceClientId =
+    cs <$> getHeader "X-Live-Update-Client-Id"
 
 instance Aeson.ToJSON LiveUpdateScope where
     toJSON RosterWeekScope { venueId, rosterGroupId, weekOffset } =

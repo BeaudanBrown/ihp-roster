@@ -1,7 +1,8 @@
 module Web.Controller.Users where
 
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
-                                      broadcastLiveResync)
+                                      broadcastLiveResync,
+                                      liveUpdateSourceClientId)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
 import Application.Helper.Controller (defaultRosterWeekStartsOn)
@@ -105,7 +106,7 @@ instance Controller UsersController where
                                     LoginSupport.login user
                                     broadcastLiveResync
                                         (AdminInvitesScope { venueId = invitation.venueId })
-                                        (cs <$> getHeader "X-Live-Update-Client-Id")
+                                        liveUpdateSourceClientId
                                     setSuccessMessage "Invitation accepted."
                                     redirectTo EditProfileAction
                     _ -> do
