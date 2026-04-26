@@ -1,6 +1,7 @@
 module Web.Controller.LeaveRequests where
 
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
                                       LiveUpdateScope (..),
                                       broadcastLiveInvalidation,
@@ -494,6 +495,7 @@ buildLeaveRequestsContentFragmentRef =
         , targetId = leaveRequestsContentFragmentId
         , url = pathTo ShowLeaveRequestsContentFragmentAction
         , deferUntilBlur = False
+        , protectionPolicy = NoProtection
         }
 
 buildLeaveRequestsPageFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
@@ -503,6 +505,7 @@ buildLeaveRequestsPageFragmentRef =
         , targetId = leaveRequestsShellId
         , url = pathTo LeaveRequestsAction
         , deferUntilBlur = False
+        , protectionPolicy = NoProtection
         }
 
 broadcastLeaveRequestsInvalidation ::

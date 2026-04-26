@@ -42,11 +42,15 @@ buildRosterContentFragmentRef rosterGroupId weekOffset =
         , targetId = rosterContentFragmentId
         , url = appendQueryParams (pathTo ShowRosterWeekContentFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
         , deferUntilBlur = False
+        , protectionPolicy = NoProtection
         }
 
 buildDeferredRosterContentFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
 buildDeferredRosterContentFragmentRef rosterGroupId weekOffset =
-    (buildRosterContentFragmentRef rosterGroupId weekOffset) { deferUntilBlur = True }
+    (buildRosterContentFragmentRef rosterGroupId weekOffset)
+        { deferUntilBlur = True
+        , protectionPolicy = focusedFieldProtection
+        }
 
 buildRosterStaffPanelFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
 buildRosterStaffPanelFragmentRef rosterGroupId weekOffset =
@@ -55,6 +59,7 @@ buildRosterStaffPanelFragmentRef rosterGroupId weekOffset =
         , targetId = rosterStaffPanelFragmentId
         , url = appendQueryParams (pathTo ShowRosterWeekStaffPanelFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
         , deferUntilBlur = False
+        , protectionPolicy = NoProtection
         }
 
 buildRosterDaySectionFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> UUID.UUID -> LiveFragmentRef
@@ -64,6 +69,7 @@ buildRosterDaySectionFragmentRef rosterGroupId weekOffset rosterDayId =
         , targetId = rosterDaySectionDomId (coerce rosterDayId)
         , url = appendQueryParams (pathTo ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId = coerce rosterDayId }) [("rosterGroupId", tshow rosterGroupId)]
         , deferUntilBlur = True
+        , protectionPolicy = focusedFieldProtection
         }
 
 buildRosterRowFragmentRefs :: (?context :: ControllerContext) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> [LiveFragmentRef]
@@ -90,7 +96,18 @@ buildRosterRowFragmentRef rosterGroupId weekOffset rosterDayId rowIndex =
         , targetId = rosterRowDomIdText (coerce rosterDayId) rowIndex
         , url = appendQueryParams (pathTo ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId = coerce rosterDayId, rowIndex }) [("rosterGroupId", tshow rosterGroupId)]
         , deferUntilBlur = True
+        , protectionPolicy = focusedFieldProtection
         }
 
 disableFragmentBlurDeferral :: LiveFragmentRef -> LiveFragmentRef
-disableFragmentBlurDeferral fragment = fragment { deferUntilBlur = False }
+disableFragmentBlurDeferral fragment = fragment { deferUntilBlur = False, protectionPolicy = NoProtection }
+
+focusedFieldProtection :: LiveFragmentProtection
+focusedFieldProtection =
+    FocusedFieldProtection
+        FocusedFieldProtectionConfig
+            { activeSelector = ".slot-note-input:focus"
+            , fieldKeyAttr = "data-roster-field-key"
+            , fieldNameFallback = True
+            , containerSelector = Just "tr[data-roster-row]"
+            }

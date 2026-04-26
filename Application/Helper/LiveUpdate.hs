@@ -1,6 +1,8 @@
 module Application.Helper.LiveUpdate
     ( LiveFragmentKey (..)
+    , LiveFragmentProtection (..)
     , LiveFragmentRef (..)
+    , FocusedFieldProtectionConfig (..)
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
@@ -70,11 +72,25 @@ data LiveFragmentKey
     | SupportPublicHolidaysSectionFragment
     deriving (Eq, Ord, Show)
 
+data FocusedFieldProtectionConfig = FocusedFieldProtectionConfig
+    { activeSelector     :: !Text
+    , fieldKeyAttr       :: !Text
+    , fieldNameFallback  :: !Bool
+    , containerSelector  :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
+data LiveFragmentProtection
+    = NoProtection
+    | FocusedFieldProtection FocusedFieldProtectionConfig
+    deriving (Eq, Show)
+
 data LiveFragmentRef = LiveFragmentRef
-    { fragmentKey    :: !LiveFragmentKey
-    , targetId       :: !Text
-    , url            :: !Text
-    , deferUntilBlur :: !Bool
+    { fragmentKey       :: !LiveFragmentKey
+    , targetId          :: !Text
+    , url               :: !Text
+    , deferUntilBlur    :: !Bool
+    , protectionPolicy  :: !LiveFragmentProtection
     }
     deriving (Eq, Show)
 
@@ -226,13 +242,59 @@ instance Aeson.FromJSON LiveFragmentKey where
             "support_public_holidays_section" -> pure SupportPublicHolidaysSectionFragment
             _ -> fail ("Unknown live fragment kind: " <> cs kind)
 
+instance Aeson.ToJSON FocusedFieldProtectionConfig where
+    toJSON FocusedFieldProtectionConfig { activeSelector, fieldKeyAttr, fieldNameFallback, containerSelector } =
+        Aeson.object
+            [ "activeSelector" Aeson..= activeSelector
+            , "fieldKeyAttr" Aeson..= fieldKeyAttr
+            , "fieldNameFallback" Aeson..= fieldNameFallback
+            , "containerSelector" Aeson..= containerSelector
+            ]
+
+instance Aeson.FromJSON FocusedFieldProtectionConfig where
+    parseJSON = Aeson.withObject "FocusedFieldProtectionConfig" \object ->
+        FocusedFieldProtectionConfig
+            <$> object Aeson..: "activeSelector"
+            <*> object Aeson..: "fieldKeyAttr"
+            <*> object Aeson..: "fieldNameFallback"
+            <*> object Aeson..:? "containerSelector"
+
+instance Aeson.ToJSON LiveFragmentProtection where
+    toJSON NoProtection = Aeson.Null
+    toJSON (FocusedFieldProtection config) =
+        Aeson.object
+            [ "kind" Aeson..= ("focused_field" :: Text)
+            , "activeSelector" Aeson..= config.activeSelector
+            , "fieldKeyAttr" Aeson..= config.fieldKeyAttr
+            , "fieldNameFallback" Aeson..= config.fieldNameFallback
+            , "containerSelector" Aeson..= config.containerSelector
+            ]
+
+instance Aeson.FromJSON LiveFragmentProtection where
+    parseJSON Aeson.Null = pure NoProtection
+    parseJSON value = Aeson.withObject "LiveFragmentProtection" parseProtection value
+      where
+        parseProtection object = do
+            kind <- object Aeson..: "kind"
+            case (kind :: Text) of
+                "focused_field" ->
+                    FocusedFieldProtection
+                        <$> (FocusedFieldProtectionConfig
+                            <$> object Aeson..: "activeSelector"
+                            <*> object Aeson..: "fieldKeyAttr"
+                            <*> object Aeson..: "fieldNameFallback"
+                            <*> object Aeson..:? "containerSelector"
+                            )
+                _ -> fail ("Unknown live fragment protection kind: " <> cs kind)
+
 instance Aeson.ToJSON LiveFragmentRef where
-    toJSON LiveFragmentRef { fragmentKey, targetId, url, deferUntilBlur } =
+    toJSON LiveFragmentRef { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } =
         Aeson.object
             [ "fragmentKey" Aeson..= fragmentKey
             , "targetId" Aeson..= targetId
             , "url" Aeson..= url
             , "deferUntilBlur" Aeson..= deferUntilBlur
+            , "protectionPolicy" Aeson..= protectionPolicy
             ]
 
 instance Aeson.FromJSON LiveFragmentRef where
@@ -242,6 +304,7 @@ instance Aeson.FromJSON LiveFragmentRef where
             <*> object Aeson..: "targetId"
             <*> object Aeson..: "url"
             <*> object Aeson..: "deferUntilBlur"
+            <*> object Aeson..:? "protectionPolicy" Aeson..!= NoProtection
 
 instance Aeson.ToJSON LiveUpdateCommand where
     toJSON SubscribeLiveUpdates { scope, clientId, lastSeenVersion } =

@@ -1,6 +1,7 @@
 module Test.SurfaceProjectionSpec where
 
 import Application.Helper.LiveUpdate (LiveFragmentKey (RosterContentFragment),
+                                      LiveFragmentProtection (NoProtection),
                                       LiveFragmentRef (..))
 import Application.Helper.SurfaceProjection
 import Data.IORef
@@ -170,6 +171,7 @@ testDefinition viewerRef versionRef loadCountRef cachePolicy =
                 , targetId = "target-" <> tshow scope
                 , url = "/surface/" <> tshow scope
                 , deferUntilBlur = False
+                , protectionPolicy = NoProtection
                 }
         }
 

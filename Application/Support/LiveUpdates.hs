@@ -17,6 +17,7 @@ supportAwardRatesSectionFragmentRef =
         , targetId = "support-award-rates-section"
         , url = "/ShowFwcMapdAwardRatesSection"
         , deferUntilBlur = False
+        , protectionPolicy = NoProtection
         }
 
 supportPublicHolidaysSectionFragmentRef :: LiveFragmentRef
@@ -26,4 +27,5 @@ supportPublicHolidaysSectionFragmentRef =
         , targetId = "support-public-holidays-section"
         , url = "/ShowPublicHolidaysSection"
         , deferUntilBlur = False
+        , protectionPolicy = NoProtection
         }

@@ -1,6 +1,7 @@
 module Web.Controller.Timesheets where
 
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
                                       LiveUpdateScope (..),
                                       broadcastLiveInvalidation,
@@ -774,6 +775,7 @@ buildTimesheetDaySectionFragmentRef requestKey dayOffset =
                 , ("showAllStaff", if requestKey.projectionShowAllStaff then "true" else "false")
                 ]
         , deferUntilBlur = False
+        , protectionPolicy = NoProtection
         }
 
 buildTimesheetWeekPageFragmentRef :: (?context :: ControllerContext) => TimesheetProjectionRequest -> LiveFragmentRef
@@ -783,6 +785,7 @@ buildTimesheetWeekPageFragmentRef requestKey =
         , targetId = timesheetWeekShellId
         , url = timesheetWeekUrl requestKey.projectionWeekOffset requestKey.projectionShowApproved requestKey.projectionShowAllStaff
         , deferUntilBlur = False
+        , protectionPolicy = NoProtection
         }
 
 broadcastTimesheetDayInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> IO ()
