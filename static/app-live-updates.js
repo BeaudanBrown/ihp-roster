@@ -493,7 +493,7 @@
 
         if (!config || !config.scope) return null;
 
-        const scopeKey = buildScopeKey(config.scope);
+        const scopeKey = config.scopeKey || buildScopeKey(config.scope);
         if (!scopeKey) {
             reportSurfaceConfigError(ownerEl, new Error('Invalid live-update surface scope'));
             return null;

@@ -11,6 +11,7 @@ module Application.Helper.LiveUpdate
     , broadcastLiveInvalidation
     , broadcastLiveInvalidationWithoutContext
     , currentLiveUpdateVersion
+    , liveUpdateScopeKey
     , registerLiveSubscription
     , unregisterLiveSubscription
     ) where
@@ -137,6 +138,26 @@ data LiveUpdateMessage
         { message :: !Text
         }
     deriving (Eq, Show)
+
+liveUpdateScopeKey :: LiveUpdateScope -> Text
+liveUpdateScopeKey RosterWeekScope { venueId, rosterGroupId, weekOffset } =
+    Text.intercalate ":" ["roster_week", UUID.toText venueId, UUID.toText rosterGroupId, tshow weekOffset]
+liveUpdateScopeKey RosterGroupConfigScope { venueId, rosterGroupId } =
+    Text.intercalate ":" ["roster_group_config", UUID.toText venueId, UUID.toText rosterGroupId]
+liveUpdateScopeKey AdminSlotNamesScope { venueId, rosterGroupId } =
+    Text.intercalate ":" ["admin_slot_names", UUID.toText venueId, UUID.toText rosterGroupId]
+liveUpdateScopeKey AdminShiftTypesScope { venueId } =
+    Text.intercalate ":" ["admin_shift_types", UUID.toText venueId]
+liveUpdateScopeKey AdminRosterGroupsScope { venueId } =
+    Text.intercalate ":" ["admin_roster_groups", UUID.toText venueId]
+liveUpdateScopeKey AdminInvitesScope { venueId } =
+    Text.intercalate ":" ["admin_invites", UUID.toText venueId]
+liveUpdateScopeKey LeaveRequestsScope { venueId } =
+    Text.intercalate ":" ["leave_requests", UUID.toText venueId]
+liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset } =
+    Text.intercalate ":" ["timesheet_week", UUID.toText venueId, tshow weekOffset]
+liveUpdateScopeKey SupportPlatformScope =
+    "support_platform"
 
 instance Aeson.ToJSON LiveUpdateScope where
     toJSON RosterWeekScope { venueId, rosterGroupId, weekOffset } =

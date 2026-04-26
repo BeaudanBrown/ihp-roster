@@ -14,17 +14,19 @@ data LiveSurfaceConfig = LiveSurfaceConfig
     { feature                :: !Text
     , socketPath             :: !Text
     , scope                  :: !LiveUpdateScope
+    , scopeKey               :: !Text
     , resyncFragments        :: ![LiveFragmentRef]
     , decorateRequestsWithin :: ![Text]
     }
     deriving (Eq, Show)
 
 instance Aeson.ToJSON LiveSurfaceConfig where
-    toJSON LiveSurfaceConfig { feature, socketPath, scope, resyncFragments, decorateRequestsWithin } =
+    toJSON LiveSurfaceConfig { feature, socketPath, scope, scopeKey, resyncFragments, decorateRequestsWithin } =
         Aeson.object
             [ "feature" Aeson..= feature
             , "socketPath" Aeson..= socketPath
             , "scope" Aeson..= scope
+            , "scopeKey" Aeson..= scopeKey
             , "resyncFragments" Aeson..= resyncFragments
             , "decorateRequestsWithin" Aeson..= decorateRequestsWithin
             ]
@@ -35,6 +37,7 @@ instance Aeson.FromJSON LiveSurfaceConfig where
             <$> object Aeson..: "feature"
             <*> object Aeson..: "socketPath"
             <*> object Aeson..: "scope"
+            <*> object Aeson..: "scopeKey"
             <*> object Aeson..: "resyncFragments"
             <*> object Aeson..: "decorateRequestsWithin"
 
@@ -44,6 +47,7 @@ mkLiveSurface feature scope resyncFragments =
         { feature
         , socketPath = "/live-updates"
         , scope
+        , scopeKey = liveUpdateScopeKey scope
         , resyncFragments
         , decorateRequestsWithin = []
         }

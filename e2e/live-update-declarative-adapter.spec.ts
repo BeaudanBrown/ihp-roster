@@ -14,6 +14,7 @@ type LiveSurfaceFixture = {
     feature: string;
     socketPath: string;
     scope: LiveUpdateScope;
+    scopeKey?: string;
     resyncFragments: unknown[];
     decorateRequestsWithin: string[];
 };
@@ -170,6 +171,26 @@ test.describe('Declarative live-update adapter', () => {
             .toContain('subscribe:admin_invites');
     });
 
+    test('uses server-emitted scope keys when present', async ({ page }) => {
+        await installLiveUpdateHarness(page);
+        await openBlankRuntimePage(page);
+
+        await addSyntheticSurface(page, {
+            feature: 'synthetic-server-key',
+            socketPath: '/live-updates',
+            scope: {
+                kind: 'server_only_scope',
+            },
+            scopeKey: 'server-only:synthetic',
+            resyncFragments: [],
+            decorateRequestsWithin: [],
+        });
+
+        await expect
+            .poll(async () => (await liveUpdateCommands(page)).map((command: any) => `${command.type}:${command.scope?.kind}`))
+            .toContain('subscribe:server_only_scope');
+    });
+
     test('resyncs declarative fragments after a subscribed message asks for resync', async ({ page }) => {
         await installLiveUpdateHarness(page);
         await openBlankRuntimePage(page);
@@ -289,6 +310,7 @@ test.describe('Declarative live-update adapter', () => {
         expect(config).toMatchObject({
             feature: 'roster',
             socketPath: '/live-updates',
+            scopeKey: `${config.scope.kind}:${config.scope.venueId}:${config.scope.rosterGroupId}:0`,
             scope: {
                 kind: 'roster_week',
                 weekOffset: 0,

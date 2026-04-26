@@ -64,7 +64,7 @@ tests = describe "LiveUpdate runtime types" do
                     ]
 
         liveSurfaceConfigJson surface
-            `shouldBe` "{\"decorateRequestsWithin\":[],\"feature\":\"support\",\"resyncFragments\":[{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_award_rates_section\"},\"protectionPolicy\":null,\"targetId\":\"support-award-rates-section\",\"url\":\"/ShowFwcMapdAwardRatesSection\"},{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_public_holidays_section\"},\"protectionPolicy\":null,\"targetId\":\"support-public-holidays-section\",\"url\":\"/ShowPublicHolidaysSection\"}],\"scope\":{\"kind\":\"support_platform\"},\"socketPath\":\"/live-updates\"}"
+            `shouldBe` "{\"decorateRequestsWithin\":[],\"feature\":\"support\",\"resyncFragments\":[{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_award_rates_section\"},\"protectionPolicy\":null,\"targetId\":\"support-award-rates-section\",\"url\":\"/ShowFwcMapdAwardRatesSection\"},{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_public_holidays_section\"},\"protectionPolicy\":null,\"targetId\":\"support-public-holidays-section\",\"url\":\"/ShowPublicHolidaysSection\"}],\"scope\":{\"kind\":\"support_platform\"},\"scopeKey\":\"support_platform\",\"socketPath\":\"/live-updates\"}"
 
     it "round-trips leave, timesheet, and protected roster surface configs through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
