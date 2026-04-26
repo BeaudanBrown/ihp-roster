@@ -19,7 +19,6 @@ data IndexView = IndexView
     , payrollEarningsReportDefinition :: Maybe VenueReportDefinition
     , reportWeekSelection             :: ReportWeekSelection
     , invitations                     :: [VenueInvitation]
-    , slotNamesLiveUpdateScope        :: Maybe LiveUpdateScope
     , invitesLiveUpdateScope          :: Maybe LiveUpdateScope
     , showInactiveRosterGroups        :: Bool
     , showInactiveShiftTypes          :: Bool
@@ -53,16 +52,6 @@ instance View IndexView where
             , appPageBody = [hsx|
                 {adminContentPanel}
                 <div data-live-update-owner="true"
-                     data-live-update-feature="admin-slot-names"
-                     data-live-updates-path="/live-updates"
-                     data-live-update-content-url={appendQueryParams (pathTo ShowAdminSlotNamesFragmentAction) [("rosterGroupId", tshow currentRosterGroup.id)]}
-                     data-live-update-client-enabled={isJust slotNamesLiveUpdateScope}
-                     data-live-update-client-id=""
-                     data-live-update-scope-kind={liveUpdateScopeKind <$> slotNamesLiveUpdateScope}
-                     data-live-update-venue-id={liveUpdateVenueId <$> slotNamesLiveUpdateScope}
-                     data-live-update-roster-group-id={liveUpdateRosterGroupIdText =<< slotNamesLiveUpdateScope}
-                     hidden="hidden"></div>
-                <div data-live-update-owner="true"
                      data-live-update-feature="admin-invites"
                      data-live-updates-path="/live-updates"
                      data-live-update-content-url={appendQueryParams (pathTo ShowAdminInvitesFragmentAction) [("rosterGroupId", tshow currentRosterGroup.id)]}
@@ -80,42 +69,59 @@ renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates 
         "shift-types"
         "Shift Types"
         "Configure venue shift types. Choose an override only when a shift should pay a different award level from the staff member's default."
-        (renderInactiveToggleSummary "showInactiveShiftTypes" shiftTypes showInactive)
-        (renderShiftTypeCreateForm awardLevels awardLevelBaseRates)
+        (renderInactiveToggleSummary "showInactiveShiftTypes" (pathTo ShowAdminShiftTypesFragmentAction) "admin-shift-types-fragment" shiftTypes showInactive)
+        (renderShiftTypeCreateForm showInactive awardLevels awardLevelBaseRates)
         (renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates)
 
-renderRosterGroupsSection :: [RosterGroup] -> RosterGroup -> Bool -> Html
-renderRosterGroupsSection rosterGroups currentRosterGroup showInactive =
+renderShiftTypesSectionFragment :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
+renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBaseRates = [hsx|
+    <div id="admin-shift-types-fragment">
+        {renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates}
+    </div>
+|]
+
+renderRosterGroupsSection :: [RosterGroup] -> [SlotName] -> Bool -> Html
+renderRosterGroupsSection rosterGroups slotNames showInactive =
     renderConfigSection
         "roster-groups"
         "Roster Groups"
-        "Define the roster lanes inside this venue. Slot names below are edited for the selected roster group."
-        (renderInactiveToggleSummary "showInactiveRosterGroups" rosterGroups showInactive)
+        "Define the roster lanes inside this venue. Slot names are managed inside each roster group."
+        (renderInactiveToggleSummary "showInactiveRosterGroups" (pathTo ShowAdminRosterGroupsFragmentAction) "admin-roster-groups-fragment" rosterGroups showInactive)
         [hsx|
-            {renderRosterGroupCreateForm}
+            {renderRosterGroupCreateForm showInactive}
         |]
-        (renderRosterGroupRows rosterGroups showInactive)
+        (renderRosterGroupRows rosterGroups slotNames showInactive)
 
-renderSlotNamesSection :: RosterGroup -> [SlotName] -> Html
-renderSlotNamesSection currentRosterGroup slotNames =
-    renderConfigSection
-        "slot-names"
-        "Slot Names"
-        ("These power the Bepis roster block labels for the selected roster group: " <> currentRosterGroup.name <> ".")
-        (renderRowCountSummary slotNames)
-        (renderSlotNameCreateForm currentRosterGroup.id)
-        (if null slotNames then renderEmptyState "No slot names yet for this roster group." else [hsx|
-            <div class="d-flex flex-column gap-2">
-                {forEach (zip [0 :: Int ..] slotNames) (renderSlotNameRow currentRosterGroup.id (length slotNames))}
-            </div>
-        |])
-
-renderSlotNamesSectionFragment :: RosterGroup -> [SlotName] -> Html
-renderSlotNamesSectionFragment currentRosterGroup slotNames = [hsx|
-    <div id="admin-slot-names-fragment">
-        {renderSlotNamesSection currentRosterGroup slotNames}
+renderRosterGroupsSectionFragment :: [RosterGroup] -> [SlotName] -> Bool -> Html
+renderRosterGroupsSectionFragment rosterGroups slotNames showInactive = [hsx|
+    <div id="admin-roster-groups-fragment">
+        {renderRosterGroupsSection rosterGroups slotNames showInactive}
+        {forEach (visibleRosterGroupsForAdmin rosterGroups showInactive) renderSlotNamesLiveUpdateOwner}
     </div>
 |]
+
+renderRosterGroupSlotNamesFragment :: RosterGroup -> [SlotName] -> Html
+renderRosterGroupSlotNamesFragment rosterGroup slotNames = [hsx|
+    <div id={slotNameFragmentId rosterGroup.id} data-live-update-feature="admin-slot-names" class="mt-3 pt-3 border-top">
+        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-2">
+            <h3 class="h6 mb-0">Slot Names</h3>
+            <span class="small app-muted">{tshow (length slotNames)} active</span>
+        </div>
+        {renderSlotNameCreateForm rosterGroup.id}
+        <div class="mt-2">
+            {renderSlotNameRows rosterGroup.id slotNames}
+        </div>
+    </div>
+|]
+
+renderSlotNameRows :: Id RosterGroup -> [SlotName] -> Html
+renderSlotNameRows rosterGroupId slotNames
+    | null slotNames = renderEmptyState "No slot names yet for this roster group."
+    | otherwise = [hsx|
+        <div class="d-flex flex-column gap-2">
+            {forEach (zip [0 :: Int ..] slotNames) (renderSlotNameRow rosterGroupId (length slotNames))}
+        </div>
+    |]
 
 renderInvitesSection :: [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSection invitations rosterGroupId =
@@ -174,6 +180,30 @@ renderInvitesSectionFragment invitations rosterGroupId = [hsx|
         {renderInvitesSection invitations rosterGroupId}
     </div>
 |]
+
+renderSlotNamesLiveUpdateOwner :: RosterGroup -> Html
+renderSlotNamesLiveUpdateOwner rosterGroup =
+    let scope = adminSlotNamesScopeForRosterGroup rosterGroup
+     in [hsx|
+        <div data-live-update-owner="true"
+             data-live-update-feature="admin-slot-names"
+             data-live-updates-path="/live-updates"
+             data-live-update-content-url={appendQueryParams (pathTo ShowAdminSlotNamesFragmentAction) [("rosterGroupId", tshow rosterGroup.id)]}
+             data-live-update-target-id={slotNameFragmentId rosterGroup.id}
+             data-live-update-client-enabled="true"
+             data-live-update-client-id=""
+             data-live-update-scope-kind={liveUpdateScopeKind scope}
+             data-live-update-venue-id={liveUpdateVenueId scope}
+             data-live-update-roster-group-id={liveUpdateRosterGroupIdText scope}
+             hidden="hidden"></div>
+    |]
+
+adminSlotNamesScopeForRosterGroup :: RosterGroup -> LiveUpdateScope
+adminSlotNamesScopeForRosterGroup rosterGroup =
+    AdminSlotNamesScope
+        { venueId = rosterGroup.venueId
+        , rosterGroupId = unpackId rosterGroup.id
+        }
 
 renderInviteTable :: [VenueInvitation] -> Id RosterGroup -> Html
 renderInviteTable invitations rosterGroupId = [hsx|
@@ -252,9 +282,8 @@ renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRoster
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection)}
-        {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSection shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
-        {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSection rosterGroups currentRosterGroup showInactiveRosterGroups)}
-        {renderAccordionItem "slot-names" "Slot Names" False (renderSlotNamesSectionFragment currentRosterGroup slotNames)}
+        {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
+        {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)}
     </div>
 |]
 
@@ -353,9 +382,16 @@ renderConfigSection anchorId title description summary createForm rows =
         |]
         }
 
-renderShiftTypeCreateForm :: [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderShiftTypeCreateForm awardLevels awardLevelBaseRates = [hsx|
-    <form method="POST" action={CreateShiftTypeAction} class="border rounded p-3" data-disable-javascript-submission="true">
+renderShiftTypeCreateForm :: Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
+renderShiftTypeCreateForm showInactive awardLevels awardLevelBaseRates = [hsx|
+    <form method="POST"
+          action={CreateShiftTypeAction}
+          class="border rounded p-3"
+          data-disable-javascript-submission="true"
+          hx-post={CreateShiftTypeAction}
+          hx-target="#admin-shift-types-fragment"
+          hx-swap="outerHTML">
+        <input type="hidden" name="showInactiveShiftTypes" value={boolParam showInactive} />
         <div class="row g-2 align-items-end">
             <div class="col-12 col-lg-4">
                 <label class="form-label" for="new-shift-type-name">Name</label>
@@ -387,7 +423,7 @@ renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates
     | null visibleRows = renderEmptyState "No shift types yet."
     | otherwise = [hsx|
         <div class="d-flex flex-column gap-2">
-            {forEach (zip [0 :: Int ..] visibleRows) (renderShiftTypeRow awardLevels awardLevelBaseRates activeCount)}
+            {forEach (zip [0 :: Int ..] visibleRows) (renderShiftTypeRow showInactive awardLevels awardLevelBaseRates activeCount)}
         </div>
     |]
     where
@@ -396,9 +432,16 @@ renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates
         activeCount = length activeRows
         visibleRows = activeRows <> if showInactive then inactiveRows else []
 
-renderShiftTypeRow :: [AwardLevel] -> [AwardLevelBaseRate] -> Int -> (Int, ShiftType) -> Html
-renderShiftTypeRow awardLevels awardLevelBaseRates activeCount (shiftTypeIndex, shiftType) = [hsx|
-    <form method="POST" action={UpdateShiftTypeAction (get #id shiftType)} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
+renderShiftTypeRow :: Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Int -> (Int, ShiftType) -> Html
+renderShiftTypeRow showInactive awardLevels awardLevelBaseRates activeCount (shiftTypeIndex, shiftType) = [hsx|
+    <form method="POST"
+          action={UpdateShiftTypeAction (get #id shiftType)}
+          class="border rounded p-3 mb-2"
+          data-disable-javascript-submission="true"
+          hx-post={UpdateShiftTypeAction (get #id shiftType)}
+          hx-target="#admin-shift-types-fragment"
+          hx-swap="outerHTML">
+        <input type="hidden" name="showInactiveShiftTypes" value={boolParam showInactive} />
         <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
             <div class="d-flex align-items-center gap-2">
                 <span class="fw-semibold">Shift Type</span>
@@ -442,9 +485,16 @@ renderAwardLevelOption awardLevelBaseRates selectedAwardLevelId awardLevel = [hs
     </option>
 |]
 
-renderRosterGroupCreateForm :: Html
-renderRosterGroupCreateForm = [hsx|
-    <form method="POST" action={CreateRosterGroupAction} class="border rounded p-3" data-disable-javascript-submission="true">
+renderRosterGroupCreateForm :: Bool -> Html
+renderRosterGroupCreateForm showInactive = [hsx|
+    <form method="POST"
+          action={CreateRosterGroupAction}
+          class="border rounded p-3"
+          data-disable-javascript-submission="true"
+          hx-post={CreateRosterGroupAction}
+          hx-target="#admin-roster-groups-fragment"
+          hx-swap="outerHTML">
+        <input type="hidden" name="showInactiveRosterGroups" value={boolParam showInactive} />
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-8">
                 <label class="form-label" for="new-roster-group-name">Name</label>
@@ -464,51 +514,59 @@ renderRosterGroupCreateForm = [hsx|
     </form>
 |]
 
-renderRosterGroupRows :: [RosterGroup] -> Bool -> Html
-renderRosterGroupRows rosterGroups showInactive
+renderRosterGroupRows :: [RosterGroup] -> [SlotName] -> Bool -> Html
+renderRosterGroupRows rosterGroups slotNames showInactive
     | null visibleRows = renderEmptyState "No roster groups yet."
     | otherwise = [hsx|
         <div class="d-flex flex-column gap-2">
-            {forEach (zip [0 :: Int ..] visibleRows) (renderRosterGroupRow activeCount)}
+            {forEach (zip [0 :: Int ..] visibleRows) (renderRosterGroupRow showInactive activeCount slotNames)}
         </div>
     |]
     where
         activeRows = filter (.isActive) rosterGroups
-        inactiveRows = filter (not . (.isActive)) rosterGroups
         activeCount = length activeRows
-        visibleRows = activeRows <> if showInactive then inactiveRows else []
+        visibleRows = visibleRosterGroupsForAdmin rosterGroups showInactive
 
-renderRosterGroupRow :: Int -> (Int, RosterGroup) -> Html
-renderRosterGroupRow activeCount (rosterGroupIndex, rosterGroup) = [hsx|
-    <form method="POST" action={appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]} class="border rounded p-3 mb-2" data-disable-javascript-submission="true">
-        <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
-            <div class="d-flex align-items-center gap-2">
-                <span class="fw-semibold">Roster Group</span>
-                {renderActiveBadge rosterGroup.isActive}
-                {renderRosterGroupDefaultBadge rosterGroup}
+renderRosterGroupRow :: Bool -> Int -> [SlotName] -> (Int, RosterGroup) -> Html
+renderRosterGroupRow showInactive activeCount slotNames (rosterGroupIndex, rosterGroup) = [hsx|
+    <div class="border rounded p-3 mb-2">
+        <form method="POST"
+              action={appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]}
+              data-disable-javascript-submission="true"
+              hx-post={appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]}
+              hx-target="#admin-roster-groups-fragment"
+              hx-swap="outerHTML">
+            <input type="hidden" name="showInactiveRosterGroups" value={boolParam showInactive} />
+            <div class="d-flex justify-content-between align-items-center mb-2 gap-2 flex-wrap">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="fw-semibold">Roster Group</span>
+                    {renderActiveBadge rosterGroup.isActive}
+                    {renderRosterGroupDefaultBadge rosterGroup}
+                </div>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Reorder roster group">
+                    {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (MoveRosterGroupUpAction rosterGroup.id) "Up"}
+                    {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (MoveRosterGroupDownAction rosterGroup.id) "Down"}
+                </div>
             </div>
-            <div class="btn-group btn-group-sm" role="group" aria-label="Reorder roster group">
-                {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (MoveRosterGroupUpAction rosterGroup.id) "Up"}
-                {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (MoveRosterGroupDownAction rosterGroup.id) "Down"}
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-8">
+                    <label class="form-label">Name</label>
+                    <input class="form-control" type="text" name="name" value={rosterGroup.name} />
+                </div>
+                <div class="col-12 col-md-2">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" name="isActive">
+                        <option value="true" selected={rosterGroup.isActive}>Active</option>
+                        <option value="false" selected={not rosterGroup.isActive}>Inactive</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-2">
+                    <button class="btn btn-outline-secondary w-100" type="submit">Update</button>
+                </div>
             </div>
-        </div>
-        <div class="row g-2 align-items-end">
-            <div class="col-12 col-md-8">
-                <label class="form-label">Name</label>
-                <input class="form-control" type="text" name="name" value={rosterGroup.name} />
-            </div>
-            <div class="col-12 col-md-2">
-                <label class="form-label">Status</label>
-                <select class="form-select" name="isActive">
-                    <option value="true" selected={rosterGroup.isActive}>Active</option>
-                    <option value="false" selected={not rosterGroup.isActive}>Inactive</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-2">
-                <button class="btn btn-outline-secondary w-100" type="submit">Update</button>
-            </div>
-        </div>
-    </form>
+        </form>
+        {renderRosterGroupSlotNamesFragment rosterGroup (slotNamesForRosterGroup rosterGroup.id slotNames)}
+    </div>
 |]
 
 renderSlotNameCreateForm :: Id RosterGroup -> Html
@@ -518,12 +576,12 @@ renderSlotNameCreateForm rosterGroupId = [hsx|
           class="border rounded p-3"
           data-disable-javascript-submission="true"
           hx-post={appendQueryParams (pathTo CreateSlotNameAction) [("rosterGroupId", tshow rosterGroupId)]}
-          hx-target="#admin-slot-names-fragment"
+          hx-target={slotNameTarget rosterGroupId}
           hx-swap="outerHTML">
         <div class="row g-2 align-items-end">
             <div class="col-12 col-md-8">
-                <label class="form-label" for="new-slot-name">Name</label>
-                <input id="new-slot-name" class="form-control" type="text" name="name" placeholder="Early" />
+                <label class="form-label" for={"new-slot-name-" <> tshow rosterGroupId}>Name</label>
+                <input id={"new-slot-name-" <> tshow rosterGroupId} class="form-control" type="text" name="name" placeholder="Early" />
             </div>
             <div class="col-12 col-md-4">
                 <button class="btn btn-outline-primary w-100" type="submit">Add Slot</button>
@@ -537,8 +595,8 @@ renderSlotNameRow rosterGroupId slotCount (slotIndex, slotName) = [hsx|
     <div class="border rounded p-2">
         <div class="d-flex flex-column flex-md-row gap-2 align-items-stretch align-items-md-center">
             <div class="btn-group" role="group" aria-label="Reorder slot">
-                {renderSlotMoveButton (slotIndex == 0) (appendQueryParams (pathTo (MoveSlotNameUpAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]) "Up"}
-                {renderSlotMoveButton (slotIndex == slotCount - 1) (appendQueryParams (pathTo (MoveSlotNameDownAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]) "Down"}
+                {renderSlotMoveButton rosterGroupId (slotIndex == 0) (appendQueryParams (pathTo (MoveSlotNameUpAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]) "Up"}
+                {renderSlotMoveButton rosterGroupId (slotIndex == slotCount - 1) (appendQueryParams (pathTo (MoveSlotNameDownAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]) "Down"}
             </div>
             <form class="m-0 flex-grow-1" data-disable-javascript-submission="true">
                 <input class="form-control"
@@ -557,7 +615,7 @@ renderSlotNameRow rosterGroupId slotCount (slotIndex, slotName) = [hsx|
                   class="m-0"
                   data-disable-javascript-submission="true"
                   hx-delete={appendQueryParams (pathTo (DeleteSlotNameAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]}
-                  hx-target="#admin-slot-names-fragment"
+                  hx-target={slotNameTarget rosterGroupId}
                   hx-swap="outerHTML">
                 <input type="hidden" name="_method" value="DELETE" />
                 <button class="btn btn-outline-danger" type="submit">Delete</button>
@@ -566,8 +624,8 @@ renderSlotNameRow rosterGroupId slotCount (slotIndex, slotName) = [hsx|
     </div>
 |]
 
-renderSlotMoveButton :: Bool -> Text -> Text -> Html
-renderSlotMoveButton isDisabled action label =
+renderSlotMoveButton :: Id RosterGroup -> Bool -> Text -> Text -> Html
+renderSlotMoveButton rosterGroupId isDisabled action label =
     if isDisabled
         then [hsx|
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label}</button>
@@ -578,7 +636,7 @@ renderSlotMoveButton isDisabled action label =
                   class="m-0"
                   data-disable-javascript-submission="true"
                   hx-post={action}
-                  hx-target="#admin-slot-names-fragment"
+                  hx-target={slotNameTarget rosterGroupId}
                   hx-swap="outerHTML">
                 <button class="btn btn-outline-secondary" type="submit">{label}</button>
             </form>
@@ -591,21 +649,31 @@ renderRowCountSummary rows = [hsx|
     </p>
 |]
 
-renderInactiveToggleSummary :: HasField "isActive" record Bool => Text -> [record] -> Bool -> Html
-renderInactiveToggleSummary paramName rows showInactive = [hsx|
+renderInactiveToggleSummary :: HasField "isActive" record Bool => Text -> Text -> Text -> [record] -> Bool -> Html
+renderInactiveToggleSummary paramName fragmentPath targetId rows showInactive = [hsx|
     <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
         <p class="small app-muted mb-0">
             {tshow (length rows)} rows total, {tshow activeCount} active, {tshow inactiveCount} inactive.
         </p>
-        <a class="btn btn-sm btn-outline-secondary" href={toggleHref}>
-            {if showInactive then ("Hide inactive" :: Text) else "Show inactive"}
-        </a>
+        <div class="form-check form-switch mb-0">
+            <input
+                id={targetId <> "-show-inactive-toggle"}
+                class="form-check-input"
+                type="checkbox"
+                role="switch"
+                checked={showInactive}
+                hx-get={toggleHref}
+                hx-target={"#" <> targetId}
+                hx-swap="outerHTML"
+            />
+            <label class="form-check-label small" for={targetId <> "-show-inactive-toggle"}>Show inactive</label>
+        </div>
     </div>
 |]
     where
         activeCount = countActiveRows rows
         inactiveCount = length rows - activeCount
-        toggleHref = appendQueryParams (pathTo AdminAction) [(paramName, if showInactive then "false" else "true")]
+        toggleHref = appendQueryParams fragmentPath [(paramName, if showInactive then "false" else "true")]
 
 renderRosterGroupDefaultBadge :: RosterGroup -> Html
 renderRosterGroupDefaultBadge rosterGroup
@@ -678,8 +746,29 @@ accordionCollapseClass isOpen =
 renderEmptyState :: Text -> Html
 renderEmptyState message = [hsx|<p class="app-muted mb-0">{message}</p>|]
 
+slotNamesForRosterGroup :: Id RosterGroup -> [SlotName] -> [SlotName]
+slotNamesForRosterGroup rosterGroupId =
+    filter (\slotName -> slotName.rosterGroupId == unpackId rosterGroupId)
+
+slotNameFragmentId :: Id RosterGroup -> Text
+slotNameFragmentId rosterGroupId = "admin-slot-names-fragment-" <> tshow rosterGroupId
+
+slotNameTarget :: Id RosterGroup -> Text
+slotNameTarget rosterGroupId = "#" <> slotNameFragmentId rosterGroupId
+
+visibleRosterGroupsForAdmin :: [RosterGroup] -> Bool -> [RosterGroup]
+visibleRosterGroupsForAdmin rosterGroups showInactive =
+    activeRows <> if showInactive then inactiveRows else []
+    where
+        activeRows = filter (.isActive) rosterGroups
+        inactiveRows = filter (not . (.isActive)) rosterGroups
+
 countActiveRows :: HasField "isActive" record Bool => [record] -> Int
 countActiveRows = length . filter (.isActive)
+
+boolParam :: Bool -> Text
+boolParam True  = "true"
+boolParam False = "false"
 
 weekdayOptions :: [(Int, Text)]
 weekdayOptions =

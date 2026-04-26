@@ -5,9 +5,9 @@ import Application.Helper.LiveUpdate
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
 import Application.Helper.VenueInvitation
-import Application.Helper.WeekBoundaries
-    ( defaultWeekOffsetEpochForStartDay, validRosterWeekStartDays,
-      weekdayIndexLabel )
+import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
+                                          validRosterWeekStartDays,
+                                          weekdayIndexLabel)
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
 import qualified Data.List as List
@@ -29,7 +29,7 @@ instance Controller AdminController where
         shiftTypes <- fetchCurrentVenueShiftTypes
         awardLevels <- fetchActiveAwardLevels
         awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
-        slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
+        slotNames <- fetchActiveCurrentVenueSlotNames
         activeReportDefinitions <- fetchCurrentVenueReportDefinitions
         currentWeekOffset <- currentReportWeekOffset
         reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
@@ -39,7 +39,6 @@ instance Controller AdminController where
         let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
         let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
         invitations <- fetchCurrentVenueInvitations
-        let slotNamesLiveUpdateScope = Just (adminSlotNamesScope currentRosterGroup.id)
         let invitesLiveUpdateScope = Just (adminInvitesScope currentVenueId)
         render IndexView { .. }
 
@@ -69,12 +68,26 @@ instance Controller AdminController where
     action ShowAdminSlotNamesFragmentAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
-        respondHtml (renderSlotNamesSectionFragment currentRosterGroup slotNames)
+        respondHtml (renderRosterGroupSlotNamesFragment currentRosterGroup slotNames)
 
     action ShowAdminInvitesFragmentAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         invitations <- fetchCurrentVenueInvitations
         respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
+
+    action ShowAdminShiftTypesFragmentAction = do
+        shiftTypes <- fetchCurrentVenueShiftTypes
+        awardLevels <- fetchActiveAwardLevels
+        awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
+        let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
+        respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)
+
+    action ShowAdminRosterGroupsFragmentAction = do
+        syncVenueDefaultRosterGroupToTopActive currentVenueId
+        rosterGroups <- fetchCurrentVenueRosterGroups
+        slotNames <- fetchActiveCurrentVenueSlotNames
+        let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
+        respondHtml (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)
 
     action CreateVenueInvitationAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
@@ -121,14 +134,14 @@ instance Controller AdminController where
         venue <- fetch currentVenueId
         maybeName <- parseRequiredName "name" "Roster group name is required."
         case maybeName of
-            Nothing -> redirectToAdminFor Nothing
+            Nothing -> respondToRosterGroupsSectionMutation Nothing
             Just name -> do
                 let isActive = parseIsActiveParam
                 sortOrder <- nextRosterGroupSortOrder
                 rosterGroup <- createVenueRosterGroupWithDefaults venue name sortOrder isActive
                 syncVenueDefaultRosterGroupToTopActive currentVenueId
                 setSuccessMessage "Roster group added"
-                redirectToAdminFor (Just rosterGroup.id)
+                respondToRosterGroupsSectionMutation (Just rosterGroup.id)
 
     action UpdateRosterGroupAction { rosterGroupId } = do
         venue <- fetch currentVenueId
@@ -136,7 +149,7 @@ instance Controller AdminController where
         ensureRecordInCurrentVenue rosterGroup.venueId
         maybeName <- parseRequiredName "name" "Roster group name is required."
         case maybeName of
-            Nothing -> redirectToAdminFor (Just rosterGroup.id)
+            Nothing -> respondToRosterGroupsSectionMutation (Just rosterGroup.id)
             Just name -> do
                 let isActive = parseIsActiveParam
                 rosterGroups <- fetchCurrentVenueRosterGroups
@@ -144,7 +157,7 @@ instance Controller AdminController where
                 if not isActive && null otherActiveGroups
                     then do
                         setErrorMessage "Each venue needs at least one active roster group."
-                        redirectToAdminFor (Just rosterGroup.id)
+                        respondToRosterGroupsSectionMutation (Just rosterGroup.id)
                     else do
                         sortOrder <-
                             if not rosterGroup.isActive && isActive
@@ -161,7 +174,7 @@ instance Controller AdminController where
                             pure ()
                         syncVenueDefaultRosterGroupToTopActive currentVenueId
                         setSuccessMessage "Roster group updated"
-                        redirectToAdminFor (Just updatedRosterGroup.id)
+                        respondToRosterGroupsSectionMutation (Just updatedRosterGroup.id)
 
     action MoveRosterGroupUpAction { rosterGroupId } = do
         rosterGroup <- fetch rosterGroupId
@@ -184,13 +197,13 @@ instance Controller AdminController where
     action CreateShiftTypeAction = do
         maybeName <- parseRequiredName "name" "Shift type name is required."
         case maybeName of
-            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
+            Nothing -> respondToShiftTypesSectionMutation
             Just name -> do
                 let isActive = parseIsActiveParam
                 sortOrder <- nextShiftTypeSortOrder
                 maybeOverrideAwardLevelId <- parseSubmittedOverrideAwardLevelId
                 case maybeOverrideAwardLevelId of
-                    Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
+                    Nothing -> respondToShiftTypesSectionMutation
                     Just overrideAwardLevelId -> do
                         _ <- withTransaction do
                             shiftType <-
@@ -204,19 +217,19 @@ instance Controller AdminController where
                             _ <- syncCurrentVenuePayConfigSnapshot
                             pure shiftType
                         setSuccessMessage "Shift type added"
-                        redirectToAdminFor (paramOrNothing "rosterGroupId")
+                        respondToShiftTypesSectionMutation
 
     action UpdateShiftTypeAction { shiftTypeId } = do
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
         maybeName <- parseRequiredName "name" "Shift type name is required."
         case maybeName of
-            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
+            Nothing -> respondToShiftTypesSectionMutation
             Just name -> do
                 let isActive = parseIsActiveParam
                 maybeOverrideAwardLevelId <- parseSubmittedOverrideAwardLevelId
                 case maybeOverrideAwardLevelId of
-                    Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
+                    Nothing -> respondToShiftTypesSectionMutation
                     Just overrideAwardLevelId -> do
                         sortOrder <-
                             if not shiftType.isActive && isActive
@@ -233,7 +246,7 @@ instance Controller AdminController where
                             _ <- syncCurrentVenuePayConfigSnapshot
                             pure updatedShiftType
                         setSuccessMessage "Shift type updated"
-                        redirectToAdminFor (paramOrNothing "rosterGroupId")
+                        respondToShiftTypesSectionMutation
 
     action MoveShiftTypeUpAction { shiftTypeId } = do
         shiftType <- fetch shiftTypeId
@@ -323,6 +336,15 @@ fetchCurrentVenueShiftTypes =
         |> orderByAsc #createdAt
         |> fetch
 
+fetchActiveCurrentVenueSlotNames :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [SlotName]
+fetchActiveCurrentVenueSlotNames =
+    query @SlotName
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#isActive, True)
+        |> orderByAsc #sortOrder
+        |> orderByAsc #createdAt
+        |> fetch
+
 fetchActiveAwardLevels :: (?modelContext :: ModelContext) => IO [AwardLevel]
 fetchActiveAwardLevels =
     query @AwardLevel
@@ -380,7 +402,7 @@ respondToSlotNameSectionMutation successMessage rosterGroupId =
         then do
             currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
             slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
-            respondHtml (renderSlotNamesSectionFragment currentRosterGroup slotNames)
+            respondHtml (renderRosterGroupSlotNamesFragment currentRosterGroup slotNames)
         else do
             setSuccessMessage successMessage
             redirectToAdminFor (Just rosterGroupId)
@@ -399,6 +421,32 @@ respondToInvitesSectionMutation successMessage rosterGroupId =
         else do
             unless (Text.null successMessage) (setSuccessMessage successMessage)
             redirectToAdminFor (Just rosterGroupId)
+
+respondToShiftTypesSectionMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+respondToShiftTypesSectionMutation =
+    if isHtmxRequest
+        then do
+            shiftTypes <- fetchCurrentVenueShiftTypes
+            awardLevels <- fetchActiveAwardLevels
+            awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
+            let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
+            respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)
+        else redirectToAdminFor (paramOrNothing "rosterGroupId")
+
+respondToRosterGroupsSectionMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Maybe (Id RosterGroup) ->
+    IO ()
+respondToRosterGroupsSectionMutation maybeRosterGroupId =
+    if isHtmxRequest
+        then do
+            rosterGroups <- fetchCurrentVenueRosterGroups
+            slotNames <- fetchActiveCurrentVenueSlotNames
+            let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
+            respondHtml (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)
+        else redirectToAdminFor maybeRosterGroupId
 
 broadcastSlotNameInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>

@@ -663,9 +663,10 @@
                 path: ownerEl.dataset.liveUpdatesPath || '/live-updates',
                 resync: function () {
                     const contentUrl = ownerEl.dataset.liveUpdateContentUrl;
+                    const targetId = ownerEl.dataset.liveUpdateTargetId || 'admin-slot-names-fragment';
                     if (contentUrl) {
                         handleFragmentRefreshRequest({
-                            targetId: 'admin-slot-names-fragment',
+                            targetId,
                             url: contentUrl,
                             deferUntilBlur: false,
                         });
@@ -686,7 +687,7 @@
             },
             shouldDecorateRequest: function (event) {
                 const sourceEl = event.detail && event.detail.elt;
-                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="admin-slot-names"]') || sourceEl.closest('#admin-slot-names-fragment'));
+                return sourceEl instanceof HTMLElement && Boolean(sourceEl.closest('[data-live-update-feature="admin-slot-names"]') || sourceEl.closest('[id^="admin-slot-names-fragment"]'));
             },
         };
     }

@@ -5,6 +5,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Config
 import qualified Data.Aeson as Aeson
+import qualified Data.List as List
 import Data.Time.Clock (diffUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -67,10 +68,13 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Generate Payroll Earnings CSV"
                 response `responseBodyShouldContain` "admin-slot-names-fragment"
                 response `responseBodyShouldContain` "admin-invites-fragment"
+                body <- responseBody response
+                (cs body :: String) `shouldContainInOrder` ["Invites", "Exports", "Shift Types", "Roster Groups"]
                 response `responseBodyShouldNotContain` "Venue Config"
                 response `responseBodyShouldNotContain` "Award Levels"
                 response `responseBodyShouldNotContain` "Pay Levels"
                 response `responseBodyShouldNotContain` "Pay Level Day Rules"
+                response `responseBodyShouldNotContain` "slot-names-heading"
                 response `responseBodyShouldNotContain` "/helpers.js"
                 response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
                 response `responseBodyShouldContain` "Kitchen"
@@ -79,9 +83,62 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Use staff default award level"
                 response `responseBodyShouldContain` "Back of House"
                 response `responseBodyShouldContain` "Pass"
+                response `responseBodyShouldContain` "Default Only"
                 response `responseBodyShouldNotContain` "Bar"
                 response `responseBodyShouldNotContain` "Graveyard"
-                response `responseBodyShouldNotContain` "Default Only"
+
+        it "scopes slot names to the roster group card and fragment target" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Slot Group Venue"
+                admin <- createUserRecord "admin-slot-groups@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                firstGroup <- createVenueRosterGroupWithDefaults venue "Front Lane" 10 True
+                secondGroup <- createVenueRosterGroupWithDefaults venue "Back Lane" 20 True
+                _ <- newRecord @SlotName
+                    |> set #venueId (unpackId venue.id)
+                    |> set #rosterGroupId (unpackId firstGroup.id)
+                    |> set #name "Front Register"
+                    |> set #sortOrder 0
+                    |> set #isActive True
+                    |> createRecord
+                _ <- newRecord @SlotName
+                    |> set #venueId (unpackId venue.id)
+                    |> set #rosterGroupId (unpackId secondGroup.id)
+                    |> set #name "Back Pass"
+                    |> set #sortOrder 0
+                    |> set #isActive True
+                    |> createRecord
+
+                pageResponse <- withUserAndCurrentVenue admin venue.id do
+                    callAction AdminAction
+                pageResponse `responseStatusShouldBe` status200
+                pageResponse `responseBodyShouldContain` "Front Lane"
+                pageResponse `responseBodyShouldContain` "Back Lane"
+                pageResponse `responseBodyShouldContain` "Front Register"
+                pageResponse `responseBodyShouldContain` "Back Pass"
+                pageResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
+                pageResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
+                pageResponse `responseBodyShouldContain` ("data-live-update-target-id=\"admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
+                pageResponse `responseBodyShouldContain` ("data-live-update-target-id=\"admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
+                pageResponse `responseBodyShouldContain` ("hx-target=\"#admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
+                pageResponse `responseBodyShouldContain` ("hx-target=\"#admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
+
+                firstFragmentResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowAdminSlotNamesFragmentAction
+                        [("rosterGroupId", idToParam firstGroup.id)]
+                firstFragmentResponse `responseStatusShouldBe` status200
+                firstFragmentResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
+                firstFragmentResponse `responseBodyShouldContain` "Front Register"
+                firstFragmentResponse `responseBodyShouldNotContain` "Back Pass"
+                firstFragmentResponse `responseBodyShouldNotContain` "id=\"app\""
+
+                secondFragmentResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowAdminSlotNamesFragmentAction
+                        [("rosterGroupId", idToParam secondGroup.id)]
+                secondFragmentResponse `responseStatusShouldBe` status200
+                secondFragmentResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
+                secondFragmentResponse `responseBodyShouldContain` "Back Pass"
+                secondFragmentResponse `responseBodyShouldNotContain` "Front Register"
 
         it "rejects non-admin venue members from admin screens" $ withContext do
             withCleanDb do
@@ -107,6 +164,131 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldContain` "Exports"
                 response `responseBodyShouldNotContain` "Venue Config"
+
+        it "serves inactive toggles through targeted admin fragments" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Fragment Venue"
+                admin <- createUserRecord "admin-fragments@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                level <- createPayLevelRecord venue "Level 1"
+                _ <- createShiftTypeRecord venue level "Active Shift"
+                inactiveShiftType <- createShiftTypeRecord venue level "Inactive Shift"
+                _ <- inactiveShiftType
+                    |> set #isActive False
+                    |> updateRecord
+                _ <- createVenueRosterGroupWithDefaults venue "Active Group" 10 True
+                _ <- createVenueRosterGroupWithDefaults venue "Inactive Group" 20 False
+
+                hiddenShiftTypesResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowAdminShiftTypesFragmentAction
+                        [("showInactiveShiftTypes", "false")]
+                hiddenShiftTypesResponse `responseStatusShouldBe` status200
+                hiddenShiftTypesResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
+                hiddenShiftTypesResponse `responseBodyShouldContain` "hx-get=\"/ShowAdminShiftTypesFragment?showInactiveShiftTypes=true\""
+                hiddenShiftTypesResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
+                hiddenShiftTypesResponse `responseBodyShouldContain` "Active Shift"
+                hiddenShiftTypesResponse `responseBodyShouldNotContain` "Inactive Shift"
+                hiddenShiftTypesResponse `responseBodyShouldNotContain` "id=\"app\""
+
+                visibleShiftTypesResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowAdminShiftTypesFragmentAction
+                        [("showInactiveShiftTypes", "true")]
+                visibleShiftTypesResponse `responseStatusShouldBe` status200
+                visibleShiftTypesResponse `responseBodyShouldContain` "Inactive Shift"
+                visibleShiftTypesBody <- responseBody visibleShiftTypesResponse
+                (cs visibleShiftTypesBody :: String) `shouldContainInOrder` ["Active Shift", "Inactive Shift"]
+                visibleShiftTypesResponse `responseBodyShouldContain` "checked=\"checked\""
+
+                hiddenRosterGroupsResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowAdminRosterGroupsFragmentAction
+                        [("showInactiveRosterGroups", "false")]
+                hiddenRosterGroupsResponse `responseStatusShouldBe` status200
+                hiddenRosterGroupsResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\""
+                hiddenRosterGroupsResponse `responseBodyShouldContain` "hx-get=\"/ShowAdminRosterGroupsFragment?showInactiveRosterGroups=true\""
+                hiddenRosterGroupsResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
+                hiddenRosterGroupsResponse `responseBodyShouldContain` "Active Group"
+                hiddenRosterGroupsResponse `responseBodyShouldNotContain` "Inactive Group"
+
+                visibleRosterGroupsResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowAdminRosterGroupsFragmentAction
+                        [("showInactiveRosterGroups", "true")]
+                visibleRosterGroupsResponse `responseStatusShouldBe` status200
+                visibleRosterGroupsResponse `responseBodyShouldContain` "Inactive Group"
+                visibleRosterGroupsBody <- responseBody visibleRosterGroupsResponse
+                (cs visibleRosterGroupsBody :: String) `shouldContainInOrder` ["Active Group", "Inactive Group"]
+                visibleRosterGroupsResponse `responseBodyShouldContain` "checked=\"checked\""
+
+        it "serves shift type and roster group add/update through targeted admin fragments" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Mutation Fragment Venue"
+                admin <- createUserRecord "admin-mutation-fragments@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Starter Shift"
+                rosterGroup <- createVenueRosterGroupWithDefaults venue "Starter Group" 10 True
+                inactiveRosterGroup <- createVenueRosterGroupWithDefaults venue "Archived Group" 20 False
+
+                pageResponse <- withUserAndCurrentVenue admin venue.id do
+                    callActionWithParams AdminAction [("showInactiveRosterGroups", "true"), ("showInactiveShiftTypes", "true")]
+                pageResponse `responseBodyShouldContain` "hx-post=\"/CreateShiftType\""
+                pageResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
+                pageResponse `responseBodyShouldContain` "name=\"showInactiveShiftTypes\" value=\"true\""
+                pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateShiftType?shiftTypeId=" <> tshow shiftType.id <> "\"")
+                pageResponse `responseBodyShouldContain` "hx-post=\"/CreateRosterGroup\""
+                pageResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
+                pageResponse `responseBodyShouldContain` "name=\"showInactiveRosterGroups\" value=\"true\""
+                pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateRosterGroup?rosterGroupId=" <> tshow rosterGroup.id)
+
+                createShiftResponse <- withUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateShiftTypeAction
+                            [ ("name", "Fragment Shift")
+                            , ("isActive", "true")
+                            , ("overrideAwardLevelId", "")
+                            , ("showInactiveShiftTypes", "true")
+                            ]
+                createShiftResponse `responseStatusShouldBe` status200
+                createShiftResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
+                createShiftResponse `responseBodyShouldContain` "Fragment Shift"
+                createShiftResponse `responseBodyShouldContain` "checked=\"checked\""
+                createShiftResponse `responseBodyShouldNotContain` "id=\"app\""
+
+                updateShiftResponse <- withUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateShiftTypeAction shiftType.id)
+                            [ ("name", "Updated Fragment Shift")
+                            , ("isActive", "false")
+                            , ("overrideAwardLevelId", "")
+                            , ("showInactiveShiftTypes", "true")
+                            ]
+                updateShiftResponse `responseStatusShouldBe` status200
+                updateShiftResponse `responseBodyShouldContain` "Updated Fragment Shift"
+                updateShiftResponse `responseBodyShouldContain` "inactive"
+
+                createRosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateRosterGroupAction
+                            [ ("name", "Fragment Group")
+                            , ("isActive", "true")
+                            , ("showInactiveRosterGroups", "true")
+                            ]
+                createRosterGroupResponse `responseStatusShouldBe` status200
+                createRosterGroupResponse `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\""
+                createRosterGroupResponse `responseBodyShouldContain` "Fragment Group"
+                createRosterGroupResponse `responseBodyShouldContain` "Archived Group"
+                createRosterGroupResponse `responseBodyShouldContain` "checked=\"checked\""
+                createRosterGroupResponse `responseBodyShouldNotContain` "id=\"app\""
+
+                updateRosterGroupResponse <- withUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterGroupAction rosterGroup.id)
+                            [ ("name", "Updated Fragment Group")
+                            , ("isActive", "true")
+                            , ("showInactiveRosterGroups", "true")
+                            ]
+                updateRosterGroupResponse `responseStatusShouldBe` status200
+                updateRosterGroupResponse `responseBodyShouldContain` "Updated Fragment Group"
+                updateRosterGroupResponse `responseBodyShouldContain` tshow inactiveRosterGroup.id
 
         it "creates venue-scoped non-pay config rows from the admin page" $ withContext do
             withCleanDb do
@@ -315,3 +497,12 @@ tests = beforeAll testContext do
 
                 snapshots <- query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch
                 map (.createdByUserId) snapshots `shouldBe` [unpackId admin.id]
+
+shouldContainInOrder :: String -> [String] -> Expectation
+shouldContainInOrder haystack needles =
+    case mapM markerPosition needles of
+        Nothing -> expectationFailure ("Expected body to contain all markers in order: " ++ cs (show needles))
+        Just positions -> positions `shouldSatisfy` ordered
+    where
+        markerPosition marker = List.findIndex (List.isPrefixOf marker) (List.tails haystack)
+        ordered positions = positions == List.sort positions

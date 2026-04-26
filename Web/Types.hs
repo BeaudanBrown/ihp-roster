@@ -82,6 +82,8 @@ data AdminController
     | UpdateVenueConfigAction
     | ShowAdminSlotNamesFragmentAction
     | ShowAdminInvitesFragmentAction
+    | ShowAdminShiftTypesFragmentAction
+    | ShowAdminRosterGroupsFragmentAction
     | CreateVenueInvitationAction
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | CreateRosterGroupAction
