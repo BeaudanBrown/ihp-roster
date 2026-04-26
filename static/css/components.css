@@ -1,0 +1,265 @@
+/* Shared app components, Bootstrap-compatible primitives, forms, panels, and common controls. */
+
+.app-page-auth {
+    min-height: calc(100vh - 5rem);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem 0.75rem;
+}
+
+.app-auth-card,
+.app-panel {
+    width: 100%;
+    border: 1px solid var(--app-border);
+    border-radius: 0.9rem;
+    background: linear-gradient(180deg, var(--app-surface-2), var(--app-surface));
+    box-shadow: 0 0.7rem 1.7rem var(--app-shadow-md-raw);
+}
+
+.app-auth-card {
+    max-width: 26rem;
+}
+
+.app-surface {
+    border: 1px solid var(--app-border);
+    border-radius: var(--app-radius-md);
+    background: var(--app-surface-raised);
+}
+
+.app-surface-muted {
+    background: var(--app-surface-muted);
+}
+
+.app-status-badge {
+    border: 1px solid transparent;
+    font-weight: 600;
+}
+
+.app-status-neutral {
+    color: var(--app-text-muted);
+    background: var(--app-surface-muted);
+    border-color: var(--app-border-subtle);
+}
+
+.app-status-success {
+    color: var(--app-success);
+    background: var(--app-success-soft);
+    border-color: var(--app-success-soft);
+}
+
+.app-status-warning {
+    color: var(--app-warning);
+    background: var(--app-warning-soft);
+    border-color: var(--app-warning-soft);
+}
+
+.app-status-danger {
+    color: var(--app-danger);
+    background: var(--app-danger-soft);
+    border-color: var(--app-danger-soft);
+}
+
+.app-status-info {
+    color: var(--app-info);
+    background: var(--app-info-soft);
+    border-color: var(--app-info-soft);
+}
+
+.app-auth-card.app-auth-card-wide {
+    max-width: 30rem;
+}
+
+.app-auth-card.app-auth-card-profile {
+    max-width: 58rem;
+}
+
+.app-auth-body,
+.app-panel-body {
+    padding: 1.5rem;
+}
+
+.app-panel-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--app-border);
+}
+
+.app-panel-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.app-panel-title {
+    margin: 0;
+}
+
+.app-panel-description {
+    margin: 0.35rem 0 0;
+    color: var(--app-muted);
+}
+
+
+
+.profile-field-grid .form-control,
+.profile-field-grid .form-select {
+    height: calc(2.75rem + 2px);
+}
+
+h1,
+.h1 {
+    font-size: var(--text-xl);
+    line-height: 1.12;
+}
+
+h2,
+.h2 {
+    font-size: clamp(1.2rem, 1.08rem + 0.55vw, 1.55rem);
+}
+
+h5,
+.h5 {
+    font-size: var(--text-lg);
+}
+
+.app-form-width {
+    max-width: 30rem;
+}
+
+.app-muted {
+    color: var(--app-muted) !important;
+}
+
+.card {
+    border-color: var(--app-border);
+    background-color: var(--app-surface);
+}
+
+.card-header {
+    border-bottom-color: var(--app-border);
+    background-color: var(--app-surface-2) !important;
+}
+
+.app-surface-toolbar,
+
+}
+
+.table {
+    --bs-table-color: var(--app-text);
+    --bs-table-bg: transparent;
+    --bs-table-border-color: var(--app-border);
+    --bs-table-striped-bg: var(--app-white-alpha-02);
+    --bs-table-striped-color: var(--app-text);
+    --bs-table-hover-bg: var(--app-accent-softer);
+    --bs-table-hover-color: var(--app-text);
+}
+
+
+}
+
+.btn-sm,
+.form-control-sm,
+.form-select-sm,
+.small {
+    font-size: var(--text-xs);
+}
+
+.form-control,
+.form-select {
+    font-size: var(--text-sm);
+}
+
+.form-control,
+.form-select {
+    border-color: var(--app-border-strong);
+    background-color: var(--app-input-bg);
+    color: var(--app-text);
+}
+
+.form-control::placeholder {
+    color: var(--app-input-placeholder);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--app-accent-border-strong);
+    box-shadow: 0 0 0 0.18rem var(--app-accent-soft);
+}
+
+.btn-outline-secondary {
+    border-color: var(--app-control-border);
+    color: var(--app-control-text);
+}
+
+.btn-outline-secondary:hover {
+    background-color: var(--app-control-border-hover);
+    border-color: var(--app-control-border-hover);
+    color: var(--app-control-text-inverse);
+}
+
+.btn-outline-danger {
+    border-color: var(--app-outline-danger-border);
+    color: var(--app-outline-danger-text);
+}
+
+.btn-outline-primary {
+    border-color: var(--app-outline-primary-border);
+    color: var(--app-outline-primary-text);
+}
+
+.accordion-item.app-panel {
+    overflow: hidden;
+    border-radius: 0.9rem;
+}
+
+.accordion-item.app-panel .accordion-header,
+.accordion-item.app-panel .accordion-button,
+.accordion-item.app-panel .accordion-collapse {
+    border-radius: inherit;
+}
+
+.accordion-item.app-panel .accordion-button {
+    border-radius: calc(0.9rem - 1px);
+}
+
+.accordion-item.app-panel:first-of-type,
+.accordion-item.app-panel:last-of-type {
+    border-radius: 0.9rem;
+}
+
+.accordion-item.app-panel:first-of-type > .accordion-header .accordion-button,
+.accordion-item.app-panel:last-of-type > .accordion-header .accordion-button.collapsed {
+    border-radius: calc(0.9rem - 1px) !important;
+}
+
+.accordion-item.app-panel:last-of-type > .accordion-collapse,
+.accordion-item.app-panel:last-of-type > .accordion-collapse > .accordion-body {
+    border-bottom-left-radius: calc(0.9rem - 1px);
+    border-bottom-right-radius: calc(0.9rem - 1px);
+}
+
+.accordion-item.app-panel .accordion-button:not(.collapsed) {
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    box-shadow: none;
+}
+
+.accordion-item.app-panel .accordion-body {
+    border-top: 1px solid var(--app-border-alpha-70);
+}
+
+
+.app-week-nav-label {
+    min-height: 2.35rem;
+    padding: 0.45rem 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.leave-request-row-actions form {
+    margin: 0;

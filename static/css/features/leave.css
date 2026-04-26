@@ -1,0 +1,96 @@
+/* Leave request page-specific layout and list styles. */
+
+.leave-requests-toolbar {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.leave-request-accordion .accordion-button {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.leave-request-accordion .accordion-button:not(.collapsed) {
+    background-color: var(--app-accent-softer);
+    color: var(--app-text);
+}
+
+.leave-request-accordion-title {
+    font-weight: 600;
+}
+
+.leave-request-accordion-count {
+    margin-left: auto;
+    color: var(--app-muted);
+    font-size: var(--text-xs);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.leave-request-list-head,
+.leave-request-row {
+    display: grid;
+    grid-template-columns: minmax(10rem, 1.2fr) minmax(8rem, 0.9fr) minmax(10rem, 1.3fr) minmax(12rem, 1fr);
+    gap: 0.9rem;
+    align-items: center;
+}
+
+.leave-request-list-head {
+    color: var(--app-muted);
+    font-size: var(--text-xs);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0 0 0.55rem;
+    border-bottom: 1px solid var(--app-border);
+}
+
+.leave-request-list-body {
+    display: flex;
+    flex-direction: column;
+}
+
+.leave-request-row {
+    padding: 0.7rem 0;
+    border-bottom: 1px solid var(--app-border-alpha-70);
+}
+
+.leave-request-list-body .leave-request-row:last-child {
+    border-bottom: 0;
+}
+
+.leave-request-row-staff {
+    min-width: 0;
+}
+
+.leave-request-row-name {
+    font-weight: 600;
+    line-height: 1.15;
+}
+
+.leave-request-row-status {
+    margin-top: 0.25rem;
+}
+
+.leave-request-row-dates,
+.leave-request-row-notes {
+    font-size: var(--text-sm);
+    color: var(--app-text);
+}
+
+.leave-request-row-notes {
+    color: var(--app-muted);
+}
+
+.leave-request-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.45rem;
+}
+
+
+}

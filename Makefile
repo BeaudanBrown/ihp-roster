@@ -2,6 +2,14 @@ CSS_FILES += static/vendor/bootstrap-5.3.8/bootstrap.min.css
 CSS_FILES += static/vendor/flatpickr.min.css
 CSS_FILES += static/css/tokens.css
 CSS_FILES += static/css/bootstrap-bridge.css
+CSS_FILES += static/css/layout.css
+CSS_FILES += static/css/components.css
+CSS_FILES += static/css/overlays.css
+CSS_FILES += static/css/features/admin.css
+CSS_FILES += static/css/features/exports.css
+CSS_FILES += static/css/features/leave.css
+CSS_FILES += static/css/features/roster.css
+CSS_FILES += static/css/features/timesheets.css
 CSS_FILES += static/app.css
 
 JS_FILES += static/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js

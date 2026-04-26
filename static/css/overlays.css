@@ -1,0 +1,164 @@
+/* Shared dialog footer, toast, and picker overlay styles. */
+
+.app-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.app-modal-footer-inner {
+    width: 100%;
+}
+
+.app-modal-footer-start,
+.app-modal-footer-end {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.app-modal-footer-start {
+    margin-right: auto;
+}
+
+.app-modal-footer-end {
+    margin-left: auto;
+}
+
+.app-modal-footer-form {
+    margin: 0;
+}
+
+.app-toast-host {
+    position: fixed;
+    bottom: 1rem;
+    z-index: 1095;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: min(22rem, calc(100vw - 2rem));
+    pointer-events: none;
+}
+
+.app-toast-host-left {
+    left: 1rem;
+    right: auto;
+}
+
+.app-toast-host-center {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+}
+
+.app-toast-host-right {
+    right: 1rem;
+    left: auto;
+}
+
+.app-toast {
+    pointer-events: auto;
+    border: 1px solid var(--app-border-strong);
+    border-radius: 0.9rem;
+    background: var(--app-overlay-bg);
+    color: var(--app-text);
+    box-shadow: 0 0.9rem 2rem var(--app-shadow-lg-raw);
+    transform: translateY(0);
+    opacity: 1;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.app-toast-success {
+    border-color: var(--app-success-border);
+}
+
+.app-toast-error {
+    border-color: var(--app-danger);
+}
+
+.app-toast-body {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+}
+
+.app-toast-title {
+    margin-bottom: 0.15rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--app-muted);
+}
+
+.app-toast-close {
+    flex: 0 0 auto;
+    margin-top: 0.1rem;
+    opacity: 0.75;
+}
+
+.app-toast-close:hover {
+    opacity: 1;
+}
+
+.app-toast-leaving {
+    opacity: 0;
+    transform: translateY(0.35rem);
+}
+
+
+.time-picker-field {
+    width: 100%;
+}
+
+.time-picker-control {
+    display: inline-flex;
+    width: 100%;
+    align-items: stretch;
+    border-radius: var(--bs-border-radius);
+}
+
+.time-picker-control .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.time-picker-step-button {
+    flex: 0 0 auto;
+    min-width: 2.4rem;
+    font-size: 1rem;
+}
+
+.time-picker-trigger-button {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.time-picker-trigger-button .js-time-picker-label {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.time-picker-step-button:disabled {
+    opacity: 0.55;
+}
+
+.roster-grid .roster-time-picker-control {
+    width: 100%;
+}
+
+.time-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.time-picker-option {
+    white-space: nowrap;
+}

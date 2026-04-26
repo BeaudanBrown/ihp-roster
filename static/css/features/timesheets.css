@@ -1,0 +1,186 @@
+/* Timesheet week card, timeline, and approval styles. */
+
+.timesheet-day-panel .app-panel-body {
+    padding: 0.7rem;
+}
+
+.timesheet-day-add-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    width: 100%;
+    margin-bottom: 0.65rem;
+    padding: 0.55rem 0.8rem;
+    border: 1px solid var(--app-success-action-border);
+    border-radius: 0.6rem;
+    background: linear-gradient(180deg, var(--app-success-action-start), var(--app-success-action-end));
+    color: var(--app-success-action-text) !important;
+    font-size: var(--text-base);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    text-decoration: none;
+    box-shadow: inset 0 1px 0 var(--app-white-alpha-08);
+}
+
+.timesheet-day-add-bar:hover {
+    color: var(--app-text) !important;
+    background: linear-gradient(180deg, var(--app-success-action-hover-start), var(--app-success-action-hover-end));
+}
+
+.timesheet-day-add-plus {
+    font-size: 1.1em;
+    line-height: 1;
+}
+
+.timesheet-day-empty {
+    padding: 0.2rem 0.15rem 0.05rem;
+}
+
+.timesheet-entry-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+}
+
+.timesheet-entry-card {
+    border: 1px solid var(--app-border);
+    border-radius: 0.7rem;
+    background: linear-gradient(180deg, var(--app-timesheet-card-start), var(--app-timesheet-card-end));
+    padding: 0.65rem 0.7rem;
+    min-height: 6.2rem;
+}
+
+.timesheet-entry-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
+    gap: 0.75rem;
+    align-items: start;
+}
+
+.timesheet-entry-identity,
+.timesheet-entry-time,
+.timesheet-entry-actions {
+    min-width: 0;
+}
+
+.timesheet-entry-shift-type {
+    color: var(--app-text);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.15;
+}
+
+.timesheet-entry-staff-name {
+    color: var(--app-timesheet-text-strong);
+    font-size: var(--text-sm);
+    line-height: 1.2;
+}
+
+.timesheet-entry-time-range {
+    color: var(--app-timesheet-text);
+    font-size: var(--text-sm);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+}
+
+.timesheet-entry-meta {
+    color: var(--app-muted);
+    font-size: var(--text-xs);
+    line-height: 1.2;
+    font-variant-numeric: tabular-nums;
+}
+
+.timesheet-entry-actions {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.28rem;
+    min-width: 5.2rem;
+}
+
+.timesheet-entry-actions .btn,
+.timesheet-entry-action-form {
+    width: 100%;
+}
+
+.timesheet-entry-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.2rem 0.5rem;
+    min-height: 1.85rem;
+    line-height: 1.1;
+    text-align: center;
+}
+
+.timesheet-approval-toggle {
+    font-weight: 700;
+}
+
+.timesheet-shape-bar {
+    position: relative;
+    height: 0.7rem;
+    margin-top: 0.55rem;
+    border-radius: 999px;
+}
+
+.timesheet-shape-track {
+    position: absolute;
+    inset: 0;
+    border: 1px solid var(--app-slate-alpha-22);
+    border-radius: 999px;
+    background: var(--app-timesheet-track-bg);
+}
+
+.timesheet-shape-midnight-marker {
+    position: absolute;
+    top: -0.12rem;
+    bottom: -0.12rem;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--app-white-alpha-42);
+    border-radius: 999px;
+    z-index: 2;
+}
+
+.timesheet-shape-segment {
+    position: absolute;
+    top: 0.11rem;
+    height: 0.48rem;
+    border-radius: 999px;
+    z-index: 1;
+}
+
+.timesheet-shape-segment-shift {
+    background: linear-gradient(180deg, var(--app-timesheet-shift-start), var(--app-timesheet-shift-end));
+    box-shadow: 0 0 0 1px var(--app-timesheet-shift-ring);
+}
+
+.timesheet-shape-segment-break {
+    background: linear-gradient(180deg, var(--app-timesheet-break-start), var(--app-timesheet-break-end));
+    z-index: 3;
+}
+
+@media (max-width: 575.98px) {
+    .timesheet-entry-main {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+            "identity actions"
+            "time actions";
+        gap: 0.5rem 0.65rem;
+    }
+
+    .timesheet-entry-identity {
+        grid-area: identity;
+    }
+
+    .timesheet-entry-time {
+        grid-area: time;
+    }
+
+    .timesheet-entry-actions {
+        grid-area: actions;
+        min-width: 4.8rem;
+    }
+}
