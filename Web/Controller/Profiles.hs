@@ -188,6 +188,7 @@ fetchProfileRosterInvalidationTargets venueId staff = do
                     else query @RosterSlot
                         |> filterWhere (#staffId, Just (unpackId staff.id))
                         |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                        |> filterWhere (#deletedAt, Nothing)
                         |> fetch
 
             let rosterWeekById = Map.fromList (map (\rosterWeek -> (unpackId rosterWeek.id, rosterWeek)) rosterWeeks)

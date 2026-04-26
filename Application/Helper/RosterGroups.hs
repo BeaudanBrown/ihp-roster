@@ -8,6 +8,7 @@ import Application.Helper.WeekBoundaries (defaultRosterWeekStartsOn,
                                           defaultWeekOffsetEpochForStartDay,
                                           sortDayNamesForVenueWeek)
 import qualified Data.Set as Set
+import Data.Time.Clock (getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
@@ -58,6 +59,8 @@ syncVenueDefaultRosterGroupToTopActive venueId = do
     rosterGroups <-
         query @RosterGroup
             |> filterWhere (#venueId, unpackId venueId)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
             |> orderByAsc #sortOrder
             |> orderByAsc #createdAt
             |> fetch
@@ -74,6 +77,7 @@ fetchCurrentVenueRosterGroups :: (?context :: ControllerContext, ?modelContext :
 fetchCurrentVenueRosterGroups =
     query @RosterGroup
         |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#archivedAt, Nothing)
         |> orderByAsc #sortOrder
         |> orderByAsc #createdAt
         |> fetch
@@ -83,6 +87,7 @@ setVenueDefaultRosterGroup venueId rosterGroupId = do
     rosterGroups <-
         query @RosterGroup
             |> filterWhere (#venueId, unpackId venueId)
+            |> filterWhere (#archivedAt, Nothing)
             |> fetch
     forM_ rosterGroups \rosterGroup -> do
         let shouldBeDefault = rosterGroup.id == rosterGroupId
@@ -104,6 +109,8 @@ fetchCurrentVenueRosterGroupOrDefault maybeRosterGroupId = do
                 query @RosterGroup
                     |> filterWhere (#id, rosterGroupId)
                     |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#isActive, True)
+                    |> filterWhere (#archivedAt, Nothing)
                     |> fetchOneOrNothing
             pure (fromMaybe defaultRosterGroup rosterGroupOrNothing)
 
@@ -114,6 +121,7 @@ fetchRosterGroupSlotNames :: (?modelContext :: ModelContext) => Id RosterGroup -
 fetchRosterGroupSlotNames rosterGroupId =
     query @SlotName
         |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+        |> filterWhere (#archivedAt, Nothing)
         |> orderByAsc #sortOrder
         |> orderByAsc #createdAt
         |> fetch
@@ -123,6 +131,7 @@ fetchActiveRosterGroupSlotNames rosterGroupId =
     query @SlotName
         |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
         |> filterWhere (#isActive, True)
+        |> filterWhere (#archivedAt, Nothing)
         |> orderByAsc #sortOrder
         |> orderByAsc #createdAt
         |> fetch
@@ -132,6 +141,7 @@ ensureStaffDefaultRosterGroupAssignment staff = do
     existingAssignment <-
         query @StaffRosterGroup
             |> filterWhere (#staffId, unpackId staff.id)
+            |> filterWhere (#deletedAt, Nothing)
             |> fetchOneOrNothing
     case existingAssignment of
         Just _ -> pure ()
@@ -151,21 +161,28 @@ fetchStaffRosterGroupIds staff = do
     assignments <-
         query @StaffRosterGroup
             |> filterWhere (#staffId, unpackId staff.id)
+            |> filterWhere (#deletedAt, Nothing)
             |> orderByAsc #createdAt
             |> fetch
     pure (map (Id . (.rosterGroupId)) assignments)
 
 syncStaffRosterGroupAssignments :: (?modelContext :: ModelContext) => Staff -> [Id RosterGroup] -> IO ()
 syncStaffRosterGroupAssignments staff desiredRosterGroupIds = do
+    now <- getCurrentTime
     existingAssignments <-
         query @StaffRosterGroup
             |> filterWhere (#staffId, unpackId staff.id)
+            |> filterWhere (#deletedAt, Nothing)
             |> fetch
     let desiredRosterGroupUuidSet = Set.fromList (map unpackId desiredRosterGroupIds)
     let existingRosterGroupUuidSet = Set.fromList (map (.rosterGroupId) existingAssignments)
     forM_ existingAssignments \assignment ->
         when (assignment.rosterGroupId `Set.notMember` desiredRosterGroupUuidSet) do
-            deleteRecord assignment
+            _ <- assignment
+                |> set #deletedAt (Just now)
+                |> set #deleteReason (Just "staff_roster_group_removed")
+                |> updateRecord
+            pure ()
     forM_ desiredRosterGroupIds \rosterGroupId ->
         when (unpackId rosterGroupId `Set.notMember` existingRosterGroupUuidSet) do
             _ <-
@@ -186,6 +203,7 @@ fetchEligibleRosterGroupStaff rosterGroupId = do
     staffRosterGroups <-
         query @StaffRosterGroup
             |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+            |> filterWhere (#deletedAt, Nothing)
             |> fetch
     let staffIds = map (.staffId) staffRosterGroups
     if null staffIds
@@ -194,6 +212,7 @@ fetchEligibleRosterGroupStaff rosterGroupId = do
             query @Staff
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#isActive, True)
+                |> filterWhere (#archivedAt, Nothing)
                 |> filterWhereIn (#id, map Id staffIds)
                 |> orderBy #lastName
                 |> fetch
@@ -204,6 +223,8 @@ fetchVenueDayNames venue = do
     dayNames <-
         query @DayName
             |> filterWhere (#venueId, unpackId venue.id)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
             |> fetch
     pure (sortDayNamesForVenueWeek venueConfig dayNames)
 
@@ -247,6 +268,7 @@ ensureVenueDefaultRosterGroup venue = do
         query @RosterGroup
             |> filterWhere (#venueId, unpackId venue.id)
             |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
             |> orderByAsc #sortOrder
             |> orderByAsc #createdAt
             |> fetchOneOrNothing

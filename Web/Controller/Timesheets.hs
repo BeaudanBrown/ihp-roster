@@ -194,17 +194,33 @@ instance Controller TimesheetsController where
 
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
+        now <- getCurrentTime
         withTransaction do
+            softDeletedEntry <- timesheetEntry
+                |> set #deletedAt (Just now)
+                |> set #deletedByUserId (Just (unpackId currentUser.id))
+                |> set #deleteReason (Just "user_deleted")
+                |> updateRecord
             void $
                 recordCurrentUserTimesheetEntryVersion
                     (unsafeEnumFromText @EntryVersionActionEnum "deleted")
-                    timesheetEntry
+                    softDeletedEntry
                     Aeson.Null
-            deleteRecord timesheetEntry
+            void $ recordCurrentUserAuditEvent
+                "timesheet_deleted"
+                "timesheet_entries"
+                (unpackId (get #id timesheetEntry))
+                (Aeson.object
+                    [ "staffId" Aeson..= timesheetEntry.staffId
+                    , "workedOn" Aeson..= timesheetEntry.workedOn
+                    , "wasApproved" Aeson..= timesheetEntry.isApproved
+                    , "deletedAt" Aeson..= now
+                    ]
+                )
         broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff "Timesheet entry deleted" True True
-            else setSuccessMessage "Timesheet entry deleted"
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff "Timesheet entry removed" True True
+            else setSuccessMessage "Timesheet entry removed"
         unless isHtmxRequest do
             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
 
@@ -212,6 +228,7 @@ instance Controller TimesheetsController where
         ensureManagerRole
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
+        accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
 
@@ -255,6 +272,7 @@ instance Controller TimesheetsController where
         ensureManagerRole
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
+        accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
 
@@ -311,6 +329,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff = 
                         query @TimesheetEntry
                             |> filterWhere (#venueId, unpackId currentVenueId)
                             |> filterWhereIn (#workedOn, weekDays)
+                            |> filterWhere (#deletedAt, Nothing)
                 case (showAllStaff, maybeCurrentViewerStaff) of
                     (False, Just staff) ->
                         applyApprovedFilter
@@ -336,6 +355,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff = 
                                 |> filterWhere (#venueId, unpackId currentVenueId)
                                 |> filterWhere (#staffId, unpackId (get #id staff))
                                 |> filterWhereIn (#workedOn, weekDays)
+                                |> filterWhere (#deletedAt, Nothing)
                             )
                             |> orderByAsc #workedOn
                             |> orderByAsc #isApproved
@@ -547,10 +567,13 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMem
 
 ensureTimesheetVisibility :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetEntry -> IO ()
 ensureTimesheetVisibility entry =
-    unless (hasRole ManagerRole') do
-        maybeStaff <- fetchCurrentUserStaff
-        let ownsEntry = maybe False (\staff -> unpackId (get #id staff) == entry.staffId) maybeStaff
-        accessDeniedUnless ownsEntry
+    if isJust entry.deletedAt
+        then accessDeniedUnless False
+        else
+            unless (hasRole ManagerRole') do
+                maybeStaff <- fetchCurrentUserStaff
+                let ownsEntry = maybe False (\staff -> unpackId (get #id staff) == entry.staffId) maybeStaff
+                accessDeniedUnless ownsEntry
 
 ensureStaffAssignmentAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID -> IO ()
 ensureStaffAssignmentAllowed staffId =

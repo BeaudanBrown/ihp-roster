@@ -20,6 +20,7 @@ fetchCurrentUserLeaveRequests = do
             query @LeaveRequest
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#staffId, unpackId staff.id)
+                |> filterWhere (#deletedAt, Nothing)
                 |> orderByDesc #startDate
                 |> fetch
 

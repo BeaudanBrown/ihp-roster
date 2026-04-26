@@ -332,6 +332,7 @@ fetchCurrentVenueShiftTypes :: (?context :: ControllerContext, ?modelContext :: 
 fetchCurrentVenueShiftTypes =
     query @ShiftType
         |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#archivedAt, Nothing)
         |> orderByAsc #sortOrder
         |> orderByAsc #createdAt
         |> fetch
@@ -341,6 +342,7 @@ fetchActiveCurrentVenueSlotNames =
     query @SlotName
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#isActive, True)
+        |> filterWhere (#archivedAt, Nothing)
         |> orderByAsc #sortOrder
         |> orderByAsc #createdAt
         |> fetch
@@ -364,6 +366,7 @@ nextSlotNameSortOrder :: (?modelContext :: ModelContext) => Id RosterGroup -> IO
 nextSlotNameSortOrder rosterGroupId =
     query @SlotName
         |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
+        |> filterWhere (#archivedAt, Nothing)
         |> orderByDesc #sortOrder
         |> fetchOneOrNothing
         >>= pure . maybe 0 ((+ 1) . get #sortOrder)
@@ -372,6 +375,7 @@ nextRosterGroupSortOrder :: (?context :: ControllerContext, ?modelContext :: Mod
 nextRosterGroupSortOrder =
     query @RosterGroup
         |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#archivedAt, Nothing)
         |> orderByDesc #sortOrder
         |> fetchOneOrNothing
         >>= pure . maybe 0 ((+ 1) . get #sortOrder)
@@ -380,6 +384,7 @@ nextShiftTypeSortOrder :: (?context :: ControllerContext, ?modelContext :: Model
 nextShiftTypeSortOrder =
     query @ShiftType
         |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#archivedAt, Nothing)
         |> orderByDesc #sortOrder
         |> fetchOneOrNothing
         >>= pure . maybe 0 ((+ 1) . get #sortOrder)

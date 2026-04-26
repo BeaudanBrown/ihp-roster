@@ -79,7 +79,7 @@ tests = beforeAll testContext do
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
 
-                response <- withUserAndCurrentVenue superAdmin venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callActionWithParams CreateTimesheetEntryAction
                         [ ("weekOffset", "0")
                         , ("staffId", idToParam staff.id)
@@ -434,8 +434,9 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status302
 
-                remainingEntries <- query @TimesheetEntry |> fetchCount
-                remainingEntries `shouldBe` 0
+                retainedEntry <- fetch entry.id
+                retainedEntry.deletedAt `shouldSatisfy` isJust
+                retainedEntry.deletedByUserId `shouldBe` Just (unpackId manager.id)
 
                 version <- query @TimesheetEntryVersion |> fetchOne
                 inputValue version.versionAction `shouldBe` "deleted"
@@ -458,8 +459,9 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status302
 
-                remainingEntries <- query @TimesheetEntry |> fetchCount
-                remainingEntries `shouldBe` 0
+                retainedEntry <- fetch entry.id
+                retainedEntry.deletedAt `shouldSatisfy` isJust
+                retainedEntry.deletedByUserId `shouldBe` Just (unpackId manager.id)
 
                 versionCount <- query @TimesheetEntryVersion |> fetchCount
                 versionCount `shouldBe` 1

@@ -9,6 +9,7 @@ module Web.RosterWeeks.Service
     , fetchRosterWeekOrderedSlotNamesFromSlots
     , fetchRosterWeekSlotTemplate
     , fetchRosterWeekSlotTemplateFromSlots
+    , replaceRosterWeekFromSource
     , syncRosterWeekSlotStructure
     ) where
 
@@ -41,6 +42,7 @@ fetchRosterWeekSlotTemplate rosterWeek = do
             allSlots <-
                 query @RosterSlot
                     |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                    |> filterWhere (#deletedAt, Nothing)
                     |> fetch
             fetchRosterWeekSlotTemplateFromSlots allSlots
 
@@ -86,27 +88,32 @@ syncRosterWeekSlotStructure rosterWeek = do
         \    FROM roster_slots \
         \    JOIN roster_days existing_days ON existing_days.id = roster_slots.roster_day_id \
         \    WHERE existing_days.roster_week_id = ? \
+        \    AND roster_slots.deleted_at IS NULL \
         \) existing_rows ON existing_rows.roster_day_id = roster_days.id \
-        \JOIN slot_names ON slot_names.roster_group_id = ? AND slot_names.is_active = TRUE \
+        \JOIN slot_names ON slot_names.roster_group_id = ? AND slot_names.is_active = TRUE AND slot_names.archived_at IS NULL \
         \WHERE roster_days.roster_week_id = ? \
         \AND NOT EXISTS ( \
         \    SELECT 1 FROM roster_slots existing_slot \
         \    WHERE existing_slot.roster_day_id = roster_days.id \
         \    AND existing_slot.row_index = existing_rows.row_index \
         \    AND existing_slot.slot_name_id = slot_names.id \
+        \    AND existing_slot.deleted_at IS NULL \
         \)"
         (unpackId rosterWeek.id, rosterWeek.rosterGroupId, unpackId rosterWeek.id)
 
     sqlExecDiscardResult
-        "DELETE FROM roster_slots \
-        \USING roster_days \
+        "UPDATE roster_slots \
+        \SET deleted_at = NOW(), delete_reason = 'slot_structure_sync', updated_at = NOW() \
+        \FROM roster_days \
         \WHERE roster_slots.roster_day_id = roster_days.id \
         \AND roster_days.roster_week_id = ? \
+        \AND roster_slots.deleted_at IS NULL \
         \AND NOT EXISTS ( \
         \    SELECT 1 FROM slot_names \
         \    WHERE slot_names.id = roster_slots.slot_name_id \
         \    AND slot_names.roster_group_id = ? \
         \    AND slot_names.is_active = TRUE \
+        \    AND slot_names.archived_at IS NULL \
         \)"
         (unpackId rosterWeek.id, rosterWeek.rosterGroupId)
 
@@ -119,6 +126,8 @@ syncRosterWeekSlotStructure rosterWeek = do
         \AND roster_days.roster_week_id = ? \
         \AND slot_names.roster_group_id = ? \
         \AND slot_names.is_active = TRUE \
+        \AND slot_names.archived_at IS NULL \
+        \AND roster_slots.deleted_at IS NULL \
         \AND roster_slots.slot_sort_order <> slot_names.sort_order"
         (unpackId rosterWeek.id, rosterWeek.rosterGroupId)
 
@@ -154,7 +163,7 @@ createEmptyRosterWeek rosterGroupId weekOffset = do
         \SELECT roster_days.id, slot_names.id, slot_names.sort_order, row_indexes.row_index \
         \FROM roster_days \
         \CROSS JOIN generate_series(0, 3) AS row_indexes(row_index) \
-        \JOIN slot_names ON slot_names.roster_group_id = ? AND slot_names.is_active = TRUE \
+        \JOIN slot_names ON slot_names.roster_group_id = ? AND slot_names.is_active = TRUE AND slot_names.archived_at IS NULL \
         \WHERE roster_days.roster_week_id = ? \
         \ORDER BY roster_days.day_offset, row_indexes.row_index, slot_names.sort_order, slot_names.created_at"
         (unpackId rosterGroupId, unpackId rosterWeek.id)
@@ -189,10 +198,41 @@ copyRosterWeek sourceWeek targetWeekOffset = do
         \    ON target_days.roster_week_id = ? \
         \    AND target_days.day_offset = source_days.day_offset \
         \WHERE source_days.roster_week_id = ? \
+        \AND source_slots.deleted_at IS NULL \
         \ORDER BY source_days.day_offset, source_slots.row_index, source_slots.slot_sort_order, source_slots.created_at"
         (unpackId targetWeek.id, unpackId sourceWeek.id)
 
     pure targetWeek
+
+replaceRosterWeekFromSource :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterWeek -> RosterWeek -> IO RosterWeek
+replaceRosterWeekFromSource sourceWeek targetWeek = do
+    _ <- targetWeek
+        |> set #isLive False
+        |> updateRecord
+
+    sqlExecDiscardResult
+        "UPDATE roster_slots \
+        \SET deleted_at = NOW(), delete_reason = 'roster_week_replaced', updated_at = NOW() \
+        \FROM roster_days \
+        \WHERE roster_slots.roster_day_id = roster_days.id \
+        \AND roster_days.roster_week_id = ? \
+        \AND roster_slots.deleted_at IS NULL"
+        (PG.Only (unpackId targetWeek.id))
+
+    sqlExecDiscardResult
+        "INSERT INTO roster_slots (roster_day_id, staff_id, slot_name_id, slot_sort_order, row_index, start_time, duration_minutes, note) \
+        \SELECT target_days.id, source_slots.staff_id, source_slots.slot_name_id, source_slots.slot_sort_order, source_slots.row_index, source_slots.start_time, source_slots.duration_minutes, source_slots.note \
+        \FROM roster_days source_days \
+        \JOIN roster_slots source_slots ON source_slots.roster_day_id = source_days.id \
+        \JOIN roster_days target_days \
+        \    ON target_days.roster_week_id = ? \
+        \    AND target_days.day_offset = source_days.day_offset \
+        \WHERE source_days.roster_week_id = ? \
+        \AND source_slots.deleted_at IS NULL \
+        \ORDER BY source_days.day_offset, source_slots.row_index, source_slots.slot_sort_order, source_slots.created_at"
+        (unpackId targetWeek.id, unpackId sourceWeek.id)
+
+    fetch targetWeek.id
 
 ensureRosterDayHasMinimumRows :: (?modelContext :: ModelContext) => RosterDay -> Id RosterGroup -> Int -> IO ()
 ensureRosterDayHasMinimumRows rosterDay _rosterGroupId minimumRowCount = do
@@ -206,6 +246,7 @@ ensureRosterDayHasMinimumRows rosterDay _rosterGroupId minimumRowCount = do
         \    FROM roster_slots \
         \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
         \    WHERE roster_days.roster_week_id = ? \
+        \    AND roster_slots.deleted_at IS NULL \
         \    GROUP BY roster_slots.slot_name_id \
         \) template_slots ON TRUE \
         \WHERE NOT EXISTS ( \
@@ -213,5 +254,6 @@ ensureRosterDayHasMinimumRows rosterDay _rosterGroupId minimumRowCount = do
         \    WHERE existing_slot.roster_day_id = ? \
         \    AND existing_slot.row_index = row_indexes.row_index \
         \    AND existing_slot.slot_name_id = template_slots.slot_name_id \
+        \    AND existing_slot.deleted_at IS NULL \
         \)"
         (unpackId rosterDay.id, minimumRowCount - 1, unpackId rosterWeek.id, unpackId rosterDay.id)

@@ -22,7 +22,7 @@ impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots =
 filterVisibleRosterSlots :: [RosterDay] -> [RosterSlot] -> [RosterSlot]
 filterVisibleRosterSlots rosterDays allSlots =
     let openRosterDayIds = map (coerce . (.id)) (filter (not . (.isClosed)) rosterDays)
-     in filter (\slot -> slot.rosterDayId `elem` openRosterDayIds) allSlots
+     in filter (\slot -> slot.rosterDayId `elem` openRosterDayIds && isNothing slot.deletedAt) allSlots
 
 applyOptionalField :: forall field model value. (SetField field model value) => Proxy field -> value -> Maybe Text -> model -> model
 applyOptionalField _ parsedValue rawParam model =

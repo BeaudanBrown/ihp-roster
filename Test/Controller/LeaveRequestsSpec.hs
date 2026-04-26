@@ -131,7 +131,7 @@ tests = beforeAll testContext do
                 worker <- createStaffRecord venue Nothing "Liv" "Worker"
                 _ <- createLeaveRequestRecord venue worker (addDays 10 today) (addDays 12 today) "pending"
 
-                response <- withUserAndCurrentVenue superAdmin venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callAction LeaveRequestsAction
 
                 response `responseStatusShouldBe` status200
@@ -144,10 +144,10 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Support Leave Create Venue"
                 superAdmin <- createUserRecordWithPlatformRole "leave-create-super-admin@example.com" "staff" (Just SuperAdminRole) True
 
-                newResponse <- withUserAndCurrentVenue superAdmin venue.id do
+                newResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callAction NewLeaveRequestAction
 
-                createResponse <- withUserAndCurrentVenue superAdmin venue.id do
+                createResponse <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
                     callActionWithParams CreateLeaveRequestAction
                         [ ("startDate", "2025-01-08")
                         , ("endDate", "2025-01-10")
@@ -523,8 +523,9 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status302
 
-                remainingCount <- query @LeaveRequest |> fetchCount
-                remainingCount `shouldBe` 0
+                retainedLeaveRequest <- fetch leaveRequest.id
+                retainedLeaveRequest.deletedAt `shouldSatisfy` isJust
+                retainedLeaveRequest.deletedByUserId `shouldBe` Just (unpackId manager.id)
 
                 leaveEvent <- query @LeaveRequestEvent |> fetchOne
                 inputValue leaveEvent.eventType `shouldBe` "deleted"

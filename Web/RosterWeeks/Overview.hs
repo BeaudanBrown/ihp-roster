@@ -50,6 +50,7 @@ buildRosterMonthOverviewDays venueConfig rosterGroupId focusDate = do
             then pure []
             else query @RosterSlot
                 |> filterWhereIn (#rosterDayId, rosterDayIds)
+                |> filterWhere (#deletedAt, Nothing)
                 |> fetch
 
     eligibleStaffMembers <- fetchEligibleRosterGroupStaff rosterGroupId

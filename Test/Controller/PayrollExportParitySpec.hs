@@ -385,7 +385,7 @@ generatePayrollExportJob ::
     Int ->
     IO ExportJob
 generatePayrollExportJob user venue reportSlug weekOffset = do
-    response <- withUserAndCurrentVenue user venue.id do
+    response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
         callActionWithParams CreateExportJobAction
             [ ("reportSlug", cs reportSlug)
             , ("weekOffset", cs (tshow weekOffset))

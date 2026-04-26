@@ -26,6 +26,7 @@ import qualified Test.Controller.StaticSpec
 import qualified Test.Controller.TimesheetsSpec
 import qualified Test.Controller.UsersSpec
 import qualified Test.Controller.VenueAccessSpec
+import qualified Test.DatabaseProtectionSpec
 import qualified Test.DevSeedSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
@@ -119,6 +120,7 @@ allSuites =
     , TestSuite "ProfilesController" Test.Controller.ProfilesSpec.tests
     , TestSuite "PasskeysController" Test.Controller.PasskeysSpec.tests
     , TestSuite "Schema" Test.SchemaSpec.tests
+    , TestSuite "DatabaseProtection" Test.DatabaseProtectionSpec.tests
     , TestSuite "SessionsController" Test.Controller.SessionsSpec.tests
     , TestSuite "RosterWeeksController" Test.Controller.RosterWeeksSpec.tests
     , TestSuite "LeaveRequestsController" Test.Controller.LeaveRequestsSpec.tests

@@ -22,6 +22,7 @@ fetchLeaveRequestsForRosterWindowByStatus statuses staffIds windowStartDate wind
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> filterWhereIn (#staffId, staffIds)
             |> filterWhereIn (#status, map leaveRequestStatusToEnum statuses)
+            |> filterWhere (#deletedAt, Nothing)
             |> filterWhereLessThan (#startDate, windowEndExclusive)
             |> filterWhereGreaterThan (#endDate, windowStartDate)
             |> fetch
@@ -36,4 +37,5 @@ fetchRosterShiftPreferencesForWindow rosterGroupId staffIds slotNameIds weekdayI
             |> filterWhereIn (#staffId, staffIds)
             |> filterWhereIn (#slotNameId, slotNameIds)
             |> filterWhereIn (#weekdayIndex, weekdayIndexes)
+            |> filterWhere (#deletedAt, Nothing)
             |> fetch

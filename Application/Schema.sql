@@ -15,6 +15,9 @@ CREATE TABLE venues (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
     status venue_status_enum DEFAULT 'active' NOT NULL,
+    closed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    closed_by_user_id UUID DEFAULT NULL,
+    retention_until TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
@@ -28,10 +31,19 @@ CREATE TABLE users (
     email_verified_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     failed_login_attempts INT DEFAULT 0 NOT NULL,
+    deactivated_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    deactivated_by_user_id UUID DEFAULT NULL,
+    deactivation_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     CHECK ((user_role = 'staff') OR (user_role = 'manager') OR (user_role = 'admin'))
 );
+ALTER TABLE venues
+    ADD CONSTRAINT venues_closed_by_user_id_fk
+    FOREIGN KEY (closed_by_user_id) REFERENCES users (id) ON DELETE RESTRICT;
+ALTER TABLE users
+    ADD CONSTRAINT users_deactivated_by_user_id_fk
+    FOREIGN KEY (deactivated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT;
 CREATE TABLE email_verification_tokens (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     user_id UUID NOT NULL,
@@ -63,11 +75,14 @@ CREATE TABLE venue_memberships (
     user_id UUID NOT NULL,
     venue_role venue_role_enum DEFAULT 'worker' NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    archived_by_user_id UUID DEFAULT NULL,
+    archive_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(venue_id, user_id),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE venue_invitations (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -118,10 +133,14 @@ CREATE TABLE staff (
     employment_basis staff_employment_basis_enum DEFAULT 'casual' NOT NULL,
     default_award_level_id UUID DEFAULT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    archived_by_user_id UUID DEFAULT NULL,
+    archive_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE shift_types (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -130,9 +149,13 @@ CREATE TABLE shift_types (
     sort_order INT DEFAULT 0 NOT NULL,
     override_award_level_id UUID DEFAULT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    archived_by_user_id UUID DEFAULT NULL,
+    archive_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE report_definitions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -143,21 +166,27 @@ CREATE TABLE report_definitions (
     engine TEXT NOT NULL,
     sort_order INT DEFAULT 0 NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    archived_by_user_id UUID DEFAULT NULL,
+    archive_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(venue_id, slug),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((engine = 'staff_pay_csv') OR (engine = 'hourly_breakdown_zip') OR (engine = 'payroll_earnings_csv'))
 );
 CREATE TABLE report_definition_shift_type_filters (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     report_definition_id UUID NOT NULL,
     shift_type_id UUID NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    deleted_by_user_id UUID DEFAULT NULL,
+    delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(report_definition_id, shift_type_id),
-    FOREIGN KEY (report_definition_id) REFERENCES report_definitions (id) ON DELETE CASCADE,
-    FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE CASCADE
+    FOREIGN KEY (report_definition_id) REFERENCES report_definitions (id) ON DELETE RESTRICT,
+    FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE roster_groups (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -166,20 +195,26 @@ CREATE TABLE roster_groups (
     sort_order INT DEFAULT 0 NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     is_default BOOLEAN DEFAULT FALSE NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    archived_by_user_id UUID DEFAULT NULL,
+    archive_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(venue_id, name),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE staff_roster_groups (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     staff_id UUID NOT NULL,
     roster_group_id UUID NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    deleted_by_user_id UUID DEFAULT NULL,
+    delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(staff_id, roster_group_id),
-    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE,
-    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE CASCADE
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE slot_names (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -188,10 +223,14 @@ CREATE TABLE slot_names (
     name TEXT NOT NULL,
     sort_order INT DEFAULT 0 NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    archived_by_user_id UUID DEFAULT NULL,
+    archive_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
-    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE CASCADE
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE day_names (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -199,10 +238,14 @@ CREATE TABLE day_names (
     weekday_index INT NOT NULL,
     name TEXT NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    archived_by_user_id UUID DEFAULT NULL,
+    archive_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(venue_id, weekday_index),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE venue_config (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -216,7 +259,7 @@ CREATE TABLE venue_config (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(venue_id),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT
 );
 CREATE TABLE pay_config_snapshots (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -228,7 +271,7 @@ CREATE TABLE pay_config_snapshots (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(venue_id, version_number),
     UNIQUE(venue_id, version_label),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE fwc_mapd_sync_runs (
@@ -481,11 +524,15 @@ CREATE TABLE roster_weeks (
     roster_group_id UUID NOT NULL,
     week_offset INT NOT NULL,
     is_live BOOLEAN DEFAULT FALSE NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    archived_by_user_id UUID DEFAULT NULL,
+    archive_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(roster_group_id, week_offset),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
-    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE CASCADE
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE roster_days (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -495,7 +542,7 @@ CREATE TABLE roster_days (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(roster_week_id, day_offset),
-    FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE CASCADE
+    FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT
 );
 CREATE TABLE roster_slots (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -507,12 +554,16 @@ CREATE TABLE roster_slots (
     start_time TIME,
     duration_minutes INT,
     note TEXT,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    deleted_by_user_id UUID DEFAULT NULL,
+    delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     CHECK (note IS NULL OR char_length(note) <= 2),
-    FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE CASCADE,
+    FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE SET NULL,
-    FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE RESTRICT
+    FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE RESTRICT,
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE staff_availability (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -522,10 +573,14 @@ CREATE TABLE staff_availability (
     specific_date DATE,
     is_available BOOLEAN NOT NULL,
     note TEXT,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    deleted_by_user_id UUID DEFAULT NULL,
+    delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
-    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE staff_shift_preferences (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -534,13 +589,16 @@ CREATE TABLE staff_shift_preferences (
     roster_group_id UUID NOT NULL,
     slot_name_id UUID NOT NULL,
     weekday_index INT NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    deleted_by_user_id UUID DEFAULT NULL,
+    delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(staff_id, roster_group_id, slot_name_id, weekday_index),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
-    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE,
-    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE CASCADE,
-    FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE CASCADE
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
+    FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE RESTRICT,
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE leave_requests (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -550,10 +608,14 @@ CREATE TABLE leave_requests (
     end_date DATE NOT NULL,
     status leave_request_status_enum DEFAULT 'pending' NOT NULL,
     notes TEXT,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    deleted_by_user_id UUID DEFAULT NULL,
+    delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
-    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE leave_request_events (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -565,7 +627,8 @@ CREATE TABLE leave_request_events (
     new_status leave_request_status_enum,
     payload JSONB DEFAULT '{}'::JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (leave_request_id) REFERENCES leave_requests (id) ON DELETE RESTRICT,
     FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE audit_events (
@@ -578,7 +641,7 @@ CREATE TABLE audit_events (
     source_channel TEXT DEFAULT 'web' NOT NULL,
     payload JSONB DEFAULT '{}'::JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE export_jobs (
@@ -603,11 +666,15 @@ CREATE TABLE export_jobs (
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
     downloaded_at TIMESTAMP WITH TIME ZONE,
     downloaded_by_user_id UUID,
+    retention_until TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    purged_file_contents_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    purged_by_user_id UUID DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    FOREIGN KEY (downloaded_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+    FOREIGN KEY (downloaded_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
+    FOREIGN KEY (purged_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE timesheet_entries (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -625,13 +692,17 @@ CREATE TABLE timesheet_entries (
     is_approved BOOLEAN DEFAULT FALSE NOT NULL,
     approved_at TIMESTAMP WITH TIME ZONE,
     approved_by_user_id UUID,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    deleted_by_user_id UUID DEFAULT NULL,
+    delete_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
-    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE CASCADE,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
     FOREIGN KEY (pay_config_snapshot_id) REFERENCES pay_config_snapshots (id) ON DELETE RESTRICT,
-    FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+    FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE timesheet_entry_versions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -642,7 +713,8 @@ CREATE TABLE timesheet_entry_versions (
     snapshot JSONB DEFAULT '{}'::JSONB NOT NULL,
     payload JSONB DEFAULT '{}'::JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (timesheet_entry_id) REFERENCES timesheet_entries (id) ON DELETE RESTRICT,
     FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE venue_membership_role_events (
@@ -655,13 +727,15 @@ CREATE TABLE venue_membership_role_events (
     new_role venue_role_enum NOT NULL,
     payload JSONB DEFAULT '{}'::JSONB NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (venue_membership_id) REFERENCES venue_memberships (id) ON DELETE RESTRICT,
     FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 
 -- Composite indexes for common venue-scoped access paths
 CREATE INDEX idx_venue_memberships_venue_user ON venue_memberships (venue_id, user_id);
 CREATE INDEX idx_venue_memberships_user_active ON venue_memberships (user_id, is_active);
+CREATE UNIQUE INDEX idx_venue_memberships_active_venue_user ON venue_memberships (venue_id, user_id) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE UNIQUE INDEX idx_users_email_lower ON users (LOWER(email));
 CREATE INDEX idx_passkeys_user_id ON passkeys (user_id);
 CREATE INDEX idx_venue_invitations_venue_status ON venue_invitations (venue_id, status);
@@ -669,15 +743,19 @@ CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, sta
 CREATE INDEX idx_venue_onboarding_invitations_email_status ON venue_onboarding_invitations (email, status);
 CREATE INDEX idx_staff_venue ON staff (venue_id);
 CREATE INDEX idx_staff_default_award_level ON staff (default_award_level_id) WHERE default_award_level_id IS NOT NULL;
-CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL AND is_active = TRUE AND archived_at IS NULL;
 CREATE INDEX idx_report_definitions_venue_sort ON report_definitions (venue_id, sort_order ASC, created_at ASC);
+CREATE UNIQUE INDEX idx_report_definitions_active_slug ON report_definitions (venue_id, slug) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE INDEX idx_report_definition_shift_type_filters_definition ON report_definition_shift_type_filters (report_definition_id);
+CREATE UNIQUE INDEX idx_report_definition_shift_type_filters_active ON report_definition_shift_type_filters (report_definition_id, shift_type_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_roster_groups_active_name ON roster_groups (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
+CREATE UNIQUE INDEX idx_staff_roster_groups_active_assignment ON staff_roster_groups (staff_id, roster_group_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_roster_groups_group_staff ON staff_roster_groups (roster_group_id, staff_id);
 CREATE INDEX idx_slot_names_group_sort ON slot_names (roster_group_id, sort_order ASC, created_at ASC);
-CREATE UNIQUE INDEX idx_slot_names_active_name ON slot_names (roster_group_id, name) WHERE is_active = TRUE;
+CREATE UNIQUE INDEX idx_slot_names_active_name ON slot_names (roster_group_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE INDEX idx_roster_weeks_venue_offset ON roster_weeks (venue_id, week_offset);
-CREATE INDEX idx_roster_slots_day ON roster_slots (roster_day_id);
-CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL;
+CREATE INDEX idx_roster_slots_day ON roster_slots (roster_day_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_pay_config_snapshots_venue_version ON pay_config_snapshots (venue_id, version_number DESC);
 CREATE INDEX idx_fwc_mapd_sync_runs_started_at ON fwc_mapd_sync_runs (started_at DESC);
 CREATE INDEX idx_fwc_mapd_awards_fixed_id ON fwc_mapd_awards (award_fixed_id, award_operative_to);
@@ -695,25 +773,64 @@ CREATE INDEX idx_app_jobs_pending ON app_jobs (status, run_at, created_at);
 CREATE INDEX idx_app_jobs_kind_created_at ON app_jobs (job_kind, created_at DESC);
 CREATE INDEX idx_app_jobs_venue_created_at ON app_jobs (venue_id, created_at DESC);
 CREATE UNIQUE INDEX idx_app_jobs_active_dedupe ON app_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL AND (status = 'job_status_not_started' OR status = 'job_status_running' OR status = 'job_status_retry');
-CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id);
-CREATE INDEX idx_timesheet_entries_venue_worked_on ON timesheet_entries (venue_id, worked_on);
+CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_timesheet_entries_venue_worked_on ON timesheet_entries (venue_id, worked_on) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_snapshot ON timesheet_entries (pay_config_snapshot_id);
 CREATE INDEX idx_timesheet_entry_versions_entry_created_at ON timesheet_entry_versions (timesheet_entry_id, created_at DESC);
-CREATE INDEX idx_leave_requests_venue_staff ON leave_requests (venue_id, staff_id);
-CREATE INDEX idx_leave_requests_venue_start_date ON leave_requests (venue_id, start_date);
-CREATE INDEX idx_leave_requests_venue_status_staff_dates ON leave_requests (venue_id, status, staff_id, start_date, end_date);
+CREATE INDEX idx_leave_requests_venue_staff ON leave_requests (venue_id, staff_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_leave_requests_venue_start_date ON leave_requests (venue_id, start_date) WHERE deleted_at IS NULL;
+CREATE INDEX idx_leave_requests_venue_status_staff_dates ON leave_requests (venue_id, status, staff_id, start_date, end_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_leave_request_events_request_created_at ON leave_request_events (leave_request_id, created_at DESC);
-CREATE INDEX idx_staff_availability_venue ON staff_availability (venue_id);
-CREATE INDEX idx_staff_shift_preferences_venue_staff ON staff_shift_preferences (venue_id, staff_id);
-CREATE INDEX idx_staff_shift_preferences_staff ON staff_shift_preferences (staff_id);
-CREATE INDEX idx_staff_shift_preferences_group_day ON staff_shift_preferences (roster_group_id, weekday_index);
-CREATE INDEX idx_staff_shift_preferences_group_staff_day_slot ON staff_shift_preferences (roster_group_id, staff_id, weekday_index, slot_name_id);
+CREATE INDEX idx_staff_availability_venue ON staff_availability (venue_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_staff_shift_preferences_venue_staff ON staff_shift_preferences (venue_id, staff_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_staff_shift_preferences_staff ON staff_shift_preferences (staff_id) WHERE deleted_at IS NULL;
+CREATE INDEX idx_staff_shift_preferences_group_day ON staff_shift_preferences (roster_group_id, weekday_index) WHERE deleted_at IS NULL;
+CREATE INDEX idx_staff_shift_preferences_group_staff_day_slot ON staff_shift_preferences (roster_group_id, staff_id, weekday_index, slot_name_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_preferences (staff_id, roster_group_id, slot_name_id, weekday_index) WHERE deleted_at IS NULL;
 CREATE INDEX idx_audit_events_venue_created_at ON audit_events (venue_id, created_at DESC);
 CREATE INDEX idx_audit_events_target ON audit_events (target_table, target_id);
 CREATE INDEX idx_export_jobs_venue_created_at ON export_jobs (venue_id, created_at DESC);
 CREATE INDEX idx_venue_membership_role_events_membership_created_at ON venue_membership_role_events (venue_membership_id, created_at DESC);
 CREATE UNIQUE INDEX idx_export_jobs_generated_file_id ON export_jobs (generated_file_id);
 CREATE UNIQUE INDEX idx_export_jobs_download_token ON export_jobs (download_token);
+
+CREATE OR REPLACE FUNCTION prevent_hard_delete()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF current_setting('ihp_roster.allow_hard_delete', true) = 'on' THEN
+        RETURN OLD;
+    END IF;
+
+    RAISE EXCEPTION 'hard delete blocked for protected table %', TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER prevent_hard_delete_venues BEFORE DELETE ON venues FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_users BEFORE DELETE ON users FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_venue_memberships BEFORE DELETE ON venue_memberships FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_staff BEFORE DELETE ON staff FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_staff_roster_groups BEFORE DELETE ON staff_roster_groups FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_roster_groups BEFORE DELETE ON roster_groups FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_slot_names BEFORE DELETE ON slot_names FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_day_names BEFORE DELETE ON day_names FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_shift_types BEFORE DELETE ON shift_types FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_report_definitions BEFORE DELETE ON report_definitions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_report_definition_shift_type_filters BEFORE DELETE ON report_definition_shift_type_filters FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_venue_config BEFORE DELETE ON venue_config FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_pay_config_snapshots BEFORE DELETE ON pay_config_snapshots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_roster_weeks BEFORE DELETE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_roster_days BEFORE DELETE ON roster_days FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_roster_slots BEFORE DELETE ON roster_slots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_staff_availability BEFORE DELETE ON staff_availability FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_staff_shift_preferences BEFORE DELETE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_leave_requests BEFORE DELETE ON leave_requests FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_leave_request_events BEFORE DELETE ON leave_request_events FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_timesheet_entries BEFORE DELETE ON timesheet_entries FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_timesheet_entry_versions BEFORE DELETE ON timesheet_entry_versions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_venue_membership_role_events BEFORE DELETE ON venue_membership_role_events FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_audit_events BEFORE DELETE ON audit_events FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_export_jobs BEFORE DELETE ON export_jobs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
 CREATE OR REPLACE FUNCTION resolve_effective_pay_level(p_staff_id UUID, p_shift_type_id UUID, p_day_of_week INT)
 RETURNS UUID
@@ -765,6 +882,7 @@ AS $$
         FROM timesheet_entries te
         LEFT JOIN pay_config_snapshots pcs ON pcs.id = te.pay_config_snapshot_id
         WHERE te.id = p_entry_id
+            AND te.deleted_at IS NULL
         LIMIT 1
     ),
     resolved AS (
@@ -1101,5 +1219,6 @@ AS $$
     FROM timesheet_entries te
     WHERE te.staff_id = p_staff_id
         AND te.worked_on >= p_from_date
-        AND te.worked_on <= p_to_date;
+        AND te.worked_on <= p_to_date
+        AND te.deleted_at IS NULL;
 $$ LANGUAGE SQL;

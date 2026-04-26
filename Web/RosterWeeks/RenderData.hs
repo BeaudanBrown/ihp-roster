@@ -176,6 +176,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
 
             allSlots <- query @RosterSlot
                 |> filterWhereIn (#rosterDayId, map (coerce . (.id)) rosterDays)
+                |> filterWhere (#deletedAt, Nothing)
                 |> fetch
 
             let visibleSlots = filterVisibleRosterSlots rosterDays allSlots

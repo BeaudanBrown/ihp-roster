@@ -1,6 +1,7 @@
 module Test.Controller.RosterWeeksSpec where
 
-import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
+                                        syncStaffRosterGroupAssignments)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
 import Data.Maybe (fromJust)
@@ -394,6 +395,7 @@ tests = beforeAll testContext do
 
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
                     |> fetch
                 map (.rowIndex) slotsForDay `shouldMatchList` [0, 1]
 
@@ -435,6 +437,7 @@ tests = beforeAll testContext do
                 afterSyncSlots <-
                     query @RosterSlot
                         |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                        |> filterWhere (#deletedAt, Nothing)
                         |> orderByAsc #slotSortOrder
                         |> fetch
 
@@ -613,9 +616,8 @@ tests = beforeAll testContext do
                 backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
                 alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
                 bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
-                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId bravo.id) |> fetch >>= deleteRecords
-                _ <- createStaffRosterGroupRecord alpha frontOfHouse
-                _ <- createStaffRosterGroupRecord bravo backOfHouse
+                syncStaffRosterGroupAssignments alpha [frontOfHouse.id]
+                syncStaffRosterGroupAssignments bravo [backOfHouse.id]
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (ShowRosterWeekStaffPanelFragmentAction 0) [("rosterGroupId", idToParam frontOfHouse.id)]
@@ -684,6 +686,7 @@ tests = beforeAll testContext do
                     |> fetchOne
                 copiedSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId copiedDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
                     |> fetch
                 length copiedSlots `shouldBe` 1
 
@@ -746,6 +749,7 @@ tests = beforeAll testContext do
                     |> fetchOne
                 copiedSlots <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId copiedDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
                     |> fetch
 
                 length copiedSlots `shouldBe` 1
@@ -1138,10 +1142,8 @@ tests = beforeAll testContext do
                 slotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
                 alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
                 bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
-                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId alpha.id) |> fetch >>= deleteRecords
-                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId bravo.id) |> fetch >>= deleteRecords
-                _ <- createStaffRosterGroupRecord alpha frontOfHouse
-                _ <- createStaffRosterGroupRecord bravo backOfHouse
+                syncStaffRosterGroupAssignments alpha [frontOfHouse.id]
+                syncStaffRosterGroupAssignments bravo [backOfHouse.id]
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
@@ -1169,10 +1171,8 @@ tests = beforeAll testContext do
                 slotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
                 alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
                 bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
-                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId alpha.id) |> fetch >>= deleteRecords
-                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId bravo.id) |> fetch >>= deleteRecords
-                _ <- createStaffRosterGroupRecord alpha frontOfHouse
-                _ <- createStaffRosterGroupRecord bravo backOfHouse
+                syncStaffRosterGroupAssignments alpha [frontOfHouse.id]
+                syncStaffRosterGroupAssignments bravo [backOfHouse.id]
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
@@ -1196,8 +1196,7 @@ tests = beforeAll testContext do
                 backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
                 slotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
                 alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
-                _ <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId alpha.id) |> fetch >>= deleteRecords
-                _ <- createStaffRosterGroupRecord alpha backOfHouse
+                syncStaffRosterGroupAssignments alpha [backOfHouse.id]
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0

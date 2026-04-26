@@ -133,6 +133,7 @@ fetchReportDefinitionShiftTypeFilters definitions =
         else do
             filters <- query @ReportDefinitionShiftTypeFilter
                 |> filterWhereIn (#reportDefinitionId, map (coerce . get #id) definitions)
+                |> filterWhere (#deletedAt, Nothing)
                 |> fetch
             let shiftTypeIds = List.nub (map (.shiftTypeId) filters)
             shiftTypes <-
@@ -890,6 +891,7 @@ fetchApprovedTimesheetEntries rangeStart rangeEnd =
     query @TimesheetEntry
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#isApproved, True)
+        |> filterWhere (#deletedAt, Nothing)
         |> filterWhereIn (#workedOn, [rangeStart .. rangeEnd])
         |> orderByAsc #workedOn
         |> orderByAsc #startTime

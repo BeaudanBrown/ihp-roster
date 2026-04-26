@@ -206,7 +206,23 @@ tests = describe "Schema" do
     it "enforces one linked staff row per user per venue while still allowing trial staff" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy`
-            Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL;"
+            Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL AND is_active = TRUE AND archived_at IS NULL;"
+
+    it "adds lifecycle columns and hard-delete triggers for payroll-adjacent records" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1777070800.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION prevent_hard_delete()"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_timesheet_entries BEFORE DELETE ON timesheet_entries"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_leave_requests BEFORE DELETE ON leave_requests"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_roster_slots BEFORE DELETE ON roster_slots"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (timesheet_entry_id) REFERENCES timesheet_entries (id) ON DELETE RESTRICT"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (leave_request_id) REFERENCES leave_requests (id) ON DELETE RESTRICT"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD CONSTRAINT timesheet_entries_staff_id_fk FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD CONSTRAINT roster_days_roster_week_id_fk FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD CONSTRAINT export_jobs_purged_by_user_id_fk FOREIGN KEY (purged_by_user_id) REFERENCES users (id) ON DELETE RESTRICT"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "DROP CONSTRAINT IF EXISTS roster_slots_roster_day_id_fkey"
 
     it "enforces case-insensitive uniqueness for login emails" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"

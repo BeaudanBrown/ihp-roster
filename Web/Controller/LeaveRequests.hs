@@ -105,6 +105,7 @@ instance Controller LeaveRequestsController where
         ensureManagerRole
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
+        accessDeniedUnless (isNothing leaveRequest.deletedAt)
         updatedLeaveRequest <- withTransaction do
             let wasApproved = parseLeaveRequestStatus leaveRequest.status == Just LeaveApproved
             updatedLeaveRequest <-
@@ -146,6 +147,7 @@ instance Controller LeaveRequestsController where
         ensureManagerRole
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
+        accessDeniedUnless (isNothing leaveRequest.deletedAt)
         deniedLeaveRequest <- withTransaction do
             let wasApproved = parseLeaveRequestStatus leaveRequest.status == Just LeaveApproved
             updatedLeaveRequest <-
@@ -187,18 +189,26 @@ instance Controller LeaveRequestsController where
         let responseContext = requestedLeaveResponseContext
         ensureLeaveProfileAccess responseContext
         ensureRecordInCurrentVenue leaveRequest.venueId
+        accessDeniedUnless (isNothing leaveRequest.deletedAt)
         ensureLeaveDeleteAllowed leaveRequest
         unless (leaveRequestCanBeDeleted leaveRequest) do
             setErrorMessage "Reviewed leave requests cannot be deleted."
             redirectToPath (leaveFallbackPath responseContext)
+        now <- getCurrentTime
         withTransaction do
+            softDeletedLeaveRequest <-
+                leaveRequest
+                    |> set #deletedAt (Just now)
+                    |> set #deletedByUserId (Just (unpackId currentUser.id))
+                    |> set #deleteReason (Just "user_deleted")
+                    |> updateRecord
             void $
                 recordCurrentUserLeaveRequestEvent
-                    leaveRequest
+                    softDeletedLeaveRequest
                     (unsafeEnumFromText @LeaveRequestEventTypeEnum "deleted")
                     (Just leaveRequest.status)
                     Nothing
-                    Aeson.Null
+                    (Aeson.object ["deletedAt" Aeson..= now])
             void $ recordCurrentUserAuditEvent
                 "leave_deleted"
                 "leave_requests"
@@ -208,14 +218,14 @@ instance Controller LeaveRequestsController where
                     , "startDate" Aeson..= leaveRequest.startDate
                     , "endDate" Aeson..= leaveRequest.endDate
                     , "deletedStatus" Aeson..= inputValue leaveRequest.status
+                    , "deletedAt" Aeson..= now
                     ]
                 )
-            deleteRecord leaveRequest
         broadcastLeaveRequestsInvalidation [buildLeaveRequestsContentFragmentRef]
         if isHtmxRequest
-            then respondWithLeaveMutationSuccess responseContext "Leave request deleted" False
+            then respondWithLeaveMutationSuccess responseContext "Leave request cancelled" False
             else do
-                setSuccessMessage "Leave request deleted"
+                setSuccessMessage "Leave request cancelled"
                 redirectToPath (leaveFallbackPath responseContext)
 
 fetchStaffMembersForCurrentVenue :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
@@ -228,6 +238,7 @@ fetchVisibleLeaveRequests = do
         then
             query @LeaveRequest
                 |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#deletedAt, Nothing)
                 |> orderByDesc #startDate
                 |> fetch
         else do
@@ -238,6 +249,7 @@ fetchVisibleLeaveRequests = do
                     query @LeaveRequest
                         |> filterWhere (#venueId, unpackId currentVenueId)
                         |> filterWhere (#staffId, coerce (get #id staff))
+                        |> filterWhere (#deletedAt, Nothing)
                         |> orderByDesc #startDate
                         |> fetch
 

@@ -27,6 +27,7 @@ Business requirements remain canonical in `specs/`.
   - `plans/51-mobile-responsive-foundations.md`
   - `plans/52-roster-mobile-refactor.md`
   - `plans/53-programmatic-demo-seeding.md`
+  - `plans/55-record-retention-soft-deletion.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
 
@@ -84,7 +85,11 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 7. Roster groups and venue bootstrap defaults
    - Plan: `plans/49-roster-groups-and-venue-bootstrap.md`
    - Depends on the venue/auth foundations and should land before release-readiness polish so new venues and richer roster shapes stop depending on ad hoc slot setup.
-8. Release readiness, hardening, and acceptance sweep
+8. Record retention and soft-deletion guardrails
+   - Plan: `plans/55-record-retention-soft-deletion.md`
+   - Depends on timesheet/leave provenance, pay snapshots, roster groups, and export primitives.
+   - Must land before paid venue data is treated as production records.
+9. Release readiness, hardening, and acceptance sweep
    - Plan: `plans/50-release-readiness.md`
    - Depends on the foundations above.
 
@@ -137,6 +142,11 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **File:** `plans/50-release-readiness.md`
 - **Focus:** testing coverage, UI polish, reporting, security hardening, and release acceptance.
 
+### Pipeline 55 — Record Retention and Soft Deletion
+- **Status:** [ ]
+- **File:** `plans/55-record-retention-soft-deletion.md`
+- **Focus:** make soft deletion the default for business records, block hard deletion of protected employment/payroll/roster/audit records at the database layer, and replace remaining destructive controller paths before paid venue data goes live.
+
 ### Cross-Cutting Note — Mobile and Responsive Foundations
 - **Status:** [-]
 - **File:** `plans/51-mobile-responsive-foundations.md`
@@ -165,6 +175,7 @@ These pipelines can overlap when they respect the dependency constraints above:
 - `plans/51-mobile-responsive-foundations.md` should run alongside roster, leave, and timesheet UX work so responsive contracts land before too many new desktop-first assumptions accumulate.
 - `plans/52-roster-mobile-refactor.md` should lead any roster-page responsive restructuring so layout changes stay anchored to explicit mobile/tablet contracts rather than ad hoc CSS tweaks.
 - `plans/53-programmatic-demo-seeding.md` can proceed alongside roster/payroll/admin work so long as it reuses existing bootstrap helpers and does not destabilize deterministic e2e fixtures or minimal bootstrap SQL.
+- `plans/55-record-retention-soft-deletion.md` should run before release-readiness acceptance and before Xero submission work, because Xero sync history and venue export packs should be built on the protected-record model from day one.
 
 ## Read Order For Agents
 

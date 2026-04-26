@@ -8,6 +8,7 @@ import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Application.Helper.WeekBoundaries (orderedWeekdayIndexes,
                                           weekdayIndexLabel)
 import qualified Data.Text as Text
+import Data.Time.Clock (getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
@@ -54,6 +55,7 @@ fetchPreferenceSectionsForRosterGroups rosterGroupIds = do
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> filterWhereIn (#id, rosterGroupIds)
             |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
             |> orderByAsc #sortOrder
             |> orderByAsc #createdAt
             |> fetch
@@ -62,6 +64,7 @@ fetchPreferenceSectionsForRosterGroups rosterGroupIds = do
             query @SlotName
                 |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                 |> filterWhere (#isActive, True)
+                |> filterWhere (#archivedAt, Nothing)
                 |> orderByAsc #sortOrder
                 |> orderByAsc #createdAt
                 |> fetch
@@ -79,17 +82,25 @@ fetchStaffShiftPreferences staff rosterGroupIds
         query @StaffShiftPreference
             |> filterWhere (#staffId, unpackId staff.id)
             |> filterWhereIn (#rosterGroupId, map unpackId rosterGroupIds)
+            |> filterWhere (#deletedAt, Nothing)
             |> fetch
 
 replaceStaffShiftPreferences :: (?modelContext :: ModelContext) => Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> IO ()
 replaceStaffShiftPreferences staff rosterGroupIds selections = do
     when (not (null rosterGroupIds)) do
+        now <- getCurrentTime
         existingPreferences <-
             query @StaffShiftPreference
                 |> filterWhere (#staffId, unpackId staff.id)
                 |> filterWhereIn (#rosterGroupId, map unpackId rosterGroupIds)
+                |> filterWhere (#deletedAt, Nothing)
                 |> fetch
-        deleteRecords existingPreferences
+        forM_ existingPreferences \preference -> do
+            _ <- preference
+                |> set #deletedAt (Just now)
+                |> set #deleteReason (Just "staff_shift_preferences_replaced")
+                |> updateRecord
+            pure ()
     forM_ (nub selections) \selection -> do
         _ <-
             newRecord @StaffShiftPreference

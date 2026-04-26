@@ -93,7 +93,10 @@ tests = beforeAll testContext do
                         ]
 
                 response `responseStatusShouldBe` status302
-                assignments <- query @StaffRosterGroup |> filterWhere (#staffId, unpackId staff.id) |> fetch
+                assignments <- query @StaffRosterGroup
+                    |> filterWhere (#staffId, unpackId staff.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
                 sort (map (.rosterGroupId) assignments) `shouldBe` sort [unpackId frontOfHouse.id, unpackId backOfHouse.id]
 
         it "allows venue admins to update staff employment basis and default pay level" $ withContext do

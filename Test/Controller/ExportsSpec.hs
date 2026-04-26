@@ -528,6 +528,7 @@ tests = beforeAll testContext do
 
                 updatedFilters <- query @ReportDefinitionShiftTypeFilter
                     |> filterWhere (#reportDefinitionId, unpackId createdDefinition.id)
+                    |> filterWhere (#deletedAt, Nothing)
                     |> fetch
                 map (.shiftTypeId) updatedFilters `shouldBe` [unpackId kitchenShift.id]
 

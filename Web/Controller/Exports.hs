@@ -25,6 +25,7 @@ instance Controller ExportsController where
         allReportDefinitions <- fetchCurrentVenueReportDefinitionsIncludingInactive
         shiftTypes <- query @ShiftType
             |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#archivedAt, Nothing)
             |> orderByAsc #sortOrder
             |> orderByAsc #name
             |> fetch
@@ -181,23 +182,31 @@ validateShiftTypeIds shiftTypeIds
     | otherwise = do
         validCount <- query @ShiftType
             |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#archivedAt, Nothing)
             |> filterWhereIn (#id, shiftTypeIds)
             |> fetchCount
         pure (validCount == length (List.nub shiftTypeIds))
 
 syncReportDefinitionShiftTypeFilters ::
-    (?modelContext :: ModelContext) =>
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     ReportDefinition ->
     [Id ShiftType] ->
     IO ()
 syncReportDefinitionShiftTypeFilters reportDefinition shiftTypeIds = withTransaction do
+    now <- getCurrentTime
+    let actorUserId = unpackId currentUser.id
     existingFilters <- query @ReportDefinitionShiftTypeFilter
         |> filterWhere (#reportDefinitionId, unpackId (get #id reportDefinition))
+        |> filterWhere (#deletedAt, Nothing)
         |> fetch
     let desiredShiftTypeIds = map unpackId shiftTypeIds
     forM_ existingFilters \existingFilter ->
         when (existingFilter.shiftTypeId `notElem` desiredShiftTypeIds) do
-            deleteRecord existingFilter
+            existingFilter
+                |> set #deletedAt (Just now)
+                |> set #deletedByUserId (Just actorUserId)
+                |> set #deleteReason (Just "report_filter_removed")
+                |> updateRecordDiscardResult
     let existingShiftTypeIds = map (.shiftTypeId) existingFilters
     forM_ desiredShiftTypeIds \shiftTypeId ->
         when (shiftTypeId `notElem` existingShiftTypeIds) do

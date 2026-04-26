@@ -157,8 +157,9 @@ instance Controller RosterWeeksController where
                                 |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                                 |> filterWhere (#weekOffset, targetWeekOffset)
                                 |> fetchOneOrNothing
-                            forM_ existingTarget deleteRecord
-                            copyRosterWeek sourceWeek targetWeekOffset
+                            case existingTarget of
+                                Just targetWeek -> replaceRosterWeekFromSource sourceWeek targetWeek
+                                Nothing -> copyRosterWeek sourceWeek targetWeekOffset
 
                         broadcastRosterWeekInvalidation
                             rosterGroup.id
@@ -284,7 +285,11 @@ instance Controller RosterWeeksController where
                     redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
 
         -- Find the current max row index for this day
-        existingSlots <- query @RosterSlot |> filterWhere (#rosterDayId, coerce rosterDayId) |> fetch
+        existingSlots <-
+            query @RosterSlot
+                |> filterWhere (#rosterDayId, coerce rosterDayId)
+                |> filterWhere (#deletedAt, Nothing)
+                |> fetch
         let nextRowIndex = if null existingSlots then 0 else maximum (map (.rowIndex) existingSlots) + 1
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
@@ -343,6 +348,7 @@ instance Controller RosterWeeksController where
 
         existingSlots <- query @RosterSlot
             |> filterWhere (#rosterDayId, coerce rosterDayId)
+            |> filterWhere (#deletedAt, Nothing)
             |> fetch
 
         let rowIndices = existingSlots |> map (.rowIndex) |> nub |> sort
@@ -366,9 +372,17 @@ instance Controller RosterWeeksController where
                     query @RosterSlot
                         |> filterWhere (#rosterDayId, coerce rosterDayId)
                         |> filterWhere (#rowIndex, lastRowIndex)
+                        |> filterWhere (#deletedAt, Nothing)
                         |> fetch
 
-        deleteRecords slotsToDelete
+        now <- getCurrentTime
+        forM_ slotsToDelete \slot -> do
+            _ <- slot
+                |> set #deletedAt (Just now)
+                |> set #deletedByUserId (Just (unpackId currentUser.id))
+                |> set #deleteReason (Just "roster_row_removed")
+                |> updateRecord
+            pure ()
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         broadcastRosterWeekInvalidation
@@ -391,6 +405,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
 
         rosterSlot <- fetch rosterSlotId
+        accessDeniedUnless (isNothing rosterSlot.deletedAt)
         let previousStaffId = rosterSlot.staffId
         let rosterDayId = (coerce rosterSlot.rosterDayId :: Id RosterDay)
         rosterDay <- fetch rosterDayId
@@ -563,6 +578,7 @@ fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek staffIds =
                 else query @RosterSlot
                     |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
                     |> filterWhereIn (#staffId, map Just (nub staffIds))
+                    |> filterWhere (#deletedAt, Nothing)
                     |> fetch
 
 ensureRosterWeekIsDraftForEdit :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> IO ()
