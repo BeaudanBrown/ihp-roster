@@ -1,6 +1,6 @@
 module Web.Controller.Profiles where
 
-import Application.Helper.LiveUpdate (LiveFragmentRef)
+import Application.Helper.LiveUpdate (LiveFragmentRef, activeRosterWeekScopes)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
@@ -11,6 +11,7 @@ import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOverlayHostOob)
 import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
@@ -172,20 +173,42 @@ normalizeProfileOpenSection section
 
 fetchProfileRosterInvalidationTargets :: (?modelContext :: ModelContext) => Id Venue -> Staff -> IO [(Id RosterGroup, Int, [(UUID.UUID, Int)])]
 fetchProfileRosterInvalidationTargets venueId staff = do
+    activeScopes <- activeRosterWeekScopes
+    fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes
+
+fetchProfileRosterInvalidationTargetsForScopes ::
+    (?modelContext :: ModelContext) =>
+    Id Venue ->
+    Staff ->
+    [(UUID.UUID, UUID.UUID, Int)] ->
+    IO [(Id RosterGroup, Int, [(UUID.UUID, Int)])]
+fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes = do
     rosterGroupIds <- fetchStaffRosterGroupIds staff
-    if null rosterGroupIds
+    let activeWeekKeys =
+            Set.fromList
+                [ (rosterGroupUuid, weekOffset)
+                | (venueUuid, rosterGroupUuid, weekOffset) <- activeScopes
+                , venueUuid == unpackId venueId
+                , rosterGroupUuid `elem` map unpackId rosterGroupIds
+                ]
+    if null rosterGroupIds || Set.null activeWeekKeys
         then pure []
         else do
             rosterWeeks <-
                 query @RosterWeek
                     |> filterWhere (#venueId, unpackId venueId)
                     |> filterWhereIn (#rosterGroupId, map unpackId rosterGroupIds)
+                    |> filterWhereIn (#weekOffset, Set.toList (Set.map snd activeWeekKeys))
                     |> fetch
+            let activeRosterWeeks =
+                    filter
+                        (\rosterWeek -> (rosterWeek.rosterGroupId, rosterWeek.weekOffset) `Set.member` activeWeekKeys)
+                        rosterWeeks
             rosterDays <-
-                if null rosterWeeks
+                if null activeRosterWeeks
                     then pure []
                     else query @RosterDay
-                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) activeRosterWeeks)
                         |> fetch
             assignedSlots <-
                 if null rosterDays
@@ -196,7 +219,7 @@ fetchProfileRosterInvalidationTargets venueId staff = do
                         |> filterWhere (#deletedAt, Nothing)
                         |> fetch
 
-            let rosterWeekById = Map.fromList (map (\rosterWeek -> (unpackId rosterWeek.id, rosterWeek)) rosterWeeks)
+            let rosterWeekById = Map.fromList (map (\rosterWeek -> (unpackId rosterWeek.id, rosterWeek)) activeRosterWeeks)
             let rosterDayById = Map.fromList (map (\rosterDay -> (unpackId rosterDay.id, rosterDay)) rosterDays)
             let assignedRowKeysByWeek =
                     Map.fromListWith (<>)
@@ -212,7 +235,7 @@ fetchProfileRosterInvalidationTargets venueId staff = do
                       , rosterWeek.weekOffset
                       , Map.findWithDefault [] (rosterGroupId, rosterWeek.weekOffset) assignedRowKeysByWeek
                       )
-                | rosterWeek <- rosterWeeks
+                | rosterWeek <- activeRosterWeeks
                 ]
 
 buildProfileRosterInvalidations :: (?context :: ControllerContext) => [(Id RosterGroup, Int, [(UUID.UUID, Int)])] -> [(Id RosterGroup, Int, [LiveFragmentRef])]

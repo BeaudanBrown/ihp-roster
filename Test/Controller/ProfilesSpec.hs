@@ -17,7 +17,8 @@ import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
-import Web.Controller.Profiles (fetchProfileRosterInvalidationTargets)
+import Web.Controller.Profiles (fetchProfileRosterInvalidationTargets,
+                                fetchProfileRosterInvalidationTargetsForScopes)
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
@@ -256,7 +257,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Profile updated"
                 response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
 
-        it "invalidates only impacted roster week scopes and includes the assigned row fragment for profile updates" $ withContext do
+        it "selects profile roster invalidation targets from active roster week scopes" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-roster-invalidation@example.com" "staff" True
@@ -275,9 +276,18 @@ tests = beforeAll testContext do
                 assignedSlot <- createRosterSlotRecord frontDay frontSlotName (Just staff) 0
 
                 invalidationTargets <- fetchProfileRosterInvalidationTargets venue.id staff
+                invalidationTargets `shouldBe` []
 
-                let frontEntry = find (\(rosterGroupId, weekOffset, _) -> rosterGroupId == frontGroup.id && weekOffset == 0) invalidationTargets
-                let backEntry = find (\(rosterGroupId, weekOffset, _) -> rosterGroupId == backGroup.id && weekOffset == 0) invalidationTargets
+                activeInvalidationTargets <-
+                    fetchProfileRosterInvalidationTargetsForScopes
+                        venue.id
+                        staff
+                        [ (unpackId venue.id, unpackId frontGroup.id, 0)
+                        , (unpackId venue.id, unpackId backGroup.id, 0)
+                        ]
+
+                let frontEntry = find (\(rosterGroupId, weekOffset, _) -> rosterGroupId == frontGroup.id && weekOffset == 0) activeInvalidationTargets
+                let backEntry = find (\(rosterGroupId, weekOffset, _) -> rosterGroupId == backGroup.id && weekOffset == 0) activeInvalidationTargets
 
                 fmap (\(_, _, rowKeys) -> rowKeys) frontEntry `shouldBe` Just [(unpackId frontDay.id, assignedSlot.rowIndex)]
                 backEntry `shouldBe` Nothing
@@ -301,5 +311,5 @@ tests = beforeAll testContext do
                 frontVersionAfter <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId frontGroup.id, weekOffset = 0 }
                 backVersionAfter <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId backGroup.id, weekOffset = 0 }
 
-                frontVersionAfter `shouldBe` (frontVersionBefore + 1)
+                frontVersionAfter `shouldBe` frontVersionBefore
                 backVersionAfter `shouldBe` backVersionBefore
