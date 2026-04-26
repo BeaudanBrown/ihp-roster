@@ -1,7 +1,10 @@
 module Test.Controller.PasskeysSpec where
 
 import Application.Helper.Controller (currentVenueSessionKey,
-                                      passkeyVerifiedUserSessionKey)
+                                      formatPasskeyVerifiedAt,
+                                      passkeyVerifiedAtSessionKey,
+                                      passkeyVerifiedUserSessionKey,
+                                      unsafeEnumFromText)
 import Config
 import Generated.Types
 import IHP.ControllerPrelude
@@ -15,6 +18,7 @@ import IHP.Test.Mocking
 import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
+import Data.Time.Clock (getCurrentTime)
 import Test.Hspec
 import Test.Support
 import Web.FrontController ()
@@ -65,6 +69,18 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile?section=security"
 
+        it "requires venue owners without passkeys to finish security setup before operational pages" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Mandatory Owner Passkey Venue"
+                user <- createUserRecord "mandatory-owner-passkey@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_owner"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction RosterWeeksAction
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile?section=security"
+
         it "does not require workers without passkeys to finish passkey setup before roster access" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Worker Optional Passkey Venue"
@@ -97,10 +113,46 @@ tests = beforeAll testContext do
                     stepUpResponse `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyStepUpAuthentication\""
                     stepUpResponse `responseBodyShouldContain` "data-success-redirect=\"/RosterWeeks\""
 
+        it "audits failed passkey step-up attempts" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Step Up Audit Venue"
+                user <- createUserRecord "admin-step-up-audit@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction BeginPasskeyStepUpAuthenticationAction
+
+                response `responseStatusShouldBe` status422
+                auditEvent <- query @AuditEvent |> fetchOne
+                auditEvent.venueId `shouldBe` unpackId venue.id
+                auditEvent.actorUserId `shouldBe` unpackId user.id
+                auditEvent.eventType `shouldBe` "passkey_step_up_failed"
+                auditEvent.targetTable `shouldBe` "users"
+                auditEvent.targetId `shouldBe` unpackId user.id
+
         it "allows venue admin pages after the session has passkey verification" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Verified Admin Venue"
                 user <- createUserRecord "verified-admin@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createTestPasskeyRecord user "Admin passkey"
+                now <- getCurrentTime
+
+                response <- withSessionValues
+                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
+                    , (currentVenueSessionKey, Serialize.encode venue.id)
+                    , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
+                    , (passkeyVerifiedAtSessionKey, Serialize.encode (formatPasskeyVerifiedAt now))
+                    ]
+                    do
+                        callAction AdminAction
+
+                response `responseStatusShouldBe` status200
+
+        it "requires a fresh passkey verification for venue admin pages" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Expired Admin Passkey Venue"
+                user <- createUserRecord "expired-admin@example.com" "admin" True
                 _ <- createVenueMembershipRecord venue user "venue_admin"
                 _ <- createTestPasskeyRecord user "Admin passkey"
 
@@ -108,11 +160,42 @@ tests = beforeAll testContext do
                     [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
                     , (currentVenueSessionKey, Serialize.encode venue.id)
                     , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
+                    , (passkeyVerifiedAtSessionKey, Serialize.encode ("0" :: Text))
                     ]
                     do
                         callAction AdminAction
 
-                response `responseStatusShouldBe` status200
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+
+        it "forces passkey setup immediately after promotion to venue admin" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Promoted Admin Passkey Venue"
+                user <- createUserRecord "promoted-admin@example.com" "staff" True
+                membership <- createVenueMembershipRecord venue user "worker"
+                _ <- membership
+                    |> set #venueRole (unsafeEnumFromText @VenueRoleEnum "venue_admin")
+                    |> updateRecord
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction RosterWeeksAction
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile?section=security"
+
+        it "requires fresh passkey verification before adding another admin passkey" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Additional Admin Passkey Venue"
+                user <- createUserRecord "additional-admin-passkey@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createTestPasskeyRecord user "Existing admin passkey"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction BeginPasskeyRegistrationAction
+
+                response `responseStatusShouldBe` status403
+                response `responseBodyShouldContain` "Verify with your passkey before adding another passkey."
+                response `responseBodyShouldContain` "\"redirectTo\":\"/PasskeyStepUp\""
 
         it "lists existing passkeys on the security profile section" $ withContext do
             withCleanDb do
@@ -197,3 +280,25 @@ tests = beforeAll testContext do
                     |> filterWhere (#id, passkey.id)
                     |> fetchExists
                 stillExists `shouldBe` True
+
+        it "requires fresh passkey verification before deleting an admin passkey" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Passkey Delete Step Up Venue"
+                user <- createUserRecord "passkey-delete-step-up@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                firstPasskey <- createTestPasskeyRecord user "First admin passkey"
+                secondPasskey <- createTestPasskeyRecord user "Second admin passkey"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction (DeletePasskeyAction firstPasskey.id)
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                firstStillExists <- query @Passkey
+                    |> filterWhere (#id, firstPasskey.id)
+                    |> fetchExists
+                secondStillExists <- query @Passkey
+                    |> filterWhere (#id, secondPasskey.id)
+                    |> fetchExists
+                firstStillExists `shouldBe` True
+                secondStillExists `shouldBe` True

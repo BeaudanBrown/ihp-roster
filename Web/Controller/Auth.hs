@@ -7,6 +7,7 @@ import Crypto.WebAuthn.Model.Types
 import Crypto.WebAuthn.Operation.Authentication
 import Crypto.WebAuthn.Operation.CredentialEntry (CredentialEntry (..))
 import Crypto.WebAuthn.Operation.Registration
+import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Hourglass (timeConvert)
 import qualified Data.List.NonEmpty as NonEmpty
@@ -17,7 +18,8 @@ import qualified Data.Validation as Validation
 import Database.PostgreSQL.Simple.Types (Binary (Binary))
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
-import Network.HTTP.Types.Status (Status, status400, status409, status422)
+import Network.HTTP.Types.Status (Status, status400, status403, status409,
+                                  status422)
 import Web.Controller.Prelude
 import Web.Controller.Sessions ()
 
@@ -28,6 +30,11 @@ instance Controller AuthController where
             query @Passkey
                 |> filterWhere (#userId, unpackId (get #id currentUser))
                 |> fetch
+        when (currentUserRequiresMandatoryPasskey && not (null existingPasskeys)) do
+            verified <- isCurrentUserPasskeyVerified
+            unless verified do
+                setSession passkeyStepUpRedirectSessionKey profileSecurityPath
+                jsonRedirectError status403 "Verify with your passkey before adding another passkey." (pathTo PasskeyStepUpAction)
         challenge <- liftIO generateChallenge
         setSession registrationChallengeSessionKey (unChallenge challenge)
         setSession registrationUserIdSessionKey (inputValue (get #id currentUser))
@@ -59,6 +66,12 @@ instance Controller AuthController where
             query @Passkey
                 |> filterWhere (#userId, unpackId (get #id currentUser))
                 |> fetch
+        when (currentUserRequiresMandatoryPasskey && not (null existingPasskeys)) do
+            verified <- isCurrentUserPasskeyVerified
+            unless verified do
+                clearRegistrationSession
+                setSession passkeyStepUpRedirectSessionKey profileSecurityPath
+                jsonRedirectError status403 "Verify with your passkey before adding another passkey." (pathTo PasskeyStepUpAction)
         currentDateTime <- liftIO (timeConvert <$> getCurrentTime)
         let verification =
                 verifyRegistrationResponse
@@ -172,6 +185,7 @@ instance Controller AuthController where
         ensureIsUser
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
+            auditPasskeyStepUpFailure "no_passkey"
             jsonError status422 "Add a passkey before verifying privileged access."
         challenge <- liftIO generateChallenge
         setSession stepUpAuthenticationChallengeSessionKey (unChallenge challenge)
@@ -186,6 +200,7 @@ instance Controller AuthController where
         credential <- case WebAuthnJson.wjDecodeCredentialAuthentication credentialPayload of
             Left errorMessage -> do
                 clearStepUpAuthenticationSession
+                auditPasskeyStepUpFailure "decode_failed"
                 jsonError status422 errorMessage
             Right credential -> pure credential
 
@@ -196,8 +211,13 @@ instance Controller AuthController where
             query @Passkey
                 |> filterWhere (#credentialId, Binary credentialId)
                 |> fetchOneOrNothing
-                >>= maybe (jsonError status422 "No account matched that passkey.") pure
+                >>= \case
+                    Nothing -> do
+                        auditPasskeyStepUpFailure "credential_not_found"
+                        jsonError status422 "No account matched that passkey."
+                    Just passkey -> pure passkey
         when (passkey.userId /= unpackId currentUser.id) do
+            auditPasskeyStepUpFailure "wrong_account"
             jsonError status422 "That passkey belongs to a different account."
 
         let verification =
@@ -210,11 +230,14 @@ instance Controller AuthController where
                     credential
 
         authenticationResult <- case verification of
-            Validation.Failure errors -> jsonError status422 (validationErrors errors)
+            Validation.Failure errors -> do
+                auditPasskeyStepUpFailure "verification_failed"
+                jsonError status422 (validationErrors errors)
             Validation.Success result -> pure result
 
         case arSignatureCounterResult authenticationResult of
-            SignatureCounterPotentiallyCloned ->
+            SignatureCounterPotentiallyCloned -> do
+                auditPasskeyStepUpFailure "signature_counter_cloned"
                 jsonError status422 "This passkey could not be verified safely."
             SignatureCounterUpdated newSignCount ->
                 passkey
@@ -227,6 +250,15 @@ instance Controller AuthController where
             |> set #lastUsedAt (Just now)
             |> updateRecordDiscardResult
         markCurrentUserPasskeyVerified
+        void $
+            recordUserAuthenticationAuditEvent
+                currentUser
+                "passkey_step_up_succeeded"
+                ( Aeson.object
+                    [ "authMethod" Aeson..= ("passkey" :: Text)
+                    , "passkeyId" Aeson..= inputValue (get #id passkey)
+                    ]
+                )
         redirectUrl <- getSessionAndClear passkeyStepUpRedirectSessionKey
         renderJson
             ( Aeson.object
@@ -302,6 +334,24 @@ jsonError :: (?request :: Request) => Status -> Text -> IO a
 jsonError statusCode errorMessage =
     renderJsonWithStatusCode statusCode (Aeson.object ["error" Aeson..= errorMessage])
         >> error "unreachable"
+
+jsonRedirectError :: (?request :: Request) => Status -> Text -> Text -> IO a
+jsonRedirectError statusCode errorMessage redirectTo =
+    renderJsonWithStatusCode statusCode
+        (Aeson.object ["error" Aeson..= errorMessage, "redirectTo" Aeson..= redirectTo])
+        >> error "unreachable"
+
+auditPasskeyStepUpFailure :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO ()
+auditPasskeyStepUpFailure reason =
+    void $
+        recordUserAuthenticationAuditEvent
+            currentUser
+            "passkey_step_up_failed"
+            ( Aeson.object
+                [ "authMethod" Aeson..= ("passkey" :: Text)
+                , "reason" Aeson..= reason
+                ]
+            )
 
 validationErrors :: Show error => NonEmpty.NonEmpty error -> Text
 validationErrors errors =

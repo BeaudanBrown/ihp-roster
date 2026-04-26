@@ -22,6 +22,7 @@ instance Controller PasskeysController where
     action UpdatePasskeyNameAction { passkeyId } = do
         passkey <- fetch passkeyId
         accessDeniedUnless (passkey.userId == unpackId currentUser.id)
+        ensureFreshPasskeyForProfileSecurity
         let submittedName = Text.strip (param @Text "name")
         let newName = if Text.null submittedName then "Passkey" else submittedName
 
@@ -41,6 +42,7 @@ instance Controller PasskeysController where
         when (currentUserRequiresMandatoryPasskey && passkeyCount <= 1) do
             setErrorMessage "Venue admins and owners must keep at least one passkey on their account."
             redirectToPath profileSecurityPath
+        ensureFreshPasskeyForProfileSecurity
 
         deleteRecord passkey
         setSuccessMessage "Passkey removed."
@@ -53,3 +55,13 @@ nonEmptyText value =
     if Text.null value
         then Nothing
         else Just value
+
+ensureFreshPasskeyForProfileSecurity :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+ensureFreshPasskeyForProfileSecurity = do
+    when currentUserRequiresMandatoryPasskey do
+        verified <- isCurrentUserPasskeyVerified
+        unless verified do
+            withRequestContext do
+                setSession passkeyStepUpRedirectSessionKey profileSecurityPath
+                setErrorMessage "Verify with your passkey before changing passkey settings."
+                redirectTo PasskeyStepUpAction

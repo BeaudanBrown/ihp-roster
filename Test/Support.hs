@@ -89,7 +89,7 @@ createTestPasskeyRecord :: (?modelContext :: ModelContext) => User -> Text -> IO
 createTestPasskeyRecord user passkeyName =
     newRecord @Passkey
         |> set #userId (unpackId user.id)
-        |> set #credentialId (Binary "test-credential-id")
+        |> set #credentialId (Binary (cs ("test-credential-id-" <> inputValue user.id <> "-" <> passkeyName) :: ByteString.ByteString))
         |> set #publicKey (Binary "test-public-key")
         |> set #name passkeyName
         |> createRecord

@@ -135,6 +135,8 @@ tests = describe "Schema" do
             , "login_succeeded"
             , "login_failed"
             , "login_blocked"
+            , "passkey_step_up_succeeded"
+            , "passkey_step_up_failed"
             ]
         allAuditSourceChannelValues `shouldBe` ["web", "htmx", "system"]
         allExportJobTypeValues `shouldBe` ["approved_timesheets_csv", "staff_pay_csv", "hourly_breakdown_zip", "payroll_earnings_csv"]

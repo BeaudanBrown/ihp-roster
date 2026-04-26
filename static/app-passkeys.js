@@ -193,6 +193,9 @@
             return {};
         });
         if (!response.ok) {
+            if (json.redirectTo) {
+                window.location.assign(json.redirectTo);
+            }
             throw new Error(json.error || 'Passkey request failed.');
         }
         return json;

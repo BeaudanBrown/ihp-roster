@@ -1,10 +1,15 @@
 module Application.Helper.ControllerAccess where
 
 import Data.Coerce (coerce)
-import qualified Data.Text.Encoding as Text
+import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
+import Data.Time.Clock (NominalDiffTime, UTCTime, diffUTCTime, getCurrentTime)
+import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime,
+                              utcTimeToPOSIXSeconds)
 import Generated.Types
 import IHP.ControllerPrelude
 import qualified Network.Wai as Wai
+import Text.Read (readMaybe)
 import Web.Routes ()
 import Web.Types (PasskeysController (PasskeyStepUpAction),
                   ProfilesController (EditProfileAction))
@@ -15,8 +20,14 @@ import Application.Helper.ControllerSupport
 passkeyVerifiedUserSessionKey :: ByteString
 passkeyVerifiedUserSessionKey = "passkeyVerifiedUserId"
 
+passkeyVerifiedAtSessionKey :: ByteString
+passkeyVerifiedAtSessionKey = "passkeyVerifiedAt"
+
 passkeyStepUpRedirectSessionKey :: ByteString
 passkeyStepUpRedirectSessionKey = "passkeyStepUpRedirect"
+
+passkeyVerificationWindowSeconds :: NominalDiffTime
+passkeyVerificationWindowSeconds = 15 * 60
 
 fetchVenueConfig :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO VenueConfig
 fetchVenueConfig =
@@ -94,15 +105,24 @@ isCurrentUserPasskeyVerified :: (?context :: ControllerContext) => IO Bool
 isCurrentUserPasskeyVerified =
     withRequestContext do
         verifiedUserId <- getSession @Text passkeyVerifiedUserSessionKey
-        pure (verifiedUserId == Just (inputValue authenticatedCurrentUser.id))
+        verifiedAtText <- getSession @Text passkeyVerifiedAtSessionKey
+        now <- liftIO getCurrentTime
+        pure
+            ( verifiedUserId == Just (inputValue authenticatedCurrentUser.id)
+                && maybe False (isFreshPasskeyVerification now) verifiedAtText
+            )
 
 markCurrentUserPasskeyVerified :: (?context :: ControllerContext) => IO ()
 markCurrentUserPasskeyVerified =
-    withRequestContext (setSession passkeyVerifiedUserSessionKey (inputValue authenticatedCurrentUser.id))
+    withRequestContext do
+        now <- liftIO getCurrentTime
+        setSession passkeyVerifiedUserSessionKey (inputValue authenticatedCurrentUser.id)
+        setSession passkeyVerifiedAtSessionKey (formatPasskeyVerifiedAt now)
 
 clearCurrentUserPasskeyVerification :: (?request :: Request) => IO ()
-clearCurrentUserPasskeyVerification =
+clearCurrentUserPasskeyVerification = do
     deleteSession passkeyVerifiedUserSessionKey
+    deleteSession passkeyVerifiedAtSessionKey
 
 ensurePrivilegedPasskeyVerified :: (?context :: ControllerContext) => IO ()
 ensurePrivilegedPasskeyVerified = do
@@ -116,10 +136,27 @@ ensurePrivilegedPasskeyVerified = do
 
 currentRequestPath :: (?request :: Request) => Text
 currentRequestPath =
-    Text.decodeUtf8 (Wai.rawPathInfo ?request <> Wai.rawQueryString ?request)
+    TextEncoding.decodeUtf8 (Wai.rawPathInfo ?request <> Wai.rawQueryString ?request)
 
 profileSecurityPath :: Text
 profileSecurityPath = pathTo EditProfileAction <> "?section=security"
+
+formatPasskeyVerifiedAt :: UTCTime -> Text
+formatPasskeyVerifiedAt =
+    tshow . (floor :: POSIXTime -> Integer) . utcTimeToPOSIXSeconds
+
+isFreshPasskeyVerification :: UTCTime -> Text -> Bool
+isFreshPasskeyVerification now verifiedAtText =
+    case parsePasskeyVerifiedAt verifiedAtText of
+        Nothing -> False
+        Just verifiedAt ->
+            verifiedAt <= now
+                && diffUTCTime now verifiedAt <= passkeyVerificationWindowSeconds
+
+parsePasskeyVerifiedAt :: Text -> Maybe UTCTime
+parsePasskeyVerifiedAt value = do
+    seconds <- readMaybe (Text.unpack value) :: Maybe Integer
+    pure (posixSecondsToUTCTime (fromInteger seconds :: POSIXTime))
 
 currentUserCanUseStaffSelfService :: (?context :: ControllerContext) => Bool
 currentUserCanUseStaffSelfService = not currentUserIsSuperAdmin

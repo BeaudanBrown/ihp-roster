@@ -58,6 +58,8 @@ allAuditEventTypeValues =
     , "login_succeeded"
     , "login_failed"
     , "login_blocked"
+    , "passkey_step_up_succeeded"
+    , "passkey_step_up_failed"
     ]
 
 allAuditSourceChannelValues :: [Text]
