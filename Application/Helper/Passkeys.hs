@@ -3,6 +3,7 @@
 module Application.Helper.Passkeys
     ( allowedOrigins
     , authenticationCredentialOptions
+    , authenticationCredentialOptionsForPasskeys
     , credentialEntryForPasskey
     , passkeyCredentialDescriptor
     , passkeyRelyingPartyName
@@ -113,6 +114,16 @@ authenticationCredentialOptions challenge =
         , coaAllowCredentials = []
         , coaUserVerification = UserVerificationRequirementPreferred
         , coaExtensions = Nothing
+        }
+
+authenticationCredentialOptionsForPasskeys ::
+    (?request :: Request) =>
+    Challenge ->
+    [Passkey] ->
+    CredentialOptions 'Authentication
+authenticationCredentialOptionsForPasskeys challenge passkeys =
+    (authenticationCredentialOptions challenge)
+        { coaAllowCredentials = map passkeyCredentialDescriptor passkeys
         }
 
 passkeyCredentialDescriptor :: Passkey -> CredentialDescriptor

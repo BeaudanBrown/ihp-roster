@@ -85,6 +85,7 @@ instance Controller AuthController where
             jsonError status409 "This passkey is already registered."
 
         _ <- createPasskeyRecord (get #id currentUser) entry
+        markCurrentUserPasskeyVerified
         renderJson
             ( Aeson.object
                 [ "ok" Aeson..= True
@@ -143,6 +144,7 @@ instance Controller AuthController where
 
         Sessions.beforeLogin user
         LoginSupport.login user
+        markCurrentUserPasskeyVerified
         now <- getCurrentTime
         passkey
             |> set #lastUsedAt (Just now)
@@ -166,6 +168,74 @@ instance Controller AuthController where
                 ]
             )
 
+    action BeginPasskeyStepUpAuthenticationAction = do
+        ensureIsUser
+        passkeys <- fetchCurrentUserPasskeys
+        when (null passkeys) do
+            jsonError status422 "Add a passkey before verifying privileged access."
+        challenge <- liftIO generateChallenge
+        setSession stepUpAuthenticationChallengeSessionKey (unChallenge challenge)
+        renderJson $
+            WebAuthnJson.wjEncodeCredentialOptionsAuthentication $
+                authenticationCredentialOptionsForPasskeys challenge passkeys
+
+    action FinishPasskeyStepUpAuthenticationAction = do
+        ensureIsUser
+        challenge <- sessionChallenge stepUpAuthenticationChallengeSessionKey
+        credentialPayload <- parseWebAuthnJsonBody @WebAuthnJson.WJCredentialAuthentication
+        credential <- case WebAuthnJson.wjDecodeCredentialAuthentication credentialPayload of
+            Left errorMessage -> do
+                clearStepUpAuthenticationSession
+                jsonError status422 errorMessage
+            Right credential -> pure credential
+
+        clearStepUpAuthenticationSession
+
+        let CredentialId credentialId = cIdentifier credential
+        passkey <-
+            query @Passkey
+                |> filterWhere (#credentialId, Binary credentialId)
+                |> fetchOneOrNothing
+                >>= maybe (jsonError status422 "No account matched that passkey.") pure
+        when (passkey.userId /= unpackId currentUser.id) do
+            jsonError status422 "That passkey belongs to a different account."
+
+        let verification =
+                verifyAuthenticationResponse
+                    allowedOrigins
+                    rpIdHashFromRequest
+                    (Just (userHandleForUserId currentUser.id))
+                    (credentialEntryForPasskey passkey)
+                    (authenticationCredentialOptionsForPasskeys challenge [passkey])
+                    credential
+
+        authenticationResult <- case verification of
+            Validation.Failure errors -> jsonError status422 (validationErrors errors)
+            Validation.Success result -> pure result
+
+        case arSignatureCounterResult authenticationResult of
+            SignatureCounterPotentiallyCloned ->
+                jsonError status422 "This passkey could not be verified safely."
+            SignatureCounterUpdated newSignCount ->
+                passkey
+                    |> set #signCount (fromIntegral (unSignatureCounter newSignCount))
+                    |> updateRecordDiscardResult
+            SignatureCounterZero -> pure ()
+
+        now <- getCurrentTime
+        passkey
+            |> set #lastUsedAt (Just now)
+            |> updateRecordDiscardResult
+        markCurrentUserPasskeyVerified
+        redirectUrl <- getSessionAndClear passkeyStepUpRedirectSessionKey
+        renderJson
+            ( Aeson.object
+                [ "ok" Aeson..= True
+                , "redirectTo" Aeson..= fromMaybe (Sessions.afterLoginRedirectPath @User) redirectUrl
+                , "userId" Aeson..= inputValue currentUser.id
+                ]
+            )
+
 registrationChallengeSessionKey :: ByteString
 registrationChallengeSessionKey = "passkey-registration-challenge"
 
@@ -174,6 +244,9 @@ registrationUserIdSessionKey = "passkey-registration-user-id"
 
 authenticationChallengeSessionKey :: ByteString
 authenticationChallengeSessionKey = "passkey-authentication-challenge"
+
+stepUpAuthenticationChallengeSessionKey :: ByteString
+stepUpAuthenticationChallengeSessionKey = "passkey-step-up-authentication-challenge"
 
 parseWebAuthnJsonBody ::
     (?request :: Request, Aeson.FromJSON payload) =>
@@ -220,6 +293,10 @@ clearRegistrationSession = do
 clearAuthenticationSession :: (?request :: Request) => IO ()
 clearAuthenticationSession =
     deleteSession authenticationChallengeSessionKey
+
+clearStepUpAuthenticationSession :: (?request :: Request) => IO ()
+clearStepUpAuthenticationSession =
+    deleteSession stepUpAuthenticationChallengeSessionKey
 
 jsonError :: (?request :: Request) => Status -> Text -> IO a
 jsonError statusCode errorMessage =

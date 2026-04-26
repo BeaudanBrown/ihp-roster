@@ -53,6 +53,7 @@ instance Controller SessionsController where
                         then do
                             Sessions.beforeLogin user
                             LoginSupport.login user
+                            clearCurrentUserPasskeyVerification
                             _ <- user
                                 |> set #failedLoginAttempts 0
                                 |> updateRecord
@@ -153,5 +154,6 @@ instance Sessions.SessionsControllerConfig User where
             Just (_, venue, _) -> setSession currentVenueSessionKey (get #id venue)
             Nothing -> deleteSession currentVenueSessionKey
 
-    beforeLogout _ =
+    beforeLogout _ = do
         deleteSession currentVenueSessionKey
+        clearCurrentUserPasskeyVerification

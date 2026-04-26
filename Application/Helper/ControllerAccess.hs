@@ -1,13 +1,22 @@
 module Application.Helper.ControllerAccess where
 
 import Data.Coerce (coerce)
+import qualified Data.Text.Encoding as Text
 import Generated.Types
 import IHP.ControllerPrelude
+import qualified Network.Wai as Wai
 import Web.Routes ()
-import Web.Types (ProfilesController (EditProfileAction))
+import Web.Types (PasskeysController (PasskeyStepUpAction),
+                  ProfilesController (EditProfileAction))
 
 import Application.Helper.ControllerContext
 import Application.Helper.ControllerSupport
+
+passkeyVerifiedUserSessionKey :: ByteString
+passkeyVerifiedUserSessionKey = "passkeyVerifiedUserId"
+
+passkeyStepUpRedirectSessionKey :: ByteString
+passkeyStepUpRedirectSessionKey = "passkeyStepUpRedirect"
 
 fetchVenueConfig :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO VenueConfig
 fetchVenueConfig =
@@ -42,6 +51,7 @@ ensureProfileCompleted = do
         withRequestContext do
             setErrorMessage "Please complete your profile to continue."
             redirectTo EditProfileAction
+    ensurePrivilegedPasskeySetupComplete
 
 hasVenueRole :: VenueRole -> VenueRole -> Bool
 hasVenueRole actualRole minimumRole = actualRole >= minimumRole
@@ -57,7 +67,59 @@ ensureManagerRole :: (?context :: ControllerContext) => IO ()
 ensureManagerRole = accessDeniedUnless (hasRole ManagerRole')
 
 ensureAdminRole :: (?context :: ControllerContext) => IO ()
-ensureAdminRole = accessDeniedUnless (hasRole VenueAdminRole)
+ensureAdminRole = do
+    accessDeniedUnless (hasRole VenueAdminRole)
+    ensurePrivilegedPasskeyVerified
+
+currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => Bool
+currentUserRequiresMandatoryPasskey =
+    maybe False (`hasVenueRole` VenueAdminRole) currentVenueRoleOrNothing
+
+currentUserHasPasskey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
+currentUserHasPasskey =
+    query @Passkey
+        |> filterWhere (#userId, unpackId authenticatedCurrentUser.id)
+        |> fetchExists
+
+ensurePrivilegedPasskeySetupComplete :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+ensurePrivilegedPasskeySetupComplete = do
+    when currentUserRequiresMandatoryPasskey do
+        hasPasskey <- currentUserHasPasskey
+        unless hasPasskey do
+            withRequestContext do
+                setErrorMessage "Venue admins and owners must add a passkey before continuing."
+                redirectToPath profileSecurityPath
+
+isCurrentUserPasskeyVerified :: (?context :: ControllerContext) => IO Bool
+isCurrentUserPasskeyVerified =
+    withRequestContext do
+        verifiedUserId <- getSession @Text passkeyVerifiedUserSessionKey
+        pure (verifiedUserId == Just (inputValue authenticatedCurrentUser.id))
+
+markCurrentUserPasskeyVerified :: (?context :: ControllerContext) => IO ()
+markCurrentUserPasskeyVerified =
+    withRequestContext (setSession passkeyVerifiedUserSessionKey (inputValue authenticatedCurrentUser.id))
+
+clearCurrentUserPasskeyVerification :: (?request :: Request) => IO ()
+clearCurrentUserPasskeyVerification =
+    deleteSession passkeyVerifiedUserSessionKey
+
+ensurePrivilegedPasskeyVerified :: (?context :: ControllerContext) => IO ()
+ensurePrivilegedPasskeyVerified = do
+    when currentUserRequiresMandatoryPasskey do
+        verified <- isCurrentUserPasskeyVerified
+        unless verified do
+            withRequestContext do
+                setSession passkeyStepUpRedirectSessionKey currentRequestPath
+                setErrorMessage "Verify with your passkey to continue."
+                redirectTo PasskeyStepUpAction
+
+currentRequestPath :: (?request :: Request) => Text
+currentRequestPath =
+    Text.decodeUtf8 (Wai.rawPathInfo ?request <> Wai.rawQueryString ?request)
+
+profileSecurityPath :: Text
+profileSecurityPath = pathTo EditProfileAction <> "?section=security"
 
 currentUserCanUseStaffSelfService :: (?context :: ControllerContext) => Bool
 currentUserCanUseStaffSelfService = not currentUserIsSuperAdmin

@@ -27,10 +27,13 @@ data AuthController
     | FinishPasskeyRegistrationAction
     | BeginPasskeyAuthenticationAction
     | FinishPasskeyAuthenticationAction
+    | BeginPasskeyStepUpAuthenticationAction
+    | FinishPasskeyStepUpAuthenticationAction
     deriving (Eq, Show, Data)
 
 data PasskeysController
-    = UpdatePasskeyNameAction { passkeyId :: !(Id Passkey) }
+    = PasskeyStepUpAction
+    | UpdatePasskeyNameAction { passkeyId :: !(Id Passkey) }
     | DeletePasskeyAction { passkeyId :: !(Id Passkey) }
     deriving (Eq, Show, Data)
 
