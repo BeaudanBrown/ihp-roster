@@ -1,8 +1,8 @@
 module Test.Controller.UsersSpec where
 
 import Application.Helper.Controller (unsafeEnumFromText,
-                                      validRosterWeekStartDays,
-                                      updateVenueMembershipRoleWithAudit)
+                                      updateVenueMembershipRoleWithAudit,
+                                      validRosterWeekStartDays)
 import Config
 import Data.Aeson (Value (Null))
 import Data.Time.Clock (addUTCTime, getCurrentTime)

@@ -29,11 +29,11 @@ data OverlayButton = OverlayButton
     }
 
 data DialogOverlayConfig = DialogOverlayConfig
-    { dialogOverlayTitle       :: !Text
-    , dialogOverlayBody        :: !Html
+    { dialogOverlayTitle        :: !Text
+    , dialogOverlayBody         :: !Html
     , dialogOverlayStartButtons :: ![OverlayButton]
-    , dialogOverlayButtons     :: ![OverlayButton]
-    , dialogOverlayDialogClass :: !Text
+    , dialogOverlayButtons      :: ![OverlayButton]
+    , dialogOverlayDialogClass  :: !Text
     }
 
 defaultOverlayButtons :: Text -> [OverlayButton]

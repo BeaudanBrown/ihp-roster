@@ -6,8 +6,7 @@ import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
-                                      LiveUpdateScope (..),
-                                      mkLiveFragmentRef)
+                                      LiveUpdateScope (..), mkLiveFragmentRef)
 import Data.Fixed (Pico)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays)

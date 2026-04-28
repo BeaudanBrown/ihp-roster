@@ -8,8 +8,8 @@ import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
-import qualified Data.Text as Text
 import Data.Scientific (Scientific)
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -177,8 +177,8 @@ provisionVenueUser venue user venueRole firstName lastName = do
 defaultStaffNameFromEmail :: Text -> (Text, Text)
 defaultStaffNameFromEmail emailAddress =
     case filter (not . Text.null) (Text.split (not . Char.isAlphaNum) localPart) of
-        [] -> ("Invited", "User")
-        [firstName] -> (toTitleCase firstName, "User")
+        []                   -> ("Invited", "User")
+        [firstName]          -> (toTitleCase firstName, "User")
         firstName:lastName:_ -> (toTitleCase firstName, toTitleCase lastName)
     where
         localPart = Text.takeWhile (/= '@') emailAddress

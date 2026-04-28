@@ -136,7 +136,7 @@ deriveXeroLocalEarningsBuckets usedScopes awardLevels baseRates penaltyRates tim
                 }
 
 data AwardPayItemRow = AwardPayItemRow
-    { awardLevelId         :: UUID
+    { awardLevelId          :: UUID
     , awardFixedId          :: Int
     , classificationFixedId :: Int
     , classification        :: Text
@@ -249,7 +249,7 @@ conditionLabel (PenaltyCondition EveningAfter7Pm) = "Evening After 7pm Loading"
 conditionLabel (PenaltyCondition LateNightAfterMidnight) = "Late Night After Midnight Loading"
 
 penaltyKindValue :: PayItemCondition -> Maybe Text
-penaltyKindValue OrdinaryCondition = Nothing
+penaltyKindValue OrdinaryCondition              = Nothing
 penaltyKindValue (PenaltyCondition penaltyKind) = Just (inputValue penaltyKind)
 
 deriveXeroUsedAwardPayScopes :: [Staff] -> [ShiftType] -> [XeroUsedAwardPayScope]

@@ -1,7 +1,7 @@
 module Web.View.Timesheets.Edit where
 
-import Web.View.Prelude
 import Web.Timesheets.Paths (timesheetWeekUrl)
+import Web.View.Prelude
 
 data EditView = EditView
     { timesheetEntry :: TimesheetEntry
@@ -53,5 +53,5 @@ deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff =
         deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) [("weekOffset", tshow weekOffset)]
 
 boolText :: Bool -> Text
-boolText True = "true"
+boolText True  = "true"
 boolText False = "false"

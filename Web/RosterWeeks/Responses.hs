@@ -5,18 +5,18 @@ module Web.RosterWeeks.Responses
     , respondWithRosterToast
     ) where
 
-import Application.Helper.View (ToastOverlayConfig (..),
-                                ToastOverlayPosition (ToastBottomCenter),
-                                renderToastOverlayHostOob)
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups)
+import Application.Helper.View (ToastOverlayConfig (..),
+                                ToastOverlayPosition (ToastBottomCenter),
+                                renderToastOverlayHostOob)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
-import Web.RosterWeeks.RenderData (renderVisibleRosterProjectionFragment)
+import Web.RosterWeeks.RenderData (fetchVisibleRosterRenderDataCached,
+                                   renderVisibleRosterProjectionFragment)
 import Web.RosterWeeks.Types (RosterProjectionFragment (RosterProjectionContent),
                               RosterRenderData (..))
-import Web.RosterWeeks.RenderData (fetchVisibleRosterRenderDataCached)
 import Web.View.RosterWeeks.Grid (renderRosterContentFragment,
                                   renderRosterContentFragmentOob)
 

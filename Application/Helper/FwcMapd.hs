@@ -2,33 +2,33 @@ module Application.Helper.FwcMapd where
 
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
-import qualified Data.Text as Text
 import Data.Scientific (Scientific)
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 
 data FwcMapdAdminData = FwcMapdAdminData
-    { latestSyncRun           :: !(Maybe FwcMapdSyncRun)
-    , currentAwards           :: ![FwcMapdAward]
+    { latestSyncRun              :: !(Maybe FwcMapdSyncRun)
+    , currentAwards              :: ![FwcMapdAward]
     , currentCoreClassifications :: ![FwcMapdClassification]
-    , currentCoreAdultPayRates :: ![FwcMapdDisplayPayRate]
-    , rateTypeBreakdown       :: ![(Text, Int)]
+    , currentCoreAdultPayRates   :: ![FwcMapdDisplayPayRate]
+    , rateTypeBreakdown          :: ![(Text, Int)]
     }
     deriving (Eq, Show)
 
 data FwcMapdDisplayPayRate = FwcMapdDisplayPayRate
-    { awardCode                 :: !Text
-    , awardName                 :: !Text
-    , classification            :: !Text
-    , classificationLevel       :: !(Maybe Text)
-    , parentClassificationName  :: !(Maybe Text)
-    , clauseDescription         :: !(Maybe Text)
-    , employeeRateTypeCode      :: !(Maybe Text)
-    , baseRate                  :: !(Maybe Scientific)
-    , baseRateType              :: !(Maybe Text)
-    , calculatedRate            :: !(Maybe Scientific)
-    , calculatedRateType        :: !(Maybe Text)
-    , operativeFrom             :: !(Maybe Day)
+    { awardCode                :: !Text
+    , awardName                :: !Text
+    , classification           :: !Text
+    , classificationLevel      :: !(Maybe Text)
+    , parentClassificationName :: !(Maybe Text)
+    , clauseDescription        :: !(Maybe Text)
+    , employeeRateTypeCode     :: !(Maybe Text)
+    , baseRate                 :: !(Maybe Scientific)
+    , baseRateType             :: !(Maybe Text)
+    , calculatedRate           :: !(Maybe Scientific)
+    , calculatedRateType       :: !(Maybe Text)
+    , operativeFrom            :: !(Maybe Day)
     }
     deriving (Eq, Show)
 

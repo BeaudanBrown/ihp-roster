@@ -13,5 +13,5 @@ timesheetWeekUrl weekOffset showApproved showAllStaff =
         ]
 
 toBoolText :: Bool -> Text
-toBoolText True = "true"
+toBoolText True  = "true"
 toBoolText False = "false"

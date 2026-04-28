@@ -123,7 +123,7 @@ awardLevelRateLabels awardLevelBaseRates awardLevel =
 
 employmentBasisShortLabel :: StaffEmploymentBasisEnum -> Text
 employmentBasisShortLabel Permanent = "perm"
-employmentBasisShortLabel Casual = "casual"
+employmentBasisShortLabel Casual    = "casual"
 
 formatHourlyRate :: Scientific.Scientific -> Text
 formatHourlyRate rate =

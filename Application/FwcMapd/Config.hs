@@ -1,7 +1,7 @@
 module Application.FwcMapd.Config where
 
-import IHP.Prelude
 import qualified Data.Text as Text
+import IHP.Prelude
 import qualified System.Environment as Environment
 import Text.Read (readMaybe)
 

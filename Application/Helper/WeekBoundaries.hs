@@ -60,7 +60,7 @@ affectedVenueWeekOffsetsForDateRange venueConfig startDate endDate
 weekdayIndexForDay :: Day -> WeekdayIndex
 weekdayIndexForDay day =
     case toWeekDate day of
-        (_, _, 7) -> 0
+        (_, _, 7)            -> 0
         (_, _, weekdayIndex) -> weekdayIndex
 
 startOfWeekFor :: WeekdayIndex -> Day -> Day

@@ -8,8 +8,7 @@ import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
-                                      LiveUpdateScope (..),
-                                      mkLiveFragmentRef)
+                                      LiveUpdateScope (..), mkLiveFragmentRef)
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))

@@ -269,7 +269,7 @@ cleanOptionalText :: Maybe Text -> Maybe Text
 cleanOptionalText value =
     case Text.strip <$> value of
         Just text | not (Text.null text) -> Just text
-        _ -> Nothing
+        _                                -> Nothing
 
 readPositiveInt :: Text -> Maybe Int
 readPositiveInt raw = do

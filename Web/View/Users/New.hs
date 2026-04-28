@@ -7,10 +7,10 @@ data NewView
     = InviteOnlyView
     | InvitationSignupView { user :: User, venueInvitation :: VenueInvitation }
     | VenueOnboardingSignupView
-        { user :: User
-        , onboardingInvitation :: VenueOnboardingInvitation
-        , venue :: Venue
-        , venueTimezone :: Text
+        { user                    :: User
+        , onboardingInvitation    :: VenueOnboardingInvitation
+        , venue                   :: Venue
+        , venueTimezone           :: Text
         , venueRosterWeekStartsOn :: Int
         }
 

@@ -9,9 +9,9 @@ module Application.Xero.Connection
 
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.Xero
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
-import qualified Data.Text as Text
 
 xeroClientErrorText :: XeroClientError -> Text
 xeroClientErrorText (XeroHttpError message) = message

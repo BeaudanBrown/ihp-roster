@@ -2,8 +2,8 @@ module Application.FwcMapd.Sync where
 
 import Application.FwcMapd.Client
 import Application.FwcMapd.Config
-import Control.Monad (foldM, void)
 import qualified Control.Exception as Exception
+import Control.Monad (foldM, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.Types as Aeson
@@ -18,12 +18,12 @@ import IHP.ModelSupport (withTransaction)
 import IHP.Prelude
 
 data MapdSyncSummary = MapdSyncSummary
-    { syncedAwardFixedIds     :: ![Int]
-    , fetchedAwardCount       :: !Int
+    { syncedAwardFixedIds        :: ![Int]
+    , fetchedAwardCount          :: !Int
     , fetchedClassificationCount :: !Int
-    , fetchedPayRateCount     :: !Int
-    , fetchedPenaltyRateCount :: !Int
-    , fetchedWageAllowanceCount :: !Int
+    , fetchedPayRateCount        :: !Int
+    , fetchedPenaltyRateCount    :: !Int
+    , fetchedWageAllowanceCount  :: !Int
     }
     deriving (Eq, Show)
 
@@ -79,44 +79,44 @@ data PayRatePayload = PayRatePayload
     deriving (Eq, Show)
 
 data PenaltyRatePayload = PenaltyRatePayload
-    { penaltyClassificationFixedId :: !(Maybe Int)
-    , penaltyClassification :: !Text
-    , penaltyClassificationLevel :: !(Maybe Text)
+    { penaltyClassificationFixedId    :: !(Maybe Int)
+    , penaltyClassification           :: !Text
+    , penaltyClassificationLevel      :: !(Maybe Text)
     , penaltyParentClassificationName :: !(Maybe Text)
-    , penaltyClauseDescription :: !(Maybe Text)
-    , penaltyEmployeeRateTypeCode :: !(Maybe Text)
-    , penaltyBasePayRateId :: !(Maybe Text)
-    , penaltyFixedId :: !(Maybe Int)
-    , penaltyDescription :: !(Maybe Text)
-    , penaltyText :: !(Maybe Text)
-    , penaltyRate :: !(Maybe Scientific)
-    , penaltyRateUnit :: !(Maybe Text)
-    , penaltyCalculatedValue :: !(Maybe Scientific)
-    , penaltyOperativeFrom :: !(Maybe Day)
-    , penaltyOperativeTo :: !(Maybe Day)
-    , penaltyPublishedYear :: !(Maybe Int)
-    , penaltyVersionNumber :: !(Maybe Int)
-    , penaltyLastModifiedDatetime :: !(Maybe UTCTime)
+    , penaltyClauseDescription        :: !(Maybe Text)
+    , penaltyEmployeeRateTypeCode     :: !(Maybe Text)
+    , penaltyBasePayRateId            :: !(Maybe Text)
+    , penaltyFixedId                  :: !(Maybe Int)
+    , penaltyDescription              :: !(Maybe Text)
+    , penaltyText                     :: !(Maybe Text)
+    , penaltyRate                     :: !(Maybe Scientific)
+    , penaltyRateUnit                 :: !(Maybe Text)
+    , penaltyCalculatedValue          :: !(Maybe Scientific)
+    , penaltyOperativeFrom            :: !(Maybe Day)
+    , penaltyOperativeTo              :: !(Maybe Day)
+    , penaltyPublishedYear            :: !(Maybe Int)
+    , penaltyVersionNumber            :: !(Maybe Int)
+    , penaltyLastModifiedDatetime     :: !(Maybe UTCTime)
     }
     deriving (Eq, Show)
 
 data WageAllowancePayload = WageAllowancePayload
-    { wageAllowanceFixedId :: !(Maybe Int)
-    , wageAllowanceClauseFixedId :: !(Maybe Int)
-    , wageAllowanceClauses :: !(Maybe Text)
-    , wageAllowance :: !(Maybe Text)
-    , wageAllowanceType :: !(Maybe Text)
-    , wageAllowanceIsAllPurpose :: !(Maybe Bool)
-    , wageAllowanceRate :: !(Maybe Scientific)
-    , wageAllowanceBaseRate :: !(Maybe Scientific)
-    , wageAllowanceBasePayRateId :: !(Maybe Text)
-    , wageAllowanceRateUnit :: !(Maybe Text)
-    , wageAllowanceAmount :: !(Maybe Scientific)
-    , wageAllowancePaymentFrequency :: !(Maybe Text)
-    , wageAllowanceOperativeFrom :: !(Maybe Day)
-    , wageAllowanceOperativeTo :: !(Maybe Day)
-    , wageAllowancePublishedYear :: !(Maybe Int)
-    , wageAllowanceVersionNumber :: !(Maybe Int)
+    { wageAllowanceFixedId              :: !(Maybe Int)
+    , wageAllowanceClauseFixedId        :: !(Maybe Int)
+    , wageAllowanceClauses              :: !(Maybe Text)
+    , wageAllowance                     :: !(Maybe Text)
+    , wageAllowanceType                 :: !(Maybe Text)
+    , wageAllowanceIsAllPurpose         :: !(Maybe Bool)
+    , wageAllowanceRate                 :: !(Maybe Scientific)
+    , wageAllowanceBaseRate             :: !(Maybe Scientific)
+    , wageAllowanceBasePayRateId        :: !(Maybe Text)
+    , wageAllowanceRateUnit             :: !(Maybe Text)
+    , wageAllowanceAmount               :: !(Maybe Scientific)
+    , wageAllowancePaymentFrequency     :: !(Maybe Text)
+    , wageAllowanceOperativeFrom        :: !(Maybe Day)
+    , wageAllowanceOperativeTo          :: !(Maybe Day)
+    , wageAllowancePublishedYear        :: !(Maybe Int)
+    , wageAllowanceVersionNumber        :: !(Maybe Int)
     , wageAllowanceLastModifiedDatetime :: !(Maybe UTCTime)
     }
     deriving (Eq, Show)
@@ -127,11 +127,11 @@ data AwardYearScope
     deriving (Eq, Show)
 
 data MapdCurationProfile = MapdCurationProfile
-    { awardYearScope         :: !AwardYearScope
-    , employeeRateTypeCodes  :: ![Text]
-    , requireHourlyRate      :: !Bool
-    , excludedKeywords       :: ![Text]
-    , includedKeywords       :: ![Text]
+    { awardYearScope        :: !AwardYearScope
+    , employeeRateTypeCodes :: ![Text]
+    , requireHourlyRate     :: !Bool
+    , excludedKeywords      :: ![Text]
+    , includedKeywords      :: ![Text]
     }
     deriving (Eq, Show)
 
@@ -261,7 +261,7 @@ parseOptionalTextishField :: Aeson.Object -> Text -> Aeson.Parser (Maybe Text)
 parseOptionalTextishField object fieldName = do
     maybeValue <- object Aeson..:? AesonKey.fromText fieldName
     case maybeValue of
-        Nothing -> pure Nothing
+        Nothing    -> pure Nothing
         Just value -> Just <$> textFromJsonValue value
 
 textFromJsonValue :: Aeson.Value -> Aeson.Parser Text
@@ -277,7 +277,7 @@ runConfiguredMapdSync :: (?modelContext :: ModelContext) => IO (Either Text Mapd
 runConfiguredMapdSync = do
     maybeConfig <- liftIO loadMapdConfig
     case maybeConfig of
-        Nothing -> pure (Left "FWC_MAPD_KEY is not configured.")
+        Nothing     -> pure (Left "FWC_MAPD_KEY is not configured.")
         Just config -> Right <$> runMapdSync config
 
 runMapdSync :: (?modelContext :: ModelContext) => MapdConfig -> IO MapdSyncSummary
@@ -863,16 +863,16 @@ normalisePenaltyKind penaltyRate =
 normaliseTimePenaltyKindFromWageAllowance :: FwcMapdWageAllowance -> Maybe AwardPenaltyKindEnum
 normaliseTimePenaltyKindFromWageAllowance wageAllowance =
     case normalisePenaltyKindText (searchableWageAllowanceRecordText wageAllowance) of
-        Just EveningAfter7Pm -> Just EveningAfter7Pm
+        Just EveningAfter7Pm        -> Just EveningAfter7Pm
         Just LateNightAfterMidnight -> Just LateNightAfterMidnight
-        _ -> Nothing
+        _                           -> Nothing
 
 normaliseTimePenaltyKind :: WageAllowancePayload -> Maybe AwardPenaltyKindEnum
 normaliseTimePenaltyKind wageAllowance =
     case normalisePenaltyKindText (searchableWageAllowanceText wageAllowance) of
-        Just EveningAfter7Pm -> Just EveningAfter7Pm
+        Just EveningAfter7Pm        -> Just EveningAfter7Pm
         Just LateNightAfterMidnight -> Just LateNightAfterMidnight
-        _ -> Nothing
+        _                           -> Nothing
 
 normalisePenaltyKindText :: Text -> Maybe AwardPenaltyKindEnum
 normalisePenaltyKindText rawText
@@ -906,14 +906,14 @@ isCasualOrdinaryPenaltyRate penaltyRate =
                 (Text.intercalate " " [fromMaybe "" penaltyRate.penaltyDescription, fromMaybe "" penaltyRate.penaltyText, fromMaybe "" penaltyRate.clauseDescription])
 
 penaltyWindowStart :: AwardPenaltyKindEnum -> Maybe TimeOfDay
-penaltyWindowStart EveningAfter7Pm = Just (TimeOfDay 19 0 0)
+penaltyWindowStart EveningAfter7Pm        = Just (TimeOfDay 19 0 0)
 penaltyWindowStart LateNightAfterMidnight = Just (TimeOfDay 0 0 0)
-penaltyWindowStart _ = Nothing
+penaltyWindowStart _                      = Nothing
 
 penaltyWindowEnd :: AwardPenaltyKindEnum -> Maybe TimeOfDay
-penaltyWindowEnd EveningAfter7Pm = Just (TimeOfDay 0 0 0)
+penaltyWindowEnd EveningAfter7Pm        = Just (TimeOfDay 0 0 0)
 penaltyWindowEnd LateNightAfterMidnight = Just (TimeOfDay 7 0 0)
-penaltyWindowEnd _ = Nothing
+penaltyWindowEnd _                      = Nothing
 
 clearExistingCache :: (?modelContext :: ModelContext) => [Int] -> IO ()
 clearExistingCache _awardFixedIds = do
@@ -977,7 +977,7 @@ applyAwardYearScope LatestActiveAwardYear yearOf values =
             filter (\(payload, _) -> yearOf payload == Just latestYear) values
 
 maximumMaybe :: Ord a => [a] -> Maybe a
-maximumMaybe [] = Nothing
+maximumMaybe []     = Nothing
 maximumMaybe values = Just (maximum values)
 
 isRelevantPayRate :: MapdCurationProfile -> PayRatePayload -> Bool

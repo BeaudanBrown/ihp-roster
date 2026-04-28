@@ -9,7 +9,8 @@ import Application.Helper.Controller (currentSupportVenueOptions,
                                       defaultRosterWeekStartsOn,
                                       unsafeEnumFromText)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
-import Application.Helper.LiveUpdate (broadcastLiveInvalidation, liveUpdateSourceClientId)
+import Application.Helper.LiveUpdate (broadcastLiveInvalidation,
+                                      liveUpdateSourceClientId)
 import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail,
                                                      venueOnboardingInvitationLifetime)
 import Application.Helper.View (appendQueryParams)

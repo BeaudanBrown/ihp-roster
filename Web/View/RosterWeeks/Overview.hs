@@ -3,10 +3,9 @@ module Web.View.RosterWeeks.Overview
     , renderWeekOverviewPanelFragment
     ) where
 
-import Application.Helper.WeekBoundaries (orderedWeekdayIndexes,
-                                          startOfWeekFor,
-                                          weekdayIndexForDay)
 import Application.Helper.View (appendQueryParams)
+import Application.Helper.WeekBoundaries (orderedWeekdayIndexes, startOfWeekFor,
+                                          weekdayIndexForDay)
 import Data.List (find, findIndex)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)

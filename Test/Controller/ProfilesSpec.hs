@@ -1,8 +1,8 @@
 module Test.Controller.ProfilesSpec where
 
+import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  encodeShiftPreferenceKey)

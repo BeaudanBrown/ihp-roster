@@ -16,7 +16,8 @@ import qualified Data.List as List
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime, getCurrentTime)
+import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime,
+                        getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -1407,7 +1408,7 @@ xeroPayItemRequestName =
             earningsRates <- object Aeson..: "EarningsRates"
             case earningsRates :: [Aeson.Value] of
                 Aeson.Object earningsRate : _ -> earningsRate Aeson..: "Name"
-                _ -> fail "Missing earnings rate"
+                _                             -> fail "Missing earnings rate"
         ) body
 
 xeroPayItemRequestAccountCode :: Aeson.Value -> Maybe Text

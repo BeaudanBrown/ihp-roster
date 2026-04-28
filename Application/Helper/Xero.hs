@@ -20,12 +20,12 @@ module Application.Helper.Xero
     )
 where
 
-import qualified Control.Exception as Exception
 import Control.Applicative ((<|>))
-import qualified "crypton" Crypto.Hash as Hash
+import qualified Control.Exception as Exception
 import "crypton" Crypto.Cipher.AES (AES256)
 import "crypton" Crypto.Cipher.Types (IV, cipherInit, ctrCombine, makeIV)
 import "crypton" Crypto.Error (CryptoError, CryptoFailable (..))
+import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.Random (getRandomBytes)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Key
@@ -39,23 +39,23 @@ import qualified Data.IORef as IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Data.Text.Encoding.Error (lenientDecode)
-import qualified Data.Vector as Vector
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (utctDay)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import Text.Read (readMaybe)
-import qualified Network.HTTP.Types.URI as URI
+import qualified Data.Vector as Vector
+import IHP.Prelude
 import Network.HTTP.Simple
+import qualified Network.HTTP.Types.URI as URI
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
-import IHP.Prelude
+import Text.Read (readMaybe)
 
 data XeroConfig = XeroConfig
-    { clientId            :: !Text
-    , clientSecret        :: !Text
-    , redirectUri         :: !Text
-    , tokenEncryptionKey  :: !Text
+    { clientId           :: !Text
+    , clientSecret       :: !Text
+    , redirectUri        :: !Text
+    , tokenEncryptionKey :: !Text
     }
     deriving (Eq, Show)
 
@@ -90,12 +90,12 @@ instance Aeson.FromJSON XeroTenant where
             <*> object Aeson..:? "tenantName"
 
 data XeroEmployeeRef = XeroEmployeeRef
-    { xeroEmployeeId        :: !Text
-    , xeroEmployeeName      :: !Text
-    , xeroEmployeeEmail     :: !(Maybe Text)
-    , xeroEmployeeStatus    :: !(Maybe Text)
+    { xeroEmployeeId         :: !Text
+    , xeroEmployeeName       :: !Text
+    , xeroEmployeeEmail      :: !(Maybe Text)
+    , xeroEmployeeStatus     :: !(Maybe Text)
     , xeroEmployeeCalendarId :: !(Maybe Text)
-    , xeroEmployeeRaw       :: !Aeson.Value
+    , xeroEmployeeRaw        :: !Aeson.Value
     }
     deriving (Eq, Show)
 
@@ -111,13 +111,13 @@ instance Aeson.FromJSON XeroEmployeeRef where
     parseJSON _ = fail "Expected Xero employee object"
 
 data XeroEarningsRateRef = XeroEarningsRateRef
-    { xeroEarningsRateId     :: !Text
-    , xeroEarningsRateName   :: !Text
-    , xeroEarningsRateType   :: !(Maybe Text)
-    , xeroEarningsRateRateType :: !(Maybe Text)
+    { xeroEarningsRateId          :: !Text
+    , xeroEarningsRateName        :: !Text
+    , xeroEarningsRateType        :: !(Maybe Text)
+    , xeroEarningsRateRateType    :: !(Maybe Text)
     , xeroEarningsRateAccountCode :: !(Maybe Text)
-    , xeroEarningsRateIsActive :: !Bool
-    , xeroEarningsRateRaw    :: !Aeson.Value
+    , xeroEarningsRateIsActive    :: !Bool
+    , xeroEarningsRateRaw         :: !Aeson.Value
     }
     deriving (Eq, Show)
 
@@ -134,12 +134,12 @@ instance Aeson.FromJSON XeroEarningsRateRef where
     parseJSON _ = fail "Expected Xero earnings rate object"
 
 data XeroPayrollCalendarRef = XeroPayrollCalendarRef
-    { xeroPayrollCalendarId      :: !Text
-    , xeroPayrollCalendarName    :: !Text
-    , xeroPayrollCalendarType    :: !(Maybe Text)
-    , xeroPayrollCalendarStartDate :: !(Maybe Day)
+    { xeroPayrollCalendarId          :: !Text
+    , xeroPayrollCalendarName        :: !Text
+    , xeroPayrollCalendarType        :: !(Maybe Text)
+    , xeroPayrollCalendarStartDate   :: !(Maybe Day)
     , xeroPayrollCalendarPaymentDate :: !(Maybe Day)
-    , xeroPayrollCalendarRaw     :: !Aeson.Value
+    , xeroPayrollCalendarRaw         :: !Aeson.Value
     }
     deriving (Eq, Show)
 
@@ -242,18 +242,18 @@ decryptXeroToken secret encrypted =
             ciphertext <- decodeBase64Text encodedCiphertext
             cipher <-
                 case cipherFromSecret secret of
-                    Left err -> Left (showCryptoError err)
+                    Left err    -> Left (showCryptoError err)
                     Right value -> Right value
             iv <- maybe (Left "Invalid Xero token IV") Right (makeIV ivBytes :: Maybe (IV AES256))
             case TextEncoding.decodeUtf8' (ctrCombine cipher iv ciphertext) of
-                Left _ -> Left "Invalid UTF-8 in decrypted Xero token"
+                Left _      -> Left "Invalid UTF-8 in decrypted Xero token"
                 Right value -> Right value
         _ -> Left "Unsupported encrypted Xero token format"
 
 decodeBase64Text :: Text -> Either Text ByteString
 decodeBase64Text value =
     case Base64.decode (TextEncoding.encodeUtf8 value) of
-        Left err -> Left (cs err)
+        Left err    -> Left (cs err)
         Right bytes -> Right bytes
 
 aesCipherFromSecret :: Text -> IO AES256
@@ -265,7 +265,7 @@ aesCipherFromSecret secret =
 cipherFromSecret :: Text -> Either CryptoError AES256
 cipherFromSecret secret =
     case cipherInit (xeroEncryptionKeyBytes secret) of
-        CryptoFailed err -> Left err
+        CryptoFailed err    -> Left err
         CryptoPassed cipher -> Right cipher
 
 ivFromBytes :: ByteString -> IO (IV AES256)
@@ -434,7 +434,7 @@ decodeXeroResponse label response = do
             let bodyExcerpt = Text.take 500 (TextEncoding.decodeUtf8With lenientDecode (LByteString.toStrict (getResponseBody response)))
             pure (Left (XeroHttpError (label <> " failed with status " <> tshow statusCode <> responseBodySuffix bodyExcerpt)))
         else case Aeson.eitherDecode (getResponseBody response) of
-            Left err -> pure (Left (XeroDecodeError (cs err)))
+            Left err      -> pure (Left (XeroDecodeError (cs err)))
             Right decoded -> pure (Right decoded)
 
 responseBodySuffix :: Text -> Text

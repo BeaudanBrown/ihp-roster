@@ -1,9 +1,9 @@
 module Application.Script.SeedProfile where
 
+import Control.Monad (foldM)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
-import Control.Monad (foldM)
 import Data.Time.Calendar (Day, addDays, diffDays, fromGregorian)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import IHP.Prelude
@@ -135,7 +135,7 @@ renderCsvCell (Just "\\N") = "\\N"
 renderCsvCell (Just value) =
     "\"" <> Text.concatMap escape value <> "\""
     where
-        escape '"' = "\"\""
+        escape '"'       = "\"\""
         escape character = Text.singleton character
 
 renderLoadSql :: FilePath -> Text
@@ -260,11 +260,11 @@ jsonString :: Text -> Text
 jsonString value =
     "\"" <> Text.concatMap escapeJsonChar value <> "\""
     where
-        escapeJsonChar '"' = "\\\""
-        escapeJsonChar '\\' = "\\\\"
-        escapeJsonChar '\n' = "\\n"
-        escapeJsonChar '\r' = "\\r"
-        escapeJsonChar '\t' = "\\t"
+        escapeJsonChar '"'       = "\\\""
+        escapeJsonChar '\\'      = "\\\\"
+        escapeJsonChar '\n'      = "\\n"
+        escapeJsonChar '\r'      = "\\r"
+        escapeJsonChar '\t'      = "\\t"
         escapeJsonChar character = Text.singleton character
 
 tableLoads :: [(Text, [Text], FilePath)]
@@ -947,7 +947,7 @@ readIntFlag :: String -> String -> Int
 readIntFlag prefix arg =
     case TextRead.readMaybe (drop (length prefix) arg) of
         Just value -> value
-        Nothing -> error ("Expected integer for flag: " <> cs arg)
+        Nothing    -> error ("Expected integer for flag: " <> cs arg)
 
 printUsage :: IO ()
 printUsage = do

@@ -2,12 +2,12 @@ module Web.Controller.Auth where
 
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.Passkeys
+import Control.Monad (void)
 import qualified Crypto.WebAuthn.Encoding.WebAuthnJson as WebAuthnJson
 import Crypto.WebAuthn.Model.Types
 import Crypto.WebAuthn.Operation.Authentication
 import Crypto.WebAuthn.Operation.CredentialEntry (CredentialEntry (..))
 import Crypto.WebAuthn.Operation.Registration
-import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Hourglass (timeConvert)
 import qualified Data.List.NonEmpty as NonEmpty
