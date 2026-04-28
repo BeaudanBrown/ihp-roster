@@ -44,80 +44,96 @@ instance Controller AdminController where
         let invitesLiveUpdateScope = Just (adminInvitesScope currentVenueId)
         xeroConnection <- fetchActiveCurrentVenueXeroConnection
         xeroConnectedByUser <- fetchXeroConnectedByUser xeroConnection
+        xeroLatestSyncRun <- fetchLatestCurrentVenueXeroSyncRun
+        xeroEmployeeCount <- fetchCurrentVenueXeroEmployeeCount xeroConnection
+        xeroEarningsRateCount <- fetchCurrentVenueXeroEarningsRateCount xeroConnection
+        xeroPayrollCalendarCount <- fetchCurrentVenueXeroPayrollCalendarCount xeroConnection
+        let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
         render IndexView { .. }
 
     action StartXeroConnectionAction = do
-        readXeroConfig >>= \case
-            Left message -> do
-                setErrorMessage message
-                redirectTo AdminAction
-            Right xeroConfig -> do
-                now <- getCurrentTime
-                stateToken <- generateXeroStateToken
-                oauthState <- newRecord @XeroOauthState
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #userId (unpackId currentUser.id)
-                    |> set #stateToken stateToken
-                    |> set #requestedScopes requiredXeroScopesText
-                    |> set #redirectUri xeroConfig.redirectUri
-                    |> set #expiresAt (addUTCTime (15 * 60) now)
-                    |> createRecord
-                void $ recordCurrentUserAuditEvent
-                    "xero_connection_started"
-                    "xero_oauth_states"
-                    (unpackId oauthState.id)
-                    (Aeson.object
-                        [ "scopes" Aeson..= requiredXeroScopes
-                        , "redirectUri" Aeson..= xeroConfig.redirectUri
-                        ]
-                    )
-                redirectToUrl (buildXeroAuthorizationUrl xeroConfig stateToken)
+        requireCurrentVenueOwnerForXero do
+            readXeroConfig >>= \case
+                Left message -> do
+                    setErrorMessage message
+                    redirectTo AdminAction
+                Right xeroConfig -> do
+                    now <- getCurrentTime
+                    stateToken <- generateXeroStateToken
+                    oauthState <- newRecord @XeroOauthState
+                        |> set #venueId (unpackId currentVenueId)
+                        |> set #userId (unpackId currentUser.id)
+                        |> set #stateToken stateToken
+                        |> set #requestedScopes requiredXeroScopesText
+                        |> set #redirectUri xeroConfig.redirectUri
+                        |> set #expiresAt (addUTCTime (15 * 60) now)
+                        |> createRecord
+                    void $ recordCurrentUserAuditEvent
+                        "xero_connection_started"
+                        "xero_oauth_states"
+                        (unpackId oauthState.id)
+                        (Aeson.object
+                            [ "scopes" Aeson..= requiredXeroScopes
+                            , "redirectUri" Aeson..= xeroConfig.redirectUri
+                            ]
+                        )
+                    redirectToUrl (buildXeroAuthorizationUrl xeroConfig stateToken)
 
     action XeroOAuthCallbackAction = do
-        now <- getCurrentTime
-        let maybeStateToken = paramOrNothing @Text "state"
-        let maybeXeroError = paramOrNothing @Text "error"
-        let maybeCode = paramOrNothing @Text "code"
-        validatedState <- validateXeroOAuthState now currentUser.id maybeStateToken
-        case validatedState of
-            Left message -> failXeroConnectionAttempt message Nothing
-            Right oauthState ->
-                case maybeXeroError of
-                    Just xeroError -> do
-                        markXeroOAuthStateConsumed oauthState now
-                        failXeroConnectionAttempt ("Xero authorization failed: " <> xeroError) (Just oauthState)
-                    Nothing ->
-                        case maybeCode of
-                            Nothing -> failXeroConnectionAttempt "Xero did not return an authorization code." (Just oauthState)
-                            Just code -> completeXeroOAuthCallback now currentUser.id oauthState code
+        requireCurrentVenueOwnerForXero do
+            now <- getCurrentTime
+            let maybeStateToken = paramOrNothing @Text "state"
+            let maybeXeroError = paramOrNothing @Text "error"
+            let maybeCode = paramOrNothing @Text "code"
+            validatedState <- validateXeroOAuthState now currentUser.id maybeStateToken
+            case validatedState of
+                Left message -> failXeroConnectionAttempt message Nothing
+                Right oauthState ->
+                    case maybeXeroError of
+                        Just xeroError -> do
+                            markXeroOAuthStateConsumed oauthState now
+                            failXeroConnectionAttempt ("Xero authorization failed: " <> xeroError) (Just oauthState)
+                        Nothing ->
+                            case maybeCode of
+                                Nothing -> failXeroConnectionAttempt "Xero did not return an authorization code." (Just oauthState)
+                                Just code -> completeXeroOAuthCallback now currentUser.id oauthState code
 
     action DisconnectXeroConnectionAction = do
+        requireCurrentVenueOwnerForXero do
+            maybeConnection <- fetchActiveCurrentVenueXeroConnection
+            case maybeConnection of
+                Nothing -> do
+                    setErrorMessage "Xero is not connected for this venue."
+                    redirectTo AdminAction
+                Just connection -> do
+                    now <- getCurrentTime
+                    updatedConnection <- withTransaction do
+                        updated <- connection
+                            |> set #connectionStatus "disconnected"
+                            |> set #disconnectedByUserId (Just (unpackId currentUser.id))
+                            |> set #disconnectedAt (Just now)
+                            |> set #encryptedAccessToken Nothing
+                            |> updateRecord
+                        void $ recordCurrentUserAuditEvent
+                            "xero_connection_disconnected"
+                            "xero_connections"
+                            (unpackId updated.id)
+                            (Aeson.object
+                                [ "tenantId" Aeson..= updated.tenantId
+                                , "tenantName" Aeson..= updated.tenantName
+                                ]
+                            )
+                        pure updated
+                    setSuccessMessage ("Disconnected Xero tenant " <> fromMaybe updatedConnection.tenantId updatedConnection.tenantName <> ".")
+                    redirectTo AdminAction
+
+    action SyncXeroPayrollReferenceDataAction = do
         maybeConnection <- fetchActiveCurrentVenueXeroConnection
         case maybeConnection of
             Nothing -> do
-                setErrorMessage "Xero is not connected for this venue."
+                setErrorMessage "Connect Xero before syncing payroll reference data."
                 redirectTo AdminAction
-            Just connection -> do
-                now <- getCurrentTime
-                updatedConnection <- withTransaction do
-                    updated <- connection
-                        |> set #connectionStatus "disconnected"
-                        |> set #disconnectedByUserId (Just (unpackId currentUser.id))
-                        |> set #disconnectedAt (Just now)
-                        |> set #encryptedAccessToken Nothing
-                        |> updateRecord
-                    void $ recordCurrentUserAuditEvent
-                        "xero_connection_disconnected"
-                        "xero_connections"
-                        (unpackId updated.id)
-                        (Aeson.object
-                            [ "tenantId" Aeson..= updated.tenantId
-                            , "tenantName" Aeson..= updated.tenantName
-                            ]
-                        )
-                    pure updated
-                setSuccessMessage ("Disconnected Xero tenant " <> fromMaybe updatedConnection.tenantId updatedConnection.tenantName <> ".")
-                redirectTo AdminAction
+            Just connection -> syncXeroPayrollReferenceData connection
 
     action UpdateVenueConfigAction = do
         venueConfig <- fetchVenueConfig
@@ -757,6 +773,56 @@ fetchXeroConnectedByUser maybeConnection =
                 |> filterWhere (#id, Id userId)
                 |> fetchOneOrNothing
 
+fetchLatestCurrentVenueXeroSyncRun :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroSyncRun)
+fetchLatestCurrentVenueXeroSyncRun =
+    query @XeroSyncRun
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#syncKind, "payroll_reference_data" :: Text)
+        |> orderByDesc #startedAt
+        |> fetchOneOrNothing
+
+fetchCurrentVenueXeroEmployeeCount :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO Int
+fetchCurrentVenueXeroEmployeeCount maybeConnection =
+    case maybeConnection of
+        Nothing -> pure 0
+        Just connection ->
+            query @XeroEmployee
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchCount
+
+fetchCurrentVenueXeroEarningsRateCount :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO Int
+fetchCurrentVenueXeroEarningsRateCount maybeConnection =
+    case maybeConnection of
+        Nothing -> pure 0
+        Just connection ->
+            query @XeroEarningsRate
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchCount
+
+fetchCurrentVenueXeroPayrollCalendarCount :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO Int
+fetchCurrentVenueXeroPayrollCalendarCount maybeConnection =
+    case maybeConnection of
+        Nothing -> pure 0
+        Just connection ->
+            query @XeroPayrollCalendar
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchCount
+
+currentUserIsCurrentVenueOwner :: (?context :: ControllerContext) => Bool
+currentUserIsCurrentVenueOwner =
+    currentVenueRoleOrNothing == Just VenueOwnerRole
+
+requireCurrentVenueOwnerForXero :: (?context :: ControllerContext, ?request :: Request) => IO () -> IO ()
+requireCurrentVenueOwnerForXero action =
+    if currentUserIsCurrentVenueOwner
+        then action
+        else do
+            setErrorMessage "Only the venue owner can connect or disconnect Xero for this venue."
+            redirectTo AdminAction
+
 validateXeroOAuthState ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     UTCTime ->
@@ -901,6 +967,198 @@ xeroClientErrorText :: XeroClientError -> Text
 xeroClientErrorText (XeroHttpError message) = message
 xeroClientErrorText (XeroDecodeError message) = "Could not decode Xero response: " <> message
 xeroClientErrorText XeroNoTenantsError = "Xero returned no connected tenants."
+
+syncXeroPayrollReferenceData ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    IO ()
+syncXeroPayrollReferenceData connection = do
+    now <- getCurrentTime
+    syncRun <-
+        newRecord @XeroSyncRun
+            |> set #venueId (unpackId currentVenueId)
+            |> set #xeroConnectionId (unpackId connection.id)
+            |> set #syncStatus ("running" :: Text)
+            |> set #syncKind ("payroll_reference_data" :: Text)
+            |> set #startedAt now
+            |> createRecord
+    readXeroConfig >>= \case
+        Left message -> failXeroReferenceSync syncRun connection message
+        Right xeroConfig ->
+            case decryptXeroToken xeroConfig.tokenEncryptionKey connection.encryptedRefreshToken of
+                Left message -> failXeroReferenceSync syncRun connection ("Could not decrypt Xero refresh token: " <> message)
+                Right refreshToken -> do
+                    xeroClient <- currentXeroClient
+                    refreshResult <- refreshXeroToken xeroClient xeroConfig refreshToken
+                    case refreshResult of
+                        Left err -> failXeroReferenceSync syncRun connection ("Xero token refresh failed: " <> xeroClientErrorText err)
+                        Right tokenResponse -> do
+                            persistXeroRefreshedTokens now xeroConfig connection tokenResponse
+                            employeesResult <- fetchPayrollEmployees xeroClient tokenResponse.accessToken connection.tenantId
+                            earningsRatesResult <- fetchEarningsRates xeroClient tokenResponse.accessToken connection.tenantId
+                            payrollCalendarsResult <- fetchPayrollCalendars xeroClient tokenResponse.accessToken connection.tenantId
+                            case (employeesResult, earningsRatesResult, payrollCalendarsResult) of
+                                (Right employees, Right earningsRates, Right payrollCalendars) -> do
+                                    completeXeroReferenceSync syncRun connection employees earningsRates payrollCalendars
+                                (Left err, _, _) ->
+                                    failXeroReferenceSync syncRun connection ("Xero employee sync failed: " <> xeroClientErrorText err)
+                                (_, Left err, _) ->
+                                    failXeroReferenceSync syncRun connection ("Xero earnings-rate sync failed: " <> xeroClientErrorText err)
+                                (_, _, Left err) ->
+                                    failXeroReferenceSync syncRun connection ("Xero payroll-calendar sync failed: " <> xeroClientErrorText err)
+
+persistXeroRefreshedTokens ::
+    (?modelContext :: ModelContext) =>
+    UTCTime ->
+    XeroConfig ->
+    XeroConnection ->
+    XeroTokenResponse ->
+    IO XeroConnection
+persistXeroRefreshedTokens now xeroConfig connection tokenResponse = do
+    encryptedRefreshToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.refreshToken
+    encryptedAccessToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.accessToken
+    connection
+        |> set #encryptedRefreshToken encryptedRefreshToken
+        |> set #encryptedAccessToken (Just encryptedAccessToken)
+        |> set #accessTokenExpiresAt (Just (addUTCTime (fromIntegral tokenResponse.expiresIn) now))
+        |> set #lastRefreshedAt (Just now)
+        |> set #lastError Nothing
+        |> updateRecord
+
+completeXeroReferenceSync ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroSyncRun ->
+    XeroConnection ->
+    [XeroEmployeeRef] ->
+    [XeroEarningsRateRef] ->
+    [XeroPayrollCalendarRef] ->
+    IO ()
+completeXeroReferenceSync syncRun connection employees earningsRates payrollCalendars = do
+    now <- getCurrentTime
+    withTransaction do
+        mapM_ (upsertXeroEmployee connection now) employees
+        mapM_ (upsertXeroEarningsRate connection now) earningsRates
+        mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
+        _ <- syncRun
+            |> set #syncStatus ("succeeded" :: Text)
+            |> set #employeesCount (length employees)
+            |> set #earningsRatesCount (length earningsRates)
+            |> set #payrollCalendarsCount (length payrollCalendars)
+            |> set #finishedAt (Just now)
+            |> updateRecord
+        _ <- connection
+            |> set #lastSyncAt (Just now)
+            |> set #lastError Nothing
+            |> updateRecord
+        void $ recordCurrentUserAuditEvent
+            "xero_reference_sync_succeeded"
+            "xero_sync_runs"
+            (unpackId syncRun.id)
+            (Aeson.object
+                [ "tenantId" Aeson..= connection.tenantId
+                , "employeesCount" Aeson..= length employees
+                , "earningsRatesCount" Aeson..= length earningsRates
+                , "payrollCalendarsCount" Aeson..= length payrollCalendars
+                ]
+            )
+    setSuccessMessage ("Synced Xero payroll reference data: " <> tshow (length employees) <> " employees, " <> tshow (length earningsRates) <> " earnings rates, " <> tshow (length payrollCalendars) <> " payroll calendars.")
+    redirectTo AdminAction
+
+failXeroReferenceSync ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroSyncRun ->
+    XeroConnection ->
+    Text ->
+    IO ()
+failXeroReferenceSync syncRun connection message = do
+    now <- getCurrentTime
+    withTransaction do
+        _ <- syncRun
+            |> set #syncStatus ("failed" :: Text)
+            |> set #errorMessage (Just message)
+            |> set #finishedAt (Just now)
+            |> updateRecord
+        _ <- connection
+            |> set #lastError (Just message)
+            |> updateRecord
+        void $ recordCurrentUserAuditEvent
+            "xero_reference_sync_failed"
+            "xero_sync_runs"
+            (unpackId syncRun.id)
+            (Aeson.object
+                [ "tenantId" Aeson..= connection.tenantId
+                , "failure" Aeson..= message
+                ]
+            )
+    setErrorMessage message
+    redirectTo AdminAction
+
+upsertXeroEmployee :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEmployeeRef -> IO XeroEmployee
+upsertXeroEmployee connection syncedAt employee = do
+    existing <-
+        query @XeroEmployee
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#xeroEmployeeId, employee.xeroEmployeeId)
+            |> fetchOneOrNothing
+    let fillRecord record =
+            record
+                |> set #venueId (unpackId currentVenueId)
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #xeroEmployeeId employee.xeroEmployeeId
+                |> set #displayName employee.xeroEmployeeName
+                |> set #email employee.xeroEmployeeEmail
+                |> set #status employee.xeroEmployeeStatus
+                |> set #payrollCalendarId employee.xeroEmployeeCalendarId
+                |> set #rawPayload employee.xeroEmployeeRaw
+                |> set #syncedAt syncedAt
+    case existing of
+        Just record -> fillRecord record |> updateRecord
+        Nothing     -> fillRecord (newRecord @XeroEmployee) |> createRecord
+
+upsertXeroEarningsRate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEarningsRateRef -> IO XeroEarningsRate
+upsertXeroEarningsRate connection syncedAt earningsRate = do
+    existing <-
+        query @XeroEarningsRate
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#xeroEarningsRateId, earningsRate.xeroEarningsRateId)
+            |> fetchOneOrNothing
+    let fillRecord record =
+            record
+                |> set #venueId (unpackId currentVenueId)
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #xeroEarningsRateId earningsRate.xeroEarningsRateId
+                |> set #name earningsRate.xeroEarningsRateName
+                |> set #earningsType earningsRate.xeroEarningsRateType
+                |> set #rateType earningsRate.xeroEarningsRateRateType
+                |> set #accountCode earningsRate.xeroEarningsRateAccountCode
+                |> set #isActive earningsRate.xeroEarningsRateIsActive
+                |> set #rawPayload earningsRate.xeroEarningsRateRaw
+                |> set #syncedAt syncedAt
+    case existing of
+        Just record -> fillRecord record |> updateRecord
+        Nothing     -> fillRecord (newRecord @XeroEarningsRate) |> createRecord
+
+upsertXeroPayrollCalendar :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroPayrollCalendarRef -> IO XeroPayrollCalendar
+upsertXeroPayrollCalendar connection syncedAt payrollCalendar = do
+    existing <-
+        query @XeroPayrollCalendar
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#xeroPayrollCalendarId, payrollCalendar.xeroPayrollCalendarId)
+            |> fetchOneOrNothing
+    let fillRecord record =
+            record
+                |> set #venueId (unpackId currentVenueId)
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #xeroPayrollCalendarId payrollCalendar.xeroPayrollCalendarId
+                |> set #name payrollCalendar.xeroPayrollCalendarName
+                |> set #calendarType payrollCalendar.xeroPayrollCalendarType
+                |> set #startDate payrollCalendar.xeroPayrollCalendarStartDate
+                |> set #paymentDate payrollCalendar.xeroPayrollCalendarPaymentDate
+                |> set #rawPayload payrollCalendar.xeroPayrollCalendarRaw
+                |> set #syncedAt syncedAt
+    case existing of
+        Just record -> fillRecord record |> updateRecord
+        Nothing     -> fillRecord (newRecord @XeroPayrollCalendar) |> createRecord
 
 parseRequiredName :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Text -> IO (Maybe Text)
 parseRequiredName paramName errorMessage =

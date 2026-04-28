@@ -10,6 +10,7 @@ import Application.Helper.Xero
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
+import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -172,7 +173,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Admin Venue"
                 admin <- createUserRecord "xero-admin-page@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction AdminAction
@@ -186,7 +187,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Missing Config Venue"
                 admin <- createUserRecord "xero-missing-config@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
 
                 response <- withXeroConfigForTest (Left "Xero test config missing") do
                     withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -200,7 +201,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Start Venue"
                 admin <- createUserRecord "xero-start@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -222,7 +223,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Invalid State Venue"
                 admin <- createUserRecord "xero-invalid-state@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 expiredState <- createTestXeroOauthState venue admin "expired-state" (-60) Nothing
                 consumedAt <- getCurrentTime
                 consumedState <- createTestXeroOauthState venue admin "consumed-state" 600 (Just consumedAt)
@@ -244,7 +245,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Error Venue"
                 admin <- createUserRecord "xero-error@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 oauthState <- createTestXeroOauthState venue admin "xero-error-state" 600 Nothing
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -263,7 +264,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Success Venue"
                 admin <- createUserRecord "xero-success@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 oauthState <- createTestXeroOauthState venue admin "xero-success-state" 600 Nothing
                 let tokenResponse = XeroTokenResponse "raw-access-token" "raw-refresh-token" 1800 (Just requiredXeroScopesText)
                 let tenant = XeroTenant "tenant-123" (Just "Demo Company")
@@ -296,7 +297,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Disconnect Venue"
                 admin <- createUserRecord "xero-disconnect@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -312,6 +313,109 @@ tests = beforeAll testContext do
                 connectionCount `shouldBe` 1
                 auditEvents <- query @AuditEvent |> filterWhere (#eventType, "xero_connection_disconnected" :: Text) |> fetch
                 length auditEvents `shouldBe` 1
+
+        it "rejects venue admins from Xero connection management actions" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Venue Admin Blocked Venue"
+                admin <- createUserRecord "xero-venue-admin-blocked@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                oauthState <- createTestXeroOauthState venue admin "admin-state" 600 Nothing
+                connection <- createActiveXeroConnection venue admin
+
+                startResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction StartXeroConnectionAction
+                callbackResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams XeroOAuthCallbackAction [("state", cs oauthState.stateToken), ("code", "code")]
+                disconnectResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction DisconnectXeroConnectionAction
+
+                startResponse `responseStatusShouldBe` status302
+                callbackResponse `responseStatusShouldBe` status302
+                disconnectResponse `responseStatusShouldBe` status302
+                stateCount <- query @XeroOauthState |> fetchCount
+                stateCount `shouldBe` 1
+                retainedState <- fetch oauthState.id
+                retainedState.consumedAt `shouldBe` Nothing
+                retainedConnection <- fetch connection.id
+                retainedConnection.connectionStatus `shouldBe` "active"
+
+        it "syncs Xero payroll reference data for an active connection" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Sync Venue"
+                admin <- createUserRecord "xero-sync@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                connection <- createSyncableXeroConnection venue admin
+                let tokenResponse = XeroTokenResponse "new-access-token" "new-refresh-token" 1800 (Just requiredXeroScopesText)
+                let employees =
+                        [ XeroEmployeeRef
+                            "employee-1"
+                            "Ada Lovelace"
+                            (Just "ada@example.com")
+                            (Just "ACTIVE")
+                            (Just "calendar-1")
+                            (Aeson.object ["EmployeeID" Aeson..= ("employee-1" :: Text)])
+                        ]
+                let earningsRates =
+                        [ XeroEarningsRateRef
+                            "earnings-1"
+                            "Ordinary Hours"
+                            (Just "REGULAR")
+                            (Just "RATEPERUNIT")
+                            (Just "477")
+                            True
+                            (Aeson.object ["EarningsRateID" Aeson..= ("earnings-1" :: Text)])
+                        ]
+                let payrollCalendars =
+                        [ XeroPayrollCalendarRef
+                            "calendar-1"
+                            "Weekly"
+                            (Just "WEEKLY")
+                            (Just (fromGregorian 2026 4 27))
+                            (Just (fromGregorian 2026 5 1))
+                            (Aeson.object ["PayrollCalendarID" Aeson..= ("calendar-1" :: Text)])
+                        ]
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars) do
+                        withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                            callAction SyncXeroPayrollReferenceDataAction
+
+                response `responseStatusShouldBe` status302
+                employeeCount <- query @XeroEmployee |> fetchCount
+                employeeCount `shouldBe` 1
+                earningsRateCount <- query @XeroEarningsRate |> fetchCount
+                earningsRateCount `shouldBe` 1
+                payrollCalendarCount <- query @XeroPayrollCalendar |> fetchCount
+                payrollCalendarCount `shouldBe` 1
+                syncRun <- query @XeroSyncRun |> fetchOne
+                syncRun.syncStatus `shouldBe` "succeeded"
+                syncRun.employeesCount `shouldBe` 1
+                syncRun.earningsRatesCount `shouldBe` 1
+                syncRun.payrollCalendarsCount `shouldBe` 1
+                updatedConnection <- fetch connection.id
+                updatedConnection.lastSyncAt `shouldSatisfy` isJust
+                decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "new-refresh-token"
+
+        it "records Xero payroll reference sync failures without storing stale rows" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Sync Failure Venue"
+                admin <- createUserRecord "xero-sync-failure@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                connection <- createSyncableXeroConnection venue admin
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (failingRefreshXeroClient "refresh denied") do
+                        withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                            callAction SyncXeroPayrollReferenceDataAction
+
+                response `responseStatusShouldBe` status302
+                employeeCount <- query @XeroEmployee |> fetchCount
+                employeeCount `shouldBe` 0
+                syncRun <- query @XeroSyncRun |> fetchOne
+                syncRun.syncStatus `shouldBe` "failed"
+                syncRun.errorMessage `shouldBe` Just "Xero token refresh failed: refresh denied"
+                updatedConnection <- fetch connection.id
+                updatedConnection.lastError `shouldBe` Just "Xero token refresh failed: refresh denied"
 
         it "rejects non-admin Xero connection actions" $ withContext do
             withCleanDb do
@@ -717,6 +821,31 @@ successfulXeroClient tokenResponse tenants =
         { exchangeCodeForToken = \_ _ -> pure (Right tokenResponse)
         , fetchConnectedTenants = \_ -> pure (Right tenants)
         , refreshXeroToken = \_ _ -> pure (Right tokenResponse)
+        , fetchPayrollEmployees = \_ _ -> pure (Right [])
+        , fetchEarningsRates = \_ _ -> pure (Right [])
+        , fetchPayrollCalendars = \_ _ -> pure (Right [])
+        }
+
+referenceSyncXeroClient :: XeroTokenResponse -> [XeroEmployeeRef] -> [XeroEarningsRateRef] -> [XeroPayrollCalendarRef] -> XeroClient
+referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars =
+    XeroClient
+        { exchangeCodeForToken = \_ _ -> pure (Right tokenResponse)
+        , fetchConnectedTenants = \_ -> pure (Right [])
+        , refreshXeroToken = \_ _ -> pure (Right tokenResponse)
+        , fetchPayrollEmployees = \_ _ -> pure (Right employees)
+        , fetchEarningsRates = \_ _ -> pure (Right earningsRates)
+        , fetchPayrollCalendars = \_ _ -> pure (Right payrollCalendars)
+        }
+
+failingRefreshXeroClient :: Text -> XeroClient
+failingRefreshXeroClient message =
+    XeroClient
+        { exchangeCodeForToken = \_ _ -> pure (Left (XeroHttpError message))
+        , fetchConnectedTenants = \_ -> pure (Left (XeroHttpError message))
+        , refreshXeroToken = \_ _ -> pure (Left (XeroHttpError message))
+        , fetchPayrollEmployees = \_ _ -> pure (Left (XeroHttpError message))
+        , fetchEarningsRates = \_ _ -> pure (Left (XeroHttpError message))
+        , fetchPayrollCalendars = \_ _ -> pure (Left (XeroHttpError message))
         }
 
 createTestXeroOauthState ::
@@ -753,5 +882,24 @@ createActiveXeroConnection venue user =
         |> set #scopes requiredXeroScopesText
         |> set #encryptedRefreshToken "encrypted-refresh-token"
         |> set #encryptedAccessToken (Just "encrypted-access-token")
+        |> set #connectedByUserId (Just (unpackId user.id))
+        |> createRecord
+
+createSyncableXeroConnection ::
+    (?modelContext :: ModelContext) =>
+    Venue ->
+    User ->
+    IO XeroConnection
+createSyncableXeroConnection venue user = do
+    encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "existing-refresh-token"
+    encryptedAccessToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "existing-access-token"
+    newRecord @XeroConnection
+        |> set #venueId (unpackId venue.id)
+        |> set #tenantId "tenant-existing"
+        |> set #tenantName (Just "Existing Demo Company")
+        |> set #connectionStatus ("active" :: Text)
+        |> set #scopes requiredXeroScopesText
+        |> set #encryptedRefreshToken encryptedRefreshToken
+        |> set #encryptedAccessToken (Just encryptedAccessToken)
         |> set #connectedByUserId (Just (unpackId user.id))
         |> createRecord

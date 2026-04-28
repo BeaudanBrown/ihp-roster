@@ -2,6 +2,9 @@ module Application.Helper.Xero
     ( XeroClient (..)
     , XeroClientError (..)
     , XeroConfig (..)
+    , XeroEarningsRateRef (..)
+    , XeroEmployeeRef (..)
+    , XeroPayrollCalendarRef (..)
     , XeroTenant (..)
     , XeroTokenResponse (..)
     , buildXeroAuthorizationUrl
@@ -18,18 +21,23 @@ module Application.Helper.Xero
 where
 
 import qualified Control.Exception as Exception
+import Control.Applicative ((<|>))
 import qualified "crypton" Crypto.Hash as Hash
 import "crypton" Crypto.Cipher.AES (AES256)
 import "crypton" Crypto.Cipher.Types (IV, cipherInit, ctrCombine, makeIV)
 import "crypton" Crypto.Error (CryptoError, CryptoFailable (..))
 import "crypton" Crypto.Random (getRandomBytes)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as Key
+import qualified Data.Aeson.KeyMap as KeyMap
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.IORef as IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
+import qualified Data.Vector as Vector
 import qualified Network.HTTP.Types.URI as URI
 import Network.HTTP.Simple
 import System.Environment (lookupEnv)
@@ -72,6 +80,71 @@ instance Aeson.FromJSON XeroTenant where
             <$> object Aeson..: "tenantId"
             <*> object Aeson..:? "tenantName"
 
+data XeroEmployeeRef = XeroEmployeeRef
+    { xeroEmployeeId        :: !Text
+    , xeroEmployeeName      :: !Text
+    , xeroEmployeeEmail     :: !(Maybe Text)
+    , xeroEmployeeStatus    :: !(Maybe Text)
+    , xeroEmployeeCalendarId :: !(Maybe Text)
+    , xeroEmployeeRaw       :: !Aeson.Value
+    }
+    deriving (Eq, Show)
+
+instance Aeson.FromJSON XeroEmployeeRef where
+    parseJSON value@(Aeson.Object object) =
+        XeroEmployeeRef
+            <$> requiredText object ["EmployeeID", "employeeID", "employeeId"]
+            <*> employeeDisplayName object
+            <*> optionalText object ["Email", "email"]
+            <*> optionalText object ["Status", "status"]
+            <*> optionalText object ["PayrollCalendarID", "payrollCalendarID", "payrollCalendarId"]
+            <*> pure value
+    parseJSON _ = fail "Expected Xero employee object"
+
+data XeroEarningsRateRef = XeroEarningsRateRef
+    { xeroEarningsRateId     :: !Text
+    , xeroEarningsRateName   :: !Text
+    , xeroEarningsRateType   :: !(Maybe Text)
+    , xeroEarningsRateRateType :: !(Maybe Text)
+    , xeroEarningsRateAccountCode :: !(Maybe Text)
+    , xeroEarningsRateIsActive :: !Bool
+    , xeroEarningsRateRaw    :: !Aeson.Value
+    }
+    deriving (Eq, Show)
+
+instance Aeson.FromJSON XeroEarningsRateRef where
+    parseJSON value@(Aeson.Object object) =
+        XeroEarningsRateRef
+            <$> requiredText object ["EarningsRateID", "earningsRateID", "earningsRateId"]
+            <*> requiredText object ["Name", "name"]
+            <*> optionalText object ["EarningsType", "earningsType"]
+            <*> optionalText object ["RateType", "rateType"]
+            <*> optionalText object ["AccountCode", "accountCode"]
+            <*> activeFromObject object
+            <*> pure value
+    parseJSON _ = fail "Expected Xero earnings rate object"
+
+data XeroPayrollCalendarRef = XeroPayrollCalendarRef
+    { xeroPayrollCalendarId      :: !Text
+    , xeroPayrollCalendarName    :: !Text
+    , xeroPayrollCalendarType    :: !(Maybe Text)
+    , xeroPayrollCalendarStartDate :: !(Maybe Day)
+    , xeroPayrollCalendarPaymentDate :: !(Maybe Day)
+    , xeroPayrollCalendarRaw     :: !Aeson.Value
+    }
+    deriving (Eq, Show)
+
+instance Aeson.FromJSON XeroPayrollCalendarRef where
+    parseJSON value@(Aeson.Object object) =
+        XeroPayrollCalendarRef
+            <$> requiredText object ["PayrollCalendarID", "payrollCalendarID", "payrollCalendarId"]
+            <*> requiredText object ["Name", "name"]
+            <*> optionalText object ["CalendarType", "calendarType"]
+            <*> optionalDay object ["StartDate", "startDate"]
+            <*> optionalDay object ["PaymentDate", "paymentDate"]
+            <*> pure value
+    parseJSON _ = fail "Expected Xero payroll calendar object"
+
 data XeroClientError
     = XeroHttpError Text
     | XeroDecodeError Text
@@ -82,6 +155,9 @@ data XeroClient = XeroClient
     { exchangeCodeForToken :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
     , fetchConnectedTenants :: Text -> IO (Either XeroClientError [XeroTenant])
     , refreshXeroToken :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
+    , fetchPayrollEmployees :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
+    , fetchEarningsRates :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
+    , fetchPayrollCalendars :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
     }
 
 requiredXeroScopes :: [Text]
@@ -200,6 +276,9 @@ defaultXeroClient =
         { exchangeCodeForToken = exchangeCodeForTokenRequest
         , fetchConnectedTenants = fetchConnectedTenantsRequest
         , refreshXeroToken = refreshXeroTokenRequest
+        , fetchPayrollEmployees = fetchPayrollEmployeesRequest
+        , fetchEarningsRates = fetchEarningsRatesRequest
+        , fetchPayrollCalendars = fetchPayrollCalendarsRequest
         }
 
 xeroClientRef :: IORef.IORef XeroClient
@@ -269,6 +348,34 @@ fetchConnectedTenantsRequest accessToken =
         response <- httpLBS requestWithHeaders
         decodeXeroResponse "Xero connections request" response
 
+fetchPayrollEmployeesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
+fetchPayrollEmployeesRequest accessToken tenantId =
+    fmap (fmap unXeroEmployeesResponse) $
+        getXeroPayrollRequest "Xero payroll employees request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/Employees"
+
+fetchEarningsRatesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
+fetchEarningsRatesRequest accessToken tenantId =
+    fmap (fmap unXeroEarningsRatesResponse) $
+        getXeroPayrollRequest "Xero payroll earnings rates request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/EarningsRates"
+
+fetchPayrollCalendarsRequest :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
+fetchPayrollCalendarsRequest accessToken tenantId =
+    fmap (fmap unXeroPayrollCalendarsResponse) $
+        getXeroPayrollRequest "Xero payroll calendars request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/PayrollCalendars"
+
+getXeroPayrollRequest :: Aeson.FromJSON value => Text -> Text -> Text -> String -> IO (Either XeroClientError value)
+getXeroPayrollRequest label accessToken tenantId url =
+    handleXeroHttpExceptions do
+        request <- parseRequest url
+        let requestWithHeaders =
+                request
+                    |> setRequestMethod "GET"
+                    |> setRequestHeader "Authorization" ["Bearer " <> TextEncoding.encodeUtf8 accessToken]
+                    |> setRequestHeader "Xero-Tenant-Id" [TextEncoding.encodeUtf8 tenantId]
+                    |> setRequestHeader "Accept" ["application/json"]
+        response <- httpLBS requestWithHeaders
+        decodeXeroResponse label response
+
 basicAuthorizationHeader :: XeroConfig -> ByteString
 basicAuthorizationHeader config =
     "Basic " <> Base64.encode (TextEncoding.encodeUtf8 (config.clientId <> ":" <> config.clientSecret))
@@ -288,3 +395,73 @@ handleXeroHttpExceptions action = do
     pure case result of
         Left (err :: Exception.SomeException) -> Left (XeroHttpError (cs (show err)))
         Right value -> value
+
+newtype XeroEmployeesResponse = XeroEmployeesResponse { unXeroEmployeesResponse :: [XeroEmployeeRef] }
+
+instance Aeson.FromJSON XeroEmployeesResponse where
+    parseJSON = parseXeroListResponse XeroEmployeesResponse "Employees"
+
+newtype XeroEarningsRatesResponse = XeroEarningsRatesResponse { unXeroEarningsRatesResponse :: [XeroEarningsRateRef] }
+
+instance Aeson.FromJSON XeroEarningsRatesResponse where
+    parseJSON = parseXeroListResponse XeroEarningsRatesResponse "EarningsRates"
+
+newtype XeroPayrollCalendarsResponse = XeroPayrollCalendarsResponse { unXeroPayrollCalendarsResponse :: [XeroPayrollCalendarRef] }
+
+instance Aeson.FromJSON XeroPayrollCalendarsResponse where
+    parseJSON = parseXeroListResponse XeroPayrollCalendarsResponse "PayrollCalendars"
+
+parseXeroListResponse :: Aeson.FromJSON value => ([value] -> wrapped) -> Text -> Aeson.Value -> AesonTypes.Parser wrapped
+parseXeroListResponse wrap key = \case
+    Aeson.Array values -> wrap <$> mapM Aeson.parseJSON (Vector.toList values)
+    Aeson.Object object -> do
+        values <-
+            case KeyMap.lookup (Key.fromText key) object of
+                Just value -> Aeson.parseJSON value
+                Nothing    -> fail ("Missing Xero response list: " <> cs key)
+        wrap <$> mapM Aeson.parseJSON (values :: [Aeson.Value])
+    _ -> fail "Expected Xero list response"
+
+requiredText :: Aeson.Object -> [Text] -> AesonTypes.Parser Text
+requiredText object keys =
+    case firstPresent object keys of
+        Just value -> Aeson.parseJSON value
+        Nothing    -> fail ("Missing required Xero field: " <> cs (Text.intercalate "/" keys))
+
+optionalText :: Aeson.Object -> [Text] -> AesonTypes.Parser (Maybe Text)
+optionalText object keys =
+    case firstPresent object keys of
+        Just value -> Aeson.parseJSON value
+        Nothing    -> pure Nothing
+
+optionalDay :: Aeson.Object -> [Text] -> AesonTypes.Parser (Maybe Day)
+optionalDay object keys =
+    case firstPresent object keys of
+        Just value -> Aeson.parseJSON value
+        Nothing    -> pure Nothing
+
+employeeDisplayName :: Aeson.Object -> AesonTypes.Parser Text
+employeeDisplayName object =
+    optionalText object ["Name", "name", "DisplayName", "displayName"] >>= \case
+        Just name | not (Text.null (Text.strip name)) -> pure name
+        _ -> do
+            firstName <- optionalText object ["FirstName", "firstName"]
+            lastName <- optionalText object ["LastName", "lastName"]
+            let name = Text.strip (Text.unwords (catMaybes [firstName, lastName]))
+            if Text.null name
+                then requiredText object ["EmployeeID", "employeeID", "employeeId"]
+                else pure name
+
+activeFromObject :: Aeson.Object -> AesonTypes.Parser Bool
+activeFromObject object =
+    ((not <$> requiredBool object ["IsArchived", "isArchived"]) <|> requiredBool object ["IsActive", "isActive"]) <|> pure True
+
+requiredBool :: Aeson.Object -> [Text] -> AesonTypes.Parser Bool
+requiredBool object keys =
+    case firstPresent object keys of
+        Just value -> Aeson.parseJSON value
+        Nothing    -> fail ("Missing required Xero boolean field: " <> cs (Text.intercalate "/" keys))
+
+firstPresent :: Aeson.Object -> [Text] -> Maybe Aeson.Value
+firstPresent object keys =
+    asum (map (\key -> KeyMap.lookup (Key.fromText key) object) keys)

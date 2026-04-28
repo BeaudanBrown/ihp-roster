@@ -29,6 +29,11 @@ data IndexView = IndexView
     , invitesLiveUpdateScope          :: Maybe LiveUpdateScope
     , xeroConnection                  :: Maybe XeroConnection
     , xeroConnectedByUser             :: Maybe User
+    , xeroLatestSyncRun               :: Maybe XeroSyncRun
+    , xeroEmployeeCount               :: Int
+    , xeroEarningsRateCount           :: Int
+    , xeroPayrollCalendarCount        :: Int
+    , xeroConnectionActionsAllowed    :: Bool
     , showInactiveRosterGroups        :: Bool
     , showInactiveShiftTypes          :: Bool
     }
@@ -48,7 +53,7 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser}
+                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroConnectionActionsAllowed}
                             </div>
                         </div>
                     |]
@@ -328,15 +333,15 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
         |]
 
-renderXeroSection :: Maybe XeroConnection -> Maybe User -> Html
-renderXeroSection maybeConnection maybeConnectedByUser =
+renderXeroSection :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> Bool -> Html
+renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed =
     renderConfigSection
         "xero"
         "Xero"
         "Connect this venue to a Xero organisation for payroll integration setup."
         (renderXeroSummary maybeConnection)
         mempty
-        (renderXeroConnectionBody maybeConnection maybeConnectedByUser)
+        (renderXeroConnectionBody maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed)
 
 renderXeroSummary :: Maybe XeroConnection -> Html
 renderXeroSummary Nothing = [hsx|
@@ -351,18 +356,16 @@ renderXeroSummary (Just connection) = [hsx|
     </div>
 |]
 
-renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Html
-renderXeroConnectionBody Nothing _ = [hsx|
+renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> Bool -> Html
+renderXeroConnectionBody Nothing _ _ _ _ _ connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <p class="mb-0 app-muted">
             Connecting grants ihp-roster access to the selected Xero organisation for payroll integration setup.
         </p>
-        <form method="POST" action={StartXeroConnectionAction} data-disable-javascript-submission="true">
-            <button class="btn btn-outline-primary" type="submit">Connect Xero</button>
-        </form>
+        {renderXeroConnectControl connectionActionsAllowed}
     </div>
 |]
-renderXeroConnectionBody (Just connection) maybeConnectedByUser = [hsx|
+renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <dl class="row mb-0">
             <dt class="col-sm-3">Tenant</dt>
@@ -371,28 +374,83 @@ renderXeroConnectionBody (Just connection) maybeConnectedByUser = [hsx|
             <dd class="col-sm-9"><code>{connection.tenantId}</code></dd>
             <dt class="col-sm-3">Connected</dt>
             <dd class="col-sm-9">{formatTimestamp connection.connectedAt}{renderConnectedBy maybeConnectedByUser}</dd>
+            <dt class="col-sm-3">Reference data</dt>
+            <dd class="col-sm-9">{renderXeroReferenceSummary maybeSyncRun employeeCount earningsRateCount payrollCalendarCount}</dd>
         </dl>
         <div class="d-flex flex-wrap gap-2">
-            <form method="POST" action={StartXeroConnectionAction} data-disable-javascript-submission="true">
-                <button class="btn btn-outline-secondary" type="submit">Reconnect</button>
+            <form method="POST" action={SyncXeroPayrollReferenceDataAction} data-disable-javascript-submission="true">
+                <button class="btn btn-outline-primary" type="submit">Sync payroll reference data</button>
             </form>
-            <form method="POST" action={DisconnectXeroConnectionAction} data-disable-javascript-submission="true">
-                <button class="btn btn-outline-danger" type="submit">Disconnect</button>
-            </form>
+            {renderXeroReconnectControls connectionActionsAllowed}
         </div>
     </div>
 |]
+
+renderXeroConnectControl :: Bool -> Html
+renderXeroConnectControl True = [hsx|
+    <form method="POST" action={StartXeroConnectionAction} data-disable-javascript-submission="true">
+        <button class="btn btn-outline-primary" type="submit">Connect Xero</button>
+    </form>
+|]
+renderXeroConnectControl False = [hsx|
+    <p class="mb-0 small app-muted">Only the venue owner can connect Xero for this venue.</p>
+|]
+
+renderXeroReconnectControls :: Bool -> Html
+renderXeroReconnectControls True = [hsx|
+    <form method="POST" action={StartXeroConnectionAction} data-disable-javascript-submission="true">
+        <button class="btn btn-outline-secondary" type="submit">Reconnect</button>
+    </form>
+    <form method="POST" action={DisconnectXeroConnectionAction} data-disable-javascript-submission="true">
+        <button class="btn btn-outline-danger" type="submit">Disconnect</button>
+    </form>
+|]
+renderXeroReconnectControls False = [hsx|
+    <span class="align-self-center small app-muted">Only the venue owner can reconnect or disconnect Xero.</span>
+|]
+
+renderXeroReferenceSummary :: Maybe XeroSyncRun -> Int -> Int -> Int -> Html
+renderXeroReferenceSummary maybeSyncRun employeeCount earningsRateCount payrollCalendarCount = [hsx|
+    <div class="d-flex flex-column gap-2">
+        <div class="d-flex flex-wrap gap-2">
+            <span class="badge text-bg-secondary">{tshow employeeCount} employees</span>
+            <span class="badge text-bg-secondary">{tshow earningsRateCount} earnings rates</span>
+            <span class="badge text-bg-secondary">{tshow payrollCalendarCount} payroll calendars</span>
+        </div>
+        {renderXeroLatestSync maybeSyncRun}
+    </div>
+|]
+
+renderXeroLatestSync :: Maybe XeroSyncRun -> Html
+renderXeroLatestSync Nothing = [hsx|
+    <span class="small app-muted">Not synced yet.</span>
+|]
+renderXeroLatestSync (Just syncRun) = [hsx|
+    <span class="small app-muted">
+        Last sync: {renderXeroSyncStatus syncRun.syncStatus} at {formatTimestamp syncRun.startedAt}{renderXeroSyncError syncRun.errorMessage}
+    </span>
+|]
+
+renderXeroSyncStatus :: Text -> Html
+renderXeroSyncStatus "succeeded" = [hsx|<span class="badge text-bg-success">succeeded</span>|]
+renderXeroSyncStatus "failed" = [hsx|<span class="badge text-bg-danger">failed</span>|]
+renderXeroSyncStatus "running" = [hsx|<span class="badge text-bg-warning">running</span>|]
+renderXeroSyncStatus status = [hsx|<span class="badge text-bg-secondary">{status}</span>|]
+
+renderXeroSyncError :: Maybe Text -> Html
+renderXeroSyncError Nothing = mempty
+renderXeroSyncError (Just errorMessage) = [hsx|<span> - {errorMessage}</span>|]
 
 renderConnectedBy :: Maybe User -> Html
 renderConnectedBy Nothing = mempty
 renderConnectedBy (Just user) = [hsx|<span> by {user.email}</span>|]
 
-renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Maybe XeroConnection -> Maybe User -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser = [hsx|
+renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> Bool -> Html
+renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroConnectionActionsAllowed = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection)}
-        {renderAccordionItem "xero" "Xero" False (renderXeroSection xeroConnection xeroConnectedByUser)}
+        {renderAccordionItem "xero" "Xero" False (renderXeroSection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroConnectionActionsAllowed)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)}
     </div>

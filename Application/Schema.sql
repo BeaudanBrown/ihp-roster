@@ -714,6 +714,73 @@ CREATE TABLE xero_oauth_states (
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT,
     UNIQUE(state_token)
 );
+CREATE TABLE xero_sync_runs (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    sync_status TEXT NOT NULL,
+    sync_kind TEXT DEFAULT 'payroll_reference_data' NOT NULL,
+    employees_count INT DEFAULT 0 NOT NULL,
+    earnings_rates_count INT DEFAULT 0 NOT NULL,
+    payroll_calendars_count INT DEFAULT 0 NOT NULL,
+    error_message TEXT,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    finished_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    CHECK ((sync_status = 'running') OR (sync_status = 'succeeded') OR (sync_status = 'failed'))
+);
+CREATE TABLE xero_employees (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    xero_employee_id TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    email TEXT,
+    status TEXT,
+    payroll_calendar_id TEXT,
+    raw_payload JSONB DEFAULT '{}'::JSONB NOT NULL,
+    synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
+);
+CREATE TABLE xero_earnings_rates (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    xero_earnings_rate_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    earnings_type TEXT,
+    rate_type TEXT,
+    account_code TEXT,
+    is_active BOOLEAN DEFAULT TRUE NOT NULL,
+    raw_payload JSONB DEFAULT '{}'::JSONB NOT NULL,
+    synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
+);
+CREATE TABLE xero_payroll_calendars (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    xero_payroll_calendar_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    calendar_type TEXT,
+    start_date DATE,
+    payment_date DATE,
+    raw_payload JSONB DEFAULT '{}'::JSONB NOT NULL,
+    synced_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
+);
 CREATE TABLE timesheet_entries (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -835,6 +902,13 @@ CREATE INDEX idx_xero_connections_venue_created_at ON xero_connections (venue_id
 CREATE UNIQUE INDEX idx_xero_connections_active_venue ON xero_connections (venue_id) WHERE connection_status = 'active';
 CREATE INDEX idx_xero_oauth_states_token ON xero_oauth_states (state_token);
 CREATE INDEX idx_xero_oauth_states_venue_user_created_at ON xero_oauth_states (venue_id, user_id, created_at DESC);
+CREATE INDEX idx_xero_sync_runs_venue_started_at ON xero_sync_runs (venue_id, started_at DESC);
+CREATE UNIQUE INDEX idx_xero_employees_connection_employee ON xero_employees (xero_connection_id, xero_employee_id);
+CREATE INDEX idx_xero_employees_venue_name ON xero_employees (venue_id, display_name);
+CREATE UNIQUE INDEX idx_xero_earnings_rates_connection_rate ON xero_earnings_rates (xero_connection_id, xero_earnings_rate_id);
+CREATE INDEX idx_xero_earnings_rates_venue_name ON xero_earnings_rates (venue_id, name);
+CREATE UNIQUE INDEX idx_xero_payroll_calendars_connection_calendar ON xero_payroll_calendars (xero_connection_id, xero_payroll_calendar_id);
+CREATE INDEX idx_xero_payroll_calendars_venue_name ON xero_payroll_calendars (venue_id, name);
 
 CREATE OR REPLACE FUNCTION prevent_hard_delete()
 RETURNS TRIGGER
@@ -874,6 +948,10 @@ CREATE TRIGGER prevent_hard_delete_venue_membership_role_events BEFORE DELETE ON
 CREATE TRIGGER prevent_hard_delete_audit_events BEFORE DELETE ON audit_events FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_export_jobs BEFORE DELETE ON export_jobs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_connections BEFORE DELETE ON xero_connections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_sync_runs BEFORE DELETE ON xero_sync_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_employees BEFORE DELETE ON xero_employees FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_earnings_rates BEFORE DELETE ON xero_earnings_rates FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_payroll_calendars BEFORE DELETE ON xero_payroll_calendars FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
 CREATE OR REPLACE FUNCTION resolve_effective_pay_level(p_staff_id UUID, p_shift_type_id UUID, p_day_of_week INT)
 RETURNS UUID

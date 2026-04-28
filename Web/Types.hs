@@ -86,6 +86,7 @@ data AdminController
     | StartXeroConnectionAction
     | XeroOAuthCallbackAction
     | DisconnectXeroConnectionAction
+    | SyncXeroPayrollReferenceDataAction
     | UpdateVenueConfigAction
     | ShowAdminSlotNamesFragmentAction
     | ShowAdminInvitesFragmentAction
