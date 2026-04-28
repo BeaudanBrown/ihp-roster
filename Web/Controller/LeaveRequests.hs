@@ -19,6 +19,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.Set as Set
+import qualified Data.Text.IO as TextIO
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
@@ -49,7 +50,10 @@ instance Controller LeaveRequestsController where
     action ShowLeaveRequestsContentFragmentAction = do
         ensureProfileCompleted
         ensureManagerRole
-        respondHtmlProfiled . fromMaybe mempty =<< renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
+        maybeHtml <- renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
+        when (isNothing maybeHtml) do
+            TextIO.putStrLn "leave_projection_miss: fragment=content"
+        respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
     action NewLeaveRequestAction = do
         ensureStaffSelfServiceAccess

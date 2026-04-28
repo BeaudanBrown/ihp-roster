@@ -18,6 +18,7 @@ import Data.Aeson.Key (Key)
 import Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, fromGregorianValid, toGregorian)
 import Data.Time.LocalTime (getZonedTime, localDay, zonedTimeToLocalTime)
 import Data.Traversable (traverse)
@@ -57,6 +58,7 @@ data PublicHolidaySyncSummary = PublicHolidaySyncSummary
     , insertedCount :: !Int
     , updatedCount  :: !Int
     , skippedCount  :: !Int
+    , invalidCount  :: !Int
     , prunedCount   :: !Int
     }
     deriving (Eq, Show)
@@ -144,12 +146,15 @@ importDataVicPublicHolidayRecordsForYear targetYear records = do
     prunedCount <- prunePublicHolidaysOutsideYear targetYear
     results <- forM records \record ->
         case publicHolidayImportFromDataVic record of
-            Left _ -> pure Nothing
+            Left reason -> do
+                TextIO.putStrLn ("public_holiday_sync_invalid_record: " <> reason)
+                pure (Left reason)
             Right holidayImport
                 | dayYear holidayImport.holidayDate == targetYear ->
-                    Just <$> upsertPublicHoliday now holidayImport
-                | otherwise -> pure Nothing
-    let importedResults = catMaybes results
+                    Right . Just <$> upsertPublicHoliday now holidayImport
+                | otherwise -> pure (Right Nothing)
+    let invalidCount = length [reason | Left reason <- results]
+    let importedResults = catMaybes [maybeResult | Right maybeResult <- results]
     pure
         PublicHolidaySyncSummary
             { targetYear
@@ -158,6 +163,7 @@ importDataVicPublicHolidayRecordsForYear targetYear records = do
             , insertedCount = length (filter (== InsertedHoliday) importedResults)
             , updatedCount = length (filter (== UpdatedHoliday) importedResults)
             , skippedCount = length records - length importedResults
+            , invalidCount
             , prunedCount
             }
 

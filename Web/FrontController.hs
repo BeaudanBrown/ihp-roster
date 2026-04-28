@@ -3,6 +3,7 @@ module Web.FrontController where
 import Application.Helper.Controller (currentVenueSessionKey)
 import Application.Helper.Profiling (initRequestProfiling)
 import qualified Control.Exception as Exception
+import qualified Data.Text.IO as TextIO
 import IHP.Controller.Context (putContext)
 import IHP.Controller.Session (deleteSession)
 import IHP.LoginSupport.Helper.Controller (sessionKey)
@@ -53,7 +54,8 @@ instance InitControllerContext WebApplication where
         authenticationResult <- Exception.try (initAuthentication @User) :: IO (Either Exception.SomeException ())
         case authenticationResult of
             Right () -> pure ()
-            Left _ -> do
+            Left exception -> do
+                TextIO.putStrLn ("auth_init_failure: " <> cs (Exception.displayException exception))
                 deleteSession (sessionKey @User)
                 deleteSession currentVenueSessionKey
                 putContext (Nothing :: Maybe User)

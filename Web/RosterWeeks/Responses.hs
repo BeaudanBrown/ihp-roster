@@ -10,6 +10,7 @@ import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups)
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 errorToast, renderToastOob, successToast)
+import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.RenderData (fetchVisibleRosterRenderDataCached,
@@ -20,8 +21,11 @@ import Web.View.RosterWeeks.Grid (renderRosterContentFragment,
                                   renderRosterContentFragmentOob)
 
 respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
-respondWithRosterContent rosterGroupId weekOffset =
-    respondHtmlProfiled . fromMaybe mempty =<< renderVisibleRosterProjectionFragment rosterGroupId weekOffset RosterProjectionContent
+respondWithRosterContent rosterGroupId weekOffset = do
+    maybeHtml <- renderVisibleRosterProjectionFragment rosterGroupId weekOffset RosterProjectionContent
+    when (isNothing maybeHtml) do
+        TextIO.putStrLn ("roster_projection_miss: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
+    respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContentOob rosterGroupId weekOffset = do
@@ -29,7 +33,9 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
     rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
     case rosterData of
-        Nothing -> respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
+        Nothing -> do
+            TextIO.putStrLn ("roster_projection_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
+            respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } ->
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
              in respondHtmlProfiled $

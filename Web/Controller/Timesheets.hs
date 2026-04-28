@@ -19,6 +19,7 @@ import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, diffDays)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Text.Blaze.Html as Blaze
@@ -381,8 +382,11 @@ fetchShiftTypesForForm =
         |> fetch
 
 respondWithTimesheetDaySectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Int -> Bool -> Bool -> IO ()
-respondWithTimesheetDaySectionFragment weekOffset dayOffset showApproved showAllStaff =
-    respondHtmlProfiled . fromMaybe mempty =<< renderTimesheetProjectionFragment (TimesheetProjectionRequest weekOffset showApproved showAllStaff) (TimesheetProjectionDaySection dayOffset)
+respondWithTimesheetDaySectionFragment weekOffset dayOffset showApproved showAllStaff = do
+    maybeHtml <- renderTimesheetProjectionFragment (TimesheetProjectionRequest weekOffset showApproved showAllStaff) (TimesheetProjectionDaySection dayOffset)
+    when (isNothing maybeHtml) do
+        TextIO.putStrLn ("timesheet_projection_miss: weekOffset=" <> tshow weekOffset <> " dayOffset=" <> tshow dayOffset)
+    respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
 respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Bool -> Bool -> Text -> Bool -> Bool -> IO ()
 respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllStaff successMessage closeDialog renderMainFragmentOob = do

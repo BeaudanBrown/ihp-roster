@@ -32,6 +32,7 @@ performPublicHolidayRefreshJob appJob = do
                 , "insertedCount" Aeson..= summary.insertedCount
                 , "updatedCount" Aeson..= summary.updatedCount
                 , "skippedCount" Aeson..= summary.skippedCount
+                , "invalidCount" Aeson..= summary.invalidCount
                 , "prunedCount" Aeson..= summary.prunedCount
                 ]
     void
