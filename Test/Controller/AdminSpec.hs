@@ -453,6 +453,14 @@ tests = beforeAll testContext do
                 syncedResponse `responseBodyShouldContain` "Staff mappings"
                 syncedResponse `responseBodyShouldContain` "Local Worker - local@example.com"
                 syncedResponse `responseBodyShouldContain` "name=\"xeroEmployeeSelection\""
+                syncedResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
+                syncedResponse `responseBodyShouldContain` "hx-trigger=\"change\""
+                syncedResponse `responseBodyShouldContain` "hx-swap=\"none\""
+                syncedResponse `responseBodyShouldContain` "id=\"xero-staff-mapping-counts\""
+                syncedResponse `responseBodyShouldNotContain` "data-preserve-window-scroll=\"true\""
+                syncedResponse `responseBodyShouldNotContain` "<th>Status</th>"
+                syncedResponse `responseBodyShouldNotContain` "<th class=\"text-end\">Current</th>"
+                syncedResponse `responseBodyShouldNotContain` ">Save</button>"
                 syncedResponse `responseBodyShouldContain` "2 unmapped"
 
         it "saves Xero staff mappings and not-paid-through-Xero states from the admin fragment" $ withContext do
@@ -474,7 +482,12 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "id=\"admin-xero-fragment\""
+                response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+                response `responseBodyShouldContain` "id=\"xero-staff-mapping-counts\""
+                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+                response `responseBodyShouldNotContain` ("id=\"xero-staff-mapping-control-" <> tshow staff.id <> "\"")
+                response `responseBodyShouldContain` ("id=\"xero-staff-mapping-control-" <> tshow trialStaff.id <> "\"")
+                response `responseBodyShouldContain` "Saved Xero employee mapping for Ada Lovelace."
                 response `responseBodyShouldContain` "Ada Lovelace"
                 versionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` (versionBefore + 1)
@@ -483,6 +496,24 @@ tests = beforeAll testContext do
                 mapping.xeroEmployeeId `shouldBe` Just employee.xeroEmployeeId
                 mapping.xeroEmployeeName `shouldBe` Just employee.displayName
                 mapping.lastVerifiedAt `shouldSatisfy` isJust
+                mappingBody <- responseBody response
+                Text.count "Ada Lovelace - ada@example.com" (cs mappingBody) `shouldBe` 0
+
+                duplicateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams SaveXeroStaffMappingAction
+                            [ ("staffId", idToParam trialStaff.id)
+                            , ("xeroEmployeeSelection", "employee-ada")
+                            ]
+
+                duplicateResponse `responseStatusShouldBe` status200
+                duplicateResponse `responseBodyShouldContain` "That Xero employee is already mapped to another staff member."
+                duplicateCount <-
+                    query @XeroStaffMapping
+                        |> filterWhere (#xeroEmployeeId, Just employee.xeroEmployeeId)
+                        |> filterWhere (#mappingStatus, "verified")
+                        |> fetchCount
+                duplicateCount `shouldBe` 1
 
                 notApplicableResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -495,6 +526,61 @@ tests = beforeAll testContext do
                 trialMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId trialStaff.id) |> fetchOne
                 trialMapping.mappingStatus `shouldBe` "not_applicable"
                 trialMapping.xeroEmployeeId `shouldBe` Nothing
+
+        it "saves Xero earnings-rate mappings and payroll calendar selection from the admin fragment" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Earnings Mapping Venue"
+                admin <- createUserRecord "xero-earnings-mapping@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                connection <- createActiveXeroConnection venue admin
+                awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
+                earningsRate <- createXeroEarningsRateRecord connection "Level 2 - Ordinary" "earnings-ordinary"
+                payrollCalendar <- createXeroPayrollCalendarRecord connection "Weekly" "calendar-weekly"
+                let ordinaryBucketKey = "award:" <> tshow (awardLevel.awardFixedId) <> ":classification:" <> tshow (awardLevel.classificationFixedId) <> ":penalty:ordinary"
+
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminXeroFragmentAction
+                pageResponse `responseStatusShouldBe` status200
+                pageResponse `responseBodyShouldContain` "Earnings-rate mappings"
+                pageResponse `responseBodyShouldContain` "Level 2 - Ordinary"
+                pageResponse `responseBodyShouldContain` "name=\"xeroEarningsRateSelection\""
+                pageResponse `responseBodyShouldContain` "Payroll calendar"
+                pageResponse `responseBodyShouldContain` "Weekly - WEEKLY"
+                pageResponse `responseBodyShouldContain` "name=\"xeroPayrollCalendarSelection\""
+                pageResponse `responseBodyShouldContain` "Ready to submit checklist"
+
+                versionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                mappingResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams SaveXeroEarningsRateMappingAction
+                            [ ("localBucketKey", cs ordinaryBucketKey)
+                            , ("xeroEarningsRateSelection", "earnings-ordinary")
+                            ]
+
+                mappingResponse `responseStatusShouldBe` status200
+                mappingResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
+                mappingResponse `responseBodyShouldContain` "Saved Xero earnings-rate mapping for Level 2 - Ordinary."
+                versionAfterMapping <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionAfterMapping `shouldBe` (versionBefore + 1)
+                mapping <- query @XeroEarningsRateMapping |> filterWhere (#localBucketKey, ordinaryBucketKey) |> fetchOne
+                mapping.mappingStatus `shouldBe` "verified"
+                mapping.xeroEarningsRateId `shouldBe` Just earningsRate.xeroEarningsRateId
+                mapping.xeroEarningsRateName `shouldBe` Just earningsRate.name
+                mapping.lastVerifiedAt `shouldSatisfy` isJust
+
+                calendarResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams SaveXeroPayrollCalendarSelectionAction
+                            [("xeroPayrollCalendarSelection", "calendar-weekly")]
+
+                calendarResponse `responseStatusShouldBe` status200
+                calendarResponse `responseBodyShouldContain` "Saved Xero payroll calendar selection."
+                versionAfterCalendar <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionAfterCalendar `shouldBe` (versionAfterMapping + 1)
+                selection <- query @XeroPayrollCalendarSelection |> fetchOne
+                selection.calendarStatus `shouldBe` "verified"
+                selection.xeroPayrollCalendarId `shouldBe` Just payrollCalendar.xeroPayrollCalendarId
+                selection.xeroPayrollCalendarName `shouldBe` Just payrollCalendar.name
 
         it "rejects Xero staff mappings across venue boundaries" $ withContext do
             withCleanDb do
@@ -1167,5 +1253,46 @@ createXeroEmployeeRecord connection displayName maybeEmail employeeId = do
         |> set #status (Just "ACTIVE")
         |> set #payrollCalendarId Nothing
         |> set #rawPayload (Aeson.object ["EmployeeID" Aeson..= employeeId])
+        |> set #syncedAt now
+        |> createRecord
+
+createXeroEarningsRateRecord ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    Text ->
+    Text ->
+    IO XeroEarningsRate
+createXeroEarningsRateRecord connection name earningsRateId = do
+    now <- getCurrentTime
+    newRecord @XeroEarningsRate
+        |> set #venueId connection.venueId
+        |> set #xeroConnectionId (unpackId connection.id)
+        |> set #xeroEarningsRateId earningsRateId
+        |> set #name name
+        |> set #earningsType (Just "REGULAR")
+        |> set #rateType (Just "RATEPERUNIT")
+        |> set #accountCode (Just "477")
+        |> set #isActive True
+        |> set #rawPayload (Aeson.object ["EarningsRateID" Aeson..= earningsRateId])
+        |> set #syncedAt now
+        |> createRecord
+
+createXeroPayrollCalendarRecord ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    Text ->
+    Text ->
+    IO XeroPayrollCalendar
+createXeroPayrollCalendarRecord connection name payrollCalendarId = do
+    now <- getCurrentTime
+    newRecord @XeroPayrollCalendar
+        |> set #venueId connection.venueId
+        |> set #xeroConnectionId (unpackId connection.id)
+        |> set #xeroPayrollCalendarId payrollCalendarId
+        |> set #name name
+        |> set #calendarType (Just "WEEKLY")
+        |> set #startDate (Just (fromGregorian 2026 4 27))
+        |> set #paymentDate (Just (fromGregorian 2026 5 1))
+        |> set #rawPayload (Aeson.object ["PayrollCalendarID" Aeson..= payrollCalendarId])
         |> set #syncedAt now
         |> createRecord
