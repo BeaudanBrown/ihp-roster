@@ -2,7 +2,8 @@ module Web.View.Admin.Exports
     ( renderExportsSection
     ) where
 
-import Application.Helper.Export (ReportWeekSelection (..), VenueReportDefinition (..))
+import Application.Helper.Export (ReportWeekSelection (..),
+                                  VenueReportDefinition (..))
 import Web.View.Admin.Common
 import Web.View.Prelude
 

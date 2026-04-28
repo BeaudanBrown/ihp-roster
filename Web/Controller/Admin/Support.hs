@@ -6,9 +6,9 @@ import Application.Helper.Pay
 import Application.Helper.RosterGroups
 import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
+                                          sortDayNamesForVenueWeek,
                                           validRosterWeekStartDays,
-                                          weekdayIndexLabel,
-                                          sortDayNamesForVenueWeek)
+                                          weekdayIndexLabel)
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
 import qualified Data.List as List

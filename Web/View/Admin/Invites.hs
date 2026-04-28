@@ -3,8 +3,12 @@ module Web.View.Admin.Invites
     , renderInvitesSectionFragment
     ) where
 
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..), liveSurfaceConfigJson, mkLiveSurface)
-import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveFragmentProtection (..), LiveFragmentRef (..), LiveUpdateScope (..), mkLiveFragmentRef)
+import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
+                                       liveSurfaceConfigJson, mkLiveSurface)
+import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
+                                      LiveFragmentRef (..),
+                                      LiveUpdateScope (..), mkLiveFragmentRef)
 import Web.View.Admin.Common
 import Web.View.Prelude
 

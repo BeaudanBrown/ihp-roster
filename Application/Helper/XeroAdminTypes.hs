@@ -1,8 +1,8 @@
 module Application.Helper.XeroAdminTypes where
 
+import Data.Scientific (Scientific)
 import Generated.Types
 import IHP.Prelude
-import Data.Scientific (Scientific)
 
 data XeroStaffMappingRow = XeroStaffMappingRow
     { mappingRowStaff   :: Staff
@@ -40,27 +40,27 @@ data XeroUsedAwardPayScope = XeroUsedAwardPayScope
     deriving (Eq)
 
 data XeroPayItemRequirement = XeroPayItemRequirement
-    { payItemRequirementKey         :: Text
-    , payItemRequirementName        :: Text
-    , payItemRequirementPenaltyKind :: Maybe Text
+    { payItemRequirementKey          :: Text
+    , payItemRequirementName         :: Text
+    , payItemRequirementPenaltyKind  :: Maybe Text
     , payItemRequirementEarningsType :: Text
-    , payItemRequirementRateType    :: Text
-    , payItemRequirementMultiplier  :: Maybe Scientific
-    , payItemRequirementRatePerUnit :: Maybe Scientific
-    , payItemRequirementValue       :: Maybe Text
-    , payItemRequirementSource      :: Text
-    , payItemRequirementMatch       :: Maybe XeroEarningsRate
-    , payItemRequirementRecord      :: Maybe XeroPayItemRequirementRecord
-    , payItemRequirementStatus      :: Text
+    , payItemRequirementRateType     :: Text
+    , payItemRequirementMultiplier   :: Maybe Scientific
+    , payItemRequirementRatePerUnit  :: Maybe Scientific
+    , payItemRequirementValue        :: Maybe Text
+    , payItemRequirementSource       :: Text
+    , payItemRequirementMatch        :: Maybe XeroEarningsRate
+    , payItemRequirementRecord       :: Maybe XeroPayItemRequirementRecord
+    , payItemRequirementStatus       :: Text
     }
 
 data XeroReadyChecklist = XeroReadyChecklist
-    { xeroReadyConnection       :: Bool
-    , xeroReadyReferenceSync    :: Bool
-    , xeroReadyStaffMappings    :: Bool
-    , xeroReadyEarningsMappings :: Bool
+    { xeroReadyConnection         :: Bool
+    , xeroReadyReferenceSync      :: Bool
+    , xeroReadyStaffMappings      :: Bool
+    , xeroReadyEarningsMappings   :: Bool
     , xeroReadyPayItemAccountCode :: Bool
-    , xeroReadyPayrollCalendar  :: Bool
+    , xeroReadyPayrollCalendar    :: Bool
     }
 
 data XeroAdminSectionData = XeroAdminSectionData

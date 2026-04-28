@@ -4,8 +4,12 @@ module Web.View.Admin.RosterGroups
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..), liveSurfaceConfigJson, mkLiveSurface)
-import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveFragmentProtection (..), LiveFragmentRef (..), LiveUpdateScope (..), mkLiveFragmentRef)
+import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
+                                       liveSurfaceConfigJson, mkLiveSurface)
+import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
+                                      LiveFragmentRef (..),
+                                      LiveUpdateScope (..), mkLiveFragmentRef)
 import Web.View.Admin.Common
 import Web.View.Prelude
 

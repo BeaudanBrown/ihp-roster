@@ -827,9 +827,9 @@ saveXeroPayItemAccountCodeSelection ::
 saveXeroPayItemAccountCodeSelection connection selection manualAccountCode = do
     let selectedAccountCode =
             case selection of
-                "" -> ""
+                ""           -> ""
                 "__manual__" -> manualAccountCode
-                accountCode -> accountCode
+                accountCode  -> accountCode
     case Text.strip selectedAccountCode of
         "" -> persistXeroPayItemAccountCodeSelection connection "none" Nothing
         accountCode

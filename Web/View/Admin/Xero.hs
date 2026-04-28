@@ -5,8 +5,12 @@ module Web.View.Admin.Xero
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..), liveSurfaceConfigJson, mkLiveSurface)
-import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveFragmentProtection (..), LiveFragmentRef (..), LiveUpdateScope (..), mkLiveFragmentRef)
+import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
+                                       liveSurfaceConfigJson, mkLiveSurface)
+import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
+                                      LiveFragmentRef (..),
+                                      LiveUpdateScope (..), mkLiveFragmentRef)
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems (xeroManagedPayItemNamePrefix)
 import qualified Data.List as List
@@ -140,7 +144,7 @@ renderXeroConnectionStatus connection =
 renderXeroConnectionError :: XeroConnection -> Html
 renderXeroConnectionError connection =
     case connection.lastError of
-        Nothing -> mempty
+        Nothing      -> mempty
         Just message -> [hsx|<span class="ms-2 app-muted">{message}</span>|]
 
 renderXeroConnectionNotice :: XeroConnection -> Html
@@ -187,7 +191,7 @@ renderXeroSyncStatus "running" = [hsx|<span class="badge text-bg-warning">runnin
 renderXeroSyncStatus status = [hsx|<span class="badge text-bg-secondary">{status}</span>|]
 
 renderXeroSyncError :: Maybe Text -> Html
-renderXeroSyncError Nothing = mempty
+renderXeroSyncError Nothing             = mempty
 renderXeroSyncError (Just errorMessage) = [hsx|<span> - {errorMessage}</span>|]
 
 renderXeroStaffMappings :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
@@ -371,8 +375,8 @@ renderXeroPayItemAccountCodeSelection xeroEarningsRates maybeSelection canManage
         currentSelection =
             case selectedAccountCode of
                 Just accountCode | selectedIsObserved -> accountCode
-                Just _ -> "__manual__"
-                Nothing -> ""
+                Just _                                -> "__manual__"
+                Nothing                               -> ""
         manualValue =
             if selectedIsObserved then "" else fromMaybe "" selectedAccountCode
 
@@ -662,7 +666,7 @@ renderXeroEmployeeOption currentSelection employee = [hsx|
 |]
 
 renderXeroStaffEmail :: Maybe User -> Html
-renderXeroStaffEmail Nothing = renderMutedText "No linked login"
+renderXeroStaffEmail Nothing     = renderMutedText "No linked login"
 renderXeroStaffEmail (Just user) = [hsx|<span>{user.email}</span>|]
 
 renderMutedText :: Text -> Html
@@ -686,5 +690,5 @@ staffFullName staff =
     Text.strip (staff.firstName <> " " <> staff.lastName)
 
 renderConnectedBy :: Maybe User -> Html
-renderConnectedBy Nothing = mempty
+renderConnectedBy Nothing     = mempty
 renderConnectedBy (Just user) = [hsx|<span> by {user.email}</span>|]
