@@ -1,11 +1,11 @@
 module Application.Support.PayrollFixtures where
 
+import Application.Helper.Pay (buildPayConfigSnapshotPayload)
 import Application.Helper.RosterGroups (ensureVenueRosterDefaults,
                                         fetchVenueDayNames)
 import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Support
 import Config
-import qualified Data.Aeson as Aeson
 import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -103,65 +103,7 @@ createPayrollSnapshotWithVersion venue admin versionNumber awardLevels shiftType
     awardLevelBaseRates <- query @AwardLevelBaseRate |> orderByAsc #createdAt |> fetch
     awardLevelPenaltyRates <- query @AwardLevelPenaltyRate |> orderByAsc #createdAt |> fetch
     createPayConfigSnapshotRecord venue admin versionNumber $
-        Aeson.object
-            [ "venueConfig" Aeson..= Aeson.object
-                [ "id" Aeson..= unpackId venueConfig.id
-                , "timezone" Aeson..= venueConfig.timezone
-                , "rosterWeekStartsOn" Aeson..= venueConfig.rosterWeekStartsOn
-                , "weekOffsetEpoch" Aeson..= venueConfig.weekOffsetEpoch
-                , "lateToEarlyMinStartGapMinutes" Aeson..= venueConfig.lateToEarlyMinStartGapMinutes
-                , "staffTimesheetEditWindowDays" Aeson..= venueConfig.staffTimesheetEditWindowDays
-                , "publicHolidayJurisdiction" Aeson..= venueConfig.publicHolidayJurisdiction
-                ]
-            , "awardLevels" Aeson..= map serializeAwardLevel awardLevels
-            , "awardLevelBaseRates" Aeson..= map serializeAwardLevelBaseRate awardLevelBaseRates
-            , "awardLevelPenaltyRates" Aeson..= map serializeAwardLevelPenaltyRate awardLevelPenaltyRates
-            , "shiftTypes" Aeson..= map serializeShiftType shiftTypes
-            ]
-    where
-        serializeAwardLevel awardLevel =
-            Aeson.object
-                [ "id" Aeson..= unpackId awardLevel.id
-                , "awardFixedId" Aeson..= awardLevel.awardFixedId
-                , "classificationFixedId" Aeson..= awardLevel.classificationFixedId
-                , "classification" Aeson..= awardLevel.classification
-                , "classificationLevel" Aeson..= awardLevel.classificationLevel
-                , "parentClassificationName" Aeson..= awardLevel.parentClassificationName
-                , "isActive" Aeson..= awardLevel.isActive
-                ]
-
-        serializeAwardLevelBaseRate rate =
-            Aeson.object
-                [ "id" Aeson..= unpackId rate.id
-                , "awardLevelId" Aeson..= rate.awardLevelId
-                , "employmentBasis" Aeson..= inputValue rate.employmentBasis
-                , "hourlyRate" Aeson..= rate.hourlyRate
-                , "rateLabel" Aeson..= rate.rateLabel
-                , "operativeFrom" Aeson..= rate.operativeFrom
-                , "operativeTo" Aeson..= rate.operativeTo
-                ]
-
-        serializeAwardLevelPenaltyRate rate =
-            Aeson.object
-                [ "id" Aeson..= unpackId rate.id
-                , "awardLevelId" Aeson..= rate.awardLevelId
-                , "employmentBasis" Aeson..= inputValue rate.employmentBasis
-                , "penaltyKind" Aeson..= inputValue rate.penaltyKind
-                , "hourlyRate" Aeson..= rate.hourlyRate
-                , "startsAtTime" Aeson..= rate.startsAtTime
-                , "endsAtTime" Aeson..= rate.endsAtTime
-                , "operativeFrom" Aeson..= rate.operativeFrom
-                , "operativeTo" Aeson..= rate.operativeTo
-                ]
-
-        serializeShiftType shiftType =
-            Aeson.object
-                [ "id" Aeson..= unpackId shiftType.id
-                , "name" Aeson..= shiftType.name
-                , "sortOrder" Aeson..= shiftType.sortOrder
-                , "overrideAwardLevelId" Aeson..= shiftType.overrideAwardLevelId
-                , "isActive" Aeson..= shiftType.isActive
-                ]
+        buildPayConfigSnapshotPayload venueConfig awardLevels awardLevelBaseRates awardLevelPenaltyRates shiftTypes
 
 seedCanonicalPayrollFixture :: (?modelContext :: ModelContext) => IO CanonicalPayrollFixture
 seedCanonicalPayrollFixture = seedCanonicalPayrollFixtureForWeek defaultWeekEpoch

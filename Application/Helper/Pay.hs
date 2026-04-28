@@ -207,66 +207,83 @@ buildCurrentVenuePayConfigSnapshotPayload = do
     awardLevelPenaltyRates <- query @AwardLevelPenaltyRate |> orderByAsc #createdAt |> fetch
     shiftTypes <- query @ShiftType |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #createdAt |> fetch
 
-    pure $
-        Aeson.object
-            [ "venueConfig" Aeson..= Aeson.object
-                [ "id" Aeson..= unpackId (get #id venueConfig)
-                , "timezone" Aeson..= venueConfig.timezone
-                , "rosterWeekStartsOn" Aeson..= venueConfig.rosterWeekStartsOn
-                , "weekOffsetEpoch" Aeson..= venueConfig.weekOffsetEpoch
-                , "lateToEarlyMinStartGapMinutes" Aeson..= venueConfig.lateToEarlyMinStartGapMinutes
-                , "staffTimesheetEditWindowDays" Aeson..= venueConfig.staffTimesheetEditWindowDays
-                , "publicHolidayJurisdiction" Aeson..= venueConfig.publicHolidayJurisdiction
-                ]
-            , "awardLevels" Aeson..= map serializeAwardLevel awardLevels
-            , "awardLevelBaseRates" Aeson..= map serializeAwardLevelBaseRate awardLevelBaseRates
-            , "awardLevelPenaltyRates" Aeson..= map serializeAwardLevelPenaltyRate awardLevelPenaltyRates
-            , "shiftTypes" Aeson..= map serializeShiftType shiftTypes
-            ]
-    where
-        serializeAwardLevel awardLevel =
-            Aeson.object
-                [ "id" Aeson..= unpackId (get #id awardLevel)
-                , "awardFixedId" Aeson..= awardLevel.awardFixedId
-                , "classificationFixedId" Aeson..= awardLevel.classificationFixedId
-                , "classification" Aeson..= awardLevel.classification
-                , "classificationLevel" Aeson..= awardLevel.classificationLevel
-                , "parentClassificationName" Aeson..= awardLevel.parentClassificationName
-                , "isActive" Aeson..= awardLevel.isActive
-                ]
+    pure (buildPayConfigSnapshotPayload venueConfig awardLevels awardLevelBaseRates awardLevelPenaltyRates shiftTypes)
 
-        serializeAwardLevelBaseRate rate =
-            Aeson.object
-                [ "id" Aeson..= unpackId (get #id rate)
-                , "awardLevelId" Aeson..= rate.awardLevelId
-                , "employmentBasis" Aeson..= inputValue rate.employmentBasis
-                , "hourlyRate" Aeson..= rate.hourlyRate
-                , "rateLabel" Aeson..= rate.rateLabel
-                , "operativeFrom" Aeson..= rate.operativeFrom
-                , "operativeTo" Aeson..= rate.operativeTo
-                ]
+buildPayConfigSnapshotPayload ::
+    VenueConfig ->
+    [AwardLevel] ->
+    [AwardLevelBaseRate] ->
+    [AwardLevelPenaltyRate] ->
+    [ShiftType] ->
+    Aeson.Value
+buildPayConfigSnapshotPayload venueConfig awardLevels awardLevelBaseRates awardLevelPenaltyRates shiftTypes =
+    Aeson.object
+        [ "venueConfig" Aeson..= serializeVenueConfig venueConfig
+        , "awardLevels" Aeson..= map serializeAwardLevel awardLevels
+        , "awardLevelBaseRates" Aeson..= map serializeAwardLevelBaseRate awardLevelBaseRates
+        , "awardLevelPenaltyRates" Aeson..= map serializeAwardLevelPenaltyRate awardLevelPenaltyRates
+        , "shiftTypes" Aeson..= map serializeShiftType shiftTypes
+        ]
 
-        serializeAwardLevelPenaltyRate rate =
-            Aeson.object
-                [ "id" Aeson..= unpackId (get #id rate)
-                , "awardLevelId" Aeson..= rate.awardLevelId
-                , "employmentBasis" Aeson..= inputValue rate.employmentBasis
-                , "penaltyKind" Aeson..= inputValue rate.penaltyKind
-                , "hourlyRate" Aeson..= rate.hourlyRate
-                , "startsAtTime" Aeson..= rate.startsAtTime
-                , "endsAtTime" Aeson..= rate.endsAtTime
-                , "operativeFrom" Aeson..= rate.operativeFrom
-                , "operativeTo" Aeson..= rate.operativeTo
-                ]
+serializeVenueConfig :: VenueConfig -> Aeson.Value
+serializeVenueConfig venueConfig =
+    Aeson.object
+        [ "id" Aeson..= unpackId (get #id venueConfig)
+        , "timezone" Aeson..= venueConfig.timezone
+        , "rosterWeekStartsOn" Aeson..= venueConfig.rosterWeekStartsOn
+        , "weekOffsetEpoch" Aeson..= venueConfig.weekOffsetEpoch
+        , "lateToEarlyMinStartGapMinutes" Aeson..= venueConfig.lateToEarlyMinStartGapMinutes
+        , "staffTimesheetEditWindowDays" Aeson..= venueConfig.staffTimesheetEditWindowDays
+        , "publicHolidayJurisdiction" Aeson..= venueConfig.publicHolidayJurisdiction
+        ]
 
-        serializeShiftType shiftType =
-            Aeson.object
-                [ "id" Aeson..= unpackId (get #id shiftType)
-                , "name" Aeson..= shiftType.name
-                , "sortOrder" Aeson..= shiftType.sortOrder
-                , "overrideAwardLevelId" Aeson..= shiftType.overrideAwardLevelId
-                , "isActive" Aeson..= shiftType.isActive
-                ]
+serializeAwardLevel :: AwardLevel -> Aeson.Value
+serializeAwardLevel awardLevel =
+    Aeson.object
+        [ "id" Aeson..= unpackId (get #id awardLevel)
+        , "awardFixedId" Aeson..= awardLevel.awardFixedId
+        , "classificationFixedId" Aeson..= awardLevel.classificationFixedId
+        , "classification" Aeson..= awardLevel.classification
+        , "classificationLevel" Aeson..= awardLevel.classificationLevel
+        , "parentClassificationName" Aeson..= awardLevel.parentClassificationName
+        , "isActive" Aeson..= awardLevel.isActive
+        ]
+
+serializeAwardLevelBaseRate :: AwardLevelBaseRate -> Aeson.Value
+serializeAwardLevelBaseRate rate =
+    Aeson.object
+        [ "id" Aeson..= unpackId (get #id rate)
+        , "awardLevelId" Aeson..= rate.awardLevelId
+        , "employmentBasis" Aeson..= inputValue rate.employmentBasis
+        , "hourlyRate" Aeson..= rate.hourlyRate
+        , "rateLabel" Aeson..= rate.rateLabel
+        , "operativeFrom" Aeson..= rate.operativeFrom
+        , "operativeTo" Aeson..= rate.operativeTo
+        ]
+
+serializeAwardLevelPenaltyRate :: AwardLevelPenaltyRate -> Aeson.Value
+serializeAwardLevelPenaltyRate rate =
+    Aeson.object
+        [ "id" Aeson..= unpackId (get #id rate)
+        , "awardLevelId" Aeson..= rate.awardLevelId
+        , "employmentBasis" Aeson..= inputValue rate.employmentBasis
+        , "penaltyKind" Aeson..= inputValue rate.penaltyKind
+        , "hourlyRate" Aeson..= rate.hourlyRate
+        , "startsAtTime" Aeson..= rate.startsAtTime
+        , "endsAtTime" Aeson..= rate.endsAtTime
+        , "operativeFrom" Aeson..= rate.operativeFrom
+        , "operativeTo" Aeson..= rate.operativeTo
+        ]
+
+serializeShiftType :: ShiftType -> Aeson.Value
+serializeShiftType shiftType =
+    Aeson.object
+        [ "id" Aeson..= unpackId (get #id shiftType)
+        , "name" Aeson..= shiftType.name
+        , "sortOrder" Aeson..= shiftType.sortOrder
+        , "overrideAwardLevelId" Aeson..= shiftType.overrideAwardLevelId
+        , "isActive" Aeson..= shiftType.isActive
+        ]
 
 fetchTimesheetPay :: (?modelContext :: ModelContext) => Id TimesheetEntry -> IO (Either Text TimesheetPayResult)
 fetchTimesheetPay entryId = do
