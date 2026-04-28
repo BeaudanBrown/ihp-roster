@@ -142,7 +142,7 @@ Required scopes for the first connection:
 
 - `offline_access`
 - `payroll.employees.read`
-- `payroll.settings.read`
+- `payroll.settings`
 - `payroll.timesheets`
 
 Add `payroll.timesheets.read` only if manual verification shows the configured

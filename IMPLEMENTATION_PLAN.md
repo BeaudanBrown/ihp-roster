@@ -168,7 +168,7 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **Status:** [ ]
 - **File:** `plans/57-xero-payroll-integration.md`
 - **Focus:** connect each venue to Xero Payroll AU, map IHP staff and earning buckets to Xero employees and earnings rates, preview approved IHP payroll weeks as Xero timesheet payloads, and submit draft Xero timesheets with auditable request/response history.
-- **Priority note:** start with read-only sync, explicit mapping, deterministic preview, and draft-timesheet submission. Defer automatic employee/pay-item creation until the core connector is proven against a demo company and a payroll-enabled organisation.
+- **Priority note:** read-only sync, base mapping, and durable pay item requirement records are in place. Next, add admin-reviewed live Xero earnings-rate pay item create/update actions from IHP/FWC award data before deterministic timesheet preview. Employee creation remains deferred; pay item creation is now part of the first practical milestone.
 
 ## Parallelism Rules
 
