@@ -1501,6 +1501,40 @@ EOF
                             shard_pids=()
                             shard_statuses=()
 
+                            E2E_SERVER_MODE="''${E2E_SERVER_MODE:-}"
+                            if [ -z "$E2E_SERVER_MODE" ]; then
+                                if [ "$E2E_SHARDS" -gt 1 ]; then
+                                    E2E_SERVER_MODE="compiled"
+                                else
+                                    E2E_SERVER_MODE="dev"
+                                fi
+                            fi
+
+                            E2E_SERVER_BIN=""
+                            if [ "$E2E_SERVER_MODE" = "compiled" ]; then
+                                E2E_BUILD_DIR="$STATE_DIR/build"
+                                E2E_SERVER_BIN="$E2E_BUILD_DIR/RunE2EApp"
+                                mkdir -p "$E2E_BUILD_DIR/obj" "$E2E_BUILD_DIR/hi"
+                                GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
+                                  | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+                                ghc $GHC_OPTS Main.hs -o "$E2E_SERVER_BIN" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi"
+                            elif [ "$E2E_SERVER_MODE" != "dev" ]; then
+                                echo "E2E_SERVER_MODE must be compiled or dev, got: $E2E_SERVER_MODE" >&2
+                                exit 1
+                            fi
+
+                            find_e2e_port() {
+                                local start_port="$1"
+                                local port
+                                for port in $(seq "$start_port" 8999); do
+                                    if ! lsof -Pan -iTCP:"$port" -sTCP:LISTEN >/dev/null 2>&1; then
+                                        printf '%s\n' "$port"
+                                        return 0
+                                    fi
+                                done
+                                return 1
+                            }
+
                             run_e2e_shard() {
                                 local shard_index="$1"
                                 shift
@@ -1539,7 +1573,13 @@ SQL
 
                                     test-db-reset
 
-                                    setsid test-e2e-server </dev/null >>"$shard_log" 2>&1 &
+                                    if [ "$E2E_SERVER_MODE" = "compiled" ]; then
+                                        local shard_port
+                                        shard_port="$(find_e2e_port "$((8100 + (shard_index - 1) * 20))")"
+                                        PORT="$shard_port" IHP_BROWSER=echo setsid "$E2E_SERVER_BIN" </dev/null >>"$shard_log" 2>&1 &
+                                    else
+                                        setsid test-e2e-server </dev/null >>"$shard_log" 2>&1 &
+                                    fi
                                     local server_pid="$!"
                                     echo "$server_pid" > "$shard_pid_file"
 

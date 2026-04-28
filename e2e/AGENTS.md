@@ -56,6 +56,7 @@ bash ./bin/in-env pwcli --help
 - The local project Postgres socket under `build/db` must be available
 - `bash ./bin/in-env e2e` now shards the full suite across at most two app-server shards by default when no interactive or focused Playwright args are passed
 - Each shard gets its own ephemeral database, dedicated app server, blob report, and test-results directory under `.devenv/e2e/<run-id>/`
+- Parallel full-suite runs default to a single compiled app executable under the run artifact directory instead of multiple live-reload `RunDevServer` instances. This avoids GHCi/file-watcher/schema-codegen reload races against the shared working tree. Set `E2E_SERVER_MODE=dev` only when intentionally debugging the dev-server path.
 - The wrapper merges shard blob reports into one HTML report and updates `.devenv/e2e/latest-report`
 - Focused or interactive runs such as `--ui`, `--headed`, `--debug`, explicit file paths, `--project`, or `--grep` default back to a single shard unless `E2E_SHARDS` is set explicitly
 - Test data is seeded automatically via `global-setup.ts` before tests run
