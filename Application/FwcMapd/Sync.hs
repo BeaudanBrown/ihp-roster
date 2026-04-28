@@ -490,23 +490,11 @@ populateAwardLevelProjection awardFixedId syncedAt = do
     classifications <-
         query @FwcMapdClassification
             |> filterWhere (#awardFixedId, awardFixedId)
+            |> filterWhere (#syncedAt, syncedAt)
             |> orderByAsc #classification
             |> fetch
-    awardLevels <- forM classifications \classification ->
-        newRecord @AwardLevel
-            |> set #awardFixedId classification.awardFixedId
-            |> set #classificationFixedId classification.classificationFixedId
-            |> set #classification classification.classification
-            |> set #classificationLevel classification.classificationLevel
-            |> set #parentClassificationName classification.parentClassificationName
-            |> set #clauseDescription classification.clauseDescription
-            |> set #operativeFrom classification.operativeFrom
-            |> set #operativeTo classification.operativeTo
-            |> set #publishedYear classification.publishedYear
-            |> set #isActive True
-            |> set #rawJson classification.rawJson
-            |> set #syncedAt syncedAt
-            |> createRecord
+    markMissingAwardLevelsInactive awardFixedId (Set.fromList (map (.classificationFixedId) classifications))
+    awardLevels <- forM classifications (upsertAwardLevel syncedAt)
 
     let awardLevelByClassificationFixedId =
             Map.fromList
@@ -515,6 +503,7 @@ populateAwardLevelProjection awardFixedId syncedAt = do
     payRates <-
         query @FwcMapdPayRate
             |> filterWhere (#awardFixedId, awardFixedId)
+            |> filterWhere (#syncedAt, syncedAt)
             |> orderByAsc #classification
             |> fetch
     let awardLevelByBasePayRateId =
@@ -543,6 +532,7 @@ populateAwardLevelProjection awardFixedId syncedAt = do
     penaltyRates <-
         query @FwcMapdPenaltyRate
             |> filterWhere (#awardFixedId, awardFixedId)
+            |> filterWhere (#syncedAt, syncedAt)
             |> orderByAsc #classification
             |> fetch
     void $
@@ -555,7 +545,54 @@ populateAwardLevelProjection awardFixedId syncedAt = do
             (createPenaltyRateIfNew awardLevelByClassificationFixedId awardLevelByBasePayRateId)
             Set.empty
             penaltyRates
-    populateTimePenaltyAllowances awardFixedId
+    populateTimePenaltyAllowances awardFixedId syncedAt
+
+markMissingAwardLevelsInactive :: (?modelContext :: ModelContext) => Int -> Set.Set Int -> IO ()
+markMissingAwardLevelsInactive awardFixedId currentClassificationFixedIds = do
+    existingAwardLevels <-
+        query @AwardLevel
+            |> filterWhere (#awardFixedId, awardFixedId)
+            |> fetch
+    forM_ existingAwardLevels \awardLevel ->
+        when (awardLevel.isActive && not (Set.member awardLevel.classificationFixedId currentClassificationFixedIds)) do
+            void (awardLevel |> set #isActive False |> updateRecord)
+
+upsertAwardLevel :: (?modelContext :: ModelContext) => UTCTime -> FwcMapdClassification -> IO AwardLevel
+upsertAwardLevel syncedAt classification = do
+    existingAwardLevel <-
+        query @AwardLevel
+            |> filterWhere (#awardFixedId, classification.awardFixedId)
+            |> filterWhere (#classificationFixedId, classification.classificationFixedId)
+            |> fetchOneOrNothing
+    case existingAwardLevel of
+        Just awardLevel ->
+            awardLevel
+                |> set #classification classification.classification
+                |> set #classificationLevel classification.classificationLevel
+                |> set #parentClassificationName classification.parentClassificationName
+                |> set #clauseDescription classification.clauseDescription
+                |> set #operativeFrom classification.operativeFrom
+                |> set #operativeTo classification.operativeTo
+                |> set #publishedYear classification.publishedYear
+                |> set #isActive True
+                |> set #rawJson classification.rawJson
+                |> set #syncedAt syncedAt
+                |> updateRecord
+        Nothing ->
+            newRecord @AwardLevel
+                |> set #awardFixedId classification.awardFixedId
+                |> set #classificationFixedId classification.classificationFixedId
+                |> set #classification classification.classification
+                |> set #classificationLevel classification.classificationLevel
+                |> set #parentClassificationName classification.parentClassificationName
+                |> set #clauseDescription classification.clauseDescription
+                |> set #operativeFrom classification.operativeFrom
+                |> set #operativeTo classification.operativeTo
+                |> set #publishedYear classification.publishedYear
+                |> set #isActive True
+                |> set #rawJson classification.rawJson
+                |> set #syncedAt syncedAt
+                |> createRecord
 
 createBaseRateIfNew ::
     (?modelContext :: ModelContext) =>
@@ -570,18 +607,15 @@ createBaseRateIfNew awardLevelByClassificationFixedId seen payRate =
             if Set.member key seen
                 then pure seen
                 else do
-                    void
-                        ( newRecord @AwardLevelBaseRate
-                            |> set #awardLevelId (unpackId awardLevel.id)
-                            |> set #employmentBasis employmentBasis
-                            |> set #fwcMapdPayRateId (unpackId payRate.id)
-                            |> set #hourlyRate hourlyRate
-                            |> set #rateLabel rateLabel
-                            |> set #operativeFrom payRate.operativeFrom
-                            |> set #operativeTo payRate.operativeTo
-                            |> set #publishedYear payRate.publishedYear
-                            |> createRecord
-                        )
+                    upsertBaseRate
+                        awardLevel
+                        employmentBasis
+                        (unpackId payRate.id)
+                        hourlyRate
+                        rateLabel
+                        payRate.operativeFrom
+                        payRate.operativeTo
+                        payRate.publishedYear
                     pure (Set.insert key seen)
         _ -> pure seen
 
@@ -602,18 +636,15 @@ createCasualBaseRateIfNew awardLevelByBasePayRateId payRateByBasePayRateId seen 
                         if Set.member key seen
                             then pure seen
                             else do
-                                void
-                                    ( newRecord @AwardLevelBaseRate
-                                        |> set #awardLevelId (unpackId awardLevel.id)
-                                        |> set #employmentBasis Casual
-                                        |> set #fwcMapdPayRateId (unpackId sourcePayRate.id)
-                                        |> set #hourlyRate hourlyRate
-                                        |> set #rateLabel ("Casual ordinary hours" :: Text)
-                                        |> set #operativeFrom penaltyRate.operativeFrom
-                                        |> set #operativeTo penaltyRate.operativeTo
-                                        |> set #publishedYear penaltyRate.publishedYear
-                                        |> createRecord
-                                    )
+                                upsertBaseRate
+                                    awardLevel
+                                    Casual
+                                    (unpackId sourcePayRate.id)
+                                    hourlyRate
+                                    "Casual ordinary hours"
+                                    penaltyRate.operativeFrom
+                                    penaltyRate.operativeTo
+                                    penaltyRate.publishedYear
                                 pure (Set.insert key seen)
                     _ -> pure seen
         _ -> pure seen
@@ -633,28 +664,106 @@ createPenaltyRateIfNew awardLevelByClassificationFixedId awardLevelByBasePayRate
             if Set.member key seen
                 then pure seen
                 else do
-                    void
-                        ( newRecord @AwardLevelPenaltyRate
-                            |> set #awardLevelId (unpackId awardLevel.id)
-                            |> set #employmentBasis employmentBasis
-                            |> set #penaltyKind penaltyKind
-                            |> set #fwcMapdPenaltyRateId (unpackId penaltyRate.id)
-                            |> set #hourlyRate hourlyRate
-                            |> set #startsAtTime (penaltyWindowStart penaltyKind)
-                            |> set #endsAtTime (penaltyWindowEnd penaltyKind)
-                            |> set #operativeFrom penaltyRate.operativeFrom
-                            |> set #operativeTo penaltyRate.operativeTo
-                            |> set #publishedYear penaltyRate.publishedYear
-                            |> createRecord
-                        )
+                    upsertPenaltyRate
+                        awardLevel
+                        employmentBasis
+                        penaltyKind
+                        (unpackId penaltyRate.id)
+                        hourlyRate
+                        penaltyRate.operativeFrom
+                        penaltyRate.operativeTo
+                        penaltyRate.publishedYear
                     pure (Set.insert key seen)
         _ -> pure seen
 
-populateTimePenaltyAllowances :: (?modelContext :: ModelContext) => Int -> IO ()
-populateTimePenaltyAllowances awardFixedId = do
+upsertBaseRate ::
+    (?modelContext :: ModelContext) =>
+    AwardLevel ->
+    StaffEmploymentBasisEnum ->
+    UUID ->
+    Scientific ->
+    Text ->
+    Maybe Day ->
+    Maybe Day ->
+    Maybe Int ->
+    IO ()
+upsertBaseRate awardLevel employmentBasis fwcMapdPayRateId hourlyRate rateLabel operativeFrom operativeTo publishedYear = do
+    existingBaseRate <-
+        query @AwardLevelBaseRate
+            |> filterWhere (#awardLevelId, unpackId awardLevel.id)
+            |> filterWhere (#employmentBasis, employmentBasis)
+            |> filterWhere (#operativeFrom, operativeFrom)
+            |> filterWhere (#operativeTo, operativeTo)
+            |> fetchOneOrNothing
+    void case existingBaseRate of
+        Just baseRate ->
+            baseRate
+                |> set #fwcMapdPayRateId fwcMapdPayRateId
+                |> set #hourlyRate hourlyRate
+                |> set #rateLabel rateLabel
+                |> set #publishedYear publishedYear
+                |> updateRecord
+        Nothing ->
+            newRecord @AwardLevelBaseRate
+                |> set #awardLevelId (unpackId awardLevel.id)
+                |> set #employmentBasis employmentBasis
+                |> set #fwcMapdPayRateId fwcMapdPayRateId
+                |> set #hourlyRate hourlyRate
+                |> set #rateLabel rateLabel
+                |> set #operativeFrom operativeFrom
+                |> set #operativeTo operativeTo
+                |> set #publishedYear publishedYear
+                |> createRecord
+
+upsertPenaltyRate ::
+    (?modelContext :: ModelContext) =>
+    AwardLevel ->
+    StaffEmploymentBasisEnum ->
+    AwardPenaltyKindEnum ->
+    UUID ->
+    Scientific ->
+    Maybe Day ->
+    Maybe Day ->
+    Maybe Int ->
+    IO ()
+upsertPenaltyRate awardLevel employmentBasis penaltyKind fwcMapdPenaltyRateId hourlyRate operativeFrom operativeTo publishedYear = do
+    existingPenaltyRate <-
+        query @AwardLevelPenaltyRate
+            |> filterWhere (#awardLevelId, unpackId awardLevel.id)
+            |> filterWhere (#employmentBasis, employmentBasis)
+            |> filterWhere (#penaltyKind, penaltyKind)
+            |> filterWhere (#operativeFrom, operativeFrom)
+            |> filterWhere (#operativeTo, operativeTo)
+            |> fetchOneOrNothing
+    void case existingPenaltyRate of
+        Just penaltyRate ->
+            penaltyRate
+                |> set #fwcMapdPenaltyRateId fwcMapdPenaltyRateId
+                |> set #hourlyRate hourlyRate
+                |> set #startsAtTime (penaltyWindowStart penaltyKind)
+                |> set #endsAtTime (penaltyWindowEnd penaltyKind)
+                |> set #publishedYear publishedYear
+                |> updateRecord
+        Nothing ->
+            newRecord @AwardLevelPenaltyRate
+                |> set #awardLevelId (unpackId awardLevel.id)
+                |> set #employmentBasis employmentBasis
+                |> set #penaltyKind penaltyKind
+                |> set #fwcMapdPenaltyRateId fwcMapdPenaltyRateId
+                |> set #hourlyRate hourlyRate
+                |> set #startsAtTime (penaltyWindowStart penaltyKind)
+                |> set #endsAtTime (penaltyWindowEnd penaltyKind)
+                |> set #operativeFrom operativeFrom
+                |> set #operativeTo operativeTo
+                |> set #publishedYear publishedYear
+                |> createRecord
+
+populateTimePenaltyAllowances :: (?modelContext :: ModelContext) => Int -> UTCTime -> IO ()
+populateTimePenaltyAllowances awardFixedId syncedAt = do
     wageAllowances <-
         query @FwcMapdWageAllowance
             |> filterWhere (#awardFixedId, awardFixedId)
+            |> filterWhere (#syncedAt, syncedAt)
             |> orderByAsc #createdAt
             |> fetch
     void $
@@ -675,22 +784,47 @@ createTimePenaltyAllowanceIfNew seen wageAllowance =
             if Set.member key seen
                 then pure seen
                 else do
-                    void
-                        ( newRecord @AwardTimePenaltyAllowance
-                            |> set #awardFixedId wageAllowance.awardFixedId
-                            |> set #penaltyKind penaltyKind
-                            |> set #fwcMapdWageAllowanceId (unpackId wageAllowance.id)
-                            |> set #ratePercent wageAllowance.rate
-                            |> set #hourlyAmount hourlyAmount
-                            |> set #startsAtTime (penaltyWindowStart penaltyKind)
-                            |> set #endsAtTime (penaltyWindowEnd penaltyKind)
-                            |> set #operativeFrom wageAllowance.operativeFrom
-                            |> set #operativeTo wageAllowance.operativeTo
-                            |> set #publishedYear wageAllowance.publishedYear
-                            |> createRecord
-                        )
+                    upsertTimePenaltyAllowance wageAllowance penaltyKind hourlyAmount
                     pure (Set.insert key seen)
         _ -> pure seen
+
+upsertTimePenaltyAllowance ::
+    (?modelContext :: ModelContext) =>
+    FwcMapdWageAllowance ->
+    AwardPenaltyKindEnum ->
+    Scientific ->
+    IO ()
+upsertTimePenaltyAllowance wageAllowance penaltyKind hourlyAmount = do
+    existingAllowance <-
+        query @AwardTimePenaltyAllowance
+            |> filterWhere (#awardFixedId, wageAllowance.awardFixedId)
+            |> filterWhere (#penaltyKind, penaltyKind)
+            |> filterWhere (#operativeFrom, wageAllowance.operativeFrom)
+            |> filterWhere (#operativeTo, wageAllowance.operativeTo)
+            |> fetchOneOrNothing
+    void case existingAllowance of
+        Just allowance ->
+            allowance
+                |> set #fwcMapdWageAllowanceId (unpackId wageAllowance.id)
+                |> set #ratePercent wageAllowance.rate
+                |> set #hourlyAmount hourlyAmount
+                |> set #startsAtTime (penaltyWindowStart penaltyKind)
+                |> set #endsAtTime (penaltyWindowEnd penaltyKind)
+                |> set #publishedYear wageAllowance.publishedYear
+                |> updateRecord
+        Nothing ->
+            newRecord @AwardTimePenaltyAllowance
+                |> set #awardFixedId wageAllowance.awardFixedId
+                |> set #penaltyKind penaltyKind
+                |> set #fwcMapdWageAllowanceId (unpackId wageAllowance.id)
+                |> set #ratePercent wageAllowance.rate
+                |> set #hourlyAmount hourlyAmount
+                |> set #startsAtTime (penaltyWindowStart penaltyKind)
+                |> set #endsAtTime (penaltyWindowEnd penaltyKind)
+                |> set #operativeFrom wageAllowance.operativeFrom
+                |> set #operativeTo wageAllowance.operativeTo
+                |> set #publishedYear wageAllowance.publishedYear
+                |> createRecord
 
 resolvePenaltyAwardLevel :: Map.Map Int AwardLevel -> Map.Map Text AwardLevel -> FwcMapdPenaltyRate -> Maybe AwardLevel
 resolvePenaltyAwardLevel awardLevelByClassificationFixedId awardLevelByBasePayRateId penaltyRate =
@@ -782,58 +916,10 @@ penaltyWindowEnd LateNightAfterMidnight = Just (TimeOfDay 7 0 0)
 penaltyWindowEnd _ = Nothing
 
 clearExistingCache :: (?modelContext :: ModelContext) => [Int] -> IO ()
-clearExistingCache awardFixedIds = do
-    existingAwardLevelPenaltyRates <-
-        query @AwardLevelPenaltyRate
-            |> fetch
-    mapM_ deleteRecord existingAwardLevelPenaltyRates
-
-    existingAwardTimePenaltyAllowances <-
-        query @AwardTimePenaltyAllowance
-            |> filterWhereIn (#awardFixedId, awardFixedIds)
-            |> fetch
-    mapM_ deleteRecord existingAwardTimePenaltyAllowances
-
-    existingAwardLevelBaseRates <-
-        query @AwardLevelBaseRate
-            |> fetch
-    mapM_ deleteRecord existingAwardLevelBaseRates
-
-    existingAwardLevels <-
-        query @AwardLevel
-            |> filterWhereIn (#awardFixedId, awardFixedIds)
-            |> fetch
-    mapM_ deleteRecord existingAwardLevels
-
-    existingPenaltyRates <-
-        query @FwcMapdPenaltyRate
-            |> filterWhereIn (#awardFixedId, awardFixedIds)
-            |> fetch
-    mapM_ deleteRecord existingPenaltyRates
-
-    existingWageAllowances <-
-        query @FwcMapdWageAllowance
-            |> filterWhereIn (#awardFixedId, awardFixedIds)
-            |> fetch
-    mapM_ deleteRecord existingWageAllowances
-
-    existingPayRates <-
-        query @FwcMapdPayRate
-            |> filterWhereIn (#awardFixedId, awardFixedIds)
-            |> fetch
-    mapM_ deleteRecord existingPayRates
-
-    existingClassifications <-
-        query @FwcMapdClassification
-            |> filterWhereIn (#awardFixedId, awardFixedIds)
-            |> fetch
-    mapM_ deleteRecord existingClassifications
-
-    existingAwards <-
-        query @FwcMapdAward
-            |> filterWhereIn (#awardFixedId, awardFixedIds)
-            |> fetch
-    mapM_ deleteRecord existingAwards
+clearExistingCache _awardFixedIds = do
+    -- FWC projections reference raw MAPD rows. Keep both append-only so historical
+    -- award rates and staff/shift award-level references survive refreshes.
+    pure ()
 
 curateAwardData ::
     MapdCurationProfile ->

@@ -180,6 +180,89 @@ tests = do
 
     beforeAll testContext do
         describe "FWC MAPD admin data" do
+            it "keeps award level ids stable while adding new effective-dated rates" $ withContext do
+                withCleanDb do
+                    venue <- createVenueWithConfig "Award Rates"
+                    firstSyncedAt <- getCurrentTime
+                    _ <-
+                        newRecord @FwcMapdClassification
+                            |> set #awardFixedId 9
+                            |> set #classificationFixedId 101
+                            |> set #classification "Level 1"
+                            |> set #parentClassificationName (Just "Food and beverage attendant grade 1")
+                            |> set #operativeFrom (Just (fromGregorian 2025 7 1))
+                            |> set #operativeTo (Just (fromGregorian 2026 6 30))
+                            |> set #publishedYear (Just 2025)
+                            |> set #syncedAt firstSyncedAt
+                            |> createRecord
+                    _ <-
+                        newRecord @FwcMapdPayRate
+                            |> set #awardFixedId 9
+                            |> set #classificationFixedId (Just 101)
+                            |> set #classification "Level 1"
+                            |> set #parentClassificationName (Just "Food and beverage attendant grade 1")
+                            |> set #employeeRateTypeCode (Just "AD")
+                            |> set #basePayRateId (Just "BR2025")
+                            |> set #calculatedRate (Just 24.95)
+                            |> set #calculatedRateType (Just "Hourly")
+                            |> set #operativeFrom (Just (fromGregorian 2025 7 1))
+                            |> set #operativeTo (Just (fromGregorian 2026 6 30))
+                            |> set #publishedYear (Just 2025)
+                            |> set #syncedAt firstSyncedAt
+                            |> createRecord
+
+                    populateAwardLevelProjection 9 firstSyncedAt
+                    firstAwardLevel <- query @AwardLevel |> fetchOne
+                    staff <- createStaffRecord venue Nothing "Stable" "Reference"
+                    shiftType <-
+                        newRecord @ShiftType
+                            |> set #venueId (unpackId venue.id)
+                            |> set #name "Award override"
+                            |> set #overrideAwardLevelId (Just firstAwardLevel.id)
+                            |> createRecord
+                    _ <- staff |> set #defaultAwardLevelId (Just firstAwardLevel.id) |> updateRecord
+
+                    secondSyncedAt <- getCurrentTime
+                    _ <-
+                        newRecord @FwcMapdClassification
+                            |> set #awardFixedId 9
+                            |> set #classificationFixedId 101
+                            |> set #classification "Level 1"
+                            |> set #parentClassificationName (Just "Food and beverage attendant grade 1")
+                            |> set #operativeFrom (Just (fromGregorian 2026 7 1))
+                            |> set #operativeTo (Nothing :: Maybe Day)
+                            |> set #publishedYear (Just 2026)
+                            |> set #syncedAt secondSyncedAt
+                            |> createRecord
+                    _ <-
+                        newRecord @FwcMapdPayRate
+                            |> set #awardFixedId 9
+                            |> set #classificationFixedId (Just 101)
+                            |> set #classification "Level 1"
+                            |> set #parentClassificationName (Just "Food and beverage attendant grade 1")
+                            |> set #employeeRateTypeCode (Just "AD")
+                            |> set #basePayRateId (Just "BR2026")
+                            |> set #calculatedRate (Just 25.80)
+                            |> set #calculatedRateType (Just "Hourly")
+                            |> set #operativeFrom (Just (fromGregorian 2026 7 1))
+                            |> set #operativeTo (Nothing :: Maybe Day)
+                            |> set #publishedYear (Just 2026)
+                            |> set #syncedAt secondSyncedAt
+                            |> createRecord
+
+                    populateAwardLevelProjection 9 secondSyncedAt
+
+                    awardLevels <- query @AwardLevel |> fetch
+                    baseRates <- query @AwardLevelBaseRate |> orderByAsc #operativeFrom |> fetch
+                    refreshedStaff <- fetch staff.id
+                    refreshedShiftType <- fetch shiftType.id
+
+                    map (.id) awardLevels `shouldBe` [firstAwardLevel.id]
+                    refreshedStaff.defaultAwardLevelId `shouldBe` Just firstAwardLevel.id
+                    refreshedShiftType.overrideAwardLevelId `shouldBe` Just firstAwardLevel.id
+                    map (.hourlyRate) baseRates `shouldBe` [24.95, 25.80]
+                    map (.operativeFrom) baseRates `shouldBe` [Just (fromGregorian 2025 7 1), Just (fromGregorian 2026 7 1)]
+
             it "builds the support/admin award-rate view model from current core hospitality rows" $ withContext do
                 withCleanDb do
                     award <-
