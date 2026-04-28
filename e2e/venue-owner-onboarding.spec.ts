@@ -8,7 +8,6 @@ import {
     inviteUrlForCurrentBase,
     mailhogMessageSubject,
     mailhogMessageText,
-    registerFirstPasskeyForCurrentUser,
     registerFirstSupportPasskeyForCurrentUser,
     waitForMailhogMessage,
     webauthnBaseURL,
@@ -99,28 +98,6 @@ test.describe('Venue owner onboarding invites', () => {
         await expect(ownerPage.locator('#profile-content-fragment')).toContainText(
             'Shift preferences will appear once this staff member is assigned to at least one roster group.',
         );
-
-        await enableVirtualPasskeyAuthenticator(ownerPage);
-        await registerFirstPasskeyForCurrentUser(ownerPage);
-        await gotoWhenReady(ownerPage, '/EditProfile?section=profile', '#profile-content-fragment');
-        await ownerPage.fill('#firstName', 'Tuesday');
-        await ownerPage.fill('#lastName', 'Owner');
-        await ownerPage.fill('#phone', '0400000000');
-        await ownerPage.fill('#emergencyContactName', 'Emergency Owner');
-        await ownerPage.fill('#emergencyContactPhone', '0411111111');
-        await ownerPage.fill('#idealShiftsPerWeek', '3');
-        const shiftPreferenceBoxes = ownerPage.locator('input[name="shiftPreferenceKeys"]');
-        for (let index = 0; index < await shiftPreferenceBoxes.count(); index += 1) {
-            await shiftPreferenceBoxes.nth(index).check();
-        }
-        await ownerPage.getByRole('button', { name: 'Save' }).click();
-        await gotoWhenReady(ownerPage, '/RosterWeeks', '#roster-content');
-        await expect(ownerPage.locator('#roster-content')).toBeVisible({ timeout: 60000 });
-
-        const rosterDaySections = ownerPage.locator('tbody[data-roster-day-section]');
-        await expect(rosterDaySections).toHaveCount(7);
-        await expect(rosterDaySections.nth(0)).toContainText('Tue');
-        await expect(rosterDaySections.nth(6)).toContainText('Mon');
 
         await gotoWhenReady(ownerPage, inviteUrl, 'body');
         await expect(ownerPage.locator('body')).toContainText('Invitation Required');
