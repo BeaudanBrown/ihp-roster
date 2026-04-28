@@ -22,7 +22,10 @@ import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Web.Controller.Prelude
+import Web.View.Admin.Invites
 import Web.View.Admin.Index
+import Web.View.Admin.RosterGroups
+import Web.View.Admin.ShiftTypes
 import Web.View.Admin.Xero
 
 instance Controller AdminController where
