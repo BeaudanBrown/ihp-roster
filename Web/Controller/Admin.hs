@@ -15,8 +15,8 @@ import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
+import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Application.Xero.Connection
-import Control.Concurrent (forkIO)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
@@ -172,11 +172,11 @@ instance Controller AdminController where
                 if isHtmxRequest
                     then do
                         invitations <- fetchCurrentVenueInvitations
-                        queueVenueInvitationDelivery invitation
+                        void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
                         setSuccessMessage ("Invitation queued for " <> email)
                         respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
                     else do
-                        queueVenueInvitationDelivery invitation
+                        void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
                         respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
             _ ->
                 respondToInvitesSectionMutation "" currentRosterGroup.id

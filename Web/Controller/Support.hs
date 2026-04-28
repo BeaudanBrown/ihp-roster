@@ -11,16 +11,15 @@ import Application.Helper.Controller (currentSupportVenueOptions,
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
 import Application.Helper.LiveUpdate (broadcastLiveInvalidation,
                                       liveUpdateSourceClientId)
-import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail,
-                                                     venueOnboardingInvitationLifetime)
+import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.Helper.View (appendQueryParams)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
+import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobDedupeKey,
                                        publicHolidayRefreshJobKind)
 import Application.Support (createVenueWithBootstrapConfigInCurrentTransaction,
                             defaultVenueBootstrapTimezone)
 import Application.Support.LiveUpdates
-import Control.Concurrent (forkIO)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
@@ -125,7 +124,7 @@ instance Controller SupportController where
                                 |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
                                 |> createRecord
                         pure invitation
-                    queueVenueOnboardingInvitationDelivery invitation
+                    void (enqueueVenueOnboardingInvitationDeliveryJob (Just currentUser.id) invitation)
                     setSuccessMessage ("Venue owner invitation queued for " <> invitation.email)
                     redirectTo SupportAction
 
@@ -259,22 +258,6 @@ respondToPublicHolidayRefresh =
             (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
             respondHtml (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
         else redirectTo SupportAction
-
-queueVenueOnboardingInvitationDelivery ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    VenueOnboardingInvitation ->
-    IO ()
-queueVenueOnboardingInvitationDelivery invitation = do
-    let currentContext = ?context
-    let currentModelContext = ?modelContext
-    let currentRequest = ?request
-    void $
-        forkIO do
-            let ?context = currentContext
-            let ?modelContext = currentModelContext
-            let ?request = currentRequest
-            _ <- deliverVenueOnboardingInvitationEmail invitation
-            pure ()
 
 isSafeReturnPath :: Text -> Bool
 isSafeReturnPath candidate =

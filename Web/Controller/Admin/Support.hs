@@ -9,7 +9,6 @@ import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
                                           sortDayNamesForVenueWeek,
                                           validRosterWeekStartDays,
                                           weekdayIndexLabel)
-import Control.Concurrent (forkIO)
 import Control.Monad (void)
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -219,23 +218,6 @@ adminRosterGroupsScope venueId =
     AdminRosterGroupsScope
         { venueId = unpackId venueId
         }
-
-queueVenueInvitationDelivery ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    VenueInvitation ->
-    IO ()
-queueVenueInvitationDelivery invitation = do
-    let currentContext = ?context
-    let currentModelContext = ?modelContext
-    let currentRequest = ?request
-    void $
-        forkIO do
-            let ?context = currentContext
-            let ?modelContext = currentModelContext
-            let ?request = currentRequest
-            _ <- deliverVenueInvitationEmail invitation
-            broadcastAdminInvitesInvalidation (Id invitation.venueId :: Id Venue)
-            pure ()
 
 reorderActiveSlotNames :: (?modelContext :: ModelContext) => Id RosterGroup -> Id SlotName -> Int -> IO ()
 reorderActiveSlotNames rosterGroupId slotNameId direction = do

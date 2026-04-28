@@ -1,10 +1,18 @@
 module Test.VenueOnboardingInvitationSpec where
 
+import Application.Async.Queue (EnqueueAppJobResult (..))
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive,
                                                      venueOnboardingInvitationUrl)
+import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob,
+                                           performVenueOnboardingInvitationDeliveryJob,
+                                           venueOnboardingInvitationDeliveryJobKind)
+import Config (config)
 import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
+import IHP.ControllerPrelude
+import IHP.FrameworkConfig (withFrameworkConfig)
+import IHP.Job.Types
 import IHP.Prelude
 import IHP.Test.Mocking (withContext)
 import Test.Hspec
@@ -44,3 +52,54 @@ tests = beforeAll testContext do
 
                 venueOnboardingInvitationIsActive now acceptedInvitation `shouldBe` False
                 venueOnboardingInvitationIsActive now expiredInvitation `shouldBe` False
+
+        it "queues onboarding invitation delivery as a durable app job" $ withContext do
+            withCleanDb do
+                actor <- createUserRecord "onboarding-job-actor@example.com" "staff" True
+                invitation <- createVenueOnboardingInvitationRecord (Just actor) "owner-job@example.com"
+
+                enqueueResult <- enqueueVenueOnboardingInvitationDeliveryJob (Just actor.id) invitation
+
+                appJob <- case enqueueResult of
+                    EnqueuedAppJob job       -> pure job
+                    ExistingActiveAppJob job -> pure job
+
+                appJob.jobKind `shouldBe` venueOnboardingInvitationDeliveryJobKind
+                appJob.requestedByUserId `shouldBe` Just (unpackId actor.id)
+                appJob.relatedTable `shouldBe` Just "venue_onboarding_invitations"
+                appJob.relatedId `shouldBe` Just (unpackId invitation.id)
+
+        it "delivers pending onboarding invitations from the app job" $ withContext do
+            withCleanDb do
+                invitation <- createVenueOnboardingInvitationRecord Nothing "owner-delivery@example.com"
+                EnqueuedAppJob appJob <- enqueueVenueOnboardingInvitationDeliveryJob Nothing invitation
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performVenueOnboardingInvitationDeliveryJob appJob
+
+                updatedInvitation <- fetch invitation.id
+                updatedJob <- fetch appJob.id
+                inputValue updatedInvitation.deliveryStatus `shouldBe` "sent"
+                updatedInvitation.deliveryError `shouldBe` Nothing
+                updatedInvitation.deliveredAt `shouldSatisfy` isJust
+                updatedJob.status `shouldBe` JobStatusSucceeded
+
+        it "does not resend accepted onboarding invitations when a delivery job is retried" $ withContext do
+            withCleanDb do
+                invitation <- createVenueOnboardingInvitationRecord Nothing "accepted-owner-delivery@example.com"
+                now <- getCurrentTime
+                acceptedInvitation <-
+                    invitation
+                        |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
+                        |> set #acceptedAt (Just now)
+                        |> updateRecord
+                EnqueuedAppJob appJob <- enqueueVenueOnboardingInvitationDeliveryJob Nothing acceptedInvitation
+
+                withFrameworkConfig config \frameworkConfig -> do
+                    let ?context = frameworkConfig
+                    performVenueOnboardingInvitationDeliveryJob appJob
+
+                updatedInvitation <- fetch invitation.id
+                inputValue updatedInvitation.deliveryStatus `shouldBe` "queued"
+                updatedInvitation.deliveredAt `shouldBe` Nothing

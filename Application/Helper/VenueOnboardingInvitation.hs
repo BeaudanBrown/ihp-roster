@@ -4,6 +4,7 @@ import Application.Helper.EmailVerification (isEmailDeliveryDisabled)
 import Application.Helper.View (appendQueryParams)
 import qualified Control.Exception.Safe as Exception
 import IHP.EnvVar
+import IHP.FrameworkConfig (ConfigProvider)
 import IHP.Mail
 import Web.Controller.Prelude
 import Web.Mail.Users.VenueOnboardingInvitation
@@ -22,7 +23,7 @@ venueOnboardingInvitationIsActive now invitation =
         && isNothing invitation.acceptedAt
         && maybe True (> now) invitation.expiresAt
 
-sendVenueOnboardingInvitationEmail :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueOnboardingInvitation -> IO ()
+sendVenueOnboardingInvitationEmail :: (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) => VenueOnboardingInvitation -> IO ()
 sendVenueOnboardingInvitationEmail invitation = do
     fromAddress :: Text <- envOrDefault "MAIL_FROM" "noreply@dev.local"
     appBaseUrl :: Text <- envOrDefault "APP_BASE_URL" "http://localhost:8000"
@@ -34,7 +35,7 @@ sendVenueOnboardingInvitationEmail invitation = do
             , fromAddress = fromAddress
             }
 
-deliverVenueOnboardingInvitationEmail :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueOnboardingInvitation -> IO (Either Text VenueOnboardingInvitation)
+deliverVenueOnboardingInvitationEmail :: (?context :: context, ConfigProvider context, ?modelContext :: ModelContext) => VenueOnboardingInvitation -> IO (Either Text VenueOnboardingInvitation)
 deliverVenueOnboardingInvitationEmail invitation = do
     result <- Exception.tryAny (sendVenueOnboardingInvitationEmail invitation)
     now <- getCurrentTime

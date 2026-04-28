@@ -3,14 +3,16 @@ module Application.Async.Registry
     ) where
 
 import Application.FwcMapd.Job
+import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
 import Application.Xero.Keepalive
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.FrameworkConfig (FrameworkConfig)
 
 dispatchAppJob ::
-    (?modelContext :: ModelContext) =>
+    (?modelContext :: ModelContext, ?context :: FrameworkConfig) =>
     AppJob ->
     IO ()
 dispatchAppJob appJob =
@@ -18,4 +20,6 @@ dispatchAppJob appJob =
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
+        kind | kind == venueInvitationDeliveryJobKind -> performVenueInvitationDeliveryJob appJob
+        kind | kind == venueOnboardingInvitationDeliveryJobKind -> performVenueOnboardingInvitationDeliveryJob appJob
         _ -> fail ("Unknown app job kind: " <> Text.unpack appJob.jobKind)
