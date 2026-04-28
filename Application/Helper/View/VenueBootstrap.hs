@@ -1,5 +1,6 @@
 module Application.Helper.View.VenueBootstrap where
 
+import Application.Helper.WeekBoundaries (weekdayIndexLabel)
 import Generated.Types
 import IHP.ViewPrelude
 
@@ -48,20 +49,5 @@ hasVenueFieldError venue fieldName = isJust (lookup fieldName venue.meta.annotat
 
 renderWeekdayOption :: Int -> Int -> Html
 renderWeekdayOption selectedWeekday weekdayIndex = [hsx|
-    <option value={tshow weekdayIndex} selected={weekdayIndex == selectedWeekday}>{weekdayLabel weekdayIndex}</option>
+    <option value={tshow weekdayIndex} selected={weekdayIndex == selectedWeekday}>{weekdayIndexLabel weekdayIndex}</option>
 |]
-
-weekdayLabel :: Int -> Text
-weekdayLabel weekdayIndex =
-    fromMaybe ("Weekday " <> tshow weekdayIndex) (lookup weekdayIndex weekdayLabels)
-
-weekdayLabels :: [(Int, Text)]
-weekdayLabels =
-    [ (0, "Sunday")
-    , (1, "Monday")
-    , (2, "Tuesday")
-    , (3, "Wednesday")
-    , (4, "Thursday")
-    , (5, "Friday")
-    , (6, "Saturday")
-    ]
