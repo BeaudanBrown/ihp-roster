@@ -1,10 +1,9 @@
 module Application.Support where
 
-import Application.Helper.Controller (PlatformRole (..),
-                                      defaultWeekOffsetEpochForStartDay,
-                                      platformRoleToEnum, unsafeEnumFromText)
-import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
-                                        ensureVenueRosterDefaults)
+import Application.Helper.Controller (PlatformRole (..), platformRoleToEnum,
+                                      unsafeEnumFromText)
+import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
+import Application.Helper.VenueBootstrap
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
@@ -27,33 +26,6 @@ resetDatabase = do
 createVenueWithConfig :: (?modelContext :: ModelContext) => Text -> IO Venue
 createVenueWithConfig name =
     fst <$> createVenueWithBootstrapConfig name defaultVenueBootstrapTimezone 1
-
-defaultVenueBootstrapTimezone :: Text
-defaultVenueBootstrapTimezone = "Australia/Melbourne"
-
-createVenueWithBootstrapConfig :: (?modelContext :: ModelContext) => Text -> Text -> Int -> IO (Venue, VenueConfig)
-createVenueWithBootstrapConfig name timezone rosterWeekStartsOn =
-    withTransaction do
-        createVenueWithBootstrapConfigInCurrentTransaction name timezone rosterWeekStartsOn
-
-createVenueWithBootstrapConfigInCurrentTransaction :: (?modelContext :: ModelContext) => Text -> Text -> Int -> IO (Venue, VenueConfig)
-createVenueWithBootstrapConfigInCurrentTransaction name timezone rosterWeekStartsOn = do
-    venue <-
-        newRecord @Venue
-            |> set #name name
-            |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
-            |> createRecord
-    venueConfig <-
-        newRecord @VenueConfig
-            |> set #venueId (unpackId venue.id)
-            |> set #timezone timezone
-            |> set #rosterWeekStartsOn rosterWeekStartsOn
-            |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
-            |> set #lateToEarlyMinStartGapMinutes 600
-            |> set #staffTimesheetEditWindowDays 7
-            |> createRecord
-    _ <- ensureVenueRosterDefaults venue
-    pure (venue, venueConfig)
 
 createUserRecord :: (?modelContext :: ModelContext) => Text -> Text -> Bool -> IO User
 createUserRecord emailAddress globalRole isProfileCompleted =
@@ -147,46 +119,6 @@ createStaffRecord venue maybeUser firstName lastName preferredName phone emergen
 createPlaceholderStaffRecord :: (?modelContext :: ModelContext) => Venue -> Maybe User -> Text -> Text -> IO Staff
 createPlaceholderStaffRecord venue maybeUser firstName lastName =
     createStaffRecord venue maybeUser firstName lastName Nothing "0400000000" "Emergency Contact" "0411111111" 0 True
-
-ensureLinkedStaffRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> Text -> IO Staff
-ensureLinkedStaffRecord venue user firstName lastName =
-    query @Staff
-        |> filterWhere (#venueId, unpackId (get #id venue))
-        |> filterWhere (#userId, Just (unpackId (get #id user)))
-        |> fetchOneOrNothing
-        >>= \case
-            Just staff ->
-                if staff.isActive
-                    then pure staff
-                    else staff
-                        |> set #isActive True
-                        |> updateRecord
-            Nothing ->
-                createPlaceholderStaffRecord venue (Just user) firstName lastName
-
-provisionVenueMembership :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
-provisionVenueMembership venue user venueRole =
-    ensureVenueMembershipRecord venue user venueRole
-
-provisionVenueUser :: (?modelContext :: ModelContext) => Venue -> User -> Text -> Text -> Text -> IO (VenueMembership, Staff)
-provisionVenueUser venue user venueRole firstName lastName = do
-    membership <- provisionVenueMembership venue user venueRole
-    staff <- ensureLinkedStaffRecord venue user firstName lastName
-    pure (membership, staff)
-
-defaultStaffNameFromEmail :: Text -> (Text, Text)
-defaultStaffNameFromEmail emailAddress =
-    case filter (not . Text.null) (Text.split (not . Char.isAlphaNum) localPart) of
-        []                   -> ("Invited", "User")
-        [firstName]          -> (toTitleCase firstName, "User")
-        firstName:lastName:_ -> (toTitleCase firstName, toTitleCase lastName)
-    where
-        localPart = Text.takeWhile (/= '@') emailAddress
-        toTitleCase token =
-            case Text.uncons token of
-                Nothing -> "User"
-                Just (firstCharacter, remainingCharacters) ->
-                    Text.cons (Char.toUpper firstCharacter) (Text.toLower remainingCharacters)
 
 createStaffRosterGroupRecord :: (?modelContext :: ModelContext) => Staff -> RosterGroup -> IO StaffRosterGroup
 createStaffRosterGroupRecord staff rosterGroup =

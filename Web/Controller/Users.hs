@@ -3,12 +3,12 @@ module Web.Controller.Users where
 import Application.Helper.Controller (defaultRosterWeekStartsOn)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..), broadcastLiveResync,
                                       liveUpdateSourceClientId)
+import Application.Helper.VenueBootstrap (createVenueWithBootstrapConfigInCurrentTransaction,
+                                          defaultStaffNameFromEmail,
+                                          defaultVenueBootstrapTimezone,
+                                          provisionVenueMembership)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationIsActive)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
-import Application.Support (createVenueWithBootstrapConfigInCurrentTransaction,
-                            defaultStaffNameFromEmail,
-                            defaultVenueBootstrapTimezone,
-                            provisionVenueMembership)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified IHP.AuthSupport.Controller.Sessions as Sessions

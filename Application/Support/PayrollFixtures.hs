@@ -2,6 +2,7 @@ module Application.Support.PayrollFixtures where
 
 import Application.Helper.RosterGroups (ensureVenueRosterDefaults,
                                         fetchVenueDayNames)
+import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Support
 import Config
 import qualified Data.Aeson as Aeson

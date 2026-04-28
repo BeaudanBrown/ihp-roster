@@ -11,14 +11,14 @@ import Application.Helper.Controller (currentSupportVenueOptions,
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
 import Application.Helper.LiveUpdate (broadcastLiveInvalidation,
                                       liveUpdateSourceClientId)
+import Application.Helper.VenueBootstrap (createVenueWithBootstrapConfigInCurrentTransaction,
+                                          defaultVenueBootstrapTimezone)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.Helper.View (appendQueryParams)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobDedupeKey,
                                        publicHolidayRefreshJobKind)
-import Application.Support (createVenueWithBootstrapConfigInCurrentTransaction,
-                            defaultVenueBootstrapTimezone)
 import Application.Support.LiveUpdates
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson

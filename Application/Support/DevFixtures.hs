@@ -6,6 +6,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
+import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Support
 import Application.Support.Seed.Scenario
 import Control.Monad (replicateM, void)
