@@ -173,6 +173,107 @@ tests = beforeAll testContext do
                 slotNamesAuthorized `shouldBe` True
                 invitesAuthorized `shouldBe` True
 
+        it "lets current-venue users subscribe to ordinary live scopes for their venue" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "worker-live-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+
+                rosterAuthorized <- withAuthenticatedControllerContext user venue.id do
+                    isAuthorizedScope RosterWeekScope
+                        { venueId = unpackId venue.id
+                        , rosterGroupId = unpackId rosterGroup.id
+                        , weekOffset = 0
+                        }
+                rosterGroupConfigAuthorized <- withAuthenticatedControllerContext user venue.id do
+                    isAuthorizedScope RosterGroupConfigScope
+                        { venueId = unpackId venue.id
+                        , rosterGroupId = unpackId rosterGroup.id
+                        }
+                leaveAuthorized <- withAuthenticatedControllerContext user venue.id do
+                    isAuthorizedScope LeaveRequestsScope
+                        { venueId = unpackId venue.id
+                        }
+                timesheetAuthorized <- withAuthenticatedControllerContext user venue.id do
+                    isAuthorizedScope TimesheetWeekScope
+                        { venueId = unpackId venue.id
+                        , weekOffset = 0
+                        }
+
+                rosterAuthorized `shouldBe` True
+                rosterGroupConfigAuthorized `shouldBe` True
+                leaveAuthorized `shouldBe` True
+                timesheetAuthorized `shouldBe` True
+
+        it "does not let users subscribe to live scopes for another venue" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Venue A"
+                venueB <- createVenueWithConfig "Venue B"
+                admin <- createUserRecord "admin-foreign-live-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venueA admin "venue_admin"
+                rosterGroupB <- query @RosterGroup |> filterWhere (#venueId, unpackId venueB.id) |> fetchOne
+
+                rosterAuthorized <- withAuthenticatedControllerContext admin venueA.id do
+                    isAuthorizedScope RosterWeekScope
+                        { venueId = unpackId venueB.id
+                        , rosterGroupId = unpackId rosterGroupB.id
+                        , weekOffset = 0
+                        }
+                rosterGroupConfigAuthorized <- withAuthenticatedControllerContext admin venueA.id do
+                    isAuthorizedScope RosterGroupConfigScope
+                        { venueId = unpackId venueB.id
+                        , rosterGroupId = unpackId rosterGroupB.id
+                        }
+                adminXeroAuthorized <- withAuthenticatedControllerContext admin venueA.id do
+                    isAuthorizedScope AdminXeroScope
+                        { venueId = unpackId venueB.id
+                        }
+                leaveAuthorized <- withAuthenticatedControllerContext admin venueA.id do
+                    isAuthorizedScope LeaveRequestsScope
+                        { venueId = unpackId venueB.id
+                        }
+                timesheetAuthorized <- withAuthenticatedControllerContext admin venueA.id do
+                    isAuthorizedScope TimesheetWeekScope
+                        { venueId = unpackId venueB.id
+                        , weekOffset = 0
+                        }
+
+                rosterAuthorized `shouldBe` False
+                rosterGroupConfigAuthorized `shouldBe` False
+                adminXeroAuthorized `shouldBe` False
+                leaveAuthorized `shouldBe` False
+                timesheetAuthorized `shouldBe` False
+
+        it "does not let users combine their venue id with another venue's roster group in live scopes" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Venue A"
+                venueB <- createVenueWithConfig "Venue B"
+                admin <- createUserRecord "admin-mixed-roster-group-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venueA admin "venue_admin"
+                rosterGroupB <- query @RosterGroup |> filterWhere (#venueId, unpackId venueB.id) |> fetchOne
+
+                rosterAuthorized <- withAuthenticatedControllerContext admin venueA.id do
+                    isAuthorizedScope RosterWeekScope
+                        { venueId = unpackId venueA.id
+                        , rosterGroupId = unpackId rosterGroupB.id
+                        , weekOffset = 0
+                        }
+                rosterGroupConfigAuthorized <- withAuthenticatedControllerContext admin venueA.id do
+                    isAuthorizedScope RosterGroupConfigScope
+                        { venueId = unpackId venueA.id
+                        , rosterGroupId = unpackId rosterGroupB.id
+                        }
+                adminSlotNamesAuthorized <- withAuthenticatedControllerContext admin venueA.id do
+                    isAuthorizedScope AdminSlotNamesScope
+                        { venueId = unpackId venueA.id
+                        , rosterGroupId = unpackId rosterGroupB.id
+                        }
+
+                rosterAuthorized `shouldBe` False
+                rosterGroupConfigAuthorized `shouldBe` False
+                adminSlotNamesAuthorized `shouldBe` False
+
         it "lets super-admins subscribe to the support live scope without an active venue" $ withContext do
             withCleanDb do
                 founder <- createUserRecordWithPlatformRole "founder-support-live@example.com" "staff" (Just SuperAdminRole) True

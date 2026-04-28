@@ -21,6 +21,7 @@ tests = describe "LiveUpdate runtime types" do
                 , AdminShiftTypesScope { venueId }
                 , AdminRosterGroupsScope { venueId }
                 , AdminInvitesScope { venueId }
+                , AdminXeroScope { venueId }
                 , LeaveRequestsScope { venueId }
                 , TimesheetWeekScope { venueId, weekOffset = 2 }
                 , SupportPlatformScope
@@ -42,6 +43,7 @@ tests = describe "LiveUpdate runtime types" do
                 , AdminSlotNamesFragment { rosterGroupId }
                 , AdminShiftTypesFragment
                 , AdminRosterGroupsFragment
+                , AdminXeroFragment
                 , ProfileLeaveRequestsContentFragment
                 , SupportAwardRatesSectionFragment
                 , SupportPublicHolidaysSectionFragment
@@ -49,6 +51,61 @@ tests = describe "LiveUpdate runtime types" do
 
         forM_ fragmentKeys \fragmentKey ->
             Aeson.decode (Aeson.encode fragmentKey) `shouldBe` Just fragmentKey
+
+    it "uses stable live scope keys for client/server subscription matching" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
+
+        liveUpdateScopeKey RosterWeekScope { venueId, rosterGroupId, weekOffset = -1 }
+            `shouldBe` "roster_week:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:-1"
+        liveUpdateScopeKey RosterGroupConfigScope { venueId, rosterGroupId }
+            `shouldBe` "roster_group_config:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333"
+        liveUpdateScopeKey AdminSlotNamesScope { venueId, rosterGroupId }
+            `shouldBe` "admin_slot_names:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333"
+        liveUpdateScopeKey AdminShiftTypesScope { venueId }
+            `shouldBe` "admin_shift_types:11111111-1111-1111-1111-111111111111"
+        liveUpdateScopeKey AdminRosterGroupsScope { venueId }
+            `shouldBe` "admin_roster_groups:11111111-1111-1111-1111-111111111111"
+        liveUpdateScopeKey AdminInvitesScope { venueId }
+            `shouldBe` "admin_invites:11111111-1111-1111-1111-111111111111"
+        liveUpdateScopeKey AdminXeroScope { venueId }
+            `shouldBe` "admin_xero:11111111-1111-1111-1111-111111111111"
+        liveUpdateScopeKey LeaveRequestsScope { venueId }
+            `shouldBe` "leave_requests:11111111-1111-1111-1111-111111111111"
+        liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset = 2 }
+            `shouldBe` "timesheet_week:11111111-1111-1111-1111-111111111111:2"
+        liveUpdateScopeKey SupportPlatformScope
+            `shouldBe` "support_platform"
+
+    it "round-trips commands and encodes subscribed, invalidation, and error payloads as JSON" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
+        let scope = RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
+        let fragment =
+                LiveFragmentRef
+                    { fragmentKey = RosterStaffPanelFragment
+                    , targetId = "roster-staff-panel"
+                    , url = "/ShowRosterStaffPanelFragment?weekOffset=0"
+                    , deferUntilBlur = False
+                    , protectionPolicy = NoProtection
+                    }
+        let commands =
+                [ SubscribeLiveUpdates { scope, clientId = "client-1", lastSeenVersion = Nothing }
+                , SubscribeLiveUpdates { scope, clientId = "client-1", lastSeenVersion = Just 4 }
+                , UnsubscribeLiveUpdates { scope }
+                ]
+        let messages =
+                [ LiveUpdatesSubscribed { scope, currentVersion = 4, resync = False }
+                , LiveUpdatesSubscribed { scope, currentVersion = 5, resync = True }
+                , LiveUpdatesInvalidated { scope, version = 6, fragments = [fragment], sourceClientId = Just "client-1" }
+                , LiveUpdatesInvalidated { scope, version = 7, fragments = [], sourceClientId = Nothing }
+                , LiveUpdatesError { message = "Not authorized for requested live update scope" }
+                ]
+
+        forM_ commands \command ->
+            Aeson.decode (Aeson.encode command) `shouldBe` Just command
+        forM_ messages \message ->
+            (Aeson.decode (Aeson.encode message) :: Maybe Aeson.Value) `shouldSatisfy` isJust
 
     it "exposes active live scopes without leaking websocket subscription internals" do
         activeLiveUpdateScopes `shouldReturn` []
