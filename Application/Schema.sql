@@ -840,6 +840,33 @@ CREATE TABLE xero_payroll_calendar_selections (
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
+CREATE TABLE xero_pay_item_requirement_records (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    requirement_key TEXT NOT NULL,
+    display_name TEXT NOT NULL,
+    penalty_kind TEXT,
+    earnings_type TEXT DEFAULT 'ORDINARYTIMEEARNINGS' NOT NULL,
+    rate_type TEXT NOT NULL,
+    multiplier NUMERIC(12,4),
+    rate_per_unit NUMERIC(12,4),
+    source_description TEXT NOT NULL,
+    requirement_status TEXT DEFAULT 'proposed' NOT NULL,
+    xero_earnings_rate_id TEXT,
+    xero_earnings_rate_name TEXT,
+    xero_earnings_rate_rate_type TEXT,
+    last_verified_at TIMESTAMP WITH TIME ZONE,
+    created_by_user_id UUID,
+    updated_by_user_id UUID,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (requirement_status = 'proposed' OR requirement_status = 'matched' OR requirement_status = 'created' OR requirement_status = 'ignored' OR requirement_status = 'stale' OR requirement_status = 'rate_changed')
+);
 CREATE TABLE timesheet_entries (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -976,6 +1003,8 @@ CREATE UNIQUE INDEX idx_xero_earnings_rate_mappings_bucket_connection ON xero_ea
 CREATE INDEX idx_xero_earnings_rate_mappings_venue_status ON xero_earnings_rate_mappings (venue_id, mapping_status);
 CREATE UNIQUE INDEX idx_xero_payroll_calendar_selections_connection ON xero_payroll_calendar_selections (xero_connection_id);
 CREATE INDEX idx_xero_payroll_calendar_selections_venue_status ON xero_payroll_calendar_selections (venue_id, calendar_status);
+CREATE UNIQUE INDEX idx_xero_pay_item_requirement_records_connection_key ON xero_pay_item_requirement_records (xero_connection_id, requirement_key);
+CREATE INDEX idx_xero_pay_item_requirement_records_venue_status ON xero_pay_item_requirement_records (venue_id, requirement_status);
 
 CREATE OR REPLACE FUNCTION prevent_hard_delete()
 RETURNS TRIGGER
@@ -1022,6 +1051,7 @@ CREATE TRIGGER prevent_hard_delete_xero_payroll_calendars BEFORE DELETE ON xero_
 CREATE TRIGGER prevent_hard_delete_xero_staff_mappings BEFORE DELETE ON xero_staff_mappings FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_earnings_rate_mappings BEFORE DELETE ON xero_earnings_rate_mappings FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_payroll_calendar_selections BEFORE DELETE ON xero_payroll_calendar_selections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_pay_item_requirement_records BEFORE DELETE ON xero_pay_item_requirement_records FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
 CREATE OR REPLACE FUNCTION resolve_effective_pay_level(p_staff_id UUID, p_shift_type_id UUID, p_day_of_week INT)
 RETURNS UUID

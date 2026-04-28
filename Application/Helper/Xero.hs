@@ -174,7 +174,7 @@ requiredXeroScopes :: [Text]
 requiredXeroScopes =
     [ "offline_access"
     , "payroll.employees.read"
-    , "payroll.settings.read"
+    , "payroll.settings"
     , "payroll.timesheets"
     ]
 

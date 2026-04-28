@@ -14,6 +14,7 @@ import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
                                           validRosterWeekStartDays,
                                           weekdayIndexLabel)
 import Application.Helper.XeroAdminTypes
+import Application.Helper.XeroPayItems
 import Application.Xero.Connection
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
@@ -58,6 +59,7 @@ instance Controller AdminController where
         xeroStaffMappingRows <- fetchCurrentVenueXeroStaffMappingRows xeroConnection
         let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
         xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates xeroConnection
+        xeroPayItemRequirements <- fetchCurrentVenueXeroPayItemRequirements xeroConnection xeroEarningsRates
         xeroEarningsBucketRows <- fetchCurrentVenueXeroEarningsBucketRows xeroConnection
         let xeroEarningsRateMappingCounts = xeroEarningsRateMappingCountsFor xeroEarningsBucketRows
         xeroPayrollCalendars <- fetchCurrentVenueXeroPayrollCalendars xeroConnection
@@ -937,6 +939,31 @@ fetchCurrentVenueXeroEarningsBucketRows maybeConnection =
                             }
                     )
 
+fetchCurrentVenueXeroPayItemRequirements :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe XeroConnection -> [XeroEarningsRate] -> IO [XeroPayItemRequirement]
+fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
+    case maybeConnection of
+        Nothing -> pure []
+        Just connection -> do
+            awardLevels <-
+                query @AwardLevel
+                    |> filterWhere (#isActive, True)
+                    |> orderBy #classification
+                    |> fetch
+            awardLevelBaseRates <-
+                query @AwardLevelBaseRate
+                    |> orderBy #createdAt
+                    |> fetch
+            awardLevelPenaltyRates <-
+                query @AwardLevelPenaltyRate
+                    |> orderBy #createdAt
+                    |> fetch
+            awardTimePenaltyAllowances <-
+                query @AwardTimePenaltyAllowance
+                    |> orderBy #createdAt
+                    |> fetch
+            let requirements = deriveXeroPayItemRequirements awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
+            syncXeroPayItemRequirementRecords connection.id currentVenueId (Just currentUser.id) requirements
+
 currentVenueLocalXeroEarningsBuckets :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroLocalEarningsBucket]
 currentVenueLocalXeroEarningsBuckets = do
     awardLevels <-
@@ -1074,6 +1101,7 @@ respondWithXeroSectionFragmentAndToast maybeToast = do
     xeroStaffMappingRows <- profileActionSpan "admin.xero.staff_mapping.fetch_rows" (fetchCurrentVenueXeroStaffMappingRows xeroConnection)
     let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
     xeroEarningsRates <- profileActionSpan "admin.xero.earnings_mapping.fetch_rates" (fetchCurrentVenueXeroEarningsRates xeroConnection)
+    xeroPayItemRequirements <- profileActionSpan "admin.xero.pay_items.fetch_requirements" (fetchCurrentVenueXeroPayItemRequirements xeroConnection xeroEarningsRates)
     xeroEarningsBucketRows <- profileActionSpan "admin.xero.earnings_mapping.fetch_rows" (fetchCurrentVenueXeroEarningsBucketRows xeroConnection)
     let xeroEarningsRateMappingCounts = xeroEarningsRateMappingCountsFor xeroEarningsBucketRows
     xeroPayrollCalendars <- profileActionSpan "admin.xero.calendar.fetch_calendars" (fetchCurrentVenueXeroPayrollCalendars xeroConnection)
@@ -1082,7 +1110,7 @@ respondWithXeroSectionFragmentAndToast maybeToast = do
     let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
     fragmentHtml <- profileActionSpan "admin.xero.fragment.render" do
         pure $
-            renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroReadyChecklist xeroConnectionActionsAllowed
+            renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroReadyChecklist xeroConnectionActionsAllowed
     respondHtmlProfiled $
         mconcat
             [ fragmentHtml

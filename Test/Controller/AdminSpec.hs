@@ -535,12 +535,20 @@ tests = beforeAll testContext do
                 connection <- createActiveXeroConnection venue admin
                 awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
                 earningsRate <- createXeroEarningsRateRecord connection "Level 2 - Ordinary" "earnings-ordinary"
+                _ <- createXeroEarningsRateRecord connection "Saturday Penalty" "earnings-saturday"
                 payrollCalendar <- createXeroPayrollCalendarRecord connection "Weekly" "calendar-weekly"
                 let ordinaryBucketKey = "award:" <> tshow (awardLevel.awardFixedId) <> ":classification:" <> tshow (awardLevel.classificationFixedId) <> ":penalty:ordinary"
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
                 pageResponse `responseStatusShouldBe` status200
+                pageResponse `responseBodyShouldContain` "Pay item requirements"
+                pageResponse `responseBodyShouldContain` "Saturday Penalty"
+                pageResponse `responseBodyShouldContain` "1.2500x"
+                pageResponse `responseBodyShouldContain` "Evening After 7pm Loading"
+                pageResponse `responseBodyShouldContain` "$3.1500/hr"
+                pageResponse `responseBodyShouldContain` "matched"
+                pageResponse `responseBodyShouldContain` "proposed"
                 pageResponse `responseBodyShouldContain` "Earnings-rate mappings"
                 pageResponse `responseBodyShouldContain` "Level 2 - Ordinary"
                 pageResponse `responseBodyShouldContain` "name=\"xeroEarningsRateSelection\""
@@ -548,6 +556,13 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "Weekly - WEEKLY"
                 pageResponse `responseBodyShouldContain` "name=\"xeroPayrollCalendarSelection\""
                 pageResponse `responseBodyShouldContain` "Ready to submit checklist"
+                saturdayRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#requirementKey, "xero:pay-item:saturday") |> fetchOne
+                saturdayRequirement.requirementStatus `shouldBe` "matched"
+                saturdayRequirement.xeroEarningsRateName `shouldBe` Just "Saturday Penalty"
+                saturdayRequirement.multiplier `shouldBe` Just 1.25
+                eveningRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "Evening After 7pm Loading") |> fetchOne
+                eveningRequirement.requirementStatus `shouldBe` "proposed"
+                eveningRequirement.ratePerUnit `shouldBe` Just 3.15
 
                 versionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
                 mappingResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
