@@ -11,6 +11,7 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..),
                                       mkLiveFragmentRef)
 import Application.Helper.XeroAdminTypes
+import Application.Helper.XeroPayItems (xeroManagedPayItemNamePrefix)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -44,6 +45,7 @@ data IndexView = IndexView
     , xeroEarningsRateMappingCounts   :: XeroEarningsRateMappingCounts
     , xeroPayrollCalendars            :: [XeroPayrollCalendar]
     , xeroPayrollCalendarSelection    :: Maybe XeroPayrollCalendarSelection
+    , xeroPayItemAccountCodeSelection :: Maybe XeroPayItemAccountCodeSelection
     , xeroReadyChecklist              :: XeroReadyChecklist
     , xeroConnectionActionsAllowed    :: Bool
     , showInactiveRosterGroups        :: Bool
@@ -65,7 +67,7 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroReadyChecklist xeroConnectionActionsAllowed}
+                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed}
                             </div>
                         </div>
                     |]
@@ -361,21 +363,21 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
         |]
 
-renderXeroSection :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> XeroReadyChecklist -> Bool -> Html
-renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection readyChecklist connectionActionsAllowed =
+renderXeroSection :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> Html
+renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed =
     renderConfigSection
         "xero"
         "Xero"
         "Connect this venue to a Xero organisation for payroll integration setup."
         (renderXeroSummary maybeConnection)
         mempty
-        (renderXeroConnectionBody maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection readyChecklist connectionActionsAllowed)
+        (renderXeroConnectionBody maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed)
 
-renderXeroSectionFragment :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> XeroReadyChecklist -> Bool -> Html
-renderXeroSectionFragment maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection readyChecklist connectionActionsAllowed = [hsx|
+renderXeroSectionFragment :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> Html
+renderXeroSectionFragment maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed = [hsx|
     <div id="admin-xero-fragment"
          data-live-update-surface={liveSurfaceConfigJson <$> adminXeroLiveSurface}>
-        {renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection readyChecklist connectionActionsAllowed}
+        {renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed}
     </div>
 |]
 
@@ -392,8 +394,8 @@ renderXeroSummary (Just connection) = [hsx|
     </div>
 |]
 
-renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> XeroReadyChecklist -> Bool -> Html
-renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed = [hsx|
+renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> Html
+renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <p class="mb-0 app-muted">
             Connecting grants ihp-roster access to the selected Xero organisation for payroll integration setup.
@@ -401,7 +403,7 @@ renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActions
         {renderXeroConnectControl connectionActionsAllowed}
     </div>
 |]
-renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection readyChecklist connectionActionsAllowed = [hsx|
+renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <dl class="row mb-0">
             <dt class="col-sm-3">Tenant</dt>
@@ -428,7 +430,8 @@ renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun emp
             {renderXeroReconnectControls connectionActionsAllowed}
         </div>
         {renderXeroStaffMappings xeroEmployees mappingRows mappingCounts}
-        {renderXeroPayItemRequirements payItemRequirements}
+        {renderXeroPayItemAccountCodeSelection xeroEarningsRates maybePayItemAccountCodeSelection connectionActionsAllowed}
+        {renderXeroPayItemRequirements payItemRequirements maybePayItemAccountCodeSelection connectionActionsAllowed}
         {renderXeroEarningsRateMappings xeroEarningsRates earningsBucketRows earningsMappingCounts}
         {renderXeroPayrollCalendarSelection xeroPayrollCalendars maybePayrollCalendarSelection}
         {renderXeroReadyChecklist readyChecklist}
@@ -653,8 +656,66 @@ xeroStaffMappingControlId :: Id Staff -> Text
 xeroStaffMappingControlId staffId =
     "xero-staff-mapping-control-" <> tshow staffId
 
-renderXeroPayItemRequirements :: [XeroPayItemRequirement] -> Html
-renderXeroPayItemRequirements requirements
+renderXeroPayItemAccountCodeSelection :: [XeroEarningsRate] -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
+renderXeroPayItemAccountCodeSelection xeroEarningsRates maybeSelection canManagePayItems = [hsx|
+    <div class="border rounded p-3">
+        <h3 class="h6 mb-2">Pay item account code</h3>
+        <p class="small app-muted mb-3">Choose the Xero wages expense account code to use when creating managed pay items.</p>
+        <form method="POST"
+              action={SaveXeroPayItemAccountCodeSelectionAction}
+              data-disable-javascript-submission="true"
+              hx-post={pathTo SaveXeroPayItemAccountCodeSelectionAction}
+              hx-target="#admin-xero-fragment"
+              hx-swap="outerHTML">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-5">
+                    <label class="form-label small" for="xero-pay-item-account-code-selection">Synced account code</label>
+                    <select id="xero-pay-item-account-code-selection" class="form-select form-select-sm" name="xeroPayItemAccountCodeSelection" disabled={not canManagePayItems}>
+                        <option value="" selected={currentSelection == ""}>Not selected</option>
+                        {forEach accountCodeOptions (renderXeroPayItemAccountCodeOption currentSelection)}
+                        <option value="__manual__" selected={currentSelection == "__manual__"}>Use manual code</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label small" for="xero-pay-item-account-code-manual">Manual account code</label>
+                    <input id="xero-pay-item-account-code-manual" class="form-control form-control-sm" name="xeroPayItemAccountCodeManual" value={manualValue} disabled={not canManagePayItems} />
+                </div>
+                <div class="col-12 col-md-3">
+                    <button class="btn btn-outline-primary btn-sm w-100" type="submit" disabled={not canManagePayItems}>Save account code</button>
+                </div>
+            </div>
+        </form>
+    </div>
+|]
+    where
+        selectedAccountCode =
+            case maybeSelection of
+                Just selection | selection.selectionStatus == "verified" -> Text.strip <$> selection.accountCode
+                _ -> Nothing
+        accountCodeOptions =
+            xeroEarningsRates
+                |> filter (.isActive)
+                |> map (.accountCode)
+                |> catMaybes
+                |> map Text.strip
+                |> filter (not . Text.null)
+                |> List.nub
+        selectedIsObserved = maybe False (`elem` accountCodeOptions) selectedAccountCode
+        currentSelection =
+            case selectedAccountCode of
+                Just accountCode | selectedIsObserved -> accountCode
+                Just _ -> "__manual__"
+                Nothing -> ""
+        manualValue =
+            if selectedIsObserved then "" else fromMaybe "" selectedAccountCode
+
+renderXeroPayItemAccountCodeOption :: Text -> Text -> Html
+renderXeroPayItemAccountCodeOption currentSelection accountCode = [hsx|
+    <option value={accountCode} selected={currentSelection == accountCode}>{accountCode}</option>
+|]
+
+renderXeroPayItemRequirements :: [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
+renderXeroPayItemRequirements requirements maybePayItemAccountCodeSelection canManagePayItems
     | null requirements = [hsx|
         <div class="border rounded p-3">
             <h3 class="h6 mb-2">Pay item requirements</h3>
@@ -666,14 +727,16 @@ renderXeroPayItemRequirements requirements
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                 <div>
                     <h3 class="h6 mb-1">Pay item requirements</h3>
-                    <p class="small app-muted mb-0">Review the Xero earnings-rate pay items this venue needs before timesheet export mapping.</p>
+                    <p class="small app-muted mb-0">Review the managed Xero earnings-rate pay items this venue needs before timesheet export mapping. Managed names use the {xeroManagedPayItemNamePrefix} prefix.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     <span class="badge text-bg-success">{tshow matchedCount} matched</span>
                     <span class="badge text-bg-secondary">{tshow proposedCount} proposed</span>
+                    <span class="badge text-bg-warning">{tshow rateChangedCount} rate changed</span>
                     <span class="badge text-bg-warning">{tshow staleCount} stale</span>
                 </div>
             </div>
+            {renderCreateMissingXeroPayItemsControl canManagePayItems hasAccountCode proposedCount}
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead>
@@ -695,7 +758,36 @@ renderXeroPayItemRequirements requirements
     where
         matchedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "matched") requirements)
         proposedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "proposed") requirements)
+        rateChangedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "rate_changed") requirements)
         staleCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "stale") requirements)
+        hasAccountCode =
+            case maybePayItemAccountCodeSelection of
+                Just selection -> selection.selectionStatus == "verified" && maybe False (not . Text.null . Text.strip) selection.accountCode
+                Nothing -> False
+
+renderCreateMissingXeroPayItemsControl :: Bool -> Bool -> Int -> Html
+renderCreateMissingXeroPayItemsControl canManagePayItems hasAccountCode proposedCount
+    | proposedCount <= 0 = mempty
+    | otherwise = [hsx|
+        <form method="POST"
+              action={CreateMissingXeroPayItemsAction}
+              data-disable-javascript-submission="true"
+              hx-post={pathTo CreateMissingXeroPayItemsAction}
+              hx-target="#admin-xero-fragment"
+              hx-swap="outerHTML"
+              class="mb-3">
+            <button class="btn btn-outline-primary btn-sm" type="submit" disabled={not canManagePayItems || not hasAccountCode}>
+                Create {tshow proposedCount} missing pay items in Xero
+            </button>
+            {renderMissingPayItemAccountCodeNotice hasAccountCode}
+        </form>
+    |]
+
+renderMissingPayItemAccountCodeNotice :: Bool -> Html
+renderMissingPayItemAccountCodeNotice True = mempty
+renderMissingPayItemAccountCodeNotice False = [hsx|
+    <div class="small app-muted mt-2">Choose a pay item account code before creating pay items.</div>
+|]
 
 renderXeroPayItemRequirementRow :: XeroPayItemRequirement -> Html
 renderXeroPayItemRequirementRow requirement = [hsx|
@@ -863,6 +955,7 @@ renderXeroReadyChecklist checklist = [hsx|
             {renderXeroReadyChecklistItem checklist.xeroReadyReferenceSync "Latest payroll reference sync succeeded"}
             {renderXeroReadyChecklistItem checklist.xeroReadyStaffMappings "Staff mappings are complete"}
             {renderXeroReadyChecklistItem checklist.xeroReadyEarningsMappings "Earnings-rate mappings are complete"}
+            {renderXeroReadyChecklistItem checklist.xeroReadyPayItemAccountCode "Pay item account code is selected"}
             {renderXeroReadyChecklistItem checklist.xeroReadyPayrollCalendar "Payroll calendar is selected"}
         </div>
     </div>
@@ -929,12 +1022,12 @@ renderConnectedBy :: Maybe User -> Html
 renderConnectedBy Nothing = mempty
 renderConnectedBy (Just user) = [hsx|<span> by {user.email}</span>|]
 
-renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> XeroReadyChecklist -> Bool -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroReadyChecklist xeroConnectionActionsAllowed = [hsx|
+renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> Html
+renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection)}
-        {renderAccordionItem "xero" "Xero" False (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroReadyChecklist xeroConnectionActionsAllowed)}
+        {renderAccordionItem "xero" "Xero" False (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)}
     </div>

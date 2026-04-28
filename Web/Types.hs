@@ -87,8 +87,10 @@ data AdminController
     | XeroOAuthCallbackAction
     | DisconnectXeroConnectionAction
     | SyncXeroPayrollReferenceDataAction
+    | CreateMissingXeroPayItemsAction
     | SaveXeroStaffMappingAction
     | SaveXeroEarningsRateMappingAction
+    | SaveXeroPayItemAccountCodeSelectionAction
     | SaveXeroPayrollCalendarSelectionAction
     | UpdateVenueConfigAction
     | ShowAdminSlotNamesFragmentAction

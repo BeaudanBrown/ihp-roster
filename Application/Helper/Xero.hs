@@ -168,6 +168,7 @@ data XeroClient = XeroClient
     , fetchPayrollEmployees :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
     , fetchEarningsRates :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
     , fetchPayrollCalendars :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
+    , createPayItem :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
     }
 
 requiredXeroScopes :: [Text]
@@ -290,6 +291,7 @@ defaultXeroClient =
         , fetchPayrollEmployees = fetchPayrollEmployeesRequest
         , fetchEarningsRates = fetchEarningsRatesRequest
         , fetchPayrollCalendars = fetchPayrollCalendarsRequest
+        , createPayItem = createPayItemRequest
         }
 
 xeroClientRef :: IORef.IORef XeroClient
@@ -386,6 +388,11 @@ fetchPayrollCalendarsRequest accessToken tenantId =
     fmap (fmap unXeroPayrollCalendarsResponse) $
         getXeroPayrollRequest "Xero payroll calendars request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/PayrollCalendars"
 
+createPayItemRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
+createPayItemRequest accessToken tenantId idempotencyKey body =
+    fmap (fmap unXeroPayItemsResponse) $
+        postXeroPayrollRequest "Xero payroll pay item create request" accessToken tenantId idempotencyKey "https://api.xero.com/payroll.xro/1.0/PayItems" body
+
 getXeroPayrollRequest :: Aeson.FromJSON value => Text -> Text -> Text -> String -> IO (Either XeroClientError value)
 getXeroPayrollRequest label accessToken tenantId url =
     handleXeroHttpExceptions do
@@ -396,6 +403,22 @@ getXeroPayrollRequest label accessToken tenantId url =
                     |> setRequestHeader "Authorization" ["Bearer " <> TextEncoding.encodeUtf8 accessToken]
                     |> setRequestHeader "Xero-Tenant-Id" [TextEncoding.encodeUtf8 tenantId]
                     |> setRequestHeader "Accept" ["application/json"]
+        response <- httpLBS requestWithHeaders
+        decodeXeroResponse label response
+
+postXeroPayrollRequest :: Aeson.FromJSON value => Text -> Text -> Text -> Text -> String -> Aeson.Value -> IO (Either XeroClientError value)
+postXeroPayrollRequest label accessToken tenantId idempotencyKey url body =
+    handleXeroHttpExceptions do
+        request <- parseRequest url
+        let requestWithHeaders =
+                request
+                    |> setRequestMethod "POST"
+                    |> setRequestHeader "Authorization" ["Bearer " <> TextEncoding.encodeUtf8 accessToken]
+                    |> setRequestHeader "Xero-Tenant-Id" [TextEncoding.encodeUtf8 tenantId]
+                    |> setRequestHeader "Idempotency-Key" [TextEncoding.encodeUtf8 idempotencyKey]
+                    |> setRequestHeader "Accept" ["application/json"]
+                    |> setRequestHeader "Content-Type" ["application/json"]
+                    |> setRequestBodyJSON body
         response <- httpLBS requestWithHeaders
         decodeXeroResponse label response
 

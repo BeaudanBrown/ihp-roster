@@ -147,4 +147,5 @@ keepaliveXeroClient refreshResult =
         , fetchPayrollEmployees = \_ _ -> pure (Right [])
         , fetchEarningsRates = \_ _ -> pure (Right [])
         , fetchPayrollCalendars = \_ _ -> pure (Right [])
+        , createPayItem = \_ _ _ _ -> pure (Right [])
         }

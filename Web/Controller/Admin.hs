@@ -64,7 +64,8 @@ instance Controller AdminController where
         let xeroEarningsRateMappingCounts = xeroEarningsRateMappingCountsFor xeroEarningsBucketRows
         xeroPayrollCalendars <- fetchCurrentVenueXeroPayrollCalendars xeroConnection
         xeroPayrollCalendarSelection <- fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection
-        let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayrollCalendarSelection
+        xeroPayItemAccountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection
+        let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
         let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
         render IndexView { .. }
 
@@ -135,6 +136,15 @@ instance Controller AdminController where
                     else redirectTo AdminAction
             Just connection -> syncXeroPayrollReferenceData connection
 
+    action CreateMissingXeroPayItemsAction = do
+        if not currentUserIsCurrentVenueOwner
+            then respondWithXeroMappingMutationError "Only the venue owner can create pay items in Xero."
+            else do
+                maybeConnection <- fetchActiveCurrentVenueXeroConnection
+                case maybeConnection of
+                    Nothing -> respondWithXeroMappingMutationError "Connect Xero before creating pay items."
+                    Just connection -> createMissingXeroPayItems connection
+
     action SaveXeroStaffMappingAction = do
         maybeConnection <- fetchCurrentVenueXeroConnection
         case maybeConnection of
@@ -160,6 +170,22 @@ instance Controller AdminController where
                 let localBucketKey = Text.strip (paramOrDefault @Text "" "localBucketKey")
                 let selection = Text.strip (paramOrDefault @Text "" "xeroEarningsRateSelection")
                 saveXeroEarningsRateMapping connection localBucketKey selection
+
+    action SaveXeroPayItemAccountCodeSelectionAction = do
+        if not currentUserIsCurrentVenueOwner
+            then respondWithXeroMappingMutationError "Only the venue owner can choose the Xero pay item account code."
+            else do
+                maybeConnection <- fetchCurrentVenueXeroConnection
+                case maybeConnection of
+                    Nothing -> do
+                        setErrorMessage "Connect Xero before choosing a pay item account code."
+                        if isHtmxRequest
+                            then respondWithXeroSectionFragment
+                            else redirectTo AdminAction
+                    Just connection -> do
+                        let selection = Text.strip (paramOrDefault @Text "" "xeroPayItemAccountCodeSelection")
+                        let manualAccountCode = Text.strip (paramOrDefault @Text "" "xeroPayItemAccountCodeManual")
+                        saveXeroPayItemAccountCodeSelection connection selection manualAccountCode
 
     action SaveXeroPayrollCalendarSelectionAction = do
         maybeConnection <- fetchCurrentVenueXeroConnection
@@ -919,6 +945,16 @@ fetchCurrentVenueXeroPayrollCalendarSelection maybeConnection =
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
                 |> fetchOneOrNothing
 
+fetchCurrentVenueXeroPayItemAccountCodeSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO (Maybe XeroPayItemAccountCodeSelection)
+fetchCurrentVenueXeroPayItemAccountCodeSelection maybeConnection =
+    case maybeConnection of
+        Nothing -> pure Nothing
+        Just connection ->
+            query @XeroPayItemAccountCodeSelection
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchOneOrNothing
+
 fetchCurrentVenueXeroEarningsBucketRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroEarningsBucketRow]
 fetchCurrentVenueXeroEarningsBucketRows maybeConnection =
     case maybeConnection of
@@ -944,6 +980,7 @@ fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
     case maybeConnection of
         Nothing -> pure []
         Just connection -> do
+            usedScopes <- fetchCurrentVenueXeroUsedAwardPayScopes
             awardLevels <-
                 query @AwardLevel
                     |> filterWhere (#isActive, True)
@@ -961,38 +998,46 @@ fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
                 query @AwardTimePenaltyAllowance
                     |> orderBy #createdAt
                     |> fetch
-            let requirements = deriveXeroPayItemRequirements awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
+            let requirements = deriveXeroPayItemRequirements usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
             syncXeroPayItemRequirementRecords connection.id currentVenueId (Just currentUser.id) requirements
 
 currentVenueLocalXeroEarningsBuckets :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroLocalEarningsBucket]
 currentVenueLocalXeroEarningsBuckets = do
+    usedScopes <- fetchCurrentVenueXeroUsedAwardPayScopes
     awardLevels <-
         query @AwardLevel
             |> filterWhere (#isActive, True)
             |> orderBy #classification
             |> fetch
-    pure (concatMap bucketsForAwardLevel awardLevels)
-    where
-        bucketsForAwardLevel :: AwardLevel -> [XeroLocalEarningsBucket]
-        bucketsForAwardLevel awardLevel =
-            map (bucketFor awardLevel) xeroPayrollPenaltyBuckets
+    awardLevelBaseRates <-
+        query @AwardLevelBaseRate
+            |> orderBy #createdAt
+            |> fetch
+    awardLevelPenaltyRates <-
+        query @AwardLevelPenaltyRate
+            |> orderBy #createdAt
+            |> fetch
+    awardTimePenaltyAllowances <-
+        query @AwardTimePenaltyAllowance
+            |> orderBy #createdAt
+            |> fetch
+    pure (deriveXeroLocalEarningsBuckets usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances)
 
-        bucketFor :: AwardLevel -> (Text, Text) -> XeroLocalEarningsBucket
-        bucketFor awardLevel (penaltyKind, penaltyLabel) =
-            XeroLocalEarningsBucket
-                { localBucketKey = "award:" <> tshow (awardLevel.awardFixedId) <> ":classification:" <> tshow (awardLevel.classificationFixedId) <> ":penalty:" <> penaltyKind
-                , localBucketLabel = awardLevel.classification <> " - " <> penaltyLabel
-                }
-
-xeroPayrollPenaltyBuckets :: [(Text, Text)]
-xeroPayrollPenaltyBuckets =
-    [ ("ordinary", "Ordinary")
-    , ("evening_after_7pm", "Evening After 7pm")
-    , ("late_night_after_midnight", "Late Night After Midnight")
-    , ("saturday_penalty", "Saturday")
-    , ("sunday_penalty", "Sunday")
-    , ("public_holiday_penalty", "Public Holiday")
-    ]
+fetchCurrentVenueXeroUsedAwardPayScopes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroUsedAwardPayScope]
+fetchCurrentVenueXeroUsedAwardPayScopes = do
+    staffMembers <-
+        query @Staff
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
+            |> fetch
+    shiftTypes <-
+        query @ShiftType
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
+            |> fetch
+    pure (deriveXeroUsedAwardPayScopes staffMembers shiftTypes)
 
 fetchCurrentVenueXeroStaffMappingRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroStaffMappingRow]
 fetchCurrentVenueXeroStaffMappingRows maybeConnection =
@@ -1063,13 +1108,14 @@ xeroEarningsRateMappingCountsFor rows =
                 Just "unmapped" -> True
                 _               -> False
 
-buildXeroReadyChecklist :: Maybe XeroConnection -> Maybe XeroSyncRun -> [XeroStaffMappingRow] -> [XeroEarningsBucketRow] -> Maybe XeroPayrollCalendarSelection -> XeroReadyChecklist
-buildXeroReadyChecklist maybeConnection maybeSyncRun staffRows earningsRows maybeCalendarSelection =
+buildXeroReadyChecklist :: Maybe XeroConnection -> Maybe XeroSyncRun -> [XeroStaffMappingRow] -> [XeroEarningsBucketRow] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist
+buildXeroReadyChecklist maybeConnection maybeSyncRun staffRows earningsRows maybeCalendarSelection maybePayItemAccountCodeSelection =
     XeroReadyChecklist
         { xeroReadyConnection = maybe False (\connection -> connection.connectionStatus == "active") maybeConnection
         , xeroReadyReferenceSync = maybe False (\syncRun -> syncRun.syncStatus == "succeeded") maybeSyncRun
         , xeroReadyStaffMappings = not (null staffRows) && all staffRowReady staffRows
         , xeroReadyEarningsMappings = not (null earningsRows) && all earningsRowReady earningsRows
+        , xeroReadyPayItemAccountCode = maybe False (\selection -> selection.selectionStatus == "verified" && maybe False (not . Text.null . Text.strip) selection.accountCode) maybePayItemAccountCodeSelection
         , xeroReadyPayrollCalendar = maybe False (\selection -> selection.calendarStatus == "verified" && isJust selection.xeroPayrollCalendarId) maybeCalendarSelection
         }
     where
@@ -1106,11 +1152,12 @@ respondWithXeroSectionFragmentAndToast maybeToast = do
     let xeroEarningsRateMappingCounts = xeroEarningsRateMappingCountsFor xeroEarningsBucketRows
     xeroPayrollCalendars <- profileActionSpan "admin.xero.calendar.fetch_calendars" (fetchCurrentVenueXeroPayrollCalendars xeroConnection)
     xeroPayrollCalendarSelection <- profileActionSpan "admin.xero.calendar.fetch_selection" (fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection)
-    let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayrollCalendarSelection
+    xeroPayItemAccountCodeSelection <- profileActionSpan "admin.xero.pay_item_account_code.fetch_selection" (fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection)
+    let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
     let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
     fragmentHtml <- profileActionSpan "admin.xero.fragment.render" do
         pure $
-            renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroReadyChecklist xeroConnectionActionsAllowed
+            renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed
     respondHtmlProfiled $
         mconcat
             [ fragmentHtml
@@ -1439,6 +1486,71 @@ persistXeroEarningsRateMapping connection bucket mappingStatus maybeEarningsRate
     broadcastAdminXeroInvalidation currentVenueId
     respondToXeroMappingMutationSuccess message
 
+saveXeroPayItemAccountCodeSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Text ->
+    Text ->
+    IO ()
+saveXeroPayItemAccountCodeSelection connection selection manualAccountCode = do
+    let selectedAccountCode =
+            case selection of
+                "" -> ""
+                "__manual__" -> manualAccountCode
+                accountCode -> accountCode
+    case Text.strip selectedAccountCode of
+        "" -> persistXeroPayItemAccountCodeSelection connection "none" Nothing
+        accountCode
+            | Text.length accountCode > 32 ->
+                respondWithXeroMappingMutationError "Use a Xero account code up to 32 characters."
+            | otherwise ->
+                persistXeroPayItemAccountCodeSelection connection "verified" (Just accountCode)
+
+persistXeroPayItemAccountCodeSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Text ->
+    Maybe Text ->
+    IO ()
+persistXeroPayItemAccountCodeSelection connection selectionStatus maybeAccountCode = do
+    now <- getCurrentTime
+    selection <- withTransaction do
+        existingSelection <-
+            query @XeroPayItemAccountCodeSelection
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchOneOrNothing
+        let prepared record =
+                record
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #xeroConnectionId (unpackId connection.id)
+                    |> set #accountCode maybeAccountCode
+                    |> set #selectionStatus selectionStatus
+                    |> set #lastVerifiedAt (if selectionStatus == "verified" then Just now else Nothing)
+                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+        savedSelection <-
+            case existingSelection of
+                Just existing -> prepared existing |> updateRecord
+                Nothing ->
+                    prepared (newRecord @XeroPayItemAccountCodeSelection)
+                        |> set #createdByUserId (Just (unpackId currentUser.id))
+                        |> createRecord
+        void $ recordCurrentUserAuditEvent
+            "xero_pay_item_account_code_selected"
+            "xero_pay_item_account_code_selections"
+            (unpackId savedSelection.id)
+            (Aeson.object
+                [ "selectionStatus" Aeson..= selectionStatus
+                , "accountCode" Aeson..= maybeAccountCode
+                ]
+            )
+        pure savedSelection
+    let message =
+            if selection.selectionStatus == "verified"
+                then "Saved Xero pay item account code " <> fromMaybe "" selection.accountCode <> "."
+                else "Cleared Xero pay item account code."
+    broadcastAdminXeroInvalidation currentVenueId
+    respondToXeroMappingMutationSuccess message
+
 saveXeroPayrollCalendarSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
@@ -1525,6 +1637,173 @@ respondWithXeroMappingMutationError message =
         else do
             setErrorMessage message
             redirectTo AdminAction
+
+createMissingXeroPayItems ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    IO ()
+createMissingXeroPayItems connection = do
+    xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
+    requirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
+    maybeAccountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
+    let proposedRequirements = filter (\requirement -> requirement.payItemRequirementStatus == "proposed") requirements
+    case selectedXeroPayItemAccountCode maybeAccountCodeSelection of
+        Nothing -> respondWithXeroMappingMutationError "Choose a Xero pay item account code before creating pay items."
+        Just accountCode ->
+            if null proposedRequirements
+                then respondToXeroMappingMutationSuccess "No missing Xero pay items need to be created."
+                else do
+                    readXeroConfig >>= \case
+                        Left message -> respondWithXeroMappingMutationError message
+                        Right xeroConfig -> do
+                            refreshResult <- refreshXeroConnectionAccess xeroConfig connection
+                            case refreshResult of
+                                Left message -> respondWithXeroMappingMutationError message
+                                Right (refreshedConnection, accessToken) -> do
+                                    xeroClient <- currentXeroClient
+                                    now <- getCurrentTime
+                                    createResult <- createProposedXeroPayItems xeroClient refreshedConnection accessToken now accountCode proposedRequirements
+                                    case createResult of
+                                        Left message -> respondWithXeroMappingMutationError message
+                                        Right createdCount -> do
+                                            void $ recordCurrentUserAuditEvent
+                                                "xero_pay_items_created"
+                                                "xero_pay_item_requirement_records"
+                                                (unpackId refreshedConnection.id)
+                                                (Aeson.object
+                                                    [ "tenantId" Aeson..= refreshedConnection.tenantId
+                                                    , "createdCount" Aeson..= createdCount
+                                                    ]
+                                                )
+                                            broadcastAdminXeroInvalidation currentVenueId
+                                            respondToXeroMappingMutationSuccess ("Created " <> tshow createdCount <> " missing Xero pay items.")
+
+selectedXeroPayItemAccountCode :: Maybe XeroPayItemAccountCodeSelection -> Maybe Text
+selectedXeroPayItemAccountCode maybeSelection =
+    case maybeSelection of
+        Just selection | selection.selectionStatus == "verified" -> do
+            accountCode <- Text.strip <$> selection.accountCode
+            if Text.null accountCode then Nothing else Just accountCode
+        _ -> Nothing
+
+createProposedXeroPayItems ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroClient ->
+    XeroConnection ->
+    Text ->
+    UTCTime ->
+    Text ->
+    [XeroPayItemRequirement] ->
+    IO (Either Text Int)
+createProposedXeroPayItems xeroClient connection accessToken now accountCode requirements =
+    go 0 requirements
+    where
+        go createdCount [] = pure (Right createdCount)
+        go createdCount (requirement : rest) = do
+            createResult <-
+                createPayItem
+                    xeroClient
+                    accessToken
+                    connection.tenantId
+                    (xeroPayItemIdempotencyKey requirement)
+                    (xeroPayItemRequestPayload accountCode requirement)
+            case createResult of
+                Left err -> pure (Left ("Xero pay item create failed for " <> requirement.payItemRequirementName <> ": " <> xeroClientErrorText err))
+                Right createdRates ->
+                    case List.find (\rate -> rate.xeroEarningsRateName == requirement.payItemRequirementName) createdRates of
+                        Nothing ->
+                            pure (Left ("Xero created " <> requirement.payItemRequirementName <> " but did not return the created earnings rate id. Sync payroll reference data before continuing."))
+                        Just createdRate -> do
+                            persistCreatedXeroPayItem connection now requirement createdRate
+                            go (createdCount + 1) rest
+
+xeroPayItemIdempotencyKey :: XeroPayItemRequirement -> Text
+xeroPayItemIdempotencyKey requirement =
+    "bepis-pay-item-" <> maybe (Text.take 80 requirement.payItemRequirementKey) (tshow . (.id)) requirement.payItemRequirementRecord
+
+xeroPayItemRequestPayload :: Text -> XeroPayItemRequirement -> Aeson.Value
+xeroPayItemRequestPayload accountCode requirement =
+    Aeson.object
+        [ "EarningsRates" Aeson..= [xeroEarningsRatePayload accountCode requirement]
+        , "DeductionTypes" Aeson..= ([] :: [Aeson.Value])
+        , "LeaveTypes" Aeson..= ([] :: [Aeson.Value])
+        , "ReimbursementTypes" Aeson..= ([] :: [Aeson.Value])
+        ]
+
+xeroEarningsRatePayload :: Text -> XeroPayItemRequirement -> Aeson.Value
+xeroEarningsRatePayload accountCode requirement =
+    Aeson.object $
+        [ "Name" Aeson..= requirement.payItemRequirementName
+        , "TypeOfUnits" Aeson..= ("Hours" :: Text)
+        , "EarningsType" Aeson..= requirement.payItemRequirementEarningsType
+        , "RateType" Aeson..= requirement.payItemRequirementRateType
+        , "RatePerUnit" Aeson..= requirement.payItemRequirementRatePerUnit
+        , "IsExemptFromTax" Aeson..= False
+        , "IsExemptFromSuper" Aeson..= False
+        , "IsReportableAsW1" Aeson..= True
+        , "IsQualifyingEarnings" Aeson..= True
+        , "AccountCode" Aeson..= accountCode
+        ]
+
+persistCreatedXeroPayItem ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    UTCTime ->
+    XeroPayItemRequirement ->
+    XeroEarningsRateRef ->
+    IO ()
+persistCreatedXeroPayItem connection now requirement createdRate = do
+    earningsRate <- upsertXeroEarningsRate connection now createdRate
+    withTransaction do
+        maybeRequirementRecord <-
+            query @XeroPayItemRequirementRecord
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> filterWhere (#requirementKey, requirement.payItemRequirementKey)
+                |> fetchOneOrNothing
+        forM_ maybeRequirementRecord \record ->
+            record
+                |> set #requirementStatus ("created" :: Text)
+                |> set #xeroEarningsRateId (Just earningsRate.xeroEarningsRateId)
+                |> set #xeroEarningsRateName (Just earningsRate.name)
+                |> set #xeroEarningsRateRateType earningsRate.rateType
+                |> set #lastVerifiedAt (Just now)
+                |> set #updatedByUserId (Just (unpackId currentUser.id))
+                |> updateRecord
+                |> void
+        upsertCreatedXeroEarningsRateMapping connection now requirement earningsRate
+
+upsertCreatedXeroEarningsRateMapping ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    UTCTime ->
+    XeroPayItemRequirement ->
+    XeroEarningsRate ->
+    IO ()
+upsertCreatedXeroEarningsRateMapping connection now requirement earningsRate = do
+    existingMapping <-
+        query @XeroEarningsRateMapping
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#localBucketKey, requirement.payItemRequirementKey)
+            |> fetchOneOrNothing
+    let localBucketLabel = fromMaybe requirement.payItemRequirementName (Text.stripPrefix xeroManagedPayItemNamePrefix requirement.payItemRequirementName)
+    let prepared record =
+            record
+                |> set #venueId (unpackId currentVenueId)
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #localBucketKey requirement.payItemRequirementKey
+                |> set #localBucketLabel localBucketLabel
+                |> set #xeroEarningsRateId (Just earningsRate.xeroEarningsRateId)
+                |> set #xeroEarningsRateName (Just earningsRate.name)
+                |> set #mappingStatus ("verified" :: Text)
+                |> set #lastVerifiedAt (Just now)
+                |> set #updatedByUserId (Just (unpackId currentUser.id))
+    case existingMapping of
+        Just existing -> prepared existing |> updateRecord |> void
+        Nothing ->
+            prepared (newRecord @XeroEarningsRateMapping)
+                |> set #createdByUserId (Just (unpackId currentUser.id))
+                |> createRecord
+                |> void
 
 validateXeroOAuthState ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

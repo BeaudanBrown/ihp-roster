@@ -33,6 +33,12 @@ data XeroEarningsRateMappingCounts = XeroEarningsRateMappingCounts
     , xeroEarningsStaleCount    :: Int
     }
 
+data XeroUsedAwardPayScope = XeroUsedAwardPayScope
+    { usedAwardLevelId    :: UUID
+    , usedEmploymentBasis :: StaffEmploymentBasisEnum
+    }
+    deriving (Eq)
+
 data XeroPayItemRequirement = XeroPayItemRequirement
     { payItemRequirementKey         :: Text
     , payItemRequirementName        :: Text
@@ -53,5 +59,6 @@ data XeroReadyChecklist = XeroReadyChecklist
     , xeroReadyReferenceSync    :: Bool
     , xeroReadyStaffMappings    :: Bool
     , xeroReadyEarningsMappings :: Bool
+    , xeroReadyPayItemAccountCode :: Bool
     , xeroReadyPayrollCalendar  :: Bool
     }
