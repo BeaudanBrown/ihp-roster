@@ -176,7 +176,7 @@ function route(name, path) {
 }
 
 function isFragmentRoute(name) {
-    return name.includes('_fragment');
+    return name.includes('fragment');
 }
 
 function url(path) {

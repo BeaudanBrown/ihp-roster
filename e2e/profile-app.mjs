@@ -19,7 +19,7 @@ Options:
   --base-url <url>       Running app URL (default: ${DEFAULT_BASE_URL})
   --output-dir <path>    Artifact directory (default: ${DEFAULT_OUTPUT_DIR})
   --manifest <path>      Profile seed manifest (default: ${DEFAULT_MANIFEST})
-  --scenario <name>      full|roster|timesheets|leave (default: full)
+  --scenario <name>      full|roster|timesheets|leave|xero (default: full)
   --runs <n>             Measured iterations per scenario (default: ${DEFAULT_RUNS})
   --warmup-runs <n>      Warmup iterations per scenario (default: ${DEFAULT_WARMUP_RUNS})
   --email <email>        Override manifest login email
@@ -93,7 +93,7 @@ function parseArgs(argv) {
     if (!options.baseUrl) throw new Error('--base-url is required');
     if (!options.outputDir) throw new Error('--output-dir is required');
     if (!options.manifestPath) throw new Error('--manifest is required');
-    if (!['full', 'roster', 'timesheets', 'leave'].includes(options.scenario)) {
+    if (!['full', 'roster', 'timesheets', 'leave', 'xero'].includes(options.scenario)) {
         throw new Error(`Unsupported --scenario: ${options.scenario}`);
     }
     if (!Number.isFinite(options.runs) || options.runs < 1) throw new Error('--runs must be a positive number');
@@ -115,9 +115,21 @@ function absoluteUrl(baseUrl, target) {
 
 async function gotoReady(page, baseUrl, target, selector, timeoutMs) {
     const startedAt = performance.now();
-    await page.goto(absoluteUrl(baseUrl, target), { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    const url = absoluteUrl(baseUrl, target);
+    try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    } catch (error) {
+        if (!String(error?.message || '').includes('net::ERR_ABORTED')) throw error;
+        await page.waitForTimeout(250);
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    }
     if (selector) {
-        await page.locator(selector).first().waitFor({ state: 'visible', timeout: timeoutMs });
+        try {
+            await page.locator(selector).first().waitFor({ state: 'visible', timeout: timeoutMs });
+        } catch (error) {
+            const bodyText = await page.locator('body').innerText({ timeout: 1000 }).catch(() => '');
+            throw new Error(`Timed out waiting for ${selector} after navigating to ${target}; current URL: ${page.url()}; body: ${bodyText.slice(0, 500)}`, { cause: error });
+        }
     }
     await page.waitForLoadState('networkidle', { timeout: Math.min(timeoutMs, 10000) }).catch(() => null);
     return performance.now() - startedAt;
@@ -133,7 +145,46 @@ async function login(page, options, account) {
         const flashText = (await page.locator('.alert').first().textContent().catch(() => null)) || 'No flash message';
         throw new Error(`Profile login failed: ${flashText.trim()}`);
     }
-    await page.locator('#roster-content, #roster-week-shell').first().waitFor({ state: 'visible', timeout: options.timeoutMs });
+    await page.locator('.app-shell').first().waitFor({ state: 'visible', timeout: options.timeoutMs });
+}
+
+async function enableVirtualPasskeyAuthenticator(page) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('WebAuthn.enable');
+    const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+        options: {
+            protocol: 'ctap2',
+            transport: 'internal',
+            hasResidentKey: true,
+            hasUserVerification: true,
+            isUserVerified: true,
+            automaticPresenceSimulation: true,
+        },
+    });
+    await cdp.send('WebAuthn.setAutomaticPresenceSimulation', {
+        authenticatorId,
+        enabled: true,
+    });
+    return { cdp, authenticatorId };
+}
+
+async function ensurePrivilegedPasskeyReady(page, options) {
+    if (!page.url().includes('/EditProfile')) return;
+    await page.locator('#profile-content-fragment').waitFor({ state: 'visible', timeout: options.timeoutMs });
+    const securityToggle = page.getByRole('button', { name: 'Sign-In Methods' });
+    if ((await securityToggle.getAttribute('aria-expanded')) !== 'true') {
+        await securityToggle.click();
+    }
+    const addButton = page.getByRole('button', { name: 'Add passkey' });
+    await addButton.waitFor({ state: 'visible', timeout: options.timeoutMs });
+    const finishRegistration = page.waitForResponse((response) =>
+        response.request().method() === 'POST'
+        && new URL(response.url()).pathname.includes('FinishPasskeyRegistration')
+        && response.status() >= 200
+        && response.status() < 300
+    );
+    await addButton.click();
+    await finishRegistration;
 }
 
 function scenarioDefinitions(manifest) {
@@ -155,17 +206,33 @@ function scenarioDefinitions(manifest) {
             visit('leave.manager.full', routes.leaveRequests || '/LeaveRequests', '#leave-requests-shell'),
             visit('leave.profile.full', routes.profileLeave || '/EditProfile?section=leave', '#profile-content-fragment'),
         ],
+        xero: [
+            visit('xero.admin.full', routes.admin || '/Admin', '#admin-config-sections'),
+            visit('xero.admin.fragment', routes.adminXeroFragment || '/ShowAdminXeroFragment', '#admin-xero-fragment'),
+            xeroAutosave('xero.staff_mapping.autosave'),
+            xeroAutosave('xero.staff_mapping.autosave_bottom'),
+        ],
     };
 }
 
 function visit(name, target, readySelector) {
-    return { name, target, readySelector };
+    return { kind: 'visit', name, target, readySelector };
+}
+
+function xeroAutosave(name) {
+    return { kind: 'xeroAutosave', name };
 }
 
 function selectedScenarios(options, manifest) {
     const definitions = scenarioDefinitions(manifest);
     const names = options.scenario === 'full' ? ['roster', 'timesheets', 'leave'] : [options.scenario];
     return names.flatMap((name) => definitions[name]);
+}
+
+function accountForScenario(options, manifest) {
+    if (options.email || options.password) return manifest.accounts?.primaryManager;
+    if (options.scenario === 'xero') return manifest.accounts?.venueAdmin;
+    return manifest.accounts?.primaryManager;
 }
 
 function parseServerTiming(header) {
@@ -300,12 +367,103 @@ function renderMarkdown(options, manifest, summary) {
     return `${lines.join('\n')}\n`;
 }
 
+async function openXeroAdminSection(page, options, manifest) {
+    const routes = manifest.routes || {};
+    await gotoReady(page, options.baseUrl, routes.admin || '/Admin', '#admin-config-sections', options.timeoutMs);
+    const xeroToggle = page.locator('#xero-heading button').first();
+    if ((await xeroToggle.getAttribute('aria-expanded')) !== 'true') {
+        await xeroToggle.click();
+    }
+    await page.locator('#admin-xero-fragment').waitFor({ state: 'visible', timeout: options.timeoutMs });
+    await page.locator('select[name="xeroEmployeeSelection"]').first().waitFor({ state: 'visible', timeout: options.timeoutMs });
+}
+
+async function runXeroAutosaveScenario(page, options, manifest, scenario, records, iteration, warmup) {
+    const xero = manifest.xero || {};
+    if (!xero.targetStaffLabel || !xero.targetEmployeeId) {
+        throw new Error('Profile seed manifest is missing xero.targetStaffLabel or xero.targetEmployeeId');
+    }
+
+    await openXeroAdminSection(page, options, manifest);
+
+    const select = page.getByLabel(xero.targetStaffLabel);
+    await select.scrollIntoViewIfNeeded();
+
+    if (await select.inputValue() === xero.targetEmployeeId) {
+        await submitXeroMappingSelection(page, select, '');
+        await page.getByLabel(xero.targetStaffLabel).waitFor({ state: 'visible', timeout: options.timeoutMs });
+    }
+
+    const activeSelect = page.getByLabel(xero.targetStaffLabel);
+    await activeSelect.scrollIntoViewIfNeeded();
+    const beforeScrollY = await page.evaluate(() => window.scrollY);
+
+    const startedAt = performance.now();
+    const saveResponse = await submitXeroMappingSelection(page, activeSelect, xero.targetEmployeeId);
+    const wallMs = performance.now() - startedAt;
+    const serverTimingHeader = saveResponse.headers()['server-timing'];
+
+    await page.getByLabel(xero.targetStaffLabel).waitFor({ state: 'visible', timeout: options.timeoutMs });
+    await page.getByLabel(xero.targetStaffLabel).evaluate((element, expectedValue) => {
+        if (element instanceof HTMLSelectElement && element.value !== expectedValue) {
+            throw new Error(`Expected Xero mapping value ${expectedValue}, received ${element.value}`);
+        }
+    }, xero.targetEmployeeId);
+    const afterScrollY = await page.evaluate(() => window.scrollY);
+
+    const existingRecord = [...records].reverse().find((record) =>
+        record.scenario === scenario.name
+        && record.iteration === iteration
+        && record.warmup === warmup
+        && record.method === 'POST'
+        && new URL(record.url).pathname.includes('SaveXeroStaffMapping')
+    );
+    const interactionDetails = {
+        scrollBeforeY: beforeScrollY,
+        scrollAfterY: afterScrollY,
+        scrollDeltaY: afterScrollY - beforeScrollY,
+    };
+
+    if (existingRecord) {
+        existingRecord.wallMs = round(wallMs);
+        existingRecord.interaction = interactionDetails;
+    } else {
+        records.push({
+            scenario: scenario.name,
+            iteration,
+            warmup,
+            url: absoluteUrl(options.baseUrl, '/SaveXeroStaffMapping'),
+            method: 'POST',
+            status: saveResponse.status(),
+            serverTiming: serverTimingHeader ? parseServerTiming(serverTimingHeader) : [],
+            wallMs: round(wallMs),
+            interaction: interactionDetails,
+        });
+    }
+}
+
+async function submitXeroMappingSelection(page, select, value) {
+    const saveResponsePromise = page.waitForResponse((response) =>
+        response.request().method() === 'POST'
+        && new URL(response.url()).pathname.includes('SaveXeroStaffMapping')
+    );
+    await select.selectOption(value);
+    const saveResponse = await saveResponsePromise;
+    if (saveResponse.status() < 200 || saveResponse.status() >= 300) {
+        throw new Error(`Xero staff mapping save failed with status ${saveResponse.status()}`);
+    }
+    return saveResponse;
+}
+
 async function main() {
     const options = parseArgs(process.argv.slice(2));
+    if (options.scenario === 'xero') {
+        options.baseUrl = options.baseUrl.replace('127.0.0.1', 'localhost');
+    }
     const manifest = readManifest(options.manifestPath);
     const scenarios = selectedScenarios(options, manifest);
-    const account = manifest.accounts?.primaryManager;
-    if (!account) throw new Error('Profile seed manifest is missing accounts.primaryManager');
+    const account = accountForScenario(options, manifest);
+    if (!account) throw new Error(`Profile seed manifest is missing a login account for scenario: ${options.scenario}`);
 
     const records = [];
     let activeScenario = null;
@@ -315,6 +473,9 @@ async function main() {
     const browser = await chromium.launch({ headless: !options.headed });
     const context = await browser.newContext({ viewport: { width: 1900, height: 1200 } });
     const page = await context.newPage();
+    if (options.scenario === 'xero') {
+        await enableVirtualPasskeyAuthenticator(page);
+    }
 
     page.on('response', async (response) => {
         const request = response.request();
@@ -336,21 +497,28 @@ async function main() {
 
     try {
         await login(page, options, account);
+        if (options.scenario === 'xero') {
+            await ensurePrivilegedPasskeyReady(page, options);
+        }
         for (const scenario of scenarios) {
-            if (!scenario.target) continue;
+            if (scenario.kind !== 'xeroAutosave' && !scenario.target) continue;
             const totalIterations = options.warmupRuns + options.runs;
             for (let index = 0; index < totalIterations; index += 1) {
                 activeScenario = scenario.name;
                 activeIteration = index - options.warmupRuns + 1;
                 activeWarmup = index < options.warmupRuns;
-                const wallMs = await gotoReady(page, options.baseUrl, scenario.target, scenario.readySelector, options.timeoutMs);
-                const lastRecord = [...records].reverse().find((record) =>
-                    record.scenario === scenario.name
-                    && record.iteration === activeIteration
-                    && record.warmup === activeWarmup
-                    && record.serverTiming.length > 0
-                );
-                if (lastRecord) lastRecord.wallMs = round(wallMs);
+                if (scenario.kind === 'xeroAutosave') {
+                    await runXeroAutosaveScenario(page, options, manifest, scenario, records, activeIteration, activeWarmup);
+                } else {
+                    const wallMs = await gotoReady(page, options.baseUrl, scenario.target, scenario.readySelector, options.timeoutMs);
+                    const lastRecord = [...records].reverse().find((record) =>
+                        record.scenario === scenario.name
+                        && record.iteration === activeIteration
+                        && record.warmup === activeWarmup
+                        && record.serverTiming.length > 0
+                    );
+                    if (lastRecord) lastRecord.wallMs = round(wallMs);
+                }
             }
         }
     } finally {

@@ -33,6 +33,8 @@ data ProfileSeedOptions = ProfileSeedOptions
     , rowsPerDay      :: !Int
     , rosterFill      :: !Int
     , seedValue       :: !Int
+    , xeroEmployees   :: !Int
+    , xeroMappedStaff :: !Int
     }
     deriving (Eq, Show)
 
@@ -48,6 +50,8 @@ defaultOptions =
         , rowsPerDay = 4
         , rosterFill = 86
         , seedValue = 20260424
+        , xeroEmployees = 80
+        , xeroMappedStaff = 20
         }
 
 data ProfileSeedPlan = ProfileSeedPlan
@@ -71,13 +75,16 @@ buildProfileSeedPlan options currentWeekOffset =
             , ("roster_slots", rosterSlotCount)
             , ("timesheet_entries", timesheetEntryCount)
             , ("leave_requests", leaveRequestCount)
+            , ("xero_connections", venueCount options)
+            , ("xero_employees", venueCount options * xeroEmployees options)
+            , ("xero_staff_mappings", venueCount options * mappedXeroStaffCount options)
             ]
         }
     where
         groupsPerVenue = length rosterGroupTemplates
         slotNamesPerGroup = length slotNameTemplates
         weekCount = weeksHistory options + weeksFuture options
-        staffCount = venueCount options * staffPerVenue options
+        staffCount = venueCount options * (staffPerVenue options + 1)
         userCount = 1 + venueCount options * (staffPerVenue options + 1)
         rosterWeekCount = venueCount options * groupsPerVenue * weekCount
         rosterDayCount = rosterWeekCount * 7
@@ -92,10 +99,8 @@ writeProfileSeed dir plan = do
     writeCsv dir "venue_config.csv" venueConfigColumns (venueConfigRows plan)
     writeCsv dir "venue_memberships.csv" venueMembershipColumns (venueMembershipRows plan)
     writeCsv dir "staff.csv" staffColumns (staffRows plan)
-    writeCsv dir "pay_levels.csv" payLevelColumns (payLevelRows plan)
     writeCsv dir "shift_types.csv" shiftTypeColumns (shiftTypeRows plan)
     writeCsv dir "day_names.csv" dayNameColumns (dayNameRows plan)
-    writeCsv dir "pay_level_day_rules.csv" payLevelDayRuleColumns (payLevelDayRuleRows plan)
     writeCsv dir "pay_config_snapshots.csv" payConfigSnapshotColumns (payConfigSnapshotRows plan)
     writeCsv dir "report_definitions.csv" reportDefinitionColumns (reportDefinitionRows plan)
     writeCsv dir "roster_groups.csv" rosterGroupColumns (rosterGroupRows plan)
@@ -109,6 +114,10 @@ writeProfileSeed dir plan = do
     writeCsv dir "leave_requests.csv" leaveRequestColumns (leaveRequestRows plan)
     writeCsv dir "timesheet_entries.csv" timesheetEntryColumns (timesheetEntryRows plan)
     writeCsv dir "timesheet_entry_versions.csv" timesheetEntryVersionColumns (timesheetEntryVersionRows plan)
+    writeCsv dir "xero_connections.csv" xeroConnectionColumns (xeroConnectionRows plan)
+    writeCsv dir "xero_sync_runs.csv" xeroSyncRunColumns (xeroSyncRunRows plan)
+    writeCsv dir "xero_employees.csv" xeroEmployeeColumns (xeroEmployeeRows plan)
+    writeCsv dir "xero_staff_mappings.csv" xeroStaffMappingColumns (xeroStaffMappingRows plan)
     TextIO.writeFile (dir </> "load.sql") (renderLoadSql dir)
     TextIO.writeFile (dir </> "manifest.json") (renderProfileSeedManifest plan)
 
@@ -162,7 +171,9 @@ renderProfileSeedManifest plan =
         , "    \"weeksHistory\": " <> tshow plan.options.weeksHistory <> ","
         , "    \"weeksFuture\": " <> tshow plan.options.weeksFuture <> ","
         , "    \"rowsPerDay\": " <> tshow plan.options.rowsPerDay <> ","
-        , "    \"rosterFill\": " <> tshow plan.options.rosterFill
+        , "    \"rosterFill\": " <> tshow plan.options.rosterFill <> ","
+        , "    \"xeroEmployees\": " <> tshow plan.options.xeroEmployees <> ","
+        , "    \"xeroMappedStaff\": " <> tshow (mappedXeroStaffCount plan.options)
         , "  },"
         , "  \"accounts\": {"
         , "    \"primaryManager\": { \"email\": " <> jsonString (staffEmail 1 1) <> ", \"password\": \"password123\", \"venueId\": " <> jsonString (venueId 1) <> ", \"staffId\": " <> jsonString (staffId 1 1) <> " },"
@@ -182,7 +193,16 @@ renderProfileSeedManifest plan =
         , "    \"timesheetsCurrent\": " <> jsonString (timesheetWeekPath plan.currentWeekOffset) <> ","
         , "    \"timesheetDayFragment\": " <> jsonString (timesheetDayFragmentPath plan.currentWeekOffset 0) <> ","
         , "    \"leaveRequests\": \"/LeaveRequests\","
-        , "    \"profileLeave\": \"/EditProfile?section=leave\""
+        , "    \"profileLeave\": \"/EditProfile?section=leave\","
+        , "    \"admin\": \"/Admin\","
+        , "    \"adminXeroFragment\": \"/ShowAdminXeroFragment\""
+        , "  },"
+        , "  \"xero\": {"
+        , "    \"connectionId\": " <> jsonString (xeroConnectionId 1) <> ","
+        , "    \"targetStaffId\": " <> jsonString (staffId 1 (xeroProfileTargetStaffIndex plan.options)) <> ","
+        , "    \"targetStaffLabel\": " <> jsonString ("Xero employee for " <> staffDisplayName 1 (xeroProfileTargetStaffIndex plan.options)) <> ","
+        , "    \"targetEmployeeId\": " <> jsonString (xeroEmployeeRemoteId (xeroProfileTargetStaffIndex plan.options)) <> ","
+        , "    \"targetEmployeeLabel\": " <> jsonString (xeroEmployeeDisplayName (xeroProfileTargetStaffIndex plan.options) <> " - " <> xeroEmployeeEmail (xeroProfileTargetStaffIndex plan.options))
         , "  }"
         , "}"
         ]
@@ -254,10 +274,8 @@ tableLoads =
     , ("venue_config", venueConfigColumns, "venue_config.csv")
     , ("venue_memberships", venueMembershipColumns, "venue_memberships.csv")
     , ("staff", staffColumns, "staff.csv")
-    , ("pay_levels", payLevelColumns, "pay_levels.csv")
     , ("shift_types", shiftTypeColumns, "shift_types.csv")
     , ("day_names", dayNameColumns, "day_names.csv")
-    , ("pay_level_day_rules", payLevelDayRuleColumns, "pay_level_day_rules.csv")
     , ("pay_config_snapshots", payConfigSnapshotColumns, "pay_config_snapshots.csv")
     , ("report_definitions", reportDefinitionColumns, "report_definitions.csv")
     , ("roster_groups", rosterGroupColumns, "roster_groups.csv")
@@ -271,6 +289,10 @@ tableLoads =
     , ("leave_requests", leaveRequestColumns, "leave_requests.csv")
     , ("timesheet_entries", timesheetEntryColumns, "timesheet_entries.csv")
     , ("timesheet_entry_versions", timesheetEntryVersionColumns, "timesheet_entry_versions.csv")
+    , ("xero_connections", xeroConnectionColumns, "xero_connections.csv")
+    , ("xero_sync_runs", xeroSyncRunColumns, "xero_sync_runs.csv")
+    , ("xero_employees", xeroEmployeeColumns, "xero_employees.csv")
+    , ("xero_staff_mappings", xeroStaffMappingColumns, "xero_staff_mappings.csv")
     ]
 
 venueColumns, userColumns, venueConfigColumns, venueMembershipColumns, staffColumns :: [Text]
@@ -280,11 +302,9 @@ venueConfigColumns = ["id", "venue_id", "timezone", "roster_week_starts_on", "we
 venueMembershipColumns = ["id", "venue_id", "user_id", "venue_role", "is_active"]
 staffColumns = ["id", "venue_id", "user_id", "first_name", "last_name", "preferred_name", "phone", "emergency_contact_name", "emergency_contact_phone", "ideal_shifts_per_week", "is_active"]
 
-payLevelColumns, shiftTypeColumns, dayNameColumns, payLevelDayRuleColumns, payConfigSnapshotColumns :: [Text]
-payLevelColumns = ["id", "venue_id", "name", "base_rate", "evening_penalty", "after_12_penalty", "weekday_multiplier", "saturday_multiplier", "sunday_multiplier", "is_active"]
-shiftTypeColumns = ["id", "venue_id", "name", "sort_order", "default_pay_level_id", "is_active"]
+shiftTypeColumns, dayNameColumns, payConfigSnapshotColumns :: [Text]
+shiftTypeColumns = ["id", "venue_id", "name", "sort_order", "override_award_level_id", "is_active"]
 dayNameColumns = ["id", "venue_id", "weekday_index", "name", "is_active"]
-payLevelDayRuleColumns = ["id", "shift_type_id", "day_name_id", "pay_level_id"]
 payConfigSnapshotColumns = ["id", "venue_id", "version_number", "version_label", "created_by_user_id", "snapshot"]
 
 reportDefinitionColumns, rosterGroupColumns, slotNameColumns, staffRosterGroupColumns :: [Text]
@@ -304,6 +324,12 @@ leaveRequestColumns, timesheetEntryColumns, timesheetEntryVersionColumns :: [Tex
 leaveRequestColumns = ["id", "venue_id", "staff_id", "start_date", "end_date", "status", "notes"]
 timesheetEntryColumns = ["id", "venue_id", "staff_id", "shift_type_id", "worked_on", "start_time", "end_time", "had_break", "break_start_time", "break_end_time", "break_minutes", "pay_config_snapshot_id", "is_approved", "approved_at", "approved_by_user_id"]
 timesheetEntryVersionColumns = ["id", "venue_id", "timesheet_entry_id", "actor_user_id", "version_action", "snapshot", "payload"]
+
+xeroConnectionColumns, xeroSyncRunColumns, xeroEmployeeColumns, xeroStaffMappingColumns :: [Text]
+xeroConnectionColumns = ["id", "venue_id", "tenant_id", "tenant_name", "xero_connection_remote_id", "connection_status", "scopes", "encrypted_refresh_token", "encrypted_access_token", "access_token_expires_at", "last_refreshed_at", "last_sync_at", "connected_by_user_id", "connected_at"]
+xeroSyncRunColumns = ["id", "venue_id", "xero_connection_id", "sync_status", "sync_kind", "employees_count", "earnings_rates_count", "payroll_calendars_count", "started_at", "finished_at"]
+xeroEmployeeColumns = ["id", "venue_id", "xero_connection_id", "xero_employee_id", "display_name", "email", "status", "raw_payload", "synced_at"]
+xeroStaffMappingColumns = ["id", "venue_id", "staff_id", "xero_connection_id", "xero_employee_id", "xero_employee_name", "xero_employee_email", "mapping_status", "last_verified_at", "created_by_user_id", "updated_by_user_id"]
 
 venueRows :: ProfileSeedPlan -> [[Maybe Text]]
 venueRows plan =
@@ -347,6 +373,19 @@ staffRows plan =
     concatMap staffForVenue (venueIndexes plan)
     where
         staffForVenue venueIndex =
+            row
+                [ adminStaffId venueIndex
+                , venueId venueIndex
+                , adminUserId venueIndex
+                , "Admin"
+                , "Venue" <> padded venueIndex
+                , nullText
+                , "0400" <> Text.takeEnd 6 ("000000" <> tshow (venueIndex * 1000))
+                , "Emergency Contact"
+                , "0411111111"
+                , "0"
+                , "true"
+                ] :
             [ row
                 [ staffId venueIndex staffIndex
                 , venueId venueIndex
@@ -372,9 +411,9 @@ payLevelRows plan =
 
 shiftTypeRows :: ProfileSeedPlan -> [[Maybe Text]]
 shiftTypeRows plan =
-    [ row [shiftTypeId venueIndex shiftIndex, venueId venueIndex, shiftName, tshow (shiftIndex * 10), payLevelId venueIndex levelIndex, "true"]
+    [ row [shiftTypeId venueIndex shiftIndex, venueId venueIndex, shiftName, tshow (shiftIndex * 10), nullText, "true"]
     | venueIndex <- venueIndexes plan
-    , (shiftIndex, shiftName, levelIndex) <- shiftTypeTemplates
+    , (shiftIndex, shiftName, _) <- shiftTypeTemplates
     ]
 
 dayNameRows :: ProfileSeedPlan -> [[Maybe Text]]
@@ -549,6 +588,80 @@ timesheetEntryVersionRows plan =
     , weekOrdinal <- [0 .. min 52 (max 1 (weeksHistory plan.options)) - 1]
     ]
 
+xeroConnectionRows :: ProfileSeedPlan -> [[Maybe Text]]
+xeroConnectionRows plan =
+    [ row
+        [ xeroConnectionId venueIndex
+        , venueId venueIndex
+        , "profile-xero-tenant-" <> padded venueIndex
+        , "Profile Xero Tenant " <> padded venueIndex
+        , "profile-xero-connection-" <> padded venueIndex
+        , "active"
+        , "openid profile email accounting.settings payroll.employees payroll.payruns offline_access"
+        , "profile-refresh-token-" <> padded venueIndex
+        , "profile-access-token-" <> padded venueIndex
+        , "2027-01-01 00:00:00+00"
+        , timestampText
+        , timestampText
+        , adminUserId venueIndex
+        , timestampText
+        ]
+    | venueIndex <- venueIndexes plan
+    ]
+
+xeroSyncRunRows :: ProfileSeedPlan -> [[Maybe Text]]
+xeroSyncRunRows plan =
+    [ row
+        [ xeroSyncRunId venueIndex
+        , venueId venueIndex
+        , xeroConnectionId venueIndex
+        , "succeeded"
+        , "payroll_reference_data"
+        , tshow plan.options.xeroEmployees
+        , "0"
+        , "0"
+        , timestampText
+        , timestampText
+        ]
+    | venueIndex <- venueIndexes plan
+    ]
+
+xeroEmployeeRows :: ProfileSeedPlan -> [[Maybe Text]]
+xeroEmployeeRows plan =
+    [ row
+        [ xeroEmployeeId venueIndex employeeIndex
+        , venueId venueIndex
+        , xeroConnectionId venueIndex
+        , xeroEmployeeRemoteId employeeIndex
+        , xeroEmployeeDisplayName employeeIndex
+        , xeroEmployeeEmail employeeIndex
+        , "ACTIVE"
+        , "{\"profileSeed\":true}"
+        , timestampText
+        ]
+    | venueIndex <- venueIndexes plan
+    , employeeIndex <- [1 .. xeroEmployees plan.options]
+    ]
+
+xeroStaffMappingRows :: ProfileSeedPlan -> [[Maybe Text]]
+xeroStaffMappingRows plan =
+    [ row
+        [ xeroStaffMappingId venueIndex staffIndex
+        , venueId venueIndex
+        , staffId venueIndex staffIndex
+        , xeroConnectionId venueIndex
+        , xeroEmployeeRemoteId staffIndex
+        , xeroEmployeeDisplayName staffIndex
+        , xeroEmployeeEmail staffIndex
+        , "verified"
+        , timestampText
+        , adminUserId venueIndex
+        , adminUserId venueIndex
+        ]
+    | venueIndex <- venueIndexes plan
+    , staffIndex <- [1 .. mappedXeroStaffCount plan.options]
+    ]
+
 assignedStaffId :: ProfileSeedPlan -> Int -> Int -> Int -> Int -> Int -> Int -> Maybe Text
 assignedStaffId plan venueIndex groupIndex weekOffset dayOffset rowIndex slotIndex
     | deterministicIndex plan [venueIndex, groupIndex, weekOffset, dayOffset, rowIndex, slotIndex] 100 >= rosterFill plan.options = Nothing
@@ -578,6 +691,14 @@ venueIndexes plan = [1 .. venueCount plan.options]
 
 staffIndexes :: ProfileSeedPlan -> [Int]
 staffIndexes plan = [1 .. staffPerVenue plan.options]
+
+mappedXeroStaffCount :: ProfileSeedOptions -> Int
+mappedXeroStaffCount options =
+    min options.staffPerVenue (min (max 0 (options.xeroEmployees - 1)) options.xeroMappedStaff)
+
+xeroProfileTargetStaffIndex :: ProfileSeedOptions -> Int
+xeroProfileTargetStaffIndex options =
+    min options.staffPerVenue (min options.xeroEmployees (mappedXeroStaffCount options + 5))
 
 weekOffsets :: ProfileSeedPlan -> [Int]
 weekOffsets plan =
@@ -662,6 +783,9 @@ staffUserId venueIndex staffIndex = uuidText 4 venueIndex staffIndex 0
 staffId :: Int -> Int -> Text
 staffId venueIndex staffIndex = uuidText 5 venueIndex staffIndex 0
 
+adminStaffId :: Int -> Text
+adminStaffId venueIndex = uuidText 5 venueIndex 0 0
+
 payLevelId :: Int -> Int -> Text
 payLevelId venueIndex levelIndex = uuidText 6 venueIndex levelIndex 0
 
@@ -692,6 +816,34 @@ rosterSlotId venueIndex groupIndex weekOffset dayOffset rowIndex slotIndex =
 
 timesheetEntryId :: Int -> Int -> Int -> Text
 timesheetEntryId venueIndex staffIndex weekOrdinal = uuidText 20 venueIndex staffIndex weekOrdinal
+
+xeroConnectionId :: Int -> Text
+xeroConnectionId venueIndex = uuidText 22 venueIndex 0 0
+
+xeroSyncRunId :: Int -> Text
+xeroSyncRunId venueIndex = uuidText 23 venueIndex 0 0
+
+xeroEmployeeId :: Int -> Int -> Text
+xeroEmployeeId venueIndex employeeIndex = uuidText 24 venueIndex employeeIndex 0
+
+xeroStaffMappingId :: Int -> Int -> Text
+xeroStaffMappingId venueIndex staffIndex = uuidText 25 venueIndex staffIndex 0
+
+xeroEmployeeRemoteId :: Int -> Text
+xeroEmployeeRemoteId employeeIndex =
+    "profile-xero-employee-" <> padded employeeIndex
+
+xeroEmployeeDisplayName :: Int -> Text
+xeroEmployeeDisplayName employeeIndex =
+    "Profile Xero Employee " <> padded employeeIndex
+
+xeroEmployeeEmail :: Int -> Text
+xeroEmployeeEmail employeeIndex =
+    "profile-xero-employee-" <> padded employeeIndex <> "@example.com"
+
+staffDisplayName :: Int -> Int -> Text
+staffDisplayName venueIndex staffIndex =
+    "Staff" <> padded staffIndex <> " Venue" <> padded venueIndex
 
 adminEmail :: Int -> Text
 adminEmail venueIndex = "profile-manager-" <> padded venueIndex <> "@example.com"
@@ -783,6 +935,8 @@ parseArg options arg
     | "--rows-per-day=" `List.isPrefixOf` arg = pure options { rowsPerDay = max 1 (readIntFlag "--rows-per-day=" arg) }
     | "--roster-fill=" `List.isPrefixOf` arg = pure options { rosterFill = max 0 (min 100 (readIntFlag "--roster-fill=" arg)) }
     | "--seed=" `List.isPrefixOf` arg = pure options { seedValue = readIntFlag "--seed=" arg }
+    | "--xero-employees=" `List.isPrefixOf` arg = pure options { xeroEmployees = max 1 (readIntFlag "--xero-employees=" arg) }
+    | "--xero-mapped-staff=" `List.isPrefixOf` arg = pure options { xeroMappedStaff = max 0 (readIntFlag "--xero-mapped-staff=" arg) }
     | "--scenario=large-roster-history" == arg = pure options
     | otherwise = error ("Unsupported seed-profile option: " <> cs arg)
 
@@ -808,6 +962,8 @@ printUsage = do
     TextIO.putStrLn "  --rows-per-day=<int>"
     TextIO.putStrLn "  --roster-fill=<0-100>"
     TextIO.putStrLn "  --seed=<int>"
+    TextIO.putStrLn "  --xero-employees=<int>"
+    TextIO.putStrLn "  --xero-mapped-staff=<int>"
 
 printSummary :: ProfileSeedOptions -> ProfileSeedPlan -> IO ()
 printSummary options plan = do

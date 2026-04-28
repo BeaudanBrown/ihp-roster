@@ -68,8 +68,11 @@ Scenarios:
 - `roster`
 - `timesheets`
 - `leave`
+- `xero`
 
 This is the right tool when checking browser navigation, HTMX follow-up requests, and route-level app spans for realistic user journeys.
+
+Use `xero` when checking the Xero staff mapping autosave path. It loads the admin Xero section, changes a staff mapping select, captures the `SaveXeroStaffMapping` `Server-Timing` header, and records scroll delta in `profile.json`.
 
 ## Request Volume Profiling
 
