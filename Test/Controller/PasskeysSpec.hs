@@ -8,6 +8,7 @@ import Application.Helper.Controller (currentVenueSessionKey,
 import Application.Helper.Passkeys (allowedOrigins, rpIdTextFromRequest)
 import Config
 import Crypto.WebAuthn.Model.Types (Origin (..))
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as ByteString
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Serialize as Serialize
@@ -25,6 +26,10 @@ import Network.Wai (responseHeaders)
 import qualified Network.Wai as Wai
 import Test.Hspec
 import Test.Support
+import Web.Controller.Auth (authenticationChallengeSessionKey,
+                            registrationChallengeSessionKey,
+                            registrationUserIdSessionKey,
+                            stepUpAuthenticationChallengeSessionKey)
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
@@ -51,6 +56,32 @@ tests = beforeAll testContext do
             response <- callAction BeginPasskeyRegistrationAction
 
             response `responseStatusShouldBe` status302
+
+        it "begins passkey authentication without an authenticated session" $ withContext do
+            response <- callAction BeginPasskeyAuthenticationAction
+
+            response `responseStatusShouldBe` status200
+            lookup HTTP.hContentType (responseHeaders response) `shouldBe` Just "application/json"
+            body <- responseBody response
+            (Aeson.decode body :: Maybe Aeson.Value) `shouldSatisfy` isJust
+            response `responseBodyShouldContain` "\"challenge\""
+
+        it "rejects passkey authentication finishes after the challenge has expired" $ withContext do
+            response <- withSessionValues [] do
+                callAction FinishPasskeyAuthenticationAction
+
+            response `responseStatusShouldBe` status422
+            response `responseBodyShouldContain` "This passkey request has expired. Please try again."
+
+        it "rejects passkey authentication finishes that do not send JSON" $ withContext do
+            response <- withSessionValues
+                [ (authenticationChallengeSessionKey, Serialize.encode ("test-auth-challenge" :: ByteString.ByteString))
+                ]
+                do
+                    callActionWithParams FinishPasskeyAuthenticationAction [("credential", "not-json")]
+
+            response `responseStatusShouldBe` status400
+            response `responseBodyShouldContain` "Expected JSON body, but the request has a form content type."
 
         it "renders passkey management on the security profile section" $ withContext do
             withCleanDb do
@@ -141,6 +172,37 @@ tests = beforeAll testContext do
                 auditEvent.targetTable `shouldBe` "users"
                 auditEvent.targetId `shouldBe` unpackId user.id
 
+        it "rejects passkey step-up finishes after the challenge has expired" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Step Up Expired Venue"
+                user <- createUserRecord "admin-step-up-expired@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createTestPasskeyRecord user "Admin passkey"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction FinishPasskeyStepUpAuthenticationAction
+
+                response `responseStatusShouldBe` status422
+                response `responseBodyShouldContain` "This passkey request has expired. Please try again."
+
+        it "rejects passkey step-up finishes that do not send JSON" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Step Up JSON Venue"
+                user <- createUserRecord "admin-step-up-json@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createTestPasskeyRecord user "Admin passkey"
+
+                response <- withSessionValues
+                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
+                    , (currentVenueSessionKey, Serialize.encode venue.id)
+                    , (stepUpAuthenticationChallengeSessionKey, Serialize.encode ("test-step-up-challenge" :: ByteString.ByteString))
+                    ]
+                    do
+                        callActionWithParams FinishPasskeyStepUpAuthenticationAction [("credential", "not-json")]
+
+                response `responseStatusShouldBe` status400
+                response `responseBodyShouldContain` "Expected JSON body, but the request has a form content type."
+
         it "allows venue admin pages after the session has passkey verification" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Verified Admin Venue"
@@ -207,6 +269,26 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status403
                 response `responseBodyShouldContain` "Verify with your passkey before adding another passkey."
                 response `responseBodyShouldContain` "\"redirectTo\":\"/PasskeyStepUp\""
+
+        it "rejects passkey registration finishes if the pending user changes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Pending Registration User Venue"
+                pendingUser <- createUserRecord "pending-registration-user@example.com" "staff" True
+                activeUser <- createUserRecord "active-registration-user@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue pendingUser "worker"
+                _ <- createVenueMembershipRecord venue activeUser "worker"
+
+                response <- withSessionValues
+                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode activeUser.id)
+                    , (currentVenueSessionKey, Serialize.encode venue.id)
+                    , (registrationChallengeSessionKey, Serialize.encode ("test-registration-challenge" :: ByteString.ByteString))
+                    , (registrationUserIdSessionKey, Serialize.encode (inputValue pendingUser.id :: Text))
+                    ]
+                    do
+                        callAction FinishPasskeyRegistrationAction
+
+                response `responseStatusShouldBe` status422
+                response `responseBodyShouldContain` "The pending passkey registration is invalid."
 
         it "lists existing passkeys on the security profile section" $ withContext do
             withCleanDb do
