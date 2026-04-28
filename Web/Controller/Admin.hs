@@ -67,6 +67,7 @@ instance Controller AdminController where
         xeroPayItemAccountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection
         let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
         let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
+        let xeroSectionData = XeroAdminSectionData { .. }
         render IndexView { .. }
 
     action StartXeroConnectionAction = do
@@ -1155,9 +1156,9 @@ respondWithXeroSectionFragmentAndToast maybeToast = do
     xeroPayItemAccountCodeSelection <- profileActionSpan "admin.xero.pay_item_account_code.fetch_selection" (fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection)
     let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
     let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
+    let xeroSectionData = XeroAdminSectionData { .. }
     fragmentHtml <- profileActionSpan "admin.xero.fragment.render" do
-        pure $
-            renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed
+        pure (renderXeroSectionFragment xeroSectionData)
     respondHtmlProfiled $
         mconcat
             [ fragmentHtml
