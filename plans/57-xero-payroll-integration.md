@@ -83,26 +83,43 @@ building a separate payroll calculation path.
 
 As of 2026-04-28, the planned Xero earnings-rate strategy is:
 
-- Use Xero `MULTIPLE` earnings rates for penalties that are stable multipliers
-  of the employee's ordinary earnings rate.
-- Use Xero `RATEPERUNIT` earnings rates for flat hourly loadings that IHP stores
-  as a dollar amount per hour.
-- Avoid classification-specific pay items unless a live Xero tenant test proves
-  that a required condition cannot be represented by one of those two shapes.
+- Use deterministic Xero `RATEPERUNIT` earnings rates for each payable local
+  bucket: award classification x employment basis x pay condition.
+- Do not use Xero `MULTIPLE` earnings rates for the first multi-level-capable
+  lane. A multiplier applies to the employee's ordinary earnings rate in Xero,
+  so it cannot safely pay a worker who performs a shift at a different award
+  level from their ordinary/default level.
+- Keep the local bucket list aligned with the Xero pay item requirement list so
+  the mapping UI and provisioning UI describe the same payroll surface.
+- Use an app-owned Xero earnings-rate name namespace because Payroll AU pay
+  items do not expose tags, metadata, external IDs, or app-owned grouping fields.
+  Managed pay item names use the prefix `Bepis - `. The local
+  requirement key remains the source-of-truth ownership identifier inside IHP,
+  and the returned Xero `EarningsRateID` is stored after match or creation.
+- Only auto-match synced Xero earnings rates whose names are inside that managed
+  prefix. Existing Xero earnings rates without the prefix can still be selected
+  manually in the mapping UI, but the provisioning lane must not silently claim
+  them as app-owned pay items.
+- Only derive required pay items for award level / employment basis scopes the
+  venue can currently use. A scope is used when an active staff member has that
+  default award level and employment basis, or when an active shift type overrides
+  to that award level and the venue has active staff with the employment basis.
+  This avoids flooding Xero with every synced FWC classification.
 
 Expected first-pass pay items for a typical small venue are roughly:
 
-- `Ordinary Hours`
-- `Saturday Penalty` as `MULTIPLE`
-- `Sunday Penalty` as `MULTIPLE`
-- `Public Holiday` as `MULTIPLE`
-- later overtime buckets such as `Overtime 1.5x` and `Overtime 2.0x`
-- `Evening after 7pm` as `RATEPERUNIT`
-- `Late night after midnight` as `RATEPERUNIT`
+- `Ordinary`
+- `Saturday Penalty`
+- `Sunday Penalty`
+- `Public Holiday Penalty`
+- `Evening after 7pm Loading`
+- `Late night after midnight Loading`
 
-This should usually keep the Xero pay item set around 6-10 earnings rates. The
-fallback `classification x condition` model can easily produce 30-60+ pay items
-and should be avoided unless Xero forces it.
+That gives about `venue-used award-level/employment-basis scopes x 6` earnings
+rates. For a venue using two casual levels and one permanent level, expect about
+18 Xero earnings-rate pay items, not the full synced award surface. The model is
+still deliberately larger than the multiplier model, but it is deterministic and
+supports pay-by-area / multi-level shifts.
 
 Current evidence:
 
@@ -110,11 +127,16 @@ Current evidence:
 - Xero earnings rates expose `RateType`, `Multiplier`, and `RatePerUnit`.
 - Xero timesheet lines carry `EarningsRateID` and `NumberOfUnits`, so ad hoc
   line rates cannot be sent directly from IHP.
-- IHP currently stores weekend/public-holiday penalties as full hourly rates per
-  award level, which can be converted to multipliers when the ratio is stable.
-- IHP stores evening/late-night penalties as `base_rate + hourly_amount`, so
-  those should be sent as separate rate-per-unit loading lines rather than
-  classification-specific effective-rate lines.
+- IHP stores weekend/public-holiday penalties as full hourly rates per award
+  level and employment basis. Those should become `RATEPERUNIT` Xero earnings
+  rates.
+- IHP stores evening/late-night allowances as flat hourly amounts. The first
+  implementation models them as deterministic loading buckets per award level
+  and employment basis, with the same allowance amount where the FWC data is
+  award-wide.
+- When current FWC-derived expected rates no longer match a previously matched or
+  created local requirement record, the requirement should move to
+  `rate_changed` so the venue owner can update Xero before timesheet submission.
 
 Manual verification still required before production submission:
 
@@ -199,9 +221,15 @@ timesheet preview:
 - last verified timestamp and actor metadata
 - raw request/response payloads for created pay items
 
-The requirement key should be coarser than the existing pay-level bucket mapping
-when Xero can represent the pay condition globally. Prefer one Xero pay item per
-condition/rate formula, not one per award classification.
+The requirement key should match the local earnings bucket shape:
+`classification x employment basis x condition`. This keeps Xero provisioning,
+admin mapping, and eventual timesheet line generation on the same deterministic
+identifier.
+
+The Xero-facing pay item name should be generated from the managed namespace:
+`Bepis - <classification> (<employment basis>) - <condition>`. Xero
+Payroll AU `EarningsRate` does not provide a canonical namespace/tag field, so
+name prefix plus locally stored `EarningsRateID` is the ownership boundary.
 
 ### Optional tracking mapping
 
@@ -275,11 +303,11 @@ foundation text:
 
 ### Not Yet Implemented
 
-- Deterministic Xero pay item requirements are now derived from active award
-  data, persisted in `xero_pay_item_requirement_records`, and shown in the
-  Admin Xero section. The preview classifies stable weekend/public-holiday
-  ratios as `MULTIPLE` requirements, flat time allowances as `RATEPERUNIT`
-  requirements, and stores synced Xero earnings-rate name matches where present.
+- Deterministic Xero pay item requirements are now derived from venue-used
+  award-level/employment-basis scopes, persisted in
+  `xero_pay_item_requirement_records`, and shown in the Admin Xero section. The
+  preview uses namespaced `RATEPERUNIT` requirements and stores synced Xero
+  earnings-rate name matches where present.
 - No live `POST /PayItems` write path, Xero pay item update path, or automated
   mapping from created pay items exists yet.
 - No Xero-shaped timesheet preview exists yet.
@@ -368,20 +396,26 @@ create/update actions remain.
 Build the admin-reviewed pay item provisioning lane before timesheet preview:
 
 - derive required Xero earnings-rate pay items from current award/pay data
-- classify each requirement as `MULTIPLE` or `RATEPERUNIT`
-- surface expected multiplier or hourly loading amount
+- limit derivation to award levels and employment bases currently assigned to
+  active staff or active shift type overrides
+- classify each requirement as `RATEPERUNIT`
+- surface expected hourly rate or loading amount
 - match requirements against synced Xero earnings rates where possible
-- persist requirement records and mark removed requirements as `stale`
+- persist requirement records, mark removed requirements as `stale`, and mark
+  previously matched/created requirements as `rate_changed` when the expected
+  FWC-derived value changes
 - let admins create missing earnings rates through Xero `POST /PayItems`
+- let admins update stale managed earnings rates through Xero when current
+  expected values no longer match
 - store the resulting local requirement to Xero earnings-rate link
 - feed those links into the existing earnings-rate mapping/readiness UI
 
 Completed slices:
 
-- deterministic requirement set and admin review UI before enabling live Xero
-  writes
+- deterministic venue-used requirement set and admin review UI before enabling
+  live Xero writes
 - durable `xero_pay_item_requirement_records` sync for `proposed`, `matched`,
-  `ignored`, and `stale` requirement states
+  `ignored`, `stale`, and `rate_changed` requirement states
 
 ### Phase 5 - Xero timesheet preview
 
