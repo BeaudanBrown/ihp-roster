@@ -28,6 +28,7 @@ Business requirements remain canonical in `specs/`.
   - `plans/52-roster-mobile-refactor.md`
   - `plans/53-programmatic-demo-seeding.md`
   - `plans/55-record-retention-soft-deletion.md`
+  - `plans/57-xero-payroll-integration.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
 
@@ -163,6 +164,12 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **Focus:** replace the current one-off dev seed with scenario-driven deterministic demo data generation that can scale venue shape, staffing mix, pay configuration, and roster realism for client demonstrations and manual QA.
 - **Priority note:** this is the fastest path to a realistic demo environment for the current client demonstration window; land the minimum demo slice before broader scenario/export polish.
 
+### Pipeline 57 — Xero Payroll Integration
+- **Status:** [ ]
+- **File:** `plans/57-xero-payroll-integration.md`
+- **Focus:** connect each venue to Xero Payroll AU, map IHP staff and earning buckets to Xero employees and earnings rates, preview approved IHP payroll weeks as Xero timesheet payloads, and submit draft Xero timesheets with auditable request/response history.
+- **Priority note:** start with read-only sync, explicit mapping, deterministic preview, and draft-timesheet submission. Defer automatic employee/pay-item creation until the core connector is proven against a demo company and a payroll-enabled organisation.
+
 ## Parallelism Rules
 
 These pipelines can overlap when they respect the dependency constraints above:
@@ -176,6 +183,7 @@ These pipelines can overlap when they respect the dependency constraints above:
 - `plans/52-roster-mobile-refactor.md` should lead any roster-page responsive restructuring so layout changes stay anchored to explicit mobile/tablet contracts rather than ad hoc CSS tweaks.
 - `plans/53-programmatic-demo-seeding.md` can proceed alongside roster/payroll/admin work so long as it reuses existing bootstrap helpers and does not destabilize deterministic e2e fixtures or minimal bootstrap SQL.
 - `plans/55-record-retention-soft-deletion.md` should run before release-readiness acceptance and before Xero submission work, because Xero sync history and venue export packs should be built on the protected-record model from day one.
+- `plans/57-xero-payroll-integration.md` can start after the approved-timesheet, pay-snapshot, payroll earnings export, and protected-record foundations are stable. It should reuse those foundations rather than introducing a parallel payroll calculation path.
 
 ## Read Order For Agents
 
