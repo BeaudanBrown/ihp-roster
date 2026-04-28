@@ -38,6 +38,7 @@ import qualified Test.SchemaSpec
 import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
+import qualified Test.XeroKeepaliveSpec
 
 data TestSuite = TestSuite
     { suiteLabel :: String
@@ -142,4 +143,5 @@ allSuites =
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
     , TestSuite "Mail" Test.MailSpec.tests
     , TestSuite "SurfaceProjection" Test.SurfaceProjectionSpec.tests
+    , TestSuite "XeroKeepalive" Test.XeroKeepaliveSpec.tests
     ]

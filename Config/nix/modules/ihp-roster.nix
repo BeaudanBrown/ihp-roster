@@ -330,6 +330,26 @@ in
         '';
       };
     };
+
+    xero.keepalive = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Whether to run the Xero connection keepalive sweep on a systemd timer.";
+      };
+
+      onCalendar = mkOption {
+        type = types.str;
+        default = "daily";
+        description = "systemd OnCalendar expression for the Xero keepalive sweep.";
+      };
+
+      randomizedDelaySec = mkOption {
+        type = types.str;
+        default = "30m";
+        description = "Randomized delay applied to the Xero keepalive timer.";
+      };
+    };
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -465,6 +485,36 @@ in
               cfg.databaseUrl
             else
               "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+        };
+      };
+      systemd.services.xero-keepalive-sweep = mkIf cfg.xero.keepalive.enable {
+        description = "Enqueue Xero connection keepalive jobs for ihp-roster";
+        after = [ schemaReadyService ];
+        requires = [ schemaReadyService ];
+        serviceConfig = {
+          Type = "oneshot";
+          EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
+          ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/XeroKeepaliveSweep";
+        }
+        // serviceUserConfig;
+        environment = {
+          DATABASE_URL =
+            if cfg.databaseUrl != null then
+              cfg.databaseUrl
+            else
+              "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+          IHP_TELEMETRY_DISABLED = "1";
+          APP_BASE_URL = cfg.baseUrl;
+        }
+        // mailEnv
+        // cfg.additionalEnvVars;
+      };
+      systemd.timers.xero-keepalive-sweep = mkIf cfg.xero.keepalive.enable {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = cfg.xero.keepalive.onCalendar;
+          Persistent = true;
+          RandomizedDelaySec = cfg.xero.keepalive.randomizedDelaySec;
         };
       };
     }

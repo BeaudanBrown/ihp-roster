@@ -4,6 +4,7 @@ module Application.Async.Registry
 
 import Application.FwcMapd.Job
 import Application.PublicHolidays.Job
+import Application.Xero.Keepalive
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
@@ -16,4 +17,5 @@ dispatchAppJob appJob =
     case appJob.jobKind of
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob
+        kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
         _ -> fail ("Unknown app job kind: " <> Text.unpack appJob.jobKind)
