@@ -580,6 +580,7 @@ SQL
 
                             export DATABASE_URL="postgresql:///$DB_NAME?host=$DB_SOCKET"
                             DEV_PASSKEY_SEED_FILE="''${DEV_PASSKEY_SEED_FILE:-$PWD/build/dev-passkeys.sql}"
+                            DEV_XERO_SEED_FILE="''${DEV_XERO_SEED_FILE:-$PWD/build/dev-xero-connection.sql}"
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             mkdir -p build/Script
@@ -599,6 +600,11 @@ EOF
                             if [ -f "$DEV_PASSKEY_SEED_FILE" ]; then
                                 echo "Restoring dev passkeys from $DEV_PASSKEY_SEED_FILE"
                                 psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f "$DEV_PASSKEY_SEED_FILE"
+                            fi
+
+                            if [ -f "$DEV_XERO_SEED_FILE" ]; then
+                                echo "Restoring dev Xero connection from $DEV_XERO_SEED_FILE"
+                                psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f "$DEV_XERO_SEED_FILE"
                             fi
                         '';
 
