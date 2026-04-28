@@ -288,7 +288,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Refresh queued/running"
                 response `responseBodyShouldContain` "hx-post=\"/CreateFwcMapdRefreshJob\""
 
-        it "marks the award rate support section for self-refresh while a refresh job is active" $ withContext do
+        it "does not add active-job polling to the award rate support section" $ withContext do
             withCleanDb do
                 homeVenue <- createVenueWithConfig "Home Venue"
                 founder <- createUserRecordWithPlatformRole "founder-award-refresh-fragment@example.com" "staff" (Just SuperAdminRole) True
@@ -301,8 +301,8 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"support-award-rates-section\""
-                response `responseBodyShouldContain` "hx-get=\"/ShowFwcMapdAwardRatesSection\""
-                response `responseBodyShouldContain` "hx-trigger=\"load delay:2s\""
+                response `responseBodyShouldNotContain` "hx-get=\"/ShowFwcMapdAwardRatesSection\""
+                response `responseBodyShouldNotContain` "hx-trigger=\"load delay:2s\""
                 response `responseBodyShouldContain` "Refresh queued/running"
 
         it "deduplicates active award rate refresh jobs" $ withContext do
