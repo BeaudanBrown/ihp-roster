@@ -26,11 +26,13 @@ performPublicHolidayRefreshJob appJob = do
     summary <- runDataVicPublicHolidaySync
     let resultPayload =
             Aeson.object
-                [ "fetchedCount" Aeson..= summary.fetchedCount
+                [ "targetYear" Aeson..= summary.targetYear
+                , "fetchedCount" Aeson..= summary.fetchedCount
                 , "importedCount" Aeson..= summary.importedCount
                 , "insertedCount" Aeson..= summary.insertedCount
                 , "updatedCount" Aeson..= summary.updatedCount
                 , "skippedCount" Aeson..= summary.skippedCount
+                , "prunedCount" Aeson..= summary.prunedCount
                 ]
     void
         ( appJob

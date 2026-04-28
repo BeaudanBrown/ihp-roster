@@ -5,6 +5,7 @@ module Application.PublicHolidays.Sync
     , dataVicImportantDatesResourceId
     , fetchDataVicPublicHolidayRecords
     , importDataVicPublicHolidayRecords
+    , importDataVicPublicHolidayRecordsForYear
     , parseDataVicDate
     , publicHolidayImportFromDataVic
     , runDataVicPublicHolidaySync
@@ -17,7 +18,8 @@ import Data.Aeson.Key (Key)
 import Data.Aeson.Types (Parser)
 import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, fromGregorianValid)
+import Data.Time.Calendar (Day, fromGregorianValid, toGregorian)
+import Data.Time.LocalTime (getZonedTime, localDay, zonedTimeToLocalTime)
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -49,11 +51,13 @@ data PublicHolidayImport = PublicHolidayImport
     deriving (Eq, Show)
 
 data PublicHolidaySyncSummary = PublicHolidaySyncSummary
-    { fetchedCount  :: !Int
+    { targetYear    :: !Integer
+    , fetchedCount  :: !Int
     , importedCount :: !Int
     , insertedCount :: !Int
     , updatedCount  :: !Int
     , skippedCount  :: !Int
+    , prunedCount   :: !Int
     }
     deriving (Eq, Show)
 
@@ -127,19 +131,34 @@ importDataVicPublicHolidayRecords ::
     [DataVicHolidayRecord] ->
     IO PublicHolidaySyncSummary
 importDataVicPublicHolidayRecords records = do
+    currentYear <- currentLocalYear
+    importDataVicPublicHolidayRecordsForYear currentYear records
+
+importDataVicPublicHolidayRecordsForYear ::
+    (?modelContext :: ModelContext) =>
+    Integer ->
+    [DataVicHolidayRecord] ->
+    IO PublicHolidaySyncSummary
+importDataVicPublicHolidayRecordsForYear targetYear records = do
     now <- getCurrentTime
+    prunedCount <- prunePublicHolidaysOutsideYear targetYear
     results <- forM records \record ->
         case publicHolidayImportFromDataVic record of
             Left _ -> pure Nothing
-            Right holidayImport -> Just <$> upsertPublicHoliday now holidayImport
+            Right holidayImport
+                | dayYear holidayImport.holidayDate == targetYear ->
+                    Just <$> upsertPublicHoliday now holidayImport
+                | otherwise -> pure Nothing
     let importedResults = catMaybes results
     pure
         PublicHolidaySyncSummary
-            { fetchedCount = length records
+            { targetYear
+            , fetchedCount = length records
             , importedCount = length importedResults
             , insertedCount = length (filter (== InsertedHoliday) importedResults)
             , updatedCount = length (filter (== UpdatedHoliday) importedResults)
             , skippedCount = length records - length importedResults
+            , prunedCount
             }
 
 publicHolidayImportFromDataVic :: DataVicHolidayRecord -> Either Text PublicHolidayImport
@@ -218,6 +237,30 @@ applyPublicHolidayImport importedAt holidayImport publicHoliday =
         |> set #sourceUrl holidayImport.sourceUrl
         |> set #description holidayImport.description
         |> set #importedAt (Just importedAt)
+
+prunePublicHolidaysOutsideYear ::
+    (?modelContext :: ModelContext) =>
+    Integer ->
+    IO Int
+prunePublicHolidaysOutsideYear targetYear = do
+    staleHolidays <-
+        query @PublicHoliday
+            |> filterWhere (#jurisdiction, "VIC" :: Text)
+            |> fetch
+    let holidaysToDelete =
+            filter
+                (\publicHoliday -> dayYear publicHoliday.holidayDate /= targetYear)
+                staleHolidays
+    mapM_ deleteRecord holidaysToDelete
+    pure (length holidaysToDelete)
+
+currentLocalYear :: IO Integer
+currentLocalYear = dayYear . localDay . zonedTimeToLocalTime <$> getZonedTime
+
+dayYear :: Day -> Integer
+dayYear day =
+    let (year, _, _) = toGregorian day
+     in year
 
 optionalText :: Aeson.Object -> Key -> Parser (Maybe Text)
 optionalText object key = cleanOptionalText <$> object Aeson..:? key
