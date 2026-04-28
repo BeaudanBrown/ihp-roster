@@ -292,7 +292,7 @@ createPayLevelRecordWithRates venue levelName baseRate eveningPenalty after12Pen
 
 createAwardLevelRecordWithRates :: (?modelContext :: ModelContext) => Text -> Scientific -> Scientific -> Scientific -> Scientific -> Scientific -> IO AwardLevel
 createAwardLevelRecordWithRates levelName baseRate eveningPenalty after12Penalty saturdayMultiplier sundayMultiplier = do
-    let classificationFixedId = abs (Text.foldl' (\acc ch -> acc * 31 + Char.ord ch) 7 levelName)
+    let classificationFixedId = awardLevelClassificationFixedId levelName
     awardLevel <-
         newRecord @AwardLevel
             |> set #awardFixedId 9
@@ -325,6 +325,10 @@ createAwardLevelRecordWithRates levelName baseRate eveningPenalty after12Penalty
     createSyntheticTimeAllowanceIfMissing awardLevel EveningAfter7Pm eveningPenalty
     createSyntheticTimeAllowanceIfMissing awardLevel LateNightAfterMidnight after12Penalty
     pure awardLevel
+
+awardLevelClassificationFixedId :: Text -> Int
+awardLevelClassificationFixedId levelName =
+    abs (Text.foldl' (\acc ch -> acc * 31 + Char.ord ch) 7 levelName)
 
 createSyntheticPenalty :: (?modelContext :: ModelContext) => AwardLevel -> AwardPenaltyKindEnum -> FwcMapdPayRate -> Scientific -> IO ()
 createSyntheticPenalty awardLevel penaltyKind payRate hourlyRate = do
@@ -414,7 +418,7 @@ ensureVenueDefaultShiftType venue = do
         >>= \case
             Just shiftType -> pure shiftType
             Nothing -> do
-                payLevel <- createPayLevelRecord venue "Default Level"
+                payLevel <- createPayLevelRecord venue ("Default Level " <> tshow venue.id)
                 createShiftTypeRecord venue payLevel "Default Shift"
 
 createPayConfigSnapshotRecord :: (?modelContext :: ModelContext) => Venue -> User -> Int -> Aeson.Value -> IO PayConfigSnapshot
