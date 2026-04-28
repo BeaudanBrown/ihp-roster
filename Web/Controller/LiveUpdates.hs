@@ -117,6 +117,8 @@ scopeAuthorizationRequirement AdminShiftTypesScope { venueId } =
     RequireCurrentVenueAdmin venueId
 scopeAuthorizationRequirement AdminRosterGroupsScope { venueId } =
     RequireCurrentVenueAdmin venueId
+scopeAuthorizationRequirement AdminXeroScope { venueId } =
+    RequireCurrentVenueAdmin venueId
 scopeAuthorizationRequirement LeaveRequestsScope { venueId } =
     RequireCurrentVenue venueId
 scopeAuthorizationRequirement TimesheetWeekScope { venueId } =

@@ -9,6 +9,7 @@ import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Config
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy.Char8 as LByteString
 import qualified Data.List as List
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime, getCurrentTime)
@@ -182,6 +183,23 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Xero"
                 response `responseBodyShouldContain` "not connected"
                 response `responseBodyShouldContain` "Connect Xero"
+                response `responseBodyShouldContain` "id=\"admin-xero-fragment\""
+                response `responseBodyShouldContain` "admin_xero"
+
+                fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminXeroFragmentAction
+                fragmentResponse `responseStatusShouldBe` status200
+                fragmentResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
+                fragmentResponse `responseBodyShouldContain` "not connected"
+                fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
+
+        it "decodes Xero payroll calendar dates from API date wrappers" $ withContext do
+            let decoded =
+                    Aeson.eitherDecode
+                        (LByteString.pack "{\"PayrollCalendarID\":\"calendar-1\",\"Name\":\"Weekly\",\"StartDate\":\"/Date(1760313600000+0000)/\",\"PaymentDate\":\"\"}") ::
+                        Either String XeroPayrollCalendarRef
+            fmap xeroPayrollCalendarStartDate decoded `shouldBe` Right (Just (fromGregorian 2025 10 13))
+            fmap xeroPayrollCalendarPaymentDate decoded `shouldBe` Right Nothing
 
         it "keeps missing Xero config local to the connect action" $ withContext do
             withCleanDb do
@@ -375,12 +393,21 @@ tests = beforeAll testContext do
                             (Aeson.object ["PayrollCalendarID" Aeson..= ("calendar-1" :: Text)])
                         ]
 
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction AdminAction
+                pageResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
+                pageResponse `responseBodyShouldContain` "admin_xero"
+                pageResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
+
+                xeroVersionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest (referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars) do
                         withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                             callAction SyncXeroPayrollReferenceDataAction
 
                 response `responseStatusShouldBe` status302
+                xeroVersionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                xeroVersionAfter `shouldBe` (xeroVersionBefore + 1)
                 employeeCount <- query @XeroEmployee |> fetchCount
                 employeeCount `shouldBe` 1
                 earningsRateCount <- query @XeroEarningsRate |> fetchCount

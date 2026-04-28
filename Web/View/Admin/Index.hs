@@ -249,6 +249,22 @@ adminRosterGroupsLiveSurface =
         )
         currentVenueOrNothing
 
+adminXeroLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
+adminXeroLiveSurface =
+    fmap
+        (\venue ->
+        (mkLiveSurface
+            "admin-xero"
+            AdminXeroScope { venueId = unpackId venue.id }
+            [ mkLiveFragmentRef
+                AdminXeroFragment
+                "admin-xero-fragment"
+                (pathTo ShowAdminXeroFragmentAction)
+            ])
+            { decorateRequestsWithin = ["#admin-xero-fragment"] }
+        )
+        currentVenueOrNothing
+
 adminSlotNamesLiveSurface :: (?context :: ControllerContext) => RosterGroup -> LiveUpdateScope -> LiveSurfaceConfig
 adminSlotNamesLiveSurface rosterGroup scope =
     (mkLiveSurface
@@ -343,6 +359,14 @@ renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCoun
         mempty
         (renderXeroConnectionBody maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed)
 
+renderXeroSectionFragment :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> Bool -> Html
+renderXeroSectionFragment maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed = [hsx|
+    <div id="admin-xero-fragment"
+         data-live-update-surface={liveSurfaceConfigJson <$> adminXeroLiveSurface}>
+        {renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed}
+    </div>
+|]
+
 renderXeroSummary :: Maybe XeroConnection -> Html
 renderXeroSummary Nothing = [hsx|
     <div class="small app-muted mb-3">
@@ -378,7 +402,12 @@ renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun emp
             <dd class="col-sm-9">{renderXeroReferenceSummary maybeSyncRun employeeCount earningsRateCount payrollCalendarCount}</dd>
         </dl>
         <div class="d-flex flex-wrap gap-2">
-            <form method="POST" action={SyncXeroPayrollReferenceDataAction} data-disable-javascript-submission="true">
+            <form method="POST"
+                  action={SyncXeroPayrollReferenceDataAction}
+                  data-disable-javascript-submission="true"
+                  hx-post={pathTo SyncXeroPayrollReferenceDataAction}
+                  hx-target="#admin-xero-fragment"
+                  hx-swap="outerHTML">
                 <button class="btn btn-outline-primary" type="submit">Sync payroll reference data</button>
             </form>
             {renderXeroReconnectControls connectionActionsAllowed}
@@ -450,7 +479,7 @@ renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRoster
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection)}
-        {renderAccordionItem "xero" "Xero" False (renderXeroSection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroConnectionActionsAllowed)}
+        {renderAccordionItem "xero" "Xero" False (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroConnectionActionsAllowed)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)}
     </div>

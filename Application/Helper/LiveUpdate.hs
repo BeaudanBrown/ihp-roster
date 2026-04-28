@@ -59,6 +59,9 @@ data LiveUpdateScope
     | AdminInvitesScope
         { venueId :: !UUID.UUID
         }
+    | AdminXeroScope
+        { venueId :: !UUID.UUID
+        }
     | LeaveRequestsScope
         { venueId :: !UUID.UUID
         }
@@ -89,6 +92,7 @@ data LiveFragmentKey
         }
     | AdminShiftTypesFragment
     | AdminRosterGroupsFragment
+    | AdminXeroFragment
     | ProfileLeaveRequestsContentFragment
     | SupportAwardRatesSectionFragment
     | SupportPublicHolidaysSectionFragment
@@ -167,6 +171,8 @@ liveUpdateScopeKey AdminRosterGroupsScope { venueId } =
     Text.intercalate ":" ["admin_roster_groups", UUID.toText venueId]
 liveUpdateScopeKey AdminInvitesScope { venueId } =
     Text.intercalate ":" ["admin_invites", UUID.toText venueId]
+liveUpdateScopeKey AdminXeroScope { venueId } =
+    Text.intercalate ":" ["admin_xero", UUID.toText venueId]
 liveUpdateScopeKey LeaveRequestsScope { venueId } =
     Text.intercalate ":" ["leave_requests", UUID.toText venueId]
 liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset } =
@@ -213,6 +219,11 @@ instance Aeson.ToJSON LiveUpdateScope where
             [ "kind" Aeson..= ("admin_invites" :: Text)
             , "venueId" Aeson..= UUID.toText venueId
             ]
+    toJSON AdminXeroScope { venueId } =
+        Aeson.object
+            [ "kind" Aeson..= ("admin_xero" :: Text)
+            , "venueId" Aeson..= UUID.toText venueId
+            ]
     toJSON LeaveRequestsScope { venueId } =
         Aeson.object
             [ "kind" Aeson..= ("leave_requests" :: Text)
@@ -254,6 +265,9 @@ instance Aeson.FromJSON LiveUpdateScope where
                     <$> (parseUuid =<< object Aeson..: "venueId")
             "admin_invites" ->
                 AdminInvitesScope
+                    <$> (parseUuid =<< object Aeson..: "venueId")
+            "admin_xero" ->
+                AdminXeroScope
                     <$> (parseUuid =<< object Aeson..: "venueId")
             "leave_requests" ->
                 LeaveRequestsScope
@@ -299,6 +313,8 @@ instance Aeson.ToJSON LiveFragmentKey where
         Aeson.object ["kind" Aeson..= ("admin_shift_types" :: Text)]
     toJSON AdminRosterGroupsFragment =
         Aeson.object ["kind" Aeson..= ("admin_roster_groups" :: Text)]
+    toJSON AdminXeroFragment =
+        Aeson.object ["kind" Aeson..= ("admin_xero" :: Text)]
     toJSON ProfileLeaveRequestsContentFragment =
         Aeson.object ["kind" Aeson..= ("profile_leave_requests_content" :: Text)]
     toJSON SupportAwardRatesSectionFragment =
@@ -329,6 +345,7 @@ instance Aeson.FromJSON LiveFragmentKey where
                     <$> (parseUuid =<< object Aeson..: "rosterGroupId")
             "admin_shift_types" -> pure AdminShiftTypesFragment
             "admin_roster_groups" -> pure AdminRosterGroupsFragment
+            "admin_xero" -> pure AdminXeroFragment
             "profile_leave_requests_content" -> pure ProfileLeaveRequestsContentFragment
             "support_award_rates_section" -> pure SupportAwardRatesSectionFragment
             "support_public_holidays_section" -> pure SupportPublicHolidaysSectionFragment

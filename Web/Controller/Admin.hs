@@ -132,7 +132,9 @@ instance Controller AdminController where
         case maybeConnection of
             Nothing -> do
                 setErrorMessage "Connect Xero before syncing payroll reference data."
-                redirectTo AdminAction
+                if isHtmxRequest
+                    then respondWithXeroSectionFragment
+                    else redirectTo AdminAction
             Just connection -> syncXeroPayrollReferenceData connection
 
     action UpdateVenueConfigAction = do
@@ -181,6 +183,9 @@ instance Controller AdminController where
         slotNames <- fetchActiveCurrentVenueSlotNames
         let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
         respondHtml (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)
+
+    action ShowAdminXeroFragmentAction = do
+        respondWithXeroSectionFragment
 
     action CreateVenueInvitationAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
@@ -599,6 +604,15 @@ broadcastAdminRosterGroupsInvalidation venueId =
         (adminRosterGroupsScope venueId)
         liveUpdateSourceClientId
 
+broadcastAdminXeroInvalidation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Id Venue ->
+    IO ()
+broadcastAdminXeroInvalidation venueId =
+    broadcastLiveResync
+        (adminXeroScope venueId)
+        liveUpdateSourceClientId
+
 slotNamesScope :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope
 slotNamesScope rosterGroupId =
     RosterGroupConfigScope
@@ -628,6 +642,12 @@ adminShiftTypesScope venueId =
 adminRosterGroupsScope :: Id Venue -> LiveUpdateScope
 adminRosterGroupsScope venueId =
     AdminRosterGroupsScope
+        { venueId = unpackId venueId
+        }
+
+adminXeroScope :: Id Venue -> LiveUpdateScope
+adminXeroScope venueId =
+    AdminXeroScope
         { venueId = unpackId venueId
         }
 
@@ -810,6 +830,19 @@ fetchCurrentVenueXeroPayrollCalendarCount maybeConnection =
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
                 |> fetchCount
+
+respondWithXeroSectionFragment ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+respondWithXeroSectionFragment = do
+    xeroConnection <- fetchActiveCurrentVenueXeroConnection
+    xeroConnectedByUser <- fetchXeroConnectedByUser xeroConnection
+    xeroLatestSyncRun <- fetchLatestCurrentVenueXeroSyncRun
+    xeroEmployeeCount <- fetchCurrentVenueXeroEmployeeCount xeroConnection
+    xeroEarningsRateCount <- fetchCurrentVenueXeroEarningsRateCount xeroConnection
+    xeroPayrollCalendarCount <- fetchCurrentVenueXeroPayrollCalendarCount xeroConnection
+    let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
+    respondHtml (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroConnectionActionsAllowed)
 
 currentUserIsCurrentVenueOwner :: (?context :: ControllerContext) => Bool
 currentUserIsCurrentVenueOwner =
@@ -1062,7 +1095,10 @@ completeXeroReferenceSync syncRun connection employees earningsRates payrollCale
                 ]
             )
     setSuccessMessage ("Synced Xero payroll reference data: " <> tshow (length employees) <> " employees, " <> tshow (length earningsRates) <> " earnings rates, " <> tshow (length payrollCalendars) <> " payroll calendars.")
-    redirectTo AdminAction
+    broadcastAdminXeroInvalidation currentVenueId
+    if isHtmxRequest
+        then respondWithXeroSectionFragment
+        else redirectTo AdminAction
 
 failXeroReferenceSync ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -1091,7 +1127,10 @@ failXeroReferenceSync syncRun connection message = do
                 ]
             )
     setErrorMessage message
-    redirectTo AdminAction
+    broadcastAdminXeroInvalidation currentVenueId
+    if isHtmxRequest
+        then respondWithXeroSectionFragment
+        else redirectTo AdminAction
 
 upsertXeroEmployee :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEmployeeRef -> IO XeroEmployee
 upsertXeroEmployee connection syncedAt employee = do

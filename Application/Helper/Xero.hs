@@ -34,10 +34,17 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LByteString
+import Data.Char (isDigit)
 import qualified Data.IORef as IORef
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
+import Data.Text.Encoding.Error (lenientDecode)
 import qualified Data.Vector as Vector
+import Data.Time.Calendar (Day)
+import Data.Time.Clock (utctDay)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import Text.Read (readMaybe)
 import qualified Network.HTTP.Types.URI as URI
 import Network.HTTP.Simple
 import System.Environment (lookupEnv)
@@ -355,8 +362,8 @@ fetchPayrollEmployeesRequest accessToken tenantId =
 
 fetchEarningsRatesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
 fetchEarningsRatesRequest accessToken tenantId =
-    fmap (fmap unXeroEarningsRatesResponse) $
-        getXeroPayrollRequest "Xero payroll earnings rates request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/EarningsRates"
+    fmap (fmap unXeroPayItemsResponse) $
+        getXeroPayrollRequest "Xero payroll pay items request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/PayItems"
 
 fetchPayrollCalendarsRequest :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
 fetchPayrollCalendarsRequest accessToken tenantId =
@@ -384,10 +391,17 @@ decodeXeroResponse :: Aeson.FromJSON value => Text -> Response LByteString.ByteS
 decodeXeroResponse label response = do
     let statusCode = getResponseStatusCode response
     if statusCode < 200 || statusCode >= 300
-        then pure (Left (XeroHttpError (label <> " failed with status " <> tshow statusCode)))
+        then do
+            let bodyExcerpt = Text.take 500 (TextEncoding.decodeUtf8With lenientDecode (LByteString.toStrict (getResponseBody response)))
+            pure (Left (XeroHttpError (label <> " failed with status " <> tshow statusCode <> responseBodySuffix bodyExcerpt)))
         else case Aeson.eitherDecode (getResponseBody response) of
             Left err -> pure (Left (XeroDecodeError (cs err)))
             Right decoded -> pure (Right decoded)
+
+responseBodySuffix :: Text -> Text
+responseBodySuffix bodyExcerpt
+    | Text.null (Text.strip bodyExcerpt) = ""
+    | otherwise = ": " <> Text.strip bodyExcerpt
 
 handleXeroHttpExceptions :: IO (Either XeroClientError value) -> IO (Either XeroClientError value)
 handleXeroHttpExceptions action = do
@@ -406,6 +420,16 @@ newtype XeroEarningsRatesResponse = XeroEarningsRatesResponse { unXeroEarningsRa
 instance Aeson.FromJSON XeroEarningsRatesResponse where
     parseJSON = parseXeroListResponse XeroEarningsRatesResponse "EarningsRates"
 
+newtype XeroPayItemsResponse = XeroPayItemsResponse { unXeroPayItemsResponse :: [XeroEarningsRateRef] }
+
+instance Aeson.FromJSON XeroPayItemsResponse where
+    parseJSON = Aeson.withObject "XeroPayItemsResponse" \object -> do
+        payItemsValue <- case firstPresent object ["PayItems", "payItems"] of
+            Just value -> pure value
+            Nothing    -> pure (Aeson.Object object)
+        earningsRates <- extractEarningsRates payItemsValue
+        pure (XeroPayItemsResponse earningsRates)
+
 newtype XeroPayrollCalendarsResponse = XeroPayrollCalendarsResponse { unXeroPayrollCalendarsResponse :: [XeroPayrollCalendarRef] }
 
 instance Aeson.FromJSON XeroPayrollCalendarsResponse where
@@ -422,6 +446,14 @@ parseXeroListResponse wrap key = \case
         wrap <$> mapM Aeson.parseJSON (values :: [Aeson.Value])
     _ -> fail "Expected Xero list response"
 
+extractEarningsRates :: Aeson.Value -> AesonTypes.Parser [XeroEarningsRateRef]
+extractEarningsRates = Aeson.withObject "Xero pay items" \object -> do
+    values <-
+        case firstPresent object ["EarningsRates", "earningsRates"] of
+            Just value -> Aeson.parseJSON value
+            Nothing    -> fail "Missing Xero pay items earnings rates"
+    mapM Aeson.parseJSON (values :: [Aeson.Value])
+
 requiredText :: Aeson.Object -> [Text] -> AesonTypes.Parser Text
 requiredText object keys =
     case firstPresent object keys of
@@ -437,8 +469,29 @@ optionalText object keys =
 optionalDay :: Aeson.Object -> [Text] -> AesonTypes.Parser (Maybe Day)
 optionalDay object keys =
     case firstPresent object keys of
+        Just Aeson.Null -> pure Nothing
+        Just (Aeson.String value)
+            | Text.null (Text.strip value) -> pure Nothing
+            | otherwise -> Just <$> parseXeroDayText value
         Just value -> Aeson.parseJSON value
-        Nothing    -> pure Nothing
+        Nothing -> pure Nothing
+
+parseXeroDayText :: Text -> AesonTypes.Parser Day
+parseXeroDayText value =
+    case parseIsoDay value <|> parseMicrosoftJsonDate value of
+        Just day -> pure day
+        Nothing  -> fail ("could not parse Xero date: " <> cs value)
+
+parseIsoDay :: Text -> Maybe Day
+parseIsoDay value =
+    parseTimeM True defaultTimeLocale "%Y-%m-%d" (cs value)
+
+parseMicrosoftJsonDate :: Text -> Maybe Day
+parseMicrosoftJsonDate value = do
+    body <- Text.stripPrefix "/Date(" value
+    let millisecondsText = Text.takeWhile (\char -> isDigit char || char == '-') body
+    milliseconds <- readMaybe (cs millisecondsText) :: Maybe Integer
+    pure (utctDay (posixSecondsToUTCTime (fromIntegral milliseconds / 1000)))
 
 employeeDisplayName :: Aeson.Object -> AesonTypes.Parser Text
 employeeDisplayName object =
@@ -454,7 +507,7 @@ employeeDisplayName object =
 
 activeFromObject :: Aeson.Object -> AesonTypes.Parser Bool
 activeFromObject object =
-    ((not <$> requiredBool object ["IsArchived", "isArchived"]) <|> requiredBool object ["IsActive", "isActive"]) <|> pure True
+    ((not <$> requiredBool object ["IsArchived", "isArchived"]) <|> requiredBool object ["IsActive", "isActive"] <|> requiredBool object ["CurrentRecord", "currentRecord"]) <|> pure True
 
 requiredBool :: Aeson.Object -> [Text] -> AesonTypes.Parser Bool
 requiredBool object keys =
