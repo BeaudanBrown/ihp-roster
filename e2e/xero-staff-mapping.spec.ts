@@ -1,26 +1,11 @@
-import { execFileSync } from 'node:child_process';
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAsPrivilegedUserWithFreshPasskey } from './test-helpers';
+import { gotoWhenReady, loginAsPrivilegedUserWithFreshPasskey, runSql, webauthnBaseURL } from './test-helpers';
 
-const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
 test.use({ baseURL: webauthnBaseURL });
 
 const alphaVenueId = 'a1000000-0000-0000-0000-000000000001';
 const ownerUserId = 'a0000000-0000-0000-0000-000000000004';
 const xeroConnectionId = 'b1000000-0000-0000-0000-000000000001';
-
-function e2eDatabaseArgs() {
-    const dbSocket = process.env.TEST_DB_SOCKET ?? `${process.cwd()}/build/db`;
-    const dbName = process.env.TEST_DATABASE_NAME ?? 'app_e2e';
-    return { dbSocket, dbName };
-}
-
-function runSql(sql: string) {
-    const { dbSocket, dbName } = e2eDatabaseArgs();
-    execFileSync('psql', ['-h', dbSocket, dbName, '-v', 'ON_ERROR_STOP=1', '-c', sql], {
-        stdio: 'inherit',
-    });
-}
 
 function resetXeroStaffMappingFixture() {
     runSql(`

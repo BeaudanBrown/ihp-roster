@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { gotoExports, loginAs, loginAsPrivilegedUserWithFreshPasskey, payrollReportCard } from './test-helpers';
+import { gotoExports, loginAs, loginAsPrivilegedUserWithFreshPasskey, payrollReportCard, webauthnBaseURL } from './test-helpers';
 
-const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
 test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Export report definition management', () => {

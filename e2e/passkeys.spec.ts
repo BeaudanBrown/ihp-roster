@@ -10,9 +10,9 @@ import {
     removeVirtualPasskeyAuthenticator,
     resetE2EUserPasskeySignCount,
     verifyCurrentUserPasskeyStepUp,
+    webauthnBaseURL,
 } from './test-helpers';
 
-const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
 test.use({ baseURL: webauthnBaseURL });
 
 const adminEmail = 'e2e-admin@example.com';

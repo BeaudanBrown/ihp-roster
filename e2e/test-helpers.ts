@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { APIRequestContext, Download, expect, Locator, Page } from '@playwright/test';
 
 export const defaultE2ERosterGroupId = 'a1000000-0000-0000-0000-000000000211';
+export const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
 
 type MailHogAddress = {
     Mailbox?: string;
@@ -54,6 +55,11 @@ export function extractFirstUrl(text: string) {
         throw new Error(`Could not find URL in text:\n${text}`);
     }
     return match[0];
+}
+
+export function inviteUrlForCurrentBase(rawUrl: string, baseURL: string) {
+    const parsed = new URL(rawUrl);
+    return new URL(`${parsed.pathname}${parsed.search}`, baseURL).toString();
 }
 
 export async function clearMailhogInbox(request: APIRequestContext) {
@@ -182,37 +188,18 @@ function sqlString(value: string) {
 }
 
 export function clearE2EUserPasskeys(email: string) {
-    const { dbSocket, dbName } = e2eDatabaseArgs();
-    execFileSync(
-        'psql',
-        [
-            '-h',
-            dbSocket,
-            dbName,
-            '-v',
-            'ON_ERROR_STOP=1',
-            '-c',
-            `DELETE FROM passkeys WHERE user_id = (SELECT id FROM users WHERE email = ${sqlString(email)});`,
-        ],
-        { stdio: 'inherit' },
-    );
+    runSql(`DELETE FROM passkeys WHERE user_id = (SELECT id FROM users WHERE email = ${sqlString(email)});`);
 }
 
 export function resetE2EUserPasskeySignCount(email: string) {
+    runSql(`UPDATE passkeys SET sign_count = 0 WHERE user_id = (SELECT id FROM users WHERE email = ${sqlString(email)});`);
+}
+
+export function runSql(sql: string) {
     const { dbSocket, dbName } = e2eDatabaseArgs();
-    execFileSync(
-        'psql',
-        [
-            '-h',
-            dbSocket,
-            dbName,
-            '-v',
-            'ON_ERROR_STOP=1',
-            '-c',
-            `UPDATE passkeys SET sign_count = 0 WHERE user_id = (SELECT id FROM users WHERE email = ${sqlString(email)});`,
-        ],
-        { stdio: 'inherit' },
-    );
+    execFileSync('psql', ['-h', dbSocket, dbName, '-v', 'ON_ERROR_STOP=1', '-c', sql], {
+        stdio: 'inherit',
+    });
 }
 
 export async function enableVirtualPasskeyAuthenticator(page: Page) {
@@ -266,6 +253,32 @@ export async function openProfileSecuritySection(page: Page) {
         await securityToggle.click();
     }
     await expect(page.locator('#profile-security-collapse .js-passkey-register')).toBeVisible();
+}
+
+export async function openProfileLeaveSection(page: Page) {
+    await gotoWhenReady(page, '/EditProfile?section=leave', '#profile-content-fragment');
+
+    const leaveSectionToggle = page.getByRole('button', { name: 'Leave Requests' });
+    if ((await leaveSectionToggle.getAttribute('aria-expanded')) !== 'true') {
+        await leaveSectionToggle.click();
+    }
+
+    await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
+    await expect(page.locator('#profile-leave-requests-list-fragment')).toBeVisible();
+}
+
+export async function setFlatpickrDate(page: Page, selector: string, value: string) {
+    await page.locator(selector).evaluate((input, nextValue) => {
+        const flatpickr = (input as HTMLInputElement & {
+            _flatpickr?: { setDate: (date: string, triggerChange?: boolean) => void };
+        })._flatpickr;
+
+        if (!flatpickr) {
+            throw new Error(`No flatpickr instance on ${selector}`);
+        }
+
+        flatpickr.setDate(nextValue as string, true);
+    }, value);
 }
 
 export async function verifyCurrentUserPasskeyStepUp(page: Page) {

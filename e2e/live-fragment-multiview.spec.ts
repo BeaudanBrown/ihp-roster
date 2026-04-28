@@ -1,5 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
-import { addRowToFirstRosterDay, editableRosterRows, gotoWhenReady, loginAs } from './test-helpers';
+import { addRowToFirstRosterDay, editableRosterRows, gotoWhenReady, loginAs, openProfileLeaveSection, setFlatpickrDate } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -27,20 +27,6 @@ async function loginAndOpenRoster(page) {
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
 }
 
-async function setFlatpickrDate(page: Page, selector: string, value: string) {
-    await page.locator(selector).evaluate((input, nextValue) => {
-        const flatpickr = (input as HTMLInputElement & {
-            _flatpickr?: { setDate: (date: string, triggerChange?: boolean) => void };
-        })._flatpickr;
-
-        if (!flatpickr) {
-            throw new Error(`No flatpickr instance on ${selector}`);
-        }
-
-        flatpickr.setDate(nextValue as string, true);
-    }, value);
-}
-
 async function isoToday(page: Page) {
     return page.evaluate(() => {
         const now = new Date();
@@ -60,18 +46,6 @@ async function isoCurrentWeekStart(page: Page) {
         current.setUTCDate(current.getUTCDate() - mondayOffset);
         return current.toISOString().slice(0, 10);
     });
-}
-
-async function openProfileLeaveSection(page: Page) {
-    await gotoWhenReady(page, '/EditProfile?section=leave', '#profile-content-fragment');
-
-    const leaveSectionToggle = page.getByRole('button', { name: 'Leave Requests' });
-    if ((await leaveSectionToggle.getAttribute('aria-expanded')) !== 'true') {
-        await leaveSectionToggle.click();
-    }
-
-    await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
-    await expect(page.locator('#profile-leave-requests-list-fragment')).toBeVisible();
 }
 
 async function createProfileLeaveRequest(page: Page, note: string, startDate: string, endDate: string) {

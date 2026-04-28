@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
-import { gotoWhenReady, loginAs, openNewLeaveRequestDialog } from './test-helpers';
+import { gotoWhenReady, loginAs, openNewLeaveRequestDialog, openProfileLeaveSection, setFlatpickrDate } from './test-helpers';
 
 async function login(page) {
     await gotoWhenReady(page, '/NewSession', '#email');
@@ -11,34 +11,12 @@ async function login(page) {
     await expect(page.locator('#roster-week-shell')).toBeVisible();
 }
 
-async function setFlatpickrDate(page, selector: string, value: string) {
-    await page.locator(selector).evaluate((input, nextValue) => {
-        const flatpickr = (input as HTMLInputElement & {
-            _flatpickr?: { setDate: (date: string, triggerChange?: boolean) => void };
-        })._flatpickr;
-
-        if (!flatpickr) {
-            throw new Error(`No flatpickr instance on ${selector}`);
-        }
-
-        flatpickr.setDate(nextValue as string, true);
-    }, value);
-}
-
 test.describe('HTMX submit regressions', () => {
     test('profile leave submit appends a leave request without nesting the whole profile page', async ({ page }) => {
         const note = 'profile-leave-submit-check';
 
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/EditProfile', '#profile-content-fragment');
-
-        const leaveSectionToggle = page.getByRole('button', { name: 'Leave Requests' });
-        if ((await leaveSectionToggle.getAttribute('aria-expanded')) !== 'true') {
-            await leaveSectionToggle.click();
-        }
-
-        await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
-        await expect(page.locator('#profile-leave-requests-list-fragment')).toBeVisible();
+        await openProfileLeaveSection(page);
 
         const initialCount = await page.locator('#profile-leave-requests-list-fragment .leave-request-row').count();
         const submitResponsePromise = page.waitForResponse((response) =>

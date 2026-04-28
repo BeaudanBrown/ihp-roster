@@ -1,25 +1,31 @@
 import { test, expect, Page } from '@playwright/test';
 import {
     clearMailhogInbox,
+    clearE2EUserPasskeys,
+    enableVirtualPasskeyAuthenticator,
     extractFirstUrl,
     gotoWhenReady,
+    inviteUrlForCurrentBase,
     mailhogMessageSubject,
     mailhogMessageText,
+    registerFirstPasskeyForCurrentUser,
+    registerFirstSupportPasskeyForCurrentUser,
     waitForMailhogMessage,
+    webauthnBaseURL,
 } from './test-helpers';
 
-function inviteUrlForCurrentBase(rawUrl: string, baseURL: string) {
-    const parsed = new URL(rawUrl);
-    return new URL(`${parsed.pathname}${parsed.search}`, baseURL).toString();
-}
+test.use({ baseURL: webauthnBaseURL });
 
 async function loginAsSuperAdmin(page: Page) {
+    clearE2EUserPasskeys('e2e-super-admin@example.com');
+    await enableVirtualPasskeyAuthenticator(page);
     await gotoWhenReady(page, '/NewSession', '#email');
     await page.fill('#email', 'e2e-super-admin@example.com');
     await page.fill('#password', 'test-password-123');
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
-    await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+    await expect(page).toHaveURL(/Support/, { timeout: 60000 });
+    await expect(page.locator('#support-create-onboarding-email')).toBeVisible({ timeout: 60000 });
+    await registerFirstSupportPasskeyForCurrentUser(page);
 }
 
 async function openSupport(page: Page) {
@@ -94,14 +100,21 @@ test.describe('Venue owner onboarding invites', () => {
             'Shift preferences will appear once this staff member is assigned to at least one roster group.',
         );
 
+        await enableVirtualPasskeyAuthenticator(ownerPage);
+        await registerFirstPasskeyForCurrentUser(ownerPage);
+        await gotoWhenReady(ownerPage, '/EditProfile?section=profile', '#profile-content-fragment');
         await ownerPage.fill('#firstName', 'Tuesday');
         await ownerPage.fill('#lastName', 'Owner');
         await ownerPage.fill('#phone', '0400000000');
         await ownerPage.fill('#emergencyContactName', 'Emergency Owner');
         await ownerPage.fill('#emergencyContactPhone', '0411111111');
         await ownerPage.fill('#idealShiftsPerWeek', '3');
+        const shiftPreferenceBoxes = ownerPage.locator('input[name="shiftPreferenceKeys"]');
+        for (let index = 0; index < await shiftPreferenceBoxes.count(); index += 1) {
+            await shiftPreferenceBoxes.nth(index).check();
+        }
         await ownerPage.getByRole('button', { name: 'Save' }).click();
-        await expect(ownerPage).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
+        await gotoWhenReady(ownerPage, '/RosterWeeks', '#roster-content');
         await expect(ownerPage.locator('#roster-content')).toBeVisible({ timeout: 60000 });
 
         const rosterDaySections = ownerPage.locator('tbody[data-roster-day-section]');

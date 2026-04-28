@@ -4,19 +4,15 @@ import {
     expectMailhogMessageCount,
     extractFirstUrl,
     gotoWhenReady,
+    inviteUrlForCurrentBase,
     mailhogMessageSubject,
     mailhogMessageText,
     openAdminWithFreshPasskey,
     waitForMailhogMessage,
+    webauthnBaseURL,
 } from './test-helpers';
 
-const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
 test.use({ baseURL: webauthnBaseURL });
-
-function inviteUrlForCurrentBase(rawUrl: string, baseURL: string) {
-    const parsed = new URL(rawUrl);
-    return new URL(`${parsed.pathname}${parsed.search}`, baseURL).toString();
-}
 
 async function openInvitesSection(page: Page) {
     const toggle = page.locator('#invites-heading button');

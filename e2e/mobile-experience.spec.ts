@@ -8,9 +8,9 @@ import {
     openNewLeaveRequestDialog,
     loginAsPrivilegedUserWithFreshPasskey,
     openAuthenticatedNavIfCollapsed,
+    webauthnBaseURL,
 } from './test-helpers';
 
-const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
 test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Mobile experience smoke', () => {

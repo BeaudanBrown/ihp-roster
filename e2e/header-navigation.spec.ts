@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { loginAs, loginAsPrivilegedUserWithFreshPasskey, verifyCurrentUserPasskeyStepUp } from './test-helpers';
+import { loginAs, loginAsPrivilegedUserWithFreshPasskey, verifyCurrentUserPasskeyStepUp, webauthnBaseURL } from './test-helpers';
 
-const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
 test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Authenticated header navigation', () => {

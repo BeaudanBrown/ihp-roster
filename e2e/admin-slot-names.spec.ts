@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs, openAdminWithFreshPasskey } from './test-helpers';
+import { gotoWhenReady, loginAs, openAdminWithFreshPasskey, webauthnBaseURL } from './test-helpers';
 
-const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
 test.use({ baseURL: webauthnBaseURL });
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';

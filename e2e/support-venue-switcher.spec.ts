@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test';
-import { gotoWhenReady, loginAsPrivilegedUserWithFreshPasskey } from './test-helpers';
+import { gotoWhenReady, loginAsPrivilegedUserWithFreshPasskey, webauthnBaseURL } from './test-helpers';
 
-const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
 test.use({ baseURL: webauthnBaseURL });
 
 async function loginAsSuperAdmin(page: import('@playwright/test').Page) {
