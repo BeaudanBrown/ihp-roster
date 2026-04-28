@@ -7,4 +7,8 @@ make print-ghc-options GHC_RTS_FLAGS='' \
   | grep -vE '^-fbyte-code$' \
   > "$HIE_BIOS_OUTPUT"
 echo "$HIE_BIOS_ARG" >> "$HIE_BIOS_OUTPUT"
-find . -name '*.hs' -not -path './IHP/*' >> "$HIE_BIOS_OUTPUT"
+for path in Main.hs Config Application Web Test build/Generated; do
+  [ -e "$path" ] || continue
+  find "$path" -name '*.hs' \
+    -not -name '*.sync-conflict*'
+done >> "$HIE_BIOS_OUTPUT"

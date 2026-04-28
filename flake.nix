@@ -120,7 +120,6 @@
 
                     env = {
                         IHP_TELEMETRY_DISABLED = "1";
-                        IHP_DEV_CHECKOUT = "/home/beau/documents/projects/ihp";
                         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
                         PLAYWRIGHT_BROWSERS_PATH = "${inputs'.playwright.packages.playwright-driver.browsers}";
                         PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = "true";
@@ -310,7 +309,11 @@
                             TARGET="''${1:-Main.hs}"
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
-                            exec ghc -fno-code $GHC_OPTS "$TARGET"
+                            TYPECHECK_DIR="''${TYPECHECK_BUILD_DIR:-$PWD/build/Typecheck}"
+                            mkdir -p "$TYPECHECK_DIR/obj" "$TYPECHECK_DIR/hi"
+                            exec ghc -fno-code -fwrite-interface $GHC_OPTS "$TARGET" \
+                                -odir "$TYPECHECK_DIR/obj" \
+                                -hidir "$TYPECHECK_DIR/hi"
                         '';
 
                         # Regenerate Haskell types from Application/Schema.sql.
@@ -674,6 +677,9 @@ EOF
                                 -odir build/Script \
                                 -hidir build/Script
                             build/Script/SeedDev "''${SCRIPT_ARGS[@]}"
+
+                            echo "Loading hard-coded dev award and public holiday data"
+                            psql -h "$DB_SOCKET" -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Support/Seed/DevReferenceData.sql
 
                             if [ -f "$DEV_PASSKEY_SEED_FILE" ]; then
                                 echo "Restoring dev passkeys from $DEV_PASSKEY_SEED_FILE"
@@ -1596,9 +1602,10 @@ EOF
 
                             E2E_SERVER_BIN=""
                             if [ "$E2E_SERVER_MODE" = "compiled" ]; then
-                                E2E_BUILD_DIR="$STATE_DIR/build"
-                                E2E_SERVER_BIN="$E2E_BUILD_DIR/RunE2EApp"
-                                mkdir -p "$E2E_BUILD_DIR/obj" "$E2E_BUILD_DIR/hi"
+                                E2E_BUILD_DIR="$PWD/build/E2E"
+                                E2E_RUN_BUILD_DIR="$STATE_DIR/build"
+                                E2E_SERVER_BIN="$E2E_RUN_BUILD_DIR/RunE2EApp"
+                                mkdir -p "$E2E_BUILD_DIR/obj" "$E2E_BUILD_DIR/hi" "$E2E_RUN_BUILD_DIR"
                                 GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
                                   | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                                 ghc $GHC_OPTS Main.hs -o "$E2E_SERVER_BIN" -odir "$E2E_BUILD_DIR/obj" -hidir "$E2E_BUILD_DIR/hi"
