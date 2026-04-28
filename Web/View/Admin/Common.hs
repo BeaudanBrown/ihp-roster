@@ -1,6 +1,5 @@
 module Web.View.Admin.Common where
 
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 renderConfigSection :: Text -> Text -> Text -> Html -> Html -> Html -> Html
@@ -21,7 +20,7 @@ renderConfigSection anchorId title description summary createForm rows = [hsx|
 |]
 
 formatTimestamp :: UTCTime -> Text
-formatTimestamp = cs . formatTime defaultTimeLocale "%Y-%m-%d %H:%M UTC"
+formatTimestamp = formatUtcTimestamp
 
 renderAccordionItem :: Text -> Text -> Bool -> Html -> Html
 renderAccordionItem sectionId title isOpen content =
@@ -147,10 +146,6 @@ visibleRosterGroupsForAdmin rosterGroups showInactive =
 
 countActiveRows :: HasField "isActive" record Bool => [record] -> Int
 countActiveRows = length . filter (.isActive)
-
-boolParam :: Bool -> Text
-boolParam True  = "true"
-boolParam False = "false"
 
 weekdayOptions :: [(Int, Text)]
 weekdayOptions =

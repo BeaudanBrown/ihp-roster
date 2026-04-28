@@ -42,8 +42,8 @@ deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff =
                 "DELETE"
                 deleteUrl
                 [ ("weekOffset", tshow weekOffset)
-                , ("showApproved", boolText showApproved)
-                , ("showAllStaff", boolText showAllStaff)
+                , ("showApproved", boolParam showApproved)
+                , ("showAllStaff", boolParam showAllStaff)
                 ]
                 ("#" <> dialogOverlayMountId)
                 (Just "Delete this timesheet entry? This cannot be undone.")
@@ -51,7 +51,3 @@ deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff =
     ]
     where
         deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) [("weekOffset", tshow weekOffset)]
-
-boolText :: Bool -> Text
-boolText True  = "true"
-boolText False = "false"

@@ -9,7 +9,6 @@ import Application.Support.LiveUpdates (supportLiveSurface)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Passkeys.Management (renderPasskeyManagement)
 import Web.View.Prelude
 
@@ -589,4 +588,4 @@ renderDay :: Day -> Html
 renderDay day = [hsx|{tshow day}|]
 
 formatTimestamp :: UTCTime -> Text
-formatTimestamp = cs . formatTime defaultTimeLocale "%Y-%m-%d %H:%M UTC"
+formatTimestamp = formatUtcTimestamp

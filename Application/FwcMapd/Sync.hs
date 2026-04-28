@@ -2,6 +2,7 @@ module Application.FwcMapd.Sync where
 
 import Application.FwcMapd.Client
 import Application.FwcMapd.Config
+import Application.Helper.FwcMapd (searchableTextFields)
 import qualified Control.Exception as Exception
 import Control.Monad (foldM, void)
 import qualified Data.Aeson as Aeson
@@ -1081,85 +1082,55 @@ endsOnOrAfter asOfDate = maybe True (>= asOfDate)
 
 searchablePayRateText :: PayRatePayload -> Text
 searchablePayRateText payRate =
-    Text.toLower
-        ( Text.intercalate
-            " "
-            ( filter
-                (not . Text.null)
-                [ payRate.classification
-                , fromMaybe "" payRate.classificationLevel
-                , fromMaybe "" payRate.parentClassificationName
-                , fromMaybe "" payRate.employeeRateTypeCode
-                , fromMaybe "" payRate.baseRateType
-                , fromMaybe "" payRate.calculatedRateType
-                ]
-            )
-        )
+    searchableTextFields
+        [ payRate.classification
+        , fromMaybe "" payRate.classificationLevel
+        , fromMaybe "" payRate.parentClassificationName
+        , fromMaybe "" payRate.employeeRateTypeCode
+        , fromMaybe "" payRate.baseRateType
+        , fromMaybe "" payRate.calculatedRateType
+        ]
 
 searchableClassificationText :: ClassificationPayload -> Text
 searchableClassificationText classification =
-    Text.toLower
-        ( Text.intercalate
-            " "
-            ( filter
-                (not . Text.null)
-                [ classification.classification
-                , fromMaybe "" classification.classificationLevel
-                , fromMaybe "" classification.parentClassificationName
-                , fromMaybe "" classification.clauseDescription
-                ]
-            )
-        )
+    searchableTextFields
+        [ classification.classification
+        , fromMaybe "" classification.classificationLevel
+        , fromMaybe "" classification.parentClassificationName
+        , fromMaybe "" classification.clauseDescription
+        ]
 
 searchablePenaltyRateText :: PenaltyRatePayload -> Text
 searchablePenaltyRateText penaltyRate =
-    Text.toLower
-        ( Text.intercalate
-            " "
-            ( filter
-                (not . Text.null)
-                [ penaltyRate.penaltyClassification
-                , fromMaybe "" penaltyRate.penaltyClassificationLevel
-                , fromMaybe "" penaltyRate.penaltyParentClassificationName
-                , fromMaybe "" penaltyRate.penaltyClauseDescription
-                , fromMaybe "" penaltyRate.penaltyEmployeeRateTypeCode
-                , fromMaybe "" penaltyRate.penaltyDescription
-                , fromMaybe "" penaltyRate.penaltyText
-                ]
-            )
-        )
+    searchableTextFields
+        [ penaltyRate.penaltyClassification
+        , fromMaybe "" penaltyRate.penaltyClassificationLevel
+        , fromMaybe "" penaltyRate.penaltyParentClassificationName
+        , fromMaybe "" penaltyRate.penaltyClauseDescription
+        , fromMaybe "" penaltyRate.penaltyEmployeeRateTypeCode
+        , fromMaybe "" penaltyRate.penaltyDescription
+        , fromMaybe "" penaltyRate.penaltyText
+        ]
 
 searchableWageAllowanceText :: WageAllowancePayload -> Text
 searchableWageAllowanceText wageAllowance =
-    Text.toLower
-        ( Text.intercalate
-            " "
-            ( filter
-                (not . Text.null)
-                [ fromMaybe "" wageAllowance.wageAllowanceClauses
-                , fromMaybe "" wageAllowance.wageAllowance
-                , fromMaybe "" wageAllowance.wageAllowanceType
-                , fromMaybe "" wageAllowance.wageAllowanceRateUnit
-                , fromMaybe "" wageAllowance.wageAllowancePaymentFrequency
-                ]
-            )
-        )
+    searchableTextFields
+        [ fromMaybe "" wageAllowance.wageAllowanceClauses
+        , fromMaybe "" wageAllowance.wageAllowance
+        , fromMaybe "" wageAllowance.wageAllowanceType
+        , fromMaybe "" wageAllowance.wageAllowanceRateUnit
+        , fromMaybe "" wageAllowance.wageAllowancePaymentFrequency
+        ]
 
 searchableWageAllowanceRecordText :: FwcMapdWageAllowance -> Text
 searchableWageAllowanceRecordText wageAllowance =
-    Text.toLower
-        ( Text.intercalate
-            " "
-            ( filter
-                (not . Text.null)
-                [ fromMaybe "" wageAllowance.clauses
-                , fromMaybe "" wageAllowance.allowance
-                , fromMaybe "" wageAllowance.allowanceType
-                , fromMaybe "" wageAllowance.rateUnit
-                , fromMaybe "" wageAllowance.paymentFrequency
-                ]
-            )
-        )
+    searchableTextFields
+        [ fromMaybe "" wageAllowance.clauses
+        , fromMaybe "" wageAllowance.allowance
+        , fromMaybe "" wageAllowance.allowanceType
+        , fromMaybe "" wageAllowance.rateUnit
+        , fromMaybe "" wageAllowance.paymentFrequency
+        ]
 
 hasAnyKeyword :: [Text] -> Text -> Bool
 hasAnyKeyword keywords searchableText =

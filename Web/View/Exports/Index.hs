@@ -2,7 +2,6 @@ module Web.View.Exports.Index where
 
 import Application.Helper.Export
 import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -397,4 +396,4 @@ renderDownloadAction exportJob =
         _ -> [hsx|<span class="app-muted small">Unavailable</span>|]
 
 formatTimestamp :: UTCTime -> Text
-formatTimestamp timestamp = Text.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M UTC" timestamp)
+formatTimestamp = formatUtcTimestamp

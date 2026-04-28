@@ -84,8 +84,8 @@ timesheetDayFragmentRef weekOffset showApproved showAllStaff dayOffset =
         (timesheetDaySectionDomId dayOffset)
         ( appendQueryParams
             (pathTo ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset })
-            [ ("showApproved", boolText showApproved)
-            , ("showAllStaff", boolText showAllStaff)
+            [ ("showApproved", boolParam showApproved)
+            , ("showAllStaff", boolParam showAllStaff)
             ]
         )
 
@@ -107,7 +107,7 @@ renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bo
 renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff = [hsx|
     <div class="app-panel-header app-surface-toolbar">
         <div class="app-surface-toolbar-side">
-            {renderTimesheetWeekNavigationLink "This week" (appendQueryParams (pathTo TimesheetsAction) [("showApproved", boolText showApproved), ("showAllStaff", boolText showAllStaff)])}
+            {renderTimesheetWeekNavigationLink "This week" (appendQueryParams (pathTo TimesheetsAction) [("showApproved", boolParam showApproved), ("showAllStaff", boolParam showAllStaff)])}
         </div>
         <div class="app-surface-toolbar-center">
             <div class="btn-group app-week-nav-group" role="group" aria-label="Timesheet week navigation">
@@ -150,8 +150,8 @@ renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff =
                   hx-push-url="true"
                   hx-sync={"#" <> timesheetWeekShellId <> ":replace"}>
                 <input type="hidden" name="weekOffset" value={tshow weekOffset} />
-                <input type="hidden" name="showApproved" id="timesheet-show-approved-value" value={boolText showApproved} />
-                <input type="hidden" name="showAllStaff" id="timesheet-show-all-staff-value" value={boolText showAllStaff} />
+                <input type="hidden" name="showApproved" id="timesheet-show-approved-value" value={boolParam showApproved} />
+                <input type="hidden" name="showAllStaff" id="timesheet-show-all-staff-value" value={boolParam showAllStaff} />
                 <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Filters</div>
                 {renderTimesheetHideApprovedToggle showApproved}
                 {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" "timesheet-show-all-staff-value" showAllStaff "Show all staff")}
@@ -232,16 +232,16 @@ renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes today edit
                         }
                     )
                 )
-                [ ("showApproved", boolText showApproved)
-                , ("showAllStaff", boolText showAllStaff)
+                [ ("showApproved", boolParam showApproved)
+                , ("showAllStaff", boolParam showAllStaff)
                 ]
         newEntryUrl =
             appendQueryParams
                 (pathTo NewTimesheetEntryAction)
                 [ ("weekOffset", tshow weekOffset)
                 , ("workedOn", tshow dayDate)
-                , ("showApproved", boolText showApproved)
-                , ("showAllStaff", boolText showAllStaff)
+                , ("showApproved", boolParam showApproved)
+                , ("showAllStaff", boolParam showAllStaff)
                 ]
 
 timesheetDaySectionDomId :: Int -> Text
@@ -258,7 +258,7 @@ renderDayEntries dayOffset dayEntries staffMembers shiftTypes today editWindowDa
 
 renderEntryCard :: (?context :: ControllerContext) => Int -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Bool -> Bool -> TimesheetEntry -> Html
 renderEntryCard dayOffset staffMembers shiftTypes today editWindowDays weekOffset showApproved showAllStaff entry = [hsx|
-    <article class="timesheet-entry-card" data-timesheet-entry-approved={boolText entry.isApproved}>
+    <article class="timesheet-entry-card" data-timesheet-entry-approved={boolParam entry.isApproved}>
         <div class="timesheet-entry-main">
             <div class="timesheet-entry-identity">
                 <div class="timesheet-entry-shift-type">{shiftTypeLabel}</div>
@@ -305,7 +305,7 @@ renderEditActions entry canEdit weekOffset showApproved showAllStaff
     |]
     | otherwise = mempty
     where
-        editUrl = appendQueryParams (pathTo (EditTimesheetEntryAction (get #id entry))) [("weekOffset", tshow weekOffset), ("showApproved", boolText showApproved), ("showAllStaff", boolText showAllStaff)]
+        editUrl = appendQueryParams (pathTo (EditTimesheetEntryAction (get #id entry))) [("weekOffset", tshow weekOffset), ("showApproved", boolParam showApproved), ("showAllStaff", boolParam showAllStaff)]
 
 renderApprovalAction :: (?context :: ControllerContext) => Int -> TimesheetEntry -> Int -> Bool -> Bool -> Html
 renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff
@@ -320,8 +320,8 @@ renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff
               hx-swap="outerHTML"
               hx-push-url="false">
             <input type="hidden" name="weekOffset" value={tshow weekOffset} />
-            <input type="hidden" name="showApproved" value={boolText showApproved} />
-            <input type="hidden" name="showAllStaff" value={boolText showAllStaff} />
+            <input type="hidden" name="showApproved" value={boolParam showApproved} />
+            <input type="hidden" name="showAllStaff" value={boolParam showAllStaff} />
             <button type="submit" class="btn btn-sm btn-success timesheet-approval-toggle">Approved</button>
         </form>
     |]
@@ -335,8 +335,8 @@ renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff
               hx-swap="outerHTML"
               hx-push-url="false">
             <input type="hidden" name="weekOffset" value={tshow weekOffset} />
-            <input type="hidden" name="showApproved" value={boolText showApproved} />
-            <input type="hidden" name="showAllStaff" value={boolText showAllStaff} />
+            <input type="hidden" name="showApproved" value={boolParam showApproved} />
+            <input type="hidden" name="showAllStaff" value={boolParam showAllStaff} />
             <button type="submit" class="btn btn-sm btn-outline-success timesheet-approval-toggle">Approve</button>
         </form>
     |]
@@ -362,10 +362,6 @@ renderDuration entry =
 formatDateCompact :: Day -> Text
 formatDateCompact day =
     Text.pack (formatTime defaultTimeLocale "%d/%m" day)
-
-boolText :: Bool -> Text
-boolText True  = "true"
-boolText False = "false"
 
 data TimesheetTimelineScale = TimesheetTimelineScale
     { scaleStartMinutes :: Int

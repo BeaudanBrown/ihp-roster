@@ -249,18 +249,16 @@ renderXeroStaffMappingRow xeroEmployees mappingRows row =
     |]
 
 renderXeroStaffMappingCounts :: XeroStaffMappingCounts -> Html
-renderXeroStaffMappingCounts mappingCounts = [hsx|
-    <div id="xero-staff-mapping-counts" class="d-flex flex-wrap gap-2">
-        <span class="badge text-bg-success">{tshow mappingCounts.xeroStaffVerifiedCount} mapped</span>
-        <span class="badge text-bg-secondary">{tshow mappingCounts.xeroStaffUnmappedCount} unmapped</span>
-        <span class="badge text-bg-info">{tshow mappingCounts.xeroStaffNotApplicableCount} not paid through Xero</span>
-        <span class="badge text-bg-warning">{tshow mappingCounts.xeroStaffStaleCount} stale</span>
-    </div>
-|]
+renderXeroStaffMappingCounts =
+    renderXeroStaffMappingCountsWith Nothing
 
 renderXeroStaffMappingCountsOob :: XeroStaffMappingCounts -> Html
-renderXeroStaffMappingCountsOob mappingCounts = [hsx|
-    <div id="xero-staff-mapping-counts" class="d-flex flex-wrap gap-2" hx-swap-oob="outerHTML">
+renderXeroStaffMappingCountsOob =
+    renderXeroStaffMappingCountsWith (Just "outerHTML")
+
+renderXeroStaffMappingCountsWith :: Maybe Text -> XeroStaffMappingCounts -> Html
+renderXeroStaffMappingCountsWith maybeOobSwap mappingCounts = [hsx|
+    <div id="xero-staff-mapping-counts" class="d-flex flex-wrap gap-2" hx-swap-oob={maybeOobSwap}>
         <span class="badge text-bg-success">{tshow mappingCounts.xeroStaffVerifiedCount} mapped</span>
         <span class="badge text-bg-secondary">{tshow mappingCounts.xeroStaffUnmappedCount} unmapped</span>
         <span class="badge text-bg-info">{tshow mappingCounts.xeroStaffNotApplicableCount} not paid through Xero</span>

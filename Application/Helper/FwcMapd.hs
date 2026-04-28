@@ -114,17 +114,16 @@ isCoreHospitalityClassification classification =
         && not (containsLoadedRates classification.clauseDescription)
     where
         searchableText =
-            Text.toLower
-                ( Text.intercalate
-                    " "
-                    ( filter (not . Text.null)
-                        [ classification.classification
-                        , fromMaybe "" classification.classificationLevel
-                        , fromMaybe "" classification.parentClassificationName
-                        , fromMaybe "" classification.clauseDescription
-                        ]
-                    )
-                )
+            searchableTextFields
+                [ classification.classification
+                , fromMaybe "" classification.classificationLevel
+                , fromMaybe "" classification.parentClassificationName
+                , fromMaybe "" classification.clauseDescription
+                ]
+
+searchableTextFields :: [Text] -> Text
+searchableTextFields =
+    Text.toLower . Text.intercalate " " . filter (not . Text.null)
 
 containsLoadedRates :: Maybe Text -> Bool
 containsLoadedRates =

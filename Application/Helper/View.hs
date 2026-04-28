@@ -165,6 +165,14 @@ formatDateDisplay day = Text.pack (formatTime defaultTimeLocale "%d/%m/%Y" day)
 formatDayMonthDisplay :: Day -> Text
 formatDayMonthDisplay day = Text.pack (formatTime defaultTimeLocale "%d/%m" day)
 
+formatUtcTimestamp :: UTCTime -> Text
+formatUtcTimestamp =
+    Text.pack . formatTime defaultTimeLocale "%Y-%m-%d %H:%M UTC"
+
+boolParam :: Bool -> Text
+boolParam True  = "true"
+boolParam False = "false"
+
 timesheetModalTitle :: Day -> Text
 timesheetModalTitle day =
     "Timesheet "
