@@ -76,15 +76,17 @@ instance Aeson.FromJSON XeroTokenResponse where
             <*> object Aeson..:? "scope"
 
 data XeroTenant = XeroTenant
-    { tenantId   :: !Text
-    , tenantName :: !(Maybe Text)
+    { xeroConnectionId :: !Text
+    , tenantId         :: !Text
+    , tenantName       :: !(Maybe Text)
     }
     deriving (Eq, Show)
 
 instance Aeson.FromJSON XeroTenant where
     parseJSON = Aeson.withObject "XeroTenant" \object ->
         XeroTenant
-            <$> object Aeson..: "tenantId"
+            <$> object Aeson..: "id"
+            <*> object Aeson..: "tenantId"
             <*> object Aeson..:? "tenantName"
 
 data XeroEmployeeRef = XeroEmployeeRef
@@ -161,6 +163,7 @@ data XeroClientError
 data XeroClient = XeroClient
     { exchangeCodeForToken :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
     , fetchConnectedTenants :: Text -> IO (Either XeroClientError [XeroTenant])
+    , deleteXeroConnection :: Text -> Text -> IO (Either XeroClientError ())
     , refreshXeroToken :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
     , fetchPayrollEmployees :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
     , fetchEarningsRates :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
@@ -282,6 +285,7 @@ defaultXeroClient =
     XeroClient
         { exchangeCodeForToken = exchangeCodeForTokenRequest
         , fetchConnectedTenants = fetchConnectedTenantsRequest
+        , deleteXeroConnection = deleteXeroConnectionRequest
         , refreshXeroToken = refreshXeroTokenRequest
         , fetchPayrollEmployees = fetchPayrollEmployeesRequest
         , fetchEarningsRates = fetchEarningsRatesRequest
@@ -355,6 +359,18 @@ fetchConnectedTenantsRequest accessToken =
         response <- httpLBS requestWithHeaders
         decodeXeroResponse "Xero connections request" response
 
+deleteXeroConnectionRequest :: Text -> Text -> IO (Either XeroClientError ())
+deleteXeroConnectionRequest accessToken connectionId =
+    handleXeroHttpExceptions do
+        request <- parseRequest ("https://api.xero.com/connections/" <> cs connectionId)
+        let requestWithHeaders =
+                request
+                    |> setRequestMethod "DELETE"
+                    |> setRequestHeader "Authorization" ["Bearer " <> TextEncoding.encodeUtf8 accessToken]
+                    |> setRequestHeader "Accept" ["application/json"]
+        response <- httpLBS requestWithHeaders
+        decodeXeroEmptyResponse "Xero disconnect request" response
+
 fetchPayrollEmployeesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
 fetchPayrollEmployeesRequest accessToken tenantId =
     fmap (fmap unXeroEmployeesResponse) $
@@ -402,6 +418,15 @@ responseBodySuffix :: Text -> Text
 responseBodySuffix bodyExcerpt
     | Text.null (Text.strip bodyExcerpt) = ""
     | otherwise = ": " <> Text.strip bodyExcerpt
+
+decodeXeroEmptyResponse :: Text -> Response LByteString.ByteString -> IO (Either XeroClientError ())
+decodeXeroEmptyResponse label response = do
+    let statusCode = getResponseStatusCode response
+    if statusCode < 200 || statusCode >= 300
+        then do
+            let bodyExcerpt = Text.take 500 (TextEncoding.decodeUtf8With lenientDecode (LByteString.toStrict (getResponseBody response)))
+            pure (Left (XeroHttpError (label <> " failed with status " <> tshow statusCode <> responseBodySuffix bodyExcerpt)))
+        else pure (Right ())
 
 handleXeroHttpExceptions :: IO (Either XeroClientError value) -> IO (Either XeroClientError value)
 handleXeroHttpExceptions action = do

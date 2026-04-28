@@ -33,9 +33,25 @@ data IndexView = IndexView
     , xeroEmployeeCount               :: Int
     , xeroEarningsRateCount           :: Int
     , xeroPayrollCalendarCount        :: Int
+    , xeroEmployees                   :: [XeroEmployee]
+    , xeroStaffMappingRows            :: [XeroStaffMappingRow]
+    , xeroStaffMappingCounts          :: XeroStaffMappingCounts
     , xeroConnectionActionsAllowed    :: Bool
     , showInactiveRosterGroups        :: Bool
     , showInactiveShiftTypes          :: Bool
+    }
+
+data XeroStaffMappingRow = XeroStaffMappingRow
+    { mappingRowStaff   :: Staff
+    , mappingRowUser    :: Maybe User
+    , mappingRowMapping :: Maybe XeroStaffMapping
+    }
+
+data XeroStaffMappingCounts = XeroStaffMappingCounts
+    { xeroStaffVerifiedCount      :: Int
+    , xeroStaffUnmappedCount      :: Int
+    , xeroStaffNotApplicableCount :: Int
+    , xeroStaffStaleCount         :: Int
     }
 
 instance View IndexView where
@@ -53,7 +69,7 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroConnectionActionsAllowed}
+                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroConnectionActionsAllowed}
                             </div>
                         </div>
                     |]
@@ -349,21 +365,21 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
         |]
 
-renderXeroSection :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> Bool -> Html
-renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed =
+renderXeroSection :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Bool -> Html
+renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts connectionActionsAllowed =
     renderConfigSection
         "xero"
         "Xero"
         "Connect this venue to a Xero organisation for payroll integration setup."
         (renderXeroSummary maybeConnection)
         mempty
-        (renderXeroConnectionBody maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed)
+        (renderXeroConnectionBody maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts connectionActionsAllowed)
 
-renderXeroSectionFragment :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> Bool -> Html
-renderXeroSectionFragment maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed = [hsx|
+renderXeroSectionFragment :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Bool -> Html
+renderXeroSectionFragment maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts connectionActionsAllowed = [hsx|
     <div id="admin-xero-fragment"
          data-live-update-surface={liveSurfaceConfigJson <$> adminXeroLiveSurface}>
-        {renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed}
+        {renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts connectionActionsAllowed}
     </div>
 |]
 
@@ -375,13 +391,13 @@ renderXeroSummary Nothing = [hsx|
 |]
 renderXeroSummary (Just connection) = [hsx|
     <div class="small app-muted mb-3">
-        Status: <span class="badge text-bg-success">connected</span>
+        Status: {renderXeroConnectionStatus connection}
         <span class="ms-2">{fromMaybe connection.tenantId connection.tenantName}</span>
     </div>
 |]
 
-renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> Bool -> Html
-renderXeroConnectionBody Nothing _ _ _ _ _ connectionActionsAllowed = [hsx|
+renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Bool -> Html
+renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <p class="mb-0 app-muted">
             Connecting grants ihp-roster access to the selected Xero organisation for payroll integration setup.
@@ -389,7 +405,7 @@ renderXeroConnectionBody Nothing _ _ _ _ _ connectionActionsAllowed = [hsx|
         {renderXeroConnectControl connectionActionsAllowed}
     </div>
 |]
-renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed = [hsx|
+renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <dl class="row mb-0">
             <dt class="col-sm-3">Tenant</dt>
@@ -398,9 +414,12 @@ renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun emp
             <dd class="col-sm-9"><code>{connection.tenantId}</code></dd>
             <dt class="col-sm-3">Connected</dt>
             <dd class="col-sm-9">{formatTimestamp connection.connectedAt}{renderConnectedBy maybeConnectedByUser}</dd>
+            <dt class="col-sm-3">Connection status</dt>
+            <dd class="col-sm-9">{renderXeroConnectionStatus connection}{renderXeroConnectionError connection}</dd>
             <dt class="col-sm-3">Reference data</dt>
             <dd class="col-sm-9">{renderXeroReferenceSummary maybeSyncRun employeeCount earningsRateCount payrollCalendarCount}</dd>
         </dl>
+        {renderXeroConnectionNotice connection}
         <div class="d-flex flex-wrap gap-2">
             <form method="POST"
                   action={SyncXeroPayrollReferenceDataAction}
@@ -408,10 +427,11 @@ renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun emp
                   hx-post={pathTo SyncXeroPayrollReferenceDataAction}
                   hx-target="#admin-xero-fragment"
                   hx-swap="outerHTML">
-                <button class="btn btn-outline-primary" type="submit">Sync payroll reference data</button>
+                <button class="btn btn-outline-primary" type="submit" disabled={connection.connectionStatus /= "active"}>Sync payroll reference data</button>
             </form>
             {renderXeroReconnectControls connectionActionsAllowed}
         </div>
+        {renderXeroStaffMappings xeroEmployees mappingRows mappingCounts}
     </div>
 |]
 
@@ -437,6 +457,36 @@ renderXeroReconnectControls True = [hsx|
 renderXeroReconnectControls False = [hsx|
     <span class="align-self-center small app-muted">Only the venue owner can reconnect or disconnect Xero.</span>
 |]
+
+renderXeroConnectionStatus :: XeroConnection -> Html
+renderXeroConnectionStatus connection =
+    case connection.connectionStatus of
+        "active" -> [hsx|<span class="badge text-bg-success">connected</span>|]
+        "reauthorization_required" -> [hsx|<span class="badge text-bg-warning">reconnect required</span>|]
+        "error" -> [hsx|<span class="badge text-bg-danger">attention needed</span>|]
+        "disconnected" -> [hsx|<span class="badge text-bg-secondary">disconnected</span>|]
+        status -> [hsx|<span class="badge text-bg-secondary">{status}</span>|]
+
+renderXeroConnectionError :: XeroConnection -> Html
+renderXeroConnectionError connection =
+    case connection.lastError of
+        Nothing -> mempty
+        Just message -> [hsx|<span class="ms-2 app-muted">{message}</span>|]
+
+renderXeroConnectionNotice :: XeroConnection -> Html
+renderXeroConnectionNotice connection =
+    case connection.connectionStatus of
+        "reauthorization_required" -> [hsx|
+            <div class="alert alert-warning mb-0" role="alert">
+                Xero needs to be reconnected before sync can continue. Use Reconnect to authorize the same organisation again; existing staff mappings will be kept.
+            </div>
+        |]
+        "error" -> [hsx|
+            <div class="alert alert-danger mb-0" role="alert">
+                Xero needs attention before sync can continue. Try Reconnect, or Disconnect if you want this app to remove the linked organisation in Xero.
+            </div>
+        |]
+        _ -> mempty
 
 renderXeroReferenceSummary :: Maybe XeroSyncRun -> Int -> Int -> Int -> Html
 renderXeroReferenceSummary maybeSyncRun employeeCount earningsRateCount payrollCalendarCount = [hsx|
@@ -470,16 +520,142 @@ renderXeroSyncError :: Maybe Text -> Html
 renderXeroSyncError Nothing = mempty
 renderXeroSyncError (Just errorMessage) = [hsx|<span> - {errorMessage}</span>|]
 
+renderXeroStaffMappings :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
+renderXeroStaffMappings xeroEmployees mappingRows mappingCounts
+    | null xeroEmployees = [hsx|
+        <div class="border rounded p-3">
+            <h3 class="h6 mb-2">Staff mappings</h3>
+            <p class="small app-muted mb-0">Sync payroll reference data before mapping staff to Xero employees.</p>
+        </div>
+    |]
+    | null mappingRows = [hsx|
+        <div class="border rounded p-3">
+            <h3 class="h6 mb-2">Staff mappings</h3>
+            <p class="small app-muted mb-0">No active staff are available for Xero payroll mapping.</p>
+        </div>
+    |]
+    | otherwise = [hsx|
+        <div class="border rounded p-3">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                <div>
+                    <h3 class="h6 mb-1">Staff mappings</h3>
+                    <p class="small app-muted mb-0">Map active staff to synced Xero payroll employees. Unmapped staff are allowed during setup.</p>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <span class="badge text-bg-success">{tshow mappingCounts.xeroStaffVerifiedCount} mapped</span>
+                    <span class="badge text-bg-secondary">{tshow mappingCounts.xeroStaffUnmappedCount} unmapped</span>
+                    <span class="badge text-bg-info">{tshow mappingCounts.xeroStaffNotApplicableCount} not paid through Xero</span>
+                    <span class="badge text-bg-warning">{tshow mappingCounts.xeroStaffStaleCount} stale</span>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Staff</th>
+                            <th>Email</th>
+                            <th>Status</th>
+                            <th>Xero employee</th>
+                            <th class="text-end">Current</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {forEach mappingRows (renderXeroStaffMappingRow xeroEmployees)}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    |]
+
+renderXeroStaffMappingRow :: [XeroEmployee] -> XeroStaffMappingRow -> Html
+renderXeroStaffMappingRow xeroEmployees row =
+    let staff = row.mappingRowStaff
+        maybeMapping = row.mappingRowMapping
+        currentSelection = xeroMappingSelectionValue maybeMapping
+     in [hsx|
+        <tr>
+            <td>{staffFullName staff}</td>
+            <td>{renderXeroStaffEmail row.mappingRowUser}</td>
+            <td>{renderXeroMappingStatus maybeMapping}</td>
+            <td>
+                <form method="POST"
+                      action={SaveXeroStaffMappingAction}
+                      data-disable-javascript-submission="true"
+                      hx-post={pathTo SaveXeroStaffMappingAction}
+                      hx-target="#admin-xero-fragment"
+                      hx-swap="outerHTML"
+                      class="d-flex gap-2">
+                    <input type="hidden" name="staffId" value={tshow staff.id} />
+                    <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
+                        <option value="" selected={currentSelection == ""}>Unmapped</option>
+                        <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
+                        {forEach xeroEmployees (renderXeroEmployeeOption currentSelection)}
+                    </select>
+                    <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
+                </form>
+            </td>
+            <td class="text-end">{renderCurrentXeroEmployee maybeMapping}</td>
+        </tr>
+    |]
+
+renderXeroEmployeeOption :: Text -> XeroEmployee -> Html
+renderXeroEmployeeOption currentSelection employee = [hsx|
+    <option value={employee.xeroEmployeeId} selected={currentSelection == employee.xeroEmployeeId}>
+        {xeroEmployeeLabel employee}
+    </option>
+|]
+
+renderXeroMappingStatus :: Maybe XeroStaffMapping -> Html
+renderXeroMappingStatus Nothing = [hsx|<span class="badge text-bg-secondary">unmapped</span>|]
+renderXeroMappingStatus (Just mapping) =
+    case mapping.mappingStatus of
+        "verified"       -> [hsx|<span class="badge text-bg-success">mapped</span>|]
+        "not_applicable" -> [hsx|<span class="badge text-bg-info">not paid through Xero</span>|]
+        "stale"          -> [hsx|<span class="badge text-bg-warning">stale</span>|]
+        _                -> [hsx|<span class="badge text-bg-secondary">unmapped</span>|]
+
+renderCurrentXeroEmployee :: Maybe XeroStaffMapping -> Html
+renderCurrentXeroEmployee Nothing = renderMutedText "None"
+renderCurrentXeroEmployee (Just mapping) =
+    case mapping.mappingStatus of
+        "verified" -> [hsx|<span>{fromMaybe "Unknown employee" mapping.xeroEmployeeName}</span>|]
+        "stale"    -> [hsx|<span>{fromMaybe "Missing synced employee" mapping.xeroEmployeeName}</span>|]
+        _          -> renderMutedText "None"
+
+renderXeroStaffEmail :: Maybe User -> Html
+renderXeroStaffEmail Nothing = renderMutedText "No linked login"
+renderXeroStaffEmail (Just user) = [hsx|<span>{user.email}</span>|]
+
+renderMutedText :: Text -> Html
+renderMutedText text = [hsx|<span class="app-muted">{text}</span>|]
+
+xeroMappingSelectionValue :: Maybe XeroStaffMapping -> Text
+xeroMappingSelectionValue Nothing = ""
+xeroMappingSelectionValue (Just mapping)
+    | mapping.mappingStatus == "not_applicable" = "not_applicable"
+    | mapping.mappingStatus == "verified" = fromMaybe "" mapping.xeroEmployeeId
+    | otherwise = ""
+
+xeroEmployeeLabel :: XeroEmployee -> Text
+xeroEmployeeLabel employee =
+    case employee.email of
+        Nothing    -> employee.displayName
+        Just email -> employee.displayName <> " - " <> email
+
+staffFullName :: Staff -> Text
+staffFullName staff =
+    Text.strip (staff.firstName <> " " <> staff.lastName)
+
 renderConnectedBy :: Maybe User -> Html
 renderConnectedBy Nothing = mempty
 renderConnectedBy (Just user) = [hsx|<span> by {user.email}</span>|]
 
-renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> Bool -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroConnectionActionsAllowed = [hsx|
+renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Bool -> Html
+renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroConnectionActionsAllowed = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection)}
-        {renderAccordionItem "xero" "Xero" False (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroConnectionActionsAllowed)}
+        {renderAccordionItem "xero" "Xero" False (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroConnectionActionsAllowed)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)}
     </div>

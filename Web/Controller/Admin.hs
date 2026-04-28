@@ -9,6 +9,7 @@ import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
                                           validRosterWeekStartDays,
                                           weekdayIndexLabel)
+import Application.Xero.Connection
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -42,12 +43,15 @@ instance Controller AdminController where
         let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
         invitations <- fetchCurrentVenueInvitations
         let invitesLiveUpdateScope = Just (adminInvitesScope currentVenueId)
-        xeroConnection <- fetchActiveCurrentVenueXeroConnection
+        xeroConnection <- fetchCurrentVenueXeroConnection
         xeroConnectedByUser <- fetchXeroConnectedByUser xeroConnection
         xeroLatestSyncRun <- fetchLatestCurrentVenueXeroSyncRun
         xeroEmployeeCount <- fetchCurrentVenueXeroEmployeeCount xeroConnection
         xeroEarningsRateCount <- fetchCurrentVenueXeroEarningsRateCount xeroConnection
         xeroPayrollCalendarCount <- fetchCurrentVenueXeroPayrollCalendarCount xeroConnection
+        xeroEmployees <- fetchCurrentVenueXeroEmployees xeroConnection
+        xeroStaffMappingRows <- fetchCurrentVenueXeroStaffMappingRows xeroConnection
+        let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
         let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
         render IndexView { .. }
 
@@ -100,32 +104,13 @@ instance Controller AdminController where
 
     action DisconnectXeroConnectionAction = do
         requireCurrentVenueOwnerForXero do
-            maybeConnection <- fetchActiveCurrentVenueXeroConnection
+            maybeConnection <- fetchCurrentVenueXeroConnection
             case maybeConnection of
                 Nothing -> do
                     setErrorMessage "Xero is not connected for this venue."
                     redirectTo AdminAction
                 Just connection -> do
-                    now <- getCurrentTime
-                    updatedConnection <- withTransaction do
-                        updated <- connection
-                            |> set #connectionStatus "disconnected"
-                            |> set #disconnectedByUserId (Just (unpackId currentUser.id))
-                            |> set #disconnectedAt (Just now)
-                            |> set #encryptedAccessToken Nothing
-                            |> updateRecord
-                        void $ recordCurrentUserAuditEvent
-                            "xero_connection_disconnected"
-                            "xero_connections"
-                            (unpackId updated.id)
-                            (Aeson.object
-                                [ "tenantId" Aeson..= updated.tenantId
-                                , "tenantName" Aeson..= updated.tenantName
-                                ]
-                            )
-                        pure updated
-                    setSuccessMessage ("Disconnected Xero tenant " <> fromMaybe updatedConnection.tenantId updatedConnection.tenantName <> ".")
-                    redirectTo AdminAction
+                    disconnectXeroConnection connection
 
     action SyncXeroPayrollReferenceDataAction = do
         maybeConnection <- fetchActiveCurrentVenueXeroConnection
@@ -136,6 +121,19 @@ instance Controller AdminController where
                     then respondWithXeroSectionFragment
                     else redirectTo AdminAction
             Just connection -> syncXeroPayrollReferenceData connection
+
+    action SaveXeroStaffMappingAction = do
+        maybeConnection <- fetchCurrentVenueXeroConnection
+        case maybeConnection of
+            Nothing -> do
+                setErrorMessage "Connect Xero before mapping staff to Xero employees."
+                if isHtmxRequest
+                    then respondWithXeroSectionFragment
+                    else redirectTo AdminAction
+            Just connection -> do
+                let staffId = param @(Id Staff) "staffId"
+                let selection = Text.strip (paramOrDefault @Text "" "xeroEmployeeSelection")
+                saveXeroStaffMapping connection staffId selection
 
     action UpdateVenueConfigAction = do
         venueConfig <- fetchVenueConfig
@@ -784,6 +782,14 @@ fetchActiveCurrentVenueXeroConnection =
         |> orderByDesc #connectedAt
         |> fetchOneOrNothing
 
+fetchCurrentVenueXeroConnection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroConnection)
+fetchCurrentVenueXeroConnection =
+    query @XeroConnection
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhereIn (#connectionStatus, ["active" :: Text, "reauthorization_required", "error"])
+        |> orderByDesc #connectedAt
+        |> fetchOneOrNothing
+
 fetchXeroConnectedByUser :: (?modelContext :: ModelContext) => Maybe XeroConnection -> IO (Maybe User)
 fetchXeroConnectedByUser maybeConnection =
     case maybeConnection >>= (.connectedByUserId) of
@@ -831,18 +837,85 @@ fetchCurrentVenueXeroPayrollCalendarCount maybeConnection =
                 |> filterWhere (#xeroConnectionId, unpackId connection.id)
                 |> fetchCount
 
+fetchCurrentVenueXeroEmployees :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroEmployee]
+fetchCurrentVenueXeroEmployees maybeConnection =
+    case maybeConnection of
+        Nothing -> pure []
+        Just connection ->
+            query @XeroEmployee
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> orderBy #displayName
+                |> fetch
+
+fetchCurrentVenueXeroStaffMappingRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroStaffMappingRow]
+fetchCurrentVenueXeroStaffMappingRows maybeConnection =
+    case maybeConnection of
+        Nothing -> pure []
+        Just connection -> do
+            staffMembers <-
+                query @Staff
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#isActive, True)
+                    |> filterWhere (#archivedAt, Nothing)
+                    |> orderBy #lastName
+                    |> orderBy #firstName
+                    |> fetch
+            mappings <-
+                query @XeroStaffMapping
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                    |> fetch
+            forM staffMembers \staff -> do
+                maybeUser <- fetchStaffLinkedUser staff
+                let maybeMapping = List.find (\mapping -> mapping.staffId == unpackId staff.id) mappings
+                pure XeroStaffMappingRow
+                    { mappingRowStaff = staff
+                    , mappingRowUser = maybeUser
+                    , mappingRowMapping = maybeMapping
+                    }
+
+fetchStaffLinkedUser :: (?modelContext :: ModelContext) => Staff -> IO (Maybe User)
+fetchStaffLinkedUser staff =
+    case staff.userId of
+        Nothing -> pure Nothing
+        Just userId ->
+            query @User
+                |> filterWhere (#id, Id userId)
+                |> fetchOneOrNothing
+
+xeroStaffMappingCountsFor :: [XeroStaffMappingRow] -> XeroStaffMappingCounts
+xeroStaffMappingCountsFor rows =
+    XeroStaffMappingCounts
+        { xeroStaffVerifiedCount = countStatus "verified"
+        , xeroStaffUnmappedCount = length (filter isUnmapped rows)
+        , xeroStaffNotApplicableCount = countStatus "not_applicable"
+        , xeroStaffStaleCount = countStatus "stale"
+        }
+    where
+        mappingStatus row = (.mappingStatus) <$> row.mappingRowMapping
+        countStatus status = length (filter (\row -> mappingStatus row == Just status) rows)
+        isUnmapped row =
+            case mappingStatus row of
+                Nothing         -> True
+                Just "unmapped" -> True
+                _               -> False
+
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 respondWithXeroSectionFragment = do
-    xeroConnection <- fetchActiveCurrentVenueXeroConnection
+    xeroConnection <- fetchCurrentVenueXeroConnection
     xeroConnectedByUser <- fetchXeroConnectedByUser xeroConnection
     xeroLatestSyncRun <- fetchLatestCurrentVenueXeroSyncRun
     xeroEmployeeCount <- fetchCurrentVenueXeroEmployeeCount xeroConnection
     xeroEarningsRateCount <- fetchCurrentVenueXeroEarningsRateCount xeroConnection
     xeroPayrollCalendarCount <- fetchCurrentVenueXeroPayrollCalendarCount xeroConnection
+    xeroEmployees <- fetchCurrentVenueXeroEmployees xeroConnection
+    xeroStaffMappingRows <- fetchCurrentVenueXeroStaffMappingRows xeroConnection
+    let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
     let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
-    respondHtml (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroConnectionActionsAllowed)
+    respondHtml (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroConnectionActionsAllowed)
 
 currentUserIsCurrentVenueOwner :: (?context :: ControllerContext) => Bool
 currentUserIsCurrentVenueOwner =
@@ -855,6 +928,188 @@ requireCurrentVenueOwnerForXero action =
         else do
             setErrorMessage "Only the venue owner can connect or disconnect Xero for this venue."
             redirectTo AdminAction
+
+disconnectXeroConnection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    IO ()
+disconnectXeroConnection connection = do
+    readXeroConfig >>= \case
+        Left message -> do
+            setErrorMessage message
+            redirectTo AdminAction
+        Right xeroConfig -> do
+            refreshResult <- refreshXeroConnectionAccess xeroConfig connection
+            case refreshResult of
+                Left message -> do
+                    setErrorMessage message
+                    redirectTo AdminAction
+                Right (refreshedConnection, accessToken) -> do
+                    xeroClient <- currentXeroClient
+                    remoteIdResult <- resolveXeroRemoteConnectionId xeroClient refreshedConnection accessToken
+                    case remoteIdResult of
+                        Left message -> do
+                            markXeroConnectionError refreshedConnection message
+                            setErrorMessage message
+                            redirectTo AdminAction
+                        Right remoteConnectionId -> do
+                            deleteResult <- deleteXeroConnection xeroClient accessToken remoteConnectionId
+                            case deleteResult of
+                                Left err -> do
+                                    let message = "Xero disconnect failed: " <> xeroClientErrorText err
+                                    markXeroConnectionError refreshedConnection message
+                                    setErrorMessage message
+                                    redirectTo AdminAction
+                                Right () -> completeLocalXeroDisconnect refreshedConnection remoteConnectionId
+
+completeLocalXeroDisconnect ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Text ->
+    IO ()
+completeLocalXeroDisconnect connection remoteConnectionId = do
+    now <- getCurrentTime
+    updatedConnection <- withTransaction do
+        updated <- connection
+            |> set #connectionStatus "disconnected"
+            |> set #disconnectedByUserId (Just (unpackId currentUser.id))
+            |> set #disconnectedAt (Just now)
+            |> set #encryptedAccessToken Nothing
+            |> set #xeroConnectionRemoteId (Just remoteConnectionId)
+            |> set #lastError Nothing
+            |> updateRecord
+        void $ recordCurrentUserAuditEvent
+            "xero_connection_disconnected"
+            "xero_connections"
+            (unpackId updated.id)
+            (Aeson.object
+                [ "tenantId" Aeson..= updated.tenantId
+                , "tenantName" Aeson..= updated.tenantName
+                , "xeroConnectionId" Aeson..= remoteConnectionId
+                ]
+            )
+        pure updated
+    broadcastAdminXeroInvalidation currentVenueId
+    setSuccessMessage ("Disconnected Xero tenant " <> fromMaybe updatedConnection.tenantId updatedConnection.tenantName <> ".")
+    redirectTo AdminAction
+
+resolveXeroRemoteConnectionId ::
+    (?modelContext :: ModelContext) =>
+    XeroClient ->
+    XeroConnection ->
+    Text ->
+    IO (Either Text Text)
+resolveXeroRemoteConnectionId xeroClient connection accessToken =
+    case connection.xeroConnectionRemoteId of
+        Just remoteConnectionId -> pure (Right remoteConnectionId)
+        Nothing -> do
+            tenantsResult <- fetchConnectedTenants xeroClient accessToken
+            case tenantsResult of
+                Left err -> pure (Left ("Could not look up Xero connections before disconnecting: " <> xeroClientErrorText err))
+                Right tenants ->
+                    case List.find (\tenant -> tenant.tenantId == connection.tenantId) tenants of
+                        Nothing -> pure (Left "Could not find the linked Xero organisation in Xero. The connection may already be disconnected.")
+                        Just tenant -> do
+                            _ <- connection
+                                |> set #xeroConnectionRemoteId (Just tenant.xeroConnectionId)
+                                |> updateRecord
+                            pure (Right tenant.xeroConnectionId)
+
+saveXeroStaffMapping ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Id Staff ->
+    Text ->
+    IO ()
+saveXeroStaffMapping connection staffId selection = do
+    maybeStaff <-
+        query @Staff
+            |> filterWhere (#id, staffId)
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOneOrNothing
+    case maybeStaff of
+        Nothing -> respondWithXeroStaffMappingError "Choose a staff member from the current venue."
+        Just staff ->
+            case selection of
+                "" -> persistXeroStaffMapping connection staff "unmapped" Nothing
+                "not_applicable" -> persistXeroStaffMapping connection staff "not_applicable" Nothing
+                xeroEmployeeId -> do
+                    maybeEmployee <-
+                        query @XeroEmployee
+                            |> filterWhere (#venueId, unpackId currentVenueId)
+                            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                            |> filterWhere (#xeroEmployeeId, xeroEmployeeId)
+                            |> fetchOneOrNothing
+                    case maybeEmployee of
+                        Nothing -> respondWithXeroStaffMappingError "Choose a synced Xero employee from this venue."
+                        Just employee -> persistXeroStaffMapping connection staff "verified" (Just employee)
+
+persistXeroStaffMapping ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Staff ->
+    Text ->
+    Maybe XeroEmployee ->
+    IO ()
+persistXeroStaffMapping connection staff mappingStatus maybeEmployee = do
+    now <- getCurrentTime
+    mapping <- withTransaction do
+        existingMapping <-
+            query @XeroStaffMapping
+                |> filterWhere (#staffId, unpackId staff.id)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchOneOrNothing
+        let prepared record =
+                record
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #staffId (unpackId staff.id)
+                    |> set #xeroConnectionId (unpackId connection.id)
+                    |> set #xeroEmployeeId ((.xeroEmployeeId) <$> maybeEmployee)
+                    |> set #xeroEmployeeName ((.displayName) <$> maybeEmployee)
+                    |> set #xeroEmployeeEmail (maybeEmployee >>= (.email))
+                    |> set #mappingStatus mappingStatus
+                    |> set #lastVerifiedAt (if mappingStatus == "verified" then Just now else Nothing)
+                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+        savedMapping <-
+            case existingMapping of
+                Just existing ->
+                    prepared existing
+                        |> updateRecord
+                Nothing ->
+                    prepared (newRecord @XeroStaffMapping)
+                        |> set #createdByUserId (Just (unpackId currentUser.id))
+                        |> createRecord
+        void $ recordCurrentUserAuditEvent
+            "xero_staff_mapping_saved"
+            "xero_staff_mappings"
+            (unpackId savedMapping.id)
+            (Aeson.object
+                [ "staffId" Aeson..= tshow staff.id
+                , "mappingStatus" Aeson..= mappingStatus
+                , "xeroEmployeeId" Aeson..= ((.xeroEmployeeId) <$> maybeEmployee)
+                ]
+            )
+        pure savedMapping
+    let message =
+            case mapping.mappingStatus of
+                "verified"       -> "Saved Xero employee mapping for " <> staff.firstName <> " " <> staff.lastName <> "."
+                "not_applicable" -> "Marked " <> staff.firstName <> " " <> staff.lastName <> " as not paid through Xero."
+                _                -> "Cleared Xero employee mapping for " <> staff.firstName <> " " <> staff.lastName <> "."
+    setSuccessMessage message
+    broadcastAdminXeroInvalidation currentVenueId
+    if isHtmxRequest
+        then respondWithXeroSectionFragment
+        else redirectTo AdminAction
+
+respondWithXeroStaffMappingError ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Text ->
+    IO ()
+respondWithXeroStaffMappingError message = do
+    setErrorMessage message
+    if isHtmxRequest
+        then respondWithXeroSectionFragment
+        else redirectTo AdminAction
 
 validateXeroOAuthState ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -908,7 +1163,8 @@ completeXeroOAuthCallback now actorUserId oauthState code =
                         Right [] -> do
                             markXeroOAuthStateConsumed oauthState now
                             failXeroConnectionAttempt "Xero returned no connected tenants." (Just oauthState)
-                        Right (tenant : _) -> do
+                        Right tenants -> do
+                            tenant <- chooseXeroTenantForOAuth tenants
                             connection <- persistCompletedXeroConnection now actorUserId xeroConfig oauthState tokenResponse tenant
                             setSuccessMessage ("Connected Xero tenant " <> fromMaybe connection.tenantId connection.tenantName <> ".")
                             redirectTo AdminAction
@@ -927,34 +1183,50 @@ persistCompletedXeroConnection now actorUserId xeroConfig oauthState tokenRespon
     encryptedAccessToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.accessToken
     let accessTokenExpiresAt = addUTCTime (fromIntegral tokenResponse.expiresIn) now
     withTransaction do
+        existingSameTenant <-
+            query @XeroConnection
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#tenantId, tenant.tenantId)
+                |> orderByDesc #connectedAt
+                |> fetchOneOrNothing
         activeConnections <-
             query @XeroConnection
                 |> filterWhere (#venueId, unpackId currentVenueId)
                 |> filterWhere (#connectionStatus, "active" :: Text)
                 |> fetch
         forM_ activeConnections \connection ->
-            connection
-                |> set #connectionStatus "disconnected"
-                |> set #disconnectedByUserId (Just (unpackId actorUserId))
-                |> set #disconnectedAt (Just now)
-                |> set #lastError (Just "Superseded by reconnect")
-                |> updateRecord
+            when (Just connection.id /= ((.id) <$> existingSameTenant)) do
+                connection
+                    |> set #connectionStatus "disconnected"
+                    |> set #disconnectedByUserId (Just (unpackId actorUserId))
+                    |> set #disconnectedAt (Just now)
+                    |> set #lastError (Just "Superseded by reconnect")
+                    |> updateRecord
+                    |> void
         updatedState <- oauthState
             |> set #consumedAt (Just now)
             |> updateRecord
-        connection <- newRecord @XeroConnection
-            |> set #venueId (unpackId currentVenueId)
-            |> set #tenantId tenant.tenantId
-            |> set #tenantName tenant.tenantName
-            |> set #connectionStatus ("active" :: Text)
-            |> set #scopes (fromMaybe updatedState.requestedScopes tokenResponse.scope)
-            |> set #encryptedRefreshToken encryptedRefreshToken
-            |> set #encryptedAccessToken (Just encryptedAccessToken)
-            |> set #accessTokenExpiresAt (Just accessTokenExpiresAt)
-            |> set #lastRefreshedAt (Just now)
-            |> set #connectedByUserId (Just (unpackId actorUserId))
-            |> set #connectedAt now
-            |> createRecord
+        let fillConnection record =
+                record
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #tenantId tenant.tenantId
+                    |> set #tenantName tenant.tenantName
+                    |> set #xeroConnectionRemoteId (Just tenant.xeroConnectionId)
+                    |> set #connectionStatus ("active" :: Text)
+                    |> set #scopes (fromMaybe updatedState.requestedScopes tokenResponse.scope)
+                    |> set #encryptedRefreshToken encryptedRefreshToken
+                    |> set #encryptedAccessToken (Just encryptedAccessToken)
+                    |> set #accessTokenExpiresAt (Just accessTokenExpiresAt)
+                    |> set #lastRefreshedAt (Just now)
+                    |> set #lastError Nothing
+                    |> set #connectedByUserId (Just (unpackId actorUserId))
+                    |> set #connectedAt now
+                    |> set #disconnectedByUserId Nothing
+                    |> set #disconnectedAt Nothing
+        connection <-
+            case existingSameTenant of
+                Just existing -> fillConnection existing |> updateRecord
+                Nothing       -> fillConnection (newRecord @XeroConnection) |> createRecord
         void $ recordCurrentUserAuditEvent
             "xero_connection_completed"
             "xero_connections"
@@ -962,11 +1234,23 @@ persistCompletedXeroConnection now actorUserId xeroConfig oauthState tokenRespon
             (Aeson.object
                 [ "tenantId" Aeson..= connection.tenantId
                 , "tenantName" Aeson..= connection.tenantName
+                , "xeroConnectionId" Aeson..= connection.xeroConnectionRemoteId
                 , "scopes" Aeson..= connection.scopes
                 , "stateId" Aeson..= unpackId updatedState.id
                 ]
             )
         pure connection
+
+chooseXeroTenantForOAuth ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    [XeroTenant] ->
+    IO XeroTenant
+chooseXeroTenantForOAuth tenants = do
+    existingConnection <- fetchCurrentVenueXeroConnection
+    pure case (existingConnection >>= \connection -> List.find (\tenant -> tenant.tenantId == connection.tenantId) tenants, tenants) of
+        (Just tenant, _) -> tenant
+        (Nothing, tenant : _) -> tenant
+        (Nothing, []) -> error "chooseXeroTenantForOAuth called without tenants"
 
 markXeroOAuthStateConsumed ::
     (?modelContext :: ModelContext) =>
@@ -996,11 +1280,6 @@ failXeroConnectionAttempt message maybeState = do
     setErrorMessage message
     redirectTo AdminAction
 
-xeroClientErrorText :: XeroClientError -> Text
-xeroClientErrorText (XeroHttpError message) = message
-xeroClientErrorText (XeroDecodeError message) = "Could not decode Xero response: " <> message
-xeroClientErrorText XeroNoTenantsError = "Xero returned no connected tenants."
-
 syncXeroPayrollReferenceData ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
@@ -1017,46 +1296,24 @@ syncXeroPayrollReferenceData connection = do
             |> createRecord
     readXeroConfig >>= \case
         Left message -> failXeroReferenceSync syncRun connection message
-        Right xeroConfig ->
-            case decryptXeroToken xeroConfig.tokenEncryptionKey connection.encryptedRefreshToken of
-                Left message -> failXeroReferenceSync syncRun connection ("Could not decrypt Xero refresh token: " <> message)
-                Right refreshToken -> do
+        Right xeroConfig -> do
+            refreshResult <- refreshXeroConnectionAccess xeroConfig connection
+            case refreshResult of
+                Left message -> failXeroReferenceSync syncRun connection message
+                Right (refreshedConnection, accessToken) -> do
                     xeroClient <- currentXeroClient
-                    refreshResult <- refreshXeroToken xeroClient xeroConfig refreshToken
-                    case refreshResult of
-                        Left err -> failXeroReferenceSync syncRun connection ("Xero token refresh failed: " <> xeroClientErrorText err)
-                        Right tokenResponse -> do
-                            persistXeroRefreshedTokens now xeroConfig connection tokenResponse
-                            employeesResult <- fetchPayrollEmployees xeroClient tokenResponse.accessToken connection.tenantId
-                            earningsRatesResult <- fetchEarningsRates xeroClient tokenResponse.accessToken connection.tenantId
-                            payrollCalendarsResult <- fetchPayrollCalendars xeroClient tokenResponse.accessToken connection.tenantId
-                            case (employeesResult, earningsRatesResult, payrollCalendarsResult) of
-                                (Right employees, Right earningsRates, Right payrollCalendars) -> do
-                                    completeXeroReferenceSync syncRun connection employees earningsRates payrollCalendars
-                                (Left err, _, _) ->
-                                    failXeroReferenceSync syncRun connection ("Xero employee sync failed: " <> xeroClientErrorText err)
-                                (_, Left err, _) ->
-                                    failXeroReferenceSync syncRun connection ("Xero earnings-rate sync failed: " <> xeroClientErrorText err)
-                                (_, _, Left err) ->
-                                    failXeroReferenceSync syncRun connection ("Xero payroll-calendar sync failed: " <> xeroClientErrorText err)
-
-persistXeroRefreshedTokens ::
-    (?modelContext :: ModelContext) =>
-    UTCTime ->
-    XeroConfig ->
-    XeroConnection ->
-    XeroTokenResponse ->
-    IO XeroConnection
-persistXeroRefreshedTokens now xeroConfig connection tokenResponse = do
-    encryptedRefreshToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.refreshToken
-    encryptedAccessToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.accessToken
-    connection
-        |> set #encryptedRefreshToken encryptedRefreshToken
-        |> set #encryptedAccessToken (Just encryptedAccessToken)
-        |> set #accessTokenExpiresAt (Just (addUTCTime (fromIntegral tokenResponse.expiresIn) now))
-        |> set #lastRefreshedAt (Just now)
-        |> set #lastError Nothing
-        |> updateRecord
+                    employeesResult <- fetchPayrollEmployees xeroClient accessToken refreshedConnection.tenantId
+                    earningsRatesResult <- fetchEarningsRates xeroClient accessToken refreshedConnection.tenantId
+                    payrollCalendarsResult <- fetchPayrollCalendars xeroClient accessToken refreshedConnection.tenantId
+                    case (employeesResult, earningsRatesResult, payrollCalendarsResult) of
+                        (Right employees, Right earningsRates, Right payrollCalendars) -> do
+                            completeXeroReferenceSync syncRun refreshedConnection employees earningsRates payrollCalendars
+                        (Left err, _, _) ->
+                            failXeroReferenceSync syncRun refreshedConnection ("Xero employee sync failed: " <> xeroClientErrorText err)
+                        (_, Left err, _) ->
+                            failXeroReferenceSync syncRun refreshedConnection ("Xero earnings-rate sync failed: " <> xeroClientErrorText err)
+                        (_, _, Left err) ->
+                            failXeroReferenceSync syncRun refreshedConnection ("Xero payroll-calendar sync failed: " <> xeroClientErrorText err)
 
 completeXeroReferenceSync ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -1072,6 +1329,7 @@ completeXeroReferenceSync syncRun connection employees earningsRates payrollCale
         mapM_ (upsertXeroEmployee connection now) employees
         mapM_ (upsertXeroEarningsRate connection now) earningsRates
         mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
+        markStaleXeroStaffMappings connection employees
         _ <- syncRun
             |> set #syncStatus ("succeeded" :: Text)
             |> set #employeesCount (length employees)
@@ -1100,6 +1358,29 @@ completeXeroReferenceSync syncRun connection employees earningsRates payrollCale
         then respondWithXeroSectionFragment
         else redirectTo AdminAction
 
+markStaleXeroStaffMappings ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    XeroConnection ->
+    [XeroEmployeeRef] ->
+    IO ()
+markStaleXeroStaffMappings connection employees = do
+    let activeEmployeeIds = map (\employee -> employee.xeroEmployeeId) employees
+    mappings <-
+        query @XeroStaffMapping
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> fetch
+    forM_ mappings \mapping ->
+        case mapping.xeroEmployeeId of
+            Just employeeId | employeeId `elem` activeEmployeeIds -> pure ()
+            _ ->
+                mapping
+                    |> set #mappingStatus "stale"
+                    |> set #lastVerifiedAt Nothing
+                    |> updateRecord
+                    |> void
+
 failXeroReferenceSync ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroSyncRun ->
@@ -1109,12 +1390,13 @@ failXeroReferenceSync ::
 failXeroReferenceSync syncRun connection message = do
     now <- getCurrentTime
     withTransaction do
+        latestConnection <- fetch connection.id
         _ <- syncRun
             |> set #syncStatus ("failed" :: Text)
             |> set #errorMessage (Just message)
             |> set #finishedAt (Just now)
             |> updateRecord
-        _ <- connection
+        _ <- latestConnection
             |> set #lastError (Just message)
             |> updateRecord
         void $ recordCurrentUserAuditEvent

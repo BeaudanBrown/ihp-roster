@@ -681,6 +681,7 @@ CREATE TABLE xero_connections (
     venue_id UUID NOT NULL,
     tenant_id TEXT NOT NULL,
     tenant_name TEXT,
+    xero_connection_remote_id TEXT,
     connection_status TEXT DEFAULT 'active' NOT NULL,
     scopes TEXT NOT NULL,
     encrypted_refresh_token TEXT NOT NULL,
@@ -780,6 +781,27 @@ CREATE TABLE xero_payroll_calendars (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
+);
+CREATE TABLE xero_staff_mappings (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    staff_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    xero_employee_id TEXT,
+    xero_employee_name TEXT,
+    xero_employee_email TEXT,
+    mapping_status TEXT DEFAULT 'unmapped' NOT NULL,
+    last_verified_at TIMESTAMP WITH TIME ZONE,
+    created_by_user_id UUID,
+    updated_by_user_id UUID,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((mapping_status = 'unmapped') OR (mapping_status = 'verified') OR (mapping_status = 'not_applicable') OR (mapping_status = 'stale'))
 );
 CREATE TABLE timesheet_entries (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -899,6 +921,7 @@ CREATE INDEX idx_venue_membership_role_events_membership_created_at ON venue_mem
 CREATE UNIQUE INDEX idx_export_jobs_generated_file_id ON export_jobs (generated_file_id);
 CREATE UNIQUE INDEX idx_export_jobs_download_token ON export_jobs (download_token);
 CREATE INDEX idx_xero_connections_venue_created_at ON xero_connections (venue_id, created_at DESC);
+CREATE INDEX idx_xero_connections_remote_id ON xero_connections (xero_connection_remote_id);
 CREATE UNIQUE INDEX idx_xero_connections_active_venue ON xero_connections (venue_id) WHERE connection_status = 'active';
 CREATE INDEX idx_xero_oauth_states_token ON xero_oauth_states (state_token);
 CREATE INDEX idx_xero_oauth_states_venue_user_created_at ON xero_oauth_states (venue_id, user_id, created_at DESC);
@@ -909,6 +932,8 @@ CREATE UNIQUE INDEX idx_xero_earnings_rates_connection_rate ON xero_earnings_rat
 CREATE INDEX idx_xero_earnings_rates_venue_name ON xero_earnings_rates (venue_id, name);
 CREATE UNIQUE INDEX idx_xero_payroll_calendars_connection_calendar ON xero_payroll_calendars (xero_connection_id, xero_payroll_calendar_id);
 CREATE INDEX idx_xero_payroll_calendars_venue_name ON xero_payroll_calendars (venue_id, name);
+CREATE UNIQUE INDEX idx_xero_staff_mappings_staff_connection ON xero_staff_mappings (staff_id, xero_connection_id);
+CREATE INDEX idx_xero_staff_mappings_venue_status ON xero_staff_mappings (venue_id, mapping_status);
 
 CREATE OR REPLACE FUNCTION prevent_hard_delete()
 RETURNS TRIGGER
@@ -952,6 +977,7 @@ CREATE TRIGGER prevent_hard_delete_xero_sync_runs BEFORE DELETE ON xero_sync_run
 CREATE TRIGGER prevent_hard_delete_xero_employees BEFORE DELETE ON xero_employees FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_earnings_rates BEFORE DELETE ON xero_earnings_rates FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_payroll_calendars BEFORE DELETE ON xero_payroll_calendars FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_staff_mappings BEFORE DELETE ON xero_staff_mappings FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
 CREATE OR REPLACE FUNCTION resolve_effective_pay_level(p_staff_id UUID, p_shift_type_id UUID, p_day_of_week INT)
 RETURNS UUID
