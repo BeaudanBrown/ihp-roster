@@ -676,6 +676,55 @@ tests = beforeAll testContext do
                 inputValue createdInvitation.deliveryStatus `shouldSatisfy` (`elem` ["queued", "sent", "failed"])
                 inviteExpiryDeltaSeconds `shouldSatisfy` (\seconds -> seconds > 86000 && seconds < 87000)
 
+        it "rejects invalid invite emails without creating invitations or broadcasting admin changes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Invalid Invite Venue"
+                admin <- createUserRecord "admin-invalid-invite@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                rosterGroup <- createVenueRosterGroupWithDefaults venue "Default Group" 0 True
+
+                versionBefore <- currentLiveUpdateVersion AdminInvitesScope { venueId = unpackId venue.id }
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateVenueInvitationAction
+                            [ ("email", "not-an-email")
+                            , ("rosterGroupId", idToParam rosterGroup.id)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"admin-invites-fragment\""
+                invitationCount <- query @VenueInvitation |> fetchCount
+                invitationCount `shouldBe` 0
+                versionAfter <- currentLiveUpdateVersion AdminInvitesScope { venueId = unpackId venue.id }
+                versionAfter `shouldBe` versionBefore
+
+        it "keeps at least one active roster group when admins edit config" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Last Group Venue"
+                admin <- createUserRecord "admin-last-group@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                rosterGroup <-
+                    query @RosterGroup
+                        |> filterWhere (#venueId, unpackId venue.id)
+                        |> filterWhere (#isActive, True)
+                        |> fetchOne
+
+                versionBefore <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterGroupAction rosterGroup.id)
+                            [ ("name", "Only Group")
+                            , ("isActive", "false")
+                            , ("showInactiveRosterGroups", "true")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"admin-roster-groups-fragment\""
+                unchangedRosterGroup <- fetch rosterGroup.id
+                unchangedRosterGroup.isActive `shouldBe` True
+                versionAfter <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
+                versionAfter `shouldBe` versionBefore
+
         it "updates non-pay config rows from the admin page" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"

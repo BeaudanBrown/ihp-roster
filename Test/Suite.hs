@@ -30,6 +30,7 @@ import qualified Test.DatabaseProtectionSpec
 import qualified Test.DevSeedSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
+import qualified Test.MailSpec
 import qualified Test.PaySpec
 import qualified Test.PublicHolidaySyncSpec
 import qualified Test.RosterGridSpec
@@ -139,5 +140,6 @@ allSuites =
     , TestSuite "DevSeed" Test.DevSeedSpec.tests
     , TestSuite "Conflict" Test.ConflictSpec.tests
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
+    , TestSuite "Mail" Test.MailSpec.tests
     , TestSuite "SurfaceProjection" Test.SurfaceProjectionSpec.tests
     ]
