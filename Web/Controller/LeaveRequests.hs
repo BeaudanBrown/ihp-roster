@@ -13,9 +13,8 @@ import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
-import Application.Helper.View (ToastOverlayConfig (..),
-                                ToastOverlayPosition (..), dialogOverlayMountId,
-                                renderToastOverlayHostOob)
+import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
+                                errorToast, renderToastOob, successToast)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
@@ -346,14 +345,7 @@ respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
         mconcat
             [ mainFragment
             , [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
-            , renderToastOverlayHostOob ToastBottomCenter
-                [ ToastOverlayConfig
-                    { toastOverlayTitle = Just "Success"
-                    , toastOverlayMessage = successMessage
-                    , toastOverlayClass = "app-toast-success"
-                    , toastOverlayAutoHideMs = 3200
-                    }
-                ]
+            , renderToastOob ToastBottomCenter (successToast successMessage)
             ]
 
 data LeaveResponseContext
@@ -411,14 +403,7 @@ respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmen
                 mconcat
                     [ renderProfileLeaveRequestFormFragment leaveRequest
                     , renderProfileLeaveRequestsListFragmentOob leaveRequests
-                    , renderToastOverlayHostOob ToastBottomCenter
-                        [ ToastOverlayConfig
-                            { toastOverlayTitle = Just "Success"
-                            , toastOverlayMessage = successMessage
-                            , toastOverlayClass = "app-toast-success"
-                            , toastOverlayAutoHideMs = 3200
-                            }
-                        ]
+                    , renderToastOob ToastBottomCenter (successToast successMessage)
                     ]
 
 ensureLeaveProfileAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LeaveResponseContext -> IO ()
@@ -438,14 +423,7 @@ respondWithLeaveContextError responseContext errorMessage =
             respondHtmlProfiled $
                 mconcat
                     [ renderProfileLeaveRequestFormFragment leaveRequest
-                    , renderToastOverlayHostOob ToastBottomCenter
-                        [ ToastOverlayConfig
-                            { toastOverlayTitle = Just "Error"
-                            , toastOverlayMessage = errorMessage
-                            , toastOverlayClass = "app-toast-danger"
-                            , toastOverlayAutoHideMs = 4200
-                            }
-                        ]
+                    , renderToastOob ToastBottomCenter (errorToast errorMessage)
                     ]
 
 ensureLeaveDeleteAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LeaveRequest -> IO ()

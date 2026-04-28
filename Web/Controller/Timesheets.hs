@@ -11,9 +11,9 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
 import Application.Helper.Pay (ensureCurrentVenuePayConfigSnapshot)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
-import Application.Helper.View (ToastOverlayConfig (..),
-                                ToastOverlayPosition (..), appendQueryParams,
-                                dialogOverlayMountId, renderToastOverlayHostOob)
+import Application.Helper.View (ToastOverlayPosition (..), appendQueryParams,
+                                dialogOverlayMountId, renderToastOob,
+                                successToast)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
@@ -417,14 +417,7 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
         mconcat
             [ mainFragment
             , when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
-            , renderToastOverlayHostOob ToastBottomCenter
-                [ ToastOverlayConfig
-                    { toastOverlayTitle = Just "Success"
-                    , toastOverlayMessage = successMessage
-                    , toastOverlayClass = "app-toast-success"
-                    , toastOverlayAutoHideMs = 3200
-                    }
-                ]
+            , renderToastOob ToastBottomCenter (successToast successMessage)
             ]
 
 fetchTimesheetWeekProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetProjectionRequest -> IO TimesheetWeekProjection

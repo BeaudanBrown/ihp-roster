@@ -7,9 +7,8 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences
-import Application.Helper.View (ToastOverlayConfig (..),
-                                ToastOverlayPosition (ToastBottomCenter),
-                                renderToastOverlayHostOob)
+import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
+                                renderToastOob, successToast)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
@@ -99,14 +98,7 @@ instance Controller ProfilesController where
                                         respondHtml $
                                             mconcat
                                                 [ renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferenceKeys passkeys leaveRequests leaveRequestForm openSection
-                                                , renderToastOverlayHostOob ToastBottomCenter
-                                                    [ ToastOverlayConfig
-                                                        { toastOverlayTitle = Just "Success"
-                                                        , toastOverlayMessage = "Profile updated"
-                                                        , toastOverlayClass = "app-toast-success"
-                                                        , toastOverlayAutoHideMs = 3200
-                                                        }
-                                                    ]
+                                                , renderToastOob ToastBottomCenter (successToast "Profile updated")
                                                 ]
                                     else do
                                         setSuccessMessage "Profile updated"

@@ -8,9 +8,8 @@ module Web.RosterWeeks.Responses
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups)
-import Application.Helper.View (ToastOverlayConfig (..),
-                                ToastOverlayPosition (ToastBottomCenter),
-                                renderToastOverlayHostOob)
+import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
+                                errorToast, renderToastOob, successToast)
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.RenderData (fetchVisibleRosterRenderDataCached,
@@ -78,24 +77,13 @@ respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
                             slotConflicts
                             renderIndexes
                             viewCapabilities
-            , renderToastOverlayHostOob ToastBottomCenter
-                [ ToastOverlayConfig
-                    { toastOverlayTitle = Just "Success"
-                    , toastOverlayMessage = successMessage
-                    , toastOverlayClass = "app-toast-success"
-                    , toastOverlayAutoHideMs = 3200
-                    }
-                ]
+            , renderToastOob ToastBottomCenter (successToast successMessage)
             ]
 
 respondWithRosterToast :: (?context :: ControllerContext, ?request :: Request) => Text -> Text -> IO ()
 respondWithRosterToast message toastClass =
     respondHtmlProfiled $
-        renderToastOverlayHostOob ToastBottomCenter
-            [ ToastOverlayConfig
-                { toastOverlayTitle = Just (if toastClass == "app-toast-error" then "Error" else "Success")
-                , toastOverlayMessage = message
-                , toastOverlayClass = toastClass
-                , toastOverlayAutoHideMs = if toastClass == "app-toast-error" then 4200 else 3200
-                }
-            ]
+        renderToastOob ToastBottomCenter $
+            if toastClass == "app-toast-error"
+                then errorToast message
+                else successToast message

@@ -4,7 +4,8 @@ import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
-                                renderToastOverlayHostOob)
+                                errorToast, renderToastOverlayHostOob,
+                                successToast)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
@@ -515,22 +516,10 @@ respondWithXeroStaffMappingControlsAndToast connection maybeUnchangedStaffId may
             ]
 
 xeroSuccessToast :: Text -> ToastOverlayConfig
-xeroSuccessToast message =
-    ToastOverlayConfig
-        { toastOverlayTitle = Just "Success"
-        , toastOverlayMessage = message
-        , toastOverlayClass = "app-toast-success"
-        , toastOverlayAutoHideMs = 3200
-        }
+xeroSuccessToast = successToast
 
 xeroErrorToast :: Text -> ToastOverlayConfig
-xeroErrorToast message =
-    ToastOverlayConfig
-        { toastOverlayTitle = Just "Error"
-        , toastOverlayMessage = message
-        , toastOverlayClass = "app-toast-error"
-        , toastOverlayAutoHideMs = 4200
-        }
+xeroErrorToast = errorToast
 
 currentUserIsCurrentVenueOwner :: (?context :: ControllerContext) => Bool
 currentUserIsCurrentVenueOwner =

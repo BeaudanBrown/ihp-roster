@@ -36,6 +36,28 @@ renderToastOverlayHostOob position toasts = [hsx|
     </div>
 |]
 
+renderToastOob :: ToastOverlayPosition -> ToastOverlayConfig -> Html
+renderToastOob position toast =
+    renderToastOverlayHostOob position [toast]
+
+successToast :: Text -> ToastOverlayConfig
+successToast message =
+    ToastOverlayConfig
+        { toastOverlayTitle = Just "Success"
+        , toastOverlayMessage = message
+        , toastOverlayClass = "app-toast-success"
+        , toastOverlayAutoHideMs = 3200
+        }
+
+errorToast :: Text -> ToastOverlayConfig
+errorToast message =
+    ToastOverlayConfig
+        { toastOverlayTitle = Just "Error"
+        , toastOverlayMessage = message
+        , toastOverlayClass = "app-toast-error"
+        , toastOverlayAutoHideMs = 4200
+        }
+
 toastOverlayHostClass :: ToastOverlayPosition -> Text
 toastOverlayHostClass position =
     classes

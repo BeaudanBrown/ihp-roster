@@ -6,9 +6,6 @@ import Application.Helper.Pay
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.VenueInvitation
-import Application.Helper.View (ToastOverlayConfig (..),
-                                ToastOverlayPosition (ToastBottomCenter),
-                                renderToastOverlayHostOob)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
                                           validRosterWeekStartDays,
                                           weekdayIndexLabel)
