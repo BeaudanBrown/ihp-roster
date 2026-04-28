@@ -676,6 +676,44 @@ CREATE TABLE export_jobs (
     FOREIGN KEY (downloaded_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (purged_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
+CREATE TABLE xero_connections (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    tenant_id TEXT NOT NULL,
+    tenant_name TEXT,
+    connection_status TEXT DEFAULT 'active' NOT NULL,
+    scopes TEXT NOT NULL,
+    encrypted_refresh_token TEXT NOT NULL,
+    encrypted_access_token TEXT,
+    access_token_expires_at TIMESTAMP WITH TIME ZONE,
+    last_refreshed_at TIMESTAMP WITH TIME ZONE,
+    last_sync_at TIMESTAMP WITH TIME ZONE,
+    last_error TEXT,
+    connected_by_user_id UUID,
+    connected_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    disconnected_by_user_id UUID,
+    disconnected_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (connected_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (disconnected_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((connection_status = 'active') OR (connection_status = 'disconnected') OR (connection_status = 'reauthorization_required') OR (connection_status = 'error'))
+);
+CREATE TABLE xero_oauth_states (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    user_id UUID NOT NULL,
+    state_token TEXT NOT NULL,
+    requested_scopes TEXT NOT NULL,
+    redirect_uri TEXT NOT NULL,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    consumed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    UNIQUE(state_token)
+);
 CREATE TABLE timesheet_entries (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -793,6 +831,10 @@ CREATE INDEX idx_export_jobs_venue_created_at ON export_jobs (venue_id, created_
 CREATE INDEX idx_venue_membership_role_events_membership_created_at ON venue_membership_role_events (venue_membership_id, created_at DESC);
 CREATE UNIQUE INDEX idx_export_jobs_generated_file_id ON export_jobs (generated_file_id);
 CREATE UNIQUE INDEX idx_export_jobs_download_token ON export_jobs (download_token);
+CREATE INDEX idx_xero_connections_venue_created_at ON xero_connections (venue_id, created_at DESC);
+CREATE UNIQUE INDEX idx_xero_connections_active_venue ON xero_connections (venue_id) WHERE connection_status = 'active';
+CREATE INDEX idx_xero_oauth_states_token ON xero_oauth_states (state_token);
+CREATE INDEX idx_xero_oauth_states_venue_user_created_at ON xero_oauth_states (venue_id, user_id, created_at DESC);
 
 CREATE OR REPLACE FUNCTION prevent_hard_delete()
 RETURNS TRIGGER
@@ -831,6 +873,7 @@ CREATE TRIGGER prevent_hard_delete_timesheet_entry_versions BEFORE DELETE ON tim
 CREATE TRIGGER prevent_hard_delete_venue_membership_role_events BEFORE DELETE ON venue_membership_role_events FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_audit_events BEFORE DELETE ON audit_events FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_export_jobs BEFORE DELETE ON export_jobs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_connections BEFORE DELETE ON xero_connections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
 CREATE OR REPLACE FUNCTION resolve_effective_pay_level(p_staff_id UUID, p_shift_type_id UUID, p_day_of_week INT)
 RETURNS UUID

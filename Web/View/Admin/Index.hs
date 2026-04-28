@@ -27,6 +27,8 @@ data IndexView = IndexView
     , reportWeekSelection             :: ReportWeekSelection
     , invitations                     :: [VenueInvitation]
     , invitesLiveUpdateScope          :: Maybe LiveUpdateScope
+    , xeroConnection                  :: Maybe XeroConnection
+    , xeroConnectedByUser             :: Maybe User
     , showInactiveRosterGroups        :: Bool
     , showInactiveShiftTypes          :: Bool
     }
@@ -46,7 +48,7 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection}
+                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser}
                             </div>
                         </div>
                     |]
@@ -326,11 +328,71 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
         |]
 
-renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection = [hsx|
+renderXeroSection :: Maybe XeroConnection -> Maybe User -> Html
+renderXeroSection maybeConnection maybeConnectedByUser =
+    renderConfigSection
+        "xero"
+        "Xero"
+        "Connect this venue to a Xero organisation for payroll integration setup."
+        (renderXeroSummary maybeConnection)
+        mempty
+        (renderXeroConnectionBody maybeConnection maybeConnectedByUser)
+
+renderXeroSummary :: Maybe XeroConnection -> Html
+renderXeroSummary Nothing = [hsx|
+    <div class="small app-muted mb-3">
+        Status: <span class="badge text-bg-secondary">not connected</span>
+    </div>
+|]
+renderXeroSummary (Just connection) = [hsx|
+    <div class="small app-muted mb-3">
+        Status: <span class="badge text-bg-success">connected</span>
+        <span class="ms-2">{fromMaybe connection.tenantId connection.tenantName}</span>
+    </div>
+|]
+
+renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Html
+renderXeroConnectionBody Nothing _ = [hsx|
+    <div class="d-flex flex-column gap-3">
+        <p class="mb-0 app-muted">
+            Connecting grants ihp-roster access to the selected Xero organisation for payroll integration setup.
+        </p>
+        <form method="POST" action={StartXeroConnectionAction} data-disable-javascript-submission="true">
+            <button class="btn btn-outline-primary" type="submit">Connect Xero</button>
+        </form>
+    </div>
+|]
+renderXeroConnectionBody (Just connection) maybeConnectedByUser = [hsx|
+    <div class="d-flex flex-column gap-3">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Tenant</dt>
+            <dd class="col-sm-9">{fromMaybe connection.tenantId connection.tenantName}</dd>
+            <dt class="col-sm-3">Tenant ID</dt>
+            <dd class="col-sm-9"><code>{connection.tenantId}</code></dd>
+            <dt class="col-sm-3">Connected</dt>
+            <dd class="col-sm-9">{formatTimestamp connection.connectedAt}{renderConnectedBy maybeConnectedByUser}</dd>
+        </dl>
+        <div class="d-flex flex-wrap gap-2">
+            <form method="POST" action={StartXeroConnectionAction} data-disable-javascript-submission="true">
+                <button class="btn btn-outline-secondary" type="submit">Reconnect</button>
+            </form>
+            <form method="POST" action={DisconnectXeroConnectionAction} data-disable-javascript-submission="true">
+                <button class="btn btn-outline-danger" type="submit">Disconnect</button>
+            </form>
+        </div>
+    </div>
+|]
+
+renderConnectedBy :: Maybe User -> Html
+renderConnectedBy Nothing = mempty
+renderConnectedBy (Just user) = [hsx|<span> by {user.email}</span>|]
+
+renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Maybe XeroConnection -> Maybe User -> Html
+renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection)}
+        {renderAccordionItem "xero" "Xero" False (renderXeroSection xeroConnection xeroConnectedByUser)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)}
     </div>

@@ -83,6 +83,9 @@ data ExportsController
 
 data AdminController
     = AdminAction
+    | StartXeroConnectionAction
+    | XeroOAuthCallbackAction
+    | DisconnectXeroConnectionAction
     | UpdateVenueConfigAction
     | ShowAdminSlotNamesFragmentAction
     | ShowAdminInvitesFragmentAction

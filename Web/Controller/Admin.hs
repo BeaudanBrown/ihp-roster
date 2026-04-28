@@ -1,6 +1,7 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
+import Application.Helper.Xero
 import Application.Helper.LiveUpdate
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
@@ -10,6 +11,7 @@ import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
                                           weekdayIndexLabel)
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
+import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Web.Controller.Prelude
@@ -40,7 +42,82 @@ instance Controller AdminController where
         let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
         invitations <- fetchCurrentVenueInvitations
         let invitesLiveUpdateScope = Just (adminInvitesScope currentVenueId)
+        xeroConnection <- fetchActiveCurrentVenueXeroConnection
+        xeroConnectedByUser <- fetchXeroConnectedByUser xeroConnection
         render IndexView { .. }
+
+    action StartXeroConnectionAction = do
+        readXeroConfig >>= \case
+            Left message -> do
+                setErrorMessage message
+                redirectTo AdminAction
+            Right xeroConfig -> do
+                now <- getCurrentTime
+                stateToken <- generateXeroStateToken
+                oauthState <- newRecord @XeroOauthState
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #userId (unpackId currentUser.id)
+                    |> set #stateToken stateToken
+                    |> set #requestedScopes requiredXeroScopesText
+                    |> set #redirectUri xeroConfig.redirectUri
+                    |> set #expiresAt (addUTCTime (15 * 60) now)
+                    |> createRecord
+                void $ recordCurrentUserAuditEvent
+                    "xero_connection_started"
+                    "xero_oauth_states"
+                    (unpackId oauthState.id)
+                    (Aeson.object
+                        [ "scopes" Aeson..= requiredXeroScopes
+                        , "redirectUri" Aeson..= xeroConfig.redirectUri
+                        ]
+                    )
+                redirectToUrl (buildXeroAuthorizationUrl xeroConfig stateToken)
+
+    action XeroOAuthCallbackAction = do
+        now <- getCurrentTime
+        let maybeStateToken = paramOrNothing @Text "state"
+        let maybeXeroError = paramOrNothing @Text "error"
+        let maybeCode = paramOrNothing @Text "code"
+        validatedState <- validateXeroOAuthState now currentUser.id maybeStateToken
+        case validatedState of
+            Left message -> failXeroConnectionAttempt message Nothing
+            Right oauthState ->
+                case maybeXeroError of
+                    Just xeroError -> do
+                        markXeroOAuthStateConsumed oauthState now
+                        failXeroConnectionAttempt ("Xero authorization failed: " <> xeroError) (Just oauthState)
+                    Nothing ->
+                        case maybeCode of
+                            Nothing -> failXeroConnectionAttempt "Xero did not return an authorization code." (Just oauthState)
+                            Just code -> completeXeroOAuthCallback now currentUser.id oauthState code
+
+    action DisconnectXeroConnectionAction = do
+        maybeConnection <- fetchActiveCurrentVenueXeroConnection
+        case maybeConnection of
+            Nothing -> do
+                setErrorMessage "Xero is not connected for this venue."
+                redirectTo AdminAction
+            Just connection -> do
+                now <- getCurrentTime
+                updatedConnection <- withTransaction do
+                    updated <- connection
+                        |> set #connectionStatus "disconnected"
+                        |> set #disconnectedByUserId (Just (unpackId currentUser.id))
+                        |> set #disconnectedAt (Just now)
+                        |> set #encryptedAccessToken Nothing
+                        |> updateRecord
+                    void $ recordCurrentUserAuditEvent
+                        "xero_connection_disconnected"
+                        "xero_connections"
+                        (unpackId updated.id)
+                        (Aeson.object
+                            [ "tenantId" Aeson..= updated.tenantId
+                            , "tenantName" Aeson..= updated.tenantName
+                            ]
+                        )
+                    pure updated
+                setSuccessMessage ("Disconnected Xero tenant " <> fromMaybe updatedConnection.tenantId updatedConnection.tenantName <> ".")
+                redirectTo AdminAction
 
     action UpdateVenueConfigAction = do
         venueConfig <- fetchVenueConfig
@@ -660,8 +737,170 @@ isVenueRosterWeekStartLocked = do
     paySnapshotCount <-
         query @PayConfigSnapshot
             |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchCount
+        |> fetchCount
     pure (any (> 0) [rosterWeekCount, timesheetEntryCount, leaveRequestCount, exportJobCount, paySnapshotCount])
+
+fetchActiveCurrentVenueXeroConnection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroConnection)
+fetchActiveCurrentVenueXeroConnection =
+    query @XeroConnection
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#connectionStatus, "active" :: Text)
+        |> orderByDesc #connectedAt
+        |> fetchOneOrNothing
+
+fetchXeroConnectedByUser :: (?modelContext :: ModelContext) => Maybe XeroConnection -> IO (Maybe User)
+fetchXeroConnectedByUser maybeConnection =
+    case maybeConnection >>= (.connectedByUserId) of
+        Nothing -> pure Nothing
+        Just userId ->
+            query @User
+                |> filterWhere (#id, Id userId)
+                |> fetchOneOrNothing
+
+validateXeroOAuthState ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    UTCTime ->
+    Id User ->
+    Maybe Text ->
+    IO (Either Text XeroOauthState)
+validateXeroOAuthState _ _ Nothing =
+    pure (Left "Xero did not return OAuth state. Start the connection again.")
+validateXeroOAuthState now actorUserId (Just stateToken) = do
+    maybeState <-
+        query @XeroOauthState
+            |> filterWhere (#stateToken, stateToken)
+            |> fetchOneOrNothing
+    pure case maybeState of
+        Nothing -> Left "Xero OAuth state is invalid. Start the connection again."
+        Just oauthState
+            | oauthState.venueId /= unpackId currentVenueId ->
+                Left "Xero OAuth state does not match the current venue. Start the connection again."
+            | oauthState.userId /= unpackId actorUserId ->
+                Left "Xero OAuth state does not match the current user. Start the connection again."
+            | isJust oauthState.consumedAt ->
+                Left "Xero OAuth state has already been used. Start the connection again."
+            | oauthState.expiresAt <= now ->
+                Left "Xero OAuth state has expired. Start the connection again."
+            | otherwise -> Right oauthState
+
+completeXeroOAuthCallback ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    UTCTime ->
+    Id User ->
+    XeroOauthState ->
+    Text ->
+    IO ()
+completeXeroOAuthCallback now actorUserId oauthState code =
+    readXeroConfig >>= \case
+        Left message -> failXeroConnectionAttempt message (Just oauthState)
+        Right xeroConfig -> do
+            xeroClient <- currentXeroClient
+            tokenResult <- exchangeCodeForToken xeroClient xeroConfig code
+            case tokenResult of
+                Left err -> do
+                    markXeroOAuthStateConsumed oauthState now
+                    failXeroConnectionAttempt ("Xero token exchange failed: " <> xeroClientErrorText err) (Just oauthState)
+                Right tokenResponse -> do
+                    tenantsResult <- fetchConnectedTenants xeroClient tokenResponse.accessToken
+                    case tenantsResult of
+                        Left err -> do
+                            markXeroOAuthStateConsumed oauthState now
+                            failXeroConnectionAttempt ("Xero tenant lookup failed: " <> xeroClientErrorText err) (Just oauthState)
+                        Right [] -> do
+                            markXeroOAuthStateConsumed oauthState now
+                            failXeroConnectionAttempt "Xero returned no connected tenants." (Just oauthState)
+                        Right (tenant : _) -> do
+                            connection <- persistCompletedXeroConnection now actorUserId xeroConfig oauthState tokenResponse tenant
+                            setSuccessMessage ("Connected Xero tenant " <> fromMaybe connection.tenantId connection.tenantName <> ".")
+                            redirectTo AdminAction
+
+persistCompletedXeroConnection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    UTCTime ->
+    Id User ->
+    XeroConfig ->
+    XeroOauthState ->
+    XeroTokenResponse ->
+    XeroTenant ->
+    IO XeroConnection
+persistCompletedXeroConnection now actorUserId xeroConfig oauthState tokenResponse tenant = do
+    encryptedRefreshToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.refreshToken
+    encryptedAccessToken <- encryptXeroToken xeroConfig.tokenEncryptionKey tokenResponse.accessToken
+    let accessTokenExpiresAt = addUTCTime (fromIntegral tokenResponse.expiresIn) now
+    withTransaction do
+        activeConnections <-
+            query @XeroConnection
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#connectionStatus, "active" :: Text)
+                |> fetch
+        forM_ activeConnections \connection ->
+            connection
+                |> set #connectionStatus "disconnected"
+                |> set #disconnectedByUserId (Just (unpackId actorUserId))
+                |> set #disconnectedAt (Just now)
+                |> set #lastError (Just "Superseded by reconnect")
+                |> updateRecord
+        updatedState <- oauthState
+            |> set #consumedAt (Just now)
+            |> updateRecord
+        connection <- newRecord @XeroConnection
+            |> set #venueId (unpackId currentVenueId)
+            |> set #tenantId tenant.tenantId
+            |> set #tenantName tenant.tenantName
+            |> set #connectionStatus ("active" :: Text)
+            |> set #scopes (fromMaybe updatedState.requestedScopes tokenResponse.scope)
+            |> set #encryptedRefreshToken encryptedRefreshToken
+            |> set #encryptedAccessToken (Just encryptedAccessToken)
+            |> set #accessTokenExpiresAt (Just accessTokenExpiresAt)
+            |> set #lastRefreshedAt (Just now)
+            |> set #connectedByUserId (Just (unpackId actorUserId))
+            |> set #connectedAt now
+            |> createRecord
+        void $ recordCurrentUserAuditEvent
+            "xero_connection_completed"
+            "xero_connections"
+            (unpackId connection.id)
+            (Aeson.object
+                [ "tenantId" Aeson..= connection.tenantId
+                , "tenantName" Aeson..= connection.tenantName
+                , "scopes" Aeson..= connection.scopes
+                , "stateId" Aeson..= unpackId updatedState.id
+                ]
+            )
+        pure connection
+
+markXeroOAuthStateConsumed ::
+    (?modelContext :: ModelContext) =>
+    XeroOauthState ->
+    UTCTime ->
+    IO XeroOauthState
+markXeroOAuthStateConsumed oauthState now =
+    oauthState
+        |> set #consumedAt (Just now)
+        |> updateRecord
+
+failXeroConnectionAttempt ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Text ->
+    Maybe XeroOauthState ->
+    IO ()
+failXeroConnectionAttempt message maybeState = do
+    void $ recordCurrentUserAuditEvent
+        "xero_connection_failed"
+        "xero_connections"
+        (maybe (unpackId currentVenueId) (unpackId . (.id)) maybeState)
+        (Aeson.object
+            [ "failure" Aeson..= message
+            , "stateId" Aeson..= fmap (unpackId . (.id)) maybeState
+            ]
+        )
+    setErrorMessage message
+    redirectTo AdminAction
+
+xeroClientErrorText :: XeroClientError -> Text
+xeroClientErrorText (XeroHttpError message) = message
+xeroClientErrorText (XeroDecodeError message) = "Could not decode Xero response: " <> message
+xeroClientErrorText XeroNoTenantsError = "Xero returned no connected tenants."
 
 parseRequiredName :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Text -> IO (Maybe Text)
 parseRequiredName paramName errorMessage =
