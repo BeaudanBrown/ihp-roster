@@ -88,6 +88,8 @@ data AdminController
     | DisconnectXeroConnectionAction
     | SyncXeroPayrollReferenceDataAction
     | SaveXeroStaffMappingAction
+    | SaveXeroEarningsRateMappingAction
+    | SaveXeroPayrollCalendarSelectionAction
     | UpdateVenueConfigAction
     | ShowAdminSlotNamesFragmentAction
     | ShowAdminInvitesFragmentAction

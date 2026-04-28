@@ -4,11 +4,16 @@ import Application.Helper.Export
 import Application.Helper.Xero
 import Application.Helper.LiveUpdate
 import Application.Helper.Pay
+import Application.Helper.Profiling
 import Application.Helper.RosterGroups
+import Application.Helper.View (ToastOverlayConfig (..),
+                                ToastOverlayPosition (ToastBottomCenter),
+                                renderToastOverlayHostOob)
 import Application.Helper.VenueInvitation
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
                                           validRosterWeekStartDays,
                                           weekdayIndexLabel)
+import Application.Helper.XeroAdminTypes
 import Application.Xero.Connection
 import Control.Concurrent (forkIO)
 import Control.Monad (void)
@@ -52,6 +57,12 @@ instance Controller AdminController where
         xeroEmployees <- fetchCurrentVenueXeroEmployees xeroConnection
         xeroStaffMappingRows <- fetchCurrentVenueXeroStaffMappingRows xeroConnection
         let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
+        xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates xeroConnection
+        xeroEarningsBucketRows <- fetchCurrentVenueXeroEarningsBucketRows xeroConnection
+        let xeroEarningsRateMappingCounts = xeroEarningsRateMappingCountsFor xeroEarningsBucketRows
+        xeroPayrollCalendars <- fetchCurrentVenueXeroPayrollCalendars xeroConnection
+        xeroPayrollCalendarSelection <- fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection
+        let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayrollCalendarSelection
         let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
         render IndexView { .. }
 
@@ -134,6 +145,31 @@ instance Controller AdminController where
                 let staffId = param @(Id Staff) "staffId"
                 let selection = Text.strip (paramOrDefault @Text "" "xeroEmployeeSelection")
                 saveXeroStaffMapping connection staffId selection
+
+    action SaveXeroEarningsRateMappingAction = do
+        maybeConnection <- fetchCurrentVenueXeroConnection
+        case maybeConnection of
+            Nothing -> do
+                setErrorMessage "Connect Xero before mapping earning buckets to Xero earnings rates."
+                if isHtmxRequest
+                    then respondWithXeroSectionFragment
+                    else redirectTo AdminAction
+            Just connection -> do
+                let localBucketKey = Text.strip (paramOrDefault @Text "" "localBucketKey")
+                let selection = Text.strip (paramOrDefault @Text "" "xeroEarningsRateSelection")
+                saveXeroEarningsRateMapping connection localBucketKey selection
+
+    action SaveXeroPayrollCalendarSelectionAction = do
+        maybeConnection <- fetchCurrentVenueXeroConnection
+        case maybeConnection of
+            Nothing -> do
+                setErrorMessage "Connect Xero before selecting a payroll calendar."
+                if isHtmxRequest
+                    then respondWithXeroSectionFragment
+                    else redirectTo AdminAction
+            Just connection -> do
+                let selection = Text.strip (paramOrDefault @Text "" "xeroPayrollCalendarSelection")
+                saveXeroPayrollCalendarSelection connection selection
 
     action UpdateVenueConfigAction = do
         venueConfig <- fetchVenueConfig
@@ -848,6 +884,89 @@ fetchCurrentVenueXeroEmployees maybeConnection =
                 |> orderBy #displayName
                 |> fetch
 
+fetchCurrentVenueXeroEarningsRates :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroEarningsRate]
+fetchCurrentVenueXeroEarningsRates maybeConnection =
+    case maybeConnection of
+        Nothing -> pure []
+        Just connection ->
+            query @XeroEarningsRate
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> filterWhere (#isActive, True)
+                |> orderBy #name
+                |> fetch
+
+fetchCurrentVenueXeroPayrollCalendars :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroPayrollCalendar]
+fetchCurrentVenueXeroPayrollCalendars maybeConnection =
+    case maybeConnection of
+        Nothing -> pure []
+        Just connection ->
+            query @XeroPayrollCalendar
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> orderBy #name
+                |> fetch
+
+fetchCurrentVenueXeroPayrollCalendarSelection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO (Maybe XeroPayrollCalendarSelection)
+fetchCurrentVenueXeroPayrollCalendarSelection maybeConnection =
+    case maybeConnection of
+        Nothing -> pure Nothing
+        Just connection ->
+            query @XeroPayrollCalendarSelection
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchOneOrNothing
+
+fetchCurrentVenueXeroEarningsBucketRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroEarningsBucketRow]
+fetchCurrentVenueXeroEarningsBucketRows maybeConnection =
+    case maybeConnection of
+        Nothing -> pure []
+        Just connection -> do
+            buckets <- currentVenueLocalXeroEarningsBuckets
+            mappings <-
+                query @XeroEarningsRateMapping
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                    |> fetch
+            pure $
+                buckets
+                    |> map (\bucket ->
+                        XeroEarningsBucketRow
+                            { earningsBucketRowBucket = bucket
+                            , earningsBucketRowMapping = List.find (\mapping -> mapping.localBucketKey == bucket.localBucketKey) mappings
+                            }
+                    )
+
+currentVenueLocalXeroEarningsBuckets :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroLocalEarningsBucket]
+currentVenueLocalXeroEarningsBuckets = do
+    awardLevels <-
+        query @AwardLevel
+            |> filterWhere (#isActive, True)
+            |> orderBy #classification
+            |> fetch
+    pure (concatMap bucketsForAwardLevel awardLevels)
+    where
+        bucketsForAwardLevel :: AwardLevel -> [XeroLocalEarningsBucket]
+        bucketsForAwardLevel awardLevel =
+            map (bucketFor awardLevel) xeroPayrollPenaltyBuckets
+
+        bucketFor :: AwardLevel -> (Text, Text) -> XeroLocalEarningsBucket
+        bucketFor awardLevel (penaltyKind, penaltyLabel) =
+            XeroLocalEarningsBucket
+                { localBucketKey = "award:" <> tshow (awardLevel.awardFixedId) <> ":classification:" <> tshow (awardLevel.classificationFixedId) <> ":penalty:" <> penaltyKind
+                , localBucketLabel = awardLevel.classification <> " - " <> penaltyLabel
+                }
+
+xeroPayrollPenaltyBuckets :: [(Text, Text)]
+xeroPayrollPenaltyBuckets =
+    [ ("ordinary", "Ordinary")
+    , ("evening_after_7pm", "Evening After 7pm")
+    , ("late_night_after_midnight", "Late Night After Midnight")
+    , ("saturday_penalty", "Saturday")
+    , ("sunday_penalty", "Sunday")
+    , ("public_holiday_penalty", "Public Holiday")
+    ]
+
 fetchCurrentVenueXeroStaffMappingRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroStaffMappingRow]
 fetchCurrentVenueXeroStaffMappingRows maybeConnection =
     case maybeConnection of
@@ -901,21 +1020,110 @@ xeroStaffMappingCountsFor rows =
                 Just "unmapped" -> True
                 _               -> False
 
+xeroEarningsRateMappingCountsFor :: [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts
+xeroEarningsRateMappingCountsFor rows =
+    XeroEarningsRateMappingCounts
+        { xeroEarningsVerifiedCount = countStatus "verified"
+        , xeroEarningsUnmappedCount = length (filter isUnmapped rows)
+        , xeroEarningsStaleCount = countStatus "stale"
+        }
+    where
+        mappingStatus row = (.mappingStatus) <$> row.earningsBucketRowMapping
+        countStatus status = length (filter (\row -> mappingStatus row == Just status) rows)
+        isUnmapped row =
+            case mappingStatus row of
+                Nothing         -> True
+                Just "unmapped" -> True
+                _               -> False
+
+buildXeroReadyChecklist :: Maybe XeroConnection -> Maybe XeroSyncRun -> [XeroStaffMappingRow] -> [XeroEarningsBucketRow] -> Maybe XeroPayrollCalendarSelection -> XeroReadyChecklist
+buildXeroReadyChecklist maybeConnection maybeSyncRun staffRows earningsRows maybeCalendarSelection =
+    XeroReadyChecklist
+        { xeroReadyConnection = maybe False (\connection -> connection.connectionStatus == "active") maybeConnection
+        , xeroReadyReferenceSync = maybe False (\syncRun -> syncRun.syncStatus == "succeeded") maybeSyncRun
+        , xeroReadyStaffMappings = not (null staffRows) && all staffRowReady staffRows
+        , xeroReadyEarningsMappings = not (null earningsRows) && all earningsRowReady earningsRows
+        , xeroReadyPayrollCalendar = maybe False (\selection -> selection.calendarStatus == "verified" && isJust selection.xeroPayrollCalendarId) maybeCalendarSelection
+        }
+    where
+        staffRowReady row =
+            maybe False (\mapping -> mapping.mappingStatus == "verified" || mapping.mappingStatus == "not_applicable") row.mappingRowMapping
+        earningsRowReady row =
+            maybe False (\mapping -> mapping.mappingStatus == "verified") row.earningsBucketRowMapping
+
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
-respondWithXeroSectionFragment = do
-    xeroConnection <- fetchCurrentVenueXeroConnection
-    xeroConnectedByUser <- fetchXeroConnectedByUser xeroConnection
-    xeroLatestSyncRun <- fetchLatestCurrentVenueXeroSyncRun
-    xeroEmployeeCount <- fetchCurrentVenueXeroEmployeeCount xeroConnection
-    xeroEarningsRateCount <- fetchCurrentVenueXeroEarningsRateCount xeroConnection
-    xeroPayrollCalendarCount <- fetchCurrentVenueXeroPayrollCalendarCount xeroConnection
-    xeroEmployees <- fetchCurrentVenueXeroEmployees xeroConnection
-    xeroStaffMappingRows <- fetchCurrentVenueXeroStaffMappingRows xeroConnection
+respondWithXeroSectionFragment =
+    respondWithXeroSectionFragmentAndToast Nothing
+
+respondWithXeroSectionFragmentAndToast ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroSectionFragmentAndToast maybeToast = do
+    xeroConnection <- profileActionSpan "admin.xero.fragment.load_connection" fetchCurrentVenueXeroConnection
+    xeroConnectedByUser <- profileActionSpan "admin.xero.fragment.load_connected_user" (fetchXeroConnectedByUser xeroConnection)
+    xeroLatestSyncRun <- profileActionSpan "admin.xero.fragment.load_latest_sync" fetchLatestCurrentVenueXeroSyncRun
+    (xeroEmployeeCount, xeroEarningsRateCount, xeroPayrollCalendarCount) <- profileActionSpan "admin.xero.fragment.fetch_reference_counts" do
+        (,,)
+            <$> fetchCurrentVenueXeroEmployeeCount xeroConnection
+            <*> fetchCurrentVenueXeroEarningsRateCount xeroConnection
+            <*> fetchCurrentVenueXeroPayrollCalendarCount xeroConnection
+    xeroEmployees <- profileActionSpan "admin.xero.staff_mapping.fetch_employees" (fetchCurrentVenueXeroEmployees xeroConnection)
+    xeroStaffMappingRows <- profileActionSpan "admin.xero.staff_mapping.fetch_rows" (fetchCurrentVenueXeroStaffMappingRows xeroConnection)
     let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
+    xeroEarningsRates <- profileActionSpan "admin.xero.earnings_mapping.fetch_rates" (fetchCurrentVenueXeroEarningsRates xeroConnection)
+    xeroEarningsBucketRows <- profileActionSpan "admin.xero.earnings_mapping.fetch_rows" (fetchCurrentVenueXeroEarningsBucketRows xeroConnection)
+    let xeroEarningsRateMappingCounts = xeroEarningsRateMappingCountsFor xeroEarningsBucketRows
+    xeroPayrollCalendars <- profileActionSpan "admin.xero.calendar.fetch_calendars" (fetchCurrentVenueXeroPayrollCalendars xeroConnection)
+    xeroPayrollCalendarSelection <- profileActionSpan "admin.xero.calendar.fetch_selection" (fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection)
+    let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayrollCalendarSelection
     let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
-    respondHtml (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroConnectionActionsAllowed)
+    fragmentHtml <- profileActionSpan "admin.xero.fragment.render" do
+        pure $
+            renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroReadyChecklist xeroConnectionActionsAllowed
+    respondHtmlProfiled $
+        mconcat
+            [ fragmentHtml
+            , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
+            ]
+
+respondWithXeroStaffMappingControlsAndToast ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Maybe (Id Staff) ->
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroStaffMappingControlsAndToast connection maybeUnchangedStaffId maybeToast = do
+    xeroEmployees <- profileActionSpan "admin.xero.staff_mapping.fetch_employees" (fetchCurrentVenueXeroEmployees (Just connection))
+    xeroStaffMappingRows <- profileActionSpan "admin.xero.staff_mapping.fetch_rows" (fetchCurrentVenueXeroStaffMappingRows (Just connection))
+    let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
+    controlsHtml <- profileActionSpan "admin.xero.staff_mapping.render_controls" do
+        pure (renderXeroStaffMappingControlsOob maybeUnchangedStaffId xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts)
+    respondHtmlProfiled $
+        mconcat
+            [ controlsHtml
+            , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
+            ]
+
+xeroSuccessToast :: Text -> ToastOverlayConfig
+xeroSuccessToast message =
+    ToastOverlayConfig
+        { toastOverlayTitle = Just "Success"
+        , toastOverlayMessage = message
+        , toastOverlayClass = "app-toast-success"
+        , toastOverlayAutoHideMs = 3200
+        }
+
+xeroErrorToast :: Text -> ToastOverlayConfig
+xeroErrorToast message =
+    ToastOverlayConfig
+        { toastOverlayTitle = Just "Error"
+        , toastOverlayMessage = message
+        , toastOverlayClass = "app-toast-error"
+        , toastOverlayAutoHideMs = 4200
+        }
 
 currentUserIsCurrentVenueOwner :: (?context :: ControllerContext) => Bool
 currentUserIsCurrentVenueOwner =
@@ -1022,27 +1230,38 @@ saveXeroStaffMapping ::
     Text ->
     IO ()
 saveXeroStaffMapping connection staffId selection = do
-    maybeStaff <-
+    maybeStaff <- profileActionSpan "admin.xero.staff_mapping.persist.validate_staff" $
         query @Staff
             |> filterWhere (#id, staffId)
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> fetchOneOrNothing
     case maybeStaff of
-        Nothing -> respondWithXeroStaffMappingError "Choose a staff member from the current venue."
+        Nothing -> respondWithXeroStaffMappingError connection "Choose a staff member from the current venue."
         Just staff ->
             case selection of
                 "" -> persistXeroStaffMapping connection staff "unmapped" Nothing
                 "not_applicable" -> persistXeroStaffMapping connection staff "not_applicable" Nothing
                 xeroEmployeeId -> do
-                    maybeEmployee <-
+                    maybeEmployee <- profileActionSpan "admin.xero.staff_mapping.persist.validate_employee" $
                         query @XeroEmployee
                             |> filterWhere (#venueId, unpackId currentVenueId)
                             |> filterWhere (#xeroConnectionId, unpackId connection.id)
                             |> filterWhere (#xeroEmployeeId, xeroEmployeeId)
                             |> fetchOneOrNothing
                     case maybeEmployee of
-                        Nothing -> respondWithXeroStaffMappingError "Choose a synced Xero employee from this venue."
-                        Just employee -> persistXeroStaffMapping connection staff "verified" (Just employee)
+                        Nothing -> respondWithXeroStaffMappingError connection "Choose a synced Xero employee from this venue."
+                        Just employee -> do
+                            duplicateMapping <- profileActionSpan "admin.xero.staff_mapping.persist.validate_duplicate" $
+                                query @XeroStaffMapping
+                                    |> filterWhere (#venueId, unpackId currentVenueId)
+                                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                                    |> filterWhere (#xeroEmployeeId, Just xeroEmployeeId)
+                                    |> filterWhere (#mappingStatus, "verified")
+                                    |> filterWhereNot (#staffId, unpackId staff.id)
+                                    |> fetchOneOrNothing
+                            case duplicateMapping of
+                                Just _ -> respondWithXeroStaffMappingError connection "That Xero employee is already mapped to another staff member."
+                                Nothing -> persistXeroStaffMapping connection staff "verified" (Just employee)
 
 persistXeroStaffMapping ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -1053,7 +1272,7 @@ persistXeroStaffMapping ::
     IO ()
 persistXeroStaffMapping connection staff mappingStatus maybeEmployee = do
     now <- getCurrentTime
-    mapping <- withTransaction do
+    mapping <- profileActionSpan "admin.xero.staff_mapping.persist.upsert" $ withTransaction do
         existingMapping <-
             query @XeroStaffMapping
                 |> filterWhere (#staffId, unpackId staff.id)
@@ -1095,21 +1314,189 @@ persistXeroStaffMapping connection staff mappingStatus maybeEmployee = do
                 "verified"       -> "Saved Xero employee mapping for " <> staff.firstName <> " " <> staff.lastName <> "."
                 "not_applicable" -> "Marked " <> staff.firstName <> " " <> staff.lastName <> " as not paid through Xero."
                 _                -> "Cleared Xero employee mapping for " <> staff.firstName <> " " <> staff.lastName <> "."
-    setSuccessMessage message
-    broadcastAdminXeroInvalidation currentVenueId
+    profileActionSpan "admin.xero.staff_mapping.persist.broadcast" $
+        broadcastAdminXeroInvalidation currentVenueId
     if isHtmxRequest
-        then respondWithXeroSectionFragment
-        else redirectTo AdminAction
+        then respondWithXeroStaffMappingControlsAndToast connection (Just staff.id) (Just (xeroSuccessToast message))
+        else do
+            setSuccessMessage message
+            redirectTo AdminAction
 
 respondWithXeroStaffMappingError ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
     Text ->
     IO ()
-respondWithXeroStaffMappingError message = do
-    setErrorMessage message
+respondWithXeroStaffMappingError connection message = do
     if isHtmxRequest
-        then respondWithXeroSectionFragment
-        else redirectTo AdminAction
+        then respondWithXeroStaffMappingControlsAndToast connection Nothing (Just (xeroErrorToast message))
+        else do
+            setErrorMessage message
+            redirectTo AdminAction
+
+saveXeroEarningsRateMapping ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Text ->
+    Text ->
+    IO ()
+saveXeroEarningsRateMapping connection localBucketKey selection = do
+    buckets <- currentVenueLocalXeroEarningsBuckets
+    case List.find (\bucket -> bucket.localBucketKey == localBucketKey) buckets of
+        Nothing -> respondWithXeroMappingMutationError "Choose a local earning bucket from the current venue."
+        Just bucket ->
+            case selection of
+                "" -> persistXeroEarningsRateMapping connection bucket "unmapped" Nothing
+                xeroEarningsRateId -> do
+                    maybeEarningsRate <-
+                        query @XeroEarningsRate
+                            |> filterWhere (#venueId, unpackId currentVenueId)
+                            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                            |> filterWhere (#xeroEarningsRateId, xeroEarningsRateId)
+                            |> filterWhere (#isActive, True)
+                            |> fetchOneOrNothing
+                    case maybeEarningsRate of
+                        Nothing -> respondWithXeroMappingMutationError "Choose a synced active Xero earnings rate from this venue."
+                        Just earningsRate -> persistXeroEarningsRateMapping connection bucket "verified" (Just earningsRate)
+
+persistXeroEarningsRateMapping ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    XeroLocalEarningsBucket ->
+    Text ->
+    Maybe XeroEarningsRate ->
+    IO ()
+persistXeroEarningsRateMapping connection bucket mappingStatus maybeEarningsRate = do
+    now <- getCurrentTime
+    mapping <- withTransaction do
+        existingMapping <-
+            query @XeroEarningsRateMapping
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> filterWhere (#localBucketKey, bucket.localBucketKey)
+                |> fetchOneOrNothing
+        let prepared record =
+                record
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #xeroConnectionId (unpackId connection.id)
+                    |> set #localBucketKey bucket.localBucketKey
+                    |> set #localBucketLabel bucket.localBucketLabel
+                    |> set #xeroEarningsRateId ((.xeroEarningsRateId) <$> maybeEarningsRate)
+                    |> set #xeroEarningsRateName ((.name) <$> maybeEarningsRate)
+                    |> set #mappingStatus mappingStatus
+                    |> set #lastVerifiedAt (if mappingStatus == "verified" then Just now else Nothing)
+                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+        savedMapping <-
+            case existingMapping of
+                Just existing -> prepared existing |> updateRecord
+                Nothing ->
+                    prepared (newRecord @XeroEarningsRateMapping)
+                        |> set #createdByUserId (Just (unpackId currentUser.id))
+                        |> createRecord
+        void $ recordCurrentUserAuditEvent
+            "xero_earnings_rate_mapping_saved"
+            "xero_earnings_rate_mappings"
+            (unpackId savedMapping.id)
+            (Aeson.object
+                [ "localBucketKey" Aeson..= bucket.localBucketKey
+                , "localBucketLabel" Aeson..= bucket.localBucketLabel
+                , "mappingStatus" Aeson..= mappingStatus
+                , "xeroEarningsRateId" Aeson..= ((.xeroEarningsRateId) <$> maybeEarningsRate)
+                ]
+            )
+        pure savedMapping
+    let message =
+            if mapping.mappingStatus == "verified"
+                then "Saved Xero earnings-rate mapping for " <> bucket.localBucketLabel <> "."
+                else "Cleared Xero earnings-rate mapping for " <> bucket.localBucketLabel <> "."
+    broadcastAdminXeroInvalidation currentVenueId
+    respondToXeroMappingMutationSuccess message
+
+saveXeroPayrollCalendarSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Text ->
+    IO ()
+saveXeroPayrollCalendarSelection connection selection =
+    case selection of
+        "" -> persistXeroPayrollCalendarSelection connection "none" Nothing
+        xeroPayrollCalendarId -> do
+            maybePayrollCalendar <-
+                query @XeroPayrollCalendar
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                    |> filterWhere (#xeroPayrollCalendarId, xeroPayrollCalendarId)
+                    |> fetchOneOrNothing
+            case maybePayrollCalendar of
+                Nothing -> respondWithXeroMappingMutationError "Choose a synced Xero payroll calendar from this venue."
+                Just payrollCalendar -> persistXeroPayrollCalendarSelection connection "verified" (Just payrollCalendar)
+
+persistXeroPayrollCalendarSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Text ->
+    Maybe XeroPayrollCalendar ->
+    IO ()
+persistXeroPayrollCalendarSelection connection calendarStatus maybePayrollCalendar = do
+    now <- getCurrentTime
+    selection <- withTransaction do
+        existingSelection <-
+            query @XeroPayrollCalendarSelection
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchOneOrNothing
+        let prepared record =
+                record
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #xeroConnectionId (unpackId connection.id)
+                    |> set #xeroPayrollCalendarId ((.xeroPayrollCalendarId) <$> maybePayrollCalendar)
+                    |> set #xeroPayrollCalendarName ((.name) <$> maybePayrollCalendar)
+                    |> set #calendarStatus calendarStatus
+                    |> set #lastVerifiedAt (if calendarStatus == "verified" then Just now else Nothing)
+                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+        savedSelection <-
+            case existingSelection of
+                Just existing -> prepared existing |> updateRecord
+                Nothing ->
+                    prepared (newRecord @XeroPayrollCalendarSelection)
+                        |> set #createdByUserId (Just (unpackId currentUser.id))
+                        |> createRecord
+        void $ recordCurrentUserAuditEvent
+            "xero_payroll_calendar_selected"
+            "xero_payroll_calendar_selections"
+            (unpackId savedSelection.id)
+            (Aeson.object
+                [ "calendarStatus" Aeson..= calendarStatus
+                , "xeroPayrollCalendarId" Aeson..= ((.xeroPayrollCalendarId) <$> maybePayrollCalendar)
+                ]
+            )
+        pure savedSelection
+    let message =
+            if selection.calendarStatus == "verified"
+                then "Saved Xero payroll calendar selection."
+                else "Cleared Xero payroll calendar selection."
+    broadcastAdminXeroInvalidation currentVenueId
+    respondToXeroMappingMutationSuccess message
+
+respondToXeroMappingMutationSuccess ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Text ->
+    IO ()
+respondToXeroMappingMutationSuccess message =
+    if isHtmxRequest
+        then respondWithXeroSectionFragmentAndToast (Just (xeroSuccessToast message))
+        else do
+            setSuccessMessage message
+            redirectTo AdminAction
+
+respondWithXeroMappingMutationError ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Text ->
+    IO ()
+respondWithXeroMappingMutationError message =
+    if isHtmxRequest
+        then respondWithXeroSectionFragmentAndToast (Just (xeroErrorToast message))
+        else do
+            setErrorMessage message
+            redirectTo AdminAction
 
 validateXeroOAuthState ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -1330,6 +1717,8 @@ completeXeroReferenceSync syncRun connection employees earningsRates payrollCale
         mapM_ (upsertXeroEarningsRate connection now) earningsRates
         mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
         markStaleXeroStaffMappings connection employees
+        markStaleXeroEarningsRateMappings connection earningsRates
+        markStaleXeroPayrollCalendarSelection connection payrollCalendars
         _ <- syncRun
             |> set #syncStatus ("succeeded" :: Text)
             |> set #employeesCount (length employees)
@@ -1380,6 +1769,55 @@ markStaleXeroStaffMappings connection employees = do
                     |> set #lastVerifiedAt Nothing
                     |> updateRecord
                     |> void
+
+markStaleXeroEarningsRateMappings ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    XeroConnection ->
+    [XeroEarningsRateRef] ->
+    IO ()
+markStaleXeroEarningsRateMappings connection earningsRates = do
+    let activeEarningsRateIds = map (\earningsRate -> earningsRate.xeroEarningsRateId) earningsRates
+    mappings <-
+        query @XeroEarningsRateMapping
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> fetch
+    forM_ mappings \mapping ->
+        case mapping.xeroEarningsRateId of
+            Just earningsRateId | earningsRateId `elem` activeEarningsRateIds -> pure ()
+            _ ->
+                mapping
+                    |> set #mappingStatus "stale"
+                    |> set #lastVerifiedAt Nothing
+                    |> updateRecord
+                    |> void
+
+markStaleXeroPayrollCalendarSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    XeroConnection ->
+    [XeroPayrollCalendarRef] ->
+    IO ()
+markStaleXeroPayrollCalendarSelection connection payrollCalendars = do
+    let activePayrollCalendarIds = map (\payrollCalendar -> payrollCalendar.xeroPayrollCalendarId) payrollCalendars
+    maybeSelection <-
+        query @XeroPayrollCalendarSelection
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#calendarStatus, "verified" :: Text)
+            |> fetchOneOrNothing
+    case maybeSelection of
+        Just selection ->
+            case selection.xeroPayrollCalendarId of
+                Just payrollCalendarId
+                    | payrollCalendarId `notElem` activePayrollCalendarIds ->
+                        selection
+                            |> set #calendarStatus "stale"
+                            |> set #lastVerifiedAt Nothing
+                            |> updateRecord
+                            |> void
+                _ -> pure ()
+        Nothing -> pure ()
 
 failXeroReferenceSync ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

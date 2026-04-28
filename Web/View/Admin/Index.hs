@@ -10,6 +10,8 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentRef (..),
                                       LiveUpdateScope (..),
                                       mkLiveFragmentRef)
+import Application.Helper.XeroAdminTypes
+import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
@@ -36,22 +38,15 @@ data IndexView = IndexView
     , xeroEmployees                   :: [XeroEmployee]
     , xeroStaffMappingRows            :: [XeroStaffMappingRow]
     , xeroStaffMappingCounts          :: XeroStaffMappingCounts
+    , xeroEarningsRates               :: [XeroEarningsRate]
+    , xeroEarningsBucketRows          :: [XeroEarningsBucketRow]
+    , xeroEarningsRateMappingCounts   :: XeroEarningsRateMappingCounts
+    , xeroPayrollCalendars            :: [XeroPayrollCalendar]
+    , xeroPayrollCalendarSelection    :: Maybe XeroPayrollCalendarSelection
+    , xeroReadyChecklist              :: XeroReadyChecklist
     , xeroConnectionActionsAllowed    :: Bool
     , showInactiveRosterGroups        :: Bool
     , showInactiveShiftTypes          :: Bool
-    }
-
-data XeroStaffMappingRow = XeroStaffMappingRow
-    { mappingRowStaff   :: Staff
-    , mappingRowUser    :: Maybe User
-    , mappingRowMapping :: Maybe XeroStaffMapping
-    }
-
-data XeroStaffMappingCounts = XeroStaffMappingCounts
-    { xeroStaffVerifiedCount      :: Int
-    , xeroStaffUnmappedCount      :: Int
-    , xeroStaffNotApplicableCount :: Int
-    , xeroStaffStaleCount         :: Int
     }
 
 instance View IndexView where
@@ -69,7 +64,7 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroConnectionActionsAllowed}
+                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroReadyChecklist xeroConnectionActionsAllowed}
                             </div>
                         </div>
                     |]
@@ -365,21 +360,21 @@ renderExportButton maybeReportDefinition reportWeekSelection label =
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label <> " unavailable"}</button>
         |]
 
-renderXeroSection :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Bool -> Html
-renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts connectionActionsAllowed =
+renderXeroSection :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> XeroReadyChecklist -> Bool -> Html
+renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection readyChecklist connectionActionsAllowed =
     renderConfigSection
         "xero"
         "Xero"
         "Connect this venue to a Xero organisation for payroll integration setup."
         (renderXeroSummary maybeConnection)
         mempty
-        (renderXeroConnectionBody maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts connectionActionsAllowed)
+        (renderXeroConnectionBody maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection readyChecklist connectionActionsAllowed)
 
-renderXeroSectionFragment :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Bool -> Html
-renderXeroSectionFragment maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts connectionActionsAllowed = [hsx|
+renderXeroSectionFragment :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> XeroReadyChecklist -> Bool -> Html
+renderXeroSectionFragment maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection readyChecklist connectionActionsAllowed = [hsx|
     <div id="admin-xero-fragment"
          data-live-update-surface={liveSurfaceConfigJson <$> adminXeroLiveSurface}>
-        {renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts connectionActionsAllowed}
+        {renderXeroSection maybeConnection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection readyChecklist connectionActionsAllowed}
     </div>
 |]
 
@@ -396,8 +391,8 @@ renderXeroSummary (Just connection) = [hsx|
     </div>
 |]
 
-renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Bool -> Html
-renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ connectionActionsAllowed = [hsx|
+renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> XeroReadyChecklist -> Bool -> Html
+renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <p class="mb-0 app-muted">
             Connecting grants ihp-roster access to the selected Xero organisation for payroll integration setup.
@@ -405,7 +400,7 @@ renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ connectionActionsAllowed = [hsx
         {renderXeroConnectControl connectionActionsAllowed}
     </div>
 |]
-renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts connectionActionsAllowed = [hsx|
+renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates earningsBucketRows earningsMappingCounts xeroPayrollCalendars maybePayrollCalendarSelection readyChecklist connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <dl class="row mb-0">
             <dt class="col-sm-3">Tenant</dt>
@@ -432,6 +427,9 @@ renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun emp
             {renderXeroReconnectControls connectionActionsAllowed}
         </div>
         {renderXeroStaffMappings xeroEmployees mappingRows mappingCounts}
+        {renderXeroEarningsRateMappings xeroEarningsRates earningsBucketRows earningsMappingCounts}
+        {renderXeroPayrollCalendarSelection xeroPayrollCalendars maybePayrollCalendarSelection}
+        {renderXeroReadyChecklist readyChecklist}
     </div>
 |]
 
@@ -541,12 +539,7 @@ renderXeroStaffMappings xeroEmployees mappingRows mappingCounts
                     <h3 class="h6 mb-1">Staff mappings</h3>
                     <p class="small app-muted mb-0">Map active staff to synced Xero payroll employees. Unmapped staff are allowed during setup.</p>
                 </div>
-                <div class="d-flex flex-wrap gap-2">
-                    <span class="badge text-bg-success">{tshow mappingCounts.xeroStaffVerifiedCount} mapped</span>
-                    <span class="badge text-bg-secondary">{tshow mappingCounts.xeroStaffUnmappedCount} unmapped</span>
-                    <span class="badge text-bg-info">{tshow mappingCounts.xeroStaffNotApplicableCount} not paid through Xero</span>
-                    <span class="badge text-bg-warning">{tshow mappingCounts.xeroStaffStaleCount} stale</span>
-                </div>
+                {renderXeroStaffMappingCounts mappingCounts}
             </div>
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
@@ -554,49 +547,282 @@ renderXeroStaffMappings xeroEmployees mappingRows mappingCounts
                         <tr>
                             <th>Staff</th>
                             <th>Email</th>
-                            <th>Status</th>
                             <th>Xero employee</th>
-                            <th class="text-end">Current</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {forEach mappingRows (renderXeroStaffMappingRow xeroEmployees)}
+                        {forEach mappingRows (renderXeroStaffMappingRow xeroEmployees mappingRows)}
                     </tbody>
                 </table>
             </div>
         </div>
     |]
 
-renderXeroStaffMappingRow :: [XeroEmployee] -> XeroStaffMappingRow -> Html
-renderXeroStaffMappingRow xeroEmployees row =
+renderXeroStaffMappingRow :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingRow -> Html
+renderXeroStaffMappingRow xeroEmployees mappingRows row =
     let staff = row.mappingRowStaff
         maybeMapping = row.mappingRowMapping
         currentSelection = xeroMappingSelectionValue maybeMapping
+        selectableEmployees = filter (xeroEmployeeAvailableForRow row mappingRows) xeroEmployees
      in [hsx|
         <tr>
             <td>{staffFullName staff}</td>
             <td>{renderXeroStaffEmail row.mappingRowUser}</td>
-            <td>{renderXeroMappingStatus maybeMapping}</td>
-            <td>
-                <form method="POST"
-                      action={SaveXeroStaffMappingAction}
-                      data-disable-javascript-submission="true"
-                      hx-post={pathTo SaveXeroStaffMappingAction}
-                      hx-target="#admin-xero-fragment"
-                      hx-swap="outerHTML"
-                      class="d-flex gap-2">
-                    <input type="hidden" name="staffId" value={tshow staff.id} />
-                    <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
-                        <option value="" selected={currentSelection == ""}>Unmapped</option>
-                        <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
-                        {forEach xeroEmployees (renderXeroEmployeeOption currentSelection)}
-                    </select>
-                    <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
-                </form>
-            </td>
-            <td class="text-end">{renderCurrentXeroEmployee maybeMapping}</td>
+            <td>{renderXeroStaffMappingControl selectableEmployees currentSelection staff}</td>
         </tr>
     |]
+
+renderXeroStaffMappingCounts :: XeroStaffMappingCounts -> Html
+renderXeroStaffMappingCounts mappingCounts = [hsx|
+    <div id="xero-staff-mapping-counts" class="d-flex flex-wrap gap-2">
+        <span class="badge text-bg-success">{tshow mappingCounts.xeroStaffVerifiedCount} mapped</span>
+        <span class="badge text-bg-secondary">{tshow mappingCounts.xeroStaffUnmappedCount} unmapped</span>
+        <span class="badge text-bg-info">{tshow mappingCounts.xeroStaffNotApplicableCount} not paid through Xero</span>
+        <span class="badge text-bg-warning">{tshow mappingCounts.xeroStaffStaleCount} stale</span>
+    </div>
+|]
+
+renderXeroStaffMappingCountsOob :: XeroStaffMappingCounts -> Html
+renderXeroStaffMappingCountsOob mappingCounts = [hsx|
+    <div id="xero-staff-mapping-counts" class="d-flex flex-wrap gap-2" hx-swap-oob="outerHTML">
+        <span class="badge text-bg-success">{tshow mappingCounts.xeroStaffVerifiedCount} mapped</span>
+        <span class="badge text-bg-secondary">{tshow mappingCounts.xeroStaffUnmappedCount} unmapped</span>
+        <span class="badge text-bg-info">{tshow mappingCounts.xeroStaffNotApplicableCount} not paid through Xero</span>
+        <span class="badge text-bg-warning">{tshow mappingCounts.xeroStaffStaleCount} stale</span>
+    </div>
+|]
+
+renderXeroStaffMappingControl :: [XeroEmployee] -> Text -> Staff -> Html
+renderXeroStaffMappingControl selectableEmployees currentSelection staff = [hsx|
+    <form id={xeroStaffMappingControlId staff.id}
+          method="POST"
+          action={SaveXeroStaffMappingAction}
+          data-disable-javascript-submission="true"
+          hx-post={pathTo SaveXeroStaffMappingAction}
+          hx-trigger="change"
+          hx-swap="none">
+        <input type="hidden" name="staffId" value={tshow staff.id} />
+        <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
+            <option value="" selected={currentSelection == ""}>Unmapped</option>
+            <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
+            {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
+        </select>
+    </form>
+|]
+
+renderXeroStaffMappingControlOob :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingRow -> Html
+renderXeroStaffMappingControlOob xeroEmployees mappingRows row =
+    let staff = row.mappingRowStaff
+        maybeMapping = row.mappingRowMapping
+        currentSelection = xeroMappingSelectionValue maybeMapping
+        selectableEmployees = filter (xeroEmployeeAvailableForRow row mappingRows) xeroEmployees
+     in [hsx|
+        <form id={xeroStaffMappingControlId staff.id}
+              method="POST"
+              action={SaveXeroStaffMappingAction}
+              data-disable-javascript-submission="true"
+              hx-post={pathTo SaveXeroStaffMappingAction}
+              hx-target="#admin-xero-fragment"
+              hx-trigger="change"
+              hx-swap="none"
+              hx-swap-oob="outerHTML">
+            <input type="hidden" name="staffId" value={tshow staff.id} />
+            <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
+                <option value="" selected={currentSelection == ""}>Unmapped</option>
+                <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
+                {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
+            </select>
+        </form>
+    |]
+
+renderXeroStaffMappingControlsOob :: Maybe (Id Staff) -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
+renderXeroStaffMappingControlsOob maybeUnchangedStaffId xeroEmployees mappingRows mappingCounts =
+    mconcat
+        [ renderXeroStaffMappingCountsOob mappingCounts
+        , mconcat (map (renderXeroStaffMappingControlOob xeroEmployees mappingRows) changedRows)
+        ]
+    where
+        changedRows =
+            case maybeUnchangedStaffId of
+                Nothing      -> mappingRows
+                Just staffId -> filter (\row -> row.mappingRowStaff.id /= staffId) mappingRows
+
+xeroStaffMappingControlId :: Id Staff -> Text
+xeroStaffMappingControlId staffId =
+    "xero-staff-mapping-control-" <> tshow staffId
+
+renderXeroEarningsRateMappings :: [XeroEarningsRate] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> Html
+renderXeroEarningsRateMappings xeroEarningsRates bucketRows mappingCounts
+    | null xeroEarningsRates = [hsx|
+        <div class="border rounded p-3">
+            <h3 class="h6 mb-2">Earnings-rate mappings</h3>
+            <p class="small app-muted mb-0">Sync payroll reference data before mapping local earning buckets to Xero earnings rates.</p>
+        </div>
+    |]
+    | null bucketRows = [hsx|
+        <div class="border rounded p-3">
+            <h3 class="h6 mb-2">Earnings-rate mappings</h3>
+            <p class="small app-muted mb-0">No active local earning buckets are available.</p>
+        </div>
+    |]
+    | otherwise = [hsx|
+        <div class="border rounded p-3">
+            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                <div>
+                    <h3 class="h6 mb-1">Earnings-rate mappings</h3>
+                    <p class="small app-muted mb-0">Map each local payroll earnings bucket to a synced Xero earnings rate.</p>
+                </div>
+                {renderXeroEarningsRateMappingCounts mappingCounts}
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Local bucket</th>
+                            <th>Xero earnings rate</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {forEach bucketRows (renderXeroEarningsRateMappingRow xeroEarningsRates)}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    |]
+
+renderXeroEarningsRateMappingCounts :: XeroEarningsRateMappingCounts -> Html
+renderXeroEarningsRateMappingCounts mappingCounts = [hsx|
+    <div class="d-flex flex-wrap gap-2">
+        <span class="badge text-bg-success">{tshow mappingCounts.xeroEarningsVerifiedCount} mapped</span>
+        <span class="badge text-bg-secondary">{tshow mappingCounts.xeroEarningsUnmappedCount} unmapped</span>
+        <span class="badge text-bg-warning">{tshow mappingCounts.xeroEarningsStaleCount} stale</span>
+    </div>
+|]
+
+renderXeroEarningsRateMappingRow :: [XeroEarningsRate] -> XeroEarningsBucketRow -> Html
+renderXeroEarningsRateMappingRow xeroEarningsRates row =
+    let bucket = row.earningsBucketRowBucket
+        currentSelection = xeroEarningsRateSelectionValue row.earningsBucketRowMapping
+     in [hsx|
+        <tr>
+            <td>{bucket.localBucketLabel}</td>
+            <td>
+                <form method="POST"
+                      action={SaveXeroEarningsRateMappingAction}
+                      data-disable-javascript-submission="true"
+                      hx-post={pathTo SaveXeroEarningsRateMappingAction}
+                      hx-target="#admin-xero-fragment"
+                      hx-trigger="change"
+                      hx-swap="outerHTML">
+                    <input type="hidden" name="localBucketKey" value={bucket.localBucketKey} />
+                    <select class="form-select form-select-sm" name="xeroEarningsRateSelection" aria-label={"Xero earnings rate for " <> bucket.localBucketLabel}>
+                        <option value="" selected={currentSelection == ""}>Unmapped</option>
+                        {forEach xeroEarningsRates (renderXeroEarningsRateOption currentSelection)}
+                    </select>
+                </form>
+            </td>
+        </tr>
+    |]
+
+renderXeroEarningsRateOption :: Text -> XeroEarningsRate -> Html
+renderXeroEarningsRateOption currentSelection earningsRate = [hsx|
+    <option value={earningsRate.xeroEarningsRateId} selected={currentSelection == earningsRate.xeroEarningsRateId}>
+        {xeroEarningsRateLabel earningsRate}
+    </option>
+|]
+
+xeroEarningsRateSelectionValue :: Maybe XeroEarningsRateMapping -> Text
+xeroEarningsRateSelectionValue Nothing = ""
+xeroEarningsRateSelectionValue (Just mapping)
+    | mapping.mappingStatus == "verified" = fromMaybe "" mapping.xeroEarningsRateId
+    | otherwise = ""
+
+xeroEarningsRateLabel :: XeroEarningsRate -> Text
+xeroEarningsRateLabel earningsRate =
+    Text.intercalate " - " (filter (not . Text.null) [earningsRate.name, fromMaybe "" earningsRate.earningsType])
+
+renderXeroPayrollCalendarSelection :: [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Html
+renderXeroPayrollCalendarSelection payrollCalendars maybeSelection
+    | null payrollCalendars = [hsx|
+        <div class="border rounded p-3">
+            <h3 class="h6 mb-2">Payroll calendar</h3>
+            <p class="small app-muted mb-0">Sync payroll reference data before selecting the venue's Xero payroll calendar.</p>
+        </div>
+    |]
+    | otherwise = [hsx|
+        <div class="border rounded p-3">
+            <h3 class="h6 mb-2">Payroll calendar</h3>
+            <p class="small app-muted mb-3">Choose the Xero pay calendar this venue uses for timesheet exports.</p>
+            <form method="POST"
+                  action={SaveXeroPayrollCalendarSelectionAction}
+                  data-disable-javascript-submission="true"
+                  hx-post={pathTo SaveXeroPayrollCalendarSelectionAction}
+                  hx-target="#admin-xero-fragment"
+                  hx-trigger="change"
+                  hx-swap="outerHTML">
+                <select class="form-select form-select-sm" name="xeroPayrollCalendarSelection" aria-label="Xero payroll calendar">
+                    <option value="" selected={currentSelection == ""}>Not selected</option>
+                    {forEach payrollCalendars (renderXeroPayrollCalendarOption currentSelection)}
+                </select>
+            </form>
+        </div>
+    |]
+    where
+        currentSelection =
+            case maybeSelection of
+                Just selection | selection.calendarStatus == "verified" -> fromMaybe "" selection.xeroPayrollCalendarId
+                _ -> ""
+
+renderXeroPayrollCalendarOption :: Text -> XeroPayrollCalendar -> Html
+renderXeroPayrollCalendarOption currentSelection payrollCalendar = [hsx|
+    <option value={payrollCalendar.xeroPayrollCalendarId} selected={currentSelection == payrollCalendar.xeroPayrollCalendarId}>
+        {xeroPayrollCalendarLabel payrollCalendar}
+    </option>
+|]
+
+xeroPayrollCalendarLabel :: XeroPayrollCalendar -> Text
+xeroPayrollCalendarLabel payrollCalendar =
+    Text.intercalate " - " (filter (not . Text.null) [payrollCalendar.name, fromMaybe "" payrollCalendar.calendarType])
+
+renderXeroReadyChecklist :: XeroReadyChecklist -> Html
+renderXeroReadyChecklist checklist = [hsx|
+    <div class="border rounded p-3">
+        <h3 class="h6 mb-3">Ready to submit checklist</h3>
+        <div class="d-flex flex-column gap-2 small">
+            {renderXeroReadyChecklistItem checklist.xeroReadyConnection "Xero connection is active"}
+            {renderXeroReadyChecklistItem checklist.xeroReadyReferenceSync "Latest payroll reference sync succeeded"}
+            {renderXeroReadyChecklistItem checklist.xeroReadyStaffMappings "Staff mappings are complete"}
+            {renderXeroReadyChecklistItem checklist.xeroReadyEarningsMappings "Earnings-rate mappings are complete"}
+            {renderXeroReadyChecklistItem checklist.xeroReadyPayrollCalendar "Payroll calendar is selected"}
+        </div>
+    </div>
+|]
+
+renderXeroReadyChecklistItem :: Bool -> Text -> Html
+renderXeroReadyChecklistItem True label = [hsx|
+    <div><span class="badge text-bg-success me-2">ready</span>{label}</div>
+|]
+renderXeroReadyChecklistItem False label = [hsx|
+    <div><span class="badge text-bg-secondary me-2">needed</span>{label}</div>
+|]
+
+xeroEmployeeAvailableForRow :: XeroStaffMappingRow -> [XeroStaffMappingRow] -> XeroEmployee -> Bool
+xeroEmployeeAvailableForRow currentRow mappingRows employee =
+    not (employee.xeroEmployeeId `List.elem` usedByOtherStaff)
+    where
+        currentStaffId = unpackId currentRow.mappingRowStaff.id
+        usedByOtherStaff =
+            mappingRows
+                |> mapMaybe verifiedEmployeeForOtherStaff
+
+        verifiedEmployeeForOtherStaff row =
+            case row.mappingRowMapping of
+                Just mapping
+                    | rowStaffId row /= currentStaffId
+                    , mapping.mappingStatus == "verified" -> mapping.xeroEmployeeId
+                _ -> Nothing
+
+        rowStaffId row = unpackId row.mappingRowStaff.id
 
 renderXeroEmployeeOption :: Text -> XeroEmployee -> Html
 renderXeroEmployeeOption currentSelection employee = [hsx|
@@ -604,23 +830,6 @@ renderXeroEmployeeOption currentSelection employee = [hsx|
         {xeroEmployeeLabel employee}
     </option>
 |]
-
-renderXeroMappingStatus :: Maybe XeroStaffMapping -> Html
-renderXeroMappingStatus Nothing = [hsx|<span class="badge text-bg-secondary">unmapped</span>|]
-renderXeroMappingStatus (Just mapping) =
-    case mapping.mappingStatus of
-        "verified"       -> [hsx|<span class="badge text-bg-success">mapped</span>|]
-        "not_applicable" -> [hsx|<span class="badge text-bg-info">not paid through Xero</span>|]
-        "stale"          -> [hsx|<span class="badge text-bg-warning">stale</span>|]
-        _                -> [hsx|<span class="badge text-bg-secondary">unmapped</span>|]
-
-renderCurrentXeroEmployee :: Maybe XeroStaffMapping -> Html
-renderCurrentXeroEmployee Nothing = renderMutedText "None"
-renderCurrentXeroEmployee (Just mapping) =
-    case mapping.mappingStatus of
-        "verified" -> [hsx|<span>{fromMaybe "Unknown employee" mapping.xeroEmployeeName}</span>|]
-        "stale"    -> [hsx|<span>{fromMaybe "Missing synced employee" mapping.xeroEmployeeName}</span>|]
-        _          -> renderMutedText "None"
 
 renderXeroStaffEmail :: Maybe User -> Html
 renderXeroStaffEmail Nothing = renderMutedText "No linked login"
@@ -650,12 +859,12 @@ renderConnectedBy :: Maybe User -> Html
 renderConnectedBy Nothing = mempty
 renderConnectedBy (Just user) = [hsx|<span> by {user.email}</span>|]
 
-renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Bool -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroConnectionActionsAllowed = [hsx|
+renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> Maybe VenueReportDefinition -> ReportWeekSelection -> Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> XeroReadyChecklist -> Bool -> Html
+renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroReadyChecklist xeroConnectionActionsAllowed = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection staffPayReportDefinition hourlyBreakdownReportDefinition payrollEarningsReportDefinition reportWeekSelection)}
-        {renderAccordionItem "xero" "Xero" False (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroConnectionActionsAllowed)}
+        {renderAccordionItem "xero" "Xero" False (renderXeroSectionFragment xeroConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroEarningsBucketRows xeroEarningsRateMappingCounts xeroPayrollCalendars xeroPayrollCalendarSelection xeroReadyChecklist xeroConnectionActionsAllowed)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)}
     </div>
