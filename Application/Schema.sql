@@ -803,6 +803,43 @@ CREATE TABLE xero_staff_mappings (
     FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((mapping_status = 'unmapped') OR (mapping_status = 'verified') OR (mapping_status = 'not_applicable') OR (mapping_status = 'stale'))
 );
+CREATE TABLE xero_earnings_rate_mappings (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    local_bucket_key TEXT NOT NULL,
+    local_bucket_label TEXT NOT NULL,
+    xero_earnings_rate_id TEXT,
+    xero_earnings_rate_name TEXT,
+    mapping_status TEXT DEFAULT 'unmapped' NOT NULL,
+    last_verified_at TIMESTAMP WITH TIME ZONE,
+    created_by_user_id UUID,
+    updated_by_user_id UUID,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((mapping_status = 'unmapped') OR (mapping_status = 'verified') OR (mapping_status = 'stale'))
+);
+CREATE TABLE xero_payroll_calendar_selections (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    xero_payroll_calendar_id TEXT,
+    xero_payroll_calendar_name TEXT,
+    calendar_status TEXT DEFAULT 'none' NOT NULL,
+    last_verified_at TIMESTAMP WITH TIME ZONE,
+    created_by_user_id UUID,
+    updated_by_user_id UUID,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+);
 CREATE TABLE timesheet_entries (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -933,7 +970,12 @@ CREATE INDEX idx_xero_earnings_rates_venue_name ON xero_earnings_rates (venue_id
 CREATE UNIQUE INDEX idx_xero_payroll_calendars_connection_calendar ON xero_payroll_calendars (xero_connection_id, xero_payroll_calendar_id);
 CREATE INDEX idx_xero_payroll_calendars_venue_name ON xero_payroll_calendars (venue_id, name);
 CREATE UNIQUE INDEX idx_xero_staff_mappings_staff_connection ON xero_staff_mappings (staff_id, xero_connection_id);
+CREATE UNIQUE INDEX idx_xero_staff_mappings_verified_employee ON xero_staff_mappings (xero_connection_id, xero_employee_id) WHERE mapping_status = 'verified' AND xero_employee_id IS NOT NULL;
 CREATE INDEX idx_xero_staff_mappings_venue_status ON xero_staff_mappings (venue_id, mapping_status);
+CREATE UNIQUE INDEX idx_xero_earnings_rate_mappings_bucket_connection ON xero_earnings_rate_mappings (xero_connection_id, local_bucket_key);
+CREATE INDEX idx_xero_earnings_rate_mappings_venue_status ON xero_earnings_rate_mappings (venue_id, mapping_status);
+CREATE UNIQUE INDEX idx_xero_payroll_calendar_selections_connection ON xero_payroll_calendar_selections (xero_connection_id);
+CREATE INDEX idx_xero_payroll_calendar_selections_venue_status ON xero_payroll_calendar_selections (venue_id, calendar_status);
 
 CREATE OR REPLACE FUNCTION prevent_hard_delete()
 RETURNS TRIGGER
@@ -978,6 +1020,8 @@ CREATE TRIGGER prevent_hard_delete_xero_employees BEFORE DELETE ON xero_employee
 CREATE TRIGGER prevent_hard_delete_xero_earnings_rates BEFORE DELETE ON xero_earnings_rates FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_payroll_calendars BEFORE DELETE ON xero_payroll_calendars FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_staff_mappings BEFORE DELETE ON xero_staff_mappings FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_earnings_rate_mappings BEFORE DELETE ON xero_earnings_rate_mappings FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_payroll_calendar_selections BEFORE DELETE ON xero_payroll_calendar_selections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
 CREATE OR REPLACE FUNCTION resolve_effective_pay_level(p_staff_id UUID, p_shift_type_id UUID, p_day_of_week INT)
 RETURNS UUID
