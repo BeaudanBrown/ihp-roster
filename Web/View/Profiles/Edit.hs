@@ -11,8 +11,6 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
 import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
 import Data.Ord (Down (..))
-import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.LeaveRequests.Index (renderStatusBadge)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Passkeys.Management (renderPasskeyManagement)
@@ -270,18 +268,3 @@ renderProfileLeaveDeleteAction leaveRequest =
             </form>
         |]
         else mempty
-
-renderDateRangeText :: LeaveRequest -> Text
-renderDateRangeText leaveRequest =
-    renderShortDate leaveRequest.startDate <> " to " <> renderShortDate leaveRequest.endDate
-
-renderShortDate :: Day -> Text
-renderShortDate day =
-    cs (formatTime defaultTimeLocale "%d/%m/%y" day)
-
-nonEmptyText :: Text -> Maybe Text
-nonEmptyText text =
-    let trimmed = Text.strip text
-     in if trimmed == ""
-            then Nothing
-            else Just trimmed

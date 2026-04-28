@@ -12,8 +12,6 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
-import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -195,21 +193,6 @@ renderManagerLeaveRequestRow staffMembers currentViewerStaffId leaveRequest = [h
         <div class="leave-request-row-actions">{renderActions currentViewerStaffId leaveRequest}</div>
     </article>
 |]
-
-nonEmptyText :: Text -> Maybe Text
-nonEmptyText text =
-    let trimmed = Text.strip text
-     in if trimmed == ""
-            then Nothing
-            else Just trimmed
-
-renderDateRangeText :: LeaveRequest -> Text
-renderDateRangeText leaveRequest =
-    renderShortDate leaveRequest.startDate <> " to " <> renderShortDate leaveRequest.endDate
-
-renderShortDate :: Day -> Text
-renderShortDate day =
-    cs (formatTime defaultTimeLocale "%d/%m/%y" day)
 
 renderLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> LeaveRequest -> Html
 renderLeaveRequestRow staffMembers currentViewerStaffId leaveRequest = [hsx|

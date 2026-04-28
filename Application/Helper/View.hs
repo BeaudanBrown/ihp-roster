@@ -1,6 +1,7 @@
 module Application.Helper.View
     ( module Application.Helper.View
     , module Application.Helper.View.Chrome
+    , module Application.Helper.View.Leave
     , module Application.Helper.View.Overlay
     , module Application.Helper.View.Status
     , module Application.Helper.View.Toast
@@ -9,6 +10,7 @@ module Application.Helper.View
 import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
                                       hasRole)
 import Application.Helper.View.Chrome
+import Application.Helper.View.Leave
 import Application.Helper.View.Overlay
 import Application.Helper.View.Status
 import Application.Helper.View.Toast
