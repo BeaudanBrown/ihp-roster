@@ -16,6 +16,145 @@ import qualified Data.Text as Text
 import Web.Controller.Prelude
 import Web.View.Admin.Xero
 
+startXeroConnectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+startXeroConnectionAction =
+    requireCurrentVenueOwnerForXero do
+        readXeroConfig >>= \case
+            Left message -> do
+                setErrorMessage message
+                redirectTo AdminAction
+            Right xeroConfig -> do
+                now <- getCurrentTime
+                stateToken <- generateXeroStateToken
+                oauthState <- newRecord @XeroOauthState
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #userId (unpackId currentUser.id)
+                    |> set #stateToken stateToken
+                    |> set #requestedScopes requiredXeroScopesText
+                    |> set #redirectUri xeroConfig.redirectUri
+                    |> set #expiresAt (addUTCTime (15 * 60) now)
+                    |> createRecord
+                void $ recordCurrentUserAuditEvent
+                    "xero_connection_started"
+                    "xero_oauth_states"
+                    (unpackId oauthState.id)
+                    (Aeson.object
+                        [ "scopes" Aeson..= requiredXeroScopes
+                        , "redirectUri" Aeson..= xeroConfig.redirectUri
+                        ]
+                    )
+                redirectToUrl (buildXeroAuthorizationUrl xeroConfig stateToken)
+
+xeroOAuthCallbackAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+xeroOAuthCallbackAction =
+    requireCurrentVenueOwnerForXero do
+        now <- getCurrentTime
+        let maybeStateToken = paramOrNothing @Text "state"
+        let maybeXeroError = paramOrNothing @Text "error"
+        let maybeCode = paramOrNothing @Text "code"
+        validatedState <- validateXeroOAuthState now currentUser.id maybeStateToken
+        case validatedState of
+            Left message -> failXeroConnectionAttempt message Nothing
+            Right oauthState ->
+                case maybeXeroError of
+                    Just xeroError -> do
+                        markXeroOAuthStateConsumed oauthState now
+                        failXeroConnectionAttempt ("Xero authorization failed: " <> xeroError) (Just oauthState)
+                    Nothing ->
+                        case maybeCode of
+                            Nothing -> failXeroConnectionAttempt "Xero did not return an authorization code." (Just oauthState)
+                            Just code -> completeXeroOAuthCallback now currentUser.id oauthState code
+
+disconnectXeroConnectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+disconnectXeroConnectionAction =
+    requireCurrentVenueOwnerForXero do
+        maybeConnection <- fetchCurrentVenueXeroConnection
+        case maybeConnection of
+            Nothing -> do
+                setErrorMessage "Xero is not connected for this venue."
+                redirectTo AdminAction
+            Just connection ->
+                disconnectXeroConnection connection
+
+syncXeroPayrollReferenceDataAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+syncXeroPayrollReferenceDataAction = do
+    maybeConnection <- fetchActiveCurrentVenueXeroConnection
+    case maybeConnection of
+        Nothing -> do
+            setErrorMessage "Connect Xero before syncing payroll reference data."
+            if isHtmxRequest
+                then respondWithXeroSectionFragment
+                else redirectTo AdminAction
+        Just connection -> syncXeroPayrollReferenceData connection
+
+createMissingXeroPayItemsAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+createMissingXeroPayItemsAction =
+    if not currentUserIsCurrentVenueOwner
+        then respondWithXeroMappingMutationError "Only the venue owner can create pay items in Xero."
+        else do
+            maybeConnection <- fetchActiveCurrentVenueXeroConnection
+            case maybeConnection of
+                Nothing -> respondWithXeroMappingMutationError "Connect Xero before creating pay items."
+                Just connection -> createMissingXeroPayItems connection
+
+saveXeroStaffMappingAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+saveXeroStaffMappingAction = do
+    maybeConnection <- fetchCurrentVenueXeroConnection
+    case maybeConnection of
+        Nothing -> do
+            setErrorMessage "Connect Xero before mapping staff to Xero employees."
+            if isHtmxRequest
+                then respondWithXeroSectionFragment
+                else redirectTo AdminAction
+        Just connection -> do
+            let staffId = param @(Id Staff) "staffId"
+            let selection = Text.strip (paramOrDefault @Text "" "xeroEmployeeSelection")
+            saveXeroStaffMapping connection staffId selection
+
+saveXeroEarningsRateMappingAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+saveXeroEarningsRateMappingAction = do
+    maybeConnection <- fetchCurrentVenueXeroConnection
+    case maybeConnection of
+        Nothing -> do
+            setErrorMessage "Connect Xero before mapping earning buckets to Xero earnings rates."
+            if isHtmxRequest
+                then respondWithXeroSectionFragment
+                else redirectTo AdminAction
+        Just connection -> do
+            let localBucketKey = Text.strip (paramOrDefault @Text "" "localBucketKey")
+            let selection = Text.strip (paramOrDefault @Text "" "xeroEarningsRateSelection")
+            saveXeroEarningsRateMapping connection localBucketKey selection
+
+saveXeroPayItemAccountCodeSelectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+saveXeroPayItemAccountCodeSelectionAction =
+    if not currentUserIsCurrentVenueOwner
+        then respondWithXeroMappingMutationError "Only the venue owner can choose the Xero pay item account code."
+        else do
+            maybeConnection <- fetchCurrentVenueXeroConnection
+            case maybeConnection of
+                Nothing -> do
+                    setErrorMessage "Connect Xero before choosing a pay item account code."
+                    if isHtmxRequest
+                        then respondWithXeroSectionFragment
+                        else redirectTo AdminAction
+                Just connection -> do
+                    let selection = Text.strip (paramOrDefault @Text "" "xeroPayItemAccountCodeSelection")
+                    let manualAccountCode = Text.strip (paramOrDefault @Text "" "xeroPayItemAccountCodeManual")
+                    saveXeroPayItemAccountCodeSelection connection selection manualAccountCode
+
+saveXeroPayrollCalendarSelectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+saveXeroPayrollCalendarSelectionAction = do
+    maybeConnection <- fetchCurrentVenueXeroConnection
+    case maybeConnection of
+        Nothing -> do
+            setErrorMessage "Connect Xero before selecting a payroll calendar."
+            if isHtmxRequest
+                then respondWithXeroSectionFragment
+                else redirectTo AdminAction
+        Just connection -> do
+            let selection = Text.strip (paramOrDefault @Text "" "xeroPayrollCalendarSelection")
+            saveXeroPayrollCalendarSelection connection selection
+
 broadcastAdminXeroInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id Venue ->
