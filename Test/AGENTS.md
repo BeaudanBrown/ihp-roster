@@ -10,17 +10,36 @@ Tests are a devenv shell script — use `bash ./bin/in-env` outside an interacti
 ```bash
 bash ./bin/in-env hspec-test                        # compile and run the full suite, auto-sharded across local cores
 bash ./bin/in-env hspec-test --match "PostsController"  # run tests matching a pattern
+bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # OR multiple patterns in one run
 TEST_SHARDS=1 bash ./bin/in-env hspec-test          # force serial execution
 TEST_SHARDS=4 bash ./bin/in-env hspec-test          # override shard count explicitly
+TEST_SHARDS=2 bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # shard a focused multi-suite run
+bash ./bin/in-env hspec-coverage                    # serial full-suite run with GHC HPC coverage report
+bash ./bin/in-env hspec-coverage --match "PostsController"  # focused coverage run
 ```
 
 `bash ./bin/in-env hspec-test` now auto-shards the full Hspec suite across local cores when no Hspec filter args are passed. Each shard gets its own ephemeral database, compiled test binary invocation, and shard log directory under `.devenv/test/`.
+
+Hspec accepts repeated `--match` flags and treats them as OR filters. When checking several focused areas, prefer one command with multiple `--match` flags instead of running multiple `hspec-test --match ...` processes at the same time. Separate focused invocations compile into the shared `build/Test` directory and can race on GHC object files; they also default to the same `app_test` database unless explicitly isolated.
+
+Focused runs default to serial execution because they are usually small. Use `TEST_SHARDS=N` with focused matches only when the matches span multiple suites and the extra database setup/log fan-out is worth it. Sharding is by `TestSuite` entry, not by individual example, so forcing shards for a single-suite match usually adds overhead without parallel speedup.
 
 For debugging:
 
 - `TEST_SHARDS=1` forces a single serial shard
 - `TEST_KEEP_DATABASES=1` preserves shard databases after the run instead of dropping them
 - `.devenv/test/latest/` points at the most recent shard log directory
+
+## Coverage
+
+Use `bash ./bin/in-env hspec-coverage [hspec-args...]` when adding or materially changing Hspec coverage. It compiles the test runner with GHC HPC instrumentation, runs serially against the isolated `app_test_coverage` database, prints an app-source per-module text report, and writes durable artifacts under `output/coverage/hspec/latest/`:
+
+- `report.txt` — human-readable app-source per-module coverage (`Application/` and `Web/`)
+- `report.xml` — machine-readable app-source summary for later automation
+- `html/hpc_index.html` — annotated app-source HTML coverage
+- `raw-report.txt` — unfiltered HPC report for all instrumented modules, including generated and test modules
+
+The coverage command is intentionally separate from `hspec-test`: use `hspec-test` for the normal fast correctness check, then run `hspec-coverage` when the task needs coverage statistics or when validating that new tests exercise the intended modules and branches.
 
 ## Shard Registry
 
