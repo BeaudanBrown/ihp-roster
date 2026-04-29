@@ -25,6 +25,8 @@ findings have already moved since the original scan:
   compatibility boundary and test/seed ownership.
 - Runtime assets are local, `static/app.css` is now an import entrypoint, and
   feature CSS lives under `static/css/`.
+- The `Application/Helper/View.hs` compatibility-wrapper cleanup is broken out
+  into `plans/61-view-helper-split.md`.
 - The remaining value of this plan is the prioritized cleanup shape: durable
   invitation jobs, helper/module boundaries, observable failures, deduplication,
   and a measured lint sweep.

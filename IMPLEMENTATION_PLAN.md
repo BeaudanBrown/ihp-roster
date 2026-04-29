@@ -35,6 +35,7 @@ Business requirements remain canonical in `specs/`.
   - `plans/57-xero-payroll-integration.md`
   - `plans/58-xero-connection-foundation.md`
   - `plans/59-code-smell-remediation.md`
+  - `plans/61-view-helper-split.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
 
@@ -205,6 +206,11 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **Status:** [-]
 - **File:** `plans/59-code-smell-remediation.md`
 - **Focus:** track repo-structure, helper-boundary, lint, and file-size cleanup that improves ongoing agent navigation.
+
+### Maintenance — View Helper Split
+- **Status:** [ ]
+- **File:** `plans/61-view-helper-split.md`
+- **Focus:** reduce `Application/Helper/View.hs` to a compatibility re-export wrapper and move its mixed helper implementations into focused view helper modules.
 
 ## Parallelism Rules
 
