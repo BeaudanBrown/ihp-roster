@@ -24,8 +24,8 @@
 
 ## App Navigation Conventions
 - Global authenticated navigation lives in `Web/View/Layout.hs` and is rendered on every authenticated page
-- Header button order is: `roster`, `profile`, `timesheets`, `leave`, `admin`, `support`, `logout`
-- `admin` is role-gated (admin-only visibility); `timesheets` and `admin` may route to placeholder pages until fully implemented
+- Header button order is: `roster`, `profile`, `timesheets`, `leave`, `xero`, `admin`, `support`, `logout`
+- `xero` is venue-owner-only in the header; `admin` is role-gated (admin-only visibility); `timesheets` and `admin` may route to placeholder pages until fully implemented
 - `support` is founder-only and should be rendered only for `currentUserIsSupportAdmin`
 - Auth pages (sign in/sign up/welcome) should not show the authenticated header
 
@@ -287,7 +287,7 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
 - To inspect or dump current dev passkeys, run `psql` through the project shell so it uses the active `PGHOST`, e.g. `bash ./bin/in-env sh -c 'psql -d app -c "select u.email, encode(p.credential_id, ''hex'') from passkeys p join users u on u.id = p.user_id;"'`. Avoid forcing `-h build/db`; devenv may expose Postgres through a socket under `/tmp/devenv-.../postgres`.
 - To preserve a real local Xero demo connection across `seed-dev app`, dump a local-only SQL replay file to `build/dev-xero-connection.sql` (or set `$DEV_XERO_SEED_FILE`). The replay SQL should insert by joining the deterministic seeded venue owner, not by hard-coding volatile `venue_id` or `connected_by_user_id`; never commit encrypted Xero token rows, refresh tokens, access tokens, client secrets, or token encryption keys.
 - Xero refresh tokens rotate on refresh. A saved `build/dev-xero-connection.sql` is only valid until that connection is refreshed/reconnected; replaying a stale file after `seed-dev app` can restore an already-used refresh token and force OAuth reauthorization. After reconnecting or successfully syncing Xero in dev, either regenerate the local replay file from the current DB row or move it aside before the next `seed-dev app`.
-- Xero connection management is venue-owner-only. Venue admins may use admin configuration screens and read-only sync when a connection exists, but OAuth connect/reconnect/callback completion and disconnect must require `venue_role = 'venue_owner'` for the current venue.
+- Xero connection management is restricted to the current venue owner or a super admin. The top-level Xero header button is visible only to the current venue owner; venue admins must not see Xero controls in Admin.
 - WebAuthn credentials are origin/RP scoped. Dev passkeys restored into the DB will only keep working when the browser uses the same host that created them, so prefer `http://localhost:8000` consistently instead of switching between `localhost` and `127.0.0.1`.
 - Password login success/failure/locked-account attempts for known venue-linked users are recorded in `audit_events`; keep future auth methods on the same event shape with an `authMethod` payload.
 - Founder/sysadmin support access is now modelled separately on `users.platform_role = 'super_admin'`. Do not overload venue roles or create synthetic `venue_memberships` for cross-venue support access.
