@@ -18,7 +18,7 @@ import Data.Scientific (Scientific)
 import qualified Data.Serialize as Serialize
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, fromGregorian)
-import Data.Time.Clock (getCurrentTime)
+import Data.Time.Clock (UTCTime, getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.Vault.Lazy as Vault
 import Database.PostgreSQL.Simple.Types (Binary (Binary))
@@ -257,6 +257,22 @@ createTimesheetEntryRecord venue staff workedOn = do
         |> set #breakMinutes 0
         |> createRecord
 
+createApprovedTimesheetEntryRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> User -> Day -> IO TimesheetEntry
+createApprovedTimesheetEntryRecord venue staff approver workedOn = do
+    approvedAt <- getCurrentTime
+    createApprovedTimesheetEntryRecordAt venue staff approver workedOn approvedAt
+
+createApprovedTimesheetEntryRecordAt :: (?modelContext :: ModelContext) => Venue -> Staff -> User -> Day -> UTCTime -> IO TimesheetEntry
+createApprovedTimesheetEntryRecordAt venue staff approver workedOn approvedAt = do
+    entry <- createTimesheetEntryRecord venue staff workedOn
+    snapshot <- ensureTestPayConfigSnapshot venue approver
+    entry
+        |> set #isApproved True
+        |> set #payConfigSnapshotId (Just (unpackId snapshot.id))
+        |> set #approvedAt (Just approvedAt)
+        |> set #approvedByUserId (Just (unpackId approver.id))
+        |> updateRecord
+
 createLeaveRequestRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Day -> Day -> Text -> IO LeaveRequest
 createLeaveRequestRecord venue staff startDate endDate leaveStatus =
     createLeaveRequestRecordWithNotes venue staff startDate endDate leaveStatus Nothing
@@ -430,6 +446,16 @@ createPayConfigSnapshotRecord venue user versionNumber snapshot =
         |> set #createdByUserId (unpackId (get #id user))
         |> set #snapshot snapshot
         |> createRecord
+
+ensureTestPayConfigSnapshot :: (?modelContext :: ModelContext) => Venue -> User -> IO PayConfigSnapshot
+ensureTestPayConfigSnapshot venue user =
+    query @PayConfigSnapshot
+        |> filterWhere (#venueId, unpackId venue.id)
+        |> filterWhere (#versionNumber, 1)
+        |> fetchOneOrNothing
+        >>= \case
+            Just snapshot -> pure snapshot
+            Nothing       -> createPayConfigSnapshotRecord venue user 1 (Aeson.object [])
 
 ensureProfileCompleteStaffRecord :: (?modelContext :: ModelContext) => Venue -> User -> IO Staff
 ensureProfileCompleteStaffRecord venue user =

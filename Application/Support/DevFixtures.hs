@@ -10,6 +10,7 @@ import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Support
 import Application.Support.Seed.Scenario
 import Control.Monad (replicateM, void)
+import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, dayOfWeek, diffDays, fromGregorian,
@@ -664,7 +665,7 @@ spreadLeaveDatesAcrossMonth anchorDay count
             let startOffset = (toInteger index * monthSpanDays) `div` toInteger divisor
                 durationDays = toInteger (1 + (index `mod` 2))
                 startDate = addDays startOffset monthStart
-                endDate = min monthEnd (addDays durationDays startDate)
+                endDate = addDays durationDays startDate
              in (startDate, endDate)
 
 firstDayOfMonth :: Day -> Day
@@ -708,6 +709,14 @@ seedTimesheets ::
     UTCTime ->
     IO ()
 seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift staffPool approvedAt = do
+    approvalSnapshot <-
+        newRecord @PayConfigSnapshot
+            |> set #venueId (unpackId venue.id)
+            |> set #versionNumber 1
+            |> set #versionLabel ("v1" :: Text)
+            |> set #createdByUserId (unpackId admin.id)
+            |> set #snapshot (Aeson.object ["source" Aeson..= ("dev_seed" :: Text)])
+            |> createRecord
     forM_ (zip [0 ..] (take scenario.approvedTimesheets (cycle staffPool))) \(index, staff) -> do
         let shiftTypeId =
                 if index `mod` 4 == 0
@@ -726,6 +735,7 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
                     . set #breakEndTime breakEndTime
                     . set #breakMinutes breakMinutes
                     . set #isApproved True
+                    . set #payConfigSnapshotId (Just (unpackId approvalSnapshot.id))
                     . set #approvedAt (Just approvedAt)
                     . set #approvedByUserId (Just (unpackId admin.id))
         pure ()

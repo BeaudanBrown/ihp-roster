@@ -271,7 +271,7 @@ tests = beforeAll testContext do
                 awardLevelBaseRateCount `shouldBe` 0
                 awardLevelPenaltyRateCount `shouldBe` 0
                 awardTimePenaltyAllowanceCount `shouldBe` 0
-                payConfigSnapshotCount `shouldBe` 0
+                payConfigSnapshotCount `shouldBe` 1
 
         it "seeds three times as many sandbox timesheets with break coverage on most entries" $ withContext do
             withCleanDb do

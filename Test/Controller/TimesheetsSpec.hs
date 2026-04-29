@@ -213,8 +213,7 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue workerAUser "worker"
                 managerStaff <- createStaffRecord venue (Just manager) "Mia" "Manager"
                 workerA <- createStaffRecord venue (Just workerAUser) "Ava" "Hours"
-                approvedEntry <- createTimesheetEntryRecord venue managerStaff (fromGregorian 2025 1 7)
-                _ <- approvedEntry |> set #isApproved True |> updateRecord
+                _ <- createApprovedTimesheetEntryRecord venue managerStaff manager (fromGregorian 2025 1 7)
                 _ <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
 
                 response <- withUserAndCurrentVenue manager venue.id do
@@ -406,10 +405,7 @@ tests = beforeAll testContext do
                 manager <- createUserRecord "timesheet-unapprove@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue Nothing "Una" "Shift"
-                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 8)
-                    >>= updateRecord
-                        . set #isApproved True
-                        . set #approvedByUserId (Just (unpackId manager.id))
+                entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 8)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction UnapproveTimesheetEntryAction { timesheetEntryId = entry.id }
@@ -437,10 +433,7 @@ tests = beforeAll testContext do
                 staff <- createStaffRecord venue Nothing "Ria" "Shift"
                 payLevel <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
-                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 9)
-                    >>= updateRecord
-                        . set #isApproved True
-                        . set #approvedByUserId (Just (unpackId manager.id))
+                entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 9)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (UpdateTimesheetEntryAction entry.id)
@@ -494,10 +487,7 @@ tests = beforeAll testContext do
                 manager <- createUserRecord "timesheet-protected-delete@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 staff <- createStaffRecord venue Nothing "Ada" "Shift"
-                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 11)
-                    >>= updateRecord
-                        . set #isApproved True
-                        . set #approvedByUserId (Just (unpackId manager.id))
+                entry <- createApprovedTimesheetEntryRecord venue staff manager (fromGregorian 2025 1 11)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams (DeleteTimesheetEntryAction entry.id)
