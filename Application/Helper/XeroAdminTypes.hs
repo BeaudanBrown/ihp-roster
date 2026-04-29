@@ -62,7 +62,6 @@ data XeroReadyChecklist = XeroReadyChecklist
     { xeroReadyConnection         :: Bool
     , xeroReadyReferenceSync      :: Bool
     , xeroReadyStaffMappings      :: Bool
-    , xeroReadyEarningsMappings   :: Bool
     , xeroReadyPayItemAccountCode :: Bool
     , xeroReadyPayrollCalendar    :: Bool
     }
@@ -79,8 +78,6 @@ data XeroAdminSectionData = XeroAdminSectionData
     , xeroStaffMappingCounts          :: XeroStaffMappingCounts
     , xeroEarningsRates               :: [XeroEarningsRate]
     , xeroPayItemRequirements         :: [XeroPayItemRequirement]
-    , xeroEarningsBucketRows          :: [XeroEarningsBucketRow]
-    , xeroEarningsRateMappingCounts   :: XeroEarningsRateMappingCounts
     , xeroPayrollCalendars            :: [XeroPayrollCalendar]
     , xeroPayrollCalendarSelection    :: Maybe XeroPayrollCalendarSelection
     , xeroPayItemAccountCodeSelection :: Maybe XeroPayItemAccountCodeSelection

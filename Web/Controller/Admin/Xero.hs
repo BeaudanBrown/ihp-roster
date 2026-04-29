@@ -140,8 +140,7 @@ saveXeroPayItemAccountCodeSelectionAction =
                         else redirectTo AdminAction
                 Just connection -> do
                     let selection = Text.strip (paramOrDefault @Text "" "xeroPayItemAccountCodeSelection")
-                    let manualAccountCode = Text.strip (paramOrDefault @Text "" "xeroPayItemAccountCodeManual")
-                    saveXeroPayItemAccountCodeSelection connection selection manualAccountCode
+                    saveXeroPayItemAccountCodeSelection connection selection
 
 saveXeroPayrollCalendarSelectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 saveXeroPayrollCalendarSelectionAction = do
@@ -256,6 +255,18 @@ fetchCurrentVenueXeroEarningsRates maybeConnection =
                 |> filterWhere (#isActive, True)
                 |> orderBy #name
                 |> fetch
+
+fetchCurrentVenueXeroPayItemAccountCodeOptions :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [Text]
+fetchCurrentVenueXeroPayItemAccountCodeOptions maybeConnection = do
+    xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates maybeConnection
+    pure
+        (xeroEarningsRates
+            |> map (.accountCode)
+            |> catMaybes
+            |> map Text.strip
+            |> filter (not . Text.null)
+            |> List.nub
+            |> List.sort)
 
 fetchCurrentVenueXeroPayrollCalendars :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroPayrollCalendar]
 fetchCurrentVenueXeroPayrollCalendars maybeConnection =
@@ -443,21 +454,18 @@ xeroEarningsRateMappingCountsFor rows =
                 Just "unmapped" -> True
                 _               -> False
 
-buildXeroReadyChecklist :: Maybe XeroConnection -> Maybe XeroSyncRun -> [XeroStaffMappingRow] -> [XeroEarningsBucketRow] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist
-buildXeroReadyChecklist maybeConnection maybeSyncRun staffRows earningsRows maybeCalendarSelection maybePayItemAccountCodeSelection =
+buildXeroReadyChecklist :: Maybe XeroConnection -> Maybe XeroSyncRun -> [XeroStaffMappingRow] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist
+buildXeroReadyChecklist maybeConnection maybeSyncRun staffRows maybeCalendarSelection maybePayItemAccountCodeSelection =
     XeroReadyChecklist
         { xeroReadyConnection = maybe False (\connection -> connection.connectionStatus == "active") maybeConnection
         , xeroReadyReferenceSync = maybe False (\syncRun -> syncRun.syncStatus == "succeeded") maybeSyncRun
         , xeroReadyStaffMappings = not (null staffRows) && all staffRowReady staffRows
-        , xeroReadyEarningsMappings = not (null earningsRows) && all earningsRowReady earningsRows
         , xeroReadyPayItemAccountCode = maybe False (\selection -> selection.selectionStatus == "verified" && maybe False (not . Text.null . Text.strip) selection.accountCode) maybePayItemAccountCodeSelection
         , xeroReadyPayrollCalendar = maybe False (\selection -> selection.calendarStatus == "verified" && isJust selection.xeroPayrollCalendarId) maybeCalendarSelection
         }
     where
         staffRowReady row =
             maybe False (\mapping -> mapping.mappingStatus == "verified" || mapping.mappingStatus == "not_applicable") row.mappingRowMapping
-        earningsRowReady row =
-            maybe False (\mapping -> mapping.mappingStatus == "verified") row.earningsBucketRowMapping
 
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -483,12 +491,10 @@ respondWithXeroSectionFragmentAndToast maybeToast = do
     let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
     xeroEarningsRates <- profileActionSpan "admin.xero.earnings_mapping.fetch_rates" (fetchCurrentVenueXeroEarningsRates xeroConnection)
     xeroPayItemRequirements <- profileActionSpan "admin.xero.pay_items.fetch_requirements" (fetchCurrentVenueXeroPayItemRequirements xeroConnection xeroEarningsRates)
-    xeroEarningsBucketRows <- profileActionSpan "admin.xero.earnings_mapping.fetch_rows" (fetchCurrentVenueXeroEarningsBucketRows xeroConnection)
-    let xeroEarningsRateMappingCounts = xeroEarningsRateMappingCountsFor xeroEarningsBucketRows
     xeroPayrollCalendars <- profileActionSpan "admin.xero.calendar.fetch_calendars" (fetchCurrentVenueXeroPayrollCalendars xeroConnection)
     xeroPayrollCalendarSelection <- profileActionSpan "admin.xero.calendar.fetch_selection" (fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection)
     xeroPayItemAccountCodeSelection <- profileActionSpan "admin.xero.pay_item_account_code.fetch_selection" (fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection)
-    let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
+    let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
     let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
     let xeroSectionData = XeroAdminSectionData { .. }
     fragmentHtml <- profileActionSpan "admin.xero.fragment.render" do
@@ -813,19 +819,16 @@ saveXeroPayItemAccountCodeSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
     Text ->
-    Text ->
     IO ()
-saveXeroPayItemAccountCodeSelection connection selection manualAccountCode = do
-    let selectedAccountCode =
-            case selection of
-                ""           -> ""
-                "__manual__" -> manualAccountCode
-                accountCode  -> accountCode
-    case Text.strip selectedAccountCode of
+saveXeroPayItemAccountCodeSelection connection selection = do
+    activeAccountCodes <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
+    case Text.strip selection of
         "" -> persistXeroPayItemAccountCodeSelection connection "none" Nothing
         accountCode
             | Text.length accountCode > 32 ->
                 respondWithXeroMappingMutationError "Use a Xero account code up to 32 characters."
+            | accountCode `List.notElem` activeAccountCodes ->
+                respondWithXeroMappingMutationError "Choose a synced Xero account code from the dropdown."
             | otherwise ->
                 persistXeroPayItemAccountCodeSelection connection "verified" (Just accountCode)
 
@@ -969,8 +972,9 @@ createMissingXeroPayItems connection = do
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
     requirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
     maybeAccountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
+    accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
     let proposedRequirements = filter (\requirement -> requirement.payItemRequirementStatus == "proposed" && requirement.payItemRequirementIsActive) requirements
-    case selectedXeroPayItemAccountCode maybeAccountCodeSelection of
+    case selectedXeroPayItemAccountCode accountCodeOptions maybeAccountCodeSelection of
         Nothing -> respondWithXeroMappingMutationError "Choose a Xero pay item account code before creating pay items."
         Just accountCode ->
             if null proposedRequirements
@@ -1001,12 +1005,12 @@ createMissingXeroPayItems connection = do
                                             broadcastAdminXeroInvalidation currentVenueId
                                             respondToXeroMappingMutationSuccess ("Created " <> tshow createdCount <> " missing Xero pay items.")
 
-selectedXeroPayItemAccountCode :: Maybe XeroPayItemAccountCodeSelection -> Maybe Text
-selectedXeroPayItemAccountCode maybeSelection =
+selectedXeroPayItemAccountCode :: [Text] -> Maybe XeroPayItemAccountCodeSelection -> Maybe Text
+selectedXeroPayItemAccountCode accountCodeOptions maybeSelection =
     case maybeSelection of
         Just selection | selection.selectionStatus == "verified" -> do
             accountCode <- Text.strip <$> selection.accountCode
-            if Text.null accountCode then Nothing else Just accountCode
+            if Text.null accountCode || accountCode `List.notElem` accountCodeOptions then Nothing else Just accountCode
         _ -> Nothing
 
 createProposedXeroPayItems ::

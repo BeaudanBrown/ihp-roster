@@ -531,7 +531,7 @@ tests = beforeAll testContext do
                 trialMapping.mappingStatus `shouldBe` "not_applicable"
                 trialMapping.xeroEmployeeId `shouldBe` Nothing
 
-        it "saves Xero earnings-rate mappings and payroll calendar selection from the admin fragment" $ withContext do
+        it "shows managed Xero pay items and saves setup selections from the admin fragment" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Earnings Mapping Venue"
                 admin <- createUserRecord "xero-earnings-mapping@example.com" "staff" True
@@ -541,10 +541,9 @@ tests = beforeAll testContext do
                 connection <- createActiveXeroConnection venue admin
                 awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
                 _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
-                earningsRate <- createXeroEarningsRateRecord connection "Bepis - HIGA - PERM - Undated - Level 2 - Ordinary" "earnings-ordinary"
+                _ <- createXeroEarningsRateRecord connection "Bepis - HIGA - PERM - Undated - Level 2 - Ordinary" "earnings-ordinary"
                 _ <- createXeroEarningsRateRecord connection "Bepis - HIGA - PERM - Undated - Level 2 - Saturday Penalty" "earnings-saturday"
                 payrollCalendar <- createXeroPayrollCalendarRecord connection "Weekly" "calendar-weekly"
-                let ordinaryBucketKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:ordinary"
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
@@ -560,11 +559,12 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "$55.1250/hr"
                 pageResponse `responseBodyShouldContain` "matched"
                 pageResponse `responseBodyShouldContain` "proposed"
-                pageResponse `responseBodyShouldContain` "Earnings-rate mappings"
                 pageResponse `responseBodyShouldContain` "HIGA - PERM - Undated - Level 2 - Ordinary"
-                pageResponse `responseBodyShouldContain` "name=\"xeroEarningsRateSelection\""
+                pageResponse `responseBodyShouldNotContain` "Earnings-rate mappings"
+                pageResponse `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
                 pageResponse `responseBodyShouldContain` "Pay item account code"
                 pageResponse `responseBodyShouldContain` "name=\"xeroPayItemAccountCodeSelection\""
+                pageResponse `responseBodyShouldNotContain` "xeroPayItemAccountCodeManual"
                 pageResponse `responseBodyShouldContain` "Payroll calendar"
                 pageResponse `responseBodyShouldContain` "Weekly - WEEKLY"
                 pageResponse `responseBodyShouldContain` "name=\"xeroPayrollCalendarSelection\""
@@ -581,35 +581,15 @@ tests = beforeAll testContext do
                 delayedRequirement.ratePerUnit `shouldBe` Just 47.25
 
                 versionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
-                mappingResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams SaveXeroEarningsRateMappingAction
-                            [ ("localBucketKey", cs ordinaryBucketKey)
-                            , ("xeroEarningsRateSelection", "earnings-ordinary")
-                            ]
-
-                mappingResponse `responseStatusShouldBe` status200
-                mappingResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
-                mappingResponse `responseBodyShouldContain` "Saved Xero earnings-rate mapping for HIGA - PERM - Undated - Level 2 - Ordinary."
-                versionAfterMapping <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
-                versionAfterMapping `shouldBe` (versionBefore + 1)
-                mapping <- query @XeroEarningsRateMapping |> filterWhere (#localBucketKey, ordinaryBucketKey) |> fetchOne
-                mapping.mappingStatus `shouldBe` "verified"
-                mapping.xeroEarningsRateId `shouldBe` Just earningsRate.xeroEarningsRateId
-                mapping.xeroEarningsRateName `shouldBe` Just earningsRate.name
-                mapping.lastVerifiedAt `shouldSatisfy` isJust
-
                 accountCodeResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams SaveXeroPayItemAccountCodeSelectionAction
-                            [ ("xeroPayItemAccountCodeSelection", "477")
-                            , ("xeroPayItemAccountCodeManual", "")
-                            ]
+                            [("xeroPayItemAccountCodeSelection", "477")]
 
                 accountCodeResponse `responseStatusShouldBe` status200
                 accountCodeResponse `responseBodyShouldContain` "Saved Xero pay item account code 477."
                 versionAfterAccountCode <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
-                versionAfterAccountCode `shouldBe` (versionAfterMapping + 1)
+                versionAfterAccountCode `shouldBe` (versionBefore + 1)
                 accountCodeSelection <- query @XeroPayItemAccountCodeSelection |> fetchOne
                 accountCodeSelection.selectionStatus `shouldBe` "verified"
                 accountCodeSelection.accountCode `shouldBe` Just "477"

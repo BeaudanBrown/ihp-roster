@@ -62,12 +62,10 @@ instance Controller AdminController where
         let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
         xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates xeroConnection
         xeroPayItemRequirements <- fetchCurrentVenueXeroPayItemRequirements xeroConnection xeroEarningsRates
-        xeroEarningsBucketRows <- fetchCurrentVenueXeroEarningsBucketRows xeroConnection
-        let xeroEarningsRateMappingCounts = xeroEarningsRateMappingCountsFor xeroEarningsBucketRows
         xeroPayrollCalendars <- fetchCurrentVenueXeroPayrollCalendars xeroConnection
         xeroPayrollCalendarSelection <- fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection
         xeroPayItemAccountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection
-        let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
+        let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
         let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
         let xeroSectionData = XeroAdminSectionData { .. }
         render IndexView { .. }
