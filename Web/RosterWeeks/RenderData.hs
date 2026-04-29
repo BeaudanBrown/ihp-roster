@@ -34,6 +34,7 @@ where
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.LiveUpdate
+import Application.Helper.LiveSurface
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceProjection
@@ -55,19 +56,13 @@ import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
 
-rosterProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => SurfaceProjectionDefinition RosterProjectionScope (Maybe RosterRenderData) RosterProjectionFragment
-rosterProjectionDefinition =
-    SurfaceProjectionDefinition
-        { surfaceName = "roster-week"
-        , cachePolicy = defaultSurfaceProjectionCachePolicy
-        , scopeKey = \scope -> tshow scope.rosterProjectionGroupId <> ":" <> tshow scope.rosterProjectionWeekOffset
-        , viewerKey = do
-            filters <- fetchRosterAssignmentFilters
-            pure (tshow currentUser.id <> ":" <> encodeRosterAssignmentFilters filters)
-        , currentVersion = \scope -> currentLiveUpdateVersion (buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
-        , loadProjection = \scope -> fetchVisibleRosterRenderData scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset
-        , renderFragment = renderRosterProjectionFragment
-        , buildFragmentRef = \scope fragment ->
+rosterLiveSurfaceDefinition :: (?context :: ControllerContext) => LiveSurfaceDefinition RosterProjectionScope RosterProjectionFragment
+rosterLiveSurfaceDefinition =
+    LiveSurfaceDefinition
+        { surfaceFeature = "roster"
+        , surfaceScope = \scope -> buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset
+        , surfaceDefaultFragments = const [RosterProjectionContent, RosterProjectionStaffPanel]
+        , surfaceFragmentRef = \scope fragment ->
             case fragment of
                 RosterProjectionContent ->
                     buildRosterContentFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset
@@ -77,14 +72,29 @@ rosterProjectionDefinition =
                     buildRosterDaySectionFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset rosterDayId
                 RosterProjectionRow rosterDayId rowIndex ->
                     buildRosterRowFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset rosterDayId rowIndex
+        , surfaceDecorateRequestsWithin = const ["#roster-week-shell"]
         }
+
+rosterProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition RosterProjectionScope (Maybe RosterRenderData) RosterProjectionFragment
+rosterProjectionDefinition =
+    mkSurfaceProjectionDefinition
+        rosterLiveSurfaceDefinition
+        "roster-week"
+        defaultSurfaceProjectionCachePolicy
+        (\scope -> tshow scope.rosterProjectionGroupId <> ":" <> tshow scope.rosterProjectionWeekOffset)
+        do
+            filters <- fetchRosterAssignmentFilters
+            pure (tshow currentUser.id <> ":" <> encodeRosterAssignmentFilters filters)
+        (\scope -> currentLiveUpdateVersion (buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset))
+        (\scope -> fetchVisibleRosterRenderData scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
+        renderRosterProjectionFragment
 
 fetchVisibleRosterRenderDataCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterRenderDataCached rosterGroupId weekOffset =
     profileActionSpanWithDetail "roster.projection.load" do
         let scope = buildRosterProjectionScope rosterGroupId weekOffset
         before <- readSurfaceProjectionCacheStats
-        projection <- loadSurfaceProjection rosterProjectionDefinition scope
+        projection <- loadLiveSurfaceProjection rosterProjectionDefinition scope
         after <- readSurfaceProjectionCacheStats
         pure (projection, surfaceProjectionCacheDeltaDetail before after)
 
@@ -100,7 +110,7 @@ renderVisibleRosterProjectionFragment rosterGroupId weekOffset fragment =
             profileActionSpanWithDetail "roster.projection.render_fragment" do
                 let scope = buildRosterProjectionScope rosterGroupId weekOffset
                 before <- readSurfaceProjectionCacheStats
-                html <- renderSurfaceProjectionFragment rosterProjectionDefinition scope fragment
+                html <- renderLiveSurfaceProjectionFragment rosterProjectionDefinition scope fragment
                 after <- readSurfaceProjectionCacheStats
                 pure (html, surfaceProjectionCacheDeltaDetail before after)
 
@@ -272,7 +282,7 @@ keepCurrentRosterWeekProjectionHot :: (?context :: ControllerContext, ?modelCont
 keepCurrentRosterWeekProjectionHot rosterGroupId weekOffset = do
     currentWeekOffset <- fetchCurrentRosterWeekOffset
     when (weekOffset == currentWeekOffset) $
-        warmSurfaceProjection rosterProjectionDefinition (buildRosterProjectionScope rosterGroupId weekOffset)
+        warmLiveSurfaceProjection rosterProjectionDefinition (buildRosterProjectionScope rosterGroupId weekOffset)
 
 fetchHiddenRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (RosterWeek, [RosterDay], Calendar.Day, [SlotName], [RosterSlot])
 fetchHiddenRosterRenderData rosterGroupId weekOffset = do

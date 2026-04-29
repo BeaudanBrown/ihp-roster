@@ -12,6 +12,7 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling
+import Application.Helper.LiveSurface
 import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)
@@ -274,27 +275,36 @@ data LeaveRequestsProjectionFragment
     | LeaveRequestsProjectionContent
     deriving (Eq, Show)
 
-leaveRequestsProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => SurfaceProjectionDefinition () LeaveRequestsProjection LeaveRequestsProjectionFragment
-leaveRequestsProjectionDefinition =
-    SurfaceProjectionDefinition
-        { surfaceName = "leave-requests"
-        , cachePolicy = defaultSurfaceProjectionCachePolicy
-        , scopeKey = const (tshow currentVenueId)
-        , viewerKey = pure (tshow currentUser.id)
-        , currentVersion = const (currentLiveUpdateVersion (buildLeaveRequestsScope currentVenueId))
-        , loadProjection = const fetchLeaveRequestsProjection
-        , renderFragment = renderLeaveRequestsProjectionHtml
-        , buildFragmentRef = \() fragment ->
+leaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => LiveSurfaceDefinition () LeaveRequestsProjectionFragment
+leaveRequestsLiveSurfaceDefinition =
+    LiveSurfaceDefinition
+        { surfaceFeature = "leave-requests"
+        , surfaceScope = const (buildLeaveRequestsScope currentVenueId)
+        , surfaceDefaultFragments = const [LeaveRequestsProjectionContent]
+        , surfaceFragmentRef = \() fragment ->
             case fragment of
                 LeaveRequestsProjectionPage -> buildLeaveRequestsPageFragmentRef
                 LeaveRequestsProjectionContent -> buildLeaveRequestsContentFragmentRef
+        , surfaceDecorateRequestsWithin = const ["#" <> leaveRequestsShellId]
         }
+
+leaveRequestsProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition () LeaveRequestsProjection LeaveRequestsProjectionFragment
+leaveRequestsProjectionDefinition =
+    mkSurfaceProjectionDefinition
+        leaveRequestsLiveSurfaceDefinition
+        "leave-requests"
+        defaultSurfaceProjectionCachePolicy
+        (const (tshow currentVenueId))
+        (pure (tshow currentUser.id))
+        (const (currentLiveUpdateVersion (buildLeaveRequestsScope currentVenueId)))
+        (const fetchLeaveRequestsProjection)
+        renderLeaveRequestsProjectionHtml
 
 fetchLeaveRequestsProjectionCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO LeaveRequestsProjection
 fetchLeaveRequestsProjectionCached =
     profileActionSpanWithDetail "leave.projection.load" do
         before <- readSurfaceProjectionCacheStats
-        projection <- loadSurfaceProjection leaveRequestsProjectionDefinition ()
+        projection <- loadLiveSurfaceProjection leaveRequestsProjectionDefinition ()
         after <- readSurfaceProjectionCacheStats
         pure (projection, surfaceProjectionCacheDeltaDetail before after)
 
@@ -302,7 +312,7 @@ renderLeaveRequestsProjectionFragment :: (?context :: ControllerContext, ?modelC
 renderLeaveRequestsProjectionFragment fragment =
     profileActionSpanWithDetail "leave.projection.render_fragment" do
         before <- readSurfaceProjectionCacheStats
-        html <- renderSurfaceProjectionFragment leaveRequestsProjectionDefinition () fragment
+        html <- renderLiveSurfaceProjectionFragment leaveRequestsProjectionDefinition () fragment
         after <- readSurfaceProjectionCacheStats
         pure (html, surfaceProjectionCacheDeltaDetail before after)
 

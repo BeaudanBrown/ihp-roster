@@ -10,6 +10,7 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       mkLiveFragmentRef)
 import Application.Helper.Pay (ensureCurrentVenuePayConfigSnapshot)
 import Application.Helper.Profiling
+import Application.Helper.LiveSurface
 import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayPosition (..), appendQueryParams,
                                 dialogOverlayMountId, renderToastOob,
@@ -520,36 +521,45 @@ data TimesheetProjectionFragment
     | TimesheetProjectionDaySection !Int
     deriving (Eq, Show)
 
-timesheetProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => SurfaceProjectionDefinition TimesheetProjectionRequest TimesheetWeekProjection TimesheetProjectionFragment
+timesheetLiveSurfaceDefinition :: (?context :: ControllerContext) => LiveSurfaceDefinition TimesheetProjectionRequest TimesheetProjectionFragment
+timesheetLiveSurfaceDefinition =
+    LiveSurfaceDefinition
+        { surfaceFeature = "timesheets"
+        , surfaceScope = \requestKey -> buildTimesheetWeekScope currentVenueId requestKey.projectionWeekOffset
+        , surfaceDefaultFragments = const (map TimesheetProjectionDaySection [0 .. 6])
+        , surfaceFragmentRef = \requestKey fragment ->
+            case fragment of
+                TimesheetProjectionPage ->
+                    buildTimesheetWeekPageFragmentRef requestKey
+                TimesheetProjectionDaySection dayOffset ->
+                    buildTimesheetDaySectionFragmentRef requestKey dayOffset
+        , surfaceDecorateRequestsWithin = const ["#" <> timesheetWeekShellId]
+        }
+
+timesheetProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition TimesheetProjectionRequest TimesheetWeekProjection TimesheetProjectionFragment
 timesheetProjectionDefinition =
-    SurfaceProjectionDefinition
-        { surfaceName = "timesheet-week"
-        , cachePolicy = defaultSurfaceProjectionCachePolicy
-        , scopeKey = \requestKey ->
+    mkSurfaceProjectionDefinition
+        timesheetLiveSurfaceDefinition
+        "timesheet-week"
+        defaultSurfaceProjectionCachePolicy
+        (\requestKey ->
             Text.intercalate
                 ":"
                 [ tshow currentVenueId
                 , tshow requestKey.projectionWeekOffset
                 , if requestKey.projectionShowApproved then "true" else "false"
                 , if requestKey.projectionShowAllStaff then "true" else "false"
-                ]
-        , viewerKey = pure (tshow currentUser.id)
-        , currentVersion = \requestKey -> currentLiveUpdateVersion (buildTimesheetWeekScope currentVenueId requestKey.projectionWeekOffset)
-        , loadProjection = fetchTimesheetWeekProjection
-        , renderFragment = renderTimesheetWeekProjectionFragment
-        , buildFragmentRef = \requestKey fragment ->
-            case fragment of
-                TimesheetProjectionPage ->
-                    buildTimesheetWeekPageFragmentRef requestKey
-                TimesheetProjectionDaySection dayOffset ->
-                    buildTimesheetDaySectionFragmentRef requestKey dayOffset
-        }
+                ])
+        (pure (tshow currentUser.id))
+        (\requestKey -> currentLiveUpdateVersion (buildTimesheetWeekScope currentVenueId requestKey.projectionWeekOffset))
+        fetchTimesheetWeekProjection
+        renderTimesheetWeekProjectionFragment
 
 fetchTimesheetWeekProjectionCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => TimesheetProjectionRequest -> IO TimesheetWeekProjection
 fetchTimesheetWeekProjectionCached requestKey =
     profileActionSpanWithDetail "timesheets.projection.load" do
         before <- readSurfaceProjectionCacheStats
-        projection <- loadSurfaceProjection timesheetProjectionDefinition requestKey
+        projection <- loadLiveSurfaceProjection timesheetProjectionDefinition requestKey
         after <- readSurfaceProjectionCacheStats
         pure (projection, surfaceProjectionCacheDeltaDetail before after)
 
@@ -557,7 +567,7 @@ renderTimesheetProjectionFragment :: (?context :: ControllerContext, ?modelConte
 renderTimesheetProjectionFragment requestKey fragment =
     profileActionSpanWithDetail "timesheets.projection.render_fragment" do
         before <- readSurfaceProjectionCacheStats
-        html <- renderSurfaceProjectionFragment timesheetProjectionDefinition requestKey fragment
+        html <- renderLiveSurfaceProjectionFragment timesheetProjectionDefinition requestKey fragment
         after <- readSurfaceProjectionCacheStats
         pure (html, surfaceProjectionCacheDeltaDetail before after)
 
