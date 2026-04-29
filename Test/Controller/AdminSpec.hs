@@ -531,6 +531,57 @@ tests = beforeAll testContext do
                 trialMapping.mappingStatus `shouldBe` "not_applicable"
                 trialMapping.xeroEmployeeId `shouldBe` Nothing
 
+        it "suggests the closest available Xero employee for a staff member" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Staff Suggestion Venue"
+                admin <- createUserRecord "xero-staff-suggestion@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                connection <- createActiveXeroConnection venue admin
+                staff <- createStaffRecord venue Nothing "Ada" "Lovelace"
+                _ <- createXeroEmployeeRecord connection "Ava Lovelace" Nothing "employee-ava"
+                employee <- createXeroEmployeeRecord connection "Ada Lovelace" Nothing "employee-ada"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (SuggestXeroStaffMappingAction staff.id)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Saved Xero employee mapping for Ada Lovelace."
+                response `responseBodyShouldContain` ("id=\"xero-staff-mapping-control-" <> tshow staff.id <> "\"")
+                mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetchOne
+                mapping.mappingStatus `shouldBe` "verified"
+                mapping.xeroEmployeeId `shouldBe` Just employee.xeroEmployeeId
+
+        it "rejects weak or ambiguous Xero employee suggestions" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Staff Weak Suggestion Venue"
+                admin <- createUserRecord "xero-staff-weak-suggestion@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                connection <- createActiveXeroConnection venue admin
+                weakStaff <- createStaffRecord venue Nothing "Ada" "Lovelace"
+                ambiguousStaff <- createStaffRecord venue Nothing "John" "Smith"
+                _ <- createXeroEmployeeRecord connection "Zoe Campbell" Nothing "employee-zoe"
+                _ <- createXeroEmployeeRecord connection "Jon Smith" Nothing "employee-jon"
+                _ <- createXeroEmployeeRecord connection "John Smyth" Nothing "employee-smyth"
+
+                weakResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (SuggestXeroStaffMappingAction weakStaff.id)
+
+                weakResponse `responseStatusShouldBe` status200
+                weakResponse `responseBodyShouldContain` "No close Xero employee match found for Ada Lovelace."
+                weakMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId weakStaff.id) |> fetchOne
+                weakMapping.mappingStatus `shouldBe` "not_applicable"
+
+                ambiguousResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (SuggestXeroStaffMappingAction ambiguousStaff.id)
+
+                ambiguousResponse `responseStatusShouldBe` status200
+                ambiguousResponse `responseBodyShouldContain` "Xero employee match for John Smith is ambiguous"
+                ambiguousMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId ambiguousStaff.id) |> fetchOne
+                ambiguousMapping.mappingStatus `shouldBe` "not_applicable"
+
         it "shows managed Xero pay items and saves setup selections from the admin fragment" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Earnings Mapping Venue"

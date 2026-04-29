@@ -87,6 +87,7 @@ data AdminController
     | SyncXeroPayrollReferenceDataAction
     | CreateMissingXeroPayItemsAction
     | SaveXeroStaffMappingAction
+    | SuggestXeroStaffMappingAction { staffId :: !(Id Staff) }
     | SaveXeroEarningsRateMappingAction
     | SaveXeroPayItemAccountCodeSelectionAction
     | SaveXeroPayrollCalendarSelectionAction

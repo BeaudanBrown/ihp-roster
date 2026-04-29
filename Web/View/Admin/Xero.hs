@@ -276,19 +276,22 @@ renderXeroStaffMappingCountsWith maybeOobSwap mappingCounts = [hsx|
 
 renderXeroStaffMappingControl :: [XeroEmployee] -> Text -> Staff -> Html
 renderXeroStaffMappingControl selectableEmployees currentSelection staff = [hsx|
-    <form id={xeroStaffMappingControlId staff.id}
-          method="POST"
-          action={SaveXeroStaffMappingAction}
-          data-disable-javascript-submission="true"
-          hx-post={pathTo SaveXeroStaffMappingAction}
-          hx-trigger="change"
-          hx-swap="none">
-        <input type="hidden" name="staffId" value={tshow staff.id} />
-        <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
-            <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
-            {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
-        </select>
-    </form>
+    <div id={xeroStaffMappingControlId staff.id} class="d-flex align-items-center gap-2">
+        <form class="flex-grow-1"
+              method="POST"
+              action={SaveXeroStaffMappingAction}
+              data-disable-javascript-submission="true"
+              hx-post={pathTo SaveXeroStaffMappingAction}
+              hx-trigger="change"
+              hx-swap="none">
+            <input type="hidden" name="staffId" value={tshow staff.id} />
+            <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
+                <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
+                {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
+            </select>
+        </form>
+        {renderXeroStaffMappingSuggestButton staff}
+    </div>
 |]
 
 renderXeroStaffMappingControlOob :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingRow -> Html
@@ -298,22 +301,38 @@ renderXeroStaffMappingControlOob xeroEmployees mappingRows row =
         currentSelection = xeroMappingSelectionValue mapping
         selectableEmployees = filter (xeroEmployeeAvailableForRow row mappingRows) xeroEmployees
      in [hsx|
-        <form id={xeroStaffMappingControlId staff.id}
-              method="POST"
-              action={SaveXeroStaffMappingAction}
-              data-disable-javascript-submission="true"
-              hx-post={pathTo SaveXeroStaffMappingAction}
-              hx-target="#admin-xero-fragment"
-              hx-trigger="change"
-              hx-swap="none"
-              hx-swap-oob="outerHTML">
-            <input type="hidden" name="staffId" value={tshow staff.id} />
-            <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
-                <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
-                {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
-            </select>
-        </form>
+        <div id={xeroStaffMappingControlId staff.id}
+             class="d-flex align-items-center gap-2"
+             hx-swap-oob="outerHTML">
+            <form class="flex-grow-1"
+                  method="POST"
+                  action={SaveXeroStaffMappingAction}
+                  data-disable-javascript-submission="true"
+                  hx-post={pathTo SaveXeroStaffMappingAction}
+                  hx-target="#admin-xero-fragment"
+                  hx-trigger="change"
+                  hx-swap="none">
+                <input type="hidden" name="staffId" value={tshow staff.id} />
+                <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
+                    <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
+                    {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
+                </select>
+            </form>
+            {renderXeroStaffMappingSuggestButton staff}
+        </div>
     |]
+
+renderXeroStaffMappingSuggestButton :: Staff -> Html
+renderXeroStaffMappingSuggestButton staff = [hsx|
+    <form method="POST"
+          action={SuggestXeroStaffMappingAction staff.id}
+          data-disable-javascript-submission="true"
+          hx-post={pathTo (SuggestXeroStaffMappingAction staff.id)}
+          hx-target="#admin-xero-fragment"
+          hx-swap="none">
+        <button class="btn btn-outline-secondary btn-sm" type="submit">Suggest</button>
+    </form>
+|]
 
 renderXeroStaffMappingControlsOob :: Maybe (Id Staff) -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
 renderXeroStaffMappingControlsOob maybeUnchangedStaffId xeroEmployees mappingRows mappingCounts =

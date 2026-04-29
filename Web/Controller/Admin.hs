@@ -120,6 +120,9 @@ instance Controller AdminController where
     action SaveXeroStaffMappingAction =
         saveXeroStaffMappingAction
 
+    action SuggestXeroStaffMappingAction { staffId } =
+        suggestXeroStaffMappingAction staffId
+
     action SaveXeroEarningsRateMappingAction =
         saveXeroEarningsRateMappingAction
 

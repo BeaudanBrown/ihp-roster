@@ -12,6 +12,7 @@ import Application.Helper.XeroPayItems
 import Application.Xero.Connection
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Text.Blaze.Html as Blaze
@@ -112,6 +113,18 @@ saveXeroStaffMappingAction = do
             let staffId = param @(Id Staff) "staffId"
             let selection = Text.strip (paramOrDefault @Text "" "xeroEmployeeSelection")
             saveXeroStaffMapping connection staffId selection
+
+suggestXeroStaffMappingAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id Staff -> IO ()
+suggestXeroStaffMappingAction staffId = do
+    maybeConnection <- fetchCurrentVenueXeroConnection
+    case maybeConnection of
+        Nothing -> do
+            setErrorMessage "Connect Xero before mapping staff to Xero employees."
+            if isHtmxRequest
+                then respondWithXeroSectionFragment
+                else redirectTo AdminAction
+        Just connection ->
+            suggestXeroStaffMapping connection staffId
 
 saveXeroEarningsRateMappingAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 saveXeroEarningsRateMappingAction = do
@@ -687,6 +700,25 @@ saveXeroStaffMapping connection staffId selection = do
                                 Just _ -> respondWithXeroStaffMappingError connection "That Xero employee is already mapped to another staff member."
                                 Nothing -> persistXeroStaffMapping connection staff "verified" (Just employee)
 
+suggestXeroStaffMapping ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Id Staff ->
+    IO ()
+suggestXeroStaffMapping connection staffId = do
+    mappingRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
+    xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
+    case List.find (\row -> row.mappingRowStaff.id == staffId) mappingRows of
+        Nothing -> respondWithXeroStaffMappingError connection "Choose a staff member from the current venue."
+        Just row -> do
+            let availableEmployees = filter (xeroEmployeeAvailableForStaff row.mappingRowStaff mappingRows) xeroEmployees
+            case bestXeroEmployeeSuggestion row availableEmployees of
+                NoXeroEmployeeSuggestion -> respondWithXeroStaffMappingError connection ("No close Xero employee match found for " <> staffFullNameText row.mappingRowStaff <> ".")
+                AmbiguousXeroEmployeeSuggestion first second ->
+                    respondWithXeroStaffMappingError connection ("Xero employee match for " <> staffFullNameText row.mappingRowStaff <> " is ambiguous between " <> first.displayName <> " and " <> second.displayName <> ".")
+                XeroEmployeeSuggestion employee ->
+                    persistXeroStaffMappingWithControlRefresh connection row.mappingRowStaff "verified" (Just employee) Nothing
+
 persistXeroStaffMapping ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
@@ -694,7 +726,18 @@ persistXeroStaffMapping ::
     Text ->
     Maybe XeroEmployee ->
     IO ()
-persistXeroStaffMapping connection staff mappingStatus maybeEmployee = do
+persistXeroStaffMapping connection staff mappingStatus maybeEmployee =
+    persistXeroStaffMappingWithControlRefresh connection staff mappingStatus maybeEmployee (Just staff.id)
+
+persistXeroStaffMappingWithControlRefresh ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Staff ->
+    Text ->
+    Maybe XeroEmployee ->
+    Maybe (Id Staff) ->
+    IO ()
+persistXeroStaffMappingWithControlRefresh connection staff mappingStatus maybeEmployee maybeUnchangedStaffId = do
     now <- getCurrentTime
     mapping <- profileActionSpan "admin.xero.staff_mapping.persist.upsert" $ withTransaction do
         existingMapping <-
@@ -741,7 +784,7 @@ persistXeroStaffMapping connection staff mappingStatus maybeEmployee = do
     profileActionSpan "admin.xero.staff_mapping.persist.broadcast" $
         broadcastAdminXeroInvalidation currentVenueId
     if isHtmxRequest
-        then respondWithXeroStaffMappingControlsAndToast connection (Just staff.id) (Just (xeroSuccessToast message))
+        then respondWithXeroStaffMappingControlsAndToast connection maybeUnchangedStaffId (Just (xeroSuccessToast message))
         else do
             setSuccessMessage message
             redirectTo AdminAction
@@ -757,6 +800,121 @@ respondWithXeroStaffMappingError connection message = do
         else do
             setErrorMessage message
             redirectTo AdminAction
+
+data XeroEmployeeSuggestionResult
+    = NoXeroEmployeeSuggestion
+    | AmbiguousXeroEmployeeSuggestion XeroEmployee XeroEmployee
+    | XeroEmployeeSuggestion XeroEmployee
+
+data ScoredXeroEmployeeSuggestion = ScoredXeroEmployeeSuggestion
+    { scoredSuggestionEmployee :: XeroEmployee
+    , scoredSuggestionScore    :: Double
+    }
+
+bestXeroEmployeeSuggestion :: XeroStaffMappingRow -> [XeroEmployee] -> XeroEmployeeSuggestionResult
+bestXeroEmployeeSuggestion row employees =
+    case List.sortOn (.scoredSuggestionScore) (map (scoreXeroEmployeeSuggestion row) employees) of
+        [] -> NoXeroEmployeeSuggestion
+        best : second : _
+            | scoredSuggestionScore best > xeroEmployeeSuggestionThreshold -> NoXeroEmployeeSuggestion
+            | scoredSuggestionScore second <= xeroEmployeeSuggestionThreshold
+            , scoredSuggestionScore second - scoredSuggestionScore best < xeroEmployeeSuggestionAmbiguityMargin ->
+                AmbiguousXeroEmployeeSuggestion best.scoredSuggestionEmployee second.scoredSuggestionEmployee
+            | otherwise -> XeroEmployeeSuggestion best.scoredSuggestionEmployee
+        best : _
+            | scoredSuggestionScore best <= xeroEmployeeSuggestionThreshold -> XeroEmployeeSuggestion best.scoredSuggestionEmployee
+            | otherwise -> NoXeroEmployeeSuggestion
+
+xeroEmployeeSuggestionThreshold :: Double
+xeroEmployeeSuggestionThreshold = 0.25
+
+xeroEmployeeSuggestionAmbiguityMargin :: Double
+xeroEmployeeSuggestionAmbiguityMargin = 0.08
+
+scoreXeroEmployeeSuggestion :: XeroStaffMappingRow -> XeroEmployee -> ScoredXeroEmployeeSuggestion
+scoreXeroEmployeeSuggestion row employee =
+    ScoredXeroEmployeeSuggestion
+        { scoredSuggestionEmployee = employee
+        , scoredSuggestionScore = minimum (emailScore : nameScores)
+        }
+    where
+        staff = row.mappingRowStaff
+        staffNames =
+            [ normalizeName (staff.firstName <> " " <> staff.lastName)
+            , normalizeName (staff.lastName <> " " <> staff.firstName)
+            ]
+        employeeName = normalizeName employee.displayName
+        nameScores = map (`normalizedLevenshteinDistance` employeeName) staffNames
+        emailScore =
+            case (row.mappingRowUser >>= normalizedEmail . (.email), employee.email >>= normalizedEmail) of
+                (Just staffEmail, Just employeeEmail) | staffEmail == employeeEmail -> 0
+                _ -> 1
+
+xeroEmployeeAvailableForStaff :: Staff -> [XeroStaffMappingRow] -> XeroEmployee -> Bool
+xeroEmployeeAvailableForStaff staff mappingRows employee =
+    employee.xeroEmployeeId `List.notElem` usedByOtherStaff
+    where
+        currentStaffId = unpackId staff.id
+        usedByOtherStaff =
+            mappingRows
+                |> mapMaybe verifiedEmployeeForOtherStaff
+
+        verifiedEmployeeForOtherStaff row =
+            let mapping = row.mappingRowMapping
+             in if unpackId row.mappingRowStaff.id /= currentStaffId && mapping.mappingStatus == "verified"
+                    then mapping.xeroEmployeeId
+                    else Nothing
+
+normalizedNameLength :: Text -> Int
+normalizedNameLength =
+    Text.length . Text.filter (/= ' ')
+
+normalizedLevenshteinDistance :: Text -> Text -> Double
+normalizedLevenshteinDistance left right
+    | Text.null left || Text.null right = 1
+    | otherwise = fromIntegral distance / fromIntegral denominator
+    where
+        distance = levenshteinDistance (Text.unpack left) (Text.unpack right)
+        denominator = max 1 (max (normalizedNameLength left) (normalizedNameLength right))
+
+levenshteinDistance :: String -> String -> Int
+levenshteinDistance source target =
+    List.last (List.foldl' transform [0 .. length target] source)
+    where
+        transform previous sourceChar =
+            case previous of
+                [] -> []
+                firstPrevious : _ ->
+                    scanl compute (firstPrevious + 1) (zip3 target previous (List.drop 1 previous))
+                    where
+                        compute left (targetChar, diagonal, above) =
+                            minimum
+                                [ left + 1
+                                , above + 1
+                                , diagonal + if sourceChar == targetChar then 0 else 1
+                                ]
+
+normalizeName :: Text -> Text
+normalizeName =
+    Text.unwords
+        . Text.words
+        . Text.map normalizeNameChar
+        . Text.toLower
+        . Text.strip
+
+normalizeNameChar :: Char -> Char
+normalizeNameChar char
+    | Char.isAlphaNum char = char
+    | otherwise = ' '
+
+normalizedEmail :: Text -> Maybe Text
+normalizedEmail email =
+    let normalized = Text.toLower (Text.strip email)
+     in if Text.null normalized then Nothing else Just normalized
+
+staffFullNameText :: Staff -> Text
+staffFullNameText staff =
+    Text.strip (staff.firstName <> " " <> staff.lastName)
 
 saveXeroEarningsRateMapping ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
