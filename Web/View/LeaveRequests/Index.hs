@@ -300,4 +300,4 @@ renderDeleteAction currentViewerStaffId leaveRequest =
 
 isCurrentUsersLeaveRequest :: Maybe UUID -> LeaveRequest -> Bool
 isCurrentUsersLeaveRequest currentViewerStaffId leaveRequest =
-    maybe False (== leaveRequest.staffId) currentViewerStaffId
+    Just leaveRequest.staffId == currentViewerStaffId

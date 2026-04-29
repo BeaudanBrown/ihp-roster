@@ -79,9 +79,9 @@ buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId weekOffset rowKeys
 
 buildAssignmentRefreshFragmentRefs :: (?context :: ControllerContext) => Maybe Text -> Id RosterGroup -> Int -> [LiveFragmentRef]
 buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId weekOffset =
-    if isJust maybeStaffParam
-        then [buildDeferredRosterContentFragmentRef rosterGroupId weekOffset]
-        else []
+    [ buildDeferredRosterContentFragmentRef rosterGroupId weekOffset
+    | isJust maybeStaffParam
+    ]
 
 buildRosterRowFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> UUID.UUID -> Int -> LiveFragmentRef
 buildRosterRowFragmentRef rosterGroupId weekOffset rosterDayId rowIndex =

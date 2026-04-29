@@ -375,22 +375,22 @@ deleteXeroConnectionRequest accessToken connectionId =
 
 fetchPayrollEmployeesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
 fetchPayrollEmployeesRequest accessToken tenantId =
-    fmap (fmap unXeroEmployeesResponse) $
+    fmap unXeroEmployeesResponse <$>
         getXeroPayrollRequest "Xero payroll employees request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/Employees"
 
 fetchEarningsRatesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
 fetchEarningsRatesRequest accessToken tenantId =
-    fmap (fmap unXeroPayItemsResponse) $
+    fmap unXeroPayItemsResponse <$>
         getXeroPayrollRequest "Xero payroll pay items request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/PayItems"
 
 fetchPayrollCalendarsRequest :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
 fetchPayrollCalendarsRequest accessToken tenantId =
-    fmap (fmap unXeroPayrollCalendarsResponse) $
+    fmap unXeroPayrollCalendarsResponse <$>
         getXeroPayrollRequest "Xero payroll calendars request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/PayrollCalendars"
 
 createPayItemRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
 createPayItemRequest accessToken tenantId idempotencyKey body =
-    fmap (fmap unXeroPayItemsResponse) $
+    fmap unXeroPayItemsResponse <$>
         postXeroPayrollRequest "Xero payroll pay item create request" accessToken tenantId idempotencyKey "https://api.xero.com/payroll.xro/1.0/PayItems" body
 
 getXeroPayrollRequest :: Aeson.FromJSON value => Text -> Text -> Text -> String -> IO (Either XeroClientError value)

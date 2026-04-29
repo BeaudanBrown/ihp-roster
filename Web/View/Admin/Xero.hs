@@ -640,7 +640,7 @@ renderXeroReadyChecklistItem False label = [hsx|
 
 xeroEmployeeAvailableForRow :: XeroStaffMappingRow -> [XeroStaffMappingRow] -> XeroEmployee -> Bool
 xeroEmployeeAvailableForRow currentRow mappingRows employee =
-    not (employee.xeroEmployeeId `List.elem` usedByOtherStaff)
+    employee.xeroEmployeeId `List.notElem` usedByOtherStaff
     where
         currentStaffId = unpackId currentRow.mappingRowStaff.id
         usedByOtherStaff =

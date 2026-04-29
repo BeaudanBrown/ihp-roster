@@ -1016,8 +1016,8 @@ createProposedXeroPayItems ::
     Text ->
     [XeroPayItemRequirement] ->
     IO (Either Text Int)
-createProposedXeroPayItems xeroClient connection accessToken now accountCode requirements =
-    go 0 requirements
+createProposedXeroPayItems xeroClient connection accessToken now accountCode =
+    go 0
     where
         go createdCount [] = pure (Right createdCount)
         go createdCount (requirement : rest) = do
@@ -1053,7 +1053,7 @@ xeroPayItemRequestPayload accountCode requirement =
 
 xeroEarningsRatePayload :: Text -> XeroPayItemRequirement -> Aeson.Value
 xeroEarningsRatePayload accountCode requirement =
-    Aeson.object $
+    Aeson.object
         [ "Name" Aeson..= requirement.payItemRequirementName
         , "TypeOfUnits" Aeson..= ("Hours" :: Text)
         , "EarningsType" Aeson..= requirement.payItemRequirementEarningsType
@@ -1381,7 +1381,7 @@ markStaleXeroStaffMappings ::
     [XeroEmployeeRef] ->
     IO ()
 markStaleXeroStaffMappings connection employees = do
-    let activeEmployeeIds = map (\employee -> employee.xeroEmployeeId) employees
+    let activeEmployeeIds = map (.xeroEmployeeId) employees
     mappings <-
         query @XeroStaffMapping
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -1404,7 +1404,7 @@ markStaleXeroEarningsRateMappings ::
     [XeroEarningsRateRef] ->
     IO ()
 markStaleXeroEarningsRateMappings connection earningsRates = do
-    let activeEarningsRateIds = map (\earningsRate -> earningsRate.xeroEarningsRateId) earningsRates
+    let activeEarningsRateIds = map (.xeroEarningsRateId) earningsRates
     mappings <-
         query @XeroEarningsRateMapping
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -1427,7 +1427,7 @@ markStaleXeroPayrollCalendarSelection ::
     [XeroPayrollCalendarRef] ->
     IO ()
 markStaleXeroPayrollCalendarSelection connection payrollCalendars = do
-    let activePayrollCalendarIds = map (\payrollCalendar -> payrollCalendar.xeroPayrollCalendarId) payrollCalendars
+    let activePayrollCalendarIds = map (.xeroPayrollCalendarId) payrollCalendars
     maybeSelection <-
         query @XeroPayrollCalendarSelection
             |> filterWhere (#venueId, unpackId currentVenueId)

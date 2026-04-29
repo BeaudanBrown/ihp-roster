@@ -11,8 +11,8 @@ import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 
 fetchApprovedLeaveRequestsForRosterWindow :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [UUID.UUID] -> Calendar.Day -> Calendar.Day -> IO [LeaveRequest]
-fetchApprovedLeaveRequestsForRosterWindow staffIds windowStartDate windowEndExclusive =
-    fetchLeaveRequestsForRosterWindowByStatus [LeaveApproved] staffIds windowStartDate windowEndExclusive
+fetchApprovedLeaveRequestsForRosterWindow =
+    fetchLeaveRequestsForRosterWindowByStatus [LeaveApproved]
 
 fetchLeaveRequestsForRosterWindowByStatus :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [LeaveRequestStatus] -> [UUID.UUID] -> Calendar.Day -> Calendar.Day -> IO [LeaveRequest]
 fetchLeaveRequestsForRosterWindowByStatus statuses staffIds windowStartDate windowEndExclusive

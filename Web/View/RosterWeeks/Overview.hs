@@ -284,4 +284,4 @@ buildOverviewMonthDays referenceWeekStart focusDate =
 weekdayDistanceFromWeekStart :: Day -> Day -> Int
 weekdayDistanceFromWeekStart referenceWeekStart date =
     let orderedIndexes = orderedWeekdayIndexes (weekdayIndexForDay referenceWeekStart)
-     in fromMaybe 0 (findIndex (== weekdayIndexForDay date) orderedIndexes)
+     in fromMaybe 0 (elemIndex (weekdayIndexForDay date) orderedIndexes)

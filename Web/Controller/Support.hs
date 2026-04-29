@@ -116,14 +116,12 @@ instance Controller SupportController where
                 Left onboardingInvitation -> render IndexView { .. }
                 Right onboardingInvitation -> do
                     invitation <- withTransaction do
-                        invitation <-
-                            onboardingInvitation
-                                |> set #invitedByUserId (Just (unpackId currentUser.id))
-                                |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
-                                |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
-                                |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
-                                |> createRecord
-                        pure invitation
+                        onboardingInvitation
+                            |> set #invitedByUserId (Just (unpackId currentUser.id))
+                            |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
+                            |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+                            |> set #expiresAt (Just (addUTCTime venueOnboardingInvitationLifetime now))
+                            |> createRecord
                     void (enqueueVenueOnboardingInvitationDeliveryJob (Just currentUser.id) invitation)
                     setSuccessMessage ("Venue owner invitation queued for " <> invitation.email)
                     redirectTo SupportAction

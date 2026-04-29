@@ -13,21 +13,21 @@ import Web.View.Admin.Xero
 import Web.View.Prelude
 
 data IndexView = IndexView
-    { rosterGroups                    :: [RosterGroup]
-    , currentRosterGroup              :: RosterGroup
-    , shiftTypes                      :: [ShiftType]
-    , awardLevels                     :: [AwardLevel]
-    , awardLevelBaseRates             :: [AwardLevelBaseRate]
-    , slotNames                       :: [SlotName]
-    , reportWeekSelection             :: ReportWeekSelection
-    , defaultRangeStart               :: Day
-    , defaultRangeEnd                 :: Day
-    , exportJobs                      :: [ExportJob]
-    , invitations                     :: [VenueInvitation]
-    , invitesLiveUpdateScope          :: Maybe LiveUpdateScope
-    , xeroSectionData                 :: XeroAdminSectionData
-    , showInactiveRosterGroups        :: Bool
-    , showInactiveShiftTypes          :: Bool
+    { rosterGroups             :: [RosterGroup]
+    , currentRosterGroup       :: RosterGroup
+    , shiftTypes               :: [ShiftType]
+    , awardLevels              :: [AwardLevel]
+    , awardLevelBaseRates      :: [AwardLevelBaseRate]
+    , slotNames                :: [SlotName]
+    , reportWeekSelection      :: ReportWeekSelection
+    , defaultRangeStart        :: Day
+    , defaultRangeEnd          :: Day
+    , exportJobs               :: [ExportJob]
+    , invitations              :: [VenueInvitation]
+    , invitesLiveUpdateScope   :: Maybe LiveUpdateScope
+    , xeroSectionData          :: XeroAdminSectionData
+    , showInactiveRosterGroups :: Bool
+    , showInactiveShiftTypes   :: Bool
     }
 
 instance View IndexView where

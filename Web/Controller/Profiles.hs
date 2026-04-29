@@ -26,7 +26,7 @@ instance Controller ProfilesController where
 
     action EditProfileAction = do
         maybeExistingStaff <- fetchCurrentUserStaff
-        staff <- pure (fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff)
+        let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
         let currentUserEmail = currentUser.email
         let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
         (preferenceWeekdays, preferenceSections, selectedShiftPreferenceKeys) <- profilePreferenceViewData maybeExistingStaff
@@ -43,7 +43,7 @@ instance Controller ProfilesController where
     action UpdateProfileAction = do
         maybeExistingStaff <- fetchCurrentUserStaff
         let submittedShiftPreferenceKeys = nub (paramList @Text "shiftPreferenceKeys")
-        staff <- pure (fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff)
+        let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
         let currentUserEmail = currentUser.email
         let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
         passkeys <- fetchCurrentUserPasskeys

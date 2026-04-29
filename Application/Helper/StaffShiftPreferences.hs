@@ -87,7 +87,7 @@ fetchStaffShiftPreferences staff rosterGroupIds
 
 replaceStaffShiftPreferences :: (?modelContext :: ModelContext) => Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> IO ()
 replaceStaffShiftPreferences staff rosterGroupIds selections = do
-    when (not (null rosterGroupIds)) do
+    unless (null rosterGroupIds) do
         now <- getCurrentTime
         existingPreferences <-
             query @StaffShiftPreference

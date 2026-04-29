@@ -52,9 +52,8 @@ requiredProfileFieldsCompleted staff =
 isOperationallyActive :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
 isOperationallyActive
     | currentUserIsSuperAdmin = pure True
-    | otherwise = do
-        maybeStaff <- fetchCurrentUserStaff
-        pure (maybe False requiredProfileFieldsCompleted maybeStaff)
+    | otherwise =
+        maybe False requiredProfileFieldsCompleted <$> fetchCurrentUserStaff
 
 ensureProfileCompleted :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 ensureProfileCompleted = do

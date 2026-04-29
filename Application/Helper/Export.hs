@@ -754,8 +754,8 @@ rangeWeekSlices rangeStart rangeEnd = do
 
 data ReportWeekSlice = ReportWeekSlice
     { weekSelection :: ReportWeekSelection
-    , sliceStart :: Day
-    , sliceEnd :: Day
+    , sliceStart    :: Day
+    , sliceEnd      :: Day
     }
 
 buildFixedStaffPayCsvPayload ::
@@ -840,7 +840,7 @@ buildFixedStaffPayCsvRecords reportWeekSelection entries staffById payResultsByE
 shouldIncludeFixedStaffPayEntry :: Map.Map UUID Staff -> TimesheetEntry -> Bool
 shouldIncludeFixedStaffPayEntry staffById entry =
     case Map.lookup entry.staffId staffById of
-        Nothing -> False
+        Nothing    -> False
         Just staff -> not (isTrialStaff staff)
 
 weeklyFolderName :: ReportWeekSelection -> Text

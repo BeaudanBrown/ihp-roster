@@ -174,8 +174,8 @@ navAriaCurrent activePrefixes =
     if navItemIsActive activePrefixes then "page" else "false"
 
 navItemIsActive :: (?context :: ControllerContext, ?request :: Request) => [Text] -> Bool
-navItemIsActive activePrefixes =
-    any (`Text.isPrefixOf` currentRequestPath) activePrefixes
+navItemIsActive =
+    any (`Text.isPrefixOf` currentRequestPath)
 
 currentRequestPath :: (?context :: ControllerContext, ?request :: Request) => Text
 currentRequestPath =

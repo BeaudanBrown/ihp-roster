@@ -41,8 +41,8 @@ renderRosterContentFragmentWithSwap maybeSwapOob rosterWeek rosterDays weekOffse
 |]
 
 renderRosterContent :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterViewCapabilities -> Html
-renderRosterContent maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes viewCapabilities =
-    renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes viewCapabilities
+renderRosterContent =
+    renderRosterGrid
 
 renderRosterGrid :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterViewCapabilities -> Html
 renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes viewCapabilities = [hsx|
@@ -108,8 +108,8 @@ renderSlotSubHeaders _ =
         ]
 
 renderRosterDay :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
-renderRosterDay isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay =
-    renderRosterDaySectionFragment isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay
+renderRosterDay =
+    renderRosterDaySectionFragment
 
 renderRosterDaySectionFragment :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
 renderRosterDaySectionFragment =
@@ -206,19 +206,19 @@ renderEmptyDayLabelRows rowCount consumedRows =
     mconcat (map (\_ -> [hsx|<div class="roster-day-label-row roster-day-label-row-empty" aria-hidden="true"></div>|]) [consumedRows + 1 .. rowCount])
 
 renderDayRowControls :: (?context :: ControllerContext) => Bool -> RosterDay -> Int -> Html
-renderDayRowControls isEditable rosterDay lastRowIndex =
-    if isEditable
-        then [hsx|
+renderDayRowControls isEditable rosterDay lastRowIndex
+    | isEditable =
+        [hsx|
             <span class="roster-day-actions">
                 {renderToggleClosedButton rosterDay}
                 {when (not rosterDay.isClosed) (renderDeleteLastRowButton rosterDay lastRowIndex)}
                 {when (not rosterDay.isClosed) (renderAddRowButton rosterDay)}
             </span>
         |]
-        else
-            if rosterDay.isClosed
-                then [hsx|<span class="roster-day-closed-label">CLOSED</span>|]
-                else [hsx|<span class="roster-day-actions-placeholder"></span>|]
+    | rosterDay.isClosed =
+        [hsx|<span class="roster-day-closed-label">CLOSED</span>|]
+    | otherwise =
+        [hsx|<span class="roster-day-actions-placeholder"></span>|]
 
 renderToggleClosedButton :: (?context :: ControllerContext) => RosterDay -> Html
 renderToggleClosedButton rosterDay =
@@ -443,7 +443,7 @@ renderReadOnlyCell value = [hsx|
 renderAssignedStaffLabel :: Maybe UUID -> RosterRenderIndexes -> Maybe Text
 renderAssignedStaffLabel Nothing _ = Nothing
 renderAssignedStaffLabel (Just assignedStaffId) renderIndexes =
-    (\staff -> staffDisplayName (Map.elems renderIndexes.rosterStaffById) staff)
+    staffDisplayName (Map.elems renderIndexes.rosterStaffById)
         <$> Map.lookup assignedStaffId renderIndexes.rosterStaffById
 
 lookupConflicts :: Id RosterSlot -> RosterRenderIndexes -> [RosterConflict]

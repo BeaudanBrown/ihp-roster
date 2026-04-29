@@ -10,6 +10,7 @@ import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
                                           validRosterWeekStartDays,
                                           weekdayIndexLabel)
 import Control.Monad (void)
+import Data.Functor ((<&>))
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Web.Controller.Prelude
@@ -58,7 +59,7 @@ nextSlotNameSortOrder rosterGroupId =
         |> filterWhere (#archivedAt, Nothing)
         |> orderByDesc #sortOrder
         |> fetchOneOrNothing
-        >>= pure . maybe 0 ((+ 1) . get #sortOrder)
+        <&> maybe 0 ((+ 1) . get #sortOrder)
 
 nextRosterGroupSortOrder :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
 nextRosterGroupSortOrder =
@@ -67,7 +68,7 @@ nextRosterGroupSortOrder =
         |> filterWhere (#archivedAt, Nothing)
         |> orderByDesc #sortOrder
         |> fetchOneOrNothing
-        >>= pure . maybe 0 ((+ 1) . get #sortOrder)
+        <&> maybe 0 ((+ 1) . get #sortOrder)
 
 nextShiftTypeSortOrder :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
 nextShiftTypeSortOrder =
@@ -76,7 +77,7 @@ nextShiftTypeSortOrder =
         |> filterWhere (#archivedAt, Nothing)
         |> orderByDesc #sortOrder
         |> fetchOneOrNothing
-        >>= pure . maybe 0 ((+ 1) . get #sortOrder)
+        <&> maybe 0 ((+ 1) . get #sortOrder)
 
 respondToSlotNameMutation :: (?context :: ControllerContext, ?request :: Request) => Text -> Id RosterGroup -> IO ()
 respondToSlotNameMutation successMessage rosterGroupId =
@@ -449,5 +450,5 @@ redirectToAdminFor maybeRosterGroupId =
             maybeRosterGroupId
 
 findReportDefinitionByEngine :: ReportDefinitionEngine -> [VenueReportDefinition] -> Maybe VenueReportDefinition
-findReportDefinitionByEngine engine reportDefinitions =
-    List.find (\reportDefinition -> reportDefinition.engine == engine) reportDefinitions
+findReportDefinitionByEngine engine =
+    List.find (\reportDefinition -> reportDefinition.engine == engine)

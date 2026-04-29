@@ -59,8 +59,8 @@ currentUserMatchesAudience audience =
         SupportAudience     -> currentUserIsSupportAdmin
 
 renderWhenAudience :: (?context :: ControllerContext) => ViewAudience -> Html -> Html
-renderWhenAudience audience html =
-    when (currentUserMatchesAudience audience) html
+renderWhenAudience audience =
+    when (currentUserMatchesAudience audience)
 
 -- | True when a staff record is a trial placeholder (no linked user account).
 isTrialStaff :: Staff -> Bool

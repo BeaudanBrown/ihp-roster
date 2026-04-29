@@ -256,7 +256,7 @@ ensureVenueDayNames venue = do
     let existingWeekdayIndexes = map (.weekdayIndex) existingDayNames
 
     forM_ defaultVenueDayNames \(weekdayIndex, dayName) ->
-        when (weekdayIndex `notElem` existingWeekdayIndexes) do
+        unless (weekdayIndex `elem` existingWeekdayIndexes) do
             _ <- newRecord @DayName
                 |> set #venueId (unpackId venue.id)
                 |> set #weekdayIndex weekdayIndex

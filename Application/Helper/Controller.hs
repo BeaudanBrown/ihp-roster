@@ -1,5 +1,3 @@
-{-# LANGUAGE TypeApplications #-}
-
 module Application.Helper.Controller
     ( module Application.Helper.Controller
     , module Application.Helper.ControllerContext

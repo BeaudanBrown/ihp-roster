@@ -370,7 +370,7 @@ effectiveLeaveResponseContext requestedContext
 requestedLeaveResponseContext :: (?context :: ControllerContext, ?request :: Request) => LeaveResponseContext
 requestedLeaveResponseContext =
     effectiveLeaveResponseContext $
-        fromMaybe inferredFromHtmxTarget (parseLeaveResponseContext <$> paramOrNothing @Text "responseContext")
+        maybe inferredFromHtmxTarget parseLeaveResponseContext (paramOrNothing @Text "responseContext")
     where
         inferredFromHtmxTarget =
             case cs <$> getHeader "HX-Target" of
