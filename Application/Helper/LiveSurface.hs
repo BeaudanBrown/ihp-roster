@@ -1,21 +1,33 @@
 module Application.Helper.LiveSurface
     ( LiveSurfaceConfig (..)
     , LiveSurfaceDefinition (..)
+    , ProjectionLiveSurfaceDefinition (..)
     , broadcastSurfaceFragments
+    , liveSurfaceProjectionFragmentRef
     , liveSurfaceConfigJson
     , liveSurfaceFragmentRef
     , liveSurfaceFragmentRefs
+    , loadLiveSurfaceProjection
+    , loadLiveSurfaceProjectionFromStore
     , mkDefinedLiveSurface
     , mkLiveSurface
+    , mkSurfaceProjectionDefinition
+    , renderLiveSurfaceProjectionFragment
+    , renderLiveSurfaceProjectionFragmentFromStore
+    , warmLiveSurfaceProjection
+    , warmLiveSurfaceProjectionFromStore
     ) where
 
+import Application.Helper.SurfaceProjection
 import Application.Helper.LiveUpdate
+import qualified Data.Dynamic as Dynamic
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text.Encoding as Text
 import IHP.Controller.Context (ControllerContext)
 import IHP.ControllerSupport (Request)
 import IHP.Prelude
+import qualified Text.Blaze.Html as Blaze
 
 data LiveSurfaceConfig = LiveSurfaceConfig
     { feature                :: !Text
@@ -33,6 +45,11 @@ data LiveSurfaceDefinition scope fragment = LiveSurfaceDefinition
     , surfaceDefaultFragments       :: scope -> [fragment]
     , surfaceFragmentRef            :: scope -> fragment -> LiveFragmentRef
     , surfaceDecorateRequestsWithin :: scope -> [Text]
+    }
+
+data ProjectionLiveSurfaceDefinition scope snapshot fragment = ProjectionLiveSurfaceDefinition
+    { liveSurfaceDefinition       :: !(LiveSurfaceDefinition scope fragment)
+    , surfaceProjectionDefinition :: !(SurfaceProjectionDefinition scope snapshot fragment)
     }
 
 instance Aeson.ToJSON LiveSurfaceConfig where
@@ -95,6 +112,95 @@ broadcastSurfaceFragments definition surfaceKey fragments =
         (definition.surfaceScope surfaceKey)
         liveUpdateSourceClientId
         (liveSurfaceFragmentRefs definition surfaceKey fragments)
+
+mkSurfaceProjectionDefinition ::
+    LiveSurfaceDefinition scope fragment ->
+    Text ->
+    SurfaceProjectionCachePolicy ->
+    (scope -> Text) ->
+    IO Text ->
+    (scope -> IO Int) ->
+    (scope -> IO snapshot) ->
+    (snapshot -> fragment -> Maybe Blaze.Html) ->
+    ProjectionLiveSurfaceDefinition scope snapshot fragment
+mkSurfaceProjectionDefinition liveSurfaceDefinition surfaceName cachePolicy scopeKey viewerKey currentVersion loadProjection renderFragment =
+    ProjectionLiveSurfaceDefinition
+        { liveSurfaceDefinition
+        , surfaceProjectionDefinition =
+            SurfaceProjectionDefinition
+                { surfaceName
+                , cachePolicy
+                , scopeKey
+                , viewerKey
+                , currentVersion
+                , loadProjection
+                , renderFragment
+                , buildFragmentRef = liveSurfaceFragmentRef liveSurfaceDefinition
+                }
+        }
+
+liveSurfaceProjectionFragmentRef :: ProjectionLiveSurfaceDefinition scope snapshot fragment -> scope -> fragment -> LiveFragmentRef
+liveSurfaceProjectionFragmentRef definition =
+    liveSurfaceFragmentRef definition.liveSurfaceDefinition
+
+loadLiveSurfaceProjection ::
+    forall scope snapshot fragment.
+    (Dynamic.Typeable snapshot) =>
+    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    scope ->
+    IO snapshot
+loadLiveSurfaceProjection definition =
+    loadSurfaceProjection definition.surfaceProjectionDefinition
+
+loadLiveSurfaceProjectionFromStore ::
+    forall scope snapshot fragment.
+    (Dynamic.Typeable snapshot) =>
+    SurfaceProjectionStore ->
+    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    scope ->
+    IO snapshot
+loadLiveSurfaceProjectionFromStore store definition =
+    loadSurfaceProjectionFromStore store definition.surfaceProjectionDefinition
+
+warmLiveSurfaceProjection ::
+    forall scope snapshot fragment.
+    (Dynamic.Typeable snapshot) =>
+    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    scope ->
+    IO ()
+warmLiveSurfaceProjection definition =
+    warmSurfaceProjection definition.surfaceProjectionDefinition
+
+warmLiveSurfaceProjectionFromStore ::
+    forall scope snapshot fragment.
+    (Dynamic.Typeable snapshot) =>
+    SurfaceProjectionStore ->
+    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    scope ->
+    IO ()
+warmLiveSurfaceProjectionFromStore store definition =
+    warmSurfaceProjectionFromStore store definition.surfaceProjectionDefinition
+
+renderLiveSurfaceProjectionFragment ::
+    forall scope snapshot fragment.
+    (Dynamic.Typeable snapshot) =>
+    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    scope ->
+    fragment ->
+    IO (Maybe Blaze.Html)
+renderLiveSurfaceProjectionFragment definition =
+    renderSurfaceProjectionFragment definition.surfaceProjectionDefinition
+
+renderLiveSurfaceProjectionFragmentFromStore ::
+    forall scope snapshot fragment.
+    (Dynamic.Typeable snapshot) =>
+    SurfaceProjectionStore ->
+    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    scope ->
+    fragment ->
+    IO (Maybe Blaze.Html)
+renderLiveSurfaceProjectionFragmentFromStore store definition =
+    renderSurfaceProjectionFragmentFromStore store definition.surfaceProjectionDefinition
 
 liveSurfaceConfigJson :: LiveSurfaceConfig -> Text
 liveSurfaceConfigJson =

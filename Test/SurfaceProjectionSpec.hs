@@ -2,13 +2,17 @@ module Test.SurfaceProjectionSpec where
 
 import Application.Helper.LiveUpdate (LiveFragmentKey (RosterContentFragment),
                                       LiveFragmentProtection (NoProtection),
-                                      LiveFragmentRef (..))
+                                      LiveFragmentRef (..),
+                                      LiveUpdateScope (SupportPlatformScope),
+                                      mkLiveFragmentRef)
+import Application.Helper.LiveSurface
 import Application.Helper.SurfaceProjection
 import Data.IORef
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock
 import IHP.Prelude
 import Test.Hspec
+import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
 import qualified Text.Blaze.Html5 as Html5
 
 tests :: Spec
@@ -150,6 +154,50 @@ tests = describe "SurfaceProjection helper" do
 
         reloaded `shouldBe` ("projection-4" :: Text)
         stats.evictions `shouldBe` 2
+
+    it "builds projection helpers from a live surface fragment mapping" do
+        clock <- newClock
+        store <- newStore clock
+        viewerRef <- newIORef "manager"
+        versionRef <- newIORef 0
+        loadCountRef <- newIORef (0 :: Int)
+        let liveSurface =
+                LiveSurfaceDefinition
+                    { surfaceFeature = "test"
+                    , surfaceScope = const SupportPlatformScope
+                    , surfaceDefaultFragments = const [7]
+                    , surfaceFragmentRef = \scope fragment ->
+                        mkLiveFragmentRef
+                            RosterContentFragment
+                            ("surface-target-" <> tshow scope <> "-" <> tshow fragment)
+                            ("/surface/" <> tshow scope <> "/" <> tshow fragment)
+                    , surfaceDecorateRequestsWithin = const []
+                    }
+        let definition =
+                mkSurfaceProjectionDefinition
+                    liveSurface
+                    "test-surface"
+                    defaultSurfaceProjectionCachePolicy
+                    tshow
+                    (readIORef viewerRef)
+                    (const (readIORef versionRef))
+                    (\_ -> do
+                        loadCount <- atomicModifyIORef' loadCountRef \count ->
+                            let nextCount = count + 1
+                             in (nextCount, nextCount)
+                        pure ("projection-" <> tshow loadCount))
+                    (\snapshot fragment -> Just (Html5.toHtml (snapshot <> "-fragment-" <> tshow fragment)))
+
+        snapshot <- loadLiveSurfaceProjectionFromStore store definition (3 :: Int)
+        html <- renderLiveSurfaceProjectionFragmentFromStore store definition 3 7
+        let fragmentRef = liveSurfaceProjectionFragmentRef definition 3 7
+        loadCount <- readIORef loadCountRef
+
+        snapshot `shouldBe` ("projection-1" :: Text)
+        HtmlRenderer.renderHtml <$> html `shouldBe` Just "projection-1-fragment-7"
+        fragmentRef.targetId `shouldBe` "surface-target-3-7"
+        fragmentRef.url `shouldBe` "/surface/3/7"
+        loadCount `shouldBe` 1
 
 testDefinition :: IORef Text -> IORef Int -> IORef Int -> SurfaceProjectionCachePolicy -> SurfaceProjectionDefinition Int Text Int
 testDefinition viewerRef versionRef loadCountRef cachePolicy =
