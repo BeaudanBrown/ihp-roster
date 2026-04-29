@@ -175,14 +175,21 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status403
 
-        it "shows the Xero admin section as not connected" $ withContext do
+        it "shows the Xero page as not connected" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Admin Venue"
                 admin <- createUserRecord "xero-admin-page@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
 
-                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction AdminAction
+
+                adminResponse `responseStatusShouldBe` status200
+                adminResponse `responseBodyShouldContain` "href=\"/Xero\""
+                adminResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction XeroAction
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Xero"
@@ -406,7 +413,7 @@ tests = beforeAll testContext do
                         ]
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction AdminAction
+                    callAction XeroAction
                 pageResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
                 pageResponse `responseBodyShouldContain` "admin_xero"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
@@ -439,7 +446,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Staff Mapping Visibility Venue"
                 admin <- createUserRecord "xero-staff-mapping-visibility@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
                 _ <- createStaffRecord venue Nothing "Local" "Worker"
 
@@ -473,7 +480,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Staff Mapping Venue"
                 admin <- createUserRecord "xero-staff-mapping@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
                 staff <- createStaffRecord venue Nothing "Ada" "Lovelace"
                 trialStaff <- createStaffRecord venue Nothing "Trial" "Worker"
@@ -537,7 +544,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Staff Suggestion Venue"
                 admin <- createUserRecord "xero-staff-suggestion@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
                 staff <- createStaffRecord venue Nothing "Ada" "Lovelace"
                 _ <- createXeroEmployeeRecord connection "Ava Lovelace" Nothing "employee-ava"
@@ -558,7 +565,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Staff Weak Suggestion Venue"
                 admin <- createUserRecord "xero-staff-weak-suggestion@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
                 weakStaff <- createStaffRecord venue Nothing "Ada" "Lovelace"
                 ambiguousStaff <- createStaffRecord venue Nothing "John" "Smith"
@@ -588,7 +595,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Earnings Mapping Venue"
                 admin <- createUserRecord "xero-earnings-mapping@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 owner <- createUserRecord "xero-earnings-owner@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
                 connection <- createActiveXeroConnection venue admin
@@ -714,7 +721,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Pay Item Archive Venue"
                 admin <- createUserRecord "xero-pay-item-archive@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 _ <- createActiveXeroConnection venue admin
                 awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
                 _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
@@ -749,7 +756,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Pay Item Fallback Venue"
                 admin <- createUserRecord "xero-pay-item-fallback@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
                 awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
                 addCasualBaseAndSaturdayPenalty awardLevel 40.00 60.00
@@ -780,7 +787,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Pay Item Namespace Venue"
                 admin <- createUserRecord "xero-pay-item-namespace@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
                 awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
                 _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
@@ -802,7 +809,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Pay Item Used Scope Venue"
                 admin <- createUserRecord "xero-pay-item-used-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
                 floorLevel <- createPayLevelRecordWithRates venue "Floor Level" 31.50 3.15 6.30 1 1.25 1.50
                 kitchenLevel <- createPayLevelRecordWithRates venue "Kitchen Level" 40.00 4.00 8.00 1 1.25 1.50
@@ -835,7 +842,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Pay Item Rate Change Venue"
                 admin <- createUserRecord "xero-pay-item-rate-change@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createActiveXeroConnection venue admin
                 awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
                 _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
@@ -877,8 +884,8 @@ tests = beforeAll testContext do
                 venueA <- createVenueWithConfig "Xero Staff Mapping Venue A"
                 venueB <- createVenueWithConfig "Xero Staff Mapping Venue B"
                 admin <- createUserRecord "xero-staff-mapping-scope@example.com" "staff" True
-                _ <- createVenueMembershipRecord venueA admin "venue_admin"
-                _ <- createVenueMembershipRecord venueB admin "venue_admin"
+                _ <- createVenueMembershipRecord venueA admin "venue_owner"
+                _ <- createVenueMembershipRecord venueB admin "venue_owner"
                 connectionA <- createActiveXeroConnection venueA admin
                 connectionB <- createActiveXeroConnection venueB admin
                 staffA <- createStaffRecord venueA Nothing "Venue" "A"
@@ -907,7 +914,7 @@ tests = beforeAll testContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Sync Failure Venue"
                 admin <- createUserRecord "xero-sync-failure@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
                 connection <- createSyncableXeroConnection venue admin
 
                 response <- withXeroConfigForTest (Right testXeroConfig) do
@@ -1017,7 +1024,24 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldContain` "Exports"
+                response `responseBodyShouldContain` "href=\"/Xero\""
                 response `responseBodyShouldNotContain` "Venue Config"
+
+        it "hides and blocks the Xero header button for venue admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Venue Admin Tab Venue"
+                venueAdmin <- createUserRecord "xero-venue-admin-tab@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue venueAdmin "venue_admin"
+
+                adminResponse <- withPasskeyVerifiedUserAndCurrentVenue venueAdmin venue.id do
+                    callAction AdminAction
+                xeroResponse <- withPasskeyVerifiedUserAndCurrentVenue venueAdmin venue.id do
+                    callAction XeroAction
+
+                adminResponse `responseStatusShouldBe` status200
+                adminResponse `responseBodyShouldNotContain` "href=\"/Xero\""
+                adminResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+                xeroResponse `responseStatusShouldBe` status403
 
         it "serves inactive toggles through targeted admin fragments" $ withContext do
             withCleanDb do
@@ -1113,8 +1137,8 @@ tests = beforeAll testContext do
                 createShiftResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
                 createShiftResponse `responseBodyShouldContain` "Fragment Shift"
                 createShiftResponse `responseBodyShouldContain` "checked=\"checked\""
-                createShiftResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
-                createShiftResponse `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+                createShiftResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+                createShiftResponse `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 createShiftResponse `responseBodyShouldNotContain` "id=\"app\""
                 shiftTypesVersionAfter <- currentLiveUpdateVersion AdminShiftTypesScope { venueId = unpackId venue.id }
                 shiftTypesVersionAfter `shouldBe` (shiftTypesVersionBefore + 1)
@@ -1132,8 +1156,8 @@ tests = beforeAll testContext do
                 updateShiftResponse `responseStatusShouldBe` status200
                 updateShiftResponse `responseBodyShouldContain` "Updated Fragment Shift"
                 updateShiftResponse `responseBodyShouldContain` "inactive"
-                updateShiftResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
-                updateShiftResponse `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+                updateShiftResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+                updateShiftResponse `responseBodyShouldNotContain` "hx-swap-oob=\"outerHTML\""
                 xeroVersionAfterUpdateShift <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
                 xeroVersionAfterUpdateShift `shouldBe` (xeroVersionAfterCreateShift + 1)
 

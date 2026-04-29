@@ -207,7 +207,7 @@ function scenarioDefinitions(manifest) {
             visit('leave.profile.full', routes.profileLeave || '/EditProfile?section=leave', '#profile-content-fragment'),
         ],
         xero: [
-            visit('xero.admin.full', routes.admin || '/Admin', '#admin-config-sections'),
+            visit('xero.full', routes.xero || '/Xero', '#admin-xero-fragment'),
             visit('xero.admin.fragment', routes.adminXeroFragment || '/ShowAdminXeroFragment', '#admin-xero-fragment'),
             xeroAutosave('xero.staff_mapping.autosave'),
             xeroAutosave('xero.staff_mapping.autosave_bottom'),
@@ -369,11 +369,7 @@ function renderMarkdown(options, manifest, summary) {
 
 async function openXeroAdminSection(page, options, manifest) {
     const routes = manifest.routes || {};
-    await gotoReady(page, options.baseUrl, routes.admin || '/Admin', '#admin-config-sections', options.timeoutMs);
-    const xeroToggle = page.locator('#xero-heading button').first();
-    if ((await xeroToggle.getAttribute('aria-expanded')) !== 'true') {
-        await xeroToggle.click();
-    }
+    await gotoReady(page, options.baseUrl, routes.xero || '/Xero', '#admin-xero-fragment', options.timeoutMs);
     await page.locator('#admin-xero-fragment').waitFor({ state: 'visible', timeout: options.timeoutMs });
     await page.locator('select[name="xeroEmployeeSelection"]').first().waitFor({ state: 'visible', timeout: options.timeoutMs });
 }

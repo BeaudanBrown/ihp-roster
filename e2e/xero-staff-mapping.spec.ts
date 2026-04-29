@@ -166,11 +166,7 @@ function resetXeroStaffMappingFixture() {
 }
 
 async function openXeroSection(page: import('@playwright/test').Page) {
-    await gotoWhenReady(page, '/Admin', '#admin-config-sections');
-    const xeroToggle = page.locator('#xero-heading button');
-    if ((await xeroToggle.getAttribute('aria-expanded')) !== 'true') {
-        await xeroToggle.click();
-    }
+    await gotoWhenReady(page, '/Xero', '#admin-xero-fragment');
     await expect(page.locator('#admin-xero-fragment')).toBeVisible();
     await expect(page.locator('select[name="xeroEmployeeSelection"]').first()).toBeVisible();
 }

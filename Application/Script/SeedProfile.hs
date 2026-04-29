@@ -195,6 +195,7 @@ renderProfileSeedManifest plan =
         , "    \"leaveRequests\": \"/LeaveRequests\","
         , "    \"profileLeave\": \"/EditProfile?section=leave\","
         , "    \"admin\": \"/Admin\","
+        , "    \"xero\": \"/Xero\","
         , "    \"adminXeroFragment\": \"/ShowAdminXeroFragment\""
         , "  },"
         , "  \"xero\": {"
