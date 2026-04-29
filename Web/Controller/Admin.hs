@@ -51,7 +51,7 @@ respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero =
             awardLevels <- fetchActiveAwardLevels
             awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
             let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
-            xeroFragment <- if shouldRefreshXero then renderCurrentVenueXeroSectionFragmentOob else pure mempty
+            xeroFragment <- if shouldRefreshXero && currentUserCanManageXeroIntegration then renderCurrentVenueXeroSectionFragmentOob else pure mempty
             respondHtml $
                 mconcat
                     [ renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates
@@ -83,24 +83,12 @@ instance Controller AdminController where
         let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
         invitations <- fetchCurrentVenueInvitations
         let invitesLiveUpdateScope = Just (adminInvitesScope currentVenueId)
-        xeroConnection <- fetchCurrentVenueXeroConnection
-        xeroConnectedByUser <- fetchXeroConnectedByUser xeroConnection
-        xeroLatestSyncRun <- fetchLatestCurrentVenueXeroSyncRun
-        xeroEmployeeCount <- fetchCurrentVenueXeroEmployeeCount xeroConnection
-        xeroEarningsRateCount <- fetchCurrentVenueXeroEarningsRateCount xeroConnection
-        xeroPayrollCalendarCount <- fetchCurrentVenueXeroPayrollCalendarCount xeroConnection
-        xeroEmployees <- fetchCurrentVenueXeroEmployees xeroConnection
-        xeroStaffMappingRows <- fetchCurrentVenueXeroStaffMappingRows xeroConnection
-        let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
-        xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates xeroConnection
-        xeroPayItemRequirements <- fetchCurrentVenueXeroPayItemRequirements xeroConnection xeroEarningsRates
-        xeroPayrollCalendars <- fetchCurrentVenueXeroPayrollCalendars xeroConnection
-        xeroPayrollCalendarSelection <- fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection
-        xeroPayItemAccountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection
-        let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
-        let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
-        let xeroSectionData = XeroAdminSectionData { .. }
         render IndexView { .. }
+
+    action XeroAction = do
+        accessDeniedUnless currentUserCanManageXeroIntegration
+        xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
+        render XeroView { .. }
 
     action StartXeroConnectionAction =
         startXeroConnectionAction
@@ -112,25 +100,25 @@ instance Controller AdminController where
         disconnectXeroConnectionAction
 
     action SyncXeroPayrollReferenceDataAction =
-        syncXeroPayrollReferenceDataAction
+        requireCurrentVenueOwnerForXero syncXeroPayrollReferenceDataAction
 
     action CreateMissingXeroPayItemsAction =
-        createMissingXeroPayItemsAction
+        requireCurrentVenueOwnerForXero createMissingXeroPayItemsAction
 
     action SaveXeroStaffMappingAction =
-        saveXeroStaffMappingAction
+        requireCurrentVenueOwnerForXero saveXeroStaffMappingAction
 
     action SuggestXeroStaffMappingAction { staffId } =
-        suggestXeroStaffMappingAction staffId
+        requireCurrentVenueOwnerForXero (suggestXeroStaffMappingAction staffId)
 
     action SaveXeroEarningsRateMappingAction =
-        saveXeroEarningsRateMappingAction
+        requireCurrentVenueOwnerForXero saveXeroEarningsRateMappingAction
 
     action SaveXeroPayItemAccountCodeSelectionAction =
-        saveXeroPayItemAccountCodeSelectionAction
+        requireCurrentVenueOwnerForXero saveXeroPayItemAccountCodeSelectionAction
 
     action SaveXeroPayrollCalendarSelectionAction =
-        saveXeroPayrollCalendarSelectionAction
+        requireCurrentVenueOwnerForXero saveXeroPayrollCalendarSelectionAction
 
     action UpdateVenueConfigAction = do
         venueConfig <- fetchVenueConfig
@@ -180,7 +168,7 @@ instance Controller AdminController where
         respondHtml (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)
 
     action ShowAdminXeroFragmentAction = do
-        respondWithXeroSectionFragment
+        requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
 
     action CreateVenueInvitationAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")

@@ -8,6 +8,7 @@ module Application.Helper.View
     ) where
 
 import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
+                                      currentVenueRoleOrNothing,
                                       hasRole)
 import Application.Helper.View.Chrome
 import Application.Helper.View.Leave
@@ -41,10 +42,14 @@ currentUserIsAdmin = hasRole VenueAdminRole
 currentUserIsSupportAdmin :: (?context :: ControllerContext) => Bool
 currentUserIsSupportAdmin = currentUserIsSuperAdmin
 
+currentUserIsVenueOwner :: (?context :: ControllerContext) => Bool
+currentUserIsVenueOwner = currentVenueRoleOrNothing == Just VenueOwnerRole
+
 data ViewAudience
     = AnySignedInAudience
     | StaffProfileAudience
     | ManagerAudience
+    | VenueOwnerAudience
     | AdminAudience
     | SupportAudience
     deriving (Eq, Show)
@@ -55,6 +60,7 @@ currentUserMatchesAudience audience =
         AnySignedInAudience -> isJust currentUserOrNothing
         StaffProfileAudience -> isJust currentUserOrNothing && not currentUserIsSupportAdmin
         ManagerAudience     -> currentUserIsManager
+        VenueOwnerAudience  -> currentUserIsVenueOwner
         AdminAudience       -> currentUserIsAdmin
         SupportAudience     -> currentUserIsSupportAdmin
 

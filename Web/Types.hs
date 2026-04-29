@@ -81,6 +81,7 @@ data ExportsController
 
 data AdminController
     = AdminAction
+    | XeroAction
     | StartXeroConnectionAction
     | XeroOAuthCallbackAction
     | DisconnectXeroConnectionAction

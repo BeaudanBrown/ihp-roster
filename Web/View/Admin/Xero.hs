@@ -1,5 +1,6 @@
 module Web.View.Admin.Xero
-    ( renderXeroSection
+    ( XeroView (..)
+    , renderXeroSection
     , renderXeroSectionFragment
     , renderXeroSectionFragmentOob
     , renderXeroStaffMappingControlsOob
@@ -18,6 +19,32 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Web.View.Admin.Common
 import Web.View.Prelude
+
+data XeroView = XeroView
+    { xeroSectionData :: XeroAdminSectionData
+    }
+
+instance View XeroView where
+    html XeroView { .. } =
+        let xeroPanel =
+                renderAppPanel AppPanelConfig
+                    { appPanelTitle = Nothing
+                    , appPanelDescription = Nothing
+                    , appPanelHasActions = False
+                    , appPanelActions = mempty
+                    , appPanelHasCustomHeader = False
+                    , appPanelCustomHeader = mempty
+                    , appPanelClass = "overflow-hidden"
+                    , appPanelBodyClass = ""
+                    , appPanelBody = renderXeroSectionFragment xeroSectionData
+                    }
+         in renderAppPage AppPageConfig
+            { appPageTitle = "Xero"
+            , appPageDescription = Nothing
+            , appPageActions = mempty
+            , appPageWidthClass = ""
+            , appPageBody = xeroPanel
+            }
 
 adminXeroLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
 adminXeroLiveSurface =
@@ -153,7 +180,7 @@ renderXeroConnectControl True = [hsx|
     </form>
 |]
 renderXeroConnectControl False = [hsx|
-    <p class="mb-0 small app-muted">Only the venue owner can connect Xero for this venue.</p>
+    <p class="mb-0 small app-muted">Only the venue owner or a super admin can connect Xero for this venue.</p>
 |]
 
 renderXeroReconnectControls :: Bool -> Html
@@ -166,7 +193,7 @@ renderXeroReconnectControls True = [hsx|
     </form>
 |]
 renderXeroReconnectControls False = [hsx|
-    <span class="align-self-center small app-muted">Only the venue owner can reconnect or disconnect Xero.</span>
+    <span class="align-self-center small app-muted">Only the venue owner or a super admin can reconnect or disconnect Xero.</span>
 |]
 
 renderXeroConnectionStatus :: XeroConnection -> Html

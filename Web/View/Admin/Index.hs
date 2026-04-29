@@ -3,13 +3,11 @@ module Web.View.Admin.Index where
 import Application.Helper.Export (ReportWeekSelection (..))
 import Application.Helper.LiveSurface (liveSurfaceConfigJson)
 import Application.Helper.LiveUpdate (LiveUpdateScope)
-import Application.Helper.XeroAdminTypes
 import Web.View.Admin.Common
 import Web.View.Admin.Exports
 import Web.View.Admin.Invites
 import Web.View.Admin.RosterGroups
 import Web.View.Admin.ShiftTypes
-import Web.View.Admin.Xero
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -25,7 +23,6 @@ data IndexView = IndexView
     , exportJobs               :: [ExportJob]
     , invitations              :: [VenueInvitation]
     , invitesLiveUpdateScope   :: Maybe LiveUpdateScope
-    , xeroSectionData          :: XeroAdminSectionData
     , showInactiveRosterGroups :: Bool
     , showInactiveShiftTypes   :: Bool
     }
@@ -43,14 +40,7 @@ instance View IndexView where
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
-                        <div class="row g-3">
-                            <div class="col-12">
-                                {renderXeroSectionFragment xeroSectionData}
-                            </div>
-                            <div class="col-12">
-                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs}
-                            </div>
-                        </div>
+                        {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs}
                     |]
                     }
          in renderAppPage (AppPageConfig

@@ -92,8 +92,8 @@ syncXeroPayrollReferenceDataAction = do
 
 createMissingXeroPayItemsAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 createMissingXeroPayItemsAction =
-    if not currentUserIsCurrentVenueOwner
-        then respondWithXeroMappingMutationError "Only the venue owner can create pay items in Xero."
+    if not currentUserCanManageXeroIntegration
+        then respondWithXeroMappingMutationError "Only the venue owner or a super admin can create pay items in Xero."
         else do
             maybeConnection <- fetchActiveCurrentVenueXeroConnection
             case maybeConnection of
@@ -142,8 +142,8 @@ saveXeroEarningsRateMappingAction = do
 
 saveXeroPayItemAccountCodeSelectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 saveXeroPayItemAccountCodeSelectionAction =
-    if not currentUserIsCurrentVenueOwner
-        then respondWithXeroMappingMutationError "Only the venue owner can choose the Xero pay item account code."
+    if not currentUserCanManageXeroIntegration
+        then respondWithXeroMappingMutationError "Only the venue owner or a super admin can choose the Xero pay item account code."
         else do
             maybeConnection <- fetchCurrentVenueXeroConnection
             case maybeConnection of
@@ -531,7 +531,7 @@ fetchCurrentVenueXeroAdminSectionData = do
     xeroPayrollCalendarSelection <- profileActionSpan "admin.xero.calendar.fetch_selection" (fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection)
     xeroPayItemAccountCodeSelection <- profileActionSpan "admin.xero.pay_item_account_code.fetch_selection" (fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection)
     let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
-    let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
+    let xeroConnectionActionsAllowed = currentUserCanManageXeroIntegration
     pure XeroAdminSectionData { .. }
 
 renderCurrentVenueXeroSectionFragmentOob ::
@@ -566,16 +566,16 @@ xeroSuccessToast = successToast
 xeroErrorToast :: Text -> ToastOverlayConfig
 xeroErrorToast = errorToast
 
-currentUserIsCurrentVenueOwner :: (?context :: ControllerContext) => Bool
-currentUserIsCurrentVenueOwner =
-    currentVenueRoleOrNothing == Just VenueOwnerRole
+currentUserCanManageXeroIntegration :: (?context :: ControllerContext) => Bool
+currentUserCanManageXeroIntegration =
+    currentUserIsSuperAdmin || currentVenueRoleOrNothing == Just VenueOwnerRole
 
 requireCurrentVenueOwnerForXero :: (?context :: ControllerContext, ?request :: Request) => IO () -> IO ()
 requireCurrentVenueOwnerForXero action =
-    if currentUserIsCurrentVenueOwner
+    if currentUserCanManageXeroIntegration
         then action
         else do
-            setErrorMessage "Only the venue owner can connect or disconnect Xero for this venue."
+            setErrorMessage "Only the venue owner or a super admin can manage Xero for this venue."
             redirectTo AdminAction
 
 disconnectXeroConnection ::
