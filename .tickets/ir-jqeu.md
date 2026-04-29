@@ -1,6 +1,6 @@
 ---
 id: ir-jqeu
-status: open
+status: closed
 deps: [ir-yznv]
 links: []
 created: 2026-04-29T04:45:43Z
@@ -18,3 +18,9 @@ Phase 4 from plans/62-live-fragment-system-refactor.md: define a richer server-s
 
 A small surface can broadcast via a surface definition instead of hand-built LiveFragmentRef values, with tests documenting the API.
 
+
+## Notes
+
+**2026-04-29T04:58:59Z**
+
+Added a reusable LiveSurfaceDefinition API with helpers to build live surface configs, fragment refs, and controller-context broadcasts from typed surface fragments. Migrated the support surface onto the definition pattern as the first concrete adoption. Verified with typecheck and LiveUpdate Hspec.

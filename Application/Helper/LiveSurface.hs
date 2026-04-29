@@ -1,6 +1,11 @@
 module Application.Helper.LiveSurface
     ( LiveSurfaceConfig (..)
+    , LiveSurfaceDefinition (..)
+    , broadcastSurfaceFragments
     , liveSurfaceConfigJson
+    , liveSurfaceFragmentRef
+    , liveSurfaceFragmentRefs
+    , mkDefinedLiveSurface
     , mkLiveSurface
     ) where
 
@@ -8,6 +13,8 @@ import Application.Helper.LiveUpdate
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text.Encoding as Text
+import IHP.Controller.Context (ControllerContext)
+import IHP.ControllerSupport (Request)
 import IHP.Prelude
 
 data LiveSurfaceConfig = LiveSurfaceConfig
@@ -19,6 +26,14 @@ data LiveSurfaceConfig = LiveSurfaceConfig
     , decorateRequestsWithin :: ![Text]
     }
     deriving (Eq, Show)
+
+data LiveSurfaceDefinition scope fragment = LiveSurfaceDefinition
+    { surfaceFeature                :: !Text
+    , surfaceScope                  :: scope -> LiveUpdateScope
+    , surfaceDefaultFragments       :: scope -> [fragment]
+    , surfaceFragmentRef            :: scope -> fragment -> LiveFragmentRef
+    , surfaceDecorateRequestsWithin :: scope -> [Text]
+    }
 
 instance Aeson.ToJSON LiveSurfaceConfig where
     toJSON LiveSurfaceConfig { feature, socketPath, scope, scopeKey, resyncFragments, decorateRequestsWithin } =
@@ -51,6 +66,35 @@ mkLiveSurface feature scope resyncFragments =
         , resyncFragments
         , decorateRequestsWithin = []
         }
+
+mkDefinedLiveSurface :: LiveSurfaceDefinition scope fragment -> scope -> LiveSurfaceConfig
+mkDefinedLiveSurface definition surfaceKey =
+    (mkLiveSurface
+        definition.surfaceFeature
+        (definition.surfaceScope surfaceKey)
+        (liveSurfaceFragmentRefs definition surfaceKey (definition.surfaceDefaultFragments surfaceKey)))
+        { decorateRequestsWithin = definition.surfaceDecorateRequestsWithin surfaceKey
+        }
+
+liveSurfaceFragmentRef :: LiveSurfaceDefinition scope fragment -> scope -> fragment -> LiveFragmentRef
+liveSurfaceFragmentRef definition surfaceKey fragment =
+    definition.surfaceFragmentRef surfaceKey fragment
+
+liveSurfaceFragmentRefs :: LiveSurfaceDefinition scope fragment -> scope -> [fragment] -> [LiveFragmentRef]
+liveSurfaceFragmentRefs definition surfaceKey =
+    map (liveSurfaceFragmentRef definition surfaceKey)
+
+broadcastSurfaceFragments ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    LiveSurfaceDefinition scope fragment ->
+    scope ->
+    [fragment] ->
+    IO ()
+broadcastSurfaceFragments definition surfaceKey fragments =
+    broadcastLiveInvalidation
+        (definition.surfaceScope surfaceKey)
+        liveUpdateSourceClientId
+        (liveSurfaceFragmentRefs definition surfaceKey fragments)
 
 liveSurfaceConfigJson :: LiveSurfaceConfig -> Text
 liveSurfaceConfigJson =
