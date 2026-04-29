@@ -30,39 +30,29 @@ tests = beforeAll testContext do
         it "renders the canonical staff-hours CSV exactly" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture
-                exportJob <- generatePayrollExportJob fixture.admin fixture.venue "staff_hours" 0
+                exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 expectedCsv <- readExportFixtureText "staff_hours-expected.csv"
 
                 get #exportType exportJob `shouldBe` exportJobTypeToText StaffPayCsv
-                get #fileName exportJob `shouldBe` Just "staff_hours-2025-01-06.csv"
+                get #fileName exportJob `shouldBe` Just "staff_hours-2025-01-06-to-2025-01-12.csv"
                 get #payConfigSnapshotVersion exportJob `shouldBe` Just "v1"
-                unsafeStripCarriageReturns (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
-
-        it "preserves the historical filtered kitchen CSV exactly" $ withContext do
-            withCleanDb do
-                fixture <- seedCanonicalPayrollFixture
-                exportJob <- generatePayrollExportJob fixture.admin fixture.venue "kitchen" 0
-                expectedCsv <- readExportFixtureText "kitchen-expected.csv"
-
-                get #exportType exportJob `shouldBe` exportJobTypeToText StaffPayCsv
-                get #fileName exportJob `shouldBe` Just "kitchen-2025-01-06.csv"
                 unsafeStripCarriageReturns (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
 
         it "renders the canonical payroll earnings CSV shape exactly after normalizing row ids" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture
-                exportJob <- generatePayrollExportJob fixture.admin fixture.venue "payroll_earnings" 0
+                exportJob <- generatePayrollExportJob fixture.admin fixture.venue PayrollEarningsCsv
                 expectedCsv <- readExportFixtureText "payroll_earnings-expected.normalized.csv"
 
                 get #exportType exportJob `shouldBe` exportJobTypeToText PayrollEarningsCsv
-                get #fileName exportJob `shouldBe` Just "payroll_earnings-2025-01-06.csv"
+                get #fileName exportJob `shouldBe` Just "payroll_earnings-2025-01-06-to-2025-01-12.csv"
                 get #payConfigSnapshotVersion exportJob `shouldBe` Just "v1"
                 normalizePayrollEarningsCsv (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
 
         it "keeps only approved non-trial hours and buckets canonical rows into the expected days" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture
-                exportJob <- generatePayrollExportJob fixture.admin fixture.venue "staff_hours" 0
+                exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
                 Map.keys csvRows `shouldBe` ["Ava LVL 1", "Ava LVL 2", "Kai LVL 1"]
@@ -79,7 +69,7 @@ tests = beforeAll testContext do
                     |> set #overrideAwardLevelId (Just fixture.levelTwo.id)
                     |> updateRecord
 
-                exportJob <- generatePayrollExportJob fixture.admin fixture.venue "staff_hours" 0
+                exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
 
                 get #payConfigSnapshotVersion exportJob `shouldBe` Just "v1"
                 unsafeStripCarriageReturns (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
@@ -94,7 +84,7 @@ tests = beforeAll testContext do
                     , set #endTime (TimeOfDay 12 0 0)
                     ]
 
-                exportJob <- generatePayrollExportJob fixture.admin fixture.venue "staff_hours" 0
+                exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
                 get #payConfigSnapshotVersion exportJob `shouldBe` Just "mixed"
@@ -103,7 +93,7 @@ tests = beforeAll testContext do
         it "aggregates multiple staff, employment bases, roles, breaks, and overnight penalty buckets" $ withContext do
             withCleanDb do
                 fixture <- seedPayrollMatrixFixture
-                exportJob <- generatePayrollExportJob fixture.admin fixture.venue "staff_hours" 0
+                exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
                 Map.keys csvRows `shouldBe`
@@ -159,22 +149,6 @@ tests = beforeAll testContext do
                     , "5.67"
                     ]
 
-        it "keeps filtered payroll exports grouped by staff while still using FWC-derived segment buckets" $ withContext do
-            withCleanDb do
-                fixture <- seedPayrollMatrixFixture
-                exportJob <- generatePayrollExportJob fixture.admin fixture.venue "supervisor" 0
-                let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
-
-                Map.keys csvRows `shouldBe` ["Ava"]
-                lookupCsvRow csvRows "Ava" `shouldBe`
-                    [ "0.00", "0.00", "0.00"
-                    , "0.00", "0.00", "0.00"
-                    , "0.00", "0.00", "0.00"
-                    , "0.00", "0.00", "0.00"
-                    , "1.00", "4.50", "0.00"
-                    , "0.00", "2.00"
-                    , "0.00"
-                    ]
     where
         unsafeStripCarriageReturns = Text.replace "\r" ""
 
@@ -381,14 +355,14 @@ generatePayrollExportJob ::
     (?mocking :: MockContext WebApplication, ?request :: Request, ?respond :: Respond, ?modelContext :: ModelContext, ?application :: WebApplication) =>
     User ->
     Venue ->
-    Text ->
-    Int ->
+    ExportJobType ->
     IO ExportJob
-generatePayrollExportJob user venue reportSlug weekOffset = do
+generatePayrollExportJob user venue exportType = do
     response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
         callActionWithParams CreateExportJobAction
-            [ ("reportSlug", cs reportSlug)
-            , ("weekOffset", cs (tshow weekOffset))
+            [ ("exportType", cs (exportJobTypeToText exportType))
+            , ("rangeStart", "2025-01-06")
+            , ("rangeEnd", "2025-01-12")
             ]
 
     response `responseStatusShouldBe` status302

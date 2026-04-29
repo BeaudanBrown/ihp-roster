@@ -62,7 +62,8 @@ tests = beforeAll testContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
-                        [ ("rangeStart", "2025-01-06")
+                        [ ("exportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))
+                        , ("rangeStart", "2025-01-06")
                         , ("rangeEnd", "2025-01-12")
                         ]
 
@@ -127,15 +128,16 @@ tests = beforeAll testContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
-                        [ ("reportSlug", "staff_hours")
-                        , ("weekOffset", "0")
+                        [ ("exportType", cs (exportJobTypeToText StaffPayCsv))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
                         ]
 
                 response `responseStatusShouldBe` status302
 
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText StaffPayCsv
-                exportJob.fileName `shouldBe` Just "staff_hours-2025-01-06.csv"
+                exportJob.fileName `shouldBe` Just "staff_hours-2025-01-06-to-2025-01-12.csv"
                 exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     Text.isInfixOf "Name/Type,Mond Ord,Mond 7-12,Mond 12+"
@@ -144,45 +146,45 @@ tests = beforeAll testContext do
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
 
-        it "creates the filtered kitchen payroll export with a blank type column" $ withContext do
+        it "limits staff-hours payroll exports to the requested date range" $ withContext do
             withCleanDb do
-                let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 7200)
-                venue <- createVenueWithConfig "Kitchen Venue"
-                admin <- createUserRecord "kitchen-admin@example.com" "staff" True
+                let approvedAt = UTCTime (fromGregorian 2025 1 12) (secondsToDiffTime 3600)
+                venue <- createVenueWithConfig "Payroll Range Venue"
+                admin <- createUserRecord "payroll-range-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 dayNames <- seedWeekDayNames venue
                 levelOne <- createPayLevelRecord venue "LVL 1"
                 barShift <- createShiftTypeRecord venue levelOne "Bar"
-                kitchenShift <- createShiftTypeRecord venue levelOne "Kitchen"
-                staffUser <- createUserRecord "kitchen-staff@example.com" "staff" True
-                staff <- createStaffRecord venue (Just staffUser) "Kai" "Cook"
-                snapshot <- createPayrollSnapshot venue admin [levelOne] [barShift, kitchenShift] dayNames []
+                staffUser <- createUserRecord "payroll-range-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
+                snapshot <- createPayrollSnapshot venue admin [levelOne] [barShift] dayNames []
 
                 _ <- createAndApproveEntry venue staff defaultWeekEpoch snapshot admin approvedAt
                     [ set #shiftTypeId (unpackId barShift.id)
                     , set #startTime (TimeOfDay 9 0 0)
-                    , set #endTime (TimeOfDay 12 0 0)
+                    , set #endTime (TimeOfDay 17 0 0)
                     ]
-                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 7) snapshot admin approvedAt
-                    [ set #shiftTypeId (unpackId kitchenShift.id)
+                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 8) snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId barShift.id)
                     , set #startTime (TimeOfDay 10 0 0)
-                    , set #endTime (TimeOfDay 14 0 0)
+                    , set #endTime (TimeOfDay 13 0 0)
                     ]
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
-                        [ ("reportSlug", "kitchen")
-                        , ("weekOffset", "0")
+                        [ ("exportType", cs (exportJobTypeToText StaffPayCsv))
+                        , ("rangeStart", "2025-01-08")
+                        , ("rangeEnd", "2025-01-08")
                         ]
 
                 response `responseStatusShouldBe` status302
 
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
-                exportJob.fileName `shouldBe` Just "kitchen-2025-01-06.csv"
+                exportJob.fileName `shouldBe` Just "staff_hours-2025-01-08-to-2025-01-08.csv"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "Kai,0.00,0.00,0.00,4.00,0.00,0.00"
+                    Text.isInfixOf "Ava LVL 1,0.00,0.00,0.00,0.00,0.00,0.00,3.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    (not . Text.isInfixOf "3.00")
+                    (not . Text.isInfixOf "8.00")
 
         it "creates a payroll earnings export grouped by staff date earnings and tracking code" $ withContext do
             withCleanDb do
@@ -233,8 +235,9 @@ tests = beforeAll testContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
-                        [ ("reportSlug", "payroll_earnings")
-                        , ("weekOffset", "0")
+                        [ ("exportType", cs (exportJobTypeToText PayrollEarningsCsv))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
                         ]
 
                 response `responseStatusShouldBe` status302
@@ -242,7 +245,7 @@ tests = beforeAll testContext do
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 let csvContents = fromMaybe "" exportJob.fileContents
                 exportJob.exportType `shouldBe` exportJobTypeToText PayrollEarningsCsv
-                exportJob.fileName `shouldBe` Just "payroll_earnings-2025-01-06.csv"
+                exportJob.fileName `shouldBe` Just "payroll_earnings-2025-01-06-to-2025-01-12.csv"
                 exportJob.contentType `shouldBe` Just "text/csv; charset=utf-8"
                 exportJob.fileEncoding `shouldBe` "utf8"
                 exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
@@ -285,15 +288,16 @@ tests = beforeAll testContext do
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
-                        [ ("reportSlug", "wage")
-                        , ("weekOffset", "0")
+                        [ ("exportType", cs (exportJobTypeToText HourlyBreakdownZip))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
                         ]
 
                 response `responseStatusShouldBe` status302
 
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText HourlyBreakdownZip
-                exportJob.fileName `shouldBe` Just "wage-2025-01-06.zip"
+                exportJob.fileName `shouldBe` Just "hourly_breakdown-2025-01-06-to-2025-01-12.zip"
                 exportJob.contentType `shouldBe` Just "application/zip"
                 exportJob.fileEncoding `shouldBe` "base64"
                 exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
@@ -304,14 +308,14 @@ tests = beforeAll testContext do
 
                 downloadResponse `responseStatusShouldBe` status200
                 lookup hContentType (responseHeaders downloadResponse) `shouldBe` Just "application/zip"
-                lookup hContentDisposition (responseHeaders downloadResponse) `shouldBe` Just "attachment; filename=\"wage-2025-01-06.zip\""
+                lookup hContentDisposition (responseHeaders downloadResponse) `shouldBe` Just "attachment; filename=\"hourly_breakdown-2025-01-06-to-2025-01-12.zip\""
 
                 downloadBody <- responseBody downloadResponse
                 let archive = Zip.toArchive downloadBody
-                Zip.filesInArchive archive `shouldBe` ["Monday.csv", "Tuesday.csv", "Wednesday.csv", "Thursday.csv", "Friday.csv", "Saturday.csv", "Sunday.csv"]
+                Zip.filesInArchive archive `shouldContain` ["2025-01-06_Monday.csv"]
                 let mondayCsv =
                         archive
-                            |> Zip.findEntryByPath "Monday.csv"
+                            |> Zip.findEntryByPath "2025-01-06_Monday.csv"
                             |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
                             |> fromMaybe ""
                 mondayCsv `shouldSatisfy` Text.isInfixOf "Time,Bar,Floor"
@@ -334,7 +338,8 @@ tests = beforeAll testContext do
                         . set #approvedByUserId (Just (unpackId admin.id))
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
-                        [ ("rangeStart", "2025-01-06")
+                        [ ("exportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))
+                        , ("rangeStart", "2025-01-06")
                         , ("rangeEnd", "2025-01-12")
                         ]
                 exportJob <- query @ExportJob |> fetchOne
@@ -390,44 +395,27 @@ tests = beforeAll testContext do
                     |> createRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venueB.id do
-                    callAction ExportJobsAction
+                    callAction AdminAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Payroll Reports"
-                response `responseBodyShouldContain` "Week of"
+                response `responseBodyShouldContain` "Exports"
+                response `responseBodyShouldContain` "Approved Timesheets CSV"
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
-                response `responseBodyShouldContain` tshow exportJobB.id
-                response `responseBodyShouldNotContain` tshow exportJobA.id
+                response `responseBodyShouldContain` "venue-b.csv"
+                response `responseBodyShouldNotContain` "venue-a.csv"
 
-        it "bootstraps legacy payroll report definitions for the current venue" $ withContext do
+        it "redirects the legacy export jobs page to the admin exports section" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Export Venue"
                 admin <- createUserRecord "exports-definitions@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
-                payLevel <- createPayLevelRecord venue "Level 2"
-                _ <- createShiftTypeRecord venue payLevel "Bar"
-                _ <- createShiftTypeRecord venue payLevel "Kitchen"
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ExportJobsAction
 
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Wage Report"
-                response `responseBodyShouldContain` "hourly_breakdown_zip"
-                response `responseBodyShouldContain` "Staff Hours Report"
-                response `responseBodyShouldContain` "Payroll Earnings CSV"
-                response `responseBodyShouldContain` "payroll_earnings_csv"
-                response `responseBodyShouldContain` "Kitchen Report"
-                response `responseBodyShouldContain` "Shift-type filter: Kitchen"
-                response `responseBodyShouldContain` "Generate CSV"
-                response `responseBodyShouldContain` "Generate ZIP"
-                response `responseBodyShouldContain` "Generate Payroll CSV"
-                response `responseBodyShouldContain` "Manage Report Definitions"
+                response `responseStatusShouldBe` status302
 
-                storedDefinitions <- query @ReportDefinition |> orderByAsc #sortOrder |> fetch
-                map (.slug) storedDefinitions `shouldBe` ["wage", "staff_hours", "payroll_earnings", "kitchen"]
-
-        it "lets managers generate payroll exports but not manage report definitions" $ withContext do
+        it "denies managers access to export generation" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Manager Venue"
                 manager <- createUserRecord "exports-manager@example.com" "staff" True
@@ -447,107 +435,16 @@ tests = beforeAll testContext do
                 pageResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction ExportJobsAction
 
-                pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "Payroll Reports"
-                pageResponse `responseBodyShouldNotContain` "Manage Report Definitions"
+                pageResponse `responseStatusShouldBe` status403
 
                 createExportResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateExportJobAction
-                        [ ("reportSlug", "staff_hours")
-                        , ("weekOffset", "0")
+                        [ ("exportType", cs (exportJobTypeToText StaffPayCsv))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
                         ]
 
-                createExportResponse `responseStatusShouldBe` status302
-
-                createDefinitionResponse <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams CreateReportDefinitionAction
-                        [ ("slug", "manager-made")
-                        , ("name", "Manager Made")
-                        , ("engine", "staff_pay_csv")
-                        ]
-
-                createDefinitionResponse `responseStatusShouldBe` status403
-
-        it "lets venue admins create and update report definitions and shift-type filters" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Definition Venue"
-                admin <- createUserRecord "exports-admin-definitions@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-                payLevel <- createPayLevelRecord venue "Level 1"
-                barShift <- createShiftTypeRecord venue payLevel "Bar"
-                kitchenShift <- createShiftTypeRecord venue payLevel "Kitchen"
-
-                createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams CreateReportDefinitionAction
-                        [ ("slug", "front-bar")
-                        , ("name", "Front Bar")
-                        , ("description", "Front bar only")
-                        , ("engine", "staff_pay_csv")
-                        , ("sortOrder", "25")
-                        , ("isActive", "true")
-                        , ("shiftTypeIds", cs (tshow barShift.id))
-                        ]
-
-                createResponse `responseStatusShouldBe` status302
-
-                createdDefinition <- query @ReportDefinition
-                    |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#slug, "front-bar")
-                    |> fetchOne
-                createdDefinition.name `shouldBe` "Front Bar"
-                createdDefinition.description `shouldBe` Just "Front bar only"
-                createdDefinition.engine `shouldBe` "staff_pay_csv"
-                createdDefinition.sortOrder `shouldBe` 25
-                createdDefinition.isActive `shouldBe` True
-
-                createdFilters <- query @ReportDefinitionShiftTypeFilter
-                    |> filterWhere (#reportDefinitionId, unpackId createdDefinition.id)
-                    |> fetch
-                map (.shiftTypeId) createdFilters `shouldBe` [unpackId barShift.id]
-
-                updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (UpdateReportDefinitionAction createdDefinition.id)
-                        [ ("slug", "front-house")
-                        , ("name", "Front House")
-                        , ("description", "")
-                        , ("engine", "hourly_breakdown_zip")
-                        , ("sortOrder", "5")
-                        , ("isActive", "false")
-                        , ("shiftTypeIds", cs (tshow kitchenShift.id))
-                        ]
-
-                updateResponse `responseStatusShouldBe` status302
-
-                updatedDefinition <- fetch createdDefinition.id
-                updatedDefinition.slug `shouldBe` "front-house"
-                updatedDefinition.name `shouldBe` "Front House"
-                updatedDefinition.description `shouldBe` Nothing
-                updatedDefinition.engine `shouldBe` "hourly_breakdown_zip"
-                updatedDefinition.sortOrder `shouldBe` 5
-                updatedDefinition.isActive `shouldBe` False
-
-                updatedFilters <- query @ReportDefinitionShiftTypeFilter
-                    |> filterWhere (#reportDefinitionId, unpackId createdDefinition.id)
-                    |> filterWhere (#deletedAt, Nothing)
-                    |> fetch
-                map (.shiftTypeId) updatedFilters `shouldBe` [unpackId kitchenShift.id]
-
-                createPayrollEarningsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams CreateReportDefinitionAction
-                        [ ("slug", "payroll-earnings-custom")
-                        , ("name", "Payroll Earnings Custom")
-                        , ("engine", "payroll_earnings_csv")
-                        , ("sortOrder", "30")
-                        , ("isActive", "true")
-                        ]
-
-                createPayrollEarningsResponse `responseStatusShouldBe` status302
-
-                payrollEarningsDefinition <- query @ReportDefinition
-                    |> filterWhere (#venueId, unpackId venue.id)
-                    |> filterWhere (#slug, "payroll-earnings-custom")
-                    |> fetchOne
-                payrollEarningsDefinition.engine `shouldBe` "payroll_earnings_csv"
+                createExportResponse `responseStatusShouldBe` status403
 
         it "denies downloading another venue's export job" $ withContext do
             withCleanDb do

@@ -85,9 +85,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Slot Names"
                 response `responseBodyShouldContain` "Invites"
                 response `responseBodyShouldContain` "Exports"
-                response `responseBodyShouldContain` "Generate Staff Pay CSV"
-                response `responseBodyShouldContain` "Generate Hourly Breakdown ZIP"
-                response `responseBodyShouldContain` "Generate Payroll Earnings CSV"
+                response `responseBodyShouldContain` "Staff Hours CSV"
+                response `responseBodyShouldContain` "Hourly Breakdown ZIP"
+                response `responseBodyShouldContain` "Payroll Earnings CSV"
                 response `responseBodyShouldContain` "admin-slot-names-fragment"
                 response `responseBodyShouldContain` "admin-invites-fragment"
                 body <- responseBody response
