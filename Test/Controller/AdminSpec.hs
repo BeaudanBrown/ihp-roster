@@ -1047,21 +1047,26 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateRosterGroup?rosterGroupId=" <> tshow rosterGroup.id)
 
                 shiftTypesVersionBefore <- currentLiveUpdateVersion AdminShiftTypesScope { venueId = unpackId venue.id }
+                xeroVersionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
                 createShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams CreateShiftTypeAction
                             [ ("name", "Fragment Shift")
                             , ("isActive", "true")
-                            , ("overrideAwardLevelId", "")
+                            , ("overrideAwardLevelId", idToParam level.id)
                             , ("showInactiveShiftTypes", "true")
                             ]
                 createShiftResponse `responseStatusShouldBe` status200
                 createShiftResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
                 createShiftResponse `responseBodyShouldContain` "Fragment Shift"
                 createShiftResponse `responseBodyShouldContain` "checked=\"checked\""
+                createShiftResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
+                createShiftResponse `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
                 createShiftResponse `responseBodyShouldNotContain` "id=\"app\""
                 shiftTypesVersionAfter <- currentLiveUpdateVersion AdminShiftTypesScope { venueId = unpackId venue.id }
                 shiftTypesVersionAfter `shouldBe` (shiftTypesVersionBefore + 1)
+                xeroVersionAfterCreateShift <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                xeroVersionAfterCreateShift `shouldBe` (xeroVersionBefore + 1)
 
                 updateShiftResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1074,6 +1079,10 @@ tests = beforeAll testContext do
                 updateShiftResponse `responseStatusShouldBe` status200
                 updateShiftResponse `responseBodyShouldContain` "Updated Fragment Shift"
                 updateShiftResponse `responseBodyShouldContain` "inactive"
+                updateShiftResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
+                updateShiftResponse `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+                xeroVersionAfterUpdateShift <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                xeroVersionAfterUpdateShift `shouldBe` (xeroVersionAfterCreateShift + 1)
 
                 rosterGroupsVersionBefore <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
                 createRosterGroupResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do

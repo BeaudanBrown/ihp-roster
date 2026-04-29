@@ -1,6 +1,7 @@
 module Web.View.Admin.Xero
     ( renderXeroSection
     , renderXeroSectionFragment
+    , renderXeroSectionFragmentOob
     , renderXeroStaffMappingControlsOob
     ) where
 
@@ -45,8 +46,17 @@ renderXeroSection XeroAdminSectionData { xeroConnection = maybeConnection, .. } 
         (renderXeroConnectionBody maybeConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed)
 
 renderXeroSectionFragment :: XeroAdminSectionData -> Html
-renderXeroSectionFragment xeroSectionData = [hsx|
+renderXeroSectionFragment =
+    renderXeroSectionFragmentWithSwap Nothing
+
+renderXeroSectionFragmentOob :: XeroAdminSectionData -> Html
+renderXeroSectionFragmentOob =
+    renderXeroSectionFragmentWithSwap (Just "outerHTML")
+
+renderXeroSectionFragmentWithSwap :: Maybe Text -> XeroAdminSectionData -> Html
+renderXeroSectionFragmentWithSwap maybeSwapOob xeroSectionData = [hsx|
     <div id="admin-xero-fragment"
+         hx-swap-oob={maybeSwapOob}
          data-live-update-surface={liveSurfaceConfigJson <$> adminXeroLiveSurface}>
         {renderXeroSection xeroSectionData}
     </div>

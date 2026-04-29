@@ -1,5 +1,6 @@
 module Web.Controller.Staff where
 
+import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupIds,
                                         fetchCurrentVenueRosterGroups,
@@ -13,6 +14,25 @@ import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Projection (buildRosterContentFragmentRef)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob)
 import Web.View.Staff.Edit
+
+staffXeroPayItemScopeChanged :: Staff -> Staff -> Bool
+staffXeroPayItemScopeChanged oldStaff newStaff =
+    staffXeroPayItemScope oldStaff /= staffXeroPayItemScope newStaff
+
+staffXeroPayItemScope :: Staff -> Maybe (Id AwardLevel, StaffEmploymentBasisEnum)
+staffXeroPayItemScope staff
+    | staff.isActive && isNothing staff.archivedAt = do
+        awardLevelId <- staff.defaultAwardLevelId
+        pure (awardLevelId, staff.employmentBasis)
+    | otherwise = Nothing
+
+broadcastStaffXeroInvalidation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    IO ()
+broadcastStaffXeroInvalidation =
+    LiveUpdate.broadcastLiveResync
+        LiveUpdate.AdminXeroScope { LiveUpdate.venueId = unpackId currentVenueId }
+        LiveUpdate.liveUpdateSourceClientId
 
 instance Controller StaffController where
     beforeAction = do
@@ -42,6 +62,7 @@ instance Controller StaffController where
     action UpdateStaffAction { staffId } = do
         staff <- fetch staffId
         ensureRecordInCurrentVenue staff.venueId
+        let originalStaff = staff
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
         let submittedShiftPreferenceKeys = nub (paramList @Text "shiftPreferenceKeys")
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
@@ -87,11 +108,13 @@ instance Controller StaffController where
                                         then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferenceKeys weekOffset maybeRosterGroupId)
                                         else render EditView { .. }
                                 Right submittedSelections -> do
-                                    staff <- withTransaction do
+                                    updatedStaff <- withTransaction do
                                         updatedStaff <- staff |> updateRecord
                                         syncStaffRosterGroupAssignments updatedStaff selectedRosterGroupIds
                                         replaceStaffShiftPreferences updatedStaff (nub (previousRosterGroupIds <> selectedRosterGroupIds)) submittedSelections
                                         pure updatedStaff
+                                    when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
+                                        broadcastStaffXeroInvalidation
                                     let invalidatedRosterGroupIds = nub (previousRosterGroupIds <> selectedRosterGroupIds)
                                     if isHtmxRequest
                                         then do

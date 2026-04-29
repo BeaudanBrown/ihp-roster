@@ -14,6 +14,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
+import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.Admin.Xero
 
@@ -478,6 +479,19 @@ respondWithXeroSectionFragmentAndToast ::
     Maybe ToastOverlayConfig ->
     IO ()
 respondWithXeroSectionFragmentAndToast maybeToast = do
+    xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
+    fragmentHtml <- profileActionSpan "admin.xero.fragment.render" do
+        pure (renderXeroSectionFragment xeroSectionData)
+    respondHtmlProfiled $
+        mconcat
+            [ fragmentHtml
+            , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
+            ]
+
+fetchCurrentVenueXeroAdminSectionData ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO XeroAdminSectionData
+fetchCurrentVenueXeroAdminSectionData = do
     xeroConnection <- profileActionSpan "admin.xero.fragment.load_connection" fetchCurrentVenueXeroConnection
     xeroConnectedByUser <- profileActionSpan "admin.xero.fragment.load_connected_user" (fetchXeroConnectedByUser xeroConnection)
     xeroLatestSyncRun <- profileActionSpan "admin.xero.fragment.load_latest_sync" fetchLatestCurrentVenueXeroSyncRun
@@ -496,14 +510,15 @@ respondWithXeroSectionFragmentAndToast maybeToast = do
     xeroPayItemAccountCodeSelection <- profileActionSpan "admin.xero.pay_item_account_code.fetch_selection" (fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection)
     let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
     let xeroConnectionActionsAllowed = currentUserIsCurrentVenueOwner
-    let xeroSectionData = XeroAdminSectionData { .. }
-    fragmentHtml <- profileActionSpan "admin.xero.fragment.render" do
-        pure (renderXeroSectionFragment xeroSectionData)
-    respondHtmlProfiled $
-        mconcat
-            [ fragmentHtml
-            , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
-            ]
+    pure XeroAdminSectionData { .. }
+
+renderCurrentVenueXeroSectionFragmentOob ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO Blaze.Html
+renderCurrentVenueXeroSectionFragmentOob = do
+    xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
+    profileActionSpan "admin.xero.fragment.render_oob" do
+        pure (renderXeroSectionFragmentOob xeroSectionData)
 
 respondWithXeroStaffMappingControlsAndToast ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

@@ -27,6 +27,38 @@ import Web.View.Admin.RosterGroups
 import Web.View.Admin.ShiftTypes
 import Web.View.Admin.Xero
 
+shiftTypeAffectsXeroPayItems :: ShiftType -> Bool
+shiftTypeAffectsXeroPayItems shiftType =
+    shiftType.isActive && isJust shiftType.overrideAwardLevelId
+
+shiftTypeXeroPayItemScopeChanged :: ShiftType -> ShiftType -> Bool
+shiftTypeXeroPayItemScopeChanged oldShiftType newShiftType =
+    shiftTypeXeroPayItemScope oldShiftType /= shiftTypeXeroPayItemScope newShiftType
+
+shiftTypeXeroPayItemScope :: ShiftType -> Maybe (Id AwardLevel)
+shiftTypeXeroPayItemScope shiftType
+    | shiftType.isActive = shiftType.overrideAwardLevelId
+    | otherwise = Nothing
+
+respondToShiftTypesSectionMutationWithXeroRefresh ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Bool ->
+    IO ()
+respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero =
+    if isHtmxRequest
+        then do
+            shiftTypes <- fetchCurrentVenueShiftTypes
+            awardLevels <- fetchActiveAwardLevels
+            awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
+            let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
+            xeroFragment <- if shouldRefreshXero then renderCurrentVenueXeroSectionFragmentOob else pure mempty
+            respondHtml $
+                mconcat
+                    [ renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates
+                    , xeroFragment
+                    ]
+        else redirectToAdminFor (paramOrNothing "rosterGroupId")
+
 instance Controller AdminController where
     beforeAction = do
         ensureIsUser
@@ -267,7 +299,7 @@ instance Controller AdminController where
                 case maybeOverrideAwardLevelId of
                     Nothing -> respondToShiftTypesSectionMutation
                     Just overrideAwardLevelId -> do
-                        _ <- withTransaction do
+                        shiftType <- withTransaction do
                             shiftType <-
                                 newRecord @ShiftType
                                     |> set #venueId (unpackId currentVenueId)
@@ -280,7 +312,10 @@ instance Controller AdminController where
                             pure shiftType
                         setSuccessMessage "Shift type added"
                         broadcastAdminShiftTypesInvalidation currentVenueId
-                        respondToShiftTypesSectionMutation
+                        let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
+                        when shouldRefreshXero do
+                            broadcastAdminXeroInvalidation currentVenueId
+                        respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
 
     action UpdateShiftTypeAction { shiftTypeId } = do
         shiftType <- fetch shiftTypeId
@@ -298,7 +333,7 @@ instance Controller AdminController where
                             if not shiftType.isActive && isActive
                                 then nextShiftTypeSortOrder
                                 else pure shiftType.sortOrder
-                        _ <- withTransaction do
+                        updatedShiftType <- withTransaction do
                             updatedShiftType <-
                                 shiftType
                                     |> set #name name
@@ -310,7 +345,10 @@ instance Controller AdminController where
                             pure updatedShiftType
                         setSuccessMessage "Shift type updated"
                         broadcastAdminShiftTypesInvalidation currentVenueId
-                        respondToShiftTypesSectionMutation
+                        let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
+                        when shouldRefreshXero do
+                            broadcastAdminXeroInvalidation currentVenueId
+                        respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
 
     action MoveShiftTypeUpAction { shiftTypeId } = do
         shiftType <- fetch shiftTypeId

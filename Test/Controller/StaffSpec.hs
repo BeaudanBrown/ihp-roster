@@ -1,5 +1,6 @@
 module Test.Controller.StaffSpec where
 
+import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Config
 import Generated.Types
@@ -108,6 +109,7 @@ tests = beforeAll testContext do
                 payLevel <- createPayLevelRecord venue "Level 2"
                 staff <- createStaffRecord venue Nothing "Alpha" "Crew"
 
+                xeroVersionBefore <- LiveUpdate.currentLiveUpdateVersion LiveUpdate.AdminXeroScope { LiveUpdate.venueId = unpackId venue.id }
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin (get #id venue) do
                     callActionWithParams
                         (UpdateStaffAction staff.id)
@@ -128,6 +130,8 @@ tests = beforeAll testContext do
                 updatedStaff <- fetch staff.id
                 updatedStaff.employmentBasis `shouldBe` Permanent
                 updatedStaff.defaultAwardLevelId `shouldBe` Just payLevel.id
+                xeroVersionAfter <- LiveUpdate.currentLiveUpdateVersion LiveUpdate.AdminXeroScope { LiveUpdate.venueId = unpackId venue.id }
+                xeroVersionAfter `shouldBe` (xeroVersionBefore + 1)
 
         it "shows synced award level hourly rates in the staff pay selector" $ withContext do
             withCleanDb do
