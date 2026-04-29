@@ -514,7 +514,8 @@ tests = beforeAll testContext do
                 pageResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction ExportJobsAction
 
-                pageResponse `responseStatusShouldBe` status403
+                pageResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders pageResponse) `shouldBe` Just "http://localhost/RosterWeeks"
 
                 createExportResponse <- withUserAndCurrentVenue manager venue.id do
                     callActionWithParams CreateExportJobAction
@@ -523,7 +524,8 @@ tests = beforeAll testContext do
                         , ("rangeEnd", "2025-01-12")
                         ]
 
-                createExportResponse `responseStatusShouldBe` status403
+                createExportResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders createExportResponse) `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "denies downloading another venue's export job" $ withContext do
             withCleanDb do

@@ -173,7 +173,8 @@ tests = beforeAll testContext do
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction AdminAction
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "shows the Xero page as not connected" $ withContext do
             withCleanDb do
@@ -1011,9 +1012,12 @@ tests = beforeAll testContext do
                 disconnectResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction DisconnectXeroConnectionAction
 
-                startResponse `responseStatusShouldBe` status403
-                callbackResponse `responseStatusShouldBe` status403
-                disconnectResponse `responseStatusShouldBe` status403
+                startResponse `responseStatusShouldBe` status302
+                callbackResponse `responseStatusShouldBe` status302
+                disconnectResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders startResponse) `shouldBe` Just "http://localhost/RosterWeeks"
+                lookup "Location" (responseHeaders callbackResponse) `shouldBe` Just "http://localhost/RosterWeeks"
+                lookup "Location" (responseHeaders disconnectResponse) `shouldBe` Just "http://localhost/RosterWeeks"
                 retainedConnection <- fetch connection.id
                 retainedConnection.connectionStatus `shouldBe` "active"
 
@@ -1059,7 +1063,8 @@ tests = beforeAll testContext do
                 adminResponse `responseStatusShouldBe` status200
                 adminResponse `responseBodyShouldNotContain` "href=\"/Xero\""
                 adminResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
-                xeroResponse `responseStatusShouldBe` status403
+                xeroResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders xeroResponse) `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "serves inactive toggles through targeted admin fragments" $ withContext do
             withCleanDb do

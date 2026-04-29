@@ -30,7 +30,7 @@ import Web.View.Support.Index
 instance Controller SupportController where
     beforeAction = do
         ensureIsUser
-        accessDeniedUnless currentUserIsSuperAdmin
+        redirectPermissionDeniedUnless currentUserIsSuperAdmin "You need super admin access to view that page."
         ensureProfileCompleted
 
     action SupportAction = do

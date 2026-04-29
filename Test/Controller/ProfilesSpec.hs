@@ -53,7 +53,8 @@ tests = beforeAll testContext do
                 response <- withUserAndCurrentVenue superAdmin venue.id do
                     callAction EditProfileAction
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Support"
 
         it "does not let super-admin create a staff row through profile update" $ withContext do
             withCleanDb do
@@ -70,7 +71,8 @@ tests = beforeAll testContext do
                         , ("idealShiftsPerWeek", "3")
                         ]
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Support"
                 staffExists <-
                     query @Staff
                         |> filterWhere (#venueId, unpackId venue.id)

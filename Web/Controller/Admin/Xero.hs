@@ -575,7 +575,7 @@ requireCurrentVenueOwnerForXero action =
         then action
         else do
             setErrorMessage "Only the venue owner or a super admin can manage Xero for this venue."
-            redirectTo AdminAction
+            redirectToPath permissionDeniedFallbackPath
 
 disconnectXeroConnection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

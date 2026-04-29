@@ -86,7 +86,7 @@ instance Controller AdminController where
         render IndexView { .. }
 
     action XeroAction = do
-        accessDeniedUnless currentUserCanManageXeroIntegration
+        redirectPermissionDeniedUnless currentUserCanManageXeroIntegration "Only the venue owner or a super admin can manage Xero for this venue."
         xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
         render XeroView { .. }
 

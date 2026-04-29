@@ -8,11 +8,14 @@ import Data.Time.Clock.POSIX (POSIXTime, posixSecondsToUTCTime,
                               utcTimeToPOSIXSeconds)
 import Generated.Types
 import IHP.ControllerPrelude
+import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import qualified Network.Wai as Wai
 import Text.Read (readMaybe)
 import Web.Routes ()
 import Web.Types (PasskeysController (PasskeyStepUpAction),
                   ProfilesController (EditProfileAction),
+                  RosterWeeksController (RosterWeeksAction),
+                  SessionsController (NewSessionAction),
                   SupportController (SupportAction))
 
 import Application.Helper.ControllerContext
@@ -71,22 +74,42 @@ hasRole :: (?context :: ControllerContext) => VenueRole -> Bool
 hasRole minimumRole =
     currentUserIsSuperAdmin || maybe False (`hasVenueRole` minimumRole) currentVenueRoleOrNothing
 
-ensureCurrentVenue :: (?context :: ControllerContext) => IO ()
-ensureCurrentVenue = accessDeniedUnless (isJust currentVenueOrNothing)
-
 ensureCurrentVenueOrSupportRedirect :: (?context :: ControllerContext, ?request :: Request) => IO ()
 ensureCurrentVenueOrSupportRedirect =
     case currentVenueOrNothing of
         Just _                            -> pure ()
         Nothing | currentUserIsSuperAdmin -> redirectTo SupportAction
-        Nothing                           -> ensureCurrentVenue
+        Nothing                           -> redirectPermissionDeniedToFallback "You do not have access to that venue."
 
-ensureManagerRole :: (?context :: ControllerContext) => IO ()
-ensureManagerRole = accessDeniedUnless (hasRole ManagerRole')
+redirectPermissionDeniedToFallback :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+redirectPermissionDeniedToFallback message = do
+    setErrorMessage message
+    when (isJust currentUserOrNothing && not currentUserIsSuperAdmin && isNothing currentVenueOrNothing) do
+        deleteSession (LoginSupport.sessionKey @User)
+        deleteSession currentVenueSessionKey
+    redirectToPath permissionDeniedFallbackPath
 
-ensureAdminRole :: (?context :: ControllerContext) => IO ()
+permissionDeniedFallbackPath :: (?context :: ControllerContext) => Text
+permissionDeniedFallbackPath
+    | currentUserIsSuperAdmin = pathTo SupportAction
+    | isJust currentVenueOrNothing = pathTo RosterWeeksAction
+    | otherwise = pathTo NewSessionAction
+
+redirectPermissionDeniedUnless :: (?context :: ControllerContext, ?request :: Request) => Bool -> Text -> IO ()
+redirectPermissionDeniedUnless allowed message =
+    unless allowed (redirectPermissionDeniedToFallback message)
+
+ensureCurrentVenue :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureCurrentVenue =
+    redirectPermissionDeniedUnless (isJust currentVenueOrNothing) "You do not have access to that venue."
+
+ensureManagerRole :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureManagerRole =
+    redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to view that page."
+
+ensureAdminRole :: (?context :: ControllerContext, ?request :: Request) => IO ()
 ensureAdminRole = do
-    accessDeniedUnless (hasRole VenueAdminRole)
+    redirectPermissionDeniedUnless (hasRole VenueAdminRole) "You need admin access to view that page."
     ensurePrivilegedPasskeyVerified
 
 currentUserRequiresMandatoryPasskey :: (?context :: ControllerContext) => Bool
@@ -179,8 +202,9 @@ parsePasskeyVerifiedAt value = do
 currentUserCanUseStaffSelfService :: (?context :: ControllerContext) => Bool
 currentUserCanUseStaffSelfService = not currentUserIsSuperAdmin
 
-ensureStaffSelfServiceAccess :: (?context :: ControllerContext) => IO ()
-ensureStaffSelfServiceAccess = accessDeniedUnless currentUserCanUseStaffSelfService
+ensureStaffSelfServiceAccess :: (?context :: ControllerContext, ?request :: Request) => IO ()
+ensureStaffSelfServiceAccess =
+    redirectPermissionDeniedUnless currentUserCanUseStaffSelfService "Use the support page for super admin access."
 
 fetchCurrentUserPasskeys :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Passkey]
 fetchCurrentUserPasskeys =

@@ -124,7 +124,8 @@ tests = beforeAll testContext do
                 response <- withUser user do
                     callAction AdminAction
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "does not let users.user_role bypass manager-only roster actions" $ withContext do
             withCleanDb do
@@ -136,7 +137,8 @@ tests = beforeAll testContext do
                 response <- withUser user do
                     callAction ToggleRosterWeekLiveStatusAction { rosterWeekId = rosterWeek.id }
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "does not let venue managers subscribe to admin slot-name live scopes" $ withContext do
             withCleanDb do
@@ -315,7 +317,8 @@ tests = beforeAll testContext do
                 response <- withUser admin do
                     callAction SupportAction
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "lets super-admin open the support page and see active venues" $ withContext do
             withCleanDb do
@@ -430,7 +433,8 @@ tests = beforeAll testContext do
                 response <- withUser admin do
                     callAction CreateFwcMapdRefreshJobAction
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
                 jobCount <- query @AppJob |> filterWhere (#jobKind, fwcMapdRefreshJobKind) |> fetchCount
                 jobCount `shouldBe` 0
 
@@ -473,7 +477,8 @@ tests = beforeAll testContext do
                 response <- withUser admin do
                     callAction CreatePublicHolidayRefreshJobAction
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
                 jobCount <- query @AppJob |> filterWhere (#jobKind, publicHolidayRefreshJobKind) |> fetchCount
                 jobCount `shouldBe` 0
 
@@ -524,7 +529,8 @@ tests = beforeAll testContext do
                         [ ("email", "blocked-owner@example.com")
                         ]
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
                 invitationCount <- query @VenueOnboardingInvitation |> filterWhere (#email, "blocked-owner@example.com") |> fetchCount
                 invitationCount `shouldBe` 0
 
@@ -570,7 +576,8 @@ tests = beforeAll testContext do
                         [ ("name", "Blocked Venue")
                         ]
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
                 venueCount <- query @Venue |> filterWhere (#name, "Blocked Venue") |> fetchCount
                 venueCount `shouldBe` 0
 

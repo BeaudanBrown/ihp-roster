@@ -143,7 +143,8 @@ tests = beforeAll testContext do
                 response <- withUserAndCurrentVenue user venue.id do
                     callAction LeaveRequestsAction
 
-                response `responseStatusShouldBe` status403
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "lets super-admin review leave without self-service leave creation" $ withContext do
             withCleanDb do
@@ -176,8 +177,10 @@ tests = beforeAll testContext do
                         , ("notes", "No staff identity")
                         ]
 
-                newResponse `responseStatusShouldBe` status403
-                createResponse `responseStatusShouldBe` status403
+                newResponse `responseStatusShouldBe` status302
+                createResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders newResponse) `shouldBe` Just "http://localhost/Support"
+                lookup "Location" (responseHeaders createResponse) `shouldBe` Just "http://localhost/Support"
                 leaveExists <- query @LeaveRequest |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
                 leaveExists `shouldBe` False
 
@@ -303,7 +306,8 @@ tests = beforeAll testContext do
                 managerResponse `responseStatusShouldBe` status200
                 managerResponse `responseBodyShouldContain` "Ava Viewer"
                 managerResponse `responseBodyShouldContain` "Bea Viewer"
-                workerResponse `responseStatusShouldBe` status403
+                workerResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders workerResponse) `shouldBe` Just "http://localhost/RosterWeeks"
 
         it "does not bump cold roster week scopes when denying previously approved leave" $ withContext do
             withCleanDb do
