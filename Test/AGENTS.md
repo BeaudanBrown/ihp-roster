@@ -67,6 +67,10 @@ Useful patterns:
 
 `withCleanDb` should leave the test database truly empty. If automation must preserve bootstrap/manual accounts, solve that by running tests against an isolated database instead of weakening `withCleanDb`.
 
+For approved timesheet fixtures, use `createApprovedTimesheetEntryRecord` or `createApprovedTimesheetEntryRecordAt`. Do not seed approval by setting only `isApproved`; the schema requires `approved_at`, `approved_by_user_id`, and `pay_config_snapshot_id` to move together.
+
+Leave request `end_date` is exclusive: a one-day leave request is `start_date = day`, `end_date = day + 1`. Do not seed `start_date == end_date`; the schema rejects empty ranges.
+
 The shard architecture assumes:
 
 - every parallel shard owns an isolated ephemeral database

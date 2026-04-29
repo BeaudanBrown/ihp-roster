@@ -2,12 +2,20 @@
 
 This file is the canonical roadmap for implementation order.
 
+Live implementation tracking now lives in repo-local `tk` tickets under
+`.tickets/`. Use this roadmap to understand ordering and dependencies, then use
+`tk ready`, `tk blocked`, `tk show <id>`, and `tk dep tree <id>` for current
+status, blockers, and next actions.
+
 Use it to answer:
 - what the current priorities are
 - which pipelines can run in parallel
 - which dependencies must land first
 
-Do not treat the pipeline files under `plans/` as independent sources of truth for ordering. They hold the detailed task breakdowns for a specific workstream, but this file defines the global sequence.
+Do not treat the pipeline files under `plans/` as independent sources of truth
+for ordering or live status. They hold durable design context for specific
+workstreams, but this file defines the global sequence and `tk` defines the live
+work graph.
 
 Business requirements remain canonical in `specs/`.
 
@@ -35,9 +43,31 @@ Business requirements remain canonical in `specs/`.
   - `plans/57-xero-payroll-integration.md`
   - `plans/58-xero-connection-foundation.md`
   - `plans/59-code-smell-remediation.md`
+  - `plans/60-v1-schema-hardening.md`
   - `plans/61-view-helper-split.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
+
+## Repo-Local Ticket Epics
+
+- `ir-qi7t` — founder super-admin support access and venue switching
+- `ir-45b6` — expanded staff profiles and recurring shift preferences
+- `ir-jooi` — versioned surface projection cache for live and HTMX surfaces
+- `ir-9f7z` — app JavaScript runtime refactor
+- `ir-t7be` — roster groups and centralized venue bootstrap defaults
+- `ir-52nw` — regional Victorian public holidays and recurring refreshes
+- `ir-5o6t` — auto-create empty roster weeks and reusable week controls
+- `ir-sryt` — app-wide profiling instrumentation
+- `ir-mwhc` — ordinary account multi-venue switching backlog
+- `ir-vifu` — multi-group payroll exports backlog
+- `ir-hsuu` — programmatic demo seeding
+- `ir-u4mc` — record retention and soft deletion guardrails
+- `ir-176p` — Xero payroll integration
+- `ir-mjov` — Xero connection foundation maintenance
+- `ir-6vvh` — code smell remediation backlog
+- `ir-caf4` — V1 schema hardening
+- `ir-2usx` — view helper split
+- `ir-g778` — release readiness and first-client acceptance
 
 ## Current Direction
 
