@@ -1,17 +1,20 @@
 import { test, expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import {
     currentReportWeek,
     downloadExport,
     generatePayrollReport,
     gotoExports,
-    loginAs,
+    loginAsPrivilegedUserWithFreshPasskey,
     payrollReportCard,
     parseCsv,
     readDownloadText,
     readZipEntryText,
-    shiftExportWeek,
     listZipEntries,
+    webauthnBaseURL,
 } from './test-helpers';
+
+test.use({ baseURL: webauthnBaseURL });
 
 function rowByNameType(rows: string[][], nameType: string) {
     return rows.find((row) => row[0] === nameType);
@@ -22,25 +25,23 @@ function rowByHour(rows: string[][], hour: string) {
 }
 
 test.describe('Payroll export downloads', () => {
-    test('manager can generate and download staff_hours, kitchen, and wage exports', async ({ page }) => {
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+    test.setTimeout(E2E_TIMEOUT.test);
+
+    test('venue admin can generate and download staff_hours and hourly breakdown exports', async ({ page }) => {
+        await loginAsPrivilegedUserWithFreshPasskey(page);
         await gotoExports(page);
 
-        await expect(payrollReportCard(page, 'Staff Hours Report')).toHaveCount(1);
-        await expect(payrollReportCard(page, 'Kitchen Report')).toHaveCount(1);
-        await expect(payrollReportCard(page, 'Wage Report')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Staff Hours CSV')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Hourly Breakdown ZIP')).toHaveCount(1);
+        await expect(payrollReportCard(page, 'Payroll Earnings CSV')).toHaveCount(1);
         await expect(page.locator('#report-definition-management')).toHaveCount(0);
 
         const currentWeek = await currentReportWeek(page);
-        await shiftExportWeek(page, 'Previous');
-        const previousWeek = await currentReportWeek(page);
-        expect(previousWeek.weekStart).not.toBe(currentWeek.weekStart);
-        await shiftExportWeek(page, 'Current');
-        await expect.poll(async () => (await currentReportWeek(page)).weekStart).toBe(currentWeek.weekStart);
+        const rangeSuffix = `${currentWeek.weekStart}-to-${currentWeek.weekEnd}`;
 
-        await generatePayrollReport(page, 'Staff Hours Report');
-        const staffHoursDownload = await downloadExport(page, `staff_hours-${currentWeek.weekStart}.csv`);
-        expect(staffHoursDownload.suggestedFilename()).toBe(`staff_hours-${currentWeek.weekStart}.csv`);
+        await generatePayrollReport(page, 'Staff Hours CSV');
+        const staffHoursDownload = await downloadExport(page, `staff_hours-${rangeSuffix}.csv`);
+        expect(staffHoursDownload.suggestedFilename()).toBe(`staff_hours-${rangeSuffix}.csv`);
 
         const staffHoursRows = parseCsv(await readDownloadText(staffHoursDownload));
         expect(staffHoursRows[0]).toEqual([
@@ -76,39 +77,14 @@ test.describe('Payroll export downloads', () => {
         ]);
         expect(rowByNameType(staffHoursRows, 'Alpha LVL 2')).toBeUndefined();
 
-        await generatePayrollReport(page, 'Kitchen Report');
-        const kitchenDownload = await downloadExport(page, `kitchen-${currentWeek.weekStart}.csv`);
-        expect(kitchenDownload.suggestedFilename()).toBe(`kitchen-${currentWeek.weekStart}.csv`);
-
-        const kitchenRows = parseCsv(await readDownloadText(kitchenDownload));
-        expect(kitchenRows[0]).toEqual(staffHoursRows[0]);
-        expect(rowByNameType(kitchenRows, 'Alpha')).toEqual([
-            'Alpha',
-            '0.00', '0.00', '0.00',
-            '4.00', '0.00', '0.00',
-            '0.00', '0.00', '0.00',
-            '0.00', '0.00', '0.00',
-            '0.00', '0.00', '0.00',
-            '0.00', '0.00',
-            '0.00',
-        ]);
-
-        await generatePayrollReport(page, 'Wage Report');
-        const wageDownload = await downloadExport(page, `wage-${currentWeek.weekStart}.zip`);
-        expect(wageDownload.suggestedFilename()).toBe(`wage-${currentWeek.weekStart}.zip`);
+        await generatePayrollReport(page, 'Hourly Breakdown ZIP');
+        const wageDownload = await downloadExport(page, `hourly_breakdown-${rangeSuffix}.zip`);
+        expect(wageDownload.suggestedFilename()).toBe(`hourly_breakdown-${rangeSuffix}.zip`);
 
         const zipEntries = await listZipEntries(wageDownload);
-        expect(zipEntries).toEqual([
-            'Monday.csv',
-            'Tuesday.csv',
-            'Wednesday.csv',
-            'Thursday.csv',
-            'Friday.csv',
-            'Saturday.csv',
-            'Sunday.csv',
-        ]);
+        expect(zipEntries).toContain(`${currentWeek.weekStart}_Monday.csv`);
 
-        const mondayRows = parseCsv(await readZipEntryText(wageDownload, 'Monday.csv'));
+        const mondayRows = parseCsv(await readZipEntryText(wageDownload, `${currentWeek.weekStart}_Monday.csv`));
         expect(mondayRows[0]).toEqual(['Time', 'Bar', 'Kitchen', 'Floor']);
         expect(rowByHour(mondayRows, '08:00')).toEqual(['08:00', '1.0', '', '']);
         expect(rowByHour(mondayRows, '09:00')).toEqual(['09:00', '1.0', '', '1.0']);

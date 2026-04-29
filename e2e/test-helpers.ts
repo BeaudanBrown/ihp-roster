@@ -4,9 +4,11 @@ import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { APIRequestContext, Download, expect, Locator, Page } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 
 export const defaultE2ERosterGroupId = 'a1000000-0000-0000-0000-000000000211';
 export const webauthnBaseURL = (process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000').replace('127.0.0.1', 'localhost');
+export { E2E_TIMEOUT };
 
 type MailHogAddress = {
     Mailbox?: string;
@@ -71,7 +73,7 @@ export async function waitForMailhogMessages(
     request: APIRequestContext,
     recipient: string,
     minimumCount = 1,
-    timeoutMs = 30000,
+    timeoutMs = E2E_TIMEOUT.mailhog,
 ) {
     const normalizedRecipient = recipient.toLowerCase();
     const deadline = Date.now() + timeoutMs;
@@ -96,7 +98,7 @@ export async function waitForMailhogMessages(
     );
 }
 
-export async function waitForMailhogMessage(request: APIRequestContext, recipient: string, timeoutMs = 30000) {
+export async function waitForMailhogMessage(request: APIRequestContext, recipient: string, timeoutMs = E2E_TIMEOUT.mailhog) {
     const messages = await waitForMailhogMessages(request, recipient, 1, timeoutMs);
     return messages[0];
 }
@@ -105,7 +107,7 @@ export async function expectMailhogMessageCount(
     request: APIRequestContext,
     recipient: string,
     expectedCount: number,
-    timeoutMs = 10000,
+    timeoutMs = E2E_TIMEOUT.mailhog,
 ) {
     const normalizedRecipient = recipient.toLowerCase();
 
@@ -131,7 +133,7 @@ export function mailhogMessageText(message: MailHogMessage) {
     return mailhogMessageBody(message);
 }
 
-export async function gotoWhenReady(page: Page, path: string, readySelector: string, timeoutMs = 60000) {
+export async function gotoWhenReady(page: Page, path: string, readySelector: string, timeoutMs = E2E_TIMEOUT.navigation) {
     const deadline = Date.now() + timeoutMs;
     let lastBodyText = '';
     let lastNavigationError = '';
@@ -141,12 +143,12 @@ export async function gotoWhenReady(page: Page, path: string, readySelector: str
             await page.goto(path);
         } catch (error) {
             lastNavigationError = error instanceof Error ? error.message : String(error);
-            await page.waitForTimeout(1000);
+            await page.waitForTimeout(E2E_TIMEOUT.quick);
             continue;
         }
 
         try {
-            await page.locator(readySelector).waitFor({ state: 'visible', timeout: 2000 });
+            await page.locator(readySelector).waitFor({ state: 'visible', timeout: E2E_TIMEOUT.action });
             return;
         } catch {
             lastBodyText = (await page.locator('body').textContent().catch(() => '')) ?? '';
@@ -161,11 +163,11 @@ export async function gotoWhenReady(page: Page, path: string, readySelector: str
             }
         }
 
-        await page.waitForTimeout(1000);
+        await page.waitForTimeout(E2E_TIMEOUT.quick);
     }
 
     const failureContext = [lastBodyText, lastNavigationError].filter(Boolean).join('\n\n');
-    await expect(page.locator(readySelector), failureContext).toBeVisible({ timeout: 5000 });
+    await expect(page.locator(readySelector), failureContext).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 }
 
 export async function loginAs(page: Page, email: string, password: string) {
@@ -173,8 +175,8 @@ export async function loginAs(page: Page, email: string, password: string) {
     await page.fill('#email', email);
     await page.fill('#password', password);
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
-    await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 }
 
 function e2eDatabaseArgs() {
@@ -232,14 +234,14 @@ export async function registerFirstPasskeyForCurrentUser(page: Page) {
     await openProfileSecuritySection(page);
     await expect(page.getByRole('button', { name: 'Add passkey' })).toBeVisible();
     await page.getByRole('button', { name: 'Add passkey' }).click();
-    await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: 60000 });
+    await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
 }
 
 export async function registerFirstSupportPasskeyForCurrentUser(page: Page) {
     await gotoWhenReady(page, '/Support', '.js-passkey-register');
     await expect(page.getByRole('button', { name: 'Add passkey' })).toBeVisible();
     await page.getByRole('button', { name: 'Add passkey' }).click();
-    await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: 60000 });
+    await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
 }
 
 function currentPasskeyManagement(page: Page) {
@@ -282,10 +284,10 @@ export async function setFlatpickrDate(page: Page, selector: string, value: stri
 }
 
 export async function verifyCurrentUserPasskeyStepUp(page: Page) {
-    await expect(page).toHaveURL(/PasskeyStepUp/, { timeout: 60000 });
+    await expect(page).toHaveURL(/PasskeyStepUp/, { timeout: E2E_TIMEOUT.navigation });
     await expect(page.getByRole('button', { name: 'Verify with passkey' })).toBeVisible();
     await page.getByRole('button', { name: 'Verify with passkey' }).click();
-    await expect(page).not.toHaveURL(/PasskeyStepUp/, { timeout: 60000 });
+    await expect(page).not.toHaveURL(/PasskeyStepUp/, { timeout: E2E_TIMEOUT.passkey });
 }
 
 export async function loginAsPrivilegedUserWithFreshPasskey(
@@ -300,7 +302,7 @@ export async function loginAsPrivilegedUserWithFreshPasskey(
     await page.fill('#email', email);
     await page.fill('#password', password);
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWeek|Support)/, { timeout: 60000 });
+    await expect(page).toHaveURL(/(EditProfile|RosterWeeks|ShowRosterWeek|Support)/, { timeout: E2E_TIMEOUT.navigation });
 
     if (page.url().includes('/EditProfile')) {
         await registerFirstPasskeyForCurrentUser(page);
@@ -563,38 +565,47 @@ export async function expectDialogToFitViewport(page: Page, selector: string) {
     expect(metrics.width).toBeLessThanOrEqual(metrics.viewportWidth);
 }
 
+async function ensureExportsSectionOpen(page: Page) {
+    const exportsToggle = page.getByRole('button', { name: 'Exports' });
+    if ((await exportsToggle.getAttribute('aria-expanded')) !== 'true') {
+        await exportsToggle.click();
+    }
+    await expect(exportsToggle).toHaveAttribute('aria-expanded', 'true', { timeout: E2E_TIMEOUT.action });
+    await expect(page.locator('#exports-collapse')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await expect(page.locator('#admin-export-generation-form')).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await expect(page.locator('[data-fixed-export-card="true"]').first()).toBeVisible({ timeout: E2E_TIMEOUT.action });
+}
+
 export async function gotoExports(page: Page) {
-    await gotoWhenReady(page, '/ExportJobs', 'h1:has-text("Export Jobs")');
-    await expect(page.locator('#payroll-reports-panel')).toBeVisible();
+    await gotoWhenReady(page, '/Admin#exports', 'h1:has-text("Admin")');
+    await ensureExportsSectionOpen(page);
 }
 
 export async function currentReportWeek(page: Page) {
-    const summaryText = await page.locator('#payroll-report-week-summary').textContent();
-    const match = summaryText?.match(/Week of (\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})/);
-    if (!match) {
-        throw new Error(`Could not parse report week summary: ${summaryText ?? '<empty>'}`);
-    }
-
-    return { weekStart: match[1], weekEnd: match[2] };
+    const weekStart = await page.locator('#admin-export-range-start').inputValue();
+    const weekEnd = await page.locator('#admin-export-range-end').inputValue();
+    return { weekStart, weekEnd };
 }
 
 export async function shiftExportWeek(page: Page, direction: 'Previous' | 'Current' | 'Next') {
-    await page.getByRole('link', { name: direction }).click();
-    await expect(page.getByRole('heading', { name: 'Export Jobs' })).toBeVisible();
-    await expect(page.locator('#payroll-report-week-summary')).toBeVisible();
+    throw new Error(`Export week navigation has been replaced by date range inputs; requested ${direction}`);
 }
 
 export function payrollReportCard(page: Page, reportName: string) {
-    return page.locator('[data-payroll-report-card="true"]').filter({
+    return page.locator('[data-fixed-export-card="true"]').filter({
         has: page.locator(`.fw-semibold:text-is("${reportName}")`),
     });
 }
 
 export async function generatePayrollReport(page: Page, reportName: string) {
+    await ensureExportsSectionOpen(page);
     const card = payrollReportCard(page, reportName);
-    await expect(card).toHaveCount(1);
-    await card.getByRole('button', { name: /Generate (CSV|ZIP)/ }).click();
-    await expect(page.locator('body')).toContainText('Export generated');
+    await expect(card).toHaveCount(1, { timeout: E2E_TIMEOUT.action });
+    await expect(card).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    const generateButton = card.getByRole('button', { name: 'Generate' });
+    await expect(generateButton).toBeVisible({ timeout: E2E_TIMEOUT.action });
+    await generateButton.click({ timeout: E2E_TIMEOUT.action });
+    await expect(page.locator('body')).toContainText('Export generated', { timeout: E2E_TIMEOUT.assertion });
 }
 
 export function exportJobRow(page: Page, fileName: string) {
@@ -606,21 +617,23 @@ export function exportJobRows(page: Page, fileName: string) {
 }
 
 export async function waitForExportJob(page: Page, fileName: string) {
+    await ensureExportsSectionOpen(page);
     const rows = exportJobRows(page, fileName);
     await expect
         .poll(async () => rows.count(), {
             message: `expected at least one export row for ${fileName}`,
+            timeout: E2E_TIMEOUT.assertion,
         })
         .toBeGreaterThan(0);
     const row = rows.last();
-    await expect(row.locator('[data-export-job-status-badge="ready"]')).toBeVisible();
+    await expect(row.locator('[data-export-job-status-badge="ready"]')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
     return row;
 }
 
 export async function downloadExport(page: Page, fileName: string) {
     const row = await waitForExportJob(page, fileName);
     const [download] = await Promise.all([
-        page.waitForEvent('download'),
+        page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion }),
         row.getByRole('link', { name: 'Download' }).click(),
     ]);
 
@@ -628,17 +641,19 @@ export async function downloadExport(page: Page, fileName: string) {
 }
 
 export async function downloadExportAtIndex(page: Page, fileName: string, index: number) {
+    await ensureExportsSectionOpen(page);
     const rows = exportJobRows(page, fileName);
     await expect
         .poll(async () => rows.count(), {
             message: `expected at least ${index + 1} export rows for ${fileName}`,
+            timeout: E2E_TIMEOUT.assertion,
         })
         .toBeGreaterThan(index);
     const row = rows.nth(index);
-    await expect(row.locator('[data-export-job-status-badge="ready"]')).toBeVisible();
+    await expect(row.locator('[data-export-job-status-badge="ready"]')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
 
     const [download] = await Promise.all([
-        page.waitForEvent('download'),
+        page.waitForEvent('download', { timeout: E2E_TIMEOUT.assertion }),
         row.getByRole('link', { name: 'Download' }).click(),
     ]);
 

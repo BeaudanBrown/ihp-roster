@@ -1,27 +1,33 @@
 import { test, expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import {
     currentReportWeek,
     downloadExportAtIndex,
     generatePayrollReport,
     gotoExports,
-    loginAs,
+    loginAsPrivilegedUserWithFreshPasskey,
     readDownloadText,
     readZipEntryText,
     listZipEntries,
     exportJobRows,
+    webauthnBaseURL,
 } from './test-helpers';
 
+test.use({ baseURL: webauthnBaseURL });
+
 test.describe('Payroll export determinism', () => {
+    test.setTimeout(E2E_TIMEOUT.test);
+
     test('repeated staff-hours generation preserves job history and identical CSV content', async ({ page }) => {
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await loginAsPrivilegedUserWithFreshPasskey(page);
         await gotoExports(page);
 
-        const { weekStart } = await currentReportWeek(page);
-        const fileName = `staff_hours-${weekStart}.csv`;
+        const { weekStart, weekEnd } = await currentReportWeek(page);
+        const fileName = `staff_hours-${weekStart}-to-${weekEnd}.csv`;
         const initialCount = await exportJobRows(page, fileName).count();
 
-        await generatePayrollReport(page, 'Staff Hours Report');
-        await generatePayrollReport(page, 'Staff Hours Report');
+        await generatePayrollReport(page, 'Staff Hours CSV');
+        await generatePayrollReport(page, 'Staff Hours CSV');
 
         const rows = exportJobRows(page, fileName);
         await expect(rows).toHaveCount(initialCount + 2);
@@ -38,15 +44,15 @@ test.describe('Payroll export determinism', () => {
     });
 
     test('repeated wage generation preserves job history and identical ZIP content', async ({ page }) => {
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await loginAsPrivilegedUserWithFreshPasskey(page);
         await gotoExports(page);
 
-        const { weekStart } = await currentReportWeek(page);
-        const fileName = `wage-${weekStart}.zip`;
+        const { weekStart, weekEnd } = await currentReportWeek(page);
+        const fileName = `hourly_breakdown-${weekStart}-to-${weekEnd}.zip`;
         const initialCount = await exportJobRows(page, fileName).count();
 
-        await generatePayrollReport(page, 'Wage Report');
-        await generatePayrollReport(page, 'Wage Report');
+        await generatePayrollReport(page, 'Hourly Breakdown ZIP');
+        await generatePayrollReport(page, 'Hourly Breakdown ZIP');
 
         const rows = exportJobRows(page, fileName);
         await expect(rows).toHaveCount(initialCount + 2);

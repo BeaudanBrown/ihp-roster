@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { E2E_TIMEOUT } from './e2e/timeouts';
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:8000';
 const outputDir = process.env.PLAYWRIGHT_OUTPUT_DIR ?? 'test-results';
@@ -7,6 +8,8 @@ const blobReportDir = process.env.PLAYWRIGHT_BLOB_REPORT_DIR;
 const includeScreenshotSpecs = process.env.E2E_INCLUDE_SCREENSHOTS === '1';
 const configuredWorkers = Number.parseInt(process.env.PLAYWRIGHT_WORKERS ?? '1', 10);
 const workers = Number.isFinite(configuredWorkers) && configuredWorkers > 0 ? configuredWorkers : 1;
+const configuredRetries = Number.parseInt(process.env.PLAYWRIGHT_RETRIES ?? '1', 10);
+const retries = Number.isFinite(configuredRetries) && configuredRetries >= 0 ? configuredRetries : 1;
 const fullyParallel = process.env.PLAYWRIGHT_FULLY_PARALLEL === '1';
 const mobileTestFiles = [
     /.*mobile-experience\.spec\.ts/,
@@ -22,7 +25,11 @@ export default defineConfig({
     testDir: './e2e',
     fullyParallel,
     workers,
-    retries: 1,
+    retries,
+    timeout: E2E_TIMEOUT.test,
+    expect: {
+        timeout: E2E_TIMEOUT.assertion,
+    },
     outputDir,
     reporter,
 
