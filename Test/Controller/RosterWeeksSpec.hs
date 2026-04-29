@@ -283,6 +283,7 @@ tests = beforeAll testContext do
                 bodyText `shouldBe` ""
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                fromJust triggerHeader `shouldContain` "app-live-fragments-refresh"
                 fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
                 fromJust triggerHeader `shouldContain` (cs (rosterDaySectionDomId rosterDay.id) :: String)
                 fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)

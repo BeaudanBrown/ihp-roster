@@ -2,7 +2,8 @@
 (function enableLiveUpdates() {
     if (typeof window === 'undefined') return;
 
-    const actorFragmentRefreshEventName = 'app-roster-fragments-refresh';
+    const actorFragmentRefreshEventName = 'app-live-fragments-refresh';
+    const legacyActorFragmentRefreshEventName = 'app-roster-fragments-refresh';
     const pendingDeferredFragments = new Map();
     const inFlightFragments = new Map();
     const activeSubscriptions = new Map();
@@ -10,6 +11,7 @@
     let socket = null;
     let socketPath = null;
     let reconnectTimer = null;
+    let reconnectAttempt = 0;
     let activeClientId = null;
     let nextPerfToken = 0;
 
@@ -69,6 +71,15 @@
         }));
 
         return duration;
+    }
+
+    function emitDebugEvent(name, detail) {
+        document.dispatchEvent(new CustomEvent('app:live-update-debug', {
+            detail: {
+                name,
+                ...(detail || {}),
+            },
+        }));
     }
 
     function findPreservedField(root, preserveField) {
@@ -224,6 +235,10 @@
         const existing = inFlightFragments.get(fragment.targetId);
         if (existing) {
             inFlightFragments.set(fragment.targetId, { ...existing, next: fragment });
+            emitDebugEvent('fragment_deduped', {
+                targetId: fragment.targetId,
+                url: fragment.url,
+            });
             return;
         }
 
@@ -385,6 +400,10 @@
         if (!fragment) return;
 
         pendingDeferredFragments.delete(targetId);
+        emitDebugEvent('deferred_fragment_flush', {
+            targetId,
+            reason: 'inactive_input',
+        });
         queueFragment(fragment);
     }
 
@@ -401,10 +420,19 @@
     function scheduleReconnect() {
         if (reconnectTimer) return;
 
+        reconnectAttempt += 1;
+        const cappedAttempt = Math.min(reconnectAttempt, 6);
+        const baseDelay = 250 * (2 ** cappedAttempt);
+        const delayMs = Math.floor(Math.random() * Math.min(baseDelay, 10000));
+        emitDebugEvent('reconnect_scheduled', {
+            attempt: reconnectAttempt,
+            delayMs,
+        });
+
         reconnectTimer = window.setTimeout(function () {
             reconnectTimer = null;
             syncConnection();
-        }, 1000);
+        }, delayMs);
     }
 
     function sendCommand(command) {
@@ -515,6 +543,7 @@
             path: config.socketPath || '/live-updates',
             resyncFragments: Array.isArray(config.resyncFragments) ? config.resyncFragments : [],
             decorateRequestsWithin: Array.isArray(config.decorateRequestsWithin) ? config.decorateRequestsWithin : [],
+            ownerEls: [ownerEl],
             resync: function (subscription) {
                 subscription.resyncFragments.forEach(handleFragmentRefreshRequest);
             },
@@ -568,12 +597,57 @@
 
     const adapters = [declarativeSurfaceAdapter()];
 
+    function fragmentMergeKey(fragment) {
+        if (!fragment || !fragment.targetId) return null;
+        const fragmentKey = fragment.fragmentKey ? JSON.stringify(fragment.fragmentKey) : '';
+        return `${fragmentKey}:${fragment.targetId}`;
+    }
+
+    function mergeFragments(existingFragments, nextFragments) {
+        const merged = [];
+        const seen = new Set();
+
+        existingFragments.concat(nextFragments).forEach(function (fragment) {
+            const mergeKey = fragmentMergeKey(fragment);
+            if (!mergeKey || seen.has(mergeKey)) {
+                if (mergeKey) {
+                    emitDebugEvent('fragment_deduped', {
+                        targetId: fragment && fragment.targetId ? fragment.targetId : null,
+                        mergeKey,
+                    });
+                }
+                return;
+            }
+
+            seen.add(mergeKey);
+            merged.push(fragment);
+        });
+
+        return merged;
+    }
+
+    function mergeStringLists(existingValues, nextValues) {
+        return Array.from(new Set(existingValues.concat(nextValues).filter(Boolean)));
+    }
+
+    function mergeSubscription(existing, next) {
+        if (!existing) return next;
+
+        return {
+            ...existing,
+            feature: existing.feature || next.feature,
+            resyncFragments: mergeFragments(existing.resyncFragments, next.resyncFragments),
+            decorateRequestsWithin: mergeStringLists(existing.decorateRequestsWithin, next.decorateRequestsWithin),
+            ownerEls: (existing.ownerEls || []).concat(next.ownerEl ? [next.ownerEl] : next.ownerEls || []),
+        };
+    }
+
     function desiredSubscriptions() {
         const desired = new Map();
 
         adapters.forEach(function (adapter) {
             adapter.collectSubscriptions().forEach(function (subscription) {
-                desired.set(subscription.scopeKey, subscription);
+                desired.set(subscription.scopeKey, mergeSubscription(desired.get(subscription.scopeKey), subscription));
             });
         });
 
@@ -627,6 +701,11 @@
                 if (typeof subscription.resync === 'function') {
                     subscription.resync(subscription);
                 }
+                emitDebugEvent('resync_version_gap', {
+                    scopeKey,
+                    previousVersion,
+                    nextVersion,
+                });
                 endPerfSpan(perfSpan, {
                     outcome: 'resync_gap',
                     scopeKey,
@@ -665,7 +744,15 @@
         socketPath = path;
 
         socket.onopen = function () {
-            activeSubscriptions.forEach(subscribeScope);
+            reconnectAttempt = 0;
+            activeSubscriptions.forEach(function (subscription) {
+                subscribeScope(subscription);
+                emitDebugEvent('subscription_added', {
+                    scopeKey: subscription.scopeKey,
+                    fragmentCount: subscription.resyncFragments.length,
+                    ownerCount: (subscription.ownerEls || []).length,
+                });
+            });
             endPerfSpan(connectPerfSpan, {
                 outcome: 'open',
                 subscriptionCount: activeSubscriptions.size,
@@ -738,6 +825,9 @@
             unsubscribeScope(subscription);
             activeSubscriptions.delete(subscription.scopeKey);
             clearScopeVersion(subscription.scopeKey);
+            emitDebugEvent('subscription_removed', {
+                scopeKey: subscription.scopeKey,
+            });
         });
 
         desired.forEach(function (subscription, scopeKey) {
@@ -751,7 +841,14 @@
         }
 
         if (socket.readyState === window.WebSocket.OPEN) {
-            added.forEach(subscribeScope);
+            added.forEach(function (subscription) {
+                subscribeScope(subscription);
+                emitDebugEvent('subscription_added', {
+                    scopeKey: subscription.scopeKey,
+                    fragmentCount: subscription.resyncFragments.length,
+                    ownerCount: (subscription.ownerEls || []).length,
+                });
+            });
         }
     }
 
@@ -764,20 +861,28 @@
         event.detail.headers['X-Live-Update-Client-Id'] = clientId;
     });
 
-    document.addEventListener(actorFragmentRefreshEventName, function (event) {
+    function handleActorFragmentRefreshEvent(event) {
         const detail = event.detail;
         const fragments = Array.isArray(detail && detail.fragments) ? detail.fragments : [];
         fragments.forEach(handleFragmentRefreshRequest);
-    });
+    }
+
+    document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
+    document.addEventListener(legacyActorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
 
     document.addEventListener('focusout', function (event) {
-        const target = event.target;
-        if (!(target instanceof HTMLElement)) return;
-        if (!target.classList.contains('slot-note-input')) return;
+        window.setTimeout(function () {
+            flushDeferredFragmentsWithoutActiveInputs();
+        }, 0);
+    });
 
-        const rowEl = target.closest('tr[data-roster-row]');
-        if (!(rowEl instanceof HTMLElement) || !rowEl.id) return;
+    document.addEventListener('input', function () {
+        window.setTimeout(function () {
+            flushDeferredFragmentsWithoutActiveInputs();
+        }, 0);
+    });
 
+    document.addEventListener('change', function () {
         window.setTimeout(function () {
             flushDeferredFragmentsWithoutActiveInputs();
         }, 0);

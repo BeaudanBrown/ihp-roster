@@ -1,6 +1,6 @@
 ---
 id: ir-yznv
-status: open
+status: closed
 deps: [ir-t3nk]
 links: []
 created: 2026-04-29T04:45:39Z
@@ -18,3 +18,9 @@ Phase 3 from plans/62-live-fragment-system-refactor.md: merge same-scope surface
 
 Same-scope surfaces merge fragments/request decorators/owners; generic actor refresh event works while the roster alias remains; protected fragments flush without roster-specific selectors; reconnect retries use jittered backoff; diagnostics cover subscription/resync/dedupe/defer events.
 
+
+## Notes
+
+**2026-04-29T04:57:58Z**
+
+Implemented generic runtime slice: same-scope surface aggregation, generic app-live-fragments-refresh trigger with roster alias, policy-driven deferred flush on focus/input/change, jittered reconnect backoff, and debug events. Verified with typecheck, RosterWeeks/LiveUpdate Hspec, and live-update adapter E2E.

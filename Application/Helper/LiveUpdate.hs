@@ -15,6 +15,7 @@ module Application.Helper.LiveUpdate
     , currentLiveUpdateVersion
     , liveUpdateSourceClientId
     , liveUpdateScopeKey
+    , liveFragmentsRefreshTriggerPayload
     , mkLiveFragmentRef
     , registerLiveSubscription
     , unregisterLiveSubscription
@@ -185,6 +186,17 @@ liveUpdateScopeKey SupportPlatformScope =
 liveUpdateSourceClientId :: (?request :: Request) => Maybe Text
 liveUpdateSourceClientId =
     cs <$> getHeader "X-Live-Update-Client-Id"
+
+liveFragmentsRefreshTriggerPayload :: [LiveFragmentRef] -> Aeson.Value
+liveFragmentsRefreshTriggerPayload fragments =
+    let detail =
+            Aeson.object
+                [ "fragments" Aeson..= fragments
+                ]
+     in Aeson.object
+            [ "app-live-fragments-refresh" Aeson..= detail
+            , "app-roster-fragments-refresh" Aeson..= detail
+            ]
 
 instance Aeson.ToJSON LiveUpdateScope where
     toJSON RosterWeekScope { venueId, rosterGroupId, weekOffset } =

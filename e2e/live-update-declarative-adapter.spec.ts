@@ -361,6 +361,171 @@ test.describe('Declarative live-update adapter', () => {
             .toHaveLength(1);
     });
 
+    test('merges same-scope surfaces for resync fragments', async ({ page }) => {
+        await installLiveUpdateHarness(page);
+        await openBlankRuntimePage(page);
+
+        const scope = {
+            kind: 'timesheet_week',
+            venueId: fixtureVenueId,
+            weekOffset: 44,
+        };
+
+        await page.evaluate(() => {
+            const win = window as Window & {
+                __liveUpdateFetches?: string[];
+                fetch: typeof fetch;
+            };
+            const originalFetch = window.fetch.bind(window);
+            win.__liveUpdateFetches = [];
+            window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+                const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+                if (url.includes('/SyntheticMergedFragment')) {
+                    win.__liveUpdateFetches?.push(url);
+                    const targetId = url.includes('fragment=one') ? 'synthetic-fragment-one' : 'synthetic-fragment-two';
+                    return new Response(`<div id="${targetId}">merged ${targetId}</div>`, {
+                        status: 200,
+                        headers: { 'Content-Type': 'text/html' },
+                    });
+                }
+
+                return originalFetch(input, init);
+            };
+        });
+
+        await page.evaluate((surfaceScope) => {
+            const firstConfig = {
+                feature: 'same-scope-one',
+                socketPath: '/live-updates',
+                scope: surfaceScope,
+                resyncFragments: [
+                    {
+                        fragmentKey: { kind: 'timesheet_day_section', dayOffset: 1 },
+                        targetId: 'synthetic-fragment-one',
+                        url: '/SyntheticMergedFragment?fragment=one',
+                        deferUntilBlur: false,
+                        protectionPolicy: null,
+                    },
+                ],
+                decorateRequestsWithin: [],
+            };
+            const secondConfig = {
+                ...firstConfig,
+                feature: 'same-scope-two',
+                resyncFragments: [
+                    {
+                        fragmentKey: { kind: 'timesheet_day_section', dayOffset: 2 },
+                        targetId: 'synthetic-fragment-two',
+                        url: '/SyntheticMergedFragment?fragment=two',
+                        deferUntilBlur: false,
+                        protectionPolicy: null,
+                    },
+                ],
+            };
+            document.body.insertAdjacentHTML(
+                'beforeend',
+                `
+                    <section id="synthetic-live-surface-one" data-live-update-surface='${JSON.stringify(firstConfig)}'>
+                        <div id="synthetic-fragment-one">one initial</div>
+                    </section>
+                    <section id="synthetic-live-surface-two" data-live-update-surface='${JSON.stringify(secondConfig)}'>
+                        <div id="synthetic-fragment-two">two initial</div>
+                    </section>
+                `,
+            );
+            document.dispatchEvent(new CustomEvent('app:page-ready'));
+        }, scope);
+
+        await expect
+            .poll(async () => (await liveUpdateCommands(page)).filter((command: any) => command.type === 'subscribe' && command.scope?.weekOffset === 44))
+            .toHaveLength(1);
+
+        await page.evaluate((subscribedScope) => {
+            const win = window as Window & {
+                __liveUpdateSockets?: Array<{
+                    url?: string;
+                    onmessage?: ((event: { data: string }) => void) | null;
+                }>;
+            };
+            const socket = win.__liveUpdateSockets?.find((candidate) => candidate.url?.includes('/live-updates'));
+            if (!socket?.onmessage) throw new Error('Live-update socket was not opened');
+
+            socket.onmessage({
+                data: JSON.stringify({
+                    type: 'subscribed',
+                    scope: subscribedScope,
+                    currentVersion: 4,
+                    resync: true,
+                }),
+            });
+        }, scope);
+
+        await expect(page.locator('#synthetic-fragment-one')).toHaveText('merged synthetic-fragment-one');
+        await expect(page.locator('#synthetic-fragment-two')).toHaveText('merged synthetic-fragment-two');
+    });
+
+    test('handles generic actor refresh events and flushes protected fragments after focus leaves', async ({ page }) => {
+        await installLiveUpdateHarness(page);
+        await openBlankRuntimePage(page);
+
+        await page.evaluate(() => {
+            const win = window as Window & {
+                __liveUpdateFetches?: string[];
+                fetch: typeof fetch;
+            };
+            const originalFetch = window.fetch.bind(window);
+            win.__liveUpdateFetches = [];
+            window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+                const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+                if (url.includes('/SyntheticProtectedFragment')) {
+                    win.__liveUpdateFetches?.push(url);
+                    return new Response('<div id="synthetic-protected-fragment" data-swapped="true"><input class="generic-focus" name="note" value="fresh"></div>', {
+                        status: 200,
+                        headers: { 'Content-Type': 'text/html' },
+                    });
+                }
+
+                return originalFetch(input, init);
+            };
+
+            document.body.insertAdjacentHTML(
+                'beforeend',
+                '<div id="synthetic-protected-fragment"><input class="generic-focus" name="note" value="editing"></div>',
+            );
+        });
+
+        await page.locator('.generic-focus').focus();
+        await page.evaluate(() => {
+            document.dispatchEvent(new CustomEvent('app-live-fragments-refresh', {
+                detail: {
+                    fragments: [
+                        {
+                            fragmentKey: { kind: 'admin_xero' },
+                            targetId: 'synthetic-protected-fragment',
+                            url: '/SyntheticProtectedFragment',
+                            deferUntilBlur: true,
+                            protectionPolicy: {
+                                kind: 'focused_field',
+                                activeSelector: '.generic-focus:focus',
+                                fieldKeyAttr: 'data-field-key',
+                                fieldNameFallback: true,
+                                containerSelector: null,
+                            },
+                        },
+                    ],
+                },
+            }));
+        });
+
+        await expect
+            .poll(async () => page.evaluate(() => (window as Window & { __liveUpdateFetches?: string[] }).__liveUpdateFetches ?? []))
+            .toHaveLength(0);
+
+        await page.locator('.generic-focus').blur();
+        await expect(page.locator('#synthetic-protected-fragment')).toHaveAttribute('data-swapped', 'true');
+        await expect(page.locator('#synthetic-protected-fragment .generic-focus')).toHaveValue('editing');
+    });
+
     test('reports invalid declarative surface config instead of silently ignoring it', async ({ page }) => {
         await installLiveUpdateHarness(page);
         await openBlankRuntimePage(page);

@@ -7,7 +7,8 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
-import Application.Helper.LiveUpdate (LiveFragmentRef, LiveUpdateScope (..))
+import Application.Helper.LiveUpdate (LiveFragmentRef, LiveUpdateScope (..),
+                                      liveFragmentsRefreshTriggerPayload)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.View (appendQueryParams)
@@ -480,12 +481,7 @@ respondWithActorRosterFragmentRefresh fragments = do
     respondHtmlProfiled [hsx||]
     where
         payload =
-            Aeson.object
-                [ "app-roster-fragments-refresh" Aeson..=
-                    Aeson.object
-                        [ "fragments" Aeson..= fragments
-                        ]
-                ]
+            liveFragmentsRefreshTriggerPayload fragments
 
 respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefreshStaffPanel = do
