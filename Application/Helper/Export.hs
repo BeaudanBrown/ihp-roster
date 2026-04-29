@@ -1126,6 +1126,10 @@ payrollEarningsPenaltyLabel segment =
         "public_holiday_penalty"    -> "Public Holiday"
         "evening_after_7pm"         -> "Evening After 7pm"
         "late_night_after_midnight" -> "Late Night After Midnight"
+        "delayed_meal_break_weekday" -> "M-F Delayed Meal Break"
+        "delayed_meal_break_saturday" -> "Saturday Delayed Meal Break"
+        "delayed_meal_break_sunday" -> "Sunday Delayed Meal Break"
+        "delayed_meal_break_public_holiday" -> "Public Holiday Delayed Meal Break"
         _                           -> "Ordinary"
 
 requestApprovedTimesheetsCsvExport ::

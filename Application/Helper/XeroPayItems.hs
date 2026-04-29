@@ -30,9 +30,11 @@ deriveXeroPayItemRequirements usedScopes awardLevels baseRates penaltyRates time
             concatMap ordinaryRequirement baseRows
                 ++ map penaltyRequirement penaltyRows
                 ++ concatMap timeAllowanceRequirements baseRows
+                ++ concatMap delayedMealBreakRequirements baseRows
     where
         activeAwardLevels = filter (.isActive) awardLevels
-        baseRows = filter rowIsUsed (awardBaseRows activeAwardLevels baseRates)
+        allBaseRows = awardBaseRows activeAwardLevels baseRates
+        baseRows = filter rowIsUsed allBaseRows
         penaltyRows = filter rowIsUsed (awardPenaltyRows activeAwardLevels penaltyRates)
         rowIsUsed row =
             XeroUsedAwardPayScope
@@ -94,6 +96,23 @@ deriveXeroPayItemRequirements usedScopes awardLevels baseRates penaltyRates time
                         "Flat hourly loading from FWC time allowance"
                 )
 
+        delayedMealBreakRequirements row =
+            delayedMealBreakPenaltyKinds
+                |> mapMaybe (\penaltyKind -> do
+                    delayedRate <- delayedMealBreakRate allBaseRows penaltyRows row penaltyKind
+                    pure (requirement
+                            (requiredPayItemKey row (PenaltyCondition penaltyKind))
+                            (requiredPayItemName row (PenaltyCondition penaltyKind))
+                            (Just (inputValue penaltyKind))
+                            "ORDINARYTIMEEARNINGS"
+                            "RATEPERUNIT"
+                            Nothing
+                            (Just delayedRate)
+                            (Just (formatRate delayedRate))
+                            "HIGA delayed meal break rate: applicable day rate plus 50% of permanent ordinary hourly rate"
+                        )
+                )
+
 deriveXeroLocalEarningsBuckets ::
     [XeroUsedAwardPayScope] ->
     [AwardLevel] ->
@@ -106,6 +125,7 @@ deriveXeroLocalEarningsBuckets usedScopes awardLevels baseRates penaltyRates tim
         concatMap ordinaryBucket baseRows
             ++ map penaltyBucket penaltyRows
             ++ concatMap timeAllowanceBuckets baseRows
+            ++ concatMap delayedMealBreakBuckets baseRows
     where
         activeAwardLevels = filter (.isActive) awardLevels
         baseRows = filter rowIsUsed (awardBaseRows activeAwardLevels baseRates)
@@ -128,6 +148,11 @@ deriveXeroLocalEarningsBuckets usedScopes awardLevels baseRates penaltyRates tim
                 |> filter (\allowance -> allowance.hourlyAmount > 0)
                 |> filter (\allowance -> allowance.penaltyKind `elem` timeAllowancePenaltyKinds)
                 |> map (\allowance -> bucket row (PenaltyCondition allowance.penaltyKind))
+
+        delayedMealBreakBuckets row =
+            delayedMealBreakPenaltyKinds
+                |> filter (delayedMealBreakAvailable penaltyRows row)
+                |> map (\penaltyKind -> bucket row (PenaltyCondition penaltyKind))
 
         bucket row condition =
             XeroLocalEarningsBucket
@@ -204,6 +229,55 @@ timeAllowancePenaltyKinds =
     , LateNightAfterMidnight
     ]
 
+delayedMealBreakPenaltyKinds :: [AwardPenaltyKindEnum]
+delayedMealBreakPenaltyKinds =
+    [ DelayedMealBreakWeekday
+    , DelayedMealBreakSaturday
+    , DelayedMealBreakSunday
+    , DelayedMealBreakPublicHoliday
+    ]
+
+delayedMealBreakRate :: [AwardPayItemRow] -> [AwardPayItemRow] -> AwardPayItemRow -> AwardPenaltyKindEnum -> Maybe Scientific.Scientific
+delayedMealBreakRate allBaseRows penaltyRows row penaltyKind =
+    (+ (permanentBaseRate * 0.5)) <$> applicableDayRate
+    where
+        permanentBaseRate =
+            allBaseRows
+                |> List.find (\baseRow -> baseRow.awardLevelId == row.awardLevelId && baseRow.employmentBasis == Permanent)
+                |> maybe row.hourlyRate (.hourlyRate)
+        applicableDayRate =
+            case delayedMealBreakBasePenaltyKind penaltyKind of
+                Nothing -> Just row.hourlyRate
+                Just basePenaltyKind ->
+                    penaltyRows
+                        |> List.find
+                            ( \penaltyRow ->
+                                penaltyRow.awardLevelId == row.awardLevelId
+                                    && penaltyRow.employmentBasis == row.employmentBasis
+                                    && penaltyRow.condition == PenaltyCondition basePenaltyKind
+                            )
+                        |> fmap (.hourlyRate)
+
+delayedMealBreakAvailable :: [AwardPayItemRow] -> AwardPayItemRow -> AwardPenaltyKindEnum -> Bool
+delayedMealBreakAvailable penaltyRows row penaltyKind =
+    case delayedMealBreakBasePenaltyKind penaltyKind of
+        Nothing -> True
+        Just basePenaltyKind ->
+            isJust $
+                penaltyRows
+                    |> List.find
+                        ( \penaltyRow ->
+                            penaltyRow.awardLevelId == row.awardLevelId
+                                && penaltyRow.employmentBasis == row.employmentBasis
+                                && penaltyRow.condition == PenaltyCondition basePenaltyKind
+                        )
+
+delayedMealBreakBasePenaltyKind :: AwardPenaltyKindEnum -> Maybe AwardPenaltyKindEnum
+delayedMealBreakBasePenaltyKind DelayedMealBreakSaturday      = Just SaturdayPenalty
+delayedMealBreakBasePenaltyKind DelayedMealBreakSunday        = Just SundayPenalty
+delayedMealBreakBasePenaltyKind DelayedMealBreakPublicHoliday = Just PublicHolidayPenalty
+delayedMealBreakBasePenaltyKind _                             = Nothing
+
 requiredPayItemKey :: AwardPayItemRow -> PayItemCondition -> Text
 requiredPayItemKey row condition =
     "xero:pay-item:classification:"
@@ -247,6 +321,10 @@ conditionLabel (PenaltyCondition SundayPenalty) = "Sunday Penalty"
 conditionLabel (PenaltyCondition PublicHolidayPenalty) = "Public Holiday Penalty"
 conditionLabel (PenaltyCondition EveningAfter7Pm) = "Evening After 7pm Loading"
 conditionLabel (PenaltyCondition LateNightAfterMidnight) = "Late Night After Midnight Loading"
+conditionLabel (PenaltyCondition DelayedMealBreakWeekday) = "M-F Delayed Meal Break"
+conditionLabel (PenaltyCondition DelayedMealBreakSaturday) = "Saturday Delayed Meal Break"
+conditionLabel (PenaltyCondition DelayedMealBreakSunday) = "Sunday Delayed Meal Break"
+conditionLabel (PenaltyCondition DelayedMealBreakPublicHoliday) = "Public Holiday Delayed Meal Break"
 
 penaltyKindValue :: PayItemCondition -> Maybe Text
 penaltyKindValue OrdinaryCondition              = Nothing

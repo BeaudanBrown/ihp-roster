@@ -127,6 +127,7 @@ staffPaySegmentBucketIndex buckets segment =
 staffPaySegmentBucketKind :: Day -> Text -> Text
 staffPaySegmentBucketKind date segmentName =
     case formatTime defaultTimeLocale "%u" date :: String of
+        _ | Text.isPrefixOf "delayed_meal_break_" segmentName -> "ordinary"
         "6" | segmentName == "late_night_after_midnight" -> "late_night_after_midnight"
         "6" -> "ordinary"
         "7" -> "ordinary"

@@ -554,6 +554,10 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "$39.3750/hr"
                 pageResponse `responseBodyShouldContain` "Evening After 7pm Loading"
                 pageResponse `responseBodyShouldContain` "$3.1500/hr"
+                pageResponse `responseBodyShouldContain` "M-F Delayed Meal Break"
+                pageResponse `responseBodyShouldContain` "$47.2500/hr"
+                pageResponse `responseBodyShouldContain` "Saturday Delayed Meal Break"
+                pageResponse `responseBodyShouldContain` "$55.1250/hr"
                 pageResponse `responseBodyShouldContain` "matched"
                 pageResponse `responseBodyShouldContain` "proposed"
                 pageResponse `responseBodyShouldContain` "Earnings-rate mappings"
@@ -572,6 +576,9 @@ tests = beforeAll testContext do
                 eveningRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "Bepis - Level 2 (permanent) - Evening After 7pm Loading") |> fetchOne
                 eveningRequirement.requirementStatus `shouldBe` "proposed"
                 eveningRequirement.ratePerUnit `shouldBe` Just 3.15
+                delayedRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "Bepis - Level 2 (permanent) - M-F Delayed Meal Break") |> fetchOne
+                delayedRequirement.requirementStatus `shouldBe` "proposed"
+                delayedRequirement.ratePerUnit `shouldBe` Just 47.25
 
                 versionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
                 mappingResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -642,9 +649,9 @@ tests = beforeAll testContext do
                                 callAction CreateMissingXeroPayItemsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Created 5 missing Xero pay items."
+                response `responseBodyShouldContain` "Created 8 missing Xero pay items."
                 requests <- IORef.readIORef requestsRef
-                length requests `shouldBe` 5
+                length requests `shouldBe` 8
                 let ordinaryName = "Bepis - Level 2 (permanent) - Ordinary"
                 let ordinaryKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:ordinary"
                 map fst requests `shouldSatisfy` all (Text.isPrefixOf "bepis-pay-item-")
