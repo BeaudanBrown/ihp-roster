@@ -222,7 +222,7 @@ renderXeroStaffMappings xeroEmployees mappingRows mappingCounts
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                 <div>
                     <h3 class="h6 mb-1">Staff mappings</h3>
-                    <p class="small app-muted mb-0">Map active staff to synced Xero payroll employees. Unmapped staff are allowed during setup.</p>
+                    <p class="small app-muted mb-0">Map active staff to synced Xero payroll employees, or mark them as not paid through Xero.</p>
                 </div>
                 {renderXeroStaffMappingCounts mappingCounts}
             </div>
@@ -246,8 +246,8 @@ renderXeroStaffMappings xeroEmployees mappingRows mappingCounts
 renderXeroStaffMappingRow :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingRow -> Html
 renderXeroStaffMappingRow xeroEmployees mappingRows row =
     let staff = row.mappingRowStaff
-        maybeMapping = row.mappingRowMapping
-        currentSelection = xeroMappingSelectionValue maybeMapping
+        mapping = row.mappingRowMapping
+        currentSelection = xeroMappingSelectionValue mapping
         selectableEmployees = filter (xeroEmployeeAvailableForRow row mappingRows) xeroEmployees
      in [hsx|
         <tr>
@@ -269,7 +269,6 @@ renderXeroStaffMappingCountsWith :: Maybe Text -> XeroStaffMappingCounts -> Html
 renderXeroStaffMappingCountsWith maybeOobSwap mappingCounts = [hsx|
     <div id="xero-staff-mapping-counts" class="d-flex flex-wrap gap-2" hx-swap-oob={maybeOobSwap}>
         <span class="badge text-bg-success">{tshow mappingCounts.xeroStaffVerifiedCount} mapped</span>
-        <span class="badge text-bg-secondary">{tshow mappingCounts.xeroStaffUnmappedCount} unmapped</span>
         <span class="badge text-bg-info">{tshow mappingCounts.xeroStaffNotApplicableCount} not paid through Xero</span>
         <span class="badge text-bg-warning">{tshow mappingCounts.xeroStaffStaleCount} stale</span>
     </div>
@@ -286,7 +285,6 @@ renderXeroStaffMappingControl selectableEmployees currentSelection staff = [hsx|
           hx-swap="none">
         <input type="hidden" name="staffId" value={tshow staff.id} />
         <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
-            <option value="" selected={currentSelection == ""}>Unmapped</option>
             <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
             {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
         </select>
@@ -296,8 +294,8 @@ renderXeroStaffMappingControl selectableEmployees currentSelection staff = [hsx|
 renderXeroStaffMappingControlOob :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingRow -> Html
 renderXeroStaffMappingControlOob xeroEmployees mappingRows row =
     let staff = row.mappingRowStaff
-        maybeMapping = row.mappingRowMapping
-        currentSelection = xeroMappingSelectionValue maybeMapping
+        mapping = row.mappingRowMapping
+        currentSelection = xeroMappingSelectionValue mapping
         selectableEmployees = filter (xeroEmployeeAvailableForRow row mappingRows) xeroEmployees
      in [hsx|
         <form id={xeroStaffMappingControlId staff.id}
@@ -311,7 +309,6 @@ renderXeroStaffMappingControlOob xeroEmployees mappingRows row =
               hx-swap-oob="outerHTML">
             <input type="hidden" name="staffId" value={tshow staff.id} />
             <select class="form-select form-select-sm" name="xeroEmployeeSelection" aria-label={"Xero employee for " <> staffFullName staff}>
-                <option value="" selected={currentSelection == ""}>Unmapped</option>
                 <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
                 {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
             </select>
@@ -587,11 +584,10 @@ xeroEmployeeAvailableForRow currentRow mappingRows employee =
                 |> mapMaybe verifiedEmployeeForOtherStaff
 
         verifiedEmployeeForOtherStaff row =
-            case row.mappingRowMapping of
-                Just mapping
-                    | rowStaffId row /= currentStaffId
-                    , mapping.mappingStatus == "verified" -> mapping.xeroEmployeeId
-                _ -> Nothing
+            let mapping = row.mappingRowMapping
+             in if rowStaffId row /= currentStaffId && mapping.mappingStatus == "verified"
+                    then mapping.xeroEmployeeId
+                    else Nothing
 
         rowStaffId row = unpackId row.mappingRowStaff.id
 
@@ -609,12 +605,11 @@ renderXeroStaffEmail (Just user) = [hsx|<span>{user.email}</span>|]
 renderMutedText :: Text -> Html
 renderMutedText text = [hsx|<span class="app-muted">{text}</span>|]
 
-xeroMappingSelectionValue :: Maybe XeroStaffMapping -> Text
-xeroMappingSelectionValue Nothing = ""
-xeroMappingSelectionValue (Just mapping)
+xeroMappingSelectionValue :: XeroStaffMapping -> Text
+xeroMappingSelectionValue mapping
     | mapping.mappingStatus == "not_applicable" = "not_applicable"
     | mapping.mappingStatus == "verified" = fromMaybe "" mapping.xeroEmployeeId
-    | otherwise = ""
+    | otherwise = "not_applicable"
 
 xeroEmployeeLabel :: XeroEmployee -> Text
 xeroEmployeeLabel employee =

@@ -465,7 +465,7 @@ tests = beforeAll testContext do
                 syncedResponse `responseBodyShouldNotContain` "<th>Status</th>"
                 syncedResponse `responseBodyShouldNotContain` "<th class=\"text-end\">Current</th>"
                 syncedResponse `responseBodyShouldNotContain` ">Save</button>"
-                syncedResponse `responseBodyShouldContain` "2 unmapped"
+                syncedResponse `responseBodyShouldContain` "2 not paid through Xero"
 
         it "saves Xero staff mappings and not-paid-through-Xero states from the admin fragment" $ withContext do
             withCleanDb do

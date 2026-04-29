@@ -8,12 +8,11 @@ import IHP.Prelude
 data XeroStaffMappingRow = XeroStaffMappingRow
     { mappingRowStaff   :: Staff
     , mappingRowUser    :: Maybe User
-    , mappingRowMapping :: Maybe XeroStaffMapping
+    , mappingRowMapping :: XeroStaffMapping
     }
 
 data XeroStaffMappingCounts = XeroStaffMappingCounts
     { xeroStaffVerifiedCount      :: Int
-    , xeroStaffUnmappedCount      :: Int
     , xeroStaffNotApplicableCount :: Int
     , xeroStaffStaleCount         :: Int
     }

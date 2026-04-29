@@ -803,7 +803,7 @@ CREATE TABLE xero_staff_mappings (
     xero_employee_id TEXT,
     xero_employee_name TEXT,
     xero_employee_email TEXT,
-    mapping_status TEXT DEFAULT 'unmapped' NOT NULL,
+    mapping_status TEXT DEFAULT 'not_applicable' NOT NULL,
     last_verified_at TIMESTAMP WITH TIME ZONE,
     created_by_user_id UUID,
     updated_by_user_id UUID,
@@ -814,7 +814,7 @@ CREATE TABLE xero_staff_mappings (
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK ((mapping_status = 'unmapped') OR (mapping_status = 'verified') OR (mapping_status = 'not_applicable') OR (mapping_status = 'stale'))
+    CHECK ((mapping_status = 'verified') OR (mapping_status = 'not_applicable') OR (mapping_status = 'stale'))
 );
 CREATE TABLE xero_earnings_rate_mappings (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,

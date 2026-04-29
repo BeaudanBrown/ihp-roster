@@ -406,12 +406,23 @@ fetchCurrentVenueXeroStaffMappingRows maybeConnection =
                     |> fetch
             forM staffMembers \staff -> do
                 maybeUser <- fetchStaffLinkedUser staff
-                let maybeMapping = List.find (\mapping -> mapping.staffId == unpackId staff.id) mappings
+                mapping <- ensureDefaultXeroStaffMapping connection staff (List.find (\mapping -> mapping.staffId == unpackId staff.id) mappings)
                 pure XeroStaffMappingRow
                     { mappingRowStaff = staff
                     , mappingRowUser = maybeUser
-                    , mappingRowMapping = maybeMapping
+                    , mappingRowMapping = mapping
                     }
+
+ensureDefaultXeroStaffMapping :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> Staff -> Maybe XeroStaffMapping -> IO XeroStaffMapping
+ensureDefaultXeroStaffMapping _ _ (Just mapping) =
+    pure mapping
+ensureDefaultXeroStaffMapping connection staff Nothing =
+    newRecord @XeroStaffMapping
+        |> set #venueId (unpackId currentVenueId)
+        |> set #staffId (unpackId staff.id)
+        |> set #xeroConnectionId (unpackId connection.id)
+        |> set #mappingStatus ("not_applicable" :: Text)
+        |> createRecord
 
 fetchStaffLinkedUser :: (?modelContext :: ModelContext) => Staff -> IO (Maybe User)
 fetchStaffLinkedUser staff =
@@ -426,18 +437,12 @@ xeroStaffMappingCountsFor :: [XeroStaffMappingRow] -> XeroStaffMappingCounts
 xeroStaffMappingCountsFor rows =
     XeroStaffMappingCounts
         { xeroStaffVerifiedCount = countStatus "verified"
-        , xeroStaffUnmappedCount = length (filter isUnmapped rows)
         , xeroStaffNotApplicableCount = countStatus "not_applicable"
         , xeroStaffStaleCount = countStatus "stale"
         }
     where
-        mappingStatus row = (.mappingStatus) <$> row.mappingRowMapping
-        countStatus status = length (filter (\row -> mappingStatus row == Just status) rows)
-        isUnmapped row =
-            case mappingStatus row of
-                Nothing         -> True
-                Just "unmapped" -> True
-                _               -> False
+        mappingStatus row = row.mappingRowMapping.mappingStatus
+        countStatus status = length (filter (\row -> mappingStatus row == status) rows)
 
 xeroEarningsRateMappingCountsFor :: [XeroEarningsBucketRow] -> XeroEarningsRateMappingCounts
 xeroEarningsRateMappingCountsFor rows =
@@ -466,7 +471,7 @@ buildXeroReadyChecklist maybeConnection maybeSyncRun staffRows maybeCalendarSele
         }
     where
         staffRowReady row =
-            maybe False (\mapping -> mapping.mappingStatus == "verified" || mapping.mappingStatus == "not_applicable") row.mappingRowMapping
+            row.mappingRowMapping.mappingStatus == "verified" || row.mappingRowMapping.mappingStatus == "not_applicable"
 
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -658,7 +663,7 @@ saveXeroStaffMapping connection staffId selection = do
         Nothing -> respondWithXeroStaffMappingError connection "Choose a staff member from the current venue."
         Just staff ->
             case selection of
-                "" -> persistXeroStaffMapping connection staff "unmapped" Nothing
+                "" -> persistXeroStaffMapping connection staff "not_applicable" Nothing
                 "not_applicable" -> persistXeroStaffMapping connection staff "not_applicable" Nothing
                 xeroEmployeeId -> do
                     maybeEmployee <- profileActionSpan "admin.xero.staff_mapping.persist.validate_employee" $
