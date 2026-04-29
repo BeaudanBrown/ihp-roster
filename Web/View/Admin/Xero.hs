@@ -64,13 +64,7 @@ adminXeroLiveSurface =
 
 renderXeroSection :: XeroAdminSectionData -> Html
 renderXeroSection XeroAdminSectionData { xeroConnection = maybeConnection, .. } =
-    renderConfigSection
-        "xero"
-        "Xero"
-        "Connect this venue to a Xero organisation for payroll integration setup."
-        (renderXeroSummary maybeConnection)
-        mempty
-        (renderXeroConnectionBody maybeConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed)
+    renderXeroConnectionBody maybeConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed
 
 renderXeroSectionFragment :: XeroAdminSectionData -> Html
 renderXeroSectionFragment =
@@ -89,26 +83,10 @@ renderXeroSectionFragmentWithSwap maybeSwapOob xeroSectionData = [hsx|
     </div>
 |]
 
-renderXeroSummary :: Maybe XeroConnection -> Html
-renderXeroSummary Nothing = [hsx|
-    <div class="small app-muted mb-3">
-        Status: <span class="badge text-bg-secondary">not connected</span>
-    </div>
-|]
-renderXeroSummary (Just connection) = [hsx|
-    <div class="small app-muted mb-3">
-        Status: {renderXeroConnectionStatus connection}
-        <span class="ms-2">{fromMaybe connection.tenantId connection.tenantName}</span>
-    </div>
-|]
-
 renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> Html
 renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed = [hsx|
-    <div class="d-flex flex-column gap-3">
-        <p class="mb-0 app-muted">
-            Connecting grants ihp-roster access to the selected Xero organisation for payroll integration setup.
-        </p>
-        {renderXeroConnectControl connectionActionsAllowed}
+    <div class="accordion admin-config-accordion" id="admin-xero-sections">
+        {renderXeroAccordionItem "connection" "Connection" True (renderXeroDisconnectedConnectionDetails connectionActionsAllowed)}
     </div>
 |]
 renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed =
@@ -127,6 +105,20 @@ renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun emp
             {renderXeroAccordionItem "payroll-calendar" "Payroll calendar" False (renderXeroPayrollCalendarSelection xeroPayrollCalendars maybePayrollCalendarSelection)}
             {renderXeroAccordionItem "readiness" "Readiness" False (renderXeroReadyChecklist readyChecklist)}
         </div>
+    </div>
+|]
+
+renderXeroDisconnectedConnectionDetails :: Bool -> Html
+renderXeroDisconnectedConnectionDetails connectionActionsAllowed = [hsx|
+    <div class="d-flex flex-column gap-3">
+        <dl class="row mb-0">
+            <dt class="col-sm-3">Connection status</dt>
+            <dd class="col-sm-9"><span class="badge text-bg-secondary">not connected</span></dd>
+        </dl>
+        <p class="mb-0 app-muted">
+            Connecting grants ihp-roster access to the selected Xero organisation for payroll integration setup.
+        </p>
+        {renderXeroConnectControl connectionActionsAllowed}
     </div>
 |]
 

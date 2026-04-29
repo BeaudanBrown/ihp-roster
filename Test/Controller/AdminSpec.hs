@@ -197,6 +197,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Connect Xero"
                 response `responseBodyShouldContain` "id=\"admin-xero-fragment\""
                 response `responseBodyShouldContain` "admin_xero"
+                response `responseBodyShouldContain` "Connection status"
+                response `responseBodyShouldNotContain` "Status:"
+                response `responseBodyShouldNotContain` "app-accordion-section-header"
                 response `responseBodyShouldNotContain` "Staff mappings"
 
                 fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -310,6 +313,7 @@ tests = beforeAll testContext do
                                 ]
 
                 response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Xero"
                 connection <- query @XeroConnection |> fetchOne
                 connection.venueId `shouldBe` unpackId venue.id
                 connection.tenantId `shouldBe` "tenant-123"
@@ -982,6 +986,7 @@ tests = beforeAll testContext do
                             callActionWithParams XeroOAuthCallbackAction [("state", cs oauthState.stateToken), ("code", "repair-code")]
 
                 response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Xero"
                 connectionCount <- query @XeroConnection |> fetchCount
                 connectionCount `shouldBe` 1
                 repaired <- fetch staleConnection.id
@@ -1026,6 +1031,19 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Exports"
                 response `responseBodyShouldContain` "href=\"/Xero\""
                 response `responseBodyShouldNotContain` "Venue Config"
+
+        it "shows the Xero header button and page to super admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Super Admin Venue"
+                superAdmin <- createUserRecordWithPlatformRole "xero-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue superAdmin venue.id do
+                    callAction XeroAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "href=\"/Xero\""
+                response `responseBodyShouldContain` "id=\"admin-xero-fragment\""
+                response `responseBodyShouldContain` "Connect Xero"
 
         it "hides and blocks the Xero header button for venue admins" $ withContext do
             withCleanDb do

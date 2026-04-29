@@ -25,7 +25,7 @@ startXeroConnectionAction =
         readXeroConfig >>= \case
             Left message -> do
                 setErrorMessage message
-                redirectTo AdminAction
+                redirectTo XeroAction
             Right xeroConfig -> do
                 now <- getCurrentTime
                 stateToken <- generateXeroStateToken
@@ -75,7 +75,7 @@ disconnectXeroConnectionAction =
         case maybeConnection of
             Nothing -> do
                 setErrorMessage "Xero is not connected for this venue."
-                redirectTo AdminAction
+                redirectTo XeroAction
             Just connection ->
                 disconnectXeroConnection connection
 
@@ -87,7 +87,7 @@ syncXeroPayrollReferenceDataAction = do
             setErrorMessage "Connect Xero before syncing payroll reference data."
             if isHtmxRequest
                 then respondWithXeroSectionFragment
-                else redirectTo AdminAction
+                else redirectTo XeroAction
         Just connection -> syncXeroPayrollReferenceData connection
 
 createMissingXeroPayItemsAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
@@ -108,7 +108,7 @@ saveXeroStaffMappingAction = do
             setErrorMessage "Connect Xero before mapping staff to Xero employees."
             if isHtmxRequest
                 then respondWithXeroSectionFragment
-                else redirectTo AdminAction
+                else redirectTo XeroAction
         Just connection -> do
             let staffId = param @(Id Staff) "staffId"
             let selection = Text.strip (paramOrDefault @Text "" "xeroEmployeeSelection")
@@ -122,7 +122,7 @@ suggestXeroStaffMappingAction staffId = do
             setErrorMessage "Connect Xero before mapping staff to Xero employees."
             if isHtmxRequest
                 then respondWithXeroSectionFragment
-                else redirectTo AdminAction
+                else redirectTo XeroAction
         Just connection ->
             suggestXeroStaffMapping connection staffId
 
@@ -134,7 +134,7 @@ saveXeroEarningsRateMappingAction = do
             setErrorMessage "Connect Xero before mapping earning buckets to Xero earnings rates."
             if isHtmxRequest
                 then respondWithXeroSectionFragment
-                else redirectTo AdminAction
+                else redirectTo XeroAction
         Just connection -> do
             let localBucketKey = Text.strip (paramOrDefault @Text "" "localBucketKey")
             let selection = Text.strip (paramOrDefault @Text "" "xeroEarningsRateSelection")
@@ -151,7 +151,7 @@ saveXeroPayItemAccountCodeSelectionAction =
                     setErrorMessage "Connect Xero before choosing a pay item account code."
                     if isHtmxRequest
                         then respondWithXeroSectionFragment
-                        else redirectTo AdminAction
+                        else redirectTo XeroAction
                 Just connection -> do
                     let selection = Text.strip (paramOrDefault @Text "" "xeroPayItemAccountCodeSelection")
                     saveXeroPayItemAccountCodeSelection connection selection
@@ -164,7 +164,7 @@ saveXeroPayrollCalendarSelectionAction = do
             setErrorMessage "Connect Xero before selecting a payroll calendar."
             if isHtmxRequest
                 then respondWithXeroSectionFragment
-                else redirectTo AdminAction
+                else redirectTo XeroAction
         Just connection -> do
             let selection = Text.strip (paramOrDefault @Text "" "xeroPayrollCalendarSelection")
             saveXeroPayrollCalendarSelection connection selection
@@ -567,8 +567,7 @@ xeroErrorToast :: Text -> ToastOverlayConfig
 xeroErrorToast = errorToast
 
 currentUserCanManageXeroIntegration :: (?context :: ControllerContext) => Bool
-currentUserCanManageXeroIntegration =
-    currentUserIsSuperAdmin || currentVenueRoleOrNothing == Just VenueOwnerRole
+currentUserCanManageXeroIntegration = hasRole VenueOwnerRole
 
 requireCurrentVenueOwnerForXero :: (?context :: ControllerContext, ?request :: Request) => IO () -> IO ()
 requireCurrentVenueOwnerForXero action =
@@ -586,13 +585,13 @@ disconnectXeroConnection connection = do
     readXeroConfig >>= \case
         Left message -> do
             setErrorMessage message
-            redirectTo AdminAction
+            redirectTo XeroAction
         Right xeroConfig -> do
             refreshResult <- refreshXeroConnectionAccess xeroConfig connection
             case refreshResult of
                 Left message -> do
                     setErrorMessage message
-                    redirectTo AdminAction
+                    redirectTo XeroAction
                 Right (refreshedConnection, accessToken) -> do
                     xeroClient <- currentXeroClient
                     remoteIdResult <- resolveXeroRemoteConnectionId xeroClient refreshedConnection accessToken
@@ -600,7 +599,7 @@ disconnectXeroConnection connection = do
                         Left message -> do
                             markXeroConnectionError refreshedConnection message
                             setErrorMessage message
-                            redirectTo AdminAction
+                            redirectTo XeroAction
                         Right remoteConnectionId -> do
                             deleteResult <- deleteXeroConnection xeroClient accessToken remoteConnectionId
                             case deleteResult of
@@ -608,7 +607,7 @@ disconnectXeroConnection connection = do
                                     let message = "Xero disconnect failed: " <> xeroClientErrorText err
                                     markXeroConnectionError refreshedConnection message
                                     setErrorMessage message
-                                    redirectTo AdminAction
+                                    redirectTo XeroAction
                                 Right () -> completeLocalXeroDisconnect refreshedConnection remoteConnectionId
 
 completeLocalXeroDisconnect ::
@@ -640,7 +639,7 @@ completeLocalXeroDisconnect connection remoteConnectionId = do
         pure updated
     broadcastAdminXeroInvalidation currentVenueId
     setSuccessMessage ("Disconnected Xero tenant " <> fromMaybe updatedConnection.tenantId updatedConnection.tenantName <> ".")
-    redirectTo AdminAction
+    redirectTo XeroAction
 
 resolveXeroRemoteConnectionId ::
     (?modelContext :: ModelContext) =>
@@ -791,7 +790,7 @@ persistXeroStaffMappingWithControlRefresh connection staff mappingStatus maybeEm
         then respondWithXeroStaffMappingControlsAndToast connection maybeUnchangedStaffId (Just (xeroSuccessToast message))
         else do
             setSuccessMessage message
-            redirectTo AdminAction
+            redirectTo XeroAction
 
 respondWithXeroStaffMappingError ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -803,7 +802,7 @@ respondWithXeroStaffMappingError connection message = do
         then respondWithXeroStaffMappingControlsAndToast connection Nothing (Just (xeroErrorToast message))
         else do
             setErrorMessage message
-            redirectTo AdminAction
+            redirectTo XeroAction
 
 data XeroEmployeeSuggestionResult
     = NoXeroEmployeeSuggestion
@@ -1145,7 +1144,7 @@ respondToXeroMappingMutationSuccess message =
         then respondWithXeroSectionFragmentAndToast (Just (xeroSuccessToast message))
         else do
             setSuccessMessage message
-            redirectTo AdminAction
+            redirectTo XeroAction
 
 respondWithXeroMappingMutationError ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -1156,7 +1155,7 @@ respondWithXeroMappingMutationError message =
         then respondWithXeroSectionFragmentAndToast (Just (xeroErrorToast message))
         else do
             setErrorMessage message
-            redirectTo AdminAction
+            redirectTo XeroAction
 
 createMissingXeroPayItems ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -1382,7 +1381,7 @@ completeXeroOAuthCallback now actorUserId oauthState code =
                             tenant <- chooseXeroTenantForOAuth tenants
                             connection <- persistCompletedXeroConnection now actorUserId xeroConfig oauthState tokenResponse tenant
                             setSuccessMessage ("Connected Xero tenant " <> fromMaybe connection.tenantId connection.tenantName <> ".")
-                            redirectTo AdminAction
+                            redirectTo XeroAction
 
 persistCompletedXeroConnection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -1493,7 +1492,7 @@ failXeroConnectionAttempt message maybeState = do
             ]
         )
     setErrorMessage message
-    redirectTo AdminAction
+    redirectTo XeroAction
 
 syncXeroPayrollReferenceData ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -1573,7 +1572,7 @@ completeXeroReferenceSync syncRun connection employees earningsRates payrollCale
     broadcastAdminXeroInvalidation currentVenueId
     if isHtmxRequest
         then respondWithXeroSectionFragment
-        else redirectTo AdminAction
+        else redirectTo XeroAction
 
 markStaleXeroStaffMappings ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -1678,7 +1677,7 @@ failXeroReferenceSync syncRun connection message = do
     broadcastAdminXeroInvalidation currentVenueId
     if isHtmxRequest
         then respondWithXeroSectionFragment
-        else redirectTo AdminAction
+        else redirectTo XeroAction
 
 upsertXeroEmployee :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEmployeeRef -> IO XeroEmployee
 upsertXeroEmployee connection syncedAt employee = do

@@ -45,11 +45,14 @@ currentUserIsSupportAdmin = currentUserIsSuperAdmin
 currentUserIsVenueOwner :: (?context :: ControllerContext) => Bool
 currentUserIsVenueOwner = currentVenueRoleOrNothing == Just VenueOwnerRole
 
+currentUserCanSeeXero :: (?context :: ControllerContext) => Bool
+currentUserCanSeeXero = hasRole VenueOwnerRole
+
 data ViewAudience
     = AnySignedInAudience
     | StaffProfileAudience
     | ManagerAudience
-    | VenueOwnerAudience
+    | XeroAudience
     | AdminAudience
     | SupportAudience
     deriving (Eq, Show)
@@ -60,7 +63,7 @@ currentUserMatchesAudience audience =
         AnySignedInAudience -> isJust currentUserOrNothing
         StaffProfileAudience -> isJust currentUserOrNothing && not currentUserIsSupportAdmin
         ManagerAudience     -> currentUserIsManager
-        VenueOwnerAudience  -> currentUserIsVenueOwner
+        XeroAudience        -> currentUserCanSeeXero
         AdminAudience       -> currentUserIsAdmin
         SupportAudience     -> currentUserIsSupportAdmin
 
