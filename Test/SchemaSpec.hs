@@ -239,6 +239,24 @@ tests = describe "Schema" do
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX IF NOT EXISTS idx_app_jobs_pending ON app_jobs"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_app_jobs_active_dedupe"
 
+    it "enforces V1 roster, availability, and timesheet shape constraints" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1777420000.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((weekday_index >= 0) AND (weekday_index <= 6))"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((roster_week_starts_on >= 0) AND (roster_week_starts_on <= 6))"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((day_offset >= 0) AND (day_offset <= 6))"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((ideal_shifts_per_week >= 0) AND (ideal_shifts_per_week <= 7))"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (end_date > start_date)"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, slot_name_id) WHERE deleted_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_groups_one_active_default ON roster_groups (venue_id) WHERE is_default = TRUE AND is_active = TRUE AND archived_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_availability_active_weekday ON staff_availability (staff_id, weekday_index) WHERE weekday_index IS NOT NULL AND deleted_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_availability_active_date ON staff_availability (staff_id, specific_date) WHERE specific_date IS NOT NULL AND deleted_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((had_break = FALSE) AND break_start_time IS NULL AND break_end_time IS NULL AND break_minutes = 0) OR ((had_break = TRUE) AND break_start_time IS NOT NULL AND break_end_time IS NOT NULL AND break_minutes > 0))"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND pay_config_snapshot_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND pay_config_snapshot_id IS NOT NULL))"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD CONSTRAINT timesheet_entries_approval_shape_check"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_roster_slots_active_cell"
+
     it "stores passkeys as user-owned credential records" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE passkeys"

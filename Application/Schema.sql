@@ -140,7 +140,8 @@ CREATE TABLE staff (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
-    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((ideal_shifts_per_week >= 0) AND (ideal_shifts_per_week <= 7))
 );
 CREATE TABLE shift_types (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -245,7 +246,8 @@ CREATE TABLE day_names (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(venue_id, weekday_index),
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((weekday_index >= 0) AND (weekday_index <= 6))
 );
 CREATE TABLE venue_config (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -259,7 +261,10 @@ CREATE TABLE venue_config (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(venue_id),
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    CHECK ((roster_week_starts_on >= 0) AND (roster_week_starts_on <= 6)),
+    CHECK (late_to_early_min_start_gap_minutes >= 0),
+    CHECK (staff_timesheet_edit_window_days >= 0)
 );
 CREATE TABLE pay_config_snapshots (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -542,7 +547,8 @@ CREATE TABLE roster_days (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(roster_week_id, day_offset),
-    FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT
+    FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT,
+    CHECK ((day_offset >= 0) AND (day_offset <= 6))
 );
 CREATE TABLE roster_slots (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -560,6 +566,9 @@ CREATE TABLE roster_slots (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     CHECK (note IS NULL OR char_length(note) <= 2),
+    CHECK (row_index >= 0),
+    CHECK (slot_sort_order >= 0),
+    CHECK (duration_minutes IS NULL OR duration_minutes >= 0),
     FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE SET NULL,
     FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE RESTRICT,
@@ -580,7 +589,9 @@ CREATE TABLE staff_availability (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
-    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (((weekday_index IS NOT NULL) AND (specific_date IS NULL)) OR ((weekday_index IS NULL) AND (specific_date IS NOT NULL))),
+    CHECK ((weekday_index IS NULL) OR ((weekday_index >= 0) AND (weekday_index <= 6)))
 );
 CREATE TABLE staff_shift_preferences (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -598,7 +609,8 @@ CREATE TABLE staff_shift_preferences (
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
     FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE RESTRICT,
-    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((weekday_index >= 0) AND (weekday_index <= 6))
 );
 CREATE TABLE leave_requests (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -615,7 +627,8 @@ CREATE TABLE leave_requests (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
-    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (end_date > start_date)
 );
 CREATE TABLE leave_request_events (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -909,7 +922,10 @@ CREATE TABLE timesheet_entries (
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
     FOREIGN KEY (pay_config_snapshot_id) REFERENCES pay_config_snapshots (id) ON DELETE RESTRICT,
     FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
-    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (break_minutes >= 0),
+    CHECK (((had_break = FALSE) AND break_start_time IS NULL AND break_end_time IS NULL AND break_minutes = 0) OR ((had_break = TRUE) AND break_start_time IS NOT NULL AND break_end_time IS NOT NULL AND break_minutes > 0)),
+    CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND pay_config_snapshot_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND pay_config_snapshot_id IS NOT NULL))
 );
 CREATE TABLE timesheet_entry_versions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -956,13 +972,16 @@ CREATE UNIQUE INDEX idx_report_definitions_active_slug ON report_definitions (ve
 CREATE INDEX idx_report_definition_shift_type_filters_definition ON report_definition_shift_type_filters (report_definition_id);
 CREATE UNIQUE INDEX idx_report_definition_shift_type_filters_active ON report_definition_shift_type_filters (report_definition_id, shift_type_id) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_roster_groups_active_name ON roster_groups (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
+CREATE UNIQUE INDEX idx_roster_groups_one_active_default ON roster_groups (venue_id) WHERE is_default = TRUE AND is_active = TRUE AND archived_at IS NULL;
 CREATE UNIQUE INDEX idx_staff_roster_groups_active_assignment ON staff_roster_groups (staff_id, roster_group_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_roster_groups_group_staff ON staff_roster_groups (roster_group_id, staff_id);
 CREATE INDEX idx_slot_names_group_sort ON slot_names (roster_group_id, sort_order ASC, created_at ASC);
 CREATE UNIQUE INDEX idx_slot_names_active_name ON slot_names (roster_group_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
+CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE INDEX idx_roster_weeks_venue_offset ON roster_weeks (venue_id, week_offset);
 CREATE INDEX idx_roster_slots_day ON roster_slots (roster_day_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL AND deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, slot_name_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_pay_config_snapshots_venue_version ON pay_config_snapshots (venue_id, version_number DESC);
 CREATE INDEX idx_fwc_mapd_sync_runs_started_at ON fwc_mapd_sync_runs (started_at DESC);
 CREATE INDEX idx_fwc_mapd_awards_fixed_id ON fwc_mapd_awards (award_fixed_id, award_operative_to);
@@ -989,6 +1008,8 @@ CREATE INDEX idx_leave_requests_venue_start_date ON leave_requests (venue_id, st
 CREATE INDEX idx_leave_requests_venue_status_staff_dates ON leave_requests (venue_id, status, staff_id, start_date, end_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_leave_request_events_request_created_at ON leave_request_events (leave_request_id, created_at DESC);
 CREATE INDEX idx_staff_availability_venue ON staff_availability (venue_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_staff_availability_active_weekday ON staff_availability (staff_id, weekday_index) WHERE weekday_index IS NOT NULL AND deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_staff_availability_active_date ON staff_availability (staff_id, specific_date) WHERE specific_date IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_staff_shift_preferences_venue_staff ON staff_shift_preferences (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_shift_preferences_staff ON staff_shift_preferences (staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_shift_preferences_group_day ON staff_shift_preferences (roster_group_id, weekday_index) WHERE deleted_at IS NULL;
