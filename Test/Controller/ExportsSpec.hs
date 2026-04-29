@@ -4,9 +4,10 @@ import Application.Helper.Export
 import qualified Codec.Archive.Zip as Zip
 import Config
 import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
-import Data.Text.Encoding (decodeUtf8)
+import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Time.Calendar (Day, fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -185,6 +186,67 @@ tests = beforeAll testContext do
                     Text.isInfixOf "Ava LVL 1,0.00,0.00,0.00,0.00,0.00,0.00,3.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     (not . Text.isInfixOf "8.00")
+
+        it "packages multi-week staff-hours payroll exports as weekly CSV files in a ZIP" $ withContext do
+            withCleanDb do
+                let approvedAt = UTCTime (fromGregorian 2025 1 19) (secondsToDiffTime 3600)
+                venue <- createVenueWithConfig "Payroll Multi Week Venue"
+                admin <- createUserRecord "payroll-multi-week-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                dayNames <- seedWeekDayNames venue
+                levelOne <- createPayLevelRecord venue "LVL 1"
+                barShift <- createShiftTypeRecord venue levelOne "Bar"
+                staffUser <- createUserRecord "payroll-multi-week-staff@example.com" "staff" True
+                staff <- createStaffRecord venue (Just staffUser) "Ava" "Worker"
+                snapshot <- createPayrollSnapshot venue admin [levelOne] [barShift] dayNames []
+
+                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 8) snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId barShift.id)
+                    , set #startTime (TimeOfDay 10 0 0)
+                    , set #endTime (TimeOfDay 13 0 0)
+                    ]
+                _ <- createAndApproveEntry venue staff (fromGregorian 2025 1 15) snapshot admin approvedAt
+                    [ set #shiftTypeId (unpackId barShift.id)
+                    , set #startTime (TimeOfDay 9 0 0)
+                    , set #endTime (TimeOfDay 17 0 0)
+                    ]
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText StaffPayCsv))
+                        , ("rangeStart", "2025-01-08")
+                        , ("rangeEnd", "2025-01-15")
+                        ]
+
+                response `responseStatusShouldBe` status302
+
+                exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
+                exportJob.exportType `shouldBe` exportJobTypeToText StaffPayCsv
+                exportJob.fileName `shouldBe` Just "staff_hours-2025-01-08-to-2025-01-15.zip"
+                exportJob.contentType `shouldBe` Just "application/zip"
+                exportJob.fileEncoding `shouldBe` "base64"
+                exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
+
+                let archive =
+                        fromMaybe Zip.emptyArchive do
+                            fileContents <- exportJob.fileContents
+                            either (const Nothing) (Just . Zip.toArchive . LBS.fromStrict) (Base64.decode (encodeUtf8 fileContents))
+                Zip.filesInArchive archive `shouldContain` ["2025-01-06-to-2025-01-12/staff_hours.csv"]
+                Zip.filesInArchive archive `shouldContain` ["2025-01-13-to-2025-01-19/staff_hours.csv"]
+                let firstWeekCsv =
+                        archive
+                            |> Zip.findEntryByPath "2025-01-06-to-2025-01-12/staff_hours.csv"
+                            |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
+                            |> fromMaybe ""
+                let secondWeekCsv =
+                        archive
+                            |> Zip.findEntryByPath "2025-01-13-to-2025-01-19/staff_hours.csv"
+                            |> fmap (decodeUtf8 . LBS.toStrict . Zip.fromEntry)
+                            |> fromMaybe ""
+                firstWeekCsv `shouldSatisfy` Text.isInfixOf "Ava LVL 1,0.00,0.00,0.00,0.00,0.00,0.00,3.00"
+                firstWeekCsv `shouldSatisfy` (not . Text.isInfixOf "8.00")
+                secondWeekCsv `shouldSatisfy` Text.isInfixOf "Ava LVL 1,0.00,0.00,0.00,0.00,0.00,0.00,8.00"
+                secondWeekCsv `shouldSatisfy` (not . Text.isInfixOf "3.00")
 
         it "creates a payroll earnings export grouped by staff date earnings and tracking code" $ withContext do
             withCleanDb do
@@ -414,6 +476,23 @@ tests = beforeAll testContext do
                     callAction ExportJobsAction
 
                 response `responseStatusShouldBe` status302
+
+        it "rejects invalid export date ranges without creating a job" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Invalid Range Venue"
+                admin <- createUserRecord "exports-invalid-range@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))
+                        , ("rangeStart", "2025-01-12")
+                        , ("rangeEnd", "2025-01-06")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                exportJobCount <- query @ExportJob |> fetchCount
+                exportJobCount `shouldBe` 0
 
         it "denies managers access to export generation" $ withContext do
             withCleanDb do
