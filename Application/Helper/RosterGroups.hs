@@ -89,14 +89,19 @@ setVenueDefaultRosterGroup venueId rosterGroupId = do
             |> filterWhere (#venueId, unpackId venueId)
             |> filterWhere (#archivedAt, Nothing)
             |> fetch
-    forM_ rosterGroups \rosterGroup -> do
-        let shouldBeDefault = rosterGroup.id == rosterGroupId
-        when (rosterGroup.isDefault /= shouldBeDefault) do
+    forM_ rosterGroups \rosterGroup ->
+        when (rosterGroup.id /= rosterGroupId && rosterGroup.isDefault) do
             _ <-
                 rosterGroup
-                    |> set #isDefault shouldBeDefault
+                    |> set #isDefault False
                     |> updateRecord
             pure ()
+    forM_ (find (\rosterGroup -> rosterGroup.id == rosterGroupId && not rosterGroup.isDefault) rosterGroups) \rosterGroup -> do
+        _ <-
+            rosterGroup
+                |> set #isDefault True
+                |> updateRecord
+        pure ()
     fetch rosterGroupId
 
 fetchCurrentVenueRosterGroupOrDefault :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id RosterGroup) -> IO RosterGroup
