@@ -1,6 +1,6 @@
 ---
 id: ir-1lv1
-status: open
+status: closed
 deps: [ir-pr5o]
 links: []
 created: 2026-04-29T05:15:30Z
@@ -18,3 +18,9 @@ Add performance-oriented hooks for projection-backed live fragments: cache warm/
 
 High-churn surfaces have a clear path to avoid over-broadcasting, and profiling can show cache and subscription behavior without changing user-visible flows.
 
+
+## Notes
+
+**2026-04-29T05:21:15Z**
+
+Implemented broadcast fanout result metrics, active-scope matching helper, and opt-in projection broadcast warming. Mounted-fragment filtering remains a protocol-level follow-up because the server does not yet receive mounted fragment metadata from clients.

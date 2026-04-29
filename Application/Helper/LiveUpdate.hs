@@ -3,12 +3,16 @@ module Application.Helper.LiveUpdate
     , LiveFragmentProtection (..)
     , LiveFragmentRef (..)
     , FocusedFieldProtectionConfig (..)
+    , LiveUpdateBroadcastResult (..)
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
     , activeLiveUpdateScopes
+    , activeLiveUpdateScopeMatches
     , activeRosterWeekScopes
     , broadcastLiveInvalidation
+    , broadcastLiveInvalidationDetailed
+    , broadcastLiveInvalidationDetailedWithoutContext
     , broadcastLiveInvalidationWithoutContext
     , broadcastLiveResync
     , broadcastLiveResyncWithoutContext
@@ -159,6 +163,14 @@ data LiveUpdateMessage
     | LiveUpdatesError
         { message :: !Text
         }
+    deriving (Eq, Show)
+
+data LiveUpdateBroadcastResult = LiveUpdateBroadcastResult
+    { broadcastVersion              :: !Int
+    , broadcastSubscriberCount      :: !Int
+    , broadcastFragmentCount        :: !Int
+    , broadcastDroppedSubscriptions :: !Int
+    }
     deriving (Eq, Show)
 
 liveUpdateScopeKey :: LiveUpdateScope -> Text
@@ -512,9 +524,13 @@ activeLiveUpdateScopes :: IO [LiveUpdateScope]
 activeLiveUpdateScopes =
     Set.toList . Set.fromList . map (.subscriptionScope) <$> readIORef liveSubscriptionsRef
 
+activeLiveUpdateScopeMatches :: Ord a => (LiveUpdateScope -> Maybe a) -> IO [a]
+activeLiveUpdateScopeMatches matcher =
+    Set.toList . Set.fromList . mapMaybe matcher <$> activeLiveUpdateScopes
+
 activeRosterWeekScopes :: IO [(UUID.UUID, UUID.UUID, Int)]
 activeRosterWeekScopes =
-    mapMaybe rosterWeekScopeParts <$> activeLiveUpdateScopes
+    activeLiveUpdateScopeMatches rosterWeekScopeParts
     where
         rosterWeekScopeParts RosterWeekScope { venueId, rosterGroupId, weekOffset } =
             Just (venueId, rosterGroupId, weekOffset)
@@ -536,8 +552,18 @@ broadcastLiveInvalidation scope sourceClientId fragments =
     profileActionSpan "live_updates.broadcast_invalidation" $
         broadcastLiveInvalidationWithoutContext scope sourceClientId fragments
 
+broadcastLiveInvalidationDetailed :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO LiveUpdateBroadcastResult
+broadcastLiveInvalidationDetailed scope sourceClientId fragments =
+    profileActionSpan "live_updates.broadcast_invalidation" $
+        broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments
+
 broadcastLiveInvalidationWithoutContext :: LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO ()
 broadcastLiveInvalidationWithoutContext scope sourceClientId fragments = do
+    _ <- broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments
+    pure ()
+
+broadcastLiveInvalidationDetailedWithoutContext :: LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO LiveUpdateBroadcastResult
+broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments = do
     version <- incrementLiveUpdateVersion scope
     subscriptions <- readIORef liveSubscriptionsRef
     let matchingSubscriptions = filter (\subscription -> subscription.subscriptionScope == scope) subscriptions
@@ -547,6 +573,13 @@ broadcastLiveInvalidationWithoutContext scope sourceClientId fragments = do
             ( filter (\subscription -> subscription.subscriptionId `notElem` staleIds) activeSubscriptions
             , ()
             )
+    pure
+        LiveUpdateBroadcastResult
+            { broadcastVersion = version
+            , broadcastSubscriberCount = length matchingSubscriptions
+            , broadcastFragmentCount = length fragments
+            , broadcastDroppedSubscriptions = length staleIds
+            }
 
 broadcastLiveResync :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> IO ()
 broadcastLiveResync scope sourceClientId =

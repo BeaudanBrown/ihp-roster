@@ -115,7 +115,27 @@ tests = describe "LiveUpdate runtime types" do
 
     it "exposes active live scopes without leaking websocket subscription internals" do
         activeLiveUpdateScopes `shouldReturn` []
+        activeLiveUpdateScopeMatches supportScopeLabel `shouldReturn` []
         activeRosterWeekScopes `shouldReturn` []
+
+    it "reports broadcast fanout counts for profiling hooks" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let scope = LeaveRequestsScope { venueId }
+        let fragment =
+                LiveFragmentRef
+                    { fragmentKey = LeaveRequestsContentFragment
+                    , targetId = "leave-requests-content"
+                    , url = "/ShowLeaveRequestsContentFragment"
+                    , deferUntilBlur = False
+                    , protectionPolicy = NoProtection
+                    }
+
+        result <- broadcastLiveInvalidationDetailedWithoutContext scope Nothing [fragment]
+
+        result.broadcastVersion `shouldSatisfy` (> 0)
+        result.broadcastSubscriberCount `shouldBe` 0
+        result.broadcastFragmentCount `shouldBe` 1
+        result.broadcastDroppedSubscriptions `shouldBe` 0
 
     it "encodes support live surface config with stable JSON" do
         let surface =
@@ -181,3 +201,7 @@ tests = describe "LiveUpdate runtime types" do
 expectUuid :: Text -> UUID.UUID
 expectUuid value =
     fromMaybe (error ("Invalid UUID fixture: " <> cs value)) (UUID.fromText value)
+
+supportScopeLabel :: LiveUpdateScope -> Maybe Text
+supportScopeLabel SupportPlatformScope = Just "support"
+supportScopeLabel _                    = Nothing

@@ -1,8 +1,12 @@
 module Application.Helper.LiveSurface
     ( LiveSurfaceConfig (..)
+    , LiveSurfaceBroadcastOptions (..)
     , LiveSurfaceDefinition (..)
     , ProjectionLiveSurfaceDefinition (..)
+    , broadcastProjectionSurfaceFragments
+    , broadcastProjectionSurfaceFragmentsWith
     , broadcastSurfaceFragments
+    , defaultLiveSurfaceBroadcastOptions
     , liveSurfaceProjectionFragmentRef
     , liveSurfaceConfigJson
     , liveSurfaceFragmentRef
@@ -51,6 +55,17 @@ data ProjectionLiveSurfaceDefinition scope snapshot fragment = ProjectionLiveSur
     { liveSurfaceDefinition       :: !(LiveSurfaceDefinition scope fragment)
     , surfaceProjectionDefinition :: !(SurfaceProjectionDefinition scope snapshot fragment)
     }
+
+data LiveSurfaceBroadcastOptions = LiveSurfaceBroadcastOptions
+    { warmProjectionAfterBroadcast :: !Bool
+    }
+    deriving (Eq, Show)
+
+defaultLiveSurfaceBroadcastOptions :: LiveSurfaceBroadcastOptions
+defaultLiveSurfaceBroadcastOptions =
+    LiveSurfaceBroadcastOptions
+        { warmProjectionAfterBroadcast = False
+        }
 
 instance Aeson.ToJSON LiveSurfaceConfig where
     toJSON LiveSurfaceConfig { feature, socketPath, scope, scopeKey, resyncFragments, decorateRequestsWithin } =
@@ -112,6 +127,34 @@ broadcastSurfaceFragments definition surfaceKey fragments =
         (definition.surfaceScope surfaceKey)
         liveUpdateSourceClientId
         (liveSurfaceFragmentRefs definition surfaceKey fragments)
+
+broadcastProjectionSurfaceFragments ::
+    forall scope snapshot fragment.
+    (?context :: ControllerContext, ?request :: Request, Dynamic.Typeable snapshot) =>
+    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    scope ->
+    [fragment] ->
+    IO LiveUpdateBroadcastResult
+broadcastProjectionSurfaceFragments =
+    broadcastProjectionSurfaceFragmentsWith defaultLiveSurfaceBroadcastOptions
+
+broadcastProjectionSurfaceFragmentsWith ::
+    forall scope snapshot fragment.
+    (?context :: ControllerContext, ?request :: Request, Dynamic.Typeable snapshot) =>
+    LiveSurfaceBroadcastOptions ->
+    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    scope ->
+    [fragment] ->
+    IO LiveUpdateBroadcastResult
+broadcastProjectionSurfaceFragmentsWith options definition surfaceKey fragments = do
+    result <-
+        broadcastLiveInvalidationDetailed
+            (definition.liveSurfaceDefinition.surfaceScope surfaceKey)
+            liveUpdateSourceClientId
+            (liveSurfaceFragmentRefs definition.liveSurfaceDefinition surfaceKey fragments)
+    when options.warmProjectionAfterBroadcast do
+        warmLiveSurfaceProjection definition surfaceKey
+    pure result
 
 mkSurfaceProjectionDefinition ::
     LiveSurfaceDefinition scope fragment ->
