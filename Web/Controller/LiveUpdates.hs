@@ -54,6 +54,7 @@ handleCommand command =
                     sendJSON
                         LiveUpdatesSubscribed
                             { scope
+                            , scopeKey = liveUpdateScopeKey scope
                             , currentVersion
                             , resync = maybe False (/= currentVersion) lastSeenVersion
                             }

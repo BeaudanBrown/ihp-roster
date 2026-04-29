@@ -461,6 +461,14 @@
         }
     }
 
+    function messageScopeKey(message) {
+        if (message && typeof message.scopeKey === 'string' && message.scopeKey.length > 0) {
+            return message.scopeKey;
+        }
+
+        return buildScopeKey(message ? message.scope : null);
+    }
+
     function subscribeScope(subscription) {
         const lastSeenVersion = getScopeVersion(subscription.scopeKey);
         sendCommand({
@@ -573,10 +581,9 @@
     }
 
     function handleSubscribedMessage(message) {
-        if (!message || !message.scope) return;
+        if (!message) return;
 
-        const scope = message.scope;
-        const scopeKey = buildScopeKey(scope);
+        const scopeKey = messageScopeKey(message);
         if (!scopeKey) return;
         const subscription = activeSubscriptions.get(scopeKey);
         if (!subscription) return;
@@ -592,7 +599,7 @@
     }
 
     function handleInvalidateMessage(message) {
-        if (!message || !message.scope || !Array.isArray(message.fragments)) return;
+        if (!message || !Array.isArray(message.fragments)) return;
         if (message.sourceClientId && message.sourceClientId === activeClientId) return;
         const perfSpan = beginPerfSpan('live_updates.handle_invalidate', {
             fragmentCount: message.fragments.length,
@@ -600,8 +607,7 @@
             version: normalizeVersion(message.version),
         });
 
-        const scope = message.scope;
-        const scopeKey = buildScopeKey(scope);
+        const scopeKey = messageScopeKey(message);
         if (!scopeKey) {
             endPerfSpan(perfSpan, { outcome: 'invalid_scope' });
             return;

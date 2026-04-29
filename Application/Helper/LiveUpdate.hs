@@ -144,11 +144,13 @@ data LiveUpdateCommand
 data LiveUpdateMessage
     = LiveUpdatesSubscribed
         { scope          :: !LiveUpdateScope
+        , scopeKey       :: !Text
         , currentVersion :: !Int
         , resync         :: !Bool
         }
     | LiveUpdatesInvalidated
         { scope          :: !LiveUpdateScope
+        , scopeKey       :: !Text
         , version        :: !Int
         , fragments      :: ![LiveFragmentRef]
         , sourceClientId :: !(Maybe Text)
@@ -444,17 +446,19 @@ instance Aeson.FromJSON LiveUpdateCommand where
             _ -> fail ("Unknown live update command: " <> cs messageType)
 
 instance Aeson.ToJSON LiveUpdateMessage where
-    toJSON LiveUpdatesSubscribed { scope, currentVersion, resync } =
+    toJSON LiveUpdatesSubscribed { scope, scopeKey, currentVersion, resync } =
         Aeson.object
             [ "type" Aeson..= ("subscribed" :: Text)
             , "scope" Aeson..= scope
+            , "scopeKey" Aeson..= scopeKey
             , "currentVersion" Aeson..= currentVersion
             , "resync" Aeson..= resync
             ]
-    toJSON LiveUpdatesInvalidated { scope, version, fragments, sourceClientId } =
+    toJSON LiveUpdatesInvalidated { scope, scopeKey, version, fragments, sourceClientId } =
         Aeson.object
             [ "type" Aeson..= ("invalidate" :: Text)
             , "scope" Aeson..= scope
+            , "scopeKey" Aeson..= scopeKey
             , "version" Aeson..= version
             , "fragments" Aeson..= fragments
             , "sourceClientId" Aeson..= sourceClientId
@@ -556,6 +560,7 @@ sendInvalidation scope version sourceClientId fragments subscription = do
         message =
             LiveUpdatesInvalidated
                 { scope
+                , scopeKey = liveUpdateScopeKey scope
                 , version
                 , fragments
                 , sourceClientId

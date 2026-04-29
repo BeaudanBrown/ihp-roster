@@ -5,6 +5,7 @@ import Application.Helper.LiveUpdate
 import Application.Support.LiveUpdates
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Text as Text
 import qualified Data.UUID as UUID
 import IHP.Prelude
 import Test.Hspec
@@ -95,10 +96,10 @@ tests = describe "LiveUpdate runtime types" do
                 , UnsubscribeLiveUpdates { scope }
                 ]
         let messages =
-                [ LiveUpdatesSubscribed { scope, currentVersion = 4, resync = False }
-                , LiveUpdatesSubscribed { scope, currentVersion = 5, resync = True }
-                , LiveUpdatesInvalidated { scope, version = 6, fragments = [fragment], sourceClientId = Just "client-1" }
-                , LiveUpdatesInvalidated { scope, version = 7, fragments = [], sourceClientId = Nothing }
+                [ LiveUpdatesSubscribed { scope, scopeKey = liveUpdateScopeKey scope, currentVersion = 4, resync = False }
+                , LiveUpdatesSubscribed { scope, scopeKey = liveUpdateScopeKey scope, currentVersion = 5, resync = True }
+                , LiveUpdatesInvalidated { scope, scopeKey = liveUpdateScopeKey scope, version = 6, fragments = [fragment], sourceClientId = Just "client-1" }
+                , LiveUpdatesInvalidated { scope, scopeKey = liveUpdateScopeKey scope, version = 7, fragments = [], sourceClientId = Nothing }
                 , LiveUpdatesError { message = "Not authorized for requested live update scope" }
                 ]
 
@@ -106,6 +107,11 @@ tests = describe "LiveUpdate runtime types" do
             Aeson.decode (Aeson.encode command) `shouldBe` Just command
         forM_ messages \message ->
             (Aeson.decode (Aeson.encode message) :: Maybe Aeson.Value) `shouldSatisfy` isJust
+
+        let encodedSubscribed = cs (LBS.toStrict (Aeson.encode (LiveUpdatesSubscribed { scope, scopeKey = liveUpdateScopeKey scope, currentVersion = 4, resync = False }))) :: Text
+        let encodedInvalidated = cs (LBS.toStrict (Aeson.encode (LiveUpdatesInvalidated { scope, scopeKey = liveUpdateScopeKey scope, version = 6, fragments = [fragment], sourceClientId = Nothing }))) :: Text
+        encodedSubscribed `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster_week:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
+        encodedInvalidated `shouldSatisfy` Text.isInfixOf "\"scopeKey\":\"roster_week:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:0\""
 
     it "exposes active live scopes without leaking websocket subscription internals" do
         activeLiveUpdateScopes `shouldReturn` []

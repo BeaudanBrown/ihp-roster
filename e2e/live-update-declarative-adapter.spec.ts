@@ -211,6 +211,78 @@ test.describe('Declarative live-update adapter', () => {
             .toContain('subscribe:server_only_scope');
     });
 
+    test('matches subscribed messages by server-emitted scope key', async ({ page }) => {
+        await installLiveUpdateHarness(page);
+        await openBlankRuntimePage(page);
+
+        await page.evaluate(() => {
+            const win = window as Window & {
+                __liveUpdateFetches?: unknown[];
+                fetch: typeof fetch;
+            };
+            const originalFetch = window.fetch.bind(window);
+            win.__liveUpdateFetches = [];
+            window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
+                const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+                if (url.includes('/SyntheticServerKeyFragment')) {
+                    win.__liveUpdateFetches?.push({ url, headers: init?.headers ?? {} });
+                    return new Response('<div id="synthetic-fragment">server key resync</div>', {
+                        status: 200,
+                        headers: { 'Content-Type': 'text/html' },
+                    });
+                }
+
+                return originalFetch(input, init);
+            };
+        });
+
+        await addSyntheticSurface(page, {
+            feature: 'synthetic-server-message-key',
+            socketPath: '/live-updates',
+            scope: {
+                kind: 'server_only_scope',
+            },
+            scopeKey: 'server-message-key:synthetic',
+            resyncFragments: [
+                {
+                    fragmentKey: { kind: 'admin_xero' },
+                    targetId: 'synthetic-fragment',
+                    url: '/SyntheticServerKeyFragment',
+                    deferUntilBlur: false,
+                    protectionPolicy: null,
+                },
+            ],
+            decorateRequestsWithin: [],
+        });
+
+        await expect
+            .poll(async () => (await liveUpdateCommands(page)).map((command: any) => `${command.type}:${command.scope?.kind}`))
+            .toContain('subscribe:server_only_scope');
+
+        await page.evaluate(() => {
+            const win = window as Window & {
+                __liveUpdateSockets?: Array<{
+                    url?: string;
+                    onmessage?: ((event: { data: string }) => void) | null;
+                }>;
+            };
+            const socket = win.__liveUpdateSockets?.find((candidate) => candidate.url?.includes('/live-updates'));
+            if (!socket?.onmessage) throw new Error('Live-update socket was not opened');
+
+            socket.onmessage({
+                data: JSON.stringify({
+                    type: 'subscribed',
+                    scope: { kind: 'unknown_to_client' },
+                    scopeKey: 'server-message-key:synthetic',
+                    currentVersion: 3,
+                    resync: true,
+                }),
+            });
+        });
+
+        await expect(page.locator('#synthetic-fragment')).toHaveText('server key resync');
+    });
+
     test('resyncs declarative fragments after a subscribed message asks for resync', async ({ page }) => {
         await installLiveUpdateHarness(page);
         await openBlankRuntimePage(page);
