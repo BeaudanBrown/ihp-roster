@@ -106,7 +106,6 @@ writeProfileSeed dir plan = do
     writeCsv dir "roster_groups.csv" rosterGroupColumns (rosterGroupRows plan)
     writeCsv dir "slot_names.csv" slotNameColumns (slotNameRows plan)
     writeCsv dir "staff_roster_groups.csv" staffRosterGroupColumns (staffRosterGroupRows plan)
-    writeCsv dir "staff_availability.csv" staffAvailabilityColumns (staffAvailabilityRows plan)
     writeCsv dir "staff_shift_preferences.csv" staffShiftPreferenceColumns (staffShiftPreferenceRows plan)
     writeCsv dir "roster_weeks.csv" rosterWeekColumns (rosterWeekRows plan)
     writeCsv dir "roster_days.csv" rosterDayColumns (rosterDayRows plan)
@@ -282,7 +281,6 @@ tableLoads =
     , ("roster_groups", rosterGroupColumns, "roster_groups.csv")
     , ("slot_names", slotNameColumns, "slot_names.csv")
     , ("staff_roster_groups", staffRosterGroupColumns, "staff_roster_groups.csv")
-    , ("staff_availability", staffAvailabilityColumns, "staff_availability.csv")
     , ("staff_shift_preferences", staffShiftPreferenceColumns, "staff_shift_preferences.csv")
     , ("roster_weeks", rosterWeekColumns, "roster_weeks.csv")
     , ("roster_days", rosterDayColumns, "roster_days.csv")
@@ -314,8 +312,7 @@ rosterGroupColumns = ["id", "venue_id", "name", "sort_order", "is_active", "is_d
 slotNameColumns = ["id", "venue_id", "roster_group_id", "name", "sort_order", "is_active"]
 staffRosterGroupColumns = ["id", "staff_id", "roster_group_id"]
 
-staffAvailabilityColumns, staffShiftPreferenceColumns, rosterWeekColumns, rosterDayColumns, rosterSlotColumns :: [Text]
-staffAvailabilityColumns = ["id", "venue_id", "staff_id", "weekday_index", "specific_date", "is_available", "note"]
+staffShiftPreferenceColumns, rosterWeekColumns, rosterDayColumns, rosterSlotColumns :: [Text]
 staffShiftPreferenceColumns = ["id", "venue_id", "staff_id", "roster_group_id", "slot_name_id", "weekday_index"]
 rosterWeekColumns = ["id", "venue_id", "roster_group_id", "week_offset", "is_live"]
 rosterDayColumns = ["id", "roster_week_id", "day_offset", "is_closed"]
@@ -467,17 +464,6 @@ staffRosterGroupRows plan =
     , staffIndex <- staffIndexes plan
     , groupIndex <- eligibleGroupIndexes staffIndex
     ]
-
-staffAvailabilityRows :: ProfileSeedPlan -> [[Maybe Text]]
-staffAvailabilityRows plan =
-    concat
-        [ [ row [uuidText 15 venueIndex staffIndex 1, venueId venueIndex, staffId venueIndex staffIndex, tshow (deterministicIndex plan [venueIndex, staffIndex, 31] 7), nullText, "false", "Recurring unavailable"]
-          , row [uuidText 15 venueIndex staffIndex 2, venueId venueIndex, staffId venueIndex staffIndex, nullText, dateText (addDays (toInteger (staffIndex `mod` 7)) (weekStartForOffset (currentWeekOffset plan))), "false", "Profile seed date block"]
-          ]
-        | venueIndex <- venueIndexes plan
-        , staffIndex <- staffIndexes plan
-        , staffIndex `mod` 3 == 0
-        ]
 
 staffShiftPreferenceRows :: ProfileSeedPlan -> [[Maybe Text]]
 staffShiftPreferenceRows plan =

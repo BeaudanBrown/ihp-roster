@@ -319,16 +319,12 @@ tests = beforeAll testContext do
                 seededStaffCount `shouldSatisfy` (>= 12)
                 managerMembershipCount `shouldBe` 3
 
-        it "seeds recurring availability, per-staff roster day preferences, duplicate first names, and some preferred names" $ withContext do
+        it "seeds per-staff roster day preferences, duplicate first names, and some preferred names" $ withContext do
             withCleanDb do
                 fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
 
                 seededStaff <-
                     query @Staff
-                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
-                        |> fetch
-                availabilities <-
-                    query @StaffAvailability
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> fetch
                 shiftPreferences <-
@@ -360,7 +356,6 @@ tests = beforeAll testContext do
                             ]
                 let preferredWeekdays = nub (map (.weekdayIndex) shiftPreferences)
 
-                length availabilities `shouldSatisfy` (> 5)
                 preferenceStaffIds `shouldBe` expectedPreferenceStaffIds
                 preferenceStaffIds `shouldSatisfy` all (`elem` staffIds)
                 length shiftPreferences `shouldSatisfy` (>= length expectedPreferenceStaffIds)

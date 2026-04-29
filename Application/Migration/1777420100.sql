@@ -50,23 +50,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION enforce_staff_availability_venue_integrity()
-RETURNS TRIGGER
-AS $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM staff s
-        WHERE s.id = NEW.staff_id
-            AND s.venue_id = NEW.venue_id
-    ) THEN
-        RAISE EXCEPTION 'staff availability venue_id must match staff_id venue';
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
 CREATE OR REPLACE FUNCTION enforce_staff_shift_preference_venue_integrity()
 RETURNS TRIGGER
 AS $$
@@ -210,8 +193,6 @@ DROP TRIGGER IF EXISTS enforce_slot_name_venue_integrity ON slot_names;
 CREATE TRIGGER enforce_slot_name_venue_integrity BEFORE INSERT OR UPDATE ON slot_names FOR EACH ROW EXECUTE FUNCTION enforce_slot_name_venue_integrity();
 DROP TRIGGER IF EXISTS enforce_staff_roster_group_venue_integrity ON staff_roster_groups;
 CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups FOR EACH ROW EXECUTE FUNCTION enforce_staff_roster_group_venue_integrity();
-DROP TRIGGER IF EXISTS enforce_staff_availability_venue_integrity ON staff_availability;
-CREATE TRIGGER enforce_staff_availability_venue_integrity BEFORE INSERT OR UPDATE ON staff_availability FOR EACH ROW EXECUTE FUNCTION enforce_staff_availability_venue_integrity();
 DROP TRIGGER IF EXISTS enforce_staff_shift_preference_venue_integrity ON staff_shift_preferences;
 CREATE TRIGGER enforce_staff_shift_preference_venue_integrity BEFORE INSERT OR UPDATE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION enforce_staff_shift_preference_venue_integrity();
 DROP TRIGGER IF EXISTS enforce_leave_request_venue_integrity ON leave_requests;

@@ -574,25 +574,6 @@ CREATE TABLE roster_slots (
     FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
-CREATE TABLE staff_availability (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
-    venue_id UUID NOT NULL,
-    staff_id UUID NOT NULL,
-    weekday_index INT,
-    specific_date DATE,
-    is_available BOOLEAN NOT NULL,
-    note TEXT,
-    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
-    deleted_by_user_id UUID DEFAULT NULL,
-    delete_reason TEXT DEFAULT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
-    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK (((weekday_index IS NOT NULL) AND (specific_date IS NULL)) OR ((weekday_index IS NULL) AND (specific_date IS NOT NULL))),
-    CHECK ((weekday_index IS NULL) OR ((weekday_index >= 0) AND (weekday_index <= 6)))
-);
 CREATE TABLE staff_shift_preferences (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -1007,9 +988,6 @@ CREATE INDEX idx_leave_requests_venue_staff ON leave_requests (venue_id, staff_i
 CREATE INDEX idx_leave_requests_venue_start_date ON leave_requests (venue_id, start_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_leave_requests_venue_status_staff_dates ON leave_requests (venue_id, status, staff_id, start_date, end_date) WHERE deleted_at IS NULL;
 CREATE INDEX idx_leave_request_events_request_created_at ON leave_request_events (leave_request_id, created_at DESC);
-CREATE INDEX idx_staff_availability_venue ON staff_availability (venue_id) WHERE deleted_at IS NULL;
-CREATE UNIQUE INDEX idx_staff_availability_active_weekday ON staff_availability (staff_id, weekday_index) WHERE weekday_index IS NOT NULL AND deleted_at IS NULL;
-CREATE UNIQUE INDEX idx_staff_availability_active_date ON staff_availability (staff_id, specific_date) WHERE specific_date IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_staff_shift_preferences_venue_staff ON staff_shift_preferences (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_shift_preferences_staff ON staff_shift_preferences (staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_shift_preferences_group_day ON staff_shift_preferences (roster_group_id, weekday_index) WHERE deleted_at IS NULL;
@@ -1072,7 +1050,6 @@ CREATE TRIGGER prevent_hard_delete_pay_config_snapshots BEFORE DELETE ON pay_con
 CREATE TRIGGER prevent_hard_delete_roster_weeks BEFORE DELETE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_days BEFORE DELETE ON roster_days FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_slots BEFORE DELETE ON roster_slots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
-CREATE TRIGGER prevent_hard_delete_staff_availability BEFORE DELETE ON staff_availability FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_staff_shift_preferences BEFORE DELETE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_leave_requests BEFORE DELETE ON leave_requests FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_leave_request_events BEFORE DELETE ON leave_request_events FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -1138,23 +1115,6 @@ BEGIN
             AND s.venue_id = rg.venue_id
     ) THEN
         RAISE EXCEPTION 'staff roster group assignment must stay within one venue';
-    END IF;
-
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE OR REPLACE FUNCTION enforce_staff_availability_venue_integrity()
-RETURNS TRIGGER
-AS $$
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1
-        FROM staff s
-        WHERE s.id = NEW.staff_id
-            AND s.venue_id = NEW.venue_id
-    ) THEN
-        RAISE EXCEPTION 'staff availability venue_id must match staff_id venue';
     END IF;
 
     RETURN NEW;
@@ -1301,7 +1261,6 @@ $$ LANGUAGE plpgsql;
 CREATE TRIGGER enforce_roster_week_venue_integrity BEFORE INSERT OR UPDATE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION enforce_roster_week_venue_integrity();
 CREATE TRIGGER enforce_slot_name_venue_integrity BEFORE INSERT OR UPDATE ON slot_names FOR EACH ROW EXECUTE FUNCTION enforce_slot_name_venue_integrity();
 CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups FOR EACH ROW EXECUTE FUNCTION enforce_staff_roster_group_venue_integrity();
-CREATE TRIGGER enforce_staff_availability_venue_integrity BEFORE INSERT OR UPDATE ON staff_availability FOR EACH ROW EXECUTE FUNCTION enforce_staff_availability_venue_integrity();
 CREATE TRIGGER enforce_staff_shift_preference_venue_integrity BEFORE INSERT OR UPDATE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION enforce_staff_shift_preference_venue_integrity();
 CREATE TRIGGER enforce_leave_request_venue_integrity BEFORE INSERT OR UPDATE ON leave_requests FOR EACH ROW EXECUTE FUNCTION enforce_leave_request_venue_integrity();
 CREATE TRIGGER enforce_timesheet_entry_venue_integrity BEFORE INSERT OR UPDATE ON timesheet_entries FOR EACH ROW EXECUTE FUNCTION enforce_timesheet_entry_venue_integrity();

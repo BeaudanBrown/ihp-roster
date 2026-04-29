@@ -43,16 +43,6 @@ ALTER TABLE roster_slots
     ADD CONSTRAINT roster_slots_duration_minutes_check
     CHECK (duration_minutes IS NULL OR duration_minutes >= 0);
 
-ALTER TABLE staff_availability DROP CONSTRAINT IF EXISTS staff_availability_key_shape_check;
-ALTER TABLE staff_availability
-    ADD CONSTRAINT staff_availability_key_shape_check
-    CHECK (((weekday_index IS NOT NULL) AND (specific_date IS NULL)) OR ((weekday_index IS NULL) AND (specific_date IS NOT NULL)));
-
-ALTER TABLE staff_availability DROP CONSTRAINT IF EXISTS staff_availability_weekday_index_check;
-ALTER TABLE staff_availability
-    ADD CONSTRAINT staff_availability_weekday_index_check
-    CHECK (weekday_index IS NULL OR (weekday_index >= 0 AND weekday_index <= 6));
-
 ALTER TABLE staff_shift_preferences DROP CONSTRAINT IF EXISTS staff_shift_preferences_weekday_index_check;
 ALTER TABLE staff_shift_preferences
     ADD CONSTRAINT staff_shift_preferences_weekday_index_check
@@ -92,13 +82,3 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_shift_types_active_name
     ON shift_types (venue_id, name)
     WHERE is_active = TRUE
       AND archived_at IS NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_availability_active_weekday
-    ON staff_availability (staff_id, weekday_index)
-    WHERE weekday_index IS NOT NULL
-      AND deleted_at IS NULL;
-
-CREATE UNIQUE INDEX IF NOT EXISTS idx_staff_availability_active_date
-    ON staff_availability (staff_id, specific_date)
-    WHERE specific_date IS NOT NULL
-      AND deleted_at IS NULL;

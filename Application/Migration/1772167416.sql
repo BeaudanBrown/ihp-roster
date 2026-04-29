@@ -12,7 +12,6 @@ ALTER TABLE roster_slots DROP CONSTRAINT IF EXISTS roster_slots_shift_type_id_fk
 ALTER TABLE roster_slots DROP CONSTRAINT IF EXISTS roster_slots_slot_name_id_fk;
 ALTER TABLE roster_slots DROP CONSTRAINT IF EXISTS roster_slots_staff_id_fk;
 ALTER TABLE shift_types DROP CONSTRAINT IF EXISTS shift_types_default_pay_level_id_fk;
-ALTER TABLE staff_availability DROP CONSTRAINT IF EXISTS staff_availability_staff_id_fk;
 ALTER TABLE staff DROP CONSTRAINT IF EXISTS staff_user_id_fk;
 ALTER TABLE timesheet_entries DROP CONSTRAINT IF EXISTS timesheet_entries_approved_by_user_id_fk;
 ALTER TABLE timesheet_entries DROP CONSTRAINT IF EXISTS timesheet_entries_staff_id_fk;

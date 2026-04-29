@@ -15,39 +15,39 @@ tests = beforeAll testContext do
     describe "database hard-delete protection" do
         it "blocks direct DELETEs on protected operational records" $ withContext do
             withCleanDb do
-                availability <- createProtectedAvailability
+                preference <- createProtectedShiftPreference
 
                 result <-
                     try
                         ( sqlExecDiscardResult
-                            "DELETE FROM staff_availability WHERE id = ?"
-                            (PG.Only (unpackId availability.id))
+                            "DELETE FROM staff_shift_preferences WHERE id = ?"
+                            (PG.Only (unpackId preference.id))
                         ) :: IO (Either SomeException ())
 
                 result `shouldSatisfy` isLeft
-                retainedAvailability <-
-                    query @StaffAvailability
-                        |> filterWhere (#id, availability.id)
+                retainedPreference <-
+                    query @StaffShiftPreference
+                        |> filterWhere (#id, preference.id)
                         |> fetchOneOrNothing
-                retainedAvailability `shouldSatisfy` isJust
+                retainedPreference `shouldSatisfy` isJust
 
         it "allows maintenance hard DELETEs only when the session setting opts in" $ withContext do
             withCleanDb do
-                availability <- createProtectedAvailability
+                preference <- createProtectedShiftPreference
 
                 withTransaction do
                     sqlExecDiscardResult
                         "SET LOCAL ihp_roster.allow_hard_delete = 'on'"
                         ()
                     sqlExecDiscardResult
-                        "DELETE FROM staff_availability WHERE id = ?"
-                        (PG.Only (unpackId availability.id))
+                        "DELETE FROM staff_shift_preferences WHERE id = ?"
+                        (PG.Only (unpackId preference.id))
 
-                deletedAvailability <-
-                    query @StaffAvailability
-                        |> filterWhere (#id, availability.id)
+                deletedPreference <-
+                    query @StaffShiftPreference
+                        |> filterWhere (#id, preference.id)
                         |> fetchOneOrNothing
-                deletedAvailability `shouldBe` Nothing
+                deletedPreference `shouldBe` Nothing
 
     describe "database tenant integrity protection" do
         it "rejects direct SQL roster weeks whose venue does not match the roster group" $ withContext do
@@ -118,16 +118,16 @@ tests = beforeAll testContext do
 
                 result `shouldSatisfy` isLeft
 
-createProtectedAvailability :: (?modelContext :: ModelContext) => IO StaffAvailability
-createProtectedAvailability = do
+createProtectedShiftPreference :: (?modelContext :: ModelContext) => IO StaffShiftPreference
+createProtectedShiftPreference = do
     venue <- createVenueWithConfig "Delete Guard Venue"
     user <- createUserRecord "delete-guard@example.com" "staff" True
     staff <- createStaffRecord venue (Just user) "Delete" "Guard"
-    newRecord @StaffAvailability
+    slotName <- fetchSlotNameRecord venue "Early"
+    newRecord @StaffShiftPreference
         |> set #venueId (unpackId venue.id)
         |> set #staffId (unpackId staff.id)
-        |> set #weekdayIndex (Just 1)
-        |> set #specificDate Nothing
-        |> set #isAvailable False
-        |> set #note (Just "Unavailable")
+        |> set #rosterGroupId slotName.rosterGroupId
+        |> set #slotNameId (unpackId slotName.id)
+        |> set #weekdayIndex 1
         |> createRecord

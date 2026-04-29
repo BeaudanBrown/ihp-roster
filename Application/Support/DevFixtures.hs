@@ -95,9 +95,8 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup, get #id backGroup]) crossGroupStaff
     mapM_ (\staff -> syncStaffRosterGroupAssignments staff [get #id frontGroup]) trialStaffs
 
-    seedStaffPreferencesAndAvailability
+    seedStaffPreferences
         scenario.scenarioSeed
-        fixtureWeekStart
         frontGroup
         backGroup
         frontSlots
@@ -237,10 +236,9 @@ takeCrossGroup :: [Staff] -> [Staff]
 takeCrossGroup staff =
     map snd (filter (\(index, _) -> assignmentBucket index == CrossGroup) (zip [0 :: Int ..] staff))
 
-seedStaffPreferencesAndAvailability ::
+seedStaffPreferences ::
     (?modelContext :: ModelContext) =>
     Int ->
-    Day ->
     RosterGroup ->
     RosterGroup ->
     [SlotName] ->
@@ -252,111 +250,52 @@ seedStaffPreferencesAndAvailability ::
     [Staff] ->
     [Staff] ->
     IO ()
-seedStaffPreferencesAndAvailability seedValue fixtureWeekStart frontGroup backGroup frontSlots backSlots managerStaffs workerStaff frontOnlyStaff backOnlyStaff crossGroupStaff trialStaffs = do
+seedStaffPreferences seedValue frontGroup backGroup frontSlots backSlots managerStaffs workerStaff frontOnlyStaff backOnlyStaff crossGroupStaff trialStaffs = do
     forM_ (zip [0 :: Int ..] managerStaffs) \(index, staff) ->
-        seedStaffRecurringPreferencesAndAvailability
+        seedStaffRecurringPreferences
             seedValue
-            fixtureWeekStart
             (index + 1)
             staff
             [(frontGroup, frontSlots), (backGroup, backSlots)]
-    seedStaffRecurringPreferencesAndAvailability
+    seedStaffRecurringPreferences
         seedValue
-        fixtureWeekStart
         21
         workerStaff
         [(frontGroup, frontSlots)]
     forM_ (zip [0 :: Int ..] frontOnlyStaff) \(index, staff) ->
-        seedStaffRecurringPreferencesAndAvailability
+        seedStaffRecurringPreferences
             seedValue
-            fixtureWeekStart
             (40 + index)
             staff
             [(frontGroup, frontSlots)]
     forM_ (zip [0 :: Int ..] backOnlyStaff) \(index, staff) ->
-        seedStaffRecurringPreferencesAndAvailability
+        seedStaffRecurringPreferences
             seedValue
-            fixtureWeekStart
             (80 + index)
             staff
             [(backGroup, backSlots)]
     forM_ (zip [0 :: Int ..] crossGroupStaff) \(index, staff) ->
-        seedStaffRecurringPreferencesAndAvailability
+        seedStaffRecurringPreferences
             seedValue
-            fixtureWeekStart
             (120 + index)
             staff
             [(frontGroup, frontSlots), (backGroup, backSlots)]
     forM_ (zip [0 :: Int ..] trialStaffs) \(index, staff) ->
-        seedStaffRecurringPreferencesAndAvailability
+        seedStaffRecurringPreferences
             seedValue
-            fixtureWeekStart
             (160 + index)
             staff
             [(frontGroup, frontSlots)]
 
-seedStaffRecurringPreferencesAndAvailability ::
+seedStaffRecurringPreferences ::
     (?modelContext :: ModelContext) =>
     Int ->
-    Day ->
     Int ->
     Staff ->
     [(RosterGroup, [SlotName])] ->
     IO ()
-seedStaffRecurringPreferencesAndAvailability seedValue fixtureWeekStart staffIndex staff groupSlots = do
-    seedStaffAvailabilityRecords seedValue fixtureWeekStart staffIndex staff
+seedStaffRecurringPreferences seedValue staffIndex staff groupSlots =
     seedStaffShiftPreferenceRecords seedValue staffIndex staff groupSlots
-
-seedStaffAvailabilityRecords ::
-    (?modelContext :: ModelContext) =>
-    Int ->
-    Day ->
-    Int ->
-    Staff ->
-    IO ()
-seedStaffAvailabilityRecords seedValue fixtureWeekStart staffIndex staff = do
-    let venueId = staff.venueId
-    let recurringUnavailabilityCount = deterministicIndex seedValue [staffIndex, 301] 3
-    let recurringAvailableCount = deterministicIndex seedValue [staffIndex, 302] 2
-    let recurringUnavailableWeekdays =
-            take recurringUnavailabilityCount
-                (uniqueWeekdaySequence seedValue [staffIndex, 303])
-    let recurringAvailableWeekdays =
-            take recurringAvailableCount
-                (filter (`notElem` recurringUnavailableWeekdays) (uniqueWeekdaySequence seedValue [staffIndex, 304]))
-    let recurringUnavailableSeeds =
-            [ (Just weekdayIndex, Nothing, False, Just (availabilityNoteFor seedValue staffIndex noteIndex))
-            | (noteIndex, weekdayIndex) <- zip [0 :: Int ..] recurringUnavailableWeekdays
-            ]
-    let recurringAvailableSeeds =
-            [ (Just weekdayIndex, Nothing, True, Nothing)
-            | weekdayIndex <- recurringAvailableWeekdays
-            ]
-    let specificDateSeeds =
-            if deterministicPercent seedValue [staffIndex, 305] < 45
-                then
-                    let dateOffset = toInteger (deterministicIndex seedValue [staffIndex, 306] 7)
-                        specificDate = dayAtOffset fixtureWeekStart dateOffset
-                        isAvailable = deterministicPercent seedValue [staffIndex, 307] < 35
-                     in [(Nothing, Just specificDate, isAvailable, Just (if isAvailable then "Requested swap" else "Study / childcare"))]
-                else []
-    let availabilitySeeds = recurringUnavailableSeeds <> recurringAvailableSeeds <> specificDateSeeds
-    availabilityIds <- map Id <$> freshUUIDs (length availabilitySeeds)
-    now <- getCurrentTime
-    void (createMany (zipWith (availabilityRecord now venueId (unpackId staff.id)) availabilityIds availabilitySeeds))
-
-availabilityRecord :: UTCTime -> UUID -> UUID -> Id StaffAvailability -> (Maybe Int, Maybe Day, Bool, Maybe Text) -> StaffAvailability
-availabilityRecord now venueId staffId availabilityId (weekdayIndex, specificDate, isAvailable, note) =
-    newRecord @StaffAvailability
-        |> set #id availabilityId
-        |> set #venueId venueId
-        |> set #staffId staffId
-        |> set #weekdayIndex weekdayIndex
-        |> set #specificDate specificDate
-        |> set #isAvailable isAvailable
-        |> set #note note
-        |> set #createdAt now
-        |> set #updatedAt now
 
 seedStaffShiftPreferenceRecords ::
     (?modelContext :: ModelContext) =>
@@ -849,10 +788,6 @@ uniqueWeekdaySequence :: Int -> [Int] -> [Int]
 uniqueWeekdaySequence seedValue keys =
     nub (map (\offset -> deterministicIndex seedValue (keys <> [offset]) 7) [0 :: Int .. 20])
 
-availabilityNoteFor :: Int -> Int -> Int -> Text
-availabilityNoteFor seedValue staffIndex noteIndex =
-    availabilityNotes !! deterministicIndex seedValue [staffIndex, noteIndex, 499] (length availabilityNotes)
-
 preferredNameFor :: Int -> Int -> Text -> Maybe Text -> Maybe Text
 preferredNameFor seedValue index firstName fallbackPreferredName
     | deterministicPercent seedValue [index, 601] < 32 =
@@ -905,9 +840,6 @@ generatedStaffCatalog =
 
 noteBank :: [Text]
 noteBank = ["OP", "LU", "CL", "EX", "TR", "EV", "ST", "FN", "WK", "BR", "PK", "CV"]
-
-availabilityNotes :: [Text]
-availabilityNotes = ["School", "Uni", "Childcare", "Second job", "Medical", "Family"]
 
 data StaffAssignmentBucket
     = FrontOnly

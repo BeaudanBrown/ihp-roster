@@ -63,11 +63,6 @@ ALTER TABLE roster_slots
     ADD COLUMN IF NOT EXISTS deleted_by_user_id UUID DEFAULT NULL,
     ADD COLUMN IF NOT EXISTS delete_reason TEXT DEFAULT NULL;
 
-ALTER TABLE staff_availability
-    ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
-    ADD COLUMN IF NOT EXISTS deleted_by_user_id UUID DEFAULT NULL,
-    ADD COLUMN IF NOT EXISTS delete_reason TEXT DEFAULT NULL;
-
 ALTER TABLE staff_shift_preferences
     ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     ADD COLUMN IF NOT EXISTS deleted_by_user_id UUID DEFAULT NULL,
@@ -104,7 +99,6 @@ DROP INDEX IF EXISTS idx_timesheet_entries_venue_worked_on;
 DROP INDEX IF EXISTS idx_leave_requests_venue_staff;
 DROP INDEX IF EXISTS idx_leave_requests_venue_start_date;
 DROP INDEX IF EXISTS idx_leave_requests_venue_status_staff_dates;
-DROP INDEX IF EXISTS idx_staff_availability_venue;
 DROP INDEX IF EXISTS idx_staff_shift_preferences_venue_staff;
 DROP INDEX IF EXISTS idx_staff_shift_preferences_staff;
 DROP INDEX IF EXISTS idx_staff_shift_preferences_group_day;
@@ -124,7 +118,6 @@ CREATE INDEX IF NOT EXISTS idx_timesheet_entries_venue_worked_on ON timesheet_en
 CREATE INDEX IF NOT EXISTS idx_leave_requests_venue_staff ON leave_requests (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_leave_requests_venue_start_date ON leave_requests (venue_id, start_date) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_leave_requests_venue_status_staff_dates ON leave_requests (venue_id, status, staff_id, start_date, end_date) WHERE deleted_at IS NULL;
-CREATE INDEX IF NOT EXISTS idx_staff_availability_venue ON staff_availability (venue_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_staff_shift_preferences_venue_staff ON staff_shift_preferences (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_staff_shift_preferences_staff ON staff_shift_preferences (staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_staff_shift_preferences_group_day ON staff_shift_preferences (roster_group_id, weekday_index) WHERE deleted_at IS NULL;
@@ -251,16 +244,6 @@ ALTER TABLE roster_slots ADD CONSTRAINT roster_slots_slot_name_id_fk FOREIGN KEY
 ALTER TABLE roster_slots DROP CONSTRAINT IF EXISTS roster_slots_deleted_by_user_id_fkey;
 ALTER TABLE roster_slots DROP CONSTRAINT IF EXISTS roster_slots_deleted_by_user_id_fk;
 ALTER TABLE roster_slots ADD CONSTRAINT roster_slots_deleted_by_user_id_fk FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT;
-
-ALTER TABLE staff_availability DROP CONSTRAINT IF EXISTS staff_availability_venue_id_fkey;
-ALTER TABLE staff_availability DROP CONSTRAINT IF EXISTS staff_availability_venue_id_fk;
-ALTER TABLE staff_availability ADD CONSTRAINT staff_availability_venue_id_fk FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT;
-ALTER TABLE staff_availability DROP CONSTRAINT IF EXISTS staff_availability_staff_id_fkey;
-ALTER TABLE staff_availability DROP CONSTRAINT IF EXISTS staff_availability_staff_id_fk;
-ALTER TABLE staff_availability ADD CONSTRAINT staff_availability_staff_id_fk FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT;
-ALTER TABLE staff_availability DROP CONSTRAINT IF EXISTS staff_availability_deleted_by_user_id_fkey;
-ALTER TABLE staff_availability DROP CONSTRAINT IF EXISTS staff_availability_deleted_by_user_id_fk;
-ALTER TABLE staff_availability ADD CONSTRAINT staff_availability_deleted_by_user_id_fk FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT;
 
 ALTER TABLE staff_shift_preferences DROP CONSTRAINT IF EXISTS staff_shift_preferences_venue_id_fkey;
 ALTER TABLE staff_shift_preferences DROP CONSTRAINT IF EXISTS staff_shift_preferences_venue_id_fk;
@@ -401,8 +384,6 @@ DROP TRIGGER IF EXISTS prevent_hard_delete_roster_days ON roster_days;
 CREATE TRIGGER prevent_hard_delete_roster_days BEFORE DELETE ON roster_days FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 DROP TRIGGER IF EXISTS prevent_hard_delete_roster_slots ON roster_slots;
 CREATE TRIGGER prevent_hard_delete_roster_slots BEFORE DELETE ON roster_slots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
-DROP TRIGGER IF EXISTS prevent_hard_delete_staff_availability ON staff_availability;
-CREATE TRIGGER prevent_hard_delete_staff_availability BEFORE DELETE ON staff_availability FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 DROP TRIGGER IF EXISTS prevent_hard_delete_staff_shift_preferences ON staff_shift_preferences;
 CREATE TRIGGER prevent_hard_delete_staff_shift_preferences BEFORE DELETE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 DROP TRIGGER IF EXISTS prevent_hard_delete_leave_requests ON leave_requests;
