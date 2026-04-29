@@ -12,6 +12,23 @@ Xero, profiling, roster, or admin changes.
 The scan was read-only. The current worktree was already dirty, so treat line
 numbers as pointers into the 2026-04-28 working tree, not immutable anchors.
 
+## Status Note - 2026-04-29
+
+This backlog is intentionally retained as the cleanup tracking file, but several
+findings have already moved since the original scan:
+
+- Xero admin code has been split out of the root admin controller/view in the
+  current tree, so the admin-size finding should be remeasured before assigning
+  more extraction work.
+- Production controllers no longer import `Application.Support` directly for
+  venue bootstrap; remaining `Application.Support` cleanup should focus on the
+  compatibility boundary and test/seed ownership.
+- Runtime assets are local, `static/app.css` is now an import entrypoint, and
+  feature CSS lives under `static/css/`.
+- The remaining value of this plan is the prioritized cleanup shape: durable
+  invitation jobs, helper/module boundaries, observable failures, deduplication,
+  and a measured lint sweep.
+
 ## Scan Inputs
 
 - Static search for partial functions, raw SQL, unsafe/global state, large

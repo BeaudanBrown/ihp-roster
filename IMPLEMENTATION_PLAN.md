@@ -21,14 +21,20 @@ Business requirements remain canonical in `specs/`.
   - `plans/30-timesheets-and-leave.md`
   - `plans/40-pay-config-and-admin.md`
   - `plans/45-payroll-report-exports.md`
+  - `plans/46-payroll-export-e2e-hardening.md`
+  - `plans/47-payroll-generation-parity.md`
   - `plans/48-super-admin-support-access.md`
   - `plans/49-roster-groups-and-venue-bootstrap.md`
   - `plans/50-release-readiness.md`
   - `plans/51-mobile-responsive-foundations.md`
   - `plans/52-roster-mobile-refactor.md`
   - `plans/53-programmatic-demo-seeding.md`
+  - `plans/54-styling-system-refactor.md`
   - `plans/55-record-retention-soft-deletion.md`
+  - `plans/56-declarative-live-fragments.md`
   - `plans/57-xero-payroll-integration.md`
+  - `plans/58-xero-connection-foundation.md`
+  - `plans/59-code-smell-remediation.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
 
@@ -132,6 +138,16 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **Focus:** legacy Go payroll report parity on top of `export_jobs`, snapshot-pinned pay output, and a venue-scoped report-definition model.
 - **Progress:** parity inventory and SQL-fit assessment are now captured; implementation still needs the report-definition model, pay-engine fixes for actual shift-type/pay-level resolution, the first staff-pay CSV, the hourly ZIP, and admin/report configuration UI.
 
+### Pipeline 46 — Payroll Export E2E Hardening
+- **Status:** [-]
+- **File:** `plans/46-payroll-export-e2e-hardening.md`
+- **Focus:** lock payroll export behavior down with E2E coverage and regression fixtures as the export workflow matures.
+
+### Pipeline 47 — Payroll Generation Parity
+- **Status:** [-]
+- **File:** `plans/47-payroll-generation-parity.md`
+- **Focus:** close payroll generation gaps between the IHP implementation and the historical payroll output contract.
+
 ### Pipeline 49 — Roster Groups and Venue Bootstrap Defaults
 - **Status:** [-]
 - **File:** `plans/49-roster-groups-and-venue-bootstrap.md`
@@ -164,11 +180,31 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **Focus:** replace the current one-off dev seed with scenario-driven deterministic demo data generation that can scale venue shape, staffing mix, pay configuration, and roster realism for client demonstrations and manual QA.
 - **Priority note:** this is the fastest path to a realistic demo environment for the current client demonstration window; land the minimum demo slice before broader scenario/export polish.
 
+### Cross-Cutting Note — Styling System Refactor
+- **Status:** [-]
+- **File:** `plans/54-styling-system-refactor.md`
+- **Focus:** keep shared tokens, Bootstrap bridge styles, layout primitives, and feature CSS organized as the UI surface expands.
+
+### Cross-Cutting Note — Declarative Live Fragments
+- **Status:** [-]
+- **File:** `plans/56-declarative-live-fragments.md`
+- **Focus:** continue moving collaborative/stale-prone surfaces onto declared live-fragment metadata instead of feature-specific JavaScript.
+
 ### Pipeline 57 — Xero Payroll Integration
 - **Status:** [ ]
 - **File:** `plans/57-xero-payroll-integration.md`
 - **Focus:** connect each venue to Xero Payroll AU, map IHP staff and earning buckets to Xero employees and earnings rates, preview approved IHP payroll weeks as Xero timesheet payloads, and submit draft Xero timesheets with auditable request/response history.
 - **Priority note:** read-only sync, base mapping, and durable pay item requirement records are in place. Next, add admin-reviewed live Xero earnings-rate pay item create/update actions from IHP/FWC award data before deterministic timesheet preview. Employee creation remains deferred; pay item creation is now part of the first practical milestone.
+
+### Pipeline 58 — Xero Connection Foundation
+- **Status:** [-]
+- **File:** `plans/58-xero-connection-foundation.md`
+- **Focus:** maintain the Xero OAuth/connection, token, and tenant-sync foundation that Pipeline 57 builds on.
+
+### Maintenance — Code Smell Remediation
+- **Status:** [-]
+- **File:** `plans/59-code-smell-remediation.md`
+- **Focus:** track repo-structure, helper-boundary, lint, and file-size cleanup that improves ongoing agent navigation.
 
 ## Parallelism Rules
 

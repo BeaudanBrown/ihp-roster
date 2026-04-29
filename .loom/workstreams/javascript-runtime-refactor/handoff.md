@@ -19,13 +19,19 @@
 - `Web/View/Layout.hs` now loads:
   - `/app-bootstrap.js`
   - `/app-date-pickers.js`
+  - `/app-passkeys.js`
+  - `/app-live-updates.js`
   - `/app.js`
 - `static/app-bootstrap.js` owns:
   - `app:page-ready` lifecycle dispatch
   - tracked timer bootstrap
 - `static/app-date-pickers.js` owns:
   - date/datetime picker enhancement init
-- `static/app.js` still owns overlays, live updates, time picker, roster helpers, and break-toggle behavior.
+- `static/app-passkeys.js` owns passkey form/runtime behavior.
+- `static/app-live-updates.js` owns the generic live-fragment transport and
+  focused-field protection path.
+- `static/app.js` still owns overlays, time picker, roster helpers, and
+  break-toggle behavior.
 
 ## Verification
 
@@ -34,11 +40,13 @@
 
 ## Immediate Next Steps
 
-1. Continue `coordinator-36f.2` by extracting another self-contained runtime section out of `static/app.js` without changing behavior.
-2. Decide whether live updates should move into their own file next or whether to extract the overlay/time-picker layer first.
-3. Continue `coordinator-36f.3` by deciding whether failed fragment refreshes should only log or also trigger a coarse resync path.
-4. Extract feature-local behavior into smaller runtime files.
-5. Run targeted verification for lifecycle, HTMX, live fragments, and picker flows.
+1. Continue `coordinator-36f.2` by extracting another self-contained runtime
+   section out of `static/app.js` without changing behavior.
+2. Continue `coordinator-36f.3` by deciding whether failed fragment refreshes
+   should only log or also trigger a coarse resync path.
+3. Extract feature-local behavior into smaller runtime files.
+4. Run targeted verification for lifecycle, HTMX, live fragments, and picker
+   flows.
 
 ## Task Ordering
 
