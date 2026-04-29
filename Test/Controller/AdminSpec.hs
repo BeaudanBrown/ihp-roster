@@ -456,6 +456,7 @@ tests = beforeAll testContext do
                 syncedResponse `responseStatusShouldBe` status200
                 syncedResponse `responseBodyShouldContain` "Staff mappings"
                 syncedResponse `responseBodyShouldContain` "Local Worker - local@example.com"
+                syncedResponse `responseBodyShouldContain` "Possible Xero match: Local Worker"
                 syncedResponse `responseBodyShouldContain` "name=\"xeroEmployeeSelection\""
                 syncedResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
                 syncedResponse `responseBodyShouldContain` "hx-trigger=\"change\""
@@ -466,6 +467,7 @@ tests = beforeAll testContext do
                 syncedResponse `responseBodyShouldNotContain` "<th class=\"text-end\">Current</th>"
                 syncedResponse `responseBodyShouldNotContain` ">Save</button>"
                 syncedResponse `responseBodyShouldContain` "2 not paid through Xero"
+                syncedResponse `responseBodyShouldContain` "1 possible matches"
 
         it "saves Xero staff mappings and not-paid-through-Xero states from the admin fragment" $ withContext do
             withCleanDb do

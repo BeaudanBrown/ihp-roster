@@ -6,15 +6,17 @@ import Generated.Types
 import IHP.Prelude
 
 data XeroStaffMappingRow = XeroStaffMappingRow
-    { mappingRowStaff   :: Staff
-    , mappingRowUser    :: Maybe User
-    , mappingRowMapping :: XeroStaffMapping
+    { mappingRowStaff             :: Staff
+    , mappingRowUser              :: Maybe User
+    , mappingRowMapping           :: XeroStaffMapping
+    , mappingRowSuggestedEmployee :: Maybe XeroEmployee
     }
 
 data XeroStaffMappingCounts = XeroStaffMappingCounts
     { xeroStaffVerifiedCount      :: Int
     , xeroStaffNotApplicableCount :: Int
     , xeroStaffStaleCount         :: Int
+    , xeroStaffPossibleMatchCount :: Int
     }
 
 data XeroLocalEarningsBucket = XeroLocalEarningsBucket

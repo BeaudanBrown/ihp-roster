@@ -251,11 +251,25 @@ renderXeroStaffMappingRow xeroEmployees mappingRows row =
         selectableEmployees = filter (xeroEmployeeAvailableForRow row mappingRows) xeroEmployees
      in [hsx|
         <tr>
-            <td>{staffFullName staff}</td>
+            <td>{renderXeroStaffMappingStaffCell row}</td>
             <td>{renderXeroStaffEmail row.mappingRowUser}</td>
             <td>{renderXeroStaffMappingControl selectableEmployees currentSelection staff}</td>
         </tr>
     |]
+
+renderXeroStaffMappingStaffCell :: XeroStaffMappingRow -> Html
+renderXeroStaffMappingStaffCell row = [hsx|
+    <div class="d-flex flex-column gap-1">
+        <span>{staffFullName row.mappingRowStaff}</span>
+        {renderXeroStaffPossibleMatchBadge row.mappingRowSuggestedEmployee}
+    </div>
+|]
+
+renderXeroStaffPossibleMatchBadge :: Maybe XeroEmployee -> Html
+renderXeroStaffPossibleMatchBadge Nothing = mempty
+renderXeroStaffPossibleMatchBadge (Just employee) = [hsx|
+    <span class="badge text-bg-warning align-self-start">Possible Xero match: {employee.displayName}</span>
+|]
 
 renderXeroStaffMappingCounts :: XeroStaffMappingCounts -> Html
 renderXeroStaffMappingCounts =
@@ -270,6 +284,7 @@ renderXeroStaffMappingCountsWith maybeOobSwap mappingCounts = [hsx|
     <div id="xero-staff-mapping-counts" class="d-flex flex-wrap gap-2" hx-swap-oob={maybeOobSwap}>
         <span class="badge text-bg-success">{tshow mappingCounts.xeroStaffVerifiedCount} mapped</span>
         <span class="badge text-bg-info">{tshow mappingCounts.xeroStaffNotApplicableCount} not paid through Xero</span>
+        <span class="badge text-bg-warning">{tshow mappingCounts.xeroStaffPossibleMatchCount} possible matches</span>
         <span class="badge text-bg-warning">{tshow mappingCounts.xeroStaffStaleCount} stale</span>
     </div>
 |]

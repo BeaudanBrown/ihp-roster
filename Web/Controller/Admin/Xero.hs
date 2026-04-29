@@ -417,14 +417,17 @@ fetchCurrentVenueXeroStaffMappingRows maybeConnection =
                     |> filterWhere (#venueId, unpackId currentVenueId)
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
                     |> fetch
-            forM staffMembers \staff -> do
+            xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
+            rows <- forM staffMembers \staff -> do
                 maybeUser <- fetchStaffLinkedUser staff
                 mapping <- ensureDefaultXeroStaffMapping connection staff (List.find (\mapping -> mapping.staffId == unpackId staff.id) mappings)
                 pure XeroStaffMappingRow
                     { mappingRowStaff = staff
                     , mappingRowUser = maybeUser
                     , mappingRowMapping = mapping
+                    , mappingRowSuggestedEmployee = Nothing
                     }
+            pure (attachXeroStaffMappingSuggestions xeroEmployees rows)
 
 ensureDefaultXeroStaffMapping :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> Staff -> Maybe XeroStaffMapping -> IO XeroStaffMapping
 ensureDefaultXeroStaffMapping _ _ (Just mapping) =
@@ -452,6 +455,7 @@ xeroStaffMappingCountsFor rows =
         { xeroStaffVerifiedCount = countStatus "verified"
         , xeroStaffNotApplicableCount = countStatus "not_applicable"
         , xeroStaffStaleCount = countStatus "stale"
+        , xeroStaffPossibleMatchCount = length (filter (isJust . (.mappingRowSuggestedEmployee)) rows)
         }
     where
         mappingStatus row = row.mappingRowMapping.mappingStatus
@@ -824,6 +828,18 @@ bestXeroEmployeeSuggestion row employees =
         best : _
             | scoredSuggestionScore best <= xeroEmployeeSuggestionThreshold -> XeroEmployeeSuggestion best.scoredSuggestionEmployee
             | otherwise -> NoXeroEmployeeSuggestion
+
+attachXeroStaffMappingSuggestions :: [XeroEmployee] -> [XeroStaffMappingRow] -> [XeroStaffMappingRow]
+attachXeroStaffMappingSuggestions employees rows =
+    map attach rows
+    where
+        attach row
+            | row.mappingRowMapping.mappingStatus /= "not_applicable" = row { mappingRowSuggestedEmployee = Nothing }
+            | otherwise =
+                let availableEmployees = filter (xeroEmployeeAvailableForStaff row.mappingRowStaff rows) employees
+                 in case bestXeroEmployeeSuggestion row availableEmployees of
+                        XeroEmployeeSuggestion employee -> row { mappingRowSuggestedEmployee = Just employee }
+                        _ -> row { mappingRowSuggestedEmployee = Nothing }
 
 xeroEmployeeSuggestionThreshold :: Double
 xeroEmployeeSuggestionThreshold = 0.25
