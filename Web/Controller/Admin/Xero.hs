@@ -313,6 +313,7 @@ fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
     case maybeConnection of
         Nothing -> pure []
         Just connection -> do
+            today <- utctDay <$> getCurrentTime
             usedScopes <- fetchCurrentVenueXeroUsedAwardPayScopes
             awardLevels <-
                 query @AwardLevel
@@ -331,11 +332,12 @@ fetchCurrentVenueXeroPayItemRequirements maybeConnection xeroEarningsRates =
                 query @AwardTimePenaltyAllowance
                     |> orderBy #createdAt
                     |> fetch
-            let requirements = deriveXeroPayItemRequirements usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
+            let requirements = deriveXeroPayItemRequirements today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances xeroEarningsRates
             syncXeroPayItemRequirementRecords connection.id currentVenueId (Just currentUser.id) requirements
 
 currentVenueLocalXeroEarningsBuckets :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroLocalEarningsBucket]
 currentVenueLocalXeroEarningsBuckets = do
+    today <- utctDay <$> getCurrentTime
     usedScopes <- fetchCurrentVenueXeroUsedAwardPayScopes
     awardLevels <-
         query @AwardLevel
@@ -354,7 +356,7 @@ currentVenueLocalXeroEarningsBuckets = do
         query @AwardTimePenaltyAllowance
             |> orderBy #createdAt
             |> fetch
-    pure (deriveXeroLocalEarningsBuckets usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances)
+    pure (deriveXeroLocalEarningsBuckets today usedScopes awardLevels awardLevelBaseRates awardLevelPenaltyRates awardTimePenaltyAllowances)
 
 fetchCurrentVenueXeroUsedAwardPayScopes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroUsedAwardPayScope]
 fetchCurrentVenueXeroUsedAwardPayScopes = do
@@ -967,7 +969,7 @@ createMissingXeroPayItems connection = do
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
     requirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
     maybeAccountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
-    let proposedRequirements = filter (\requirement -> requirement.payItemRequirementStatus == "proposed") requirements
+    let proposedRequirements = filter (\requirement -> requirement.payItemRequirementStatus == "proposed" && requirement.payItemRequirementIsActive) requirements
     case selectedXeroPayItemAccountCode maybeAccountCodeSelection of
         Nothing -> respondWithXeroMappingMutationError "Choose a Xero pay item account code before creating pay items."
         Just accountCode ->

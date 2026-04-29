@@ -1,6 +1,7 @@
 module Application.Helper.XeroAdminTypes where
 
 import Data.Scientific (Scientific)
+import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.Prelude
 
@@ -49,6 +50,9 @@ data XeroPayItemRequirement = XeroPayItemRequirement
     , payItemRequirementRatePerUnit  :: Maybe Scientific
     , payItemRequirementValue        :: Maybe Text
     , payItemRequirementSource       :: Text
+    , payItemRequirementEffectiveFrom :: Maybe Day
+    , payItemRequirementEffectiveTo   :: Maybe Day
+    , payItemRequirementIsActive      :: Bool
     , payItemRequirementMatch        :: Maybe XeroEarningsRate
     , payItemRequirementRecord       :: Maybe XeroPayItemRequirementRecord
     , payItemRequirementStatus       :: Text

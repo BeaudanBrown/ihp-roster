@@ -403,6 +403,7 @@ renderXeroPayItemRequirements requirements maybePayItemAccountCodeSelection canM
                     <span class="badge text-bg-secondary">{tshow proposedCount} proposed</span>
                     <span class="badge text-bg-warning">{tshow rateChangedCount} rate changed</span>
                     <span class="badge text-bg-warning">{tshow staleCount} stale</span>
+                    <span class="badge text-bg-light border">{tshow archivedCount} archived</span>
                 </div>
             </div>
             {renderCreateMissingXeroPayItemsControl canManagePayItems hasAccountCode proposedCount}
@@ -418,21 +419,49 @@ renderXeroPayItemRequirements requirements maybePayItemAccountCodeSelection canM
                         </tr>
                     </thead>
                     <tbody>
-                        {forEach requirements renderXeroPayItemRequirementRow}
+                        {forEach activeRequirements renderXeroPayItemRequirementRow}
                     </tbody>
                 </table>
             </div>
+            {renderArchivedXeroPayItemRequirements archivedRequirements}
         </div>
     |]
     where
-        matchedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "matched") requirements)
-        proposedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "proposed") requirements)
-        rateChangedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "rate_changed") requirements)
-        staleCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "stale") requirements)
+        activeRequirements = filter (.payItemRequirementIsActive) requirements
+        archivedRequirements = filter (not . (.payItemRequirementIsActive)) requirements
+        matchedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "matched") activeRequirements)
+        proposedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "proposed") activeRequirements)
+        rateChangedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "rate_changed") activeRequirements)
+        staleCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "stale") activeRequirements)
+        archivedCount = length archivedRequirements
         hasAccountCode =
             case maybePayItemAccountCodeSelection of
                 Just selection -> selection.selectionStatus == "verified" && maybe False (not . Text.null . Text.strip) selection.accountCode
                 Nothing -> False
+
+renderArchivedXeroPayItemRequirements :: [XeroPayItemRequirement] -> Html
+renderArchivedXeroPayItemRequirements [] = mempty
+renderArchivedXeroPayItemRequirements requirements = [hsx|
+    <details class="mt-3">
+        <summary class="small app-muted">Archived pay item requirements ({tshow (length requirements)})</summary>
+        <div class="table-responsive mt-2">
+            <table class="table table-sm align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>Required pay item</th>
+                        <th>Type</th>
+                        <th>Value</th>
+                        <th>Xero status</th>
+                        <th>Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {forEach requirements renderXeroPayItemRequirementRow}
+                </tbody>
+            </table>
+        </div>
+    </details>
+|]
 
 renderCreateMissingXeroPayItemsControl :: Bool -> Bool -> Int -> Html
 renderCreateMissingXeroPayItemsControl canManagePayItems hasAccountCode proposedCount
