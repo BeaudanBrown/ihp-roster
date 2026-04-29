@@ -18,7 +18,6 @@ application helpers.
 - `Test/` - Hspec coverage.
 - `e2e/` - Playwright coverage.
 - `plans/` and `specs/` - product and implementation planning.
-- `.loom/` - active coordinator workstream state only.
 
 ## Local Workflow
 

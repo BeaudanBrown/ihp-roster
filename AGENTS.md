@@ -47,21 +47,11 @@
 - Detailed execution plans live under `plans/` and are scoped by workstream; read only the relevant pipeline file after reading the root roadmap.
 - `plans/90-historical-completed-slices.md` holds completed or superseded detail that may still matter for migration work.
 
-## Coordinator Workstreams
-
-- Active coordinator-managed workstreams live under `.loom/workstreams/<workstream>/`.
-- Read `.loom/AGENTS.md` before editing files there.
-- Use `.loom/workstreams/<workstream>/context.md` and `handoff.md` as the repo-local execution memory for a tracked workstream.
-- When a workstream needs repeated unattended Codex passes inside one Loom session, use `.loom/bin/codex-workstream-loop.sh` plus that workstream's `loop-launch.md`.
-- Keep durable project-wide learnings in this `AGENTS.md` or the repo's own plans/specs rather than leaving them only in a workstream handoff.
-- Reusable one-shot coordinator runs live under `.loom/runs/<category>/<run>.md` and should not create persistent workstream state unless explicitly promoted.
-
 ## Learning Capture
 
 - If a command, workaround, or constraint is likely to matter again across this repo, add it here or to the most relevant spec.
-- Keep workstream-specific resume notes in `.loom/workstreams/<workstream>/handoff.md`.
-- Keep long debug trails in `.loom/workstreams/<workstream>/history.md` only while the workstream is active.
-- For reusable one-shot runs, keep the durable run instructions in `.loom/runs/` and promote any stable repo-wide findings back into this file or the relevant specs.
+- Keep durable project-wide learnings in this `AGENTS.md` or the repo's own plans/specs.
+- Keep long debug trails out of tracked source unless they become a reusable plan, spec, or troubleshooting note.
 
 ## Overlay Architecture
 - Treat overlays as three separate lanes:
@@ -194,7 +184,7 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
 - **Test data**: Seeded via `e2e/fixtures/seed.sql` (manager: `e2e-test@example.com`, worker: `e2e-worker@example.com`, both with password `test-password-123`)
 - **Cleanup**: `global-teardown.ts` deletes all rows with `e2e-` prefixed emails and removes worker-owned leave/timesheet rows before deleting dependent snapshots
 - **Browsers**: Provided by Nix via `playwright-web-flake` — no manual browser install needed
-- **CLI invocation**: In automation and Loom runs, prefer `bash ./bin/in-env e2e` / `screenshot` / `e2e-report` instead of bare `npx playwright ...`; the wrapper resolves the repo-local Playwright CLI inside the dev shell so the runner matches the imported test package
+- **CLI invocation**: In automation, prefer `bash ./bin/in-env e2e` / `screenshot` / `e2e-report` instead of bare `npx playwright ...`; the wrapper resolves the repo-local Playwright CLI inside the dev shell so the runner matches the imported test package
 - **Authenticated/manual captures**: Prefer `bash ./bin/in-env screenshot-page ... --selector '<real-shell-selector>'` for arbitrary screenshots. If you need the richer manual-inspection dataset or role accounts, run `bash ./bin/in-env seed-dev app` first. On cold IHP boots, increase both `--navigation-timeout-ms` and `--selector-timeout-ms` instead of cloning the helper or writing one-off screenshot scripts.
 - **Exploratory browser work**: Use `bash ./bin/in-env pwcli ...` for ad hoc Playwright CLI sessions, targeted screenshots, and live selector discovery. `pwcli-auth-save <manager|worker|admin|support>` depends on the `seed-dev app` role accounts; manager/worker use `password123`, the seeded venue-admin alias uses `venue2@bepis.lol` / `venue2`, and the seeded support super-admin uses `admin@bepis.lol` / `admin`. The isolated `e2e` suite still uses `test-password-123` against `app_e2e`. After saving state, open a pre-authenticated session with `bash ./bin/in-env pwcli-auth-open <role> <path>`.
 - **npm deps**: `@playwright/test` version in `package.json` must match the `playwright-web-flake` tag in `flake.nix`

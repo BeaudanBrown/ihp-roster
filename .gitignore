@@ -1,6 +1,7 @@
 .DS_Store
 .idea
 .codex
+.loom/
 .env
 .ghci
 tmp

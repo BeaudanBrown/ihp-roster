@@ -12,8 +12,7 @@ see the connected Xero tenant recorded for the current venue.
 This plan intentionally stops before employee sync, earnings-rate sync, payroll
 calendar sync, mapping UI, timesheet preview, or draft-timesheet submission.
 
-Do not create a coordinator workstream for this slice unless the operator
-explicitly asks for one. This file is the repo-local implementation handoff.
+This file is the repo-local implementation handoff.
 
 ## Local Preconditions
 
@@ -305,4 +304,3 @@ This slice is complete when:
 - draft-timesheet submission
 - Xero employee or pay item creation
 - production deployment secret wiring
-- coordinator workstream creation

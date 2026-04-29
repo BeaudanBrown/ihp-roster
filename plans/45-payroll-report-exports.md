@@ -1,6 +1,6 @@
 # Pipeline 45 — Payroll Report Exports
 
-Read after `IMPLEMENTATION_PLAN.md`, `plans/40-pay-config-and-admin.md`, and the active workstream context in `.loom/workstreams/payroll-report-exports/`.
+Read after `IMPLEMENTATION_PLAN.md` and `plans/40-pay-config-and-admin.md`.
 
 ## Goal
 

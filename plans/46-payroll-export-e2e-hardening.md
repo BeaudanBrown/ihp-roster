@@ -1,6 +1,6 @@
 # Pipeline 46 — Payroll Export E2E Hardening
 
-Read after `IMPLEMENTATION_PLAN.md`, `plans/45-payroll-report-exports.md`, and the active workstream context in `.loom/workstreams/payroll-export-e2e-hardening/`.
+Read after `IMPLEMENTATION_PLAN.md` and `plans/45-payroll-report-exports.md`.
 
 ## Goal
 
