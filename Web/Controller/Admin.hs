@@ -388,6 +388,7 @@ instance Controller AdminController where
                         |> set #isActive True
                         |> createRecord
                 broadcastAdminSlotNamesInvalidation rosterGroup.id
+                broadcastSlotNameInvalidation rosterGroup.id
                 respondToSlotNameSectionMutation "Slot name added" rosterGroup.id
 
     action UpdateSlotNameAction { slotNameId } = do
@@ -411,6 +412,7 @@ instance Controller AdminController where
         withTransaction do
             reorderActiveSlotNames rosterGroupId slotName.id (-1)
         broadcastAdminSlotNamesInvalidation rosterGroupId
+        broadcastSlotNameInvalidation rosterGroupId
         respondToSlotNameSectionMutation "Slot order updated" rosterGroupId
 
     action MoveSlotNameDownAction { slotNameId } = do
@@ -420,6 +422,7 @@ instance Controller AdminController where
         withTransaction do
             reorderActiveSlotNames rosterGroupId slotName.id 1
         broadcastAdminSlotNamesInvalidation rosterGroupId
+        broadcastSlotNameInvalidation rosterGroupId
         respondToSlotNameSectionMutation "Slot order updated" rosterGroupId
 
     action DeleteSlotNameAction { slotNameId } = do
@@ -430,4 +433,5 @@ instance Controller AdminController where
             |> set #isActive False
             |> updateRecord
         broadcastAdminSlotNamesInvalidation rosterGroupId
+        broadcastSlotNameInvalidation rosterGroupId
         respondToSlotNameSectionMutation "Slot deleted" rosterGroupId

@@ -14,8 +14,7 @@ import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
-import Web.RosterWeeks.Projection (buildRosterRowFragmentRefs,
-                                   buildRosterStaffPanelFragmentRef)
+import Web.RosterWeeks.Projection (buildDeferredRosterContentFragmentRef)
 import Web.View.Profiles.Edit
 
 instance Controller ProfilesController where
@@ -232,9 +231,8 @@ fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes = do
 
 buildProfileRosterInvalidations :: (?context :: ControllerContext) => [(Id RosterGroup, Int, [(UUID.UUID, Int)])] -> [(Id RosterGroup, Int, [LiveFragmentRef])]
 buildProfileRosterInvalidations =
-    map \(rosterGroupId, weekOffset, rowKeys) ->
+    map \(rosterGroupId, weekOffset, _rowKeys) ->
         ( rosterGroupId
         , weekOffset
-        , buildRosterRowFragmentRefs rosterGroupId weekOffset rowKeys
-            <> [buildRosterStaffPanelFragmentRef rosterGroupId weekOffset]
+        , [buildDeferredRosterContentFragmentRef rosterGroupId weekOffset]
         )

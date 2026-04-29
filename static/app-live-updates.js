@@ -453,6 +453,7 @@
             case 'admin_invites':
             case 'admin_shift_types':
             case 'admin_roster_groups':
+            case 'admin_xero':
                 if (!scope.venueId) return null;
                 return `${scope.kind}:${scope.venueId}`;
             default:

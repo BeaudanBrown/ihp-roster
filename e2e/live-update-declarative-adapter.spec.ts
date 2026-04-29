@@ -171,6 +171,26 @@ test.describe('Declarative live-update adapter', () => {
             .toContain('subscribe:admin_invites');
     });
 
+    test('subscribes venue-only admin xero scopes', async ({ page }) => {
+        await installLiveUpdateHarness(page);
+        await openBlankRuntimePage(page);
+
+        await addSyntheticSurface(page, {
+            feature: 'synthetic-admin-xero',
+            socketPath: '/live-updates',
+            scope: {
+                kind: 'admin_xero',
+                venueId: fixtureVenueId,
+            },
+            resyncFragments: [],
+            decorateRequestsWithin: [],
+        });
+
+        await expect
+            .poll(async () => (await liveUpdateCommands(page)).map((command: any) => `${command.type}:${command.scope?.kind}`))
+            .toContain('subscribe:admin_xero');
+    });
+
     test('uses server-emitted scope keys when present', async ({ page }) => {
         await installLiveUpdateHarness(page);
         await openBlankRuntimePage(page);

@@ -153,12 +153,13 @@ instance Controller TimesheetsController where
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
                     ensureShiftTypeAllowed timesheetEntry.shiftTypeId
+                    let oldWorkedOn = existingEntry.workedOn
                     let successMessage =
                             if wasApproved
                                 then "Timesheet entry updated (approval reset)"
                                 else "Timesheet entry updated"
                     let updateAction = unsafeEnumFromText @EntryVersionActionEnum (if wasApproved then "approval_reset" else "updated")
-                    withTransaction do
+                    updatedEntry <- withTransaction do
                         updatedEntry <- timesheetEntry
                             |> resetApprovalOnEdit wasApproved
                             |> updateRecord
@@ -182,9 +183,10 @@ instance Controller TimesheetsController where
                                     , "previousApprovedByUserId" Aeson..= timesheetEntry.approvedByUserId
                                     ]
                                 )
-                    broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
+                        pure updatedEntry
+                    broadcastTimesheetEntryMoveInvalidation oldWorkedOn updatedEntry.workedOn
                     if isHtmxRequest
-                        then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff successMessage True True
+                        then respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn updatedEntry.workedOn showApproved showAllStaff successMessage
                         else do
                             setSuccessMessage successMessage
                             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
@@ -423,6 +425,38 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
             , when closeDialog [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
             , renderToastOob ToastBottomCenter (successToast successMessage)
             ]
+
+respondWithTimesheetDateMoveUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Day -> Bool -> Bool -> Text -> IO ()
+respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn newWorkedOn showApproved showAllStaff successMessage = do
+    projection <- fetchTimesheetWeekProjectionCached (TimesheetProjectionRequest weekOffset showApproved showAllStaff)
+    let weekStartDate = projection.timesheetWeekStartDate
+    let weekEndDate = projection.timesheetWeekEndDate
+    let daysInVisibleWeek = filter (\day -> day >= weekStartDate && day <= weekEndDate) (nub [oldWorkedOn, newWorkedOn])
+    let dayFragments =
+            map
+                (renderTimesheetDaySectionFromProjection True projection . timesheetDayOffset weekStartDate)
+                daysInVisibleWeek
+    respondHtmlProfiled $
+        mconcat
+            [ mconcat dayFragments
+            , [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+            , renderToastOob ToastBottomCenter (successToast successMessage)
+            ]
+
+renderTimesheetDaySectionFromProjection :: (?context :: ControllerContext, ?request :: Request) => Bool -> TimesheetWeekProjection -> Int -> Blaze.Html
+renderTimesheetDaySectionFromProjection renderOob projection dayOffset =
+    let renderer = if renderOob then renderDaySectionOob else renderDaySection
+     in renderer
+            projection.timesheetEntries
+            projection.timesheetStaffMembers
+            projection.timesheetShiftTypes
+            projection.timesheetToday
+            projection.timesheetEditWindowDays
+            projection.timesheetWeekOffset
+            projection.timesheetWeekStartDate
+            projection.timesheetShowApproved
+            projection.timesheetShowAllStaff
+            dayOffset
 
 fetchTimesheetWeekProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetProjectionRequest -> IO TimesheetWeekProjection
 fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset = weekOffset, projectionShowApproved = showApproved, projectionShowAllStaff = showAllStaff } = do
@@ -791,6 +825,22 @@ broadcastTimesheetDayInvalidation weekOffset workedOn = do
             (buildTimesheetWeekScope currentVenueId weekOffset)
             liveUpdateSourceClientId
             [buildTimesheetDaySectionFragmentRef (TimesheetProjectionRequest weekOffset True True) dayOffset]
+
+broadcastTimesheetEntryMoveInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> Day -> IO ()
+broadcastTimesheetEntryMoveInvalidation oldWorkedOn newWorkedOn = do
+    venueConfig <- fetchVenueConfig
+    let invalidationTargets =
+            nub
+                [ (weekOffset, timesheetDayOffset (venueWeekStartDate venueConfig weekOffset) workedOn)
+                | workedOn <- [oldWorkedOn, newWorkedOn]
+                , let weekOffset = venueWeekOffsetForDay venueConfig workedOn
+                ]
+    forM_ invalidationTargets \(targetWeekOffset, dayOffset) ->
+        liftIO $
+            broadcastLiveInvalidation
+                (buildTimesheetWeekScope currentVenueId targetWeekOffset)
+                liveUpdateSourceClientId
+                [buildTimesheetDaySectionFragmentRef (TimesheetProjectionRequest targetWeekOffset True True) dayOffset]
 
 timesheetViewFiltersFromRequest :: (?request :: Request) => (Bool, Bool)
 timesheetViewFiltersFromRequest =

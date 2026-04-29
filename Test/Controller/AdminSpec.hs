@@ -1127,12 +1127,15 @@ tests = beforeAll testContext do
                 rosterGroupResponse `responseStatusShouldBe` status302
                 createdRosterGroup <- query @RosterGroup |> filterWhere (#name, "Back of House") |> fetchOne
 
+                slotConfigVersionBefore <- currentLiveUpdateVersion RosterGroupConfigScope { venueId = unpackId venue.id, rosterGroupId = unpackId createdRosterGroup.id }
                 slotResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateSlotNameAction
                         [ ("name", "Swing")
                         , ("rosterGroupId", idToParam createdRosterGroup.id)
                         ]
                 slotResponse `responseStatusShouldBe` status302
+                slotConfigVersionAfter <- currentLiveUpdateVersion RosterGroupConfigScope { venueId = unpackId venue.id, rosterGroupId = unpackId createdRosterGroup.id }
+                slotConfigVersionAfter `shouldBe` slotConfigVersionBefore + 1
 
                 shiftTypeResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
@@ -1233,6 +1236,7 @@ tests = beforeAll testContext do
                 middleSlotName <- fetchSlotNameRecord venue "Mid"
                 lastSlotName <- fetchSlotNameRecord venue "Late"
                 rosterGroup <- createVenueRosterGroupWithDefaults venue "Back of House" 5 True
+                slotConfigVersionBefore <- currentLiveUpdateVersion RosterGroupConfigScope { venueId = unpackId venue.id, rosterGroupId = slotName.rosterGroupId }
 
                 moveGroupUpResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (MoveRosterGroupUpAction rosterGroup.id)
@@ -1289,6 +1293,8 @@ tests = beforeAll testContext do
                 (fmap (get #isActive) (fetch middleSlotName.id)) `shouldReturn` False
                 (fmap (get #sortOrder) (fetch lastSlotName.id)) `shouldReturn` 1
                 (fmap (map (.name)) (fetchActiveRosterGroupSlotNames (Id updatedSlotName.rosterGroupId :: Id RosterGroup))) `shouldReturn` ["Late", "Early Updated"]
+                slotConfigVersionAfter <- currentLiveUpdateVersion RosterGroupConfigScope { venueId = unpackId venue.id, rosterGroupId = updatedSlotName.rosterGroupId }
+                slotConfigVersionAfter `shouldBe` slotConfigVersionBefore + 4
 
         it "updates the roster week start before venue history exists and snapshots the new setting" $ withContext do
             withCleanDb do

@@ -308,6 +308,43 @@ tests = beforeAll testContext do
                 versionAfter <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
                 versionAfter `shouldBe` versionBefore + 1
 
+        it "editing a timesheet date refreshes both old and new day sections" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Venue"
+                manager <- createUserRecord "timesheet-date-move-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Tia" "Move"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+
+                versionBefore <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders
+                        [ ("HX-Request", "true")
+                        , ("X-Live-Update-Client-Id", "timesheet-date-move-client")
+                        ] do
+                            callActionWithParams (UpdateTimesheetEntryAction entry.id)
+                                [ ("weekOffset", "0")
+                                , ("staffId", idToParam staff.id)
+                                , ("shiftTypeId", idToParam shiftType.id)
+                                , ("workedOn", "2025-01-08")
+                                , ("startTime", "09:15")
+                                , ("endTime", "17:15")
+                                ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"timesheet-day-section-1\""
+                response `responseBodyShouldContain` "id=\"timesheet-day-section-2\""
+                response `responseBodyShouldContain` "Timesheet entry updated"
+                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+
+                updatedEntry <- fetch entry.id
+                updatedEntry.workedOn `shouldBe` fromGregorian 2025 1 8
+                versionAfter <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
+                versionAfter `shouldBe` versionBefore + 2
+
         it "manager review actions bump the timesheet week scope version" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"
