@@ -14,7 +14,10 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Char as Char
 import qualified Data.List as List
+import qualified Data.Maybe as Maybe
+import Data.Scientific (Scientific)
 import qualified Data.Text as Text
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.Admin.Xero
@@ -1185,18 +1188,25 @@ createMissingXeroPayItems connection = do
                                     createResult <- createProposedXeroPayItems xeroClient refreshedConnection accessToken now accountCode proposedRequirements
                                     case createResult of
                                         Left message -> respondWithXeroMappingMutationError message
-                                        Right createdCount -> do
+                                        Right verification -> do
                                             void $ recordCurrentUserAuditEvent
                                                 "xero_pay_items_created"
                                                 "xero_pay_item_requirement_records"
                                                 (unpackId refreshedConnection.id)
                                                 (Aeson.object
                                                     [ "tenantId" Aeson..= refreshedConnection.tenantId
-                                                    , "createdCount" Aeson..= createdCount
+                                                    , "submittedCount" Aeson..= verification.submittedCount
+                                                    , "failedCount" Aeson..= verification.failedCount
+                                                    , "verifiedCount" Aeson..= verification.verifiedCount
+                                                    , "missingCount" Aeson..= verification.missingCount
+                                                    , "missingNames" Aeson..= verification.missingNames
+                                                    , "submissionFailures" Aeson..= map xeroPayItemSubmissionFailurePayload verification.submissionFailures
                                                     ]
                                                 )
                                             broadcastAdminXeroInvalidation currentVenueId
-                                            respondToXeroMappingMutationSuccess ("Created " <> tshow createdCount <> " missing Xero pay items.")
+                                            if verification.failedCount == 0 && verification.missingCount == 0
+                                                then respondToXeroMappingMutationSuccess ("Created and verified " <> tshow verification.verifiedCount <> " missing Xero pay items.")
+                                                else respondWithXeroMappingMutationError (xeroPayItemVerificationFailureMessage verification)
 
 selectedXeroPayItemAccountCode :: [Text] -> Maybe XeroPayItemAccountCodeSelection -> Maybe Text
 selectedXeroPayItemAccountCode accountCodeOptions maybeSelection =
@@ -1206,6 +1216,26 @@ selectedXeroPayItemAccountCode accountCodeOptions maybeSelection =
             if Text.null accountCode || accountCode `List.notElem` accountCodeOptions then Nothing else Just accountCode
         _ -> Nothing
 
+data CreatePayItemsVerificationResult = CreatePayItemsVerificationResult
+    { submittedCount :: !Int
+    , failedCount    :: !Int
+    , verifiedCount  :: !Int
+    , missingCount   :: !Int
+    , missingNames   :: ![Text]
+    , submissionFailures :: ![XeroPayItemSubmissionFailure]
+    }
+    deriving (Eq, Show)
+
+data XeroPayItemSubmissionFailure = XeroPayItemSubmissionFailure
+    { failureRequirementKey  :: !Text
+    , failurePayItemName     :: !Text
+    , failureIdempotencyKey  :: !Text
+    , failureRateType        :: !Text
+    , failureRatePerUnit     :: !(Maybe Scientific)
+    , failureError           :: !Text
+    }
+    deriving (Eq, Show)
+
 createProposedXeroPayItems ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroClient ->
@@ -1214,40 +1244,164 @@ createProposedXeroPayItems ::
     UTCTime ->
     Text ->
     [XeroPayItemRequirement] ->
-    IO (Either Text Int)
-createProposedXeroPayItems xeroClient connection accessToken now accountCode =
-    go 0
+    IO (Either Text CreatePayItemsVerificationResult)
+createProposedXeroPayItems xeroClient connection accessToken now accountCode requirements = do
+    let batchKey = xeroPayItemIdempotencyBatchKey now
+    initialFetchResult <- fetchEarningsRates xeroClient accessToken connection.tenantId
+    case initialFetchResult of
+        Left err -> pure (Left ("Xero pay item preflight pull failed before creating pay items: " <> xeroClientErrorText err))
+        Right initialRates -> do
+            upsertFetchedXeroEarningsRates connection now initialRates
+            let existingEarningsRatePayloads = map (.xeroEarningsRateRaw) initialRates
+            (submittedCount, submissionFailures) <- submitCreates batchKey (1 :: Int) 0 [] existingEarningsRatePayloads requirements
+            verifySubmittedCreates submittedCount submissionFailures
     where
-        go createdCount [] = pure (Right createdCount)
-        go createdCount (requirement : rest) = do
+        verifySubmittedCreates submittedCount submissionFailures = do
+            fetchResult <- fetchEarningsRates xeroClient accessToken connection.tenantId
+            case fetchResult of
+                Left err -> pure (Left ("Xero pay item verification failed after submitting " <> tshow submittedCount <> " pay items and receiving " <> tshow (length submissionFailures) <> " create errors: " <> xeroClientErrorText err))
+                Right fetchedRates -> do
+                    upsertFetchedXeroEarningsRates connection now fetchedRates
+                    let verifiedPairs = Maybe.mapMaybe (verifiedRequirementRate fetchedRates) requirements
+                    mapM_ (uncurry (persistCreatedXeroPayItem connection now)) verifiedPairs
+                    let verifiedNames = map (payItemRequirementName . fst) verifiedPairs
+                    let missingNames = filter (`List.notElem` verifiedNames) (map (.payItemRequirementName) requirements)
+                    pure $
+                        Right
+                            CreatePayItemsVerificationResult
+                                { submittedCount = submittedCount
+                                , failedCount = length submissionFailures
+                                , verifiedCount = length verifiedPairs
+                                , missingCount = length missingNames
+                                , missingNames = missingNames
+                                , submissionFailures = submissionFailures
+                                }
+
+        submitCreates _ _ submittedCount failures _ [] = pure (submittedCount, reverse failures)
+        submitCreates batchKey itemIndex submittedCount failures knownEarningsRates (requirement : rest) = do
+            let idempotencyKey = xeroPayItemIdempotencyKey batchKey itemIndex requirement
+            let body = xeroPayItemRequestPayload knownEarningsRates accountCode requirement
             createResult <-
                 createPayItem
                     xeroClient
                     accessToken
                     connection.tenantId
-                    (xeroPayItemIdempotencyKey requirement)
-                    (xeroPayItemRequestPayload accountCode requirement)
+                    idempotencyKey
+                    body
             case createResult of
-                Left err -> pure (Left ("Xero pay item create failed for " <> requirement.payItemRequirementName <> ": " <> xeroClientErrorText err))
-                Right createdRates ->
-                    case List.find (\rate -> rate.xeroEarningsRateName == requirement.payItemRequirementName) createdRates of
-                        Nothing ->
-                            pure (Left ("Xero created " <> requirement.payItemRequirementName <> " but did not return the created earnings rate id. Sync payroll reference data before continuing."))
-                        Just createdRate -> do
-                            persistCreatedXeroPayItem connection now requirement createdRate
-                            go (createdCount + 1) rest
+                Left err ->
+                    submitCreates
+                        batchKey
+                        (itemIndex + 1)
+                        submittedCount
+                        ( xeroPayItemSubmissionFailure requirement idempotencyKey err : failures
+                        )
+                        knownEarningsRates
+                        rest
+                Right _ ->
+                    submitCreates
+                        batchKey
+                        (itemIndex + 1)
+                        (submittedCount + 1)
+                        failures
+                        (knownEarningsRates <> [xeroEarningsRatePayload accountCode requirement])
+                        rest
 
-xeroPayItemIdempotencyKey :: XeroPayItemRequirement -> Text
-xeroPayItemIdempotencyKey requirement =
-    "bepis-pay-item-" <> maybe (Text.take 80 requirement.payItemRequirementKey) (tshow . (.id)) requirement.payItemRequirementRecord
+xeroPayItemSubmissionFailure :: XeroPayItemRequirement -> Text -> XeroClientError -> XeroPayItemSubmissionFailure
+xeroPayItemSubmissionFailure requirement idempotencyKey err =
+    XeroPayItemSubmissionFailure
+        { failureRequirementKey = requirement.payItemRequirementKey
+        , failurePayItemName = requirement.payItemRequirementName
+        , failureIdempotencyKey = idempotencyKey
+        , failureRateType = requirement.payItemRequirementRateType
+        , failureRatePerUnit = requirement.payItemRequirementRatePerUnit
+        , failureError = xeroClientErrorText err
+        }
 
-xeroPayItemRequestPayload :: Text -> XeroPayItemRequirement -> Aeson.Value
-xeroPayItemRequestPayload accountCode requirement =
+xeroPayItemSubmissionFailurePayload :: XeroPayItemSubmissionFailure -> Aeson.Value
+xeroPayItemSubmissionFailurePayload failure =
     Aeson.object
-        [ "EarningsRates" Aeson..= [xeroEarningsRatePayload accountCode requirement]
-        , "DeductionTypes" Aeson..= ([] :: [Aeson.Value])
-        , "LeaveTypes" Aeson..= ([] :: [Aeson.Value])
-        , "ReimbursementTypes" Aeson..= ([] :: [Aeson.Value])
+        [ "requirementKey" Aeson..= failure.failureRequirementKey
+        , "payItemName" Aeson..= failure.failurePayItemName
+        , "idempotencyKey" Aeson..= failure.failureIdempotencyKey
+        , "rateType" Aeson..= failure.failureRateType
+        , "ratePerUnit" Aeson..= failure.failureRatePerUnit
+        , "error" Aeson..= failure.failureError
+        ]
+
+verifiedRequirementRate :: [XeroEarningsRateRef] -> XeroPayItemRequirement -> Maybe (XeroPayItemRequirement, XeroEarningsRateRef)
+verifiedRequirementRate fetchedRates requirement =
+    fmap (\rate -> (requirement, rate)) (List.find isMatchingActiveRate fetchedRates)
+    where
+        isMatchingActiveRate rate =
+            rate.xeroEarningsRateName == requirement.payItemRequirementName
+                && rate.xeroEarningsRateIsActive
+
+xeroPayItemVerificationFailureMessage :: CreatePayItemsVerificationResult -> Text
+xeroPayItemVerificationFailureMessage verification =
+    Text.intercalate
+        " "
+        (filter (not . Text.null) [failureSummary, verificationSummary, missingSummary])
+    where
+        failureSummary =
+            if verification.failedCount == 0
+                then ""
+                else
+                    "Xero rejected "
+                        <> tshow verification.failedCount
+                        <> " pay item creates. First error for "
+                        <> maybe "unknown pay item" (.failurePayItemName) (listToMaybe verification.submissionFailures)
+                        <> ": "
+                        <> maybe "unknown error" (.failureError) (listToMaybe verification.submissionFailures)
+        verificationSummary =
+            "Submitted "
+                <> tshow verification.submittedCount
+                <> " Xero pay item creates and verified "
+                <> tshow verification.verifiedCount
+                <> " after pulling Xero pay items."
+        missingSummary =
+            if verification.missingCount == 0
+                then ""
+                else
+                    "Still missing: "
+                        <> Text.intercalate ", " (take 5 verification.missingNames)
+                        <> if verification.missingCount > 5 then " and " <> tshow (verification.missingCount - 5) <> " more." else "."
+
+xeroPayItemIdempotencyBatchKey :: UTCTime -> Text
+xeroPayItemIdempotencyBatchKey now =
+    cs (formatTime defaultTimeLocale "%Y%m%d%H%M%S%q" now)
+
+xeroPayItemIdempotencyKey :: Text -> Int -> XeroPayItemRequirement -> Text
+xeroPayItemIdempotencyKey batchKey itemIndex requirement =
+    "bepis-pay-item-"
+        <> batchKey
+        <> "-"
+        <> Text.justifyRight 3 '0' (tshow itemIndex)
+        <> "-"
+        <> Text.take 76 (xeroPayItemIdempotencySlug requirement.payItemRequirementKey)
+
+xeroPayItemIdempotencySlug :: Text -> Text
+xeroPayItemIdempotencySlug =
+    Text.map \char ->
+        if Char.isAlphaNum char
+            then Char.toLower char
+            else '-'
+
+upsertFetchedXeroEarningsRates ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    XeroConnection ->
+    UTCTime ->
+    [XeroEarningsRateRef] ->
+    IO ()
+upsertFetchedXeroEarningsRates connection now fetchedRates =
+    withTransaction do
+        mapM_ (upsertXeroEarningsRate connection now) fetchedRates
+        markStaleXeroEarningsRateMappings connection fetchedRates
+
+xeroPayItemRequestPayload :: [Aeson.Value] -> Text -> XeroPayItemRequirement -> Aeson.Value
+xeroPayItemRequestPayload existingEarningsRates accountCode requirement =
+    Aeson.object
+        [ "EarningsRates" Aeson..= (existingEarningsRates <> [xeroEarningsRatePayload accountCode requirement])
         ]
 
 xeroEarningsRatePayload :: Text -> XeroPayItemRequirement -> Aeson.Value

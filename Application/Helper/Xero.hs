@@ -22,6 +22,7 @@ where
 
 import Control.Applicative ((<|>))
 import qualified Control.Exception as Exception
+import Control.Monad (guard)
 import "crypton" Crypto.Cipher.AES (AES256)
 import "crypton" Crypto.Cipher.Types (IV, cipherInit, ctrCombine, makeIV)
 import "crypton" Crypto.Error (CryptoError, CryptoFailable (..))
@@ -429,18 +430,41 @@ basicAuthorizationHeader config =
 decodeXeroResponse :: Aeson.FromJSON value => Text -> Response LByteString.ByteString -> IO (Either XeroClientError value)
 decodeXeroResponse label response = do
     let statusCode = getResponseStatusCode response
+    let responseBody = getResponseBody response
+    let bodyExcerpt = Text.take 500 (TextEncoding.decodeUtf8With lenientDecode (LByteString.toStrict responseBody))
     if statusCode < 200 || statusCode >= 300
-        then do
-            let bodyExcerpt = Text.take 500 (TextEncoding.decodeUtf8With lenientDecode (LByteString.toStrict (getResponseBody response)))
+        then
             pure (Left (XeroHttpError (label <> " failed with status " <> tshow statusCode <> responseBodySuffix bodyExcerpt)))
-        else case Aeson.eitherDecode (getResponseBody response) of
-            Left err      -> pure (Left (XeroDecodeError (cs err)))
-            Right decoded -> pure (Right decoded)
+        else case xeroSemanticErrorFromBody label responseBody bodyExcerpt of
+            Just err -> pure (Left err)
+            Nothing -> decodeBody responseBody
+    where
+        decodeBody responseBody =
+            case Aeson.eitherDecode responseBody of
+                Left err      -> pure (Left (XeroDecodeError (cs err)))
+                Right decoded -> pure (Right decoded)
 
 responseBodySuffix :: Text -> Text
 responseBodySuffix bodyExcerpt
     | Text.null (Text.strip bodyExcerpt) = ""
     | otherwise = ": " <> Text.strip bodyExcerpt
+
+xeroSemanticErrorFromBody :: Text -> LByteString.ByteString -> Text -> Maybe XeroClientError
+xeroSemanticErrorFromBody label responseBody bodyExcerpt = do
+    Aeson.Object object <- Aeson.decode responseBody
+    Aeson.String errorType <- firstPresent object ["Type", "type"]
+    guard (not (Text.null (Text.strip errorType)))
+    let maybeMessage =
+            case firstPresent object ["Message", "message", "Detail", "detail", "Title", "title"] of
+                Just (Aeson.String message) -> Just message
+                _ -> Nothing
+    pure $
+        XeroHttpError $
+            label
+                <> " returned Xero "
+                <> errorType
+                <> maybe "" (": " <>) maybeMessage
+                <> responseBodySuffix bodyExcerpt
 
 decodeXeroEmptyResponse :: Text -> Response LByteString.ByteString -> IO (Either XeroClientError ())
 decodeXeroEmptyResponse label response = do

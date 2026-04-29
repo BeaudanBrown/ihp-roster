@@ -9,6 +9,8 @@ import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Config
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import qualified Data.IORef as IORef
@@ -694,13 +696,15 @@ tests = beforeAll testContext do
                                 callAction CreateMissingXeroPayItemsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Created 8 missing Xero pay items."
+                response `responseBodyShouldContain` "Created and verified 8 missing Xero pay items."
                 requests <- IORef.readIORef requestsRef
                 length requests `shouldBe` 8
                 let ordinaryName = "Bepis - HIGA - PERM - Undated - Level 2 - Ordinary"
                 let ordinaryKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:ordinary"
                 map fst requests `shouldSatisfy` all (Text.isPrefixOf "bepis-pay-item-")
+                map fst requests `shouldSatisfy` \keys -> length (List.nub keys) == length keys
                 map snd requests `shouldSatisfy` any (xeroPayItemRequestHas ordinaryName 31.50)
+                map snd requests `shouldSatisfy` all xeroPayItemRequestOnlyTouchesEarningsRates
                 createdRate <- query @XeroEarningsRate
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
                     |> filterWhere (#name, ordinaryName)
@@ -721,6 +725,78 @@ tests = beforeAll testContext do
                 requirement.xeroEarningsRateId `shouldBe` Just createdRate.xeroEarningsRateId
                 versionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` (versionBefore + 1)
+
+        it "reports pay item creates that are not present after the Xero verification pull" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Pay Item Partial Verification Venue"
+                owner <- createUserRecord "xero-pay-item-partial-verification@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                connection <- createSyncableXeroConnection venue owner
+                awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
+                _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
+                _ <- createXeroEarningsRateRecord connection "Ordinary Hours" "earnings-existing"
+                _ <- createXeroPayItemAccountCodeSelectionRecord connection "477"
+                requestsRef <- IORef.newIORef []
+                let tokenResponse = XeroTokenResponse "pay-item-access-token" "pay-item-refresh-token" 1800 (Just requiredXeroScopesText)
+
+                versionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef (Just 1)) do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction CreateMissingXeroPayItemsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Submitted 8 Xero pay item creates and verified 1 after pulling Xero pay items."
+                requests <- IORef.readIORef requestsRef
+                length requests `shouldBe` 8
+                createdRequirements <- query @XeroPayItemRequirementRecord
+                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                    |> filterWhere (#requirementStatus, "created" :: Text)
+                    |> fetch
+                length createdRequirements `shouldBe` 1
+                proposedRequirements <- query @XeroPayItemRequirementRecord
+                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                    |> filterWhere (#requirementStatus, "proposed" :: Text)
+                    |> fetch
+                length proposedRequirements `shouldBe` 7
+                verifiedMappings <- query @XeroEarningsRateMapping
+                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                    |> filterWhere (#mappingStatus, "verified" :: Text)
+                    |> fetch
+                length verifiedMappings `shouldBe` 1
+                versionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
+                versionAfter `shouldBe` (versionBefore + 1)
+
+        it "continues creating pay items after Xero rejects one and reports the rejected item" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Pay Item Create Error Venue"
+                owner <- createUserRecord "xero-pay-item-create-error@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                connection <- createSyncableXeroConnection venue owner
+                awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
+                _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
+                _ <- createXeroEarningsRateRecord connection "Ordinary Hours" "earnings-existing"
+                _ <- createXeroPayItemAccountCodeSelectionRecord connection "477"
+                requestsRef <- IORef.newIORef []
+                let tokenResponse = XeroTokenResponse "pay-item-access-token" "pay-item-refresh-token" 1800 (Just requiredXeroScopesText)
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (payItemCreateXeroClientFailingRequest tokenResponse requestsRef 2 "Xero validation failed: AccountCode is invalid for this earnings rate") do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction CreateMissingXeroPayItemsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Xero rejected 1 pay item creates."
+                response `responseBodyShouldContain` "Xero validation failed: AccountCode is invalid for this earnings rate"
+                requests <- IORef.readIORef requestsRef
+                length requests `shouldBe` 8
+                createdRequirements <- query @XeroPayItemRequirementRecord
+                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                    |> filterWhere (#requirementStatus, "created" :: Text)
+                    |> fetch
+                length createdRequirements `shouldBe` 7
 
         it "shows current Xero pay item requirements first and keeps expired rates in the archive" $ withContext do
             withCleanDb do
@@ -1521,22 +1597,58 @@ referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars =
 
 payItemCreateXeroClient :: XeroTokenResponse -> IORef.IORef [(Text, Aeson.Value)] -> XeroClient
 payItemCreateXeroClient tokenResponse requestsRef =
+    payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef Nothing
+
+payItemCreateXeroClientWithVerifiedLimit :: XeroTokenResponse -> IORef.IORef [(Text, Aeson.Value)] -> Maybe Int -> XeroClient
+payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef maybeVerifiedLimit =
     (referenceSyncXeroClient tokenResponse [] [] [])
-        { createPayItem = \_ _ idempotencyKey body -> do
+        { fetchEarningsRates = \_ _ -> do
+            requests <- IORef.readIORef requestsRef
+            let latestRates = maybe [] xeroPayItemRequestEarningsRateRefs (lastMay (map snd requests))
+            pure (Right (maybe latestRates (`take` latestRates) maybeVerifiedLimit))
+        , createPayItem = \_ _ idempotencyKey body -> do
             IORef.modifyIORef' requestsRef (<> [(idempotencyKey, body)])
-            let name = fromMaybe "Unknown Pay Item" (xeroPayItemRequestName body)
-            pure $
-                Right
-                    [ XeroEarningsRateRef
-                        ("created-" <> name)
-                        name
-                        (Just "ORDINARYTIMEEARNINGS")
-                        (Just "RATEPERUNIT")
-                        (xeroPayItemRequestAccountCode body)
-                        True
-                        body
-                    ]
+            pure (Right [])
         }
+
+payItemCreateXeroClientFailingRequest :: XeroTokenResponse -> IORef.IORef [(Text, Aeson.Value)] -> Int -> Text -> XeroClient
+payItemCreateXeroClientFailingRequest tokenResponse requestsRef failingRequestNumber errorMessage =
+    (payItemCreateXeroClient tokenResponse requestsRef)
+        { fetchEarningsRates = \_ _ -> do
+            requests <- IORef.readIORef requestsRef
+            let successfulBodies = map (snd . snd) (filter (\(index, _) -> index /= failingRequestNumber) (zip [1 :: Int ..] requests))
+            let latestSuccessfulRates = maybe [] xeroPayItemRequestEarningsRateRefs (lastMay successfulBodies)
+            pure (Right latestSuccessfulRates)
+        , createPayItem = \_ _ idempotencyKey body -> do
+            IORef.modifyIORef' requestsRef (<> [(idempotencyKey, body)])
+            requests <- IORef.readIORef requestsRef
+            if length requests == failingRequestNumber
+                then pure (Left (XeroHttpError errorMessage))
+                else pure (Right [])
+        }
+
+xeroPayItemRequestEarningsRateRefs :: Aeson.Value -> [XeroEarningsRateRef]
+xeroPayItemRequestEarningsRateRefs =
+    fromMaybe [] . AesonTypes.parseMaybe \body ->
+        Aeson.withObject "PayItem" (\object -> do
+            earningsRates <- object Aeson..: "EarningsRates"
+            mapM earningsRateRefFromValue (earningsRates :: [Aeson.Value])
+        ) body
+
+earningsRateRefFromValue :: Aeson.Value -> AesonTypes.Parser XeroEarningsRateRef
+earningsRateRefFromValue value@(Aeson.Object earningsRate) = do
+    name <- earningsRate Aeson..: "Name"
+    accountCode <- earningsRate Aeson..:? "AccountCode"
+    pure $
+        XeroEarningsRateRef
+            ("created-" <> name)
+            name
+            (Just "ORDINARYTIMEEARNINGS")
+            (Just "RATEPERUNIT")
+            accountCode
+            True
+            value
+earningsRateRefFromValue _ = fail "Expected earnings rate"
 
 xeroPayItemRequestName :: Aeson.Value -> Maybe Text
 xeroPayItemRequestName =
@@ -1573,6 +1685,14 @@ xeroPayItemRequestHas expectedName expectedRate =
                     pure (name == expectedName && rate == expectedRate && rateType == ("RATEPERUNIT" :: Text) && typeOfUnits == ("Hours" :: Text) && accountCode == ("477" :: Text))
                 _ -> fail "Missing earnings rate"
         ) body
+
+xeroPayItemRequestOnlyTouchesEarningsRates :: Aeson.Value -> Bool
+xeroPayItemRequestOnlyTouchesEarningsRates (Aeson.Object object) =
+    AesonKeyMap.member (AesonKey.fromText "EarningsRates") object
+        && all
+            (not . (`AesonKeyMap.member` object) . AesonKey.fromText)
+            ["DeductionTypes", "LeaveTypes", "ReimbursementTypes"]
+xeroPayItemRequestOnlyTouchesEarningsRates _ = False
 
 failingRefreshXeroClient :: Text -> XeroClient
 failingRefreshXeroClient message =
