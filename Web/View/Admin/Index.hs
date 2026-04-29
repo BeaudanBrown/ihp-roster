@@ -45,7 +45,10 @@ instance View IndexView where
                     , appPanelBody = [hsx|
                         <div class="row g-3">
                             <div class="col-12">
-                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs xeroSectionData}
+                                {renderXeroSectionFragment xeroSectionData}
+                            </div>
+                            <div class="col-12">
+                                {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs}
                             </div>
                         </div>
                     |]
@@ -62,12 +65,11 @@ instance View IndexView where
             |]
             })
 
-renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> ReportWeekSelection -> Day -> Day -> [ExportJob] -> XeroAdminSectionData -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs xeroSectionData = [hsx|
+renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [SlotName] -> [VenueInvitation] -> ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
+renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates slotNames invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)}
-        {renderAccordionItem "xero" "Xero" False (renderXeroSectionFragment xeroSectionData)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)}
     </div>

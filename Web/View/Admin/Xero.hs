@@ -84,7 +84,27 @@ renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAl
         {renderXeroConnectControl connectionActionsAllowed}
     </div>
 |]
-renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed = [hsx|
+renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed =
+    let payItemsContent = [hsx|
+                <div class="d-flex flex-column gap-3">
+                    {renderXeroPayItemAccountCodeSelection xeroEarningsRates maybePayItemAccountCodeSelection connectionActionsAllowed}
+                    {renderXeroPayItemRequirements xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection connectionActionsAllowed}
+                </div>
+            |]
+     in [hsx|
+    <div class="d-flex flex-column gap-3">
+        <div class="accordion admin-config-accordion" id="admin-xero-sections">
+            {renderXeroAccordionItem "connection" "Connection" True (renderXeroConnectionDetails connection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed)}
+            {renderXeroAccordionItem "staff-mappings" "Staff mappings" False (renderXeroStaffMappings xeroEmployees mappingRows mappingCounts)}
+            {renderXeroAccordionItem "pay-items" "Pay items" False payItemsContent}
+            {renderXeroAccordionItem "payroll-calendar" "Payroll calendar" False (renderXeroPayrollCalendarSelection xeroPayrollCalendars maybePayrollCalendarSelection)}
+            {renderXeroAccordionItem "readiness" "Readiness" False (renderXeroReadyChecklist readyChecklist)}
+        </div>
+    </div>
+|]
+
+renderXeroConnectionDetails :: XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> Bool -> Html
+renderXeroConnectionDetails connection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <dl class="row mb-0">
             <dt class="col-sm-3">Tenant</dt>
@@ -110,13 +130,21 @@ renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun emp
             </form>
             {renderXeroReconnectControls connectionActionsAllowed}
         </div>
-        {renderXeroStaffMappings xeroEmployees mappingRows mappingCounts}
-        {renderXeroPayItemAccountCodeSelection xeroEarningsRates maybePayItemAccountCodeSelection connectionActionsAllowed}
-        {renderXeroPayItemRequirements xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection connectionActionsAllowed}
-        {renderXeroPayrollCalendarSelection xeroPayrollCalendars maybePayrollCalendarSelection}
-        {renderXeroReadyChecklist readyChecklist}
     </div>
 |]
+
+renderXeroAccordionItem :: Text -> Text -> Bool -> Html -> Html
+renderXeroAccordionItem sectionId title isOpen content =
+    renderAppAccordionItem AppAccordionItemConfig
+        { appAccordionItemId = "xero-" <> sectionId
+        , appAccordionItemParentId = "admin-xero-sections"
+        , appAccordionItemTitle = title
+        , appAccordionItemIsOpen = isOpen
+        , appAccordionItemClass = ""
+        , appAccordionItemBodyClass = ""
+        , appAccordionItemButtonContent = [hsx|<span class="fw-semibold">{title}</span>|]
+        , appAccordionItemBody = content
+        }
 
 renderXeroConnectControl :: Bool -> Html
 renderXeroConnectControl True = [hsx|
