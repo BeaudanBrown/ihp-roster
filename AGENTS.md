@@ -16,9 +16,9 @@
 - `Application/Helper/` — Shared helpers for controllers and views
 
 ## Styling
-- **Bootstrap 5.2.1** is included via vendor files — use Bootstrap classes in HSX
-- Custom CSS goes in `static/app.css` (loaded by `Web/View/Layout.hs`)
-- Custom JS goes in `static/app.js`
+- **Bootstrap 5.3.8** is included via vendor files — use Bootstrap classes in HSX
+- `static/app.css` is the CSS entrypoint; feature styles live under `static/css/`
+- App JavaScript is split by concern across `static/app-bootstrap.js`, `static/app-date-pickers.js`, `static/app-passkeys.js`, `static/app-live-updates.js`, and `static/app.js`
 - The layout shell is defined in `Web/View/Layout.hs` — edit `defaultLayout` to change page structure
 - Use `assetPath` for all static asset references (enables cache-busting in production)
 

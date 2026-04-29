@@ -1,71 +1,86 @@
 # Bepis
 
-This is an IHP (Integrated Haskell Platform) project with GitHub Actions for testing and deployment. For more information about IHP, see the [IHP Documentation](https://ihp.digitallyinduced.com/Guide/).
+Bepis is an IHP roster, leave, timesheet, export, and venue operations app.
 
-## GitHub Actions Workflow
+The repository is tuned for agent-assisted work. Start with `AGENTS.md`, then read
+the nearest subdirectory `AGENTS.md` before changing controllers, views, tests, or
+application helpers.
 
-This project includes a GitHub Actions workflow for automated testing and deployment. The workflow is defined in `.github/workflows/test.yml`.
+## Repository Map
 
-### Workflow Triggers
+- `Application/Schema.sql` - source of truth for generated model types.
+- `Application/Helper/` - shared domain, controller, and view helpers.
+- `Web/Types.hs` - controller action types and app-level web types.
+- `Web/Routes.hs` - `AutoRoute` instances.
+- `Web/FrontController.hs` - mounted controllers and request context setup.
+- `Web/Controller/` - controller implementations.
+- `Web/View/` - HSX views and layout shell.
+- `Test/` - Hspec coverage.
+- `e2e/` - Playwright coverage.
+- `plans/` and `specs/` - product and implementation planning.
+- `.loom/` - active coordinator workstream state only.
 
-The workflow is triggered on:
-- Push to the `main` branch
-- Pull requests to the `main` branch
-- Manual trigger from the GitHub Actions tab
+## Local Workflow
 
-### Testing
+Run project commands through the wrapper unless you are already inside the
+activated devenv shell:
 
-The testing job performs the following steps:
-1. Checks out the code
-2. Sets up Nix
-3. Initializes Cachix for faster builds
-4. Installs and allows direnv
-5. Builds generated files
-6. Starts the project in the background
-7. Runs the tests
+```bash
+bash ./bin/in-env typecheck
+bash ./bin/in-env hspec-test
+bash ./bin/in-env e2e
+bash ./bin/in-env lint
+bash ./bin/in-env format
+```
 
-### Deployment
+For browser or integration work, use the managed dev server helpers:
 
-For deployment, follow the [IHP Deployment Guide](https://ihp.digitallyinduced.com/Guide/deployment.html#deploying-with-deploytonixos) to set up a proper NixOS server for your project.
+```bash
+bash ./bin/in-env dev-start
+bash ./bin/in-env dev-wait
+bash ./bin/in-env dev-stop
+```
 
-The deployment job runs after successful tests and only for the `main` branch. It performs the following steps:
-1. Checks out the code
-2. Sets up SSH for deployment
-3. Sets up Nix
-4. Initializes Cachix
-5. Sets up direnv
-6. Deploys to a NixOS server
+After schema edits, run:
 
-## Setup Instructions
+```bash
+bash ./bin/in-env regen-types
+bash ./bin/in-env typecheck
+```
 
-To use the GitHub Actions workflow in this project:
+Apply the schema to the local dev database with `make db` while the dev server is
+running. This resets the local dev schema.
 
-1. Set up the following secrets in your GitHub [repository settings](https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions):
-   - `SSH_HOST`: The hostname or IP address of your deployment server
-   - `SSH_USER`: The username for SSH access to the deployment server
-   - `SSH_PRIVATE_KEY`: The private SSH key for authentication
+## Static Assets
 
-2. Modify the `env` section in `.github/workflows/test.yml` if needed:
-   - Update `PROJECT_NAME` to match your project
-   - Adjust `ENV` if you want to use a different environment name
-   - Update `NIXPKGS` if you want to use a different Nixpkgs version
+Runtime assets are local and loaded through `assetPath` from
+`Web/View/Layout.hs`.
 
-3. Ensure your project has the necessary test files in the `Test` directory.
+- Bootstrap `5.3.8`
+- Bootstrap Icons `1.11.3`
+- HTMX `1.9.12`
+- IHP-provided Flatpickr and Morphdom assets
+- App CSS entrypoint: `static/app.css`
+- App JS entrypoints: `static/app-bootstrap.js`, `static/app-date-pickers.js`,
+  `static/app-passkeys.js`, `static/app-live-updates.js`, and `static/app.js`
 
-4. If your deployment process differs, modify the `deploy` job in the workflow file accordingly.
+Feature CSS is split under `static/css/`; update the narrowest matching file
+instead of growing `static/app.css`.
 
-5. Push your changes to the `main` branch to trigger the workflow.
+## CI
 
-## Manual Workflow Trigger
+`.github/workflows/test.yml` runs the same wrapper commands agents use locally:
 
-You can manually trigger the workflow from the Actions tab in your GitHub repository. This is useful for running tests or deploying without pushing changes.
+```bash
+bash ./bin/in-env typecheck
+bash ./bin/in-env hspec-test
+```
 
-## Customization
+Deployment is managed outside this workflow. Production NixOS configuration lives
+under `Config/nix/`.
 
-Feel free to customize the workflow file to fit your specific project needs. You may want to add additional steps, change the deployment process, or modify the testing procedure.
+## Generated And Local Artifacts
 
-## Support
-
-For issues related to IHP or this project's setup, please refer to the [IHP documentation](https://ihp.digitallyinduced.com/Guide/) or seek help on the [IHP Forum](https://ihp.digitallyinduced.com/community/).
-
-For project-specific issues, please open an issue in this repository.
+Generated screenshots, profiles, reports, local databases, Nix build outputs, and
+dev shell state are ignored. Keep durable visual references in documentation
+assets, not under `output/`.
