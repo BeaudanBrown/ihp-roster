@@ -1,4 +1,5 @@
 import { expect, Page, test } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import { addRowToFirstRosterDay, editableRosterRows, gotoWhenReady, loginAs, openProfileLeaveSection, setFlatpickrDate } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
@@ -24,7 +25,7 @@ async function loginWorker(page) {
 async function loginAndOpenRoster(page) {
     await loginManager(page);
     await gotoWhenReady(page, e2eRosterPath, 'table.roster-grid');
-    await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+    await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 }
 
 async function isoToday(page: Page) {
@@ -86,7 +87,7 @@ async function ensureEditableRosterRow(page: Page, rowIndex: number) {
 }
 
 test.describe('Live fragment multi-view coverage', () => {
-    test.setTimeout(120000);
+    test.setTimeout(E2E_TIMEOUT.slowTest);
 
     test('worker profile leave submit updates an open manager leave page live', async ({ browser }) => {
         const managerContext = await browser.newContext();
@@ -160,7 +161,7 @@ test.describe('Live fragment multi-view coverage', () => {
 
         await expect(leaveRow).toContainText('Approved');
         await expect
-            .poll(async () => await viewerTargetStaffCell.getAttribute('title'), { timeout: 15000 })
+            .poll(async () => await viewerTargetStaffCell.getAttribute('title'), { timeout: E2E_TIMEOUT.liveUpdate })
             .toMatch(/approved leave/i);
         await expect(viewerTargetStaffCell).toHaveAttribute('data-conflict-message', /approved leave/i);
 

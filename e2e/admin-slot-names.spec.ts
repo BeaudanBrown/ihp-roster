@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, loginAs, openAdminWithFreshPasskey, webauthnBaseURL } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
@@ -61,7 +62,7 @@ test.describe('Admin slot names', () => {
         await openAdminWithFreshPasskey(adminPage);
         await loginAs(viewerPage, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(viewerPage, e2eRosterPath, 'table.roster-grid');
-        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+        await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 
         const slotNamesFragment = await openSlotNamesFragment(adminPage);
 

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import { addRowToRosterDay, firstEditableRosterDaySection, openRoster } from './test-helpers';
 
 async function loginAndOpenRoster(page) {
@@ -80,7 +81,7 @@ test.describe('Roster duplicate conflicts', () => {
         await expect(duplicateTargetSelect).toHaveValue(alphaCrewStaffId);
         await blurActiveRosterInput(page);
         await expect
-            .poll(async () => duplicateConflictCells(page).count(), { timeout: 15000 })
+            .poll(async () => duplicateConflictCells(page).count(), { timeout: E2E_TIMEOUT.liveUpdate })
             .toBeGreaterThan(initialConflictCount);
     });
 
@@ -102,10 +103,10 @@ test.describe('Roster duplicate conflicts', () => {
         await assignStaffToRow(actorPage, 1, alphaCrewStaffId);
         await blurActiveRosterInput(actorPage);
         await expect
-            .poll(async () => duplicateConflictCells(actorPage).count(), { timeout: 15000 })
+            .poll(async () => duplicateConflictCells(actorPage).count(), { timeout: E2E_TIMEOUT.liveUpdate })
             .toBeGreaterThan(initialActorConflictCount);
         await expect
-            .poll(async () => duplicateConflictCells(viewerPage).count(), { timeout: 15000 })
+            .poll(async () => duplicateConflictCells(viewerPage).count(), { timeout: E2E_TIMEOUT.liveUpdate })
             .toBeGreaterThan(initialViewerConflictCount);
 
         const viewerGridState = await viewerPage.locator('table.roster-grid').evaluate((table) => {

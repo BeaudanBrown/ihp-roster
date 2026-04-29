@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './test-helpers';
 
 test.describe('Authentication', () => {
@@ -20,8 +21,8 @@ test.describe('Authentication', () => {
         await page.click('button[type="submit"]');
 
         // Should redirect to the roster flow for the current venue
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
-        await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(page.getByRole('button', { name: 'Open roster week overview' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'roster' })).toBeVisible();
 
@@ -29,8 +30,8 @@ test.describe('Authentication', () => {
         await page.click('a:has-text("logout"), button:has-text("logout")');
 
         // Should redirect to login page
-        await expect(page).toHaveURL(/NewSession/, { timeout: 60000 });
-        await expect(page.locator('#email')).toBeVisible({ timeout: 60000 });
+        await expect(page).toHaveURL(/NewSession/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#email')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
     });
 
     test('roster requires authentication', async ({ page }) => {

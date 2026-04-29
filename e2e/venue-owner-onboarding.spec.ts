@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import {
     clearMailhogInbox,
     clearE2EUserPasskeys,
@@ -22,8 +23,8 @@ async function loginAsSuperAdmin(page: Page) {
     await page.fill('#email', 'e2e-super-admin@example.com');
     await page.fill('#password', 'test-password-123');
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/Support/, { timeout: 60000 });
-    await expect(page.locator('#support-create-onboarding-email')).toBeVisible({ timeout: 60000 });
+    await expect(page).toHaveURL(/Support/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page.locator('#support-create-onboarding-email')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
     await registerFirstSupportPasskeyForCurrentUser(page);
 }
 
@@ -36,7 +37,7 @@ function onboardingInviteRow(page: Page, email: string) {
 }
 
 test.describe('Venue owner onboarding invites', () => {
-    test.setTimeout(120000);
+    test.setTimeout(E2E_TIMEOUT.slowTest);
 
     test.beforeEach(async ({ request }) => {
         await clearMailhogInbox(request);
@@ -55,7 +56,7 @@ test.describe('Venue owner onboarding invites', () => {
         await expect(row).toBeVisible();
         await expect(row).toContainText(/Queued|Sent/);
 
-        const message = await waitForMailhogMessage(request, ownerEmail, 30000);
+        const message = await waitForMailhogMessage(request, ownerEmail, E2E_TIMEOUT.mailhog);
         expect(mailhogMessageSubject(message)).toContain('Create your Bepis venue');
 
         await openSupport(page);
@@ -77,7 +78,7 @@ test.describe('Venue owner onboarding invites', () => {
         const supportRow = onboardingInviteRow(page, ownerEmail);
         await expect(supportRow).toBeVisible();
 
-        const message = await waitForMailhogMessage(request, ownerEmail, 30000);
+        const message = await waitForMailhogMessage(request, ownerEmail, E2E_TIMEOUT.mailhog);
         expect(mailhogMessageSubject(message)).toContain('Create your Bepis venue');
         const inviteUrl = inviteUrlForCurrentBase(extractFirstUrl(mailhogMessageText(message)), baseURL!);
 
@@ -94,7 +95,7 @@ test.describe('Venue owner onboarding invites', () => {
         await ownerPage.selectOption('#venue-roster-week-starts-on', '2');
         await ownerPage.getByRole('button', { name: 'Create Account And Venue' }).click();
 
-        await expect(ownerPage).toHaveURL(/EditProfile/, { timeout: 60000 });
+        await expect(ownerPage).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
         await expect(ownerPage.locator('#profile-content-fragment')).toContainText(
             'Shift preferences will appear once this staff member is assigned to at least one roster group.',
         );

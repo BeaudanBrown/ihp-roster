@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './test-helpers';
 
 async function login(page) {
@@ -6,8 +7,8 @@ async function login(page) {
     await page.fill('#email', 'e2e-test@example.com');
     await page.fill('#password', 'test-password-123');
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
-    await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 }
 
 test.describe('Venue-scoped navigation', () => {

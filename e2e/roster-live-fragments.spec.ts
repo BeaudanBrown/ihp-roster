@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import { openRoster } from './test-helpers';
 
 async function loginAndOpenRoster(page) {
@@ -44,7 +45,7 @@ async function copyPreviousWeek(page) {
 }
 
 test.describe('Roster live fragments', () => {
-    test.setTimeout(120000);
+    test.setTimeout(E2E_TIMEOUT.slowTest);
 
     test('updates another viewer live after a slot assignment changes', async ({ browser }) => {
         const actorContext = await browser.newContext();
@@ -93,8 +94,8 @@ test.describe('Roster live fragments', () => {
 
         await expect(actorPage.locator('input[name="note"][value="A1"]')).toBeVisible();
         await expect(actorPage.locator('input[name="note"][value="A2"]')).toBeVisible();
-        await expect(viewerPage.locator('input[name="note"][value="A1"]')).toBeVisible({ timeout: 15000 });
-        await expect(viewerPage.locator('input[name="note"][value="A2"]')).toBeVisible({ timeout: 15000 });
+        await expect(viewerPage.locator('input[name="note"][value="A1"]')).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(viewerPage.locator('input[name="note"][value="A2"]')).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
 
         await actorContext.close();
         await viewerContext.close();

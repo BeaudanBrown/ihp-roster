@@ -1,4 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import {
     clearMailhogInbox,
     expectMailhogMessageCount,
@@ -27,7 +28,7 @@ function inviteRow(page: Page, email: string) {
 }
 
 test.describe('Admin invites', () => {
-    test.setTimeout(120000);
+    test.setTimeout(E2E_TIMEOUT.slowTest);
 
     test.beforeEach(async ({ request }) => {
         await clearMailhogInbox(request);
@@ -47,7 +48,7 @@ test.describe('Admin invites', () => {
         await expect(row).toContainText(/Queued|Sent/);
         await expect(row.getByRole('button', { name: 'Revoke' })).toBeVisible();
 
-        const message = await waitForMailhogMessage(request, inviteeEmail, 30000);
+        const message = await waitForMailhogMessage(request, inviteeEmail, E2E_TIMEOUT.mailhog);
         expect(mailhogMessageSubject(message)).toContain("You're invited");
         const inviteUrl = inviteUrlForCurrentBase(extractFirstUrl(mailhogMessageText(message)), baseURL!);
 
@@ -75,7 +76,7 @@ test.describe('Admin invites', () => {
         await expect(row).toBeVisible();
         await expect(row).toContainText(/Queued|Sent/);
 
-        const message = await waitForMailhogMessage(request, inviteeEmail, 30000);
+        const message = await waitForMailhogMessage(request, inviteeEmail, E2E_TIMEOUT.mailhog);
         const inviteUrl = inviteUrlForCurrentBase(extractFirstUrl(mailhogMessageText(message)), baseURL!);
 
         const inviteeContext = await browser.newContext();
@@ -87,7 +88,7 @@ test.describe('Admin invites', () => {
         await inviteePage.fill('input[name="passwordHash"]', 'test-password-123');
         await inviteePage.fill('input[name="passwordConfirmation"]', 'test-password-123');
         await inviteePage.locator('form').evaluate((form) => (form as HTMLFormElement).requestSubmit());
-        await expect(inviteePage).toHaveURL(/EditProfile/, { timeout: 60000 });
+        await expect(inviteePage).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
 
         await gotoWhenReady(page, '/Admin', '#admin-config-sections');
         await openInvitesSection(page);

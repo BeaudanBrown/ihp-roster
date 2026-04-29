@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import {
     clearE2EUserPasskeys,
     enableVirtualPasskeyAuthenticator,
@@ -27,18 +28,18 @@ async function passwordLogin(page: import('@playwright/test').Page, email = admi
 
 async function logout(page: import('@playwright/test').Page) {
     await page.click('a:has-text("logout"), button:has-text("logout")');
-    await expect(page).toHaveURL(/NewSession/, { timeout: 60000 });
+    await expect(page).toHaveURL(/NewSession/, { timeout: E2E_TIMEOUT.navigation });
 }
 
 test.describe('Mandatory venue-admin passkeys', () => {
-    test.setTimeout(120000);
+    test.setTimeout(E2E_TIMEOUT.slowTest);
 
     test('password login forces venue admins without passkeys to security setup', async ({ page }) => {
         clearE2EUserPasskeys(adminEmail);
 
         await passwordLogin(page);
 
-        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: 60000 });
+        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
         await openProfileSecuritySection(page);
         await expect(page.getByRole('button', { name: 'Add passkey' })).toBeVisible();
         await expect(page.locator('body')).toContainText('No passkeys registered yet.');
@@ -74,8 +75,8 @@ test.describe('Mandatory venue-admin passkeys', () => {
 
         await gotoWhenReady(page, '/NewSession', '#email');
         await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
-        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
-        await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+        await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 
         await gotoWhenReady(page, '/Admin', '#admin-config-sections');
         await expect(page.locator('#admin-config-sections')).toBeVisible();
@@ -88,7 +89,7 @@ test.describe('Mandatory venue-admin passkeys', () => {
 
         await page.getByRole('button', { name: 'Delete' }).first().click();
 
-        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: 60000 });
+        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#profile-security-collapse table tbody tr')).toHaveCount(1);
         await expect(page.locator('body')).toContainText('must keep at least one passkey');
     });
@@ -98,7 +99,7 @@ test.describe('Mandatory venue-admin passkeys', () => {
         const firstAuthenticator = await enableVirtualPasskeyAuthenticator(page);
 
         await passwordLogin(page);
-        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: 60000 });
+        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
         await registerFirstPasskeyForCurrentUser(page);
         await logout(page);
 
@@ -107,12 +108,12 @@ test.describe('Mandatory venue-admin passkeys', () => {
         await page.getByRole('button', { name: 'Add passkey' }).click();
 
         await verifyCurrentUserPasskeyStepUp(page);
-        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: 60000 });
+        await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
 
         await openProfileSecuritySection(page);
         await removeVirtualPasskeyAuthenticator(firstAuthenticator);
         await enableVirtualPasskeyAuthenticator(page);
         await page.getByRole('button', { name: 'Add passkey' }).click();
-        await expect(page.locator('#profile-security-collapse table tbody tr')).toHaveCount(2, { timeout: 60000 });
+        await expect(page.locator('#profile-security-collapse table tbody tr')).toHaveCount(2, { timeout: E2E_TIMEOUT.navigation });
     });
 });

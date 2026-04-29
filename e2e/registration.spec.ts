@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady } from './test-helpers';
 
 test.describe('Account Registration', () => {
-    test.setTimeout(120000);
+    test.setTimeout(E2E_TIMEOUT.slowTest);
 
     test('request access page explains invitation-only signup', async ({ page }) => {
         await gotoWhenReady(page, '/NewUser', 'body');

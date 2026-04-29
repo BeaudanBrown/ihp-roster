@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, loginAsPrivilegedUserWithFreshPasskey, runSql, webauthnBaseURL } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
@@ -203,7 +204,7 @@ test.describe('Xero staff mapping', () => {
         await expect(page.getByLabel('Xero employee for Mapping 54 Mapping Scroll')).toHaveValue('e2e-xero-employee-54');
 
         await expect
-            .poll(async () => page.evaluate(() => window.scrollY), { timeout: 3000 })
+            .poll(async () => page.evaluate(() => window.scrollY), { timeout: E2E_TIMEOUT.action })
             .toBe(beforeScrollY);
     });
 });

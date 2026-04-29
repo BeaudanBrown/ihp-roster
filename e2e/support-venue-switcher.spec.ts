@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import { gotoWhenReady, loginAsPrivilegedUserWithFreshPasskey, webauthnBaseURL } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
@@ -12,8 +13,8 @@ async function loginAsManager(page: import('@playwright/test').Page) {
     await page.fill('#email', 'e2e-test@example.com');
     await page.fill('#password', 'test-password-123');
     await page.click('button[type="submit"]');
-    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: 60000 });
-    await expect(page.locator('#roster-content')).toBeVisible({ timeout: 60000 });
+    await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
+    await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 }
 
 test.describe('Super-admin venue switcher', () => {
@@ -26,7 +27,7 @@ test.describe('Super-admin venue switcher', () => {
         await expect(page.locator('#support-venue-switch')).toContainText('e2e-beta-venue');
 
         await page.selectOption('#support-venue-switch', { label: 'e2e-beta-venue' });
-        await expect(page).toHaveURL(/LeaveRequests/, { timeout: 60000 });
+        await expect(page).toHaveURL(/LeaveRequests/, { timeout: E2E_TIMEOUT.navigation });
 
         await gotoWhenReady(page, '/Support', '#support-venue-switch');
         await expect(page.locator('#support-venue-switch')).toContainText('e2e-beta-venue');

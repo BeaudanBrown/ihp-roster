@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { E2E_TIMEOUT } from './timeouts';
 import {
     expectContainerToManageHorizontalOverflow,
     expectDialogToFitViewport,
@@ -69,7 +70,7 @@ test.describe('Mobile experience smoke', () => {
             await expect(page.getByRole('link', { name: 'admin' })).toBeVisible();
             await page.getByRole('link', { name: 'leave' }).click();
         }
-        await expect(page).toHaveURL(/LeaveRequests/, { timeout: 60000 });
+        await expect(page).toHaveURL(/LeaveRequests/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#leave-requests-content')).toBeVisible();
 
         const reopenedDrawer = await openAuthenticatedNavIfCollapsed(page);
@@ -78,7 +79,7 @@ test.describe('Mobile experience smoke', () => {
         } else {
             await page.getByRole('link', { name: 'timesheets' }).click();
         }
-        await expect(page).toHaveURL(/(Timesheets|ShowTimesheetWeek)/, { timeout: 60000 });
+        await expect(page).toHaveURL(/(Timesheets|ShowTimesheetWeek)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#timesheet-week-shell')).toBeVisible();
     });
 
@@ -104,7 +105,7 @@ test.describe('Mobile experience smoke', () => {
 
             await page.getByRole('link', { name: 'profile' }).click();
         }
-        await expect(page).toHaveURL(/EditProfile/, { timeout: 60000 });
+        await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#profile-content-fragment')).toBeVisible();
 
         const leaveSectionToggle = page.getByRole('button', { name: 'Leave Requests' });

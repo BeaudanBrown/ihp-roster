@@ -47,6 +47,9 @@ bash ./bin/in-env e2e-report
 # Force serial execution
 E2E_SHARDS=1 bash ./bin/in-env e2e
 
+# Disable Playwright retries for faster local/agent iteration
+bash ./bin/in-env env PLAYWRIGHT_RETRIES=0 e2e e2e/auth.spec.ts
+
 # Use Playwright CLI for exploratory browser automation
 bash ./bin/in-env pwcli --help
 ```
@@ -59,6 +62,7 @@ bash ./bin/in-env pwcli --help
 - Parallel full-suite runs default to a single compiled app executable under the run artifact directory instead of multiple live-reload `RunDevServer` instances. This avoids GHCi/file-watcher/schema-codegen reload races against the shared working tree. Set `E2E_SERVER_MODE=dev` only when intentionally debugging the dev-server path.
 - The wrapper merges shard blob reports into one HTML report and updates `.devenv/e2e/latest-report`
 - Focused or interactive runs such as `--ui`, `--headed`, `--debug`, explicit file paths, `--project`, or `--grep` default back to a single shard unless `E2E_SHARDS` is set explicitly
+- Playwright retries default to `1`; set `PLAYWRIGHT_RETRIES=0` through `bash ./bin/in-env env ...` when iterating on a known failure and you want the first failure immediately
 - Test data is seeded automatically via `global-setup.ts` before tests run
 - Before blaming Playwright, verify the app is actually serving the expected page:
 
@@ -105,12 +109,14 @@ await openRoster(page, { email: 'e2e-test@example.com', weekOffset: 1 });
 
 For payroll/export coverage, the shared helpers in `e2e/test-helpers.ts` also provide:
 
-- `gotoExports(page)` for the exports-page shell
-- `currentReportWeek(page)` and `shiftExportWeek(page, ...)` for report-week navigation
-- `generatePayrollReport(page, reportName)` for the native report-generation forms
+- `gotoExports(page)` for the Admin > Exports accordion section
+- `currentReportWeek(page)` for the default date-range inputs, which start on the current roster week
+- `generatePayrollReport(page, reportName)` for the fixed export-generation cards
 - `downloadExport(page, fileName)` for the recent-exports table
 - `readDownloadText`, `listZipEntries`, and `readZipEntryText` for real file-content assertions
 - `parseCsv(text)` for simple CSV sanity checks without duplicating parsing logic in specs
+
+Exports are no longer a standalone page and report definitions are not managed through e2e flows. Use the fixed card labels (`Approved Timesheets CSV`, `Staff Hours CSV`, `Hourly Breakdown ZIP`, `Payroll Earnings CSV`) and assert the Admin export history table via `data-export-job-file`.
 
 ### UI behavior expectations worth covering
 - For HTMX week pagers, assert both the shell swap and that no full page navigation occurred by preserving a `window` marker across clicks.
@@ -142,7 +148,7 @@ test('authenticated feature', async ({ page }) => {
 - The seeded manager is `e2e-test@example.com`, the seeded venue admin is `e2e-admin@example.com`, and the seeded worker is `e2e-worker@example.com`; all use password `test-password-123`
 - Auth now also requires seeded `venues`, `venue_config`, and `venue_memberships` for the login user. A bare user row is not enough.
 - The export/payroll fixture is seeded for the current report week in `e2e/fixtures/seed.sql`:
-  - alpha venue has active `wage`, `staff_hours`, and `kitchen` report definitions
+  - alpha venue has deterministic approved entries for the fixed Admin export formats
   - alpha venue has deterministic approved entries that produce visible CSV/ZIP content for those reports
   - beta venue has distinct payroll config for future cross-venue authorization coverage
 - `global-teardown.ts` deletes all users with `email LIKE 'e2e-%'` after tests complete
@@ -161,6 +167,21 @@ test('authenticated feature', async ({ page }) => {
 - After login, wait for the destination shell selector as well as the URL because the post-login flow now resolves venue context before landing on roster pages
 - Do not use `page.waitForTimeout(...)` to “let HTMX settle” in normal specs. Prefer asserting the concrete post-action contract instead: updated field value, fragment text, row count, conflict class, modal close, or URL/shell stability.
 - Prefer stable view contracts like `data-report-slug`, `data-export-job-file`, or dedicated panel ids when asserting repeated list items. Avoid coupling specs to Bootstrap class combinations such as `.border.rounded.p-2.bg-white`, which are presentation details rather than behavior contracts.
+
+## Timeout Policy
+
+E2E timeouts are centralized in `e2e/timeouts.ts` and imported as `E2E_TIMEOUT`. Do not add numeric timeout literals to specs or `e2e/test-helpers.ts`; use the named timeout that matches the operation:
+
+- `quick` for tiny retry sleeps inside helper loops
+- `action` for local UI preconditions such as visible buttons, open accordions, and scroll assertions
+- `assertion` for synchronous form results, generated rows, downloads, and ordinary DOM outcomes
+- `navigation` for normal page transitions and login redirects
+- `passkey` for WebAuthn registration or step-up completion
+- `liveUpdate` for websocket/live-fragment propagation across pages
+- `test` for ordinary whole-test budgets
+- `slowTest` only for multi-page workflows that genuinely include several navigation, passkey, mail, or live-update steps
+
+Tests should fail fast when the page is already in the wrong state. For example, assert that an accordion is expanded and the target card/button is visible with `E2E_TIMEOUT.action` before clicking, then wait for the concrete result with `E2E_TIMEOUT.assertion`. Do not rely on a whole-test timeout to catch a hidden locator.
 
 ## Operational Notes
 
