@@ -23,6 +23,13 @@ data ExportJobStatus
     | ExportExpired
     deriving (Eq, Show)
 
+data FixedExportDefinition = FixedExportDefinition
+    { fixedExportType        :: !ExportJobType
+    , fixedExportLabel       :: !Text
+    , fixedExportDescription :: !Text
+    }
+    deriving (Eq, Show)
+
 data VenueReportDefinition = VenueReportDefinition
     { definition       :: !ReportDefinition
     , engine           :: !ReportDefinitionEngine
@@ -104,6 +111,30 @@ allReportDefinitionEngineValues = ["staff_pay_csv", "hourly_breakdown_zip", "pay
 
 allExportJobStatusValues :: [Text]
 allExportJobStatusValues = ["pending", "ready", "expired"]
+
+fixedExportDefinitions :: [FixedExportDefinition]
+fixedExportDefinitions =
+    [ FixedExportDefinition
+        { fixedExportType = ApprovedTimesheetsCsv
+        , fixedExportLabel = "Approved Timesheets CSV"
+        , fixedExportDescription = "Approved shift rows for the selected date range."
+        }
+    , FixedExportDefinition
+        { fixedExportType = StaffPayCsv
+        , fixedExportLabel = "Staff Hours CSV"
+        , fixedExportDescription = "Staff hours grouped by pay level. Multi-week ranges are delivered as a ZIP of weekly CSV files."
+        }
+    , FixedExportDefinition
+        { fixedExportType = HourlyBreakdownZip
+        , fixedExportLabel = "Hourly Breakdown ZIP"
+        , fixedExportDescription = "Hourly staffing breakdown CSV files for each date in the selected range."
+        }
+    , FixedExportDefinition
+        { fixedExportType = PayrollEarningsCsv
+        , fixedExportLabel = "Payroll Earnings CSV"
+        , fixedExportDescription = "Approved payroll earnings by staff, date, earnings bucket, and tracking code."
+        }
+    ]
 
 exportJobTypeToText :: ExportJobType -> Text
 exportJobTypeToText ApprovedTimesheetsCsv = "approved_timesheets_csv"

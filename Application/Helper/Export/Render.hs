@@ -18,6 +18,20 @@ import IHP.ControllerPrelude
 import Text.Printf (printf)
 import Text.Read (readMaybe)
 
+renderTextZipBase64 :: [(Text, Text)] -> Text
+renderTextZipBase64 files =
+    decodeUtf8
+        (Base64.encode (LBS.toStrict (Zip.fromArchive archive)))
+    where
+        archive =
+            foldr
+                (\(fileName, fileContents) currentArchive ->
+                    let entry = Zip.toEntry (Text.unpack fileName) 0 (LBS.fromStrict (encodeUtf8 fileContents))
+                     in Zip.addEntryToArchive entry currentArchive
+                )
+                Zip.emptyArchive
+                files
+
 renderStaffPayCsv :: ReportWeekSelection -> [StaffPayCsvRecord] -> Text
 renderStaffPayCsv reportWeekSelection records =
     Text.unlines (csvHeader : map renderRow records)
@@ -146,6 +160,10 @@ staffPayRecordLabel reportDefinition payResult
     | null reportDefinition.shiftTypeFilters = fromMaybe "Unknown pay level" payResult.payLevelName
     | otherwise = ""
 
+fixedStaffPayRecordLabel :: TimesheetPayResult -> Text
+fixedStaffPayRecordLabel payResult =
+    fromMaybe "Unknown pay level" payResult.payLevelName
+
 reportDayIndex :: ReportWeekSelection -> Day -> Maybe Int
 reportDayIndex reportWeekSelection workedOnDate =
     let dayIndex = fromInteger (diffDays workedOnDate reportWeekSelection.weekStart)
@@ -167,19 +185,34 @@ formatStaffPayHours value = Text.pack (printf "%.2f" value :: String)
 
 renderHourlyBreakdownZipBase64 :: ReportWeekSelection -> [ShiftType] -> [TimesheetEntry] -> Text
 renderHourlyBreakdownZipBase64 reportWeekSelection shiftTypes entries =
-    decodeUtf8
-        (Base64.encode (LBS.toStrict (Zip.fromArchive archive)))
+    renderTextZipBase64
+        [ (dayLabel <> ".csv", renderHourlyBreakdownDayCsv reportWeekSelection dayOffset shiftTypes entries)
+        | (dayOffset, dayLabel) <- zip [0 ..] reportWeekSelection.dayLabels
+        ]
+
+renderHourlyBreakdownDateCsv :: Day -> [ShiftType] -> [TimesheetEntry] -> Text
+renderHourlyBreakdownDateCsv date shiftTypes entries =
+    Text.unlines (csvHeader : map renderHourRow [8 .. 27])
     where
-        archive =
-            foldr
-                (\(dayOffset, dayLabel) currentArchive ->
-                    let fileName = Text.unpack dayLabel <> ".csv"
-                        csvContents = encodeUtf8 (renderHourlyBreakdownDayCsv reportWeekSelection dayOffset shiftTypes entries)
-                        entry = Zip.toEntry fileName 0 (LBS.fromStrict csvContents)
-                     in Zip.addEntryToArchive entry currentArchive
-                )
-                Zip.emptyArchive
-                (zip [0 ..] reportWeekSelection.dayLabels)
+        csvHeader =
+            Text.intercalate ","
+                (map csvCell ("Time" : map (.name) shiftTypes))
+
+        dayEntries =
+            filter (\entry -> entry.workedOn == date) entries
+
+        renderHourRow hourOfWindow =
+            let windowLabel = formatHourlyWindow hourOfWindow
+                hourValues =
+                    map
+                        (\shiftType ->
+                            let hours = sum (map (entryHoursForHourlyWindow hourOfWindow shiftType) dayEntries)
+                             in if hours <= 0
+                                    then ""
+                                    else formatHourlyBreakdownHours hours
+                        )
+                        shiftTypes
+             in Text.intercalate "," (csvCell windowLabel : map csvCell hourValues)
 
 renderHourlyBreakdownDayCsv :: ReportWeekSelection -> Int -> [ShiftType] -> [TimesheetEntry] -> Text
 renderHourlyBreakdownDayCsv reportWeekSelection dayOffset shiftTypes entries =

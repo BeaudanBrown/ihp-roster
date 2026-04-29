@@ -42,12 +42,11 @@ instance Controller AdminController where
         awardLevels <- fetchActiveAwardLevels
         awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
         slotNames <- fetchActiveCurrentVenueSlotNames
-        activeReportDefinitions <- fetchCurrentVenueReportDefinitions
         currentWeekOffset <- currentReportWeekOffset
         reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
-        let staffPayReportDefinition = findReportDefinitionByEngine StaffPayCsvReport activeReportDefinitions
-        let hourlyBreakdownReportDefinition = findReportDefinitionByEngine HourlyBreakdownZipReport activeReportDefinitions
-        let payrollEarningsReportDefinition = findReportDefinitionByEngine PayrollEarningsCsvReport activeReportDefinitions
+        let defaultRangeStart = reportWeekSelection.weekStart
+        let defaultRangeEnd = reportWeekSelection.weekEnd
+        exportJobs <- fetchCurrentVenueExportJobs
         let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
         let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
         invitations <- fetchCurrentVenueInvitations

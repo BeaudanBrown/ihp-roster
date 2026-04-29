@@ -19,7 +19,7 @@ import Data.Coerce (coerce)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day, addDays)
 import Data.Time.Clock (NominalDiffTime, UTCTime, addUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -69,6 +69,207 @@ requestReportDefinitionExport reportSlug selectedWeekOffset = do
                 StaffPayCsvReport -> requestStaffPayCsvExport reportDefinition selectedWeekOffset
                 HourlyBreakdownZipReport -> requestHourlyBreakdownZipExport reportDefinition selectedWeekOffset
                 PayrollEarningsCsvReport -> requestPayrollEarningsCsvExport reportDefinition selectedWeekOffset
+
+requestFixedExport ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    ExportJobType ->
+    Day ->
+    Day ->
+    IO (Either Text ExportJob)
+requestFixedExport exportType rangeStart rangeEnd
+    | rangeStart > rangeEnd = pure (Left "Choose a valid start and end date for the export range.")
+    | otherwise =
+        case exportType of
+            ApprovedTimesheetsCsv -> Right <$> requestApprovedTimesheetsCsvExport rangeStart rangeEnd
+            StaffPayCsv -> requestFixedStaffPayCsvExport rangeStart rangeEnd
+            HourlyBreakdownZip -> requestFixedHourlyBreakdownZipExport rangeStart rangeEnd
+            PayrollEarningsCsv -> requestFixedPayrollEarningsCsvExport rangeStart rangeEnd
+
+requestFixedStaffPayCsvExport ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    Day ->
+    IO (Either Text ExportJob)
+requestFixedStaffPayCsvExport rangeStart rangeEnd = do
+    weekSelections <- rangeWeekSlices rangeStart rangeEnd
+    payloadResults <- mapM buildFixedStaffPayCsvPayload weekSelections
+    case lefts payloadResults of
+        err : _ -> pure (Left err)
+        [] -> do
+            let payloads = rights payloadResults
+            exportJob <- persistFixedStaffPayExport rangeStart rangeEnd payloads
+            pure (Right exportJob)
+
+persistFixedStaffPayExport ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    Day ->
+    [StaffPayCsvPayload] ->
+    IO ExportJob
+persistFixedStaffPayExport rangeStart rangeEnd payloads = withTransaction do
+    now <- getCurrentTime
+    let expiresAt = addUTCTime exportExpirySeconds now
+    let exportType = exportJobTypeToText StaffPayCsv
+    let snapshotVersions = List.sort (List.nub (concatMap (.snapshotVersions) payloads))
+    let exportSnapshotVersion = collapseSnapshotVersions snapshotVersions
+    let entryCount = sum (map (.entryCount) payloads)
+    let rowCount = sum (map (.rowCount) payloads)
+    let isSingleWeek = length payloads == 1
+    let fileName =
+            if isSingleWeek
+                then "staff_hours-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".csv"
+                else "staff_hours-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
+    let fileContents =
+            case payloads of
+                [payload] -> payload.csvContents
+                _ -> renderTextZipBase64
+                        [ ( weeklyFolderName payload.weekSelection <> "/staff_hours.csv"
+                          , payload.csvContents
+                          )
+                        | payload <- payloads
+                        ]
+    let contentType =
+            if isSingleWeek
+                then "text/csv; charset=utf-8"
+                else "application/zip"
+    let fileEncoding =
+            if isSingleWeek
+                then "utf8"
+                else "base64"
+    persistReadyExportJob
+        exportType
+        rangeStart
+        rangeEnd
+        (Aeson.object
+            [ "rangeStart" Aeson..= rangeStart
+            , "rangeEnd" Aeson..= rangeEnd
+            , "approvedOnly" Aeson..= True
+            , "entryCount" Aeson..= entryCount
+            , "rowCount" Aeson..= rowCount
+            , "snapshotVersions" Aeson..= snapshotVersions
+            , "packaging" Aeson..= if isSingleWeek then ("csv" :: Text) else "zip_weekly_csv"
+            ])
+        fileName
+        contentType
+        fileEncoding
+        fileContents
+        exportSnapshotVersion
+        expiresAt
+        (Aeson.object
+            [ "exportType" Aeson..= exportType
+            , "rangeStart" Aeson..= rangeStart
+            , "rangeEnd" Aeson..= rangeEnd
+            , "entryCount" Aeson..= entryCount
+            , "rowCount" Aeson..= rowCount
+            , "payConfigSnapshotVersion" Aeson..= exportSnapshotVersion
+            , "deliveryMethod" Aeson..= browserDownloadMethod
+            ])
+
+requestFixedHourlyBreakdownZipExport ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    Day ->
+    IO (Either Text ExportJob)
+requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
+    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
+    shiftTypes <- fetchCurrentVenueActiveShiftTypes
+    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries entries
+    let dates = [rangeStart .. rangeEnd]
+    let snapshotVersions = List.sort (List.nub (Map.elems snapshotVersionsByEntryId))
+    let exportSnapshotVersion = collapseSnapshotVersions snapshotVersions
+    let fileName = "hourly_breakdown-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
+    let fileContents =
+            renderTextZipBase64
+                [ (tshow date <> "_" <> fallbackReportDayLabel date 0 <> ".csv", renderHourlyBreakdownDateCsv date shiftTypes entries)
+                | date <- dates
+                ]
+    exportJob <- withTransaction do
+        now <- getCurrentTime
+        persistReadyExportJob
+            (exportJobTypeToText HourlyBreakdownZip)
+            rangeStart
+            rangeEnd
+            (Aeson.object
+                [ "rangeStart" Aeson..= rangeStart
+                , "rangeEnd" Aeson..= rangeEnd
+                , "approvedOnly" Aeson..= True
+                , "entryCount" Aeson..= length entries
+                , "fileCount" Aeson..= length dates
+                , "snapshotVersions" Aeson..= snapshotVersions
+                ])
+            fileName
+            "application/zip"
+            "base64"
+            fileContents
+            exportSnapshotVersion
+            (addUTCTime exportExpirySeconds now)
+            (Aeson.object
+                [ "exportType" Aeson..= exportJobTypeToText HourlyBreakdownZip
+                , "rangeStart" Aeson..= rangeStart
+                , "rangeEnd" Aeson..= rangeEnd
+                , "entryCount" Aeson..= length entries
+                , "fileCount" Aeson..= length dates
+                , "payConfigSnapshotVersion" Aeson..= exportSnapshotVersion
+                , "deliveryMethod" Aeson..= browserDownloadMethod
+                ])
+    pure (Right exportJob)
+
+requestFixedPayrollEarningsCsvExport ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    Day ->
+    IO (Either Text ExportJob)
+requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
+    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
+    staffById <- fetchReportStaffMap entries
+    payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
+    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries entries
+    let filteredEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
+    let missingEntryIds =
+            map (tshow . get #id) $
+                filter (\entry -> Map.notMember (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) filteredEntries
+
+    if not (null missingEntryIds)
+        then pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
+        else do
+            let records = buildPayrollEarningsCsvRecords filteredEntries staffById payResultsByEntryId snapshotVersionsByEntryId
+            let snapshotVersions =
+                    filteredEntries
+                        |> mapMaybe (\entry -> entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId))
+                        |> List.nub
+                        |> List.sort
+            let exportSnapshotVersion = collapseSnapshotVersions snapshotVersions
+            let fileName = "payroll_earnings-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".csv"
+            exportJob <- withTransaction do
+                now <- getCurrentTime
+                persistReadyExportJob
+                    (exportJobTypeToText PayrollEarningsCsv)
+                    rangeStart
+                    rangeEnd
+                    (Aeson.object
+                        [ "rangeStart" Aeson..= rangeStart
+                        , "rangeEnd" Aeson..= rangeEnd
+                        , "approvedOnly" Aeson..= True
+                        , "entryCount" Aeson..= length filteredEntries
+                        , "rowCount" Aeson..= length records
+                        , "snapshotVersions" Aeson..= snapshotVersions
+                        ])
+                    fileName
+                    "text/csv; charset=utf-8"
+                    "utf8"
+                    (renderPayrollEarningsCsv records)
+                    exportSnapshotVersion
+                    (addUTCTime exportExpirySeconds now)
+                    (Aeson.object
+                        [ "exportType" Aeson..= exportJobTypeToText PayrollEarningsCsv
+                        , "rangeStart" Aeson..= rangeStart
+                        , "rangeEnd" Aeson..= rangeEnd
+                        , "entryCount" Aeson..= length filteredEntries
+                        , "rowCount" Aeson..= length records
+                        , "payConfigSnapshotVersion" Aeson..= exportSnapshotVersion
+                        , "deliveryMethod" Aeson..= browserDownloadMethod
+                        ])
+            pure (Right exportJob)
 
 fetchCurrentVenueReportDefinitions ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -517,6 +718,200 @@ buildHourlyBreakdownZipScope reportDefinition payload =
         , "snapshotVersions" Aeson..= payload.snapshotVersions
         , "filterShiftTypes" Aeson..= map (.name) reportDefinition.shiftTypeFilters
         ]
+
+rangeWeekSelections ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    Day ->
+    IO [ReportWeekSelection]
+rangeWeekSelections rangeStart rangeEnd = do
+    map (.weekSelection) <$> rangeWeekSlices rangeStart rangeEnd
+
+rangeWeekSlices ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Day ->
+    Day ->
+    IO [ReportWeekSlice]
+rangeWeekSlices rangeStart rangeEnd = do
+    venueConfig <- fetchVenueConfig
+    let firstWeekStart = venueWeekStartDate venueConfig (venueWeekOffsetForDay venueConfig rangeStart)
+    let weekStarts = takeWhile (<= rangeEnd) (iterate (addDays 7) firstWeekStart)
+    pure (map (toSlice venueConfig) weekStarts)
+    where
+        toSlice venueConfig weekStart =
+            let weekEnd = addDays 6 weekStart
+            in ReportWeekSlice
+                { weekSelection =
+                    ReportWeekSelection
+                        { weekOffset = venueWeekOffsetForDay venueConfig weekStart
+                        , weekStart
+                        , weekEnd
+                        , dayLabels = fallbackReportDayLabels weekStart
+                        }
+                , sliceStart = max rangeStart weekStart
+                , sliceEnd = min rangeEnd weekEnd
+                }
+
+data ReportWeekSlice = ReportWeekSlice
+    { weekSelection :: ReportWeekSelection
+    , sliceStart :: Day
+    , sliceEnd :: Day
+    }
+
+buildFixedStaffPayCsvPayload ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    ReportWeekSlice ->
+    IO (Either Text StaffPayCsvPayload)
+buildFixedStaffPayCsvPayload reportWeekSlice = do
+    entries <- fetchApprovedTimesheetEntries reportWeekSlice.sliceStart reportWeekSlice.sliceEnd
+    staffById <- fetchReportStaffMap entries
+    payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
+    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries entries
+    let reportWeekSelection = reportWeekSlice.weekSelection
+    let filteredEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
+    let missingEntryIds =
+            map (tshow . get #id) $
+                filter (\entry -> Map.notMember (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) filteredEntries
+
+    if not (null missingEntryIds)
+        then pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
+        else do
+            let records = buildFixedStaffPayCsvRecords reportWeekSelection filteredEntries staffById payResultsByEntryId
+            let snapshotVersions =
+                    filteredEntries
+                        |> mapMaybe (\entry -> entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId))
+                        |> List.nub
+                        |> List.sort
+            pure $
+                Right
+                    StaffPayCsvPayload
+                        { weekSelection = reportWeekSelection
+                        , fileName = "staff_hours-" <> tshow reportWeekSelection.weekStart <> ".csv"
+                        , csvContents = renderStaffPayCsv reportWeekSelection records
+                        , entryCount = length filteredEntries
+                        , rowCount = length records
+                        , snapshotVersions
+                        , exportSnapshotVersion = collapseSnapshotVersions snapshotVersions
+                        }
+
+buildFixedStaffPayCsvRecords ::
+    ReportWeekSelection ->
+    [TimesheetEntry] ->
+    Map.Map UUID Staff ->
+    Map.Map Text TimesheetPayResult ->
+    [StaffPayCsvRecord]
+buildFixedStaffPayCsvRecords reportWeekSelection entries staffById payResultsByEntryId =
+    aggregated
+        |> Map.toList
+        |> map toRecord
+        |> List.sortOn (\record -> (record.staffName, record.label))
+    where
+        aggregated =
+            foldl' accumulate Map.empty entries
+
+        accumulate acc entry =
+            case (Map.lookup entry.staffId staffById, Map.lookup (timesheetEntryIdKey (get #id entry)) payResultsByEntryId) of
+                (Just staff, Just payResult) ->
+                    foldl' (accumulateSegment staff payResult) acc payResult.segments
+                _ -> acc
+
+        buckets = staffPayBuckets reportWeekSelection
+
+        emptyBucketHours = replicate (length buckets) 0
+
+        accumulateSegment staff payResult acc segment =
+            case staffPaySegmentBucketIndex buckets segment of
+                Just bucketIndex ->
+                    let key = (staffPayDisplayName staff, fixedStaffPayRecordLabel payResult)
+                        hours = paidMinutesToHours segment.minutes
+                     in if hours <= 0
+                            then acc
+                            else Map.alter (Just . addDayHours bucketIndex hours . fromMaybe emptyBucketHours) key acc
+                Nothing -> acc
+
+        toRecord ((recordStaffName, recordLabel), recordBucketHours) =
+            StaffPayCsvRecord
+                { staffName = recordStaffName
+                , label = recordLabel
+                , bucketHours = recordBucketHours
+                , total = sum recordBucketHours
+                }
+
+shouldIncludeFixedStaffPayEntry :: Map.Map UUID Staff -> TimesheetEntry -> Bool
+shouldIncludeFixedStaffPayEntry staffById entry =
+    case Map.lookup entry.staffId staffById of
+        Nothing -> False
+        Just staff -> not (isTrialStaff staff)
+
+weeklyFolderName :: ReportWeekSelection -> Text
+weeklyFolderName reportWeekSelection =
+    tshow reportWeekSelection.weekStart <> "-to-" <> tshow reportWeekSelection.weekEnd
+
+collapseSnapshotVersions :: [Text] -> Maybe Text
+collapseSnapshotVersions snapshotVersions =
+    case List.nub snapshotVersions of
+        []             -> Nothing
+        [versionLabel] -> Just versionLabel
+        _              -> Just "mixed"
+
+fetchCurrentVenueActiveShiftTypes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
+fetchCurrentVenueActiveShiftTypes =
+    query @ShiftType
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#isActive, True)
+        |> orderByAsc #sortOrder
+        |> orderByAsc #name
+        |> fetch
+
+persistReadyExportJob ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Text ->
+    Day ->
+    Day ->
+    Aeson.Value ->
+    Text ->
+    Text ->
+    Text ->
+    Text ->
+    Maybe Text ->
+    UTCTime ->
+    Aeson.Value ->
+    IO ExportJob
+persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportSnapshotVersion expiresAt auditPayload = do
+    _ <- ensureCurrentVenuePayConfigSnapshot
+    exportJob <-
+        newRecord @ExportJob
+            |> set #venueId (unpackId currentVenueId)
+            |> set #requestedByUserId (unpackId (get #id authenticatedCurrentUser))
+            |> set #exportType exportType
+            |> set #status (exportJobStatusToText ExportPending)
+            |> set #schemaVersion exportSchemaVersion
+            |> set #rangeStart (Just rangeStart)
+            |> set #rangeEnd (Just rangeEnd)
+            |> set #scope finalScope
+            |> set #deliveryMethod browserDownloadMethod
+            |> set #destinationMetadata (Aeson.object ["requestedVia" Aeson..= requestAuditSourceChannel])
+            |> set #expiresAt expiresAt
+            |> createRecord
+
+    exportJob <-
+        exportJob
+            |> set #status (exportJobStatusToText ExportReady)
+            |> set #payConfigSnapshotVersion exportSnapshotVersion
+            |> set #scope finalScope
+            |> set #fileName (Just fileName)
+            |> set #contentType (Just contentType)
+            |> set #fileEncoding fileEncoding
+            |> set #fileContents (Just fileContents)
+            |> updateRecord
+
+    void $ recordCurrentUserAuditEvent
+        "export_generated"
+        "export_jobs"
+        (unpackId (get #id exportJob))
+        auditPayload
+
+    pure exportJob
 
 fetchReportStaffMap :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID Staff)
 fetchReportStaffMap entries =

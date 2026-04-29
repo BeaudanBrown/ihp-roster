@@ -76,8 +76,6 @@ data LeaveRequestsController
 data ExportsController
     = ExportJobsAction
     | CreateExportJobAction
-    | CreateReportDefinitionAction
-    | UpdateReportDefinitionAction { reportDefinitionId :: !(Id ReportDefinition) }
     | DownloadExportJobAction { exportJobId :: !(Id ExportJob) }
     deriving (Eq, Show, Data)
 
