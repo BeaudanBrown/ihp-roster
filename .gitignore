@@ -28,6 +28,7 @@ test-results/
 !test-results/.gitkeep
 playwright-report/
 .playwright-cli/
+output/playwright/
 output/profile/
 output/profile-load/
 output/profile-load-suite/
