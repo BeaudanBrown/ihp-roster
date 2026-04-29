@@ -49,6 +49,75 @@ tests = beforeAll testContext do
                         |> fetchOneOrNothing
                 deletedAvailability `shouldBe` Nothing
 
+    describe "database tenant integrity protection" do
+        it "rejects direct SQL roster weeks whose venue does not match the roster group" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Tenant Roster A"
+                venueB <- createVenueWithConfig "Tenant Roster B"
+                foreignGroup <-
+                    query @RosterGroup
+                        |> filterWhere (#venueId, unpackId venueB.id)
+                        |> fetchOne
+
+                result <-
+                    try
+                        ( sqlExecDiscardResult
+                            "INSERT INTO roster_weeks (venue_id, roster_group_id, week_offset) VALUES (?, ?, ?)"
+                            (unpackId venueA.id, unpackId foreignGroup.id, 42 :: Int)
+                        ) :: IO (Either SomeException ())
+
+                result `shouldSatisfy` isLeft
+
+        it "rejects direct SQL staff roster-group assignments across venues" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Tenant Staff Group A"
+                venueB <- createVenueWithConfig "Tenant Staff Group B"
+                staffA <- createStaffRecord venueA Nothing "Tenant" "Staff"
+                foreignGroup <-
+                    query @RosterGroup
+                        |> filterWhere (#venueId, unpackId venueB.id)
+                        |> fetchOne
+
+                result <-
+                    try
+                        ( sqlExecDiscardResult
+                            "INSERT INTO staff_roster_groups (staff_id, roster_group_id) VALUES (?, ?)"
+                            (unpackId staffA.id, unpackId foreignGroup.id)
+                        ) :: IO (Either SomeException ())
+
+                result `shouldSatisfy` isLeft
+
+        it "rejects direct SQL timesheets whose shift type belongs to another venue" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Tenant Timesheet A"
+                venueB <- createVenueWithConfig "Tenant Timesheet B"
+                staffA <- createStaffRecord venueA Nothing "Tenant" "Worker"
+                foreignShiftType <- ensureVenueDefaultShiftType venueB
+
+                result <-
+                    try
+                        ( sqlExecDiscardResult
+                            "INSERT INTO timesheet_entries (venue_id, staff_id, shift_type_id, worked_on, start_time, end_time, had_break, break_minutes) VALUES (?, ?, ?, ?, '09:00', '17:00', FALSE, 0)"
+                            (unpackId venueA.id, unpackId staffA.id, unpackId foreignShiftType.id, defaultWeekEpoch)
+                        ) :: IO (Either SomeException ())
+
+                result `shouldSatisfy` isLeft
+
+        it "rejects direct SQL leave requests whose staff belongs to another venue" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Tenant Leave A"
+                venueB <- createVenueWithConfig "Tenant Leave B"
+                foreignStaff <- createStaffRecord venueB Nothing "Tenant" "Leave"
+
+                result <-
+                    try
+                        ( sqlExecDiscardResult
+                            "INSERT INTO leave_requests (venue_id, staff_id, start_date, end_date, status) VALUES (?, ?, ?, ?, 'pending')"
+                            (unpackId venueA.id, unpackId foreignStaff.id, defaultWeekEpoch, defaultWeekEpoch |> addDays 1)
+                        ) :: IO (Either SomeException ())
+
+                result `shouldSatisfy` isLeft
+
 createProtectedAvailability :: (?modelContext :: ModelContext) => IO StaffAvailability
 createProtectedAvailability = do
     venue <- createVenueWithConfig "Delete Guard Venue"
