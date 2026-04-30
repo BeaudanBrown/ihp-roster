@@ -57,6 +57,14 @@ Do not reintroduce a hard-coded linear `hspec do ...` list in `Test/Main.hs`; th
 
 When auth or controller setup touches the database, prefer the shared helpers in `Test/Support.hs` instead of `mockContextNoDatabase` alone.
 
+For every new or changed input boundary, add focused coverage for missing required params, malformed typed values, oversized text, whitespace-only text, cross-venue/cross-group ids, and suspicious payloads such as script tags or formula-looking text. The expected result should be a validation rerender, controlled 4xx/redirect, or no-op mutation, not an unhandled 500.
+
+When testing request-derived ids, include both malformed UUID text and well-formed ids outside the current tenant/venue/group. Parsing safety and scope authorization are separate assertions.
+
+For exports, include CSV cells beginning with `=`, `+`, `-`, `@`, tab, carriage return/newline, whitespace-prefixed formulas, quotes, commas, and newlines so `csvCell` keeps both formula neutralization and CSV quoting intact.
+
+For URL helpers, include existing-query URLs, spaces, ampersands, equals signs, percent signs, empty values, and token-like values. Callers should use `appendQueryParams` rather than manual string concatenation.
+
 Useful patterns:
 
 - `tests = beforeAll testContext do ...`

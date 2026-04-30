@@ -41,6 +41,10 @@
 - HSX uses `[hsx|...|]` quasi-quotes — it's like JSX but type-checked at compile time
 - Database queries use IHP's QueryBuilder, not raw SQL — see `/home/beau/documents/projects/ihp/Guide/querybuilder.markdown`
 - Form handling uses IHP's form helpers — see `/home/beau/documents/projects/ihp/Guide/form.markdown`
+- Treat HTML `required`, hidden inputs, and select options as hints only. IHP `fill` records parse errors but ignores missing params, so required server-side fields need explicit controller checks such as `requireParam` plus normal record validation.
+- Parse request-derived ids with total helpers such as `parseUUIDText`/feature-specific wrappers, then validate tenant/venue scope with QueryBuilder before mutating. Do not use throwing id parsers for user-controlled text.
+- Build query strings with `appendQueryParams`; it URL-encodes keys/values and omits empty values. Do not concatenate raw request text into URLs.
+- Render CSV through `Application.Helper.Export.Render.csvCell` or higher-level export renderers so spreadsheet formula prefixes are neutralized consistently.
 
 ## Planning Files
 - Repo-local `tk` tickets in `.tickets/` are the live implementation tracker for active work, next actions, blockers, and task status.

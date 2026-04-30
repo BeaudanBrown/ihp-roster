@@ -70,6 +70,7 @@ psql -h "$PWD/build/db" app -c "\dt"
   - `Application/Helper/Export/Types.hs` for export/report domain types and text conversions
   - `Application/Helper/Export/Render.hs` for CSV/ZIP rendering and pure formatting helpers
   - `Application/Helper/Export.hs` for DB-backed orchestration, authorization, expiry, and audit wiring
+- CSV cells must go through `Application.Helper.Export.Render.csvCell` or the higher-level renderers in that module. The cell renderer owns both CSV quoting and spreadsheet formula neutralization for leading `=`, `+`, `-`, `@`, tab, carriage-return, newline, and whitespace-prefixed formulas.
 - Treat `Application/Helper/Export.hs` as the orchestration layer and compatibility wrapper, not the default place for new pure rendering helpers.
 - Keep payroll report selection separate from export-job lifecycle. Venue-scoped report definitions (slug, engine, description, optional shift-type filters) should decide which report a venue can request; `export_jobs` should remain the request/generation/download/audit record for the concrete file instance.
 - Legacy payroll parity currently maps venue report definitions like this:
@@ -129,3 +130,5 @@ post |> set #title "New title" |> updateRecord
 -- Delete
 deleteRecord post
 ```
+
+For user text stored in schema-backed tables, keep controller normalization and parser-safe database constraints aligned. Prefer simple `CHECK` constraints using `char_length`/`btrim` and explicit `OR` expressions; verify schema changes with `regen-types`, `typecheck`, `make db`, and a dev-server restart.

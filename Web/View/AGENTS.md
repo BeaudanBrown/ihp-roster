@@ -47,10 +47,13 @@ renderForm post = formFor post [hsx|
 |]
 ```
 
+HTML form attributes are not validation. Keep `required`, hidden inputs, and select options for browser UX, but pair them with controller-side `requireParam`, typed parsing, venue-scope checks, and record validation so tampered or missing values rerender safely.
+
 ## Key Imports
 - Always import `Web.View.Prelude` — it re-exports `IHP.ViewPrelude`, `Web.View.Layout`, `Generated.Types`, `Web.Types`, and `Application.Helper.View`
 - Shared view helpers should be added to focused modules under `Application/Helper/View/` first. Use `Application/Helper/View.hs` as the compatibility wrapper, not the default implementation bucket.
 - Layout is defined in `Web/View/Layout.hs`
+- Use `appendQueryParams` for links/forms that need query strings. It URL-encodes keys and values; do not hand-build `?key=value` strings from user or token text.
 
 ## Roster HTMX Pattern
 - For high-frequency roster edits, avoid `hx-target="#roster-content"` full-fragment swaps on each input.

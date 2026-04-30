@@ -62,7 +62,10 @@ Every controller requires changes in **four files** (missing any will cause comp
 ## Common Patterns
 
 - Always import `Web.Controller.Prelude` — it re-exports everything needed
-- Use `param @Type "name"` to read request parameters
+- Use `param @Type "name"` only when a missing or malformed value should abort the action. For form fields, prefer record builders with `fill`, explicit `requireParam` checks for required fields, and `ifValid` rerender branches.
+- `fill` attaches parser errors to fields, but missing params are ignored. Required dates, ids, numbers, and text fields must be checked server-side; do not rely on HTML `required`, hidden fields, or select options.
+- Normalize user text in builders (`normalizeTextField`, `normalizeMaybeTextField`, `requiredBoundedTextField`) before saving. Trim required text, convert blank optional text to `Nothing`, and apply max lengths that match schema constraints.
+- Parse user-controlled ids with total parsers such as `parseUUIDText` plus model-specific wrappers. After parsing, query by current venue/tenant before using the id; malformed and cross-venue ids should rerender validation or produce controlled 4xx/redirect responses, never 500s.
 - Use `fetch`, `fetchOne`, `fetchOneOrNothing` to run queries
 - Use `redirectTo SomeAction` after mutations
 - Use `render ViewName { .. }` with RecordWildCards to pass data to views
