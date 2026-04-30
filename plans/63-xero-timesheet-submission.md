@@ -11,7 +11,7 @@ timesheets, with enough local validation and persisted request/response state to
 debug every external side effect.
 
 This plan narrows phases 5 and 6 of `plans/57-xero-payroll-integration.md` into
-implementation-ready slices. The first implementation target after planning is
+implementation-ready slices. The first implementation target after planning was
 everything up to readiness validation:
 
 1. Xero timesheet API client contract.
@@ -21,6 +21,14 @@ everything up to readiness validation:
 5. Deterministic tests for the validator.
 
 Preview and submission should build on that foundation, not bypass it.
+
+As of 2026-04-30, the readiness foundation and the OpenAPI contract/mock
+foundation are in place. The next implementation chunk is:
+
+1. Build deterministic Xero-shaped preview payloads.
+2. Persist preview runs in the dedicated Xero submission tables.
+3. Submit create-only Xero `DRAFT` timesheets with the strict OpenAPI-backed
+   mock harness covering request shape and persistence behavior.
 
 ## Source Documents
 
@@ -450,6 +458,73 @@ Rules:
 - Preserve source `timesheet_entry_ids` and pay snapshot versions in preview
   metadata.
 
+### Next preview slice
+
+Track this work under `ir-lgy7` and its child tasks:
+
+- `ir-f09l` - Define Xero timesheet preview payload types and builder.
+- `ir-4jzo` - Add Xero timesheet preview tests and fixtures.
+- `ir-1urs` - Persist preview runs for Xero timesheet submission.
+
+The first deliverable should be a deterministic service module, not a page. A
+reasonable module boundary is `Application.Xero.Timesheets.Preview`, adjusted to
+fit the current post-refactor Xero module layout. Keep the builder free of Xero
+HTTP effects so Hspec can assert exact payloads.
+
+Recommended data shape:
+
+- `XeroTimesheetPreview`
+  - local staff id
+  - Xero employee id
+  - period start/end
+  - source timesheet entry ids
+  - pay config snapshot id
+  - lines
+  - Xero request object JSON
+- `XeroTimesheetPreviewLine`
+  - local bucket key
+  - Xero earnings rate id
+  - `NumberOfUnits` by day
+  - source entry ids contributing to the line
+- `XeroTimesheetPreviewRun`
+  - readiness snapshot
+  - duplicate-check snapshot
+  - previews
+  - combined `preview_payload_json` suitable for persistence
+
+Implementation rules:
+
+- Call the shared readiness validator before building a persisted preview. Pure
+  helper tests may call the builder with already-prepared fixture data.
+- Use the selected Xero payroll calendar period. Do not derive a local week from
+  roster settings.
+- Include only approved, non-deleted, snapshot-pinned entries from the selected
+  period.
+- Hard-fail mixed `pay_config_snapshot_id` values before preview persistence.
+- Resolve staff through verified `xero_staff_mappings`.
+- Resolve local pay buckets through verified `xero_earnings_rate_mappings`.
+- Build one Xero timesheet object per Xero employee and selected period.
+- Build one line per `EarningsRateID`; omit `TrackingItemID` in v1.
+- Emit one `NumberOfUnits` value per day from period start through period end,
+  filling missing days with `0.0`.
+- Store source entry ids and snapshot metadata in preview metadata, but keep the
+  Xero request JSON itself limited to fields Xero accepts.
+- Persist preview output into `xero_submission_runs.preview_payload_json`,
+  `readiness_snapshot_json`, and `xero_duplicate_check_json`. Do not call
+  `POST /Timesheets` in the preview slice.
+
+Minimum preview tests:
+
+- weekly period produces seven daily units in date order
+- fortnightly period produces fourteen daily units in date order
+- missing days are zero-filled
+- two entries for one employee and one Xero earnings rate aggregate into one
+  line
+- two Xero employees produce two timesheet objects
+- source entry ids and pay snapshot ids survive in metadata
+- the Xero request JSON omits `TrackingItemID`
+- persisted preview runs do not call Xero HTTP
+
 ## Implementation Order
 
 1. Add the timesheet API client boundary and tests with mocked JSON envelopes.
@@ -459,9 +534,67 @@ Rules:
 5. Add focused Hspec coverage for missing connection, missing sync, missing staff
    mapping, missing earnings mapping, missing pay item, bad calendar, any remote
    duplicate, and happy readiness.
-6. Build preview payload generation.
-7. Build draft submission.
-8. Add correction/update handling after draft creation is proven.
+6. Vendor the OpenAPI contract and add strict local Xero request/mock tests.
+7. Build preview payload generation.
+8. Persist preview runs.
+9. Build create-only draft submission.
+10. Add correction/update handling after draft creation is proven.
+
+## Draft Submission Service
+
+Track create-only submission under `ir-ujwc` and its child tasks:
+
+- `ir-tsvi` - Implement Xero draft timesheet submission service.
+- `ir-yikx` - Cover Xero submission with strict contract mock tests.
+
+The submission service should consume the same preview payload shape produced by
+`ir-lgy7`; do not rebuild a second payload path in the controller. A reasonable
+module boundary is `Application.Xero.Timesheets.Submission`, adjusted to fit the
+current post-refactor Xero module layout.
+
+Submission rules:
+
+- Rerun readiness immediately before any write.
+- Run duplicate detection immediately before any write. Use `GET /Timesheets`
+  with a narrow employee/period query where practical, but still filter locally
+  by employee id, start date, and end date.
+- Block create if any remote Xero timesheet exists for the same employee/period.
+- Use `POST /Timesheets` only. Do not call `POST /Timesheets/{TimesheetID}` in
+  this slice.
+- Send a singleton JSON array per employee/period.
+- Always send `Status: "DRAFT"`.
+- Generate and persist a durable idempotency key before calling Xero. Reuse that
+  key on retry for the same intended request.
+- Persist the exact request JSON in
+  `xero_timesheet_submissions.request_payload_json`.
+- Persist the full response JSON, returned `TimesheetID`, Xero status,
+  `attempt_count`, `last_error`, and `submitted_at`.
+- Insert `xero_timesheet_submission_entries` rows for every source
+  `timesheet_entry_id`, including the preview-time `pay_config_snapshot_id`,
+  `updated_at`, and `approved_at` values.
+- Mark the run as `submitted`, `partially_failed`, `failed`, or `blocked`
+  depending on per-employee outcomes.
+- Do not approve Xero timesheets, create pay runs, or implement correction/update
+  workflow in this slice.
+
+Use the vendored OpenAPI contract and strict local mock from
+`Test.XeroContractSpec` for submission tests. Avoid ad hoc request stubs for the
+main HTTP behavior; the point of the refactor is that the concrete app request
+path can be tested against a local contract-backed Xero surface.
+
+Minimum submission tests:
+
+- successful create stores run, per-employee submission, source-entry links,
+  request JSON, response JSON, Xero `TimesheetID`, Xero status, submitted
+  timestamp, and `attempt_count`
+- request hits strict mock as `POST /Timesheets` with singleton array body,
+  required auth headers, tenant header, content type, and `Idempotency-Key`
+- semantic Xero validation errors are persisted as failed per-employee
+  submissions
+- transport failures are persisted as failed per-employee submissions
+- partial success marks the run `partially_failed`
+- remote duplicate blocks create before `POST /Timesheets`
+- retry reuses the persisted idempotency key for the same submission row
 
 ## Tests
 

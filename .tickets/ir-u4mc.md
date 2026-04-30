@@ -2,7 +2,7 @@
 id: ir-u4mc
 status: open
 deps: []
-links: []
+links: [ir-d6kt, ir-caf4]
 created: 2026-04-29T04:41:29Z
 type: epic
 priority: 1

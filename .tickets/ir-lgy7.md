@@ -46,3 +46,7 @@ calendar, not an arbitrary local date range.
 **2026-04-30T00:22:26Z**
 
 2026-04-30: Product decision: preview period must come from the selected Xero payroll calendar and match Xero's expected period exactly.
+
+**2026-04-30T03:05:53Z**
+
+2026-04-30: Next chunk scoped after the OpenAPI refactor. Implement preview as a deterministic builder plus persisted preview run, using the selected Xero payroll calendar period, readiness-approved entries, verified staff/earnings mappings, and no Xero HTTP calls. Child tasks: ir-f09l, ir-4jzo, ir-1urs.

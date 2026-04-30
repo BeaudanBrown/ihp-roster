@@ -31,6 +31,81 @@ findings have already moved since the original scan:
   invitation jobs, helper/module boundaries, observable failures, deduplication,
   and a measured lint sweep.
 
+## Agent-Navigability Rescan - 2026-04-30
+
+The follow-up scan was also read-only. It confirmed that the main maintainability
+problem is no longer "one giant app" but a few high-churn boundaries that still
+combine data loading, mutation orchestration, rendering, response plumbing, and
+tests in the same places.
+
+Current high-signal hotspots:
+
+- Admin/Xero is the largest active hotspot. The root admin page has already been
+  split, but `Web/Controller/Admin/Xero.hs` is still about 1.9k lines and
+  `Web/View/Admin/Xero.hs` is about 700 lines. Treat `ir-23k7` as the structural
+  Xero/admin boundary lane.
+- `Application/Helper/View.hs` still contains implementations even though the
+  desired architecture is a compatibility re-export wrapper. Keep this in
+  `plans/61-view-helper-split.md` / `ir-2usx`.
+- `static/app.js` remains the frontend catch-all. Keep this in `ir-9f7z` and
+  `plans/62-live-fragment-system-refactor.md`; do not start a bundler migration
+  as part of this cleanup.
+- Admin config sections repeat HTMX fragment, OOB toast, and live-invalidation
+  response plumbing. Track the shared response helper in `ir-1i03`.
+- Normal/OOB render pairs can drift when only `hx-swap-oob` differs. Track the
+  optional-OOB helper in `ir-2vyr`.
+- Roster/timesheet view helpers have long positional render signatures. Track
+  render-data records in `ir-pnj2`.
+- `Application/Schema.sql` is necessarily large but lacks a top-level navigation
+  map. Track non-semantic section anchors in `ir-15fg`; keep invariant work in
+  `plans/60-v1-schema-hardening.md` / `ir-caf4`.
+- Large Hspec modules make behavioral coverage harder to scan. Track behavior
+  focused spec splits in `ir-odgt`.
+- Repeated current-venue and active-record query predicates should be extracted
+  only where policy is identical. Track this in `ir-d6kt`.
+
+### Consolidated Ticket Map
+
+- `ir-6vvh` - parent epic for this staged refactor backlog.
+- `ir-23k7` - Admin/Xero boundary split.
+  - `ir-fv82` - Xero admin read models and query loaders.
+  - `ir-8yyg` - Xero admin view sections.
+  - `ir-ugzm` - Xero admin mutation services.
+- `ir-2usx` - `Application.Helper.View` split.
+  - `ir-esmn` - view chrome defaults and panel ergonomics after the split.
+  - `ir-2vyr` - optional-OOB fragment rendering helper after the split.
+- `ir-9f7z` - JavaScript runtime and live-fragment client cleanup.
+- `ir-1i03` - admin config mutation response helper.
+- `ir-pnj2` - roster/timesheet render model records.
+- `ir-15fg` - schema navigation map and section anchors.
+- `ir-odgt` - oversized Hspec suite split.
+- `ir-d6kt` - current-venue and active-record query helper consolidation.
+
+### Staged Refactor Order
+
+1. Admin/Xero boundary extraction: land `ir-fv82`, then `ir-8yyg` and
+   `ir-ugzm`. This lowers the biggest file-size and concern-mixing risk first.
+2. View helper split: finish `ir-2usx` and its existing children before adding
+   new view helper APIs.
+3. Frontend runtime split: continue `ir-9f7z` along the plan-62 phases,
+   especially live-fragment protocol/runtime cleanup and feature-owned scripts.
+4. Shared response/render helpers: implement `ir-1i03` and `ir-2vyr` once their
+   module homes are stable.
+5. Lower-churn navigability work: implement `ir-pnj2`, `ir-d6kt`, `ir-15fg`,
+   and `ir-odgt` after the high-conflict files settle.
+
+Implementation guardrails:
+
+- Keep each stage behavior-preserving unless the ticket explicitly names a bug
+  fix.
+- Preserve routes, action types, DOM ids, HTMX targets, live-surface metadata,
+  and toast mount ids during extraction.
+- Prefer records and named helpers over broad typeclasses or a new app
+  framework.
+- Run `bash ./bin/in-env typecheck` after each Haskell slice, focused Hspec for
+  touched controllers/helpers, and focused Playwright specs for admin/Xero or
+  live-fragment UI changes.
+
 ## Scan Inputs
 
 - Static search for partial functions, raw SQL, unsafe/global state, large
@@ -92,6 +167,12 @@ surface when relevant.
 ### 2. Admin Controller And View Are Carrying Too Many Concerns
 
 **Priority:** high
+
+**2026-04-30 update:** the root admin controller/view split has moved on since
+the original finding. The remaining measured hotspot is Xero admin:
+`Web/Controller/Admin/Xero.hs` is about 1.9k lines and
+`Web/View/Admin/Xero.hs` is about 700 lines. Use `ir-23k7` and its child tickets
+as the active implementation path for this finding.
 
 **Finding:** `Web/Controller/Admin.hs` is about 2,064 lines and handles venue
 config, invitations, roster groups, slot names, shift types, report exports,

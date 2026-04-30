@@ -35,3 +35,9 @@ Xero payroll calendar and still uses one pay config snapshot.
   until update support exists.
 - Mixed pay config snapshots block submission.
 - No approved Xero timesheet or pay run is created by this feature.
+
+## Notes
+
+**2026-04-30T03:05:53Z**
+
+2026-04-30: Submission should start only after preview persistence exists. Use the refactored OpenAPI contract/mock harness for concrete HTTP tests; rerun readiness and duplicate checks immediately before POST /Timesheets; persist request/response/idempotency/source-entry audit state. Child tasks: ir-tsvi, ir-yikx.

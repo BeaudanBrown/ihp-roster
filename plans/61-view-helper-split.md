@@ -31,6 +31,18 @@ Existing focused modules under `Application/Helper/View/` are:
 - `Toast.hs`
 - `VenueBootstrap.hs`
 
+## 2026-04-30 Consolidation Note
+
+The health scan kept this as the canonical lane for `Application.Helper.View`.
+Do not add new helper implementations to the compatibility wrapper while this
+pipeline is open.
+
+Follow-on tickets should wait until the wrapper split is complete:
+
+- `ir-esmn` adds small chrome/panel defaults once `Chrome.hs` is the clear home.
+- `ir-2vyr` adds optional-OOB rendering helpers once the relevant view helper
+  module is stable.
+
 ## Proposed Module Boundaries
 
 - `Application.Helper.View.Audience`

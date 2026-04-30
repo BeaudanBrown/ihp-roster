@@ -69,3 +69,7 @@ Xero Payroll AU endpoint contract:
 **2026-04-30T00:40:49Z**
 
 2026-04-30: Foundation slice through readiness validation completed locally: Timesheets API boundary, submission persistence, structured readiness validator, and Admin Xero checklist alignment are implemented and verified. Preview UI and actual submission remain out of scope for this slice.
+
+**2026-04-30T03:05:53Z**
+
+2026-04-30: Post-refactor next chunk is preview payload generation followed by create-only DRAFT submission. OpenAPI contract and strict mock work are complete, so implementation should use those tests rather than ad hoc Xero stubs.

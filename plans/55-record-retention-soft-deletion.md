@@ -65,7 +65,6 @@ Protected records must not be hard deleted by normal app code:
 - `roster_weeks`
 - `roster_days`
 - `roster_slots`
-- `staff_availability`
 - `staff_shift_preferences`
 - `leave_requests`
 - `leave_request_events`

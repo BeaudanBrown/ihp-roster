@@ -10,7 +10,6 @@ assignee: Beaudan Brown
 parent: ir-caf4
 tags: [area:schema, source:plans-60]
 ---
-# Resolve roster and availability schema decisions
+# Resolve roster preference schema decisions
 
-Settle staff_availability, roster slot uniqueness, and default roster group invariants.
-
+Keep shift preferences as the canonical V1 availability signal, then settle roster slot uniqueness and default roster group invariants.

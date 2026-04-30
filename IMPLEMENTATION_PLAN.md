@@ -45,6 +45,7 @@ Business requirements remain canonical in `specs/`.
   - `plans/59-code-smell-remediation.md`
   - `plans/60-v1-schema-hardening.md`
   - `plans/61-view-helper-split.md`
+  - `plans/62-live-fragment-system-refactor.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
 
@@ -241,6 +242,11 @@ These steps are globally ordered. Detailed task breakdowns live in the linked pi
 - **Status:** [ ]
 - **File:** `plans/61-view-helper-split.md`
 - **Focus:** reduce `Application/Helper/View.hs` to a compatibility re-export wrapper and move its mixed helper implementations into focused view helper modules.
+
+### Maintenance — Live Fragment System Refactor
+- **Status:** [-]
+- **File:** `plans/62-live-fragment-system-refactor.md`
+- **Focus:** keep server/client live-fragment protocol, shared runtime behavior, and feature-surface declarations reusable while the JavaScript runtime is split under `ir-9f7z`.
 
 ## Parallelism Rules
 

@@ -2,7 +2,7 @@
 id: ir-mjov
 status: open
 deps: []
-links: []
+links: [ir-23k7, ir-176p]
 created: 2026-04-29T04:41:30Z
 type: epic
 priority: 2

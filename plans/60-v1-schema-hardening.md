@@ -178,34 +178,26 @@ index on `(id, venue_id)` even though `id` is already globally unique.
 - Direct SQL cannot create staff roster-group membership across venues.
 - Existing controller venue-isolation tests still pass.
 
-### 3. `staff_availability` Is Under-Integrated
+### 3. Roster Preferences Are The Availability Source
 
-**Priority:** high
+**Priority:** resolved by scope decision
 
-**Finding:** `staff_availability` exists, is seeded, and appears in tests and
-hard-delete protection, but current roster option/conflict logic uses
-`staff_shift_preferences` and leave requests. The spec still says assignment
-filtering should hide staff with day/date unavailability.
+**Finding:** The V1 product decision is that roster group/day/slot shift
+preferences are the canonical availability signal. A staff member with no
+preferences for a roster group/day is treated as unable to work that roster day
+for V1 filtering.
 
-**Recommendation:** Decide before V1:
-
-- Integrate `staff_availability` into roster conflicts and staff filtering as
-  the source for recurring and date-specific availability restrictions.
-- Or remove/defer `staff_availability` and make `staff_shift_preferences` the
-  single V1 preference/availability model.
-
-**If kept, add constraints:**
-
-- exactly one of `weekday_index` or `specific_date` must be set
-- `weekday_index` must be 0..6
-- one active row per staff/date or staff/weekday availability key
-- staff and venue must match
+**Recommendation:** Keep the schema focused on `staff_shift_preferences` and
+avoid adding a parallel day/date availability model until a future product need
+requires it.
 
 **Acceptance checks:**
 
-- Staff with explicit unavailable weekdays are hidden when the filter is active.
-- Staff with date-specific unavailability are hidden on the matching roster day.
-- Availability rows cannot be created for a staff member outside the venue.
+- Staff with no preferences for the roster group/day are hidden when the filter
+  is active.
+- Preferences from another roster group do not make a staff member eligible.
+- Preference rows cannot be created for a staff member, roster group, or slot
+  outside the venue.
 
 ### 4. Active Roster Slot Uniqueness Is Missing
 
@@ -243,7 +235,6 @@ are unconstrained in the database.
 - `day_names.weekday_index BETWEEN 0 AND 6`
 - `venue_config.roster_week_starts_on BETWEEN 0 AND 6`
 - `roster_days.day_offset BETWEEN 0 AND 6`
-- `staff_availability.weekday_index BETWEEN 0 AND 6`
 - `staff_shift_preferences.weekday_index BETWEEN 0 AND 6`
 - `staff.ideal_shifts_per_week BETWEEN 0 AND 7`
 - `venue_config.staff_timesheet_edit_window_days >= 0`
@@ -646,9 +637,9 @@ these tables grow.
 - Backfill/fix any existing inconsistent rows before adding constraints.
 - Add direct SQL tests proving cross-venue writes are rejected.
 
-### 60.3 Roster And Availability Schema Decisions
+### 60.3 Roster Preference Schema Decisions
 - **Status:** [ ]
-- Decide whether `staff_availability` is V1 scope.
+- Keep shift preferences as the single V1 availability signal.
 - Add active roster slot uniqueness.
 - Add roster group default enforcement or remove the column.
 - Add shift type active-name uniqueness.

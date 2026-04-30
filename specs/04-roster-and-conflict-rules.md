@@ -21,7 +21,7 @@ Roster assignment UI must support filter toggles:
 
 - Hide staff at ideal shifts or greater.
 - Hide staff on leave.
-- Hide staff with day/date unavailability.
+- Hide staff with no preferences for the roster group/day.
 - Hide staff already assigned a shift that day.
 
 ## Sheet-style roster presentation

@@ -8,6 +8,18 @@ Make the live-fragment system more correct, reusable, performant, and widely app
 
 The current direction is sound: rendered HTML remains the source of truth, the browser keeps one websocket per tab, server invalidations are structural fragment refs rather than HTML payloads, and HTMX performs local actor updates. The main gaps are drift between Haskell and JavaScript protocol logic, repeated feature-specific fragment builders, incomplete invalidations, and a few stale-DOM areas that are not live yet.
 
+## 2026-04-30 Consolidation Note
+
+This plan is now linked from the JavaScript runtime epic `ir-9f7z` and the
+agent-navigability maintenance plan `plans/59-code-smell-remediation.md`.
+Runtime work should stay in the existing browser-plus-HTMX architecture:
+
+- split `static/app.js` by concern without adding a bundler as the first move.
+- keep generic live-fragment subscription, resync, request decoration, and focus
+  protection in the shared runtime.
+- coordinate server-side response helper work with `ir-1i03` and optional OOB
+  rendering cleanup with `ir-2vyr`.
+
 ## Current Architecture
 
 Core implementation:
