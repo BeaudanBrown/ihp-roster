@@ -356,8 +356,9 @@ staffShiftPreferenceRecord now staff preferenceId selection =
         |> set #venueId staff.venueId
         |> set #staffId (unpackId staff.id)
         |> set #rosterGroupId (unpackId selection.rosterGroupId)
-        |> set #slotNameId (unpackId selection.slotNameId)
         |> set #weekdayIndex selection.weekdayIndex
+        |> set #preferredStartHour selection.startHour
+        |> set #preferredEndHour selection.endHour
         |> set #createdAt now
         |> set #updatedAt now
 
@@ -371,13 +372,13 @@ buildShiftPreferenceSelections seedValue staffIndex groupSlots =
         [ ShiftPreferenceSelection
             { rosterGroupId = get #id rosterGroup
             , weekdayIndex = weekdayIndex
-            , slotNameId = get #id slotName
+            , startHour = 0
+            , endHour = 23
             }
         | offset <- [0 :: Int .. 9]
         , let groupIndex = deterministicIndex seedValue [staffIndex, 410, offset] (length groupSlots)
         , let (rosterGroup, slotNames) = groupSlots !! groupIndex
         , not (null slotNames)
-        , let slotName = slotNames !! deterministicIndex seedValue [staffIndex, 411, offset] (length slotNames)
         , let weekdayIndex = uniqueWeekdaySequence seedValue [staffIndex, 412] !! (offset `mod` 7)
         ]
 
@@ -570,7 +571,8 @@ missingPreferenceTarget fixtureWeekStart dayOffsetsById rosterGroup existingTarg
                     ShiftPreferenceSelection
                         { rosterGroupId = rosterGroup.id
                         , weekdayIndex = weekdayIndexForFixtureDay fixtureWeekStart dayOffset
-                        , slotNameId = Id rosterSlot.slotNameId
+                        , startHour = 0
+                        , endHour = 23
                         }
                 }
     if target `elem` existingTargets
@@ -585,7 +587,8 @@ staffShiftPreferenceToTarget preference =
             ShiftPreferenceSelection
                 { rosterGroupId = Id preference.rosterGroupId
                 , weekdayIndex = preference.weekdayIndex
-                , slotNameId = Id preference.slotNameId
+                , startHour = preference.preferredStartHour
+                , endHour = preference.preferredEndHour
                 }
         }
 

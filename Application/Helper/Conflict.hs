@@ -72,6 +72,7 @@ evaluateConflicts ctx =
         , checkLeaveConflict ctx
         , checkLateToEarlyConflict ctx
         , checkShiftPreferenceDayUnavailable ctx
+        , checkShiftPreferenceStartWindowMismatch ctx
         , checkIdealShiftThreshold ctx
         ]
 
@@ -118,6 +119,25 @@ checkShiftPreferenceDayUnavailable ctx =
                         , message = "Preference conflict"
                         }
                     else Nothing
+
+checkShiftPreferenceStartWindowMismatch :: ConflictContext -> Maybe RosterConflict
+checkShiftPreferenceStartWindowMismatch ctx =
+    case (ctx.slot.staffId, ctx.slot.startTime) of
+        (Just _, Just startTime) ->
+            case shiftPreferencesForDay ctx of
+                [] -> Nothing
+                dayPreference:_ ->
+                    let startMinute = todHour startTime * 60 + todMin startTime
+                        preferredStartMinute = dayPreference.preferredStartHour * 60
+                        preferredEndMinute = dayPreference.preferredEndHour * 60
+                     in if startMinute < preferredStartMinute || startMinute > preferredEndMinute
+                            then Just RosterConflict
+                                { conflictType = ShiftPreferenceSlotMismatch
+                                , severity = getConflictSeverity ShiftPreferenceSlotMismatch
+                                , message = "Preferred start window conflict"
+                                }
+                            else Nothing
+        _ -> Nothing
 
 shiftPreferencesForDay :: ConflictContext -> [StaffShiftPreference]
 shiftPreferencesForDay ctx =

@@ -666,8 +666,9 @@ CREATE TABLE staff_shift_preferences (
     venue_id UUID NOT NULL,
     staff_id UUID NOT NULL,
     roster_group_id UUID NOT NULL,
-    slot_name_id UUID NOT NULL,
     weekday_index INT NOT NULL,
+    preferred_start_hour INT DEFAULT 9 NOT NULL,
+    preferred_end_hour INT DEFAULT 17 NOT NULL,
     deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     deleted_by_user_id UUID DEFAULT NULL,
     delete_reason TEXT DEFAULT NULL,
@@ -676,9 +677,11 @@ CREATE TABLE staff_shift_preferences (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
-    FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK ((weekday_index >= 0) AND (weekday_index <= 6))
+    CHECK ((weekday_index >= 0) AND (weekday_index <= 6)),
+    CHECK ((preferred_start_hour >= 0) AND (preferred_start_hour <= 23)),
+    CHECK ((preferred_end_hour >= 0) AND (preferred_end_hour <= 23)),
+    CHECK (preferred_start_hour <= preferred_end_hour)
 );
 
 -- schema-nav: leave-timesheets-audit
@@ -1178,8 +1181,8 @@ CREATE INDEX idx_leave_request_events_request_created_at ON leave_request_events
 CREATE INDEX idx_staff_shift_preferences_venue_staff ON staff_shift_preferences (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_shift_preferences_staff ON staff_shift_preferences (staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_shift_preferences_group_day ON staff_shift_preferences (roster_group_id, weekday_index) WHERE deleted_at IS NULL;
-CREATE INDEX idx_staff_shift_preferences_group_staff_day_slot ON staff_shift_preferences (roster_group_id, staff_id, weekday_index, slot_name_id) WHERE deleted_at IS NULL;
-CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_preferences (staff_id, roster_group_id, slot_name_id, weekday_index) WHERE deleted_at IS NULL;
+CREATE INDEX idx_staff_shift_preferences_group_staff_day ON staff_shift_preferences (roster_group_id, staff_id, weekday_index) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_preferences (staff_id, roster_group_id, weekday_index) WHERE deleted_at IS NULL;
 CREATE INDEX idx_audit_events_venue_created_at ON audit_events (venue_id, created_at DESC);
 CREATE INDEX idx_audit_events_target ON audit_events (target_table, target_id);
 CREATE INDEX idx_export_jobs_venue_created_at ON export_jobs (venue_id, created_at DESC);
@@ -1331,14 +1334,11 @@ BEGIN
         SELECT 1
         FROM staff s
         JOIN roster_groups rg ON rg.id = NEW.roster_group_id
-        JOIN slot_names sn ON sn.id = NEW.slot_name_id
         WHERE s.id = NEW.staff_id
             AND s.venue_id = NEW.venue_id
             AND rg.venue_id = NEW.venue_id
-            AND sn.venue_id = NEW.venue_id
-            AND sn.roster_group_id = NEW.roster_group_id
     ) THEN
-        RAISE EXCEPTION 'staff shift preference staff, roster group, and slot name must stay within one venue and group';
+        RAISE EXCEPTION 'staff shift preference staff and roster group must stay within one venue';
     END IF;
 
     RETURN NEW;

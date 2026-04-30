@@ -318,7 +318,7 @@ slotNameColumns = ["id", "venue_id", "roster_group_id", "name", "sort_order", "i
 staffRosterGroupColumns = ["id", "staff_id", "roster_group_id"]
 
 staffShiftPreferenceColumns, rosterWeekColumns, rosterDayColumns, rosterSlotColumns :: [Text]
-staffShiftPreferenceColumns = ["id", "venue_id", "staff_id", "roster_group_id", "slot_name_id", "weekday_index"]
+staffShiftPreferenceColumns = ["id", "venue_id", "staff_id", "roster_group_id", "weekday_index", "preferred_start_hour", "preferred_end_hour"]
 rosterWeekColumns = ["id", "venue_id", "roster_group_id", "week_offset", "is_live"]
 rosterDayColumns = ["id", "roster_week_id", "day_offset", "is_closed"]
 rosterSlotColumns = ["id", "roster_day_id", "staff_id", "slot_name_id", "slot_sort_order", "row_index", "start_time", "duration_minutes", "note"]
@@ -480,13 +480,12 @@ staffRosterGroupRows plan =
 
 staffShiftPreferenceRows :: ProfileSeedPlan -> [[Maybe Text]]
 staffShiftPreferenceRows plan =
-    [ row [uuidText 16 venueIndex staffIndex (groupIndex * 10 + prefIndex), venueId venueIndex, staffId venueIndex staffIndex, rosterGroupId venueIndex groupIndex, slotNameId venueIndex groupIndex slotIndex, tshow weekdayIndex]
+    [ row [uuidText 16 venueIndex staffIndex (groupIndex * 10 + prefIndex), venueId venueIndex, staffId venueIndex staffIndex, rosterGroupId venueIndex groupIndex, tshow weekdayIndex, "0", "23"]
     | venueIndex <- venueIndexes plan
     , staffIndex <- staffIndexes plan
     , groupIndex <- eligibleGroupIndexes staffIndex
     , prefIndex <- [0 .. 2]
-    , let slotIndex = 1 + deterministicIndex plan [venueIndex, staffIndex, groupIndex, prefIndex] (length slotNameTemplates)
-    , let weekdayIndex = deterministicIndex plan [venueIndex, staffIndex, groupIndex, prefIndex, 9] 7
+    , let weekdayIndex = (prefIndex + deterministicIndex plan [venueIndex, staffIndex, groupIndex, 9] 7) `mod` 7
     ]
 
 rosterWeekRows :: ProfileSeedPlan -> [[Maybe Text]]

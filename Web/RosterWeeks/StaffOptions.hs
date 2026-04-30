@@ -72,7 +72,6 @@ buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate roste
         then pure Map.empty
         else do
             let weekEndExclusive = Calendar.addDays 7 weekStartDate
-            let visibleSlotNameIdList = Set.toList (Set.fromList (map (.slotNameId) visibleSlots))
             let visibleWeekdayIndexes =
                     Set.toList $
                         Set.fromList
@@ -80,10 +79,9 @@ buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate roste
                             | rosterDay <- rosterDays
                             ]
             leaveRequests <- fetchApprovedLeaveRequestsForRosterWindow staffIds weekStartDate weekEndExclusive
-            shiftPreferences <- fetchRosterShiftPreferencesForWindow rosterGroupId staffIds visibleSlotNameIdList visibleWeekdayIndexes
+            shiftPreferences <- fetchRosterShiftPreferencesForWindow rosterGroupId staffIds visibleWeekdayIndexes
 
             let dayById = Map.fromList [ (coerce (get #id day), day) | day <- rosterDays ]
-            let visibleSlotNameIds = Set.fromList (map (.slotNameId) visibleSlots)
             let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- visibleSlots, staffId <- maybeToList slot.staffId ]
             let assignedDayCountByStaffId = Map.fromListWith (+) [ ((slot.rosterDayId, staffId), 1 :: Int) | slot <- visibleSlots, staffId <- maybeToList slot.staffId ]
             let approvedLeaveByStaffAndDay =
@@ -100,7 +98,6 @@ buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate roste
                     Set.fromList
                         [ (preference.staffId, preference.weekdayIndex)
                         | preference <- shiftPreferences
-                        , preference.slotNameId `Set.member` visibleSlotNameIds
                         ]
             pure $
                 Map.fromList
