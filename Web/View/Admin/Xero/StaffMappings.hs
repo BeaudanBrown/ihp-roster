@@ -78,13 +78,13 @@ renderXeroStaffPossibleMatchBadge (Just employee) = [hsx|
 
 renderXeroStaffMappingCounts :: XeroStaffMappingCounts -> Html
 renderXeroStaffMappingCounts =
-    renderXeroStaffMappingCountsWith Nothing
+    renderXeroStaffMappingCountsWith noOobSwap
 
 renderXeroStaffMappingCountsOob :: XeroStaffMappingCounts -> Html
 renderXeroStaffMappingCountsOob =
-    renderXeroStaffMappingCountsWith (Just "outerHTML")
+    renderXeroStaffMappingCountsWith outerHtmlOobSwap
 
-renderXeroStaffMappingCountsWith :: Maybe Text -> XeroStaffMappingCounts -> Html
+renderXeroStaffMappingCountsWith :: OobSwapAttr -> XeroStaffMappingCounts -> Html
 renderXeroStaffMappingCountsWith maybeOobSwap mappingCounts = [hsx|
     <div id="xero-staff-mapping-counts" class="d-flex flex-wrap gap-2" hx-swap-oob={maybeOobSwap}>
         <span class="badge text-bg-success">{tshow mappingCounts.xeroStaffVerifiedCount} mapped</span>
@@ -123,7 +123,7 @@ renderXeroStaffMappingControlOob xeroEmployees mappingRows row =
      in [hsx|
         <div id={xeroStaffMappingControlId staff.id}
              class="d-flex align-items-center gap-2"
-             hx-swap-oob="outerHTML">
+             hx-swap-oob={outerHtmlOobSwap}>
             <form class="flex-grow-1"
                   method="POST"
                   action={SaveXeroStaffMappingAction}

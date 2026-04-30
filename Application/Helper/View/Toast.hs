@@ -1,5 +1,6 @@
 module Application.Helper.View.Toast where
 
+import Application.Helper.View.Oob
 import Generated.Types
 import IHP.ViewPrelude
 import Network.Wai.Middleware.FlashMessages (FlashMessage (..))
@@ -23,15 +24,16 @@ data ToastOverlayPosition
     deriving (Eq)
 
 renderToastOverlayHost :: ToastOverlayPosition -> [ToastOverlayConfig] -> Html
-renderToastOverlayHost position toasts = [hsx|
-    <div id={toastOverlayMountId} class={toastOverlayHostClass position}>
-        {forEach toasts renderToastOverlay}
-    </div>
-|]
+renderToastOverlayHost =
+    renderToastOverlayHostWith noOobSwap
 
 renderToastOverlayHostOob :: ToastOverlayPosition -> [ToastOverlayConfig] -> Html
-renderToastOverlayHostOob position toasts = [hsx|
-    <div id={toastOverlayMountId} class={toastOverlayHostClass position} hx-swap-oob="innerHTML">
+renderToastOverlayHostOob =
+    renderToastOverlayHostWith innerHtmlOobSwap
+
+renderToastOverlayHostWith :: OobSwapAttr -> ToastOverlayPosition -> [ToastOverlayConfig] -> Html
+renderToastOverlayHostWith maybeOobSwap position toasts = [hsx|
+    <div id={toastOverlayMountId} class={toastOverlayHostClass position} hx-swap-oob={maybeOobSwap}>
         {forEach toasts renderToastOverlay}
     </div>
 |]

@@ -70,13 +70,13 @@ renderXeroSection XeroAdminSectionData { xeroConnection = maybeConnection, .. } 
 
 renderXeroSectionFragment :: XeroAdminSectionData -> Html
 renderXeroSectionFragment =
-    renderXeroSectionFragmentWithSwap Nothing
+    renderXeroSectionFragmentWithSwap noOobSwap
 
 renderXeroSectionFragmentOob :: XeroAdminSectionData -> Html
 renderXeroSectionFragmentOob =
-    renderXeroSectionFragmentWithSwap (Just "outerHTML")
+    renderXeroSectionFragmentWithSwap outerHtmlOobSwap
 
-renderXeroSectionFragmentWithSwap :: Maybe Text -> XeroAdminSectionData -> Html
+renderXeroSectionFragmentWithSwap :: OobSwapAttr -> XeroAdminSectionData -> Html
 renderXeroSectionFragmentWithSwap maybeSwapOob xeroSectionData = [hsx|
     <div id="admin-xero-fragment"
          hx-swap-oob={maybeSwapOob}

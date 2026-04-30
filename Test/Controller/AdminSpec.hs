@@ -533,6 +533,7 @@ tests = beforeAll testContext do
                 syncedResponse `responseBodyShouldContain` "hx-trigger=\"change\""
                 syncedResponse `responseBodyShouldContain` "hx-swap=\"none\""
                 syncedResponse `responseBodyShouldContain` "id=\"xero-staff-mapping-counts\""
+                syncedResponse `responseBodyShouldNotContain` "id=\"xero-staff-mapping-counts\" class=\"d-flex flex-wrap gap-2\" hx-swap-oob="
                 syncedResponse `responseBodyShouldNotContain` "data-preserve-window-scroll=\"true\""
                 syncedResponse `responseBodyShouldNotContain` "<th>Status</th>"
                 syncedResponse `responseBodyShouldNotContain` "<th class=\"text-end\">Current</th>"
@@ -561,6 +562,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 response `responseBodyShouldContain` "id=\"xero-staff-mapping-counts\""
+                response `responseBodyShouldContain` "id=\"xero-staff-mapping-counts\" class=\"d-flex flex-wrap gap-2\" hx-swap-oob=\"outerHTML\""
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
                 response `responseBodyShouldNotContain` ("id=\"xero-staff-mapping-control-" <> tshow staff.id <> "\"")
                 response `responseBodyShouldContain` ("id=\"xero-staff-mapping-control-" <> tshow trialStaff.id <> "\"")
