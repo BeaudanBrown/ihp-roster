@@ -28,6 +28,7 @@ module Application.Xero.Admin.ReadModel
 import Application.Helper.Controller
 import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
+import Application.Helper.VenueScopedQueries
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import qualified Data.Char as Char
@@ -243,18 +244,8 @@ currentVenueLocalXeroEarningsBuckets = do
 
 fetchCurrentVenueXeroUsedAwardPayScopes :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroUsedAwardPayScope]
 fetchCurrentVenueXeroUsedAwardPayScopes = do
-    staffMembers <-
-        query @Staff
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#isActive, True)
-            |> filterWhere (#archivedAt, Nothing)
-            |> fetch
-    shiftTypes <-
-        query @ShiftType
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#isActive, True)
-            |> filterWhere (#archivedAt, Nothing)
-            |> fetch
+    staffMembers <- fetchActiveVenueStaff currentVenueId
+    shiftTypes <- fetchActiveVenueShiftTypes currentVenueId
     pure (deriveXeroUsedAwardPayScopes staffMembers shiftTypes)
 
 fetchCurrentVenueXeroStaffMappingRows :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroStaffMappingRow]

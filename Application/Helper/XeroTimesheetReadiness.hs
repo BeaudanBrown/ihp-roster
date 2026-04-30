@@ -12,6 +12,7 @@ module Application.Helper.XeroTimesheetReadiness
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
+import Application.Helper.VenueScopedQueries
 import Control.Monad (guard)
 import qualified Data.List as List
 import qualified Data.Text as Text
@@ -175,18 +176,8 @@ fetchVerifiedPayItemAccountCodeSelection connection =
 
 fetchVenueLocalBuckets :: (?modelContext :: ModelContext) => Id Venue -> Day -> IO [XeroLocalEarningsBucket]
 fetchVenueLocalBuckets venueId effectiveDay = do
-    staffMembers <-
-        query @Staff
-            |> filterWhere (#venueId, unpackId venueId)
-            |> filterWhere (#isActive, True)
-            |> filterWhere (#archivedAt, Nothing)
-            |> fetch
-    shiftTypes <-
-        query @ShiftType
-            |> filterWhere (#venueId, unpackId venueId)
-            |> filterWhere (#isActive, True)
-            |> filterWhere (#archivedAt, Nothing)
-            |> fetch
+    staffMembers <- fetchActiveVenueStaff venueId
+    shiftTypes <- fetchActiveVenueShiftTypes venueId
     awardLevels <-
         query @AwardLevel
             |> filterWhere (#isActive, True)
