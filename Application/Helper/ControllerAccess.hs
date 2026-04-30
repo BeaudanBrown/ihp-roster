@@ -31,7 +31,7 @@ passkeyStepUpRedirectSessionKey :: ByteString
 passkeyStepUpRedirectSessionKey = "passkeyStepUpRedirect"
 
 passkeyVerificationWindowSeconds :: NominalDiffTime
-passkeyVerificationWindowSeconds = 15 * 60
+passkeyVerificationWindowSeconds = 30 * 60
 
 fetchVenueConfig :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO VenueConfig
 fetchVenueConfig =

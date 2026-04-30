@@ -12,7 +12,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as ByteString
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Serialize as Serialize
-import Data.Time.Clock (getCurrentTime)
+import Data.Time.Clock (addUTCTime, getCurrentTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -216,6 +216,26 @@ tests = beforeAll testContext do
                     , (currentVenueSessionKey, Serialize.encode venue.id)
                     , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
                     , (passkeyVerifiedAtSessionKey, Serialize.encode (formatPasskeyVerifiedAt now))
+                    ]
+                    do
+                        callAction AdminAction
+
+                response `responseStatusShouldBe` status200
+
+        it "keeps passkey verification fresh for privileged access within 30 minutes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Twenty Minute Admin Passkey Venue"
+                user <- createUserRecord "twenty-minute-admin@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createTestPasskeyRecord user "Admin passkey"
+                now <- getCurrentTime
+                let verifiedAt = addUTCTime (negate (20 * 60)) now
+
+                response <- withSessionValues
+                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
+                    , (currentVenueSessionKey, Serialize.encode venue.id)
+                    , (passkeyVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
+                    , (passkeyVerifiedAtSessionKey, Serialize.encode (formatPasskeyVerifiedAt verifiedAt))
                     ]
                     do
                         callAction AdminAction
