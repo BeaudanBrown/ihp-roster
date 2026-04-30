@@ -42,6 +42,7 @@ import qualified Test.XeroContractSpec
 import qualified Test.XeroKeepaliveSpec
 import qualified Test.XeroTimesheetPreviewSpec
 import qualified Test.XeroTimesheetReadinessSpec
+import qualified Test.XeroTimesheetSubmissionSpec
 
 data TestSuite = TestSuite
     { suiteLabel :: String
@@ -150,4 +151,5 @@ allSuites =
     , TestSuite "XeroKeepalive" Test.XeroKeepaliveSpec.tests
     , TestSuite "XeroTimesheetPreview" Test.XeroTimesheetPreviewSpec.tests
     , TestSuite "XeroTimesheetReadiness" Test.XeroTimesheetReadinessSpec.tests
+    , TestSuite "XeroTimesheetSubmission" Test.XeroTimesheetSubmissionSpec.tests
     ]

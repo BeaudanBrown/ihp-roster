@@ -5,6 +5,7 @@ module Application.Xero.Timesheets.Preview
     , XeroTimesheetPreviewRun (..)
     , buildXeroTimesheetPreviewRun
     , createPersistedXeroTimesheetPreview
+    , fetchPreviewInput
     , periodDays
     , xeroReadinessSnapshotJson
     , xeroTimesheetPreviewRunJson
