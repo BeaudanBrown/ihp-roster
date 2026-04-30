@@ -1030,7 +1030,7 @@ tests = beforeAll testContext do
                 submission <- query @XeroTimesheetSubmission |> fetchOne
                 submission.status `shouldBe` "submitted"
 
-        it "renders readiness blockers before Xero draft-timesheet submission" $ withContext do
+        it "renders readiness issues before Xero draft-timesheet submission" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 let entry = case fixture.entries of
@@ -1049,7 +1049,8 @@ tests = beforeAll testContext do
                     callAction XeroAction
 
                 blockedPage `responseStatusShouldBe` status200
-                blockedPage `responseBodyShouldContain` "Every included timesheet entry must be approved."
+                blockedPage `responseBodyShouldContain` "Unapproved entries remain in the pay period."
+                blockedPage `responseBodyShouldContain` "There are no approved timesheet entries in the selected period."
 
         it "renders per-employee Xero submission errors with a retry affordance" $ withContext do
             withCleanDb do

@@ -506,10 +506,13 @@ xeroTimesheetReadinessView readiness =
         , timesheetReadinessStaffCount = readiness.xeroReadinessStaffCount
         , timesheetReadinessEntryCount = readiness.xeroReadinessEntryCount
         , timesheetReadinessBucketCount = readiness.xeroReadinessPayBucketCount
-        , timesheetReadinessBlockers = map issueView readiness.xeroReadinessBlockers
-        , timesheetReadinessWarnings = map issueView readiness.xeroReadinessWarnings
+        , timesheetReadinessBlockers = map issueView (deduplicateReadinessIssues readiness.xeroReadinessBlockers)
+        , timesheetReadinessWarnings = map issueView (deduplicateReadinessIssues readiness.xeroReadinessWarnings)
         }
     where
+        deduplicateReadinessIssues =
+            List.nubBy \left right ->
+                left.xeroBlockerCode == right.xeroBlockerCode
         issueView issue =
             XeroTimesheetIssueView
                 { timesheetIssueSeverity = xeroReadinessSeverityText issue.xeroBlockerSeverity

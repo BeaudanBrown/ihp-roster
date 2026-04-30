@@ -102,19 +102,17 @@ renderIssues title emptyText tone issues = [hsx|
 
 renderIssueList :: Text -> Text -> [XeroTimesheetIssueView] -> Html
 renderIssueList emptyText _ [] = [hsx|<div class="app-muted">{emptyText}</div>|]
-renderIssueList _ tone issues = [hsx|<div class="d-flex flex-column gap-2">{forEach issues (renderIssue tone)}</div>|]
+renderIssueList _ tone issues = [hsx|<div class="d-flex flex-wrap gap-2">{forEach issues (renderIssue tone)}</div>|]
 
 renderIssue :: Text -> XeroTimesheetIssueView -> Html
 renderIssue tone issue = [hsx|
-    <div class={"alert alert-" <> tone <> " py-2 px-3 mb-0"}>
-        <div>{issue.timesheetIssueMessage}</div>
-        {renderIssueHint issue.timesheetIssueHint}
-    </div>
+    <span class={"badge text-bg-" <> tone <> " text-wrap text-start lh-base"}>{issue.timesheetIssueMessage}</span>
+    {renderIssueHint issue.timesheetIssueHint}
 |]
 
 renderIssueHint :: Maybe Text -> Html
 renderIssueHint Nothing     = mempty
-renderIssueHint (Just hint) = [hsx|<div class="small mt-1">{hint}</div>|]
+renderIssueHint (Just hint) = [hsx|<span class="app-muted">{hint}</span>|]
 
 renderEmptyLatestRun :: Html
 renderEmptyLatestRun = [hsx|

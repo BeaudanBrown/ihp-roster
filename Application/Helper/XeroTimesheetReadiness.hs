@@ -69,7 +69,8 @@ validateXeroTimesheetReadiness request = do
     maybeConnection <- fetchActiveXeroConnection request.readinessVenueId
     latestSync <- fetchLatestXeroSyncRun request.readinessVenueId
     entries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
-    let includedStaffIds = List.nub (map (.staffId) entries)
+    let approvedEntries = approvedSubmittableEntries entries
+    let includedStaffIds = List.nub (map (.staffId) approvedEntries)
     staffMappings <- maybe (pure []) (fetchVerifiedStaffMappings includedStaffIds) maybeConnection
     buckets <- fetchVenueLocalBuckets request.readinessVenueId request.readinessPeriodStart
     earningsMappings <- maybe (pure []) (fetchVerifiedEarningsMappings buckets) maybeConnection
@@ -84,12 +85,16 @@ validateXeroTimesheetReadiness request = do
                 , referenceSyncBlockers latestSync
                 , calendarBlockers request maybeCalendarSelection maybeCalendar
                 , entryBlockers entries
-                , staffMappingBlockers entries staffMappings
-                , earningsMappingBlockers buckets earningsMappings
+                , earningsMappingBlockers buckets earningsMappings payItemRequirements
                 , payItemRequirementBlockers payItemRequirements maybeAccountCodeSelection
                 , duplicateBlockers request entries staffMappings request.readinessRemoteTimesheets
                 ]
-    let warnings = duplicateWarnings request entries staffMappings request.readinessRemoteTimesheets
+    let warnings =
+            concat
+                [ entryWarnings entries
+                , staffMappingWarnings entries staffMappings
+                , duplicateWarnings request entries staffMappings request.readinessRemoteTimesheets
+                ]
     pure XeroTimesheetReadiness
         { xeroTimesheetReady = null blockers
         , xeroReadinessPeriodStart = request.readinessPeriodStart
@@ -97,7 +102,7 @@ validateXeroTimesheetReadiness request = do
         , xeroReadinessBlockers = blockers
         , xeroReadinessWarnings = warnings
         , xeroReadinessStaffCount = length includedStaffIds
-        , xeroReadinessEntryCount = length entries
+        , xeroReadinessEntryCount = length approvedEntries
         , xeroReadinessPayBucketCount = length buckets
         }
 
@@ -245,35 +250,46 @@ floorDiv numerator denominator =
 entryBlockers :: [TimesheetEntry] -> [XeroReadinessBlocker]
 entryBlockers [] = [blocker "missing_approved_entries" "There are no timesheet entries in the selected period."]
 entryBlockers entries =
-    concatMap entryStateBlockers entries
+    missingApprovedEntryBlocker <> deletedEntryBlockers
     where
-        entryStateBlockers entry =
-            catMaybes
-                [ if entry.isApproved then Nothing else Just (entryBlocker "entry_not_approved" "Every included timesheet entry must be approved." entry)
-                , if isNothing entry.deletedAt then Nothing else Just (entryBlocker "entry_deleted" "Deleted timesheet entries cannot be submitted to Xero." entry)
-                , if isJust entry.staffPayVersionId && isJust entry.shiftTypePayVersionId then Nothing else Just (entryBlocker "entry_missing_pay_versions" "Approved entries must be pinned to relational pay config versions." entry)
-                ]
+        approvedEntries = filter (.isApproved) entries
+        missingApprovedEntryBlocker =
+            [ blocker "missing_approved_entries" "There are no approved timesheet entries in the selected period."
+            | null approvedEntries
+            ]
+        deletedEntryBlockers =
+            approvedEntries
+                |> mapMaybe \entry ->
+                    if isNothing entry.deletedAt
+                        then Nothing
+                        else Just (entryBlocker "entry_deleted" "Deleted timesheet entries cannot be submitted to Xero." entry)
 
-staffMappingBlockers :: [TimesheetEntry] -> [XeroStaffMapping] -> [XeroReadinessBlocker]
-staffMappingBlockers entries mappings =
-    List.nub (map (.staffId) entries)
-        |> mapMaybe \staffId ->
-            if any (\mapping -> mapping.staffId == staffId && isJust mapping.xeroEmployeeId) mappings
-                then Nothing
-                else
-                    Just
-                        ( blockerWith
-                            "staff_mapping_not_verified"
-                            "Every included staff member must be mapped to a verified Xero employee."
-                        )
-                            { xeroBlockerAffectedStaffId = Just staffId
-                            }
+entryWarnings :: [TimesheetEntry] -> [XeroReadinessBlocker]
+entryWarnings entries =
+    [ (blockerWith "entry_not_approved" "Unapproved entries remain in the pay period.")
+        { xeroBlockerSeverity = XeroReadinessWarning
+        }
+    | any (not . (.isApproved)) entries
+    ]
 
-earningsMappingBlockers :: [XeroLocalEarningsBucket] -> [XeroEarningsRateMapping] -> [XeroReadinessBlocker]
-earningsMappingBlockers buckets mappings =
+staffMappingWarnings :: [TimesheetEntry] -> [XeroStaffMapping] -> [XeroReadinessBlocker]
+staffMappingWarnings entries mappings =
+    [ (blockerWith "staff_mapping_not_verified" "Every approved staff member must be matched.")
+        { xeroBlockerSeverity = XeroReadinessWarning
+        }
+    | any missingVerifiedMapping approvedStaffIds
+    ]
+    where
+        approvedEntries = approvedSubmittableEntries entries
+        approvedStaffIds = List.nub (map (.staffId) approvedEntries)
+        missingVerifiedMapping staffId =
+            not (any (\mapping -> mapping.staffId == staffId && isJust mapping.xeroEmployeeId) mappings)
+
+earningsMappingBlockers :: [XeroLocalEarningsBucket] -> [XeroEarningsRateMapping] -> [XeroPayItemRequirementRecord] -> [XeroReadinessBlocker]
+earningsMappingBlockers buckets mappings requirements =
     buckets
         |> mapMaybe \bucket ->
-            if any (\mapping -> mapping.localBucketKey == bucket.localBucketKey && isJust mapping.xeroEarningsRateId) mappings
+            if bucketHasMapping bucket || bucketHasReadyRequirement bucket
                 then Nothing
                 else
                     Just
@@ -283,6 +299,17 @@ earningsMappingBlockers buckets mappings =
                         )
                             { xeroBlockerLocalBucketKey = Just bucket.localBucketKey
                             }
+    where
+        bucketHasMapping bucket =
+            any (\mapping -> mapping.localBucketKey == bucket.localBucketKey && isJust mapping.xeroEarningsRateId) mappings
+        bucketHasReadyRequirement bucket =
+            any
+                (\record ->
+                    record.requirementKey == bucket.localBucketKey
+                        && record.requirementStatus `elem` ["matched", "created"]
+                        && isJust record.xeroEarningsRateId
+                )
+                requirements
 
 payItemRequirementBlockers :: [XeroPayItemRequirementRecord] -> Maybe XeroPayItemAccountCodeSelection -> [XeroReadinessBlocker]
 payItemRequirementBlockers requirements maybeAccountCodeSelection =
@@ -336,7 +363,7 @@ duplicateWarnings request entries mappings remoteTimesheets =
 
 matchingRemoteTimesheets :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroTimesheetRef] -> [XeroTimesheetRef]
 matchingRemoteTimesheets request entries mappings remoteTimesheets =
-    let includedStaffIds = List.nub (map (.staffId) entries)
+    let includedStaffIds = List.nub (map (.staffId) (approvedSubmittableEntries entries))
         mappedEmployeeIds =
             mappings
                 |> filter (\mapping -> mapping.staffId `elem` includedStaffIds)
@@ -346,6 +373,10 @@ matchingRemoteTimesheets request entries mappings remoteTimesheets =
                 remote.xeroTimesheetStartDate == request.readinessPeriodStart
                     && remote.xeroTimesheetEndDate == request.readinessPeriodEnd
                     && remote.xeroTimesheetEmployeeId `elem` mappedEmployeeIds
+
+approvedSubmittableEntries :: [TimesheetEntry] -> [TimesheetEntry]
+approvedSubmittableEntries =
+    filter \entry -> entry.isApproved && isNothing entry.deletedAt
 
 blocker :: Text -> Text -> XeroReadinessBlocker
 blocker = blockerWith
