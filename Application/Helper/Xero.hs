@@ -244,9 +244,9 @@ data XeroHttpRequest = XeroHttpRequest
     deriving (Eq, Show)
 
 data XeroRequestBaseUrls = XeroRequestBaseUrls
-    { xeroIdentityTokenUrl  :: !Text
-    , xeroConnectionsUrl    :: !Text
-    , xeroPayrollBaseUrl    :: !Text
+    { xeroIdentityTokenUrl :: !Text
+    , xeroConnectionsUrl   :: !Text
+    , xeroPayrollBaseUrl   :: !Text
     }
     deriving (Eq, Show)
 
@@ -741,7 +741,7 @@ decodeXeroResponse label response = do
             pure (Left (XeroHttpError (label <> " failed with status " <> tshow statusCode <> responseBodySuffix bodyExcerpt)))
         else case xeroSemanticErrorFromBody label responseBody bodyExcerpt of
             Just err -> pure (Left err)
-            Nothing -> decodeBody responseBody
+            Nothing  -> decodeBody responseBody
     where
         decodeBody responseBody =
             case Aeson.eitherDecode responseBody of
@@ -761,7 +761,7 @@ xeroSemanticErrorFromBody label responseBody bodyExcerpt = do
     let maybeMessage =
             case firstPresent object ["Message", "message", "Detail", "detail", "Title", "title"] of
                 Just (Aeson.String message) -> Just message
-                _ -> Nothing
+                _                           -> Nothing
     pure $
         XeroHttpError $
             label

@@ -22,11 +22,11 @@ module Application.Helper.LiveSurface
     , warmLiveSurfaceProjectionFromStore
     ) where
 
-import Application.Helper.SurfaceProjection
 import Application.Helper.LiveUpdate
-import qualified Data.Dynamic as Dynamic
+import Application.Helper.SurfaceProjection
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Dynamic as Dynamic
 import qualified Data.Text.Encoding as Text
 import IHP.Controller.Context (ControllerContext)
 import IHP.ControllerSupport (Request)

@@ -13,8 +13,8 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
-import Application.Xero.Connection
 import Application.Xero.Admin.Responses
+import Application.Xero.Connection
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List

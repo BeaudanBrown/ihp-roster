@@ -1,5 +1,6 @@
 module Web.Controller.LeaveRequests where
 
+import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
@@ -12,7 +13,6 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.Profiling
-import Application.Helper.LiveSurface
 import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)

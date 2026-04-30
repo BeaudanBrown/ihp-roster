@@ -18,11 +18,11 @@ import Application.Helper.View.Audience
 import Application.Helper.View.Format
 import Application.Helper.View.Overlay
 import Application.Helper.View.TimePicker
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
 import IHP.ViewPrelude
-import qualified Data.Text as Text
 import Web.Types
 
 timesheetModalTitle :: Day -> Text

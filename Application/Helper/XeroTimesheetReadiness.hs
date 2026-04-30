@@ -9,10 +9,10 @@ module Application.Helper.XeroTimesheetReadiness
     , xeroReadinessSeverityText
     ) where
 
+import Application.Helper.VenueScopedQueries
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
-import Application.Helper.VenueScopedQueries
 import Control.Monad (guard)
 import qualified Data.List as List
 import qualified Data.Text as Text

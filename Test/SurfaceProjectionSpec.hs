@@ -1,11 +1,11 @@
 module Test.SurfaceProjectionSpec where
 
+import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (RosterContentFragment),
                                       LiveFragmentProtection (NoProtection),
                                       LiveFragmentRef (..),
                                       LiveUpdateScope (SupportPlatformScope),
                                       mkLiveFragmentRef)
-import Application.Helper.LiveSurface
 import Application.Helper.SurfaceProjection
 import Data.IORef
 import Data.Time.Calendar (fromGregorian)

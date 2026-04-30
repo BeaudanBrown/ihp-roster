@@ -6,10 +6,10 @@ module Application.Helper.View.Format
     , formatUtcTimestamp
     ) where
 
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import IHP.ViewPrelude
-import qualified Data.Text as Text
 
 formatDateDisplay :: Day -> Text
 formatDateDisplay day = Text.pack (formatTime defaultTimeLocale "%d/%m/%Y" day)

@@ -10,8 +10,7 @@ module Application.Helper.View.Audience
     ) where
 
 import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
-                                      currentVenueRoleOrNothing,
-                                      hasRole)
+                                      currentVenueRoleOrNothing, hasRole)
 import IHP.ViewPrelude
 
 -- | True when the current user has at least manager privileges.

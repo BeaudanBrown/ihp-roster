@@ -369,7 +369,7 @@ localPayItemLabel row =
         <> conditionLabel row.condition
 
 awardLabel :: Int -> Text
-awardLabel 9 = "HIGA"
+awardLabel 9            = "HIGA"
 awardLabel awardFixedId = "Award " <> tshow awardFixedId
 
 employmentBasisLabel :: StaffEmploymentBasisEnum -> Text

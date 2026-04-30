@@ -10,8 +10,8 @@ import qualified Data.Char as Char
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as TextIO
-import qualified Data.UUID as UUID
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import qualified Data.UUID as UUID
 import Network.HTTP.Simple
 import System.Exit (exitFailure, exitSuccess)
 

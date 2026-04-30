@@ -20,7 +20,8 @@ import Application.Helper.View (ToastOverlayConfig (..),
                                 errorToast, renderToastOverlayHostOob,
                                 successToast)
 import Application.Helper.XeroAdminTypes
-import Application.Xero.Admin.ReadModel hiding (fetchCurrentVenueXeroAdminSectionData)
+import Application.Xero.Admin.ReadModel hiding
+                                        (fetchCurrentVenueXeroAdminSectionData)
 import qualified Application.Xero.Admin.ReadModel as XeroReadModel
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude

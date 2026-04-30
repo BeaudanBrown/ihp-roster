@@ -10,9 +10,9 @@ module Application.Helper.View.Staff
 
 import qualified Data.Char as Char
 import Data.List (sortBy)
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
-import qualified Data.Text as Text
 
 -- | True when a staff record is a trial placeholder (no linked user account).
 isTrialStaff :: Staff -> Bool

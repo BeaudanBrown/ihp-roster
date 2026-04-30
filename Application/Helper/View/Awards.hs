@@ -7,9 +7,9 @@ module Application.Helper.View.Awards
     ) where
 
 import qualified Data.Scientific as Scientific
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
-import qualified Data.Text as Text
 
 awardLevelDisplayLabel :: AwardLevel -> Text
 awardLevelDisplayLabel awardLevel =

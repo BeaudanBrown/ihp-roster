@@ -21,10 +21,10 @@ module Application.Helper.View.TimePicker
     ) where
 
 import Data.List (elemIndex)
+import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
 import Data.Time.LocalTime (TimeOfDay (..))
 import IHP.ViewPrelude
-import qualified Data.Text as Text
 
 data TimePickerConfig = TimePickerConfig
     { timePickerFieldName       :: !Text

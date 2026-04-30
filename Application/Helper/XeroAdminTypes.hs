@@ -42,35 +42,35 @@ data XeroUsedAwardPayScope = XeroUsedAwardPayScope
     deriving (Eq)
 
 data XeroPayItemRequirement = XeroPayItemRequirement
-    { payItemRequirementKey          :: Text
-    , payItemRequirementName         :: Text
-    , payItemRequirementPenaltyKind  :: Maybe Text
-    , payItemRequirementEarningsType :: Text
-    , payItemRequirementRateType     :: Text
-    , payItemRequirementMultiplier   :: Maybe Scientific
-    , payItemRequirementRatePerUnit  :: Maybe Scientific
-    , payItemRequirementValue        :: Maybe Text
-    , payItemRequirementSource       :: Text
+    { payItemRequirementKey           :: Text
+    , payItemRequirementName          :: Text
+    , payItemRequirementPenaltyKind   :: Maybe Text
+    , payItemRequirementEarningsType  :: Text
+    , payItemRequirementRateType      :: Text
+    , payItemRequirementMultiplier    :: Maybe Scientific
+    , payItemRequirementRatePerUnit   :: Maybe Scientific
+    , payItemRequirementValue         :: Maybe Text
+    , payItemRequirementSource        :: Text
     , payItemRequirementEffectiveFrom :: Maybe Day
     , payItemRequirementEffectiveTo   :: Maybe Day
     , payItemRequirementIsActive      :: Bool
-    , payItemRequirementMatch        :: Maybe XeroEarningsRate
-    , payItemRequirementRecord       :: Maybe XeroPayItemRequirementRecord
-    , payItemRequirementStatus       :: Text
+    , payItemRequirementMatch         :: Maybe XeroEarningsRate
+    , payItemRequirementRecord        :: Maybe XeroPayItemRequirementRecord
+    , payItemRequirementStatus        :: Text
     }
 
 data XeroReadyChecklist = XeroReadyChecklist
-    { xeroReadyConnection         :: Bool
-    , xeroReadyReferenceSync      :: Bool
-    , xeroReadyStaffMappings      :: Bool
-    , xeroReadyEarningsMappings   :: Bool
-    , xeroReadyManagedPayItems    :: Bool
-    , xeroReadyPayItemAccountCode :: Bool
-    , xeroReadyPayrollCalendar    :: Bool
-    , xeroReadyStaffVerifiedCount :: Int
-    , xeroReadyStaffTotalCount    :: Int
-    , xeroReadyEarningsVerifiedCount :: Int
-    , xeroReadyEarningsTotalCount :: Int
+    { xeroReadyConnection               :: Bool
+    , xeroReadyReferenceSync            :: Bool
+    , xeroReadyStaffMappings            :: Bool
+    , xeroReadyEarningsMappings         :: Bool
+    , xeroReadyManagedPayItems          :: Bool
+    , xeroReadyPayItemAccountCode       :: Bool
+    , xeroReadyPayrollCalendar          :: Bool
+    , xeroReadyStaffVerifiedCount       :: Int
+    , xeroReadyStaffTotalCount          :: Int
+    , xeroReadyEarningsVerifiedCount    :: Int
+    , xeroReadyEarningsTotalCount       :: Int
     , xeroReadyManagedPayItemReadyCount :: Int
     , xeroReadyManagedPayItemTotalCount :: Int
     }

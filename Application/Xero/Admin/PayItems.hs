@@ -31,22 +31,22 @@ selectedXeroPayItemAccountCode accountCodeOptions maybeSelection =
         _ -> Nothing
 
 data CreatePayItemsVerificationResult = CreatePayItemsVerificationResult
-    { submittedCount :: !Int
-    , failedCount    :: !Int
-    , verifiedCount  :: !Int
-    , missingCount   :: !Int
-    , missingNames   :: ![Text]
+    { submittedCount     :: !Int
+    , failedCount        :: !Int
+    , verifiedCount      :: !Int
+    , missingCount       :: !Int
+    , missingNames       :: ![Text]
     , submissionFailures :: ![XeroPayItemSubmissionFailure]
     }
     deriving (Eq, Show)
 
 data XeroPayItemSubmissionFailure = XeroPayItemSubmissionFailure
-    { failureRequirementKey  :: !Text
-    , failurePayItemName     :: !Text
-    , failureIdempotencyKey  :: !Text
-    , failureRateType        :: !Text
-    , failureRatePerUnit     :: !(Maybe Scientific)
-    , failureError           :: !Text
+    { failureRequirementKey :: !Text
+    , failurePayItemName    :: !Text
+    , failureIdempotencyKey :: !Text
+    , failureRateType       :: !Text
+    , failureRatePerUnit    :: !(Maybe Scientific)
+    , failureError          :: !Text
     }
     deriving (Eq, Show)
 
