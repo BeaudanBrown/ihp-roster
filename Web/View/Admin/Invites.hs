@@ -45,7 +45,7 @@ renderInviteCreateForm rosterGroupId = [hsx|
     <form
         method="POST"
         action={appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]}
-        class="border rounded p-3"
+        class={appSurfaceClasses "p-3"}
         data-disable-javascript-submission="true"
         hx-post={appendQueryParams (pathTo CreateVenueInvitationAction) [("rosterGroupId", tshow rosterGroupId)]}
         hx-target="#admin-invites-fragment"
@@ -127,19 +127,8 @@ invitationWasSent :: VenueInvitation -> Bool
 invitationWasSent invitation = inputValue invitation.deliveryStatus == "sent"
 
 renderInvitationStatusBadge :: VenueInvitation -> Html
-renderInvitationStatusBadge invitation = [hsx|
-    <span class={badgeClass}>{label}</span>
-|]
-    where
-        (label, badgeClass) =
-            case inputValue invitation.status of
-                "accepted" -> ("Accepted" :: Text, "badge text-bg-success" :: Text)
-                "revoked" -> ("Revoked", "badge text-bg-secondary" :: Text)
-                _ ->
-                    case inputValue invitation.deliveryStatus of
-                        "sent" -> ("Sent", "badge text-bg-success" :: Text)
-                        "failed" -> ("Send Failed", "badge text-bg-danger" :: Text)
-                        _ -> ("Queued", "badge text-bg-warning text-dark" :: Text)
+renderInvitationStatusBadge invitation =
+    renderInvitationStatusOrDeliveryBadge (inputValue invitation.status) (inputValue invitation.deliveryStatus)
 
 renderInviteRowActions :: Id RosterGroup -> VenueInvitation -> Html
 renderInviteRowActions rosterGroupId invitation

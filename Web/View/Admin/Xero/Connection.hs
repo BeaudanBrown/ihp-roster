@@ -12,7 +12,7 @@ renderXeroDisconnectedConnectionDetails connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <dl class="row mb-0">
             <dt class="col-sm-3">Connection status</dt>
-            <dd class="col-sm-9"><span class="badge text-bg-secondary">not connected</span></dd>
+            <dd class="col-sm-9">{renderAppStatusBadge AppStatusNeutral "not connected"}</dd>
         </dl>
         <p class="mb-0 app-muted">
             Connecting grants ihp-roster access to the selected Xero organisation for payroll integration setup.
@@ -77,11 +77,11 @@ renderXeroReconnectControls False = [hsx|
 renderXeroConnectionStatus :: XeroConnection -> Html
 renderXeroConnectionStatus connection =
     case connection.connectionStatus of
-        "active" -> [hsx|<span class="badge text-bg-success">connected</span>|]
-        "reauthorization_required" -> [hsx|<span class="badge text-bg-warning">reconnect required</span>|]
-        "error" -> [hsx|<span class="badge text-bg-danger">attention needed</span>|]
-        "disconnected" -> [hsx|<span class="badge text-bg-secondary">disconnected</span>|]
-        status -> [hsx|<span class="badge text-bg-secondary">{status}</span>|]
+        "active" -> renderAppStatusBadge AppStatusSuccess "connected"
+        "reauthorization_required" -> renderAppStatusBadge AppStatusWarning "reconnect required"
+        "error" -> renderAppStatusBadge AppStatusDanger "attention needed"
+        "disconnected" -> renderAppStatusBadge AppStatusNeutral "disconnected"
+        status -> renderAppStatusBadge AppStatusNeutral status
 
 renderXeroConnectionError :: XeroConnection -> Html
 renderXeroConnectionError connection =
@@ -108,9 +108,9 @@ renderXeroReferenceSummary :: Maybe XeroSyncRun -> Int -> Int -> Int -> Html
 renderXeroReferenceSummary maybeSyncRun employeeCount earningsRateCount payrollCalendarCount = [hsx|
     <div class="d-flex flex-column gap-2">
         <div class="d-flex flex-wrap gap-2">
-            <span class="badge text-bg-secondary">{tshow employeeCount} employees</span>
-            <span class="badge text-bg-secondary">{tshow earningsRateCount} earnings rates</span>
-            <span class="badge text-bg-secondary">{tshow payrollCalendarCount} payroll calendars</span>
+            {renderAppStatusBadge AppStatusNeutral (tshow employeeCount <> " employees")}
+            {renderAppStatusBadge AppStatusNeutral (tshow earningsRateCount <> " earnings rates")}
+            {renderAppStatusBadge AppStatusNeutral (tshow payrollCalendarCount <> " payroll calendars")}
         </div>
         {renderXeroLatestSync maybeSyncRun}
     </div>
@@ -127,10 +127,10 @@ renderXeroLatestSync (Just syncRun) = [hsx|
 |]
 
 renderXeroSyncStatus :: Text -> Html
-renderXeroSyncStatus "succeeded" = [hsx|<span class="badge text-bg-success">succeeded</span>|]
-renderXeroSyncStatus "failed" = [hsx|<span class="badge text-bg-danger">failed</span>|]
-renderXeroSyncStatus "running" = [hsx|<span class="badge text-bg-warning">running</span>|]
-renderXeroSyncStatus status = [hsx|<span class="badge text-bg-secondary">{status}</span>|]
+renderXeroSyncStatus "succeeded" = renderAppStatusBadge AppStatusSuccess "succeeded"
+renderXeroSyncStatus "failed" = renderAppStatusBadge AppStatusDanger "failed"
+renderXeroSyncStatus "running" = renderAppStatusBadge AppStatusWarning "running"
+renderXeroSyncStatus status = renderAppStatusBadge AppStatusNeutral status
 
 renderXeroSyncError :: Maybe Text -> Html
 renderXeroSyncError Nothing             = mempty

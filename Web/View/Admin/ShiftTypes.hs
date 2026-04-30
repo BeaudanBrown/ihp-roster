@@ -50,7 +50,7 @@ renderShiftTypeCreateForm :: Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Htm
 renderShiftTypeCreateForm showInactive awardLevels awardLevelBaseRates = [hsx|
     <form method="POST"
           action={CreateShiftTypeAction}
-          class="border rounded p-3"
+          class={appSurfaceClasses "p-3"}
           data-disable-javascript-submission="true"
           hx-post={CreateShiftTypeAction}
           hx-target="#admin-shift-types-fragment"
@@ -100,7 +100,7 @@ renderShiftTypeRow :: Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Int -> (In
 renderShiftTypeRow showInactive awardLevels awardLevelBaseRates activeCount (shiftTypeIndex, shiftType) = [hsx|
     <form method="POST"
           action={UpdateShiftTypeAction (get #id shiftType)}
-          class="border rounded p-3 mb-2"
+          class={appSurfaceClasses "p-3 mb-2"}
           data-disable-javascript-submission="true"
           hx-post={UpdateShiftTypeAction (get #id shiftType)}
           hx-target="#admin-shift-types-fragment"

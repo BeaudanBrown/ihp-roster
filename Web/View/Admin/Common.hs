@@ -70,7 +70,7 @@ renderInactiveToggleSummary paramName fragmentPath targetId rows showInactive = 
 
 renderRosterGroupDefaultBadge :: RosterGroup -> Html
 renderRosterGroupDefaultBadge rosterGroup
-    | rosterGroup.isDefault = [hsx|<span class="badge text-bg-primary">Default</span>|]
+    | rosterGroup.isDefault = renderAppStatusBadge AppStatusInfo "Default"
     | otherwise = mempty
 
 renderMoveButton :: Bool -> AdminController -> Text -> Html
@@ -121,8 +121,8 @@ renderShiftTypeLabel shiftType =
 renderActiveBadge :: Bool -> Html
 renderActiveBadge isActive =
     if isActive
-        then [hsx|<span class="badge text-bg-success">active</span>|]
-        else [hsx|<span class="badge text-bg-secondary">inactive</span>|]
+        then renderAppStatusBadge AppStatusSuccess "active"
+        else renderAppStatusBadge AppStatusNeutral "inactive"
 
 renderEmptyState :: Text -> Html
 renderEmptyState message = [hsx|<p class="app-muted mb-0">{message}</p>|]

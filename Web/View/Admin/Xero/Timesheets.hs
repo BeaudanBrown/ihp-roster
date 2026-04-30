@@ -69,7 +69,7 @@ renderPeriodNotice panel =
             case panel.xeroTimesheetReadiness of
                 Nothing -> mempty
                 Just readiness -> [hsx|
-                    <div class="border rounded p-3 small">
+                    <div class={appSurfaceClasses "p-3 small"}>
                         <span class="fw-semibold">Selected Xero payroll period:</span>
                         {formatDateDisplay readiness.timesheetReadinessPeriodStart} to {formatDateDisplay readiness.timesheetReadinessPeriodEnd}
                         <span class="app-muted ms-2">{tshow readiness.timesheetReadinessEntryCount} approved entries, {tshow readiness.timesheetReadinessStaffCount} staff, {tshow readiness.timesheetReadinessBucketCount} earnings buckets</span>
@@ -78,7 +78,7 @@ renderPeriodNotice panel =
 
 renderReadiness :: XeroTimesheetReadinessView -> Html
 renderReadiness readiness = [hsx|
-    <div class="border rounded p-3">
+    <div class={appSurfaceClasses "p-3"}>
         <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
             <h4 class="h6 mb-0">Readiness</h4>
             {renderReadinessBadge readiness.timesheetReadinessReady}
@@ -89,8 +89,8 @@ renderReadiness readiness = [hsx|
 |]
 
 renderReadinessBadge :: Bool -> Html
-renderReadinessBadge True = [hsx|<span class="badge text-bg-success">ready</span>|]
-renderReadinessBadge False = [hsx|<span class="badge text-bg-danger">blocked</span>|]
+renderReadinessBadge True = renderAppStatusBadge AppStatusSuccess "ready"
+renderReadinessBadge False = renderAppStatusBadge AppStatusDanger "blocked"
 
 renderIssues :: Text -> Text -> Text -> [XeroTimesheetIssueView] -> Html
 renderIssues title emptyText tone issues = [hsx|
@@ -118,14 +118,14 @@ renderIssueHint (Just hint) = [hsx|<div class="small mt-1">{hint}</div>|]
 
 renderEmptyLatestRun :: Html
 renderEmptyLatestRun = [hsx|
-    <div class="border rounded p-3 small app-muted">
+    <div class={appSurfaceClasses "p-3 small app-muted"}>
         No Xero draft-timesheet preview has been prepared yet.
     </div>
 |]
 
 renderLatestRun :: XeroTimesheetRunView -> Html
 renderLatestRun runView = [hsx|
-    <div class="border rounded p-3">
+    <div class={appSurfaceClasses "p-3"}>
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-2 mb-3">
             <div>
                 <h4 class="h6 mb-1">Latest run</h4>
@@ -157,7 +157,7 @@ renderSubmittedBy Nothing     = mempty
 renderSubmittedBy (Just user) = [hsx|<span> by {user.email}</span>|]
 
 renderRunStatus :: Text -> Html
-renderRunStatus status = [hsx|<span class={"badge " <> statusBadgeClass status}>{statusLabel status}</span>|]
+renderRunStatus status = renderAppStatusBadge (statusTone status) (statusLabel status)
 
 renderRunError :: Maybe Text -> Html
 renderRunError Nothing = mempty
@@ -274,11 +274,11 @@ statusLabel :: Text -> Text
 statusLabel "partially_failed" = "partially failed"
 statusLabel value              = Text.replace "_" " " value
 
-statusBadgeClass :: Text -> Text
-statusBadgeClass "submitted"        = "text-bg-success"
-statusBadgeClass "previewed"        = "text-bg-info"
-statusBadgeClass "pending"          = "text-bg-secondary"
-statusBadgeClass "blocked"          = "text-bg-danger"
-statusBadgeClass "failed"           = "text-bg-danger"
-statusBadgeClass "partially_failed" = "text-bg-warning"
-statusBadgeClass _                  = "text-bg-secondary"
+statusTone :: Text -> AppStatusTone
+statusTone "submitted"        = AppStatusSuccess
+statusTone "previewed"        = AppStatusInfo
+statusTone "pending"          = AppStatusNeutral
+statusTone "blocked"          = AppStatusDanger
+statusTone "failed"           = AppStatusDanger
+statusTone "partially_failed" = AppStatusWarning
+statusTone _                  = AppStatusNeutral

@@ -18,7 +18,7 @@ renderXeroPayItems xeroEarningsRates payItemRequirements maybePayItemAccountCode
 
 renderXeroPayItemAccountCodeSelection :: [XeroEarningsRate] -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
 renderXeroPayItemAccountCodeSelection xeroEarningsRates maybeSelection canManagePayItems = [hsx|
-    <div class="border rounded p-3">
+    <div class={appSurfaceClasses "p-3"}>
         <h3 class="h6 mb-2">Pay item account code</h3>
         <p class="small app-muted mb-3">Choose the Xero wages expense account code to use when creating managed pay items.</p>
         <form method="POST"
@@ -73,24 +73,24 @@ renderXeroPayItemAccountCodeOption currentSelection accountCode = [hsx|
 renderXeroPayItemRequirements :: [XeroEarningsRate] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
 renderXeroPayItemRequirements xeroEarningsRates requirements maybePayItemAccountCodeSelection canManagePayItems
     | null requirements = [hsx|
-        <div class="border rounded p-3">
+        <div class={appSurfaceClasses "p-3"}>
             <h3 class="h6 mb-2">Pay item requirements</h3>
             <p class="small app-muted mb-0">No award-backed Xero pay item requirements are available yet.</p>
         </div>
     |]
     | otherwise = [hsx|
-        <div class="border rounded p-3">
+        <div class={appSurfaceClasses "p-3"}>
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                 <div>
                     <h3 class="h6 mb-1">Pay item requirements</h3>
                     <p class="small app-muted mb-0">Review the managed Xero earnings-rate pay items this venue needs before timesheet export mapping. Managed names use the {xeroManagedPayItemNamePrefix} prefix.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
-                    <span class="badge text-bg-success">{tshow matchedCount} matched</span>
-                    <span class="badge text-bg-secondary">{tshow proposedCount} proposed</span>
-                    <span class="badge text-bg-warning">{tshow rateChangedCount} rate changed</span>
-                    <span class="badge text-bg-warning">{tshow staleCount} stale</span>
-                    <span class="badge text-bg-light border">{tshow archivedCount} archived</span>
+                    {renderAppStatusBadge AppStatusSuccess (tshow matchedCount <> " matched")}
+                    {renderAppStatusBadge AppStatusNeutral (tshow proposedCount <> " proposed")}
+                    {renderAppStatusBadge AppStatusWarning (tshow rateChangedCount <> " rate changed")}
+                    {renderAppStatusBadge AppStatusWarning (tshow staleCount <> " stale")}
+                    {renderAppStatusBadge AppStatusNeutral (tshow archivedCount <> " archived")}
                 </div>
             </div>
             {renderCreateMissingXeroPayItemsControl canManagePayItems hasAccountCode proposedCount}
@@ -187,9 +187,9 @@ renderXeroPayItemRequirementRow requirement = [hsx|
 renderXeroPayItemRequirementStatus :: XeroPayItemRequirement -> Html
 renderXeroPayItemRequirementStatus requirement =
     case (requirement.payItemRequirementStatus, requirement.payItemRequirementMatch) of
-        ("matched", Just earningsRate) -> [hsx|<span class="badge text-bg-success">matched</span> <span class="small">{earningsRate.name}</span>|]
-        ("created", Just earningsRate) -> [hsx|<span class="badge text-bg-success">created</span> <span class="small">{earningsRate.name}</span>|]
-        ("ignored", _)                 -> [hsx|<span class="badge text-bg-light border">ignored</span>|]
-        ("stale", _)                   -> [hsx|<span class="badge text-bg-warning">stale</span>|]
-        ("rate_changed", _)            -> [hsx|<span class="badge text-bg-warning">rate changed</span>|]
-        _                              -> [hsx|<span class="badge text-bg-secondary">proposed</span>|]
+        ("matched", Just earningsRate) -> [hsx|{renderAppStatusBadge AppStatusSuccess "matched"} <span class="small">{earningsRate.name}</span>|]
+        ("created", Just earningsRate) -> [hsx|{renderAppStatusBadge AppStatusSuccess "created"} <span class="small">{earningsRate.name}</span>|]
+        ("ignored", _)                 -> renderAppStatusBadge AppStatusNeutral "ignored"
+        ("stale", _)                   -> renderAppStatusBadge AppStatusWarning "stale"
+        ("rate_changed", _)            -> renderAppStatusBadge AppStatusWarning "rate changed"
+        _                              -> renderAppStatusBadge AppStatusNeutral "proposed"

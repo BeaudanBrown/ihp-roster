@@ -7,7 +7,7 @@ import Web.View.Prelude
 
 renderXeroReadyChecklist :: XeroReadyChecklist -> Html
 renderXeroReadyChecklist checklist = [hsx|
-    <div class="border rounded p-3">
+    <div class={appSurfaceClasses "p-3"}>
         <h3 class="h6 mb-3">Ready to submit checklist</h3>
         <div class="d-flex flex-column gap-2 small">
             {renderXeroReadyChecklistItem checklist.xeroReadyConnection "Xero connection is active"}
@@ -23,8 +23,8 @@ renderXeroReadyChecklist checklist = [hsx|
 
 renderXeroReadyChecklistItem :: Bool -> Text -> Html
 renderXeroReadyChecklistItem True label = [hsx|
-    <div><span class="badge text-bg-success me-2">ready</span>{label}</div>
+    <div><span class={appStatusBadgeClass AppStatusSuccess <> " me-2"}>ready</span>{label}</div>
 |]
 renderXeroReadyChecklistItem False label = [hsx|
-    <div><span class="badge text-bg-secondary me-2">needed</span>{label}</div>
+    <div><span class={appStatusBadgeClass AppStatusNeutral <> " me-2"}>needed</span>{label}</div>
 |]

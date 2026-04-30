@@ -75,10 +75,6 @@
     border-radius: 999px !important;
 }
 
-.roster-week-more-menu {
-    min-width: min(30rem, 92vw);
-}
-
 .roster-export-button[disabled] {
     opacity: 0.7;
 }

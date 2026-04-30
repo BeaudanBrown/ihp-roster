@@ -437,26 +437,12 @@ renderVenueOnboardingInvitationRow invitation = [hsx|
 |]
 
 renderOnboardingInvitationStatusBadge :: VenueOnboardingInvitation -> Html
-renderOnboardingInvitationStatusBadge invitation = [hsx|
-    <span class={badgeClass}>{label}</span>
-|]
-    where
-        (label, badgeClass) =
-            case inputValue invitation.status of
-                "accepted" -> ("Accepted" :: Text, "badge text-bg-success" :: Text)
-                "revoked" -> ("Revoked", "badge text-bg-secondary" :: Text)
-                _ -> ("Pending", "badge text-bg-warning text-dark")
+renderOnboardingInvitationStatusBadge invitation =
+    renderInvitationLifecycleStatusBadge (inputValue invitation.status)
 
 renderOnboardingInvitationDeliveryBadge :: VenueOnboardingInvitation -> Html
-renderOnboardingInvitationDeliveryBadge invitation = [hsx|
-    <span class={badgeClass}>{label}</span>
-|]
-    where
-        (label, badgeClass) =
-            case inputValue invitation.deliveryStatus of
-                "sent"   -> ("Sent" :: Text, "badge text-bg-success" :: Text)
-                "failed" -> ("Send Failed", "badge text-bg-danger")
-                _        -> ("Queued", "badge text-bg-warning text-dark")
+renderOnboardingInvitationDeliveryBadge invitation =
+    renderInvitationDeliveryStatusBadge (inputValue invitation.deliveryStatus)
 
 renderOnboardingInvitationDeliveryError :: VenueOnboardingInvitation -> Html
 renderOnboardingInvitationDeliveryError invitation =

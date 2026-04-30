@@ -120,7 +120,7 @@ renderShiftPreferenceSections weekdays sections selectedShiftPreferenceKeys =
 
 renderShiftPreferenceSection :: [PreferenceWeekday] -> [Text] -> StaffPreferenceGroupSection -> Html
 renderShiftPreferenceSection weekdays selectedShiftPreferenceKeys StaffPreferenceGroupSection { rosterGroup, slotNames } = [hsx|
-    <section class="border rounded p-3">
+    <section class={appSurfaceClasses "p-3"}>
         <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
             <div>
                 <h5 class="mb-1">{rosterGroup.name}</h5>

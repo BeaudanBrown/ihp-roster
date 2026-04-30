@@ -152,7 +152,7 @@ renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff =
                 aria-label="Timesheet actions">
             <i class="bi bi-three-dots-vertical"></i>
         </button>
-        <div class="dropdown-menu dropdown-menu-end p-2 roster-week-more-menu" aria-labelledby={menuTriggerId}>
+        <div class="dropdown-menu dropdown-menu-end p-2 app-action-menu" aria-labelledby={menuTriggerId}>
             <form class="px-1 py-1"
                   method="GET"
                   action={updateUrl}

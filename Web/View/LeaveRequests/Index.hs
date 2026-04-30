@@ -215,9 +215,9 @@ resolveStaffName staffUuid staffMembers =
 renderStatusBadge :: InputValue value => value -> Html
 renderStatusBadge status =
     case parseLeaveRequestStatus status of
-        Just LeaveApproved -> [hsx|<span class="badge bg-success">Approved</span>|]
-        Just LeaveDenied -> [hsx|<span class="badge bg-danger">Denied</span>|]
-        _ -> [hsx|<span class="badge bg-warning text-dark">Pending</span>|]
+        Just LeaveApproved -> renderAppStatusBadge AppStatusSuccess "Approved"
+        Just LeaveDenied   -> renderAppStatusBadge AppStatusDanger "Denied"
+        _                  -> renderAppStatusBadge AppStatusWarning "Pending"
 
 renderActions :: (?context :: ControllerContext) => Maybe UUID -> LeaveRequest -> Html
 renderActions currentViewerStaffId leaveRequest = [hsx|

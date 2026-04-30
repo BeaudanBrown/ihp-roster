@@ -104,7 +104,7 @@ renderRosterGroupCreateForm :: Bool -> Html
 renderRosterGroupCreateForm showInactive = [hsx|
     <form method="POST"
           action={CreateRosterGroupAction}
-          class="border rounded p-3"
+          class={appSurfaceClasses "p-3"}
           data-disable-javascript-submission="true"
           hx-post={CreateRosterGroupAction}
           hx-target="#admin-roster-groups-fragment"
@@ -144,7 +144,7 @@ renderRosterGroupRows rosterGroups slotNames showInactive
 
 renderRosterGroupRow :: Bool -> Int -> [SlotName] -> (Int, RosterGroup) -> Html
 renderRosterGroupRow showInactive activeCount slotNames (rosterGroupIndex, rosterGroup) = [hsx|
-    <div class="border rounded p-3 mb-2">
+    <div class={appSurfaceClasses "p-3 mb-2"}>
         <form method="POST"
               action={appendQueryParams (pathTo (UpdateRosterGroupAction (get #id rosterGroup))) [("rosterGroupId", tshow rosterGroup.id)]}
               data-disable-javascript-submission="true"
@@ -188,7 +188,7 @@ renderSlotNameCreateForm :: Id RosterGroup -> Html
 renderSlotNameCreateForm rosterGroupId = [hsx|
     <form method="POST"
           action={appendQueryParams (pathTo CreateSlotNameAction) [("rosterGroupId", tshow rosterGroupId)]}
-          class="admin-slot-name-create-form border rounded p-3"
+          class={appSurfaceClasses "admin-slot-name-create-form p-3"}
           data-disable-javascript-submission="true"
           hx-post={appendQueryParams (pathTo CreateSlotNameAction) [("rosterGroupId", tshow rosterGroupId)]}
           hx-target={slotNameTarget rosterGroupId}
@@ -207,7 +207,7 @@ renderSlotNameCreateForm rosterGroupId = [hsx|
 
 renderSlotNameRow :: Id RosterGroup -> Int -> (Int, SlotName) -> Html
 renderSlotNameRow rosterGroupId slotCount (slotIndex, slotName) = [hsx|
-    <div class="admin-slot-name-row border rounded p-2">
+    <div class={appSurfaceClasses "admin-slot-name-row p-2"}>
         <div class="admin-slot-name-controls">
             <div class="admin-slot-move-group" role="group" aria-label="Reorder slot">
                 {renderSlotMoveButton rosterGroupId (slotIndex == 0) (appendQueryParams (pathTo (MoveSlotNameUpAction (get #id slotName))) [("rosterGroupId", tshow rosterGroupId)]) "Up"}

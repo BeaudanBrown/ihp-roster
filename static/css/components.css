@@ -31,6 +31,10 @@
     background: var(--app-surface-muted);
 }
 
+.app-action-menu {
+    min-width: min(30rem, 92vw);
+}
+
 .app-status-badge {
     border: 1px solid transparent;
     font-weight: 600;

@@ -187,7 +187,7 @@ renderWeekOverviewDetailsCard weekOffset rosterGroupId weekStartDate initialDate
         closedState = maybe False overviewIsClosed initialOverviewDay
         closedBadge =
             if closedState
-                then [hsx|<span class="badge text-bg-secondary">Closed</span>|]
+                then renderAppStatusBadge AppStatusNeutral "Closed"
                 else mempty
         leaveMetric =
             if viewCapabilities.canViewLeaveMetrics

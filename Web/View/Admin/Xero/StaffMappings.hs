@@ -11,19 +11,19 @@ import Web.View.Prelude
 renderXeroStaffMappings :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
 renderXeroStaffMappings xeroEmployees mappingRows mappingCounts
     | null xeroEmployees = [hsx|
-        <div class="border rounded p-3">
+        <div class={appSurfaceClasses "p-3"}>
             <h3 class="h6 mb-2">Staff mappings</h3>
             <p class="small app-muted mb-0">Sync payroll reference data before mapping staff to Xero employees.</p>
         </div>
     |]
     | null mappingRows = [hsx|
-        <div class="border rounded p-3">
+        <div class={appSurfaceClasses "p-3"}>
             <h3 class="h6 mb-2">Staff mappings</h3>
             <p class="small app-muted mb-0">No active staff are available for Xero payroll mapping.</p>
         </div>
     |]
     | otherwise = [hsx|
-        <div class="border rounded p-3">
+        <div class={appSurfaceClasses "p-3"}>
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                 <div>
                     <h3 class="h6 mb-1">Staff mappings</h3>
@@ -73,7 +73,7 @@ renderXeroStaffMappingStaffCell row = [hsx|
 renderXeroStaffPossibleMatchBadge :: Maybe XeroEmployee -> Html
 renderXeroStaffPossibleMatchBadge Nothing = mempty
 renderXeroStaffPossibleMatchBadge (Just employee) = [hsx|
-    <span class="badge text-bg-warning align-self-start">Possible Xero match: {employee.displayName}</span>
+    <span class={appStatusBadgeClass AppStatusWarning <> " align-self-start"}>Possible Xero match: {employee.displayName}</span>
 |]
 
 renderXeroStaffMappingCounts :: XeroStaffMappingCounts -> Html
@@ -87,10 +87,10 @@ renderXeroStaffMappingCountsOob =
 renderXeroStaffMappingCountsWith :: OobSwapAttr -> XeroStaffMappingCounts -> Html
 renderXeroStaffMappingCountsWith maybeOobSwap mappingCounts = [hsx|
     <div id="xero-staff-mapping-counts" class="d-flex flex-wrap gap-2" hx-swap-oob={maybeOobSwap}>
-        <span class="badge text-bg-success">{tshow mappingCounts.xeroStaffVerifiedCount} mapped</span>
-        <span class="badge text-bg-info">{tshow mappingCounts.xeroStaffNotApplicableCount} not paid through Xero</span>
-        <span class="badge text-bg-warning">{tshow mappingCounts.xeroStaffPossibleMatchCount} possible matches</span>
-        <span class="badge text-bg-warning">{tshow mappingCounts.xeroStaffStaleCount} stale</span>
+        {renderAppStatusBadge AppStatusSuccess (tshow mappingCounts.xeroStaffVerifiedCount <> " mapped")}
+        {renderAppStatusBadge AppStatusInfo (tshow mappingCounts.xeroStaffNotApplicableCount <> " not paid through Xero")}
+        {renderAppStatusBadge AppStatusWarning (tshow mappingCounts.xeroStaffPossibleMatchCount <> " possible matches")}
+        {renderAppStatusBadge AppStatusWarning (tshow mappingCounts.xeroStaffStaleCount <> " stale")}
     </div>
 |]
 
