@@ -576,6 +576,8 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Pay item requirements"
+                pageResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
+                pageResponse `responseBodyShouldContain` "admin_xero_pay_items"
                 pageResponse `responseBodyShouldContain` "HIGA - PERM - Undated - Level 2 - Saturday Penalty"
                 pageResponse `responseBodyShouldContain` "$39.3750/hr"
                 pageResponse `responseBodyShouldContain` "Evening After 7pm Loading"
@@ -596,6 +598,14 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "Weekly - WEEKLY"
                 pageResponse `responseBodyShouldContain` "name=\"xeroPayrollCalendarSelection\""
                 pageResponse `responseBodyShouldContain` "Ready to submit checklist"
+                payItemsFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminXeroPayItemsFragmentAction
+                payItemsFragmentResponse `responseStatusShouldBe` status200
+                payItemsFragmentResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
+                payItemsFragmentResponse `responseBodyShouldContain` "Create 6 missing pay items in Xero"
+                payItemsFragmentResponse `responseBodyShouldContain` "hx-target=\"#xero-pay-items-data\""
+                payItemsFragmentResponse `responseBodyShouldContain` "hx-indicator=\"#xero-pay-items-sync-indicator\""
+                payItemsFragmentResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 saturdayRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "Bepis - HIGA - PERM - Undated - Level 2 - Saturday Penalty") |> fetchOne
                 saturdayRequirement.requirementStatus `shouldBe` "matched"
                 saturdayRequirement.xeroEarningsRateName `shouldBe` Just "Bepis - HIGA - PERM - Undated - Level 2 - Saturday Penalty"
@@ -657,6 +667,9 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Created and verified 8 missing Xero pay items."
+                response `responseBodyShouldContain` "id=\"xero-pay-items-data\""
+                response `responseBodyShouldContain` "id=\"xero-pay-items-sync-indicator\""
+                response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 requests <- IORef.readIORef requestsRef
                 length requests `shouldBe` 8
                 let ordinaryName = "Bepis - HIGA - PERM - Undated - Level 2 - Ordinary"
@@ -683,8 +696,11 @@ tests = beforeAll testContext do
                     |> fetchOne
                 requirement.requirementStatus `shouldBe` "created"
                 requirement.xeroEarningsRateId `shouldBe` Just createdRate.xeroEarningsRateId
+                syncRun <- query @XeroSyncRun |> filterWhere (#syncKind, "pay_item_create" :: Text) |> fetchOne
+                syncRun.syncStatus `shouldBe` "succeeded"
+                syncRun.earningsRatesCount `shouldBe` 8
                 versionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
-                versionAfter `shouldBe` (versionBefore + 1)
+                versionAfter `shouldBe` (versionBefore + 2)
 
         it "reports pay item creates that are not present after the Xero verification pull" $ withContext do
             withCleanDb do
@@ -708,6 +724,8 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Submitted 8 Xero pay item creates and verified 1 after pulling Xero pay items."
+                response `responseBodyShouldContain` "id=\"xero-pay-items-data\""
+                response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 requests <- IORef.readIORef requestsRef
                 length requests `shouldBe` 8
                 createdRequirements <- query @XeroPayItemRequirementRecord
@@ -725,8 +743,11 @@ tests = beforeAll testContext do
                     |> filterWhere (#mappingStatus, "verified" :: Text)
                     |> fetch
                 length verifiedMappings `shouldBe` 1
+                syncRun <- query @XeroSyncRun |> filterWhere (#syncKind, "pay_item_create" :: Text) |> fetchOne
+                syncRun.syncStatus `shouldBe` "failed"
+                syncRun.earningsRatesCount `shouldBe` 1
                 versionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
-                versionAfter `shouldBe` (versionBefore + 1)
+                versionAfter `shouldBe` (versionBefore + 2)
 
         it "continues creating pay items after Xero rejects one and reports the rejected item" $ withContext do
             withCleanDb do
