@@ -11,7 +11,6 @@ import Application.Helper.LiveUpdate (LiveFragmentRef, LiveUpdateScope (..),
                                       liveFragmentsRefreshTriggerPayload)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
-import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import Data.List (nub)
@@ -27,6 +26,7 @@ import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Overview
+import Web.RosterWeeks.Paths (rosterWeekUrl)
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.RenderData
 import Web.RosterWeeks.Responses (respondWithRosterContent,
@@ -50,7 +50,7 @@ instance Controller RosterWeeksController where
         -- Redirect to the current week's offset based on today's date
         currentWeekOffset <- fetchCurrentRosterWeekOffset
         currentRosterGroup <- resolveRequestedRosterGroup
-        let currentWeekPath = buildRosterWeekPath currentWeekOffset currentRosterGroup.id
+        let currentWeekPath = rosterWeekUrl currentWeekOffset currentRosterGroup.id
 
         if isHtmxRequest
             then do
@@ -64,7 +64,7 @@ instance Controller RosterWeeksController where
             Just weekDate -> do
                 venueConfig <- fetchVenueConfig
                 let selectedWeekOffset = venueWeekOffsetForDay venueConfig weekDate
-                let targetPath = buildRosterWeekPath selectedWeekOffset rosterGroup.id
+                let targetPath = rosterWeekUrl selectedWeekOffset rosterGroup.id
                 if isHtmxRequest
                     then do
                         setHtmxPushUrl targetPath
@@ -118,7 +118,7 @@ instance Controller RosterWeeksController where
                 if wasCreated
                     then "Roster week created successfully"
                     else "Roster week already exists."
-        let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroup.id
+        let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroup.id
         if isHtmxRequest
             then do
                 setHtmxPushUrl targetPath
@@ -138,7 +138,7 @@ instance Controller RosterWeeksController where
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
-                        redirectToPath (buildRosterWeekPath targetWeekOffset rosterGroup.id)
+                        redirectToPath (rosterWeekUrl targetWeekOffset rosterGroup.id)
             else do
                 sourceWeekOrNothing <- query @RosterWeek
                     |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
@@ -151,7 +151,7 @@ instance Controller RosterWeeksController where
                             then respondWithRosterToast errorMessage "app-toast-error"
                             else do
                                 setErrorMessage errorMessage
-                                redirectToPath (buildRosterWeekPath targetWeekOffset rosterGroup.id)
+                                redirectToPath (rosterWeekUrl targetWeekOffset rosterGroup.id)
                     Just sourceWeek -> do
                         withTransaction do
                             existingTarget <- query @RosterWeek
@@ -167,7 +167,7 @@ instance Controller RosterWeeksController where
                             targetWeekOffset
                             [buildRosterContentFragmentRef rosterGroup.id targetWeekOffset]
                         let successMessage = "Roster week copied from the previous week."
-                        let targetPath = buildRosterWeekPath targetWeekOffset rosterGroup.id
+                        let targetPath = rosterWeekUrl targetWeekOffset rosterGroup.id
                         if isHtmxRequest
                             then do
                                 setHtmxPushUrl targetPath
@@ -194,7 +194,7 @@ instance Controller RosterWeeksController where
                 if nextLiveStatus
                     then "Roster week is now live."
                     else "Roster week moved back to draft."
-        let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroupId
+        let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
         if isHtmxRequest
             then do
                 setHtmxPushUrl targetPath
@@ -225,7 +225,7 @@ instance Controller RosterWeeksController where
             then respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset "Slot structure synced."
             else do
                 setSuccessMessage "Slot structure synced."
-                redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
     action ToggleRosterDayClosedAction { rosterDayId } = do
         ensureManagerRole
@@ -255,7 +255,7 @@ instance Controller RosterWeeksController where
                 if nextClosedState
                     then "Roster day marked closed."
                     else "Roster day reopened."
-        let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroupId
+        let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
         if isHtmxRequest
             then do
                 setHtmxPushUrl targetPath
@@ -283,7 +283,7 @@ instance Controller RosterWeeksController where
                 then respondWithRosterToast errorMessage "app-toast-error"
                 else do
                     setErrorMessage errorMessage
-                    redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+                    redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
         -- Find the current max row index for this day
         existingSlots <-
@@ -303,7 +303,7 @@ instance Controller RosterWeeksController where
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
-                        redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             else do
                 forM_ slotTemplate \(slotName, slotSortOrder) -> do
                     newRecord @RosterSlot
@@ -327,7 +327,7 @@ instance Controller RosterWeeksController where
                             ]
                     else do
                         setSuccessMessage "Roster row added."
-                        redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
     action RemoveRosterRowAction { rosterDayId } = do
         ensureManagerRole
@@ -345,7 +345,7 @@ instance Controller RosterWeeksController where
                 then respondWithRosterToast errorMessage "app-toast-error"
                 else do
                     setErrorMessage errorMessage
-                    redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+                    redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
         existingSlots <- query @RosterSlot
             |> filterWhere (#rosterDayId, coerce rosterDayId)
@@ -364,7 +364,7 @@ instance Controller RosterWeeksController where
                 then respondWithRosterToast errorMessage "app-toast-error"
                 else do
                     setErrorMessage errorMessage
-                    redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+                    redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
         slotsToDelete <-
             case maybeLastRowIndex of
@@ -400,7 +400,7 @@ instance Controller RosterWeeksController where
                     ]
             else do
                 setSuccessMessage "Roster row removed."
-                redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
     action UpdateRosterSlotAction { rosterSlotId } = do
         ensureManagerRole
@@ -426,7 +426,7 @@ instance Controller RosterWeeksController where
                     then respondWithRosterToast errorMessage "app-toast-error"
                     else do
                         setErrorMessage errorMessage
-                        redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             Right normalizedFlag -> do
                 let updatedSlot =
                         rosterSlot
@@ -447,7 +447,7 @@ instance Controller RosterWeeksController where
                             then respondWithRosterToast errorMessage "app-toast-error"
                             else do
                                 setErrorMessage errorMessage
-                                redirectToPath (buildRosterWeekPath rosterWeek.weekOffset rosterGroupId)
+                                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
                     else do
                         _ <- updatedSlot |> updateRecord
 
@@ -466,10 +466,6 @@ instance Controller RosterWeeksController where
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
 resolveRequestedRosterGroup =
     fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
-
-buildRosterWeekPath :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Text
-buildRosterWeekPath weekOffset rosterGroupId =
-    appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
 respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> IO ()
 respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
@@ -581,7 +577,7 @@ ensureRosterWeekIsDraftForEdit :: (?context :: ControllerContext, ?request :: Re
 ensureRosterWeekIsDraftForEdit rosterWeek =
     when rosterWeek.isLive do
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        let targetPath = buildRosterWeekPath rosterWeek.weekOffset rosterGroupId
+        let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
         let errorMessage = "Live roster weeks are read-only. Move it back to draft to make changes."
         if isHtmxRequest
             then respondWithRosterToast errorMessage "app-toast-error"

@@ -1,6 +1,6 @@
 ---
 id: ir-lxfx
-status: open
+status: closed
 deps: [ir-tk23]
 links: [ir-w8dk]
 created: 2026-04-30T06:35:24Z

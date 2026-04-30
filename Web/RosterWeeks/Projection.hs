@@ -13,11 +13,14 @@ module Web.RosterWeeks.Projection
     ) where
 
 import Application.Helper.LiveUpdate
-import Application.Helper.Url (appendQueryParams)
 import Data.Coerce (coerce)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
+import Web.RosterWeeks.Paths (rosterWeekContentFragmentUrl,
+                              rosterWeekDaySectionFragmentUrl,
+                              rosterWeekRowFragmentUrl,
+                              rosterWeekStaffPanelFragmentUrl)
 import Web.RosterWeeks.Types
 
 buildRosterProjectionScope :: Id RosterGroup -> Int -> RosterProjectionScope
@@ -40,7 +43,7 @@ buildRosterContentFragmentRef rosterGroupId weekOffset =
     mkLiveFragmentRef
         RosterContentFragment
         rosterContentFragmentId
-        (appendQueryParams (pathTo ShowRosterWeekContentFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
+        (rosterWeekContentFragmentUrl weekOffset rosterGroupId)
 
 buildDeferredRosterContentFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
 buildDeferredRosterContentFragmentRef rosterGroupId weekOffset =
@@ -54,14 +57,14 @@ buildRosterStaffPanelFragmentRef rosterGroupId weekOffset =
     mkLiveFragmentRef
         RosterStaffPanelFragment
         rosterStaffPanelFragmentId
-        (appendQueryParams (pathTo ShowRosterWeekStaffPanelFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
+        (rosterWeekStaffPanelFragmentUrl weekOffset rosterGroupId)
 
 buildRosterDaySectionFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> UUID.UUID -> LiveFragmentRef
 buildRosterDaySectionFragmentRef rosterGroupId weekOffset rosterDayId =
     LiveFragmentRef
         { fragmentKey = RosterDaySectionFragment { rosterDayId }
         , targetId = rosterDaySectionDomId (coerce rosterDayId)
-        , url = appendQueryParams (pathTo ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId = coerce rosterDayId }) [("rosterGroupId", tshow rosterGroupId)]
+        , url = rosterWeekDaySectionFragmentUrl weekOffset rosterGroupId (coerce rosterDayId)
         , deferUntilBlur = True
         , protectionPolicy = focusedFieldProtection
         }
@@ -88,7 +91,7 @@ buildRosterRowFragmentRef rosterGroupId weekOffset rosterDayId rowIndex =
     LiveFragmentRef
         { fragmentKey = RosterRowFragment { rosterDayId, rowIndex }
         , targetId = rosterRowDomIdText (coerce rosterDayId) rowIndex
-        , url = appendQueryParams (pathTo ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId = coerce rosterDayId, rowIndex }) [("rosterGroupId", tshow rosterGroupId)]
+        , url = rosterWeekRowFragmentUrl weekOffset rosterGroupId (coerce rosterDayId) rowIndex
         , deferUntilBlur = True
         , protectionPolicy = focusedFieldProtection
         }

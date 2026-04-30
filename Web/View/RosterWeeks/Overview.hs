@@ -3,7 +3,6 @@ module Web.View.RosterWeeks.Overview
     , renderWeekOverviewPanelFragment
     ) where
 
-import Application.Helper.View (appendQueryParams)
 import Application.Helper.WeekBoundaries (orderedWeekdayIndexes, startOfWeekFor,
                                           weekdayIndexForDay)
 import Data.List (find, findIndex)
@@ -11,6 +10,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Format (defaultTimeLocale, formatTime)
+import Web.RosterWeeks.Paths (rosterOverviewFragmentUrl, rosterWeekWithDateUrl)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 
@@ -23,7 +23,7 @@ renderWeekOverviewDropdown weekOffset rosterGroupId weekStartDate =
     let
         triggerId = "roster-week-overview-trigger-" <> tshow rosterGroupId <> "-" <> tshow weekOffset
         mountId = rosterWeekOverviewMountId rosterGroupId weekOffset
-        fragmentUrl = appendQueryParams (pathTo (ShowRosterWeekOverviewFragmentAction weekOffset)) [("rosterGroupId", tshow rosterGroupId)]
+        fragmentUrl = rosterOverviewFragmentUrl weekOffset rosterGroupId
      in
         [hsx|
             <div class="dropdown roster-week-overview" data-week-overview="true">
@@ -138,7 +138,7 @@ renderOverviewDayCell weekOffset rosterGroupId referenceWeekStart weekOverviewDa
         maybeOverviewDay = find (\daySummary -> overviewDate daySummary == date) weekOverviewDays
         isInVisibleWeek = isJust maybeOverviewDay
         isSelected = date == initialDate
-        navigateUrl = appendQueryParams (pathTo (ShowRosterWeekAction weekOffset)) [("rosterGroupId", tshow rosterGroupId), ("weekDate", formatDayParam date)]
+        navigateUrl = rosterWeekWithDateUrl weekOffset rosterGroupId date
         weekStartLabel = "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" (startOfWeek date referenceWeekStart))
         leaveCountText
             | viewCapabilities.canViewLeaveMetrics = maybe "" (tshow . leaveRequestCount) maybeOverviewDay
@@ -183,7 +183,7 @@ renderOverviewDayCell weekOffset rosterGroupId referenceWeekStart weekOverviewDa
 renderWeekOverviewDetailsCard :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Day -> Day -> Maybe RosterWeekOverviewDay -> RosterViewCapabilities -> Html
 renderWeekOverviewDetailsCard weekOffset rosterGroupId weekStartDate initialDate initialOverviewDay viewCapabilities =
     let
-        navigateUrl = appendQueryParams (pathTo (ShowRosterWeekAction weekOffset)) [("rosterGroupId", tshow rosterGroupId), ("weekDate", formatDayParam initialDate)]
+        navigateUrl = rosterWeekWithDateUrl weekOffset rosterGroupId initialDate
         closedState = maybe False overviewIsClosed initialOverviewDay
         closedBadge =
             if closedState

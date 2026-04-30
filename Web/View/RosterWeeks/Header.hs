@@ -2,9 +2,10 @@ module Web.View.RosterWeeks.Header
     ( renderRosterGridHeader
     ) where
 
-import Application.Helper.View (appendQueryParams)
 import Data.Time.Calendar (Day)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterWeekShellId)
+import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
+                              rosterWeekUrl)
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
                               RosterViewCapabilities (..))
 import Web.View.Prelude
@@ -30,9 +31,9 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> Html
 renderRosterWeekControls weekOffset currentRosterGroup weekStartDate = [hsx|
     <div class="btn-group app-week-nav-group roster-week-nav-group" role="group" aria-label="Roster week navigation">
-        {renderWeekNavigationLink "bi-chevron-left" "Previous week" (rosterWeekPath (weekOffset - 1) currentRosterGroup.id)}
+        {renderWeekNavigationLink "bi-chevron-left" "Previous week" (rosterWeekUrl (weekOffset - 1) currentRosterGroup.id)}
         {renderWeekOverviewDropdown weekOffset currentRosterGroup.id weekStartDate}
-        {renderWeekNavigationLink "bi-chevron-right" "Next week" (rosterWeekPath (weekOffset + 1) currentRosterGroup.id)}
+        {renderWeekNavigationLink "bi-chevron-right" "Next week" (rosterWeekUrl (weekOffset + 1) currentRosterGroup.id)}
     </div>
 |]
 
@@ -164,11 +165,11 @@ renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId menuTriggerId 
     <div class="dropdown-divider my-1"></div>
     <form class="px-1 py-1"
           method="POST"
-          action={appendQueryParams (pathTo (UpdateRosterAssignmentFiltersAction weekOffset)) [("rosterGroupId", tshow rosterGroupId)]}
+          action={rosterAssignmentFiltersUrl weekOffset rosterGroupId}
           data-roster-filter-form="true"
           data-roster-filter-menu-trigger-id={menuTriggerId}
           data-disable-javascript-submission="true"
-          hx-post={appendQueryParams (pathTo (UpdateRosterAssignmentFiltersAction weekOffset)) [("rosterGroupId", tshow rosterGroupId)]}
+          hx-post={rosterAssignmentFiltersUrl weekOffset rosterGroupId}
           hx-target={"#" <> rosterContentFragmentId}
           hx-swap="outerHTML"
           hx-push-url="false"
@@ -201,9 +202,9 @@ renderRosterAssignmentFilterToggle inputId fieldName isChecked label = [hsx|
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Html
 renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
     <form method="POST"
-          action={appendQueryParams (pathTo (CopyRosterWeekAction (weekOffset - 1) weekOffset)) [("rosterGroupId", tshow rosterGroupId)]}
+          action={rosterCopyWeekUrl (weekOffset - 1) weekOffset rosterGroupId}
           data-disable-javascript-submission="true"
-          hx-post={appendQueryParams (pathTo (CopyRosterWeekAction (weekOffset - 1) weekOffset)) [("rosterGroupId", tshow rosterGroupId)]}
+          hx-post={rosterCopyWeekUrl (weekOffset - 1) weekOffset rosterGroupId}
           hx-target={"#" <> rosterContentFragmentId}
           hx-swap="outerHTML"
           hx-push-url="false"
@@ -263,7 +264,3 @@ rosterWeekMoreMenuId maybeRosterWeek rosterGroupId =
     case maybeRosterWeek of
         Just rosterWeek -> "roster-week-more-menu-" <> tshow rosterWeek.id
         Nothing         -> "roster-week-more-menu-group-" <> tshow rosterGroupId
-
-rosterWeekPath :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Text
-rosterWeekPath weekOffset rosterGroupId =
-    appendQueryParams (pathTo (ShowRosterWeekAction weekOffset)) [("rosterGroupId", tshow rosterGroupId)]

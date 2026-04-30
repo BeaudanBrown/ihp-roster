@@ -9,7 +9,9 @@ import Data.Time.Calendar (Day, addDays)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
-import Web.Timesheets.Paths (timesheetWeekUrl)
+import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
+                             timesheetDaySectionFragmentUrl,
+                             timesheetWeekResetUrl, timesheetWeekUrl)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -96,7 +98,7 @@ renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bo
 renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff = [hsx|
     <div class="app-panel-header app-surface-toolbar">
         <div class="app-surface-toolbar-side">
-            {renderTimesheetWeekNavigationLink "This week" (appendQueryParams (pathTo TimesheetsAction) [("showApproved", boolParam showApproved), ("showAllStaff", boolParam showAllStaff)])}
+            {renderTimesheetWeekNavigationLink "This week" (timesheetWeekResetUrl showApproved showAllStaff)}
         </div>
         <div class="app-surface-toolbar-center">
             <div class="btn-group app-week-nav-group" role="group" aria-label="Timesheet week navigation">
@@ -227,26 +229,8 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
         dayDate = addDays (toInteger dayOffset) dayWeekStartDate
         dayEntriesForDate = filter (\entry -> entry.workedOn == dayDate) dayEntries
         weekdayLabel = Text.pack (formatTime defaultTimeLocale "%A" dayDate)
-        daySectionUrl =
-            appendQueryParams
-                (pathTo
-                    (ShowTimesheetDaySectionFragmentAction
-                        { weekOffset = dayWeekOffset
-                        , dayOffset = dayOffset
-                        }
-                    )
-                )
-                [ ("showApproved", boolParam dayShowApproved)
-                , ("showAllStaff", boolParam dayShowAllStaff)
-                ]
-        newEntryUrl =
-            appendQueryParams
-                (pathTo NewTimesheetEntryAction)
-                [ ("weekOffset", tshow dayWeekOffset)
-                , ("workedOn", tshow dayDate)
-                , ("showApproved", boolParam dayShowApproved)
-                , ("showAllStaff", boolParam dayShowAllStaff)
-                ]
+        daySectionUrl = timesheetDaySectionFragmentUrl dayWeekOffset dayOffset dayShowApproved dayShowAllStaff
+        newEntryUrl = newTimesheetEntryUrl dayWeekOffset dayDate dayShowApproved dayShowAllStaff
 
 timesheetDaySectionDomId :: Int -> Text
 timesheetDaySectionDomId dayOffset = "timesheet-day-section-" <> tshow dayOffset
@@ -309,7 +293,7 @@ renderEditActions entry canEdit weekOffset showApproved showAllStaff
     |]
     | otherwise = mempty
     where
-        editUrl = appendQueryParams (pathTo (EditTimesheetEntryAction (get #id entry))) [("weekOffset", tshow weekOffset), ("showApproved", boolParam showApproved), ("showAllStaff", boolParam showAllStaff)]
+        editUrl = editTimesheetEntryUrl (get #id entry) weekOffset showApproved showAllStaff
 
 renderApprovalAction :: (?context :: ControllerContext) => Int -> TimesheetEntry -> Int -> Bool -> Bool -> Html
 renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff
