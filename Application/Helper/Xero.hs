@@ -5,6 +5,11 @@ module Application.Helper.Xero
     , XeroEarningsRateRef (..)
     , XeroEmployeeRef (..)
     , XeroPayrollCalendarRef (..)
+    , XeroTimesheetLineRef (..)
+    , XeroTimesheetObjectResponse (..)
+    , XeroTimesheetQuery (..)
+    , XeroTimesheetRef (..)
+    , XeroTimesheetsResponse (..)
     , XeroTenant (..)
     , XeroTokenResponse (..)
     , buildXeroAuthorizationUrl
@@ -17,6 +22,7 @@ module Application.Helper.Xero
     , requiredXeroScopesText
     , withXeroClientForTest
     , withXeroConfigForTest
+    , xeroTimesheetsUrl
     )
 where
 
@@ -37,16 +43,19 @@ import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LByteString
 import Data.Char (isDigit)
 import qualified Data.IORef as IORef
+import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Data.Text.Encoding.Error (lenientDecode)
 import Data.Time.Calendar (Day)
-import Data.Time.Clock (utctDay)
+import Data.Time.Clock (UTCTime, utctDay)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import qualified Data.Time.Format as TimeFormat
 import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Simple
+import Network.HTTP.Types.Header (HeaderName)
 import qualified Network.HTTP.Types.URI as URI
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
@@ -155,6 +164,56 @@ instance Aeson.FromJSON XeroPayrollCalendarRef where
             <*> pure value
     parseJSON _ = fail "Expected Xero payroll calendar object"
 
+data XeroTimesheetLineRef = XeroTimesheetLineRef
+    { xeroTimesheetLineEarningsRateId :: !(Maybe Text)
+    , xeroTimesheetLineTrackingItemId :: !(Maybe Text)
+    , xeroTimesheetLineUnits          :: ![Scientific]
+    , xeroTimesheetLineRaw            :: !Aeson.Value
+    }
+    deriving (Eq, Show)
+
+instance Aeson.FromJSON XeroTimesheetLineRef where
+    parseJSON value@(Aeson.Object object) =
+        XeroTimesheetLineRef
+            <$> optionalText object ["EarningsRateID", "earningsRateID", "earningsRateId"]
+            <*> optionalText object ["TrackingItemID", "trackingItemID", "trackingItemId"]
+            <*> optionalScientificList object ["NumberOfUnits", "numberOfUnits"]
+            <*> pure value
+    parseJSON _ = fail "Expected Xero timesheet line object"
+
+data XeroTimesheetRef = XeroTimesheetRef
+    { xeroTimesheetId         :: !(Maybe Text)
+    , xeroTimesheetEmployeeId :: !Text
+    , xeroTimesheetStartDate  :: !Day
+    , xeroTimesheetEndDate    :: !Day
+    , xeroTimesheetStatus     :: !(Maybe Text)
+    , xeroTimesheetHours      :: !(Maybe Scientific)
+    , xeroTimesheetLines      :: ![XeroTimesheetLineRef]
+    , xeroTimesheetRaw        :: !Aeson.Value
+    }
+    deriving (Eq, Show)
+
+instance Aeson.FromJSON XeroTimesheetRef where
+    parseJSON value@(Aeson.Object object) =
+        XeroTimesheetRef
+            <$> optionalText object ["TimesheetID", "timesheetID", "timesheetId"]
+            <*> requiredText object ["EmployeeID", "employeeID", "employeeId"]
+            <*> requiredDay object ["StartDate", "startDate"]
+            <*> requiredDay object ["EndDate", "endDate"]
+            <*> optionalText object ["Status", "status"]
+            <*> optionalScientific object ["Hours", "hours"]
+            <*> optionalTimesheetLines object
+            <*> pure value
+    parseJSON _ = fail "Expected Xero timesheet object"
+
+data XeroTimesheetQuery = XeroTimesheetQuery
+    { xeroTimesheetIfModifiedSince :: !(Maybe UTCTime)
+    , xeroTimesheetWhere           :: !(Maybe Text)
+    , xeroTimesheetOrder           :: !(Maybe Text)
+    , xeroTimesheetPage            :: !(Maybe Int)
+    }
+    deriving (Eq, Show)
+
 data XeroClientError
     = XeroHttpError Text
     | XeroDecodeError Text
@@ -170,6 +229,10 @@ data XeroClient = XeroClient
     , fetchEarningsRates :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
     , fetchPayrollCalendars :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
     , createPayItem :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
+    , fetchTimesheets :: Text -> Text -> XeroTimesheetQuery -> IO (Either XeroClientError [XeroTimesheetRef])
+    , fetchTimesheet :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetRef)
+    , createTimesheet :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
+    , updateTimesheet :: Text -> Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
     }
 
 requiredXeroScopes :: [Text]
@@ -293,6 +356,10 @@ defaultXeroClient =
         , fetchEarningsRates = fetchEarningsRatesRequest
         , fetchPayrollCalendars = fetchPayrollCalendarsRequest
         , createPayItem = createPayItemRequest
+        , fetchTimesheets = fetchTimesheetsRequest
+        , fetchTimesheet = fetchTimesheetRequest
+        , createTimesheet = createTimesheetRequest
+        , updateTimesheet = updateTimesheetRequest
         }
 
 xeroClientRef :: IORef.IORef XeroClient
@@ -394,8 +461,53 @@ createPayItemRequest accessToken tenantId idempotencyKey body =
     fmap unXeroPayItemsResponse <$>
         postXeroPayrollRequest "Xero payroll pay item create request" accessToken tenantId idempotencyKey "https://api.xero.com/payroll.xro/1.0/PayItems" body
 
+fetchTimesheetsRequest :: Text -> Text -> XeroTimesheetQuery -> IO (Either XeroClientError [XeroTimesheetRef])
+fetchTimesheetsRequest accessToken tenantId query =
+    fmap unXeroTimesheetsResponse <$>
+        getXeroPayrollRequestWithHeaders
+            "Xero payroll timesheets request"
+            accessToken
+            tenantId
+            (xeroTimesheetsUrl query)
+            (timesheetQueryHeaders query)
+
+fetchTimesheetRequest :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetRef)
+fetchTimesheetRequest accessToken tenantId timesheetId =
+    fmap unXeroTimesheetObjectResponse <$>
+        getXeroPayrollRequest
+            "Xero payroll timesheet request"
+            accessToken
+            tenantId
+            ("https://api.xero.com/payroll.xro/1.0/Timesheets/" <> cs timesheetId)
+
+createTimesheetRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
+createTimesheetRequest accessToken tenantId idempotencyKey body =
+    fmap unXeroTimesheetsResponse <$>
+        postXeroPayrollRequest
+            "Xero payroll timesheet create request"
+            accessToken
+            tenantId
+            idempotencyKey
+            "https://api.xero.com/payroll.xro/1.0/Timesheets"
+            body
+
+updateTimesheetRequest :: Text -> Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
+updateTimesheetRequest accessToken tenantId idempotencyKey timesheetId body =
+    fmap unXeroTimesheetsResponse <$>
+        postXeroPayrollRequest
+            "Xero payroll timesheet update request"
+            accessToken
+            tenantId
+            idempotencyKey
+            ("https://api.xero.com/payroll.xro/1.0/Timesheets/" <> cs timesheetId)
+            body
+
 getXeroPayrollRequest :: Aeson.FromJSON value => Text -> Text -> Text -> String -> IO (Either XeroClientError value)
 getXeroPayrollRequest label accessToken tenantId url =
+    getXeroPayrollRequestWithHeaders label accessToken tenantId url []
+
+getXeroPayrollRequestWithHeaders :: Aeson.FromJSON value => Text -> Text -> Text -> String -> [(HeaderName, ByteString)] -> IO (Either XeroClientError value)
+getXeroPayrollRequestWithHeaders label accessToken tenantId url extraHeaders =
     handleXeroHttpExceptions do
         request <- parseRequest url
         let requestWithHeaders =
@@ -404,6 +516,7 @@ getXeroPayrollRequest label accessToken tenantId url =
                     |> setRequestHeader "Authorization" ["Bearer " <> TextEncoding.encodeUtf8 accessToken]
                     |> setRequestHeader "Xero-Tenant-Id" [TextEncoding.encodeUtf8 tenantId]
                     |> setRequestHeader "Accept" ["application/json"]
+                    |> applyRequestHeaders extraHeaders
         response <- httpLBS requestWithHeaders
         decodeXeroResponse label response
 
@@ -422,6 +535,26 @@ postXeroPayrollRequest label accessToken tenantId idempotencyKey url body =
                     |> setRequestBodyJSON body
         response <- httpLBS requestWithHeaders
         decodeXeroResponse label response
+
+applyRequestHeaders :: [(HeaderName, ByteString)] -> Request -> Request
+applyRequestHeaders headers request =
+    foldl' (\current (name, value) -> setRequestHeader name [value] current) request headers
+
+xeroTimesheetsUrl :: XeroTimesheetQuery -> String
+xeroTimesheetsUrl query =
+    cs ("https://api.xero.com/payroll.xro/1.0/Timesheets" <> renderedQuery)
+    where
+        params =
+            catMaybes
+                [ ("where",) . TextEncoding.encodeUtf8 <$> query.xeroTimesheetWhere
+                , ("order",) . TextEncoding.encodeUtf8 <$> query.xeroTimesheetOrder
+                , ("page",) . TextEncoding.encodeUtf8 . tshow <$> query.xeroTimesheetPage
+                ]
+        renderedQuery = TextEncoding.decodeUtf8 (URI.renderQuery True (map (\(key, value) -> (key, Just value)) params))
+
+timesheetQueryHeaders :: XeroTimesheetQuery -> [(HeaderName, ByteString)]
+timesheetQueryHeaders query =
+    maybe [] (\time -> [("If-Modified-Since", cs (TimeFormat.formatTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT" time))]) query.xeroTimesheetIfModifiedSince
 
 basicAuthorizationHeader :: XeroConfig -> ByteString
 basicAuthorizationHeader config =
@@ -507,6 +640,20 @@ newtype XeroPayrollCalendarsResponse = XeroPayrollCalendarsResponse { unXeroPayr
 instance Aeson.FromJSON XeroPayrollCalendarsResponse where
     parseJSON = parseXeroListResponse XeroPayrollCalendarsResponse "PayrollCalendars"
 
+newtype XeroTimesheetsResponse = XeroTimesheetsResponse { unXeroTimesheetsResponse :: [XeroTimesheetRef] }
+
+instance Aeson.FromJSON XeroTimesheetsResponse where
+    parseJSON = parseXeroListResponse XeroTimesheetsResponse "Timesheets"
+
+newtype XeroTimesheetObjectResponse = XeroTimesheetObjectResponse { unXeroTimesheetObjectResponse :: XeroTimesheetRef }
+
+instance Aeson.FromJSON XeroTimesheetObjectResponse where
+    parseJSON value@(Aeson.Object object) =
+        case firstPresent object ["Timesheet", "timesheet"] of
+            Just timesheetValue -> XeroTimesheetObjectResponse <$> Aeson.parseJSON timesheetValue
+            Nothing             -> XeroTimesheetObjectResponse <$> Aeson.parseJSON value
+    parseJSON value = XeroTimesheetObjectResponse <$> Aeson.parseJSON value
+
 parseXeroListResponse :: Aeson.FromJSON value => ([value] -> wrapped) -> Text -> Aeson.Value -> AesonTypes.Parser wrapped
 parseXeroListResponse wrap key = \case
     Aeson.Array values -> wrap <$> mapM Aeson.parseJSON (Vector.toList values)
@@ -547,6 +694,32 @@ optionalDay object keys =
             | otherwise -> Just <$> parseXeroDayText value
         Just value -> Aeson.parseJSON value
         Nothing -> pure Nothing
+
+requiredDay :: Aeson.Object -> [Text] -> AesonTypes.Parser Day
+requiredDay object keys =
+    case firstPresent object keys of
+        Just (Aeson.String value) -> parseXeroDayText value
+        Just value                -> Aeson.parseJSON value
+        Nothing                   -> fail ("Missing required Xero date field: " <> cs (Text.intercalate "/" keys))
+
+optionalScientific :: Aeson.Object -> [Text] -> AesonTypes.Parser (Maybe Scientific)
+optionalScientific object keys =
+    case firstPresent object keys of
+        Just Aeson.Null -> pure Nothing
+        Just value      -> Aeson.parseJSON value
+        Nothing         -> pure Nothing
+
+optionalScientificList :: Aeson.Object -> [Text] -> AesonTypes.Parser [Scientific]
+optionalScientificList object keys =
+    case firstPresent object keys of
+        Just value -> Aeson.parseJSON value
+        Nothing    -> pure []
+
+optionalTimesheetLines :: Aeson.Object -> AesonTypes.Parser [XeroTimesheetLineRef]
+optionalTimesheetLines object =
+    case firstPresent object ["TimesheetLines", "timesheetLines"] of
+        Just value -> Aeson.parseJSON value
+        Nothing    -> pure []
 
 parseXeroDayText :: Text -> AesonTypes.Parser Day
 parseXeroDayText value =

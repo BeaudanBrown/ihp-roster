@@ -1580,6 +1580,10 @@ successfulXeroClient tokenResponse tenants =
         , fetchEarningsRates = \_ _ -> pure (Right [])
         , fetchPayrollCalendars = \_ _ -> pure (Right [])
         , createPayItem = \_ _ _ _ -> pure (Right [])
+        , fetchTimesheets = \_ _ _ -> pure (Right [])
+        , fetchTimesheet = \_ _ _ -> pure (Left (XeroHttpError "unused"))
+        , createTimesheet = \_ _ _ _ -> pure (Right [])
+        , updateTimesheet = \_ _ _ _ _ -> pure (Right [])
         }
 
 referenceSyncXeroClient :: XeroTokenResponse -> [XeroEmployeeRef] -> [XeroEarningsRateRef] -> [XeroPayrollCalendarRef] -> XeroClient
@@ -1593,6 +1597,10 @@ referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars =
         , fetchEarningsRates = \_ _ -> pure (Right earningsRates)
         , fetchPayrollCalendars = \_ _ -> pure (Right payrollCalendars)
         , createPayItem = \_ _ _ _ -> pure (Right [])
+        , fetchTimesheets = \_ _ _ -> pure (Right [])
+        , fetchTimesheet = \_ _ _ -> pure (Left (XeroHttpError "unused"))
+        , createTimesheet = \_ _ _ _ -> pure (Right [])
+        , updateTimesheet = \_ _ _ _ _ -> pure (Right [])
         }
 
 payItemCreateXeroClient :: XeroTokenResponse -> IORef.IORef [(Text, Aeson.Value)] -> XeroClient
@@ -1705,6 +1713,10 @@ failingRefreshXeroClient message =
         , fetchEarningsRates = \_ _ -> pure (Left (XeroHttpError message))
         , fetchPayrollCalendars = \_ _ -> pure (Left (XeroHttpError message))
         , createPayItem = \_ _ _ _ -> pure (Left (XeroHttpError message))
+        , fetchTimesheets = \_ _ _ -> pure (Left (XeroHttpError message))
+        , fetchTimesheet = \_ _ _ -> pure (Left (XeroHttpError message))
+        , createTimesheet = \_ _ _ _ -> pure (Left (XeroHttpError message))
+        , updateTimesheet = \_ _ _ _ _ -> pure (Left (XeroHttpError message))
         }
 
 createTestXeroOauthState ::
