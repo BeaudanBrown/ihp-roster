@@ -293,9 +293,9 @@ payItemRequirementBlockers requirements maybeAccountCodeSelection =
         accountCodeReady =
             maybe False (\selection -> selection.selectionStatus == "verified" && maybe False (not . Text.null . Text.strip) selection.accountCode) maybeAccountCodeSelection
         accountCodeBlockers =
-            if null proposedRequirements || accountCodeReady
-                then []
-                else [blocker "missing_pay_item_account_code" "Select a Xero pay item account code before creating proposed managed pay items."]
+            [ blocker "missing_pay_item_account_code" "Select a Xero pay item account code before creating proposed managed pay items."
+            | not (null proposedRequirements || accountCodeReady)
+            ]
         requirementBlockers =
             activeRequirements
                 |> mapMaybe \record ->
@@ -348,7 +348,7 @@ matchingRemoteTimesheets request entries mappings remoteTimesheets =
                     && remote.xeroTimesheetEmployeeId `elem` mappedEmployeeIds
 
 blocker :: Text -> Text -> XeroReadinessBlocker
-blocker code message = blockerWith code message
+blocker = blockerWith
 
 entryBlocker :: Text -> Text -> TimesheetEntry -> XeroReadinessBlocker
 entryBlocker code message entry =

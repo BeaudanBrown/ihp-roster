@@ -161,8 +161,7 @@ deriveXeroLocalEarningsBuckets today usedScopes awardLevels baseRates penaltyRat
         ordinaryBucket row =
             [bucket row]
 
-        penaltyBucket row =
-            bucket row
+        penaltyBucket = bucket
 
         timeAllowanceBuckets row =
             timeAllowances

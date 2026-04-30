@@ -143,12 +143,10 @@ instance Controller AdminController where
                         redirectToAdminFor (paramOrNothing "rosterGroupId")
                     else do
                         _ <- withTransaction do
-                            updatedVenueConfig <-
-                                venueConfig
-                                    |> set #rosterWeekStartsOn rosterWeekStartsOn
-                                    |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
-                                    |> updateRecord
-                            pure updatedVenueConfig
+                            venueConfig
+                                |> set #rosterWeekStartsOn rosterWeekStartsOn
+                                |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
+                                |> updateRecord
                         setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
                         redirectToAdminFor (paramOrNothing "rosterGroupId")
 
