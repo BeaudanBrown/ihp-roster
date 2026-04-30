@@ -107,6 +107,7 @@ bash ./bin/in-env hspec-coverage
 bash ./bin/in-env lint
 bash ./bin/in-env format
 bash ./bin/in-env e2e
+bash ./bin/in-env ./bin/doc-drift-check
 bash ./bin/in-env screenshot http://localhost:8000/MyPage output.png
 bash ./bin/in-env e2e-report
 ```
@@ -123,6 +124,7 @@ Available scripts:
 - **`hspec-coverage [hspec-args...]`** — Compile and run the Hspec suite with GHC HPC coverage instrumentation. This runs serially against an isolated `app_test_coverage` database, prints the app-source per-module report, and writes reports under `output/coverage/hspec/latest/` (`report.txt`, `report.xml`, `html/hpc_index.html`, and `raw-report.txt` for all instrumented modules). Use it when adding or materially changing Hspec coverage; keep `hspec-test` as the normal fast correctness check.
 - **`lint`** — Run hlint on app sources. Provides suggestions for idiomatic Haskell. Do not rely on `hlint --refactor` in this repo until `apply-refact` is available in the active Nix package set; fix lint findings manually in small, reviewable chunks. Prefer behavior-preserving rewrites such as removing redundant `. id`, simple eta-reduction, `unless`, `maybe`, `<$>`/`<&>` simplifications, and unused pragma removal. Skip suggestions that require new language extensions, materially change laziness/strictness, or make code less readable unless the user explicitly approves them.
 - **`format`** — Format app sources with stylish-haskell (config in `.stylish-haskell.yaml`).
+- **`./bin/doc-drift-check`** — Lightweight docs/implementation drift check for high-value frontend invariants: global nav order, app-owned script asset list, and vendored HTMX/Bootstrap Icons loaded via `assetPath`.
 - **`ghci-app`** — Launch GHCi with the full app loaded for testing expressions interactively.
 - **`seed-dev [app|app_test] [--force]`** — Seed a broader current-week development dataset for manual inspection, including a busy multi-group roster venue, support/bootstrap scenarios, and the richer payroll parity venue. The command now always resets the target DB first; `--force` is accepted as an explicit no-op compatibility flag. It also loads hard-coded award/public-holiday reference data from `Application/Support/Seed/DevReferenceData.sql` after the deterministic seed. If adding dev passkey preservation, do not generate fake passkeys in the seed; replay a local ignored SQL file after deterministic users are recreated, mapping passkeys back to `users.email`. Resident passkeys also bind to the WebAuthn user handle, so any seeded account with a preserved passkey must keep a stable `users.id` in `Application.Support.DevFixtures.seededUserIdsForPasskeys`. The command also replays a local ignored Xero connection SQL file when present at `build/dev-xero-connection.sql` or `$DEV_XERO_SEED_FILE`; keep raw Xero token material out of tracked source.
 - **`just seed-dev`** — Human-friendly default for manual dev exploration. This always wipes and reseeds `app` so the running dev app reflects the seeded venues immediately.

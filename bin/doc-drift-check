@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+fail() {
+    echo "doc-drift-check: $*" >&2
+    exit 1
+}
+
+require_text() {
+    local file="$1"
+    local text="$2"
+    grep -Fq "$text" "$file" || fail "$file is missing expected text: $text"
+}
+
+reject_text() {
+    local file="$1"
+    local text="$2"
+    if grep -Fq "$text" "$file"; then
+        fail "$file contains obsolete text: $text"
+    fi
+}
+
+nav_order='`roster`, `profile`, `timesheets`, `leave`, `xero`, `admin`, `support`, `logout`'
+
+require_text AGENTS.md "$nav_order"
+require_text Web/View/AGENTS.md "$nav_order"
+require_text Web/View/Layout.hs 'renderWhenAudience XeroAudience (renderDesktopNavLink "xero"'
+
+for script in \
+    app-bootstrap.js \
+    app-date-pickers.js \
+    app-passkeys.js \
+    app-live-updates.js \
+    app-dialog-overlays.js \
+    app-toasts.js \
+    app-time-picker.js \
+    app-roster.js \
+    app-timesheets.js \
+    app.js
+do
+    require_text AGENTS.md "static/$script"
+    require_text Web/View/Layout.hs "assetPath \"/$script\""
+done
+
+require_text Web/View/Layout.hs 'assetPath "/vendor/htmx-1.9.12/htmx.min.js"'
+require_text Web/View/Layout.hs 'assetPath "/vendor/bootstrap-icons-1.11.3/bootstrap-icons.min.css"'
+
+reject_text AGENTS.md 'https://unpkg.com'
+reject_text AGENTS.md 'https://cdn.jsdelivr.net'
+reject_text Web/View/AGENTS.md 'https://unpkg.com'
+reject_text Web/View/AGENTS.md 'https://cdn.jsdelivr.net'
+
+echo "doc-drift-check: ok"
