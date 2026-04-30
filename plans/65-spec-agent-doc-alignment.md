@@ -26,13 +26,13 @@ Primary epic:
 Child tickets:
 
 - `ir-3vc6` - Implement pay snapshot reproducibility for approved/exported payroll
-- `ir-z5dj` - Update payroll specs and agent docs to the award-level model
-- `ir-gz6l` - Align export access docs with admin-only implementation
-- `ir-r2pp` - Annotate Xero owner-only access as superseding older venue-admin plan text
-- `ir-nin6` - Update roster auto-create specs and tracker status
-- `ir-e3o5` - Refresh AGENTS navigation and frontend asset guidance
-- `ir-f8tn` - Reconcile completed maintenance tickets and stale plan findings
-- `ir-tqnr` - Add lightweight documentation drift checks
+- `ir-z5dj` - closed: Update payroll specs and agent docs to the award-level model
+- `ir-gz6l` - closed: Align export access docs with admin-only implementation
+- `ir-r2pp` - closed: Annotate Xero owner-only access as superseding older venue-admin plan text
+- `ir-nin6` - closed: Update roster auto-create specs and tracker status
+- `ir-e3o5` - closed: Refresh AGENTS navigation and frontend asset guidance
+- `ir-f8tn` - closed: Reconcile completed maintenance tickets and stale plan findings
+- `ir-tqnr` - closed: Add lightweight documentation drift checks
 
 Related existing tickets:
 
@@ -197,6 +197,11 @@ invariant such as nav order, protocol scope names, or script asset lists.
 Ticket: `ir-tqnr`
 
 ## Suggested Execution Order
+
+Status on 2026-04-30: the doc-only pass is complete. `ir-z5dj`, `ir-gz6l`,
+`ir-r2pp`, `ir-nin6`, `ir-e3o5`, `ir-f8tn`, and `ir-tqnr` are closed. The
+snapshot/pay reproducibility implementation path remains outside this doc-only
+pass and is being handled through the append-only pay config versioning work.
 
 1. Fix or ticket-confirm pay snapshot reproducibility first. This is the only
    high-risk implementation gap.
