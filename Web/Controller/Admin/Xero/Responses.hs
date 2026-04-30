@@ -1,16 +1,22 @@
 module Web.Controller.Admin.Xero.Responses
     ( broadcastAdminXeroInvalidation
+    , broadcastAdminXeroPayItemsInvalidation
     , currentUserCanManageXeroIntegration
     , fetchCurrentVenueXeroAdminSectionData
     , renderCurrentVenueXeroSectionFragmentOob
     , requireCurrentVenueOwnerForXero
     , respondToXeroMappingMutationSuccess
+    , respondToXeroPayItemsMutationSuccess
     , respondWithXeroMappingMutationError
+    , respondWithXeroPayItemsMutationError
+    , respondWithXeroPayItemsFragment
+    , respondWithXeroPayItemsFragmentAndToast
     , respondWithXeroSectionFragment
     , respondWithXeroSectionFragmentAndToast
     , respondWithXeroStaffMappingControlsAndToast
     , respondWithXeroStaffMappingToastOnly
     , respondWithXeroStaffMappingsFragment
+    , xeroPayItemsFragmentRef
     , xeroErrorToast
     , xeroSuccessToast
     ) where
@@ -49,6 +55,16 @@ broadcastAdminXeroStaffMappingsInvalidation venueId =
         AdminXeroScope { venueId }
         liveUpdateSourceClientId
         [xeroStaffMappingsFragmentRef]
+
+broadcastAdminXeroPayItemsInvalidation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    UUID.UUID ->
+    IO ()
+broadcastAdminXeroPayItemsInvalidation venueId =
+    broadcastLiveInvalidation
+        AdminXeroScope { venueId }
+        liveUpdateSourceClientId
+        [xeroPayItemsFragmentRef]
 
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -92,6 +108,26 @@ respondWithXeroStaffMappingsFragment = do
     fragmentHtml <- profileActionSpan "admin.xero.staff_mapping.fragment.render" do
         pure (renderXeroStaffMappingsFragment xeroSectionData.xeroEmployees xeroSectionData.xeroStaffMappingRows xeroSectionData.xeroStaffMappingCounts)
     respondHtmlProfiled fragmentHtml
+
+respondWithXeroPayItemsFragment ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+respondWithXeroPayItemsFragment =
+    respondWithXeroPayItemsFragmentAndToast Nothing
+
+respondWithXeroPayItemsFragmentAndToast ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroPayItemsFragmentAndToast maybeToast = do
+    xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
+    fragmentHtml <- profileActionSpan "admin.xero.pay_items.fragment.render" do
+        pure (renderXeroPayItemsFragment xeroSectionData.xeroEarningsRates xeroSectionData.xeroPayItemRequirements xeroSectionData.xeroPayItemAccountCodeSelection xeroSectionData.xeroLatestPayItemSyncRun xeroSectionData.xeroConnectionActionsAllowed)
+    respondHtmlProfiled $
+        mconcat
+            [ fragmentHtml
+            , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
+            ]
 
 respondWithXeroStaffMappingControlsAndToast ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -141,6 +177,17 @@ respondToXeroMappingMutationSuccess message =
             setSuccessMessage message
             redirectTo XeroAction
 
+respondToXeroPayItemsMutationSuccess ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Text ->
+    IO ()
+respondToXeroPayItemsMutationSuccess message =
+    if isHtmxRequest
+        then respondWithXeroPayItemsFragmentAndToast (Just (xeroSuccessToast message))
+        else do
+            setSuccessMessage message
+            redirectTo XeroAction
+
 respondWithXeroMappingMutationError ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
@@ -148,6 +195,17 @@ respondWithXeroMappingMutationError ::
 respondWithXeroMappingMutationError message =
     if isHtmxRequest
         then respondWithXeroSectionFragmentAndToast (Just (xeroErrorToast message))
+        else do
+            setErrorMessage message
+            redirectTo XeroAction
+
+respondWithXeroPayItemsMutationError ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Text ->
+    IO ()
+respondWithXeroPayItemsMutationError message =
+    if isHtmxRequest
+        then respondWithXeroPayItemsFragmentAndToast (Just (xeroErrorToast message))
         else do
             setErrorMessage message
             redirectTo XeroAction

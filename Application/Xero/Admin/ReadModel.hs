@@ -18,6 +18,7 @@ module Application.Xero.Admin.ReadModel
     , fetchCurrentVenueXeroStaffMappingRows
     , fetchCurrentVenueXeroConnection
     , fetchCurrentVenueXeroTimesheetPanelData
+    , fetchLatestCurrentVenueXeroPayItemSyncRun
     , fetchLatestCurrentVenueXeroSyncRun
     , currentVenueXeroTimesheetReadinessRequest
     , fetchXeroConnectedByUser
@@ -81,6 +82,14 @@ fetchLatestCurrentVenueXeroSyncRun =
     query @XeroSyncRun
         |> filterWhere (#venueId, unpackId currentVenueId)
         |> filterWhere (#syncKind, "payroll_reference_data" :: Text)
+        |> orderByDesc #startedAt
+        |> fetchOneOrNothing
+
+fetchLatestCurrentVenueXeroPayItemSyncRun :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO (Maybe XeroSyncRun)
+fetchLatestCurrentVenueXeroPayItemSyncRun =
+    query @XeroSyncRun
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#syncKind, "pay_item_create" :: Text)
         |> orderByDesc #startedAt
         |> fetchOneOrNothing
 
@@ -368,6 +377,7 @@ fetchCurrentVenueXeroAdminSectionData xeroConnectionActionsAllowed = do
     xeroConnection <- profileActionSpan "admin.xero.fragment.load_connection" fetchCurrentVenueXeroConnection
     xeroConnectedByUser <- profileActionSpan "admin.xero.fragment.load_connected_user" (fetchXeroConnectedByUser xeroConnection)
     xeroLatestSyncRun <- profileActionSpan "admin.xero.fragment.load_latest_sync" fetchLatestCurrentVenueXeroSyncRun
+    xeroLatestPayItemSyncRun <- profileActionSpan "admin.xero.fragment.load_latest_pay_item_sync" fetchLatestCurrentVenueXeroPayItemSyncRun
     (xeroEmployeeCount, xeroEarningsRateCount, xeroPayrollCalendarCount) <- profileActionSpan "admin.xero.fragment.fetch_reference_counts" do
         (,,)
             <$> fetchCurrentVenueXeroEmployeeCount xeroConnection

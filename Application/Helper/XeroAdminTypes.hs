@@ -138,6 +138,7 @@ data XeroAdminSectionData = XeroAdminSectionData
     { xeroConnection                  :: Maybe XeroConnection
     , xeroConnectedByUser             :: Maybe User
     , xeroLatestSyncRun               :: Maybe XeroSyncRun
+    , xeroLatestPayItemSyncRun        :: Maybe XeroSyncRun
     , xeroEmployeeCount               :: Int
     , xeroEarningsRateCount           :: Int
     , xeroPayrollCalendarCount        :: Int

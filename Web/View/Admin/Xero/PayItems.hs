@@ -1,6 +1,7 @@
 module Web.View.Admin.Xero.PayItems
     ( renderXeroPayItems
     , renderXeroPayItemAccountCodeSelection
+    , renderXeroPayItemsData
     ) where
 
 import Application.Helper.XeroAdminTypes
@@ -9,10 +10,10 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Web.View.Prelude
 
-renderXeroPayItems :: [XeroEarningsRate] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
-renderXeroPayItems xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection connectionActionsAllowed = [hsx|
+renderXeroPayItems :: [XeroEarningsRate] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
+renderXeroPayItems xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection maybePayItemSyncRun connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
-        {renderXeroPayItemRequirements xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection connectionActionsAllowed}
+        {renderXeroPayItemsData xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection maybePayItemSyncRun connectionActionsAllowed}
     </div>
 |]
 
@@ -62,16 +63,16 @@ renderXeroPayItemAccountCodeOption currentSelection accountCode = [hsx|
     <option value={accountCode} selected={currentSelection == accountCode}>{accountCode}</option>
 |]
 
-renderXeroPayItemRequirements :: [XeroEarningsRate] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
-renderXeroPayItemRequirements xeroEarningsRates requirements maybePayItemAccountCodeSelection canManagePayItems
+renderXeroPayItemsData :: [XeroEarningsRate] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
+renderXeroPayItemsData xeroEarningsRates requirements maybePayItemAccountCodeSelection maybePayItemSyncRun canManagePayItems
     | null requirements = [hsx|
-        <div class={appSurfaceClasses "p-3"}>
+        <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"}>
             <h3 class="h6 mb-2">Pay item requirements</h3>
             <p class="small app-muted mb-0">No award-backed Xero pay item requirements are available yet.</p>
         </div>
     |]
     | otherwise = [hsx|
-        <div class={appSurfaceClasses "p-3"}>
+        <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"}>
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                 <div>
                     <h3 class="h6 mb-1">Pay item requirements</h3>
@@ -83,9 +84,11 @@ renderXeroPayItemRequirements xeroEarningsRates requirements maybePayItemAccount
                     {renderAppStatusBadge AppStatusWarning (tshow rateChangedCount <> " rate changed")}
                     {renderAppStatusBadge AppStatusWarning (tshow staleCount <> " stale")}
                     {renderAppStatusBadge AppStatusNeutral (tshow archivedCount <> " archived")}
+                    {renderXeroPayItemSyncStatus maybePayItemSyncRun}
                 </div>
             </div>
             {renderCreateMissingXeroPayItemsControl canManagePayItems hasAccountCode proposedCount}
+            {renderXeroPayItemSyncIndicator maybePayItemSyncRun}
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
                     <thead>
@@ -151,8 +154,9 @@ renderCreateMissingXeroPayItemsControl canManagePayItems hasAccountCode proposed
               action={CreateMissingXeroPayItemsAction}
               data-disable-javascript-submission="true"
               hx-post={pathTo CreateMissingXeroPayItemsAction}
-              hx-target="#admin-xero-fragment"
+              hx-target="#xero-pay-items-data"
               hx-swap="outerHTML"
+              hx-indicator="#xero-pay-items-sync-indicator"
               class="mb-3">
             <button class="btn btn-outline-primary btn-sm" type="submit" disabled={not canManagePayItems || not hasAccountCode}>
                 Create {tshow proposedCount} missing pay items in Xero
@@ -166,6 +170,37 @@ renderMissingPayItemAccountCodeNotice True = mempty
 renderMissingPayItemAccountCodeNotice False = [hsx|
     <div class="small app-muted mt-2">Choose a pay item account code before creating pay items.</div>
 |]
+
+renderXeroPayItemSyncStatus :: Maybe XeroSyncRun -> Html
+renderXeroPayItemSyncStatus (Just syncRun)
+    | syncRun.syncStatus == "running" = renderAppStatusBadge AppStatusInfo "creating"
+    | otherwise = mempty
+renderXeroPayItemSyncStatus Nothing =
+    mempty
+
+renderXeroPayItemSyncIndicator :: Maybe XeroSyncRun -> Html
+renderXeroPayItemSyncIndicator maybeSyncRun =
+    mconcat
+        [ [hsx|
+            <div id="xero-pay-items-sync-indicator" class="htmx-indicator d-flex align-items-center gap-2 small text-primary mb-3" role="status" aria-live="polite">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>Creating pay items in Xero...</span>
+            </div>
+        |]
+        , renderXeroPayItemServerSideRunningIndicator maybeSyncRun
+        ]
+
+renderXeroPayItemServerSideRunningIndicator :: Maybe XeroSyncRun -> Html
+renderXeroPayItemServerSideRunningIndicator (Just syncRun)
+    | syncRun.syncStatus == "running" = [hsx|
+        <div class="d-flex align-items-center gap-2 small text-primary mb-3" role="status" aria-live="polite">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>Creating pay items in Xero...</span>
+        </div>
+    |]
+    | otherwise = mempty
+renderXeroPayItemServerSideRunningIndicator Nothing =
+    mempty
 
 renderXeroPayItemRequirementRow :: XeroPayItemRequirement -> Html
 renderXeroPayItemRequirementRow requirement = [hsx|

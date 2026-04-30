@@ -16,11 +16,11 @@ import Web.Controller.Prelude
 createMissingXeroPayItemsAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 createMissingXeroPayItemsAction =
     if not currentUserCanManageXeroIntegration
-        then respondWithXeroMappingMutationError "Only the venue owner or a super admin can create pay items in Xero."
+        then respondWithXeroPayItemsMutationError "Only the venue owner or a super admin can create pay items in Xero."
         else do
             maybeConnection <- fetchActiveCurrentVenueXeroConnection
             case maybeConnection of
-                Nothing -> respondWithXeroMappingMutationError "Connect Xero before creating pay items."
+                Nothing -> respondWithXeroPayItemsMutationError "Connect Xero before creating pay items."
                 Just connection -> createMissingXeroPayItems connection
 
 createMissingXeroPayItems ::
@@ -34,23 +34,25 @@ createMissingXeroPayItems connection = do
     accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
     let proposedRequirements = filter (\requirement -> requirement.payItemRequirementStatus == "proposed" && requirement.payItemRequirementIsActive) requirements
     case selectedXeroPayItemAccountCode accountCodeOptions maybeAccountCodeSelection of
-        Nothing -> respondWithXeroMappingMutationError "Choose a Xero pay item account code before creating pay items."
+        Nothing -> respondWithXeroPayItemsMutationError "Choose a Xero pay item account code before creating pay items."
         Just accountCode ->
             if null proposedRequirements
-                then respondToXeroMappingMutationSuccess "No missing Xero pay items need to be created."
+                then respondToXeroPayItemsMutationSuccess "No missing Xero pay items need to be created."
                 else do
+                    now <- getCurrentTime
+                    syncRun <- createRunningXeroPayItemSyncRun connection now
+                    broadcastAdminXeroPayItemsInvalidation (unpackId currentVenueId)
                     readXeroConfig >>= \case
-                        Left message -> respondWithXeroMappingMutationError message
+                        Left message -> failXeroPayItemSync syncRun message
                         Right xeroConfig -> do
                             refreshResult <- refreshXeroConnectionAccess xeroConfig connection
                             case refreshResult of
-                                Left message -> respondWithXeroMappingMutationError message
+                                Left message -> failXeroPayItemSync syncRun message
                                 Right (refreshedConnection, accessToken) -> do
                                     xeroClient <- currentXeroClient
-                                    now <- getCurrentTime
                                     createResult <- createProposedXeroPayItems xeroClient refreshedConnection accessToken now accountCode proposedRequirements
                                     case createResult of
-                                        Left message -> respondWithXeroMappingMutationError message
+                                        Left message -> failXeroPayItemSync syncRun message
                                         Right verification -> do
                                             void $ recordCurrentUserAuditEvent
                                                 "xero_pay_items_created"
@@ -66,7 +68,61 @@ createMissingXeroPayItems connection = do
                                                     , "submissionFailures" Aeson..= map xeroPayItemSubmissionFailurePayload verification.submissionFailures
                                                     ]
                                                 )
-                                            broadcastAdminXeroInvalidation currentVenueId
                                             if verification.failedCount == 0 && verification.missingCount == 0
-                                                then respondToXeroMappingMutationSuccess ("Created and verified " <> tshow verification.verifiedCount <> " missing Xero pay items.")
-                                                else respondWithXeroMappingMutationError (xeroPayItemVerificationFailureMessage verification)
+                                                then completeXeroPayItemSync syncRun verification.verifiedCount ("Created and verified " <> tshow verification.verifiedCount <> " missing Xero pay items.")
+                                                else failXeroPayItemSyncWithVerifiedCount syncRun verification.verifiedCount (xeroPayItemVerificationFailureMessage verification)
+
+createRunningXeroPayItemSyncRun ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    UTCTime ->
+    IO XeroSyncRun
+createRunningXeroPayItemSyncRun connection now =
+    newRecord @XeroSyncRun
+        |> set #venueId connection.venueId
+        |> set #xeroConnectionId (unpackId connection.id)
+        |> set #syncStatus ("running" :: Text)
+        |> set #syncKind ("pay_item_create" :: Text)
+        |> set #startedAt now
+        |> createRecord
+
+completeXeroPayItemSync ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroSyncRun ->
+    Int ->
+    Text ->
+    IO ()
+completeXeroPayItemSync syncRun verifiedCount message = do
+    now <- getCurrentTime
+    _ <- syncRun
+        |> set #syncStatus ("succeeded" :: Text)
+        |> set #earningsRatesCount verifiedCount
+        |> set #finishedAt (Just now)
+        |> updateRecord
+    broadcastAdminXeroPayItemsInvalidation (unpackId currentVenueId)
+    respondToXeroPayItemsMutationSuccess message
+
+failXeroPayItemSync ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroSyncRun ->
+    Text ->
+    IO ()
+failXeroPayItemSync syncRun =
+    failXeroPayItemSyncWithVerifiedCount syncRun 0
+
+failXeroPayItemSyncWithVerifiedCount ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroSyncRun ->
+    Int ->
+    Text ->
+    IO ()
+failXeroPayItemSyncWithVerifiedCount syncRun verifiedCount message = do
+    now <- getCurrentTime
+    _ <- syncRun
+        |> set #syncStatus ("failed" :: Text)
+        |> set #earningsRatesCount verifiedCount
+        |> set #errorMessage (Just message)
+        |> set #finishedAt (Just now)
+        |> updateRecord
+    broadcastAdminXeroPayItemsInvalidation (unpackId currentVenueId)
+    respondWithXeroPayItemsMutationError message
