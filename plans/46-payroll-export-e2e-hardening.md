@@ -2,6 +2,13 @@
 
 Read after `IMPLEMENTATION_PLAN.md` and `plans/45-payroll-report-exports.md`.
 
+**Current status, 2026-04-30:** the original manager-export surface described
+below is superseded. Export generation and download now live under the admin
+surface and are restricted by `ensureAdminRole` to venue admins, venue owners,
+and super admins. `Test/Controller/ExportsSpec.hs` includes manager-denial
+coverage; any future browser coverage should use admin/owner/super-admin users
+for generation and keep manager denial as the authorization boundary.
+
 ## Goal
 
 Add strong browser-level verification for the payroll/report export surface so the newly landed parity work is exercised end-to-end through the real UI, not only through controller/spec coverage.
@@ -21,7 +28,7 @@ The current risk is not the SQL/controller engine alone. It is the real user wor
 
 The intended browser suite should cover these surfaces:
 
-1. Exports page happy paths for a manager user
+1. Exports page happy paths for an admin-capable user
    - page render
    - current/previous/next week navigation
    - generating `staff_hours`
@@ -36,12 +43,12 @@ The intended browser suite should cover these surfaces:
    - update an existing report definition
    - edit shift-type filters
    - toggle active/inactive
-   - resulting change in visible generate actions for manager users
+   - resulting change in visible generate actions for admin-capable users
 
 3. Role and authorization boundaries
-   - manager can access exports and generate reports
-   - manager cannot see or use report-definition management controls
-   - worker/non-manager cannot access exports
+   - venue admins, venue owners, and super admins can access exports and generate reports
+   - managers cannot access export generation or download surfaces
+   - workers and other non-admin roles cannot access exports
    - current-venue scope is respected for report definitions and jobs
 
 4. High-value edge cases
@@ -54,7 +61,7 @@ The intended browser suite should cover these surfaces:
 Prefer a small number of focused Playwright files over one giant spec:
 
 1. `e2e/exports-payroll-downloads.spec.ts`
-   - seeded manager login
+   - seeded venue-admin login
    - open exports page
    - assert payroll report cards are present
    - change week selection
@@ -71,10 +78,10 @@ Prefer a small number of focused Playwright files over one giant spec:
    - create a report definition with shift-type filters
    - update slug/name/engine/active state/filter set
    - verify visible export actions reflect the change
-   - verify inactive definitions no longer appear for a manager session
+   - verify inactive definitions no longer appear for an admin-capable session
 
 3. `e2e/exports-authz.spec.ts`
-   - manager cannot see management section
+   - manager is denied the exports page and direct generation attempts
    - direct POST/interaction attempts for management fail safely
    - worker is denied exports access
    - cross-venue jobs/definitions are not shown when current venue differs
@@ -85,7 +92,7 @@ Add deterministic export/payroll fixture support rather than relying on ad hoc b
 
 Needed fixture characteristics:
 
-- a seeded manager who can generate exports
+- a seeded venue admin or owner who can generate exports
 - a seeded venue admin who can manage report definitions
 - representative approved weekly timesheet data that yields:
   - visible `staff_hours` rows across at least two pay levels
@@ -112,7 +119,7 @@ Do not duplicate download parsing logic inside every spec.
 
 Done when:
 
-1. Playwright covers manager payroll generation/download flows for `staff_hours`, `kitchen`, and `wage`
+1. Playwright covers admin-capable payroll generation/download flows for `staff_hours`, `kitchen`, and `wage`
 2. Playwright covers venue-admin report-definition management
 3. Playwright covers manager/worker authorization boundaries on the exports surface
 4. download assertions inspect real CSV/ZIP contents, not just “download happened”

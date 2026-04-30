@@ -75,7 +75,7 @@ psql -h "$PWD/build/db" app -c "\dt"
 - Legacy payroll parity currently maps venue report definitions like this:
   - `staff_hours` and filtered variants such as `kitchen` use `staff_pay_csv`
   - `wage` uses `hourly_breakdown_zip`
-  - manager-role users may generate report exports, but only venue admins may create or update report definitions
+- Export generation and download are admin-only surfaces (`ensureAdminRole`): venue admins, venue owners, and super admins may generate/download exports; managers are denied. Keep this aligned with `Test/Controller/ExportsSpec.hs`.
 - Current product focus is narrower than the full legacy inventory:
   - the only active payroll-export target is one canonical `staff_hours`-style CSV for the primary/only venue staff group
   - filtered variants such as `kitchen` are historical/regression behavior, not the first-class current requirement
