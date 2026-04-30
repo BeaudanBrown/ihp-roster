@@ -1,6 +1,6 @@
 ---
 id: ir-ugzm
-status: in_progress
+status: closed
 deps: [ir-fv82]
 links: []
 created: 2026-04-30T01:11:39Z
@@ -64,3 +64,7 @@ Extracted Xero admin response/transport helpers into Application.Xero.Admin.Resp
 **2026-04-30T01:50:00Z**
 
 Extracted Xero admin staff, earnings-rate, pay-item account-code, and payroll-calendar mapping mutations into Application.Xero.Admin.Mappings. Controller routing now imports the service actions directly while preserving existing HTMX/toast/full-page responses. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Xero".
+
+**2026-04-30T01:53:36Z**
+
+Completed the remaining Xero admin mutation extraction: connection/OAuth/disconnect moved to Application.Xero.Admin.Connection, managed pay-item creation to Application.Xero.Admin.PayItemMutations, and payroll reference sync to Application.Xero.Admin.ReferenceSync. Web.Controller.Admin.Xero is now a compatibility re-export boundary. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Xero".

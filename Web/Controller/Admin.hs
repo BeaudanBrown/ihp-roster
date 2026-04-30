@@ -14,7 +14,6 @@ import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Application.Xero.Connection
-import Application.Xero.Admin.Mappings
 import Application.Xero.Admin.Responses
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
