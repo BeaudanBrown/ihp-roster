@@ -1,6 +1,6 @@
 ---
 id: ir-u7c6
-status: open
+status: closed
 deps: [ir-tk23]
 links: []
 created: 2026-04-30T06:34:47Z

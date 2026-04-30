@@ -69,9 +69,13 @@ psql -h "$PWD/build/db" app -c "\dt"
 - Prefer splitting export code by concern:
   - `Application/Helper/Export/Types.hs` for export/report domain types and text conversions
   - `Application/Helper/Export/Render.hs` for CSV/ZIP rendering and pure formatting helpers
-  - `Application/Helper/Export.hs` for DB-backed orchestration, authorization, expiry, and audit wiring
+  - `Application/Helper/Export/Definitions.hs` for report definitions and week slicing
+  - `Application/Helper/Export/ReadModel.hs` for export read queries
+  - `Application/Helper/Export/Payloads.hs` for report payload construction
+  - `Application/Helper/Export/Persistence.hs` for export job persistence, expiry, download authorization, and audit wiring
+  - `Application/Helper/Export/Service.hs` for controller-facing orchestration
 - CSV cells must go through `Application.Helper.Export.Render.csvCell` or the higher-level renderers in that module. The cell renderer owns both CSV quoting and spreadsheet formula neutralization for leading `=`, `+`, `-`, `@`, tab, carriage-return, newline, and whitespace-prefixed formulas.
-- Treat `Application/Helper/Export.hs` as the orchestration layer and compatibility wrapper, not the default place for new pure rendering helpers.
+- Treat `Application/Helper/Export.hs` as a compatibility re-export facade, not an implementation module.
 - Keep payroll report selection separate from export-job lifecycle. Venue-scoped report definitions (slug, engine, description, optional shift-type filters) should decide which report a venue can request; `export_jobs` should remain the request/generation/download/audit record for the concrete file instance.
 - Legacy payroll parity currently maps venue report definitions like this:
   - `staff_hours` and filtered variants such as `kitchen` use `staff_pay_csv`
