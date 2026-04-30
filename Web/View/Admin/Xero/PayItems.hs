@@ -1,5 +1,6 @@
 module Web.View.Admin.Xero.PayItems
     ( renderXeroPayItems
+    , renderXeroPayItemAccountCodeSelection
     ) where
 
 import Application.Helper.XeroAdminTypes
@@ -11,34 +12,25 @@ import Web.View.Prelude
 renderXeroPayItems :: [XeroEarningsRate] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
 renderXeroPayItems xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
-        {renderXeroPayItemAccountCodeSelection xeroEarningsRates maybePayItemAccountCodeSelection connectionActionsAllowed}
         {renderXeroPayItemRequirements xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection connectionActionsAllowed}
     </div>
 |]
 
 renderXeroPayItemAccountCodeSelection :: [XeroEarningsRate] -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
 renderXeroPayItemAccountCodeSelection xeroEarningsRates maybeSelection canManagePayItems = [hsx|
-    <div class={appSurfaceClasses "p-3"}>
-        <h3 class="h6 mb-2">Pay item account code</h3>
-        <p class="small app-muted mb-3">Choose the Xero wages expense account code to use when creating managed pay items.</p>
+    <div>
+        <h3 class="h6 mb-2">Account code</h3>
         <form method="POST"
               action={SaveXeroPayItemAccountCodeSelectionAction}
               data-disable-javascript-submission="true"
               hx-post={pathTo SaveXeroPayItemAccountCodeSelectionAction}
               hx-target="#admin-xero-fragment"
+              hx-trigger="change"
               hx-swap="outerHTML">
-            <div class="row g-2 align-items-end">
-                <div class="col-12 col-md-8">
-                    <label class="form-label small" for="xero-pay-item-account-code-selection">Synced account code</label>
-                    <select id="xero-pay-item-account-code-selection" class="form-select form-select-sm" name="xeroPayItemAccountCodeSelection" disabled={not canManagePayItems}>
-                        <option value="" selected={currentSelection == ""}>Not selected</option>
-                        {forEach accountCodeOptions (renderXeroPayItemAccountCodeOption currentSelection)}
-                    </select>
-                </div>
-                <div class="col-12 col-md-4">
-                    <button class="btn btn-outline-primary btn-sm w-100" type="submit" disabled={not canManagePayItems}>Save account code</button>
-                </div>
-            </div>
+            <select id="xero-pay-item-account-code-selection" class="form-select form-select-sm" name="xeroPayItemAccountCodeSelection" disabled={not canManagePayItems}>
+                <option value="" selected={currentSelection == ""}>Not selected</option>
+                {forEach accountCodeOptions (renderXeroPayItemAccountCodeOption currentSelection)}
+            </select>
         </form>
     </div>
 |]

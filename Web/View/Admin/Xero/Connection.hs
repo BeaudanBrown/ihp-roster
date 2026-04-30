@@ -4,7 +4,9 @@ module Web.View.Admin.Xero.Connection
     ) where
 
 import Application.Helper.XeroAdminTypes
-import Web.View.Admin.Common (formatTimestamp)
+import Web.View.Admin.Xero.Calendars (renderXeroPayrollCalendarSelection)
+import Web.View.Admin.Xero.PayItems (renderXeroPayItemAccountCodeSelection)
+import Web.View.Admin.Xero.Readiness (renderXeroReadyChecklist)
 import Web.View.Prelude
 
 renderXeroDisconnectedConnectionDetails :: Bool -> Html
@@ -21,16 +23,12 @@ renderXeroDisconnectedConnectionDetails connectionActionsAllowed = [hsx|
     </div>
 |]
 
-renderXeroConnectionDetails :: XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> Bool -> Html
-renderXeroConnectionDetails connection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed = [hsx|
+renderXeroConnectionDetails :: XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEarningsRate] -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> Html
+renderXeroConnectionDetails connection _ maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEarningsRates xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <dl class="row mb-0">
             <dt class="col-sm-3">Tenant</dt>
             <dd class="col-sm-9">{fromMaybe connection.tenantId connection.tenantName}</dd>
-            <dt class="col-sm-3">Tenant ID</dt>
-            <dd class="col-sm-9"><code>{connection.tenantId}</code></dd>
-            <dt class="col-sm-3">Connected</dt>
-            <dd class="col-sm-9">{formatTimestamp connection.connectedAt}{renderConnectedBy maybeConnectedByUser}</dd>
             <dt class="col-sm-3">Connection status</dt>
             <dd class="col-sm-9">{renderXeroConnectionStatus connection}{renderXeroConnectionError connection}</dd>
             <dt class="col-sm-3">Reference data</dt>
@@ -47,6 +45,17 @@ renderXeroConnectionDetails connection maybeConnectedByUser maybeSyncRun employe
                 <button class="btn btn-outline-primary" type="submit" disabled={connection.connectionStatus /= "active"}>Sync payroll reference data</button>
             </form>
             {renderXeroReconnectControls connectionActionsAllowed}
+        </div>
+        <div class="row g-3">
+            <div class="col-12 col-xl-6">
+                {renderXeroPayItemAccountCodeSelection xeroEarningsRates maybePayItemAccountCodeSelection connectionActionsAllowed}
+            </div>
+            <div class="col-12 col-xl-6">
+                {renderXeroPayrollCalendarSelection xeroPayrollCalendars maybePayrollCalendarSelection}
+            </div>
+            <div class="col-12">
+                {renderXeroReadyChecklist readyChecklist}
+            </div>
         </div>
     </div>
 |]
@@ -105,37 +114,12 @@ renderXeroConnectionNotice connection =
         _ -> mempty
 
 renderXeroReferenceSummary :: Maybe XeroSyncRun -> Int -> Int -> Int -> Html
-renderXeroReferenceSummary maybeSyncRun employeeCount earningsRateCount payrollCalendarCount = [hsx|
+renderXeroReferenceSummary _ employeeCount earningsRateCount payrollCalendarCount = [hsx|
     <div class="d-flex flex-column gap-2">
         <div class="d-flex flex-wrap gap-2">
             {renderAppStatusBadge AppStatusNeutral (tshow employeeCount <> " employees")}
             {renderAppStatusBadge AppStatusNeutral (tshow earningsRateCount <> " earnings rates")}
             {renderAppStatusBadge AppStatusNeutral (tshow payrollCalendarCount <> " payroll calendars")}
         </div>
-        {renderXeroLatestSync maybeSyncRun}
     </div>
 |]
-
-renderXeroLatestSync :: Maybe XeroSyncRun -> Html
-renderXeroLatestSync Nothing = [hsx|
-    <span class="small app-muted">Not synced yet.</span>
-|]
-renderXeroLatestSync (Just syncRun) = [hsx|
-    <span class="small app-muted">
-        Last sync: {renderXeroSyncStatus syncRun.syncStatus} at {formatTimestamp syncRun.startedAt}{renderXeroSyncError syncRun.errorMessage}
-    </span>
-|]
-
-renderXeroSyncStatus :: Text -> Html
-renderXeroSyncStatus "succeeded" = renderAppStatusBadge AppStatusSuccess "succeeded"
-renderXeroSyncStatus "failed" = renderAppStatusBadge AppStatusDanger "failed"
-renderXeroSyncStatus "running" = renderAppStatusBadge AppStatusWarning "running"
-renderXeroSyncStatus status = renderAppStatusBadge AppStatusNeutral status
-
-renderXeroSyncError :: Maybe Text -> Html
-renderXeroSyncError Nothing             = mempty
-renderXeroSyncError (Just errorMessage) = [hsx|<span> - {errorMessage}</span>|]
-
-renderConnectedBy :: Maybe User -> Html
-renderConnectedBy Nothing     = mempty
-renderConnectedBy (Just user) = [hsx|<span> by {user.email}</span>|]

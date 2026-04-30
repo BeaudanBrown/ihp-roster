@@ -177,6 +177,9 @@ instance Controller AdminController where
     action ShowAdminXeroFragmentAction = do
         requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
 
+    action ShowAdminXeroStaffMappingsFragmentAction = do
+        requireCurrentVenueOwnerForXero respondWithXeroStaffMappingsFragment
+
     action CreateVenueInvitationAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         maybeEmail <- parseRequiredEmail "email" "Invite email is required."

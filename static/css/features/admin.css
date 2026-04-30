@@ -69,6 +69,31 @@
     white-space: nowrap;
 }
 
+.xero-staff-mappings:has(.xero-staff-mapping-show-matched-toggle:not(:checked)) .xero-staff-mapping-row-matched {
+    display: none;
+}
+
+.xero-staff-mappings-table {
+    table-layout: fixed;
+}
+
+.xero-staff-mappings-col-staff {
+    width: 28%;
+}
+
+.xero-staff-mappings-col-email {
+    width: 28%;
+}
+
+.xero-staff-mappings-col-employee {
+    width: 44%;
+}
+
+.xero-staff-mappings-table th,
+.xero-staff-mappings-table td {
+    overflow-wrap: anywhere;
+}
+
 @media (max-width: 575.98px) {
     .admin-slot-name-row {
         padding: 0.4rem !important;

@@ -101,6 +101,7 @@ data AdminController
     | ShowAdminShiftTypesFragmentAction
     | ShowAdminRosterGroupsFragmentAction
     | ShowAdminXeroFragmentAction
+    | ShowAdminXeroStaffMappingsFragmentAction
     | CreateVenueInvitationAction
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
     | CreateRosterGroupAction

@@ -9,10 +9,14 @@ module Web.Controller.Admin.Xero.Responses
     , respondWithXeroSectionFragment
     , respondWithXeroSectionFragmentAndToast
     , respondWithXeroStaffMappingControlsAndToast
+    , respondWithXeroStaffMappingToastOnly
+    , respondWithXeroStaffMappingsFragment
     , xeroErrorToast
     , xeroSuccessToast
     ) where
 
+import qualified Data.Aeson as Aeson
+import qualified Data.UUID as UUID
 import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayConfig (..),
@@ -35,6 +39,16 @@ broadcastAdminXeroInvalidation venueId =
     broadcastLiveResync
         (adminXeroScope venueId)
         liveUpdateSourceClientId
+
+broadcastAdminXeroStaffMappingsInvalidation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    UUID.UUID ->
+    IO ()
+broadcastAdminXeroStaffMappingsInvalidation venueId =
+    broadcastLiveInvalidation
+        AdminXeroScope { venueId }
+        liveUpdateSourceClientId
+        [xeroStaffMappingsFragmentRef]
 
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -70,23 +84,34 @@ renderCurrentVenueXeroSectionFragmentOob = do
     profileActionSpan "admin.xero.fragment.render_oob" do
         pure (renderXeroSectionFragmentOob xeroSectionData)
 
+respondWithXeroStaffMappingsFragment ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+respondWithXeroStaffMappingsFragment = do
+    xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
+    fragmentHtml <- profileActionSpan "admin.xero.staff_mapping.fragment.render" do
+        pure (renderXeroStaffMappingsFragment xeroSectionData.xeroEmployees xeroSectionData.xeroStaffMappingRows xeroSectionData.xeroStaffMappingCounts)
+    respondHtmlProfiled fragmentHtml
+
 respondWithXeroStaffMappingControlsAndToast ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
     Maybe (Id Staff) ->
     Maybe ToastOverlayConfig ->
     IO ()
-respondWithXeroStaffMappingControlsAndToast connection maybeUnchangedStaffId maybeToast = do
-    xeroEmployees <- profileActionSpan "admin.xero.staff_mapping.fetch_employees" (fetchCurrentVenueXeroEmployees (Just connection))
-    xeroStaffMappingRows <- profileActionSpan "admin.xero.staff_mapping.fetch_rows" (fetchCurrentVenueXeroStaffMappingRows (Just connection))
-    let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
-    controlsHtml <- profileActionSpan "admin.xero.staff_mapping.render_controls" do
-        pure (renderXeroStaffMappingControlsOob maybeUnchangedStaffId xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts)
+respondWithXeroStaffMappingControlsAndToast connection _ maybeToast = do
+    profileActionSpan "admin.xero.staff_mapping.broadcast" $
+        broadcastAdminXeroStaffMappingsInvalidation connection.venueId
+    setHeader ("HX-Trigger", cs (Aeson.encode (liveFragmentsRefreshTriggerPayload [xeroStaffMappingsFragmentRef])))
+    respondWithXeroStaffMappingToastOnly maybeToast
+
+respondWithXeroStaffMappingToastOnly ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroStaffMappingToastOnly maybeToast =
     respondHtmlProfiled $
-        mconcat
-            [ controlsHtml
-            , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
-            ]
+        maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
 
 xeroSuccessToast :: Text -> ToastOverlayConfig
 xeroSuccessToast = successToast

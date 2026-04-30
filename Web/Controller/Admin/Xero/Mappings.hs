@@ -207,11 +207,11 @@ persistXeroStaffMappingWithControlRefresh connection staff mappingStatus maybeEm
                 "verified"       -> "Saved Xero employee mapping for " <> staff.firstName <> " " <> staff.lastName <> "."
                 "not_applicable" -> "Marked " <> staff.firstName <> " " <> staff.lastName <> " as not paid through Xero."
                 _                -> "Cleared Xero employee mapping for " <> staff.firstName <> " " <> staff.lastName <> "."
-    profileActionSpan "admin.xero.staff_mapping.persist.broadcast" $
-        broadcastAdminXeroInvalidation currentVenueId
     if isHtmxRequest
         then respondWithXeroStaffMappingControlsAndToast connection maybeUnchangedStaffId (Just (xeroSuccessToast message))
         else do
+            profileActionSpan "admin.xero.staff_mapping.persist.broadcast" $
+                broadcastAdminXeroInvalidation currentVenueId
             setSuccessMessage message
             redirectTo XeroAction
 
@@ -220,9 +220,9 @@ respondWithXeroStaffMappingError ::
     XeroConnection ->
     Text ->
     IO ()
-respondWithXeroStaffMappingError connection message = do
+respondWithXeroStaffMappingError _ message = do
     if isHtmxRequest
-        then respondWithXeroStaffMappingControlsAndToast connection Nothing (Just (xeroErrorToast message))
+        then respondWithXeroStaffMappingToastOnly (Just (xeroErrorToast message))
         else do
             setErrorMessage message
             redirectTo XeroAction

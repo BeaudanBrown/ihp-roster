@@ -1,5 +1,6 @@
 module Web.Controller.Admin.Xero.Connection
     ( disconnectXeroConnectionAction
+    , redirectToXeroAuthorization
     , startXeroConnectionAction
     , xeroOAuthCallbackAction
     ) where
@@ -17,6 +18,10 @@ import Web.Controller.Prelude
 startXeroConnectionAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 startXeroConnectionAction =
     requireCurrentVenueOwnerForXero do
+        redirectToXeroAuthorization
+
+redirectToXeroAuthorization :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+redirectToXeroAuthorization =
         readXeroConfig >>= \case
             Left message -> do
                 setErrorMessage message
@@ -41,7 +46,15 @@ startXeroConnectionAction =
                         , "redirectUri" Aeson..= xeroConfig.redirectUri
                         ]
                     )
-                redirectToUrl (buildXeroAuthorizationUrl xeroConfig stateToken)
+                redirectToXeroAuthorizationUrl (buildXeroAuthorizationUrl xeroConfig stateToken)
+
+redirectToXeroAuthorizationUrl :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+redirectToXeroAuthorizationUrl authorizationUrl =
+    if isHtmxRequest
+        then do
+            setHeader ("HX-Redirect", cs authorizationUrl)
+            renderPlain ""
+        else redirectToUrl authorizationUrl
 
 xeroOAuthCallbackAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 xeroOAuthCallbackAction =

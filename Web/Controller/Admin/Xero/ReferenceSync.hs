@@ -8,6 +8,8 @@ import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Text as Text
+import Web.Controller.Admin.Xero.Connection (redirectToXeroAuthorization)
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 
@@ -41,7 +43,7 @@ syncXeroPayrollReferenceData connection = do
         Right xeroConfig -> do
             refreshResult <- refreshXeroConnectionAccess xeroConfig connection
             case refreshResult of
-                Left message -> failXeroReferenceSync syncRun connection message
+                Left message -> failXeroReferenceSyncOrReconnect syncRun connection message
                 Right (refreshedConnection, accessToken) -> do
                     xeroClient <- currentXeroClient
                     employeesResult <- fetchPayrollEmployees xeroClient accessToken refreshedConnection.tenantId
@@ -109,6 +111,42 @@ failXeroReferenceSync ::
     Text ->
     IO ()
 failXeroReferenceSync syncRun connection message = do
+    recordFailedXeroReferenceSync syncRun connection message
+    setErrorMessage message
+    broadcastAdminXeroInvalidation currentVenueId
+    if isHtmxRequest
+        then respondWithXeroSectionFragment
+        else redirectTo XeroAction
+
+failXeroReferenceSyncOrReconnect ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroSyncRun ->
+    XeroConnection ->
+    Text ->
+    IO ()
+failXeroReferenceSyncOrReconnect syncRun connection message
+    | shouldStartReconnectAfterSyncFailure message && currentUserCanManageXeroIntegration = do
+        recordFailedXeroReferenceSync syncRun connection message
+        broadcastAdminXeroInvalidation currentVenueId
+        redirectToXeroAuthorization
+    | otherwise =
+        failXeroReferenceSync syncRun connection message
+
+shouldStartReconnectAfterSyncFailure :: Text -> Bool
+shouldStartReconnectAfterSyncFailure message =
+    let normalized = Text.toLower message
+     in "reconnect xero" `Text.isInfixOf` normalized
+        || "needs to be reconnected" `Text.isInfixOf` normalized
+        || "refresh token expired" `Text.isInfixOf` normalized
+        || "refresh token expired or was revoked" `Text.isInfixOf` normalized
+
+recordFailedXeroReferenceSync ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroSyncRun ->
+    XeroConnection ->
+    Text ->
+    IO ()
+recordFailedXeroReferenceSync syncRun connection message = do
     now <- getCurrentTime
     withTransaction do
         latestConnection <- fetch connection.id
@@ -129,8 +167,3 @@ failXeroReferenceSync syncRun connection message = do
                 , "failure" Aeson..= message
                 ]
             )
-    setErrorMessage message
-    broadcastAdminXeroInvalidation currentVenueId
-    if isHtmxRequest
-        then respondWithXeroSectionFragment
-        else redirectTo XeroAction

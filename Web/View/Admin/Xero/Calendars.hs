@@ -9,15 +9,16 @@ import Web.View.Prelude
 renderXeroPayrollCalendarSelection :: [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Html
 renderXeroPayrollCalendarSelection payrollCalendars maybeSelection
     | null payrollCalendars = [hsx|
-        <div class={appSurfaceClasses "p-3"}>
+        <div>
             <h3 class="h6 mb-2">Payroll calendar</h3>
-            <p class="small app-muted mb-0">Sync payroll reference data before selecting the venue's Xero payroll calendar.</p>
+            <select class="form-select form-select-sm" name="xeroPayrollCalendarSelection" aria-label="Xero payroll calendar" disabled>
+                <option value="" selected>Not selected</option>
+            </select>
         </div>
     |]
     | otherwise = [hsx|
-        <div class={appSurfaceClasses "p-3"}>
+        <div>
             <h3 class="h6 mb-2">Payroll calendar</h3>
-            <p class="small app-muted mb-3">Choose the Xero pay calendar this venue uses for timesheet exports.</p>
             <form method="POST"
                   action={SaveXeroPayrollCalendarSelectionAction}
                   data-disable-javascript-submission="true"

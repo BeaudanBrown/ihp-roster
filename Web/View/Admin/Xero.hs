@@ -4,6 +4,9 @@ module Web.View.Admin.Xero
     , renderXeroSectionFragment
     , renderXeroSectionFragmentOob
     , renderXeroStaffMappingControlsOob
+    , renderXeroStaffMappingsFragment
+    , renderXeroStaffMappingsOob
+    , xeroStaffMappingsFragmentRef
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -15,10 +18,8 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..), mkLiveFragmentRef)
 import Application.Helper.XeroAdminTypes
 import Web.View.Admin.Common
-import Web.View.Admin.Xero.Calendars
 import Web.View.Admin.Xero.Connection
 import Web.View.Admin.Xero.PayItems
-import Web.View.Admin.Xero.Readiness
 import Web.View.Admin.Xero.StaffMappings
 import Web.View.Admin.Xero.Timesheets
 import Web.View.Prelude
@@ -95,15 +96,24 @@ renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAl
 renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
     <div class="d-flex flex-column gap-3">
         <div class="accordion admin-config-accordion" id="admin-xero-sections">
-            {renderXeroAccordionItem "connection" "Connection" True (renderXeroConnectionDetails connection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed)}
+            {renderXeroAccordionItem "connection" "Connection" True (renderXeroConnectionDetails connection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEarningsRates xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed)}
             {renderXeroAccordionItem "staff-mappings" "Staff mappings" False (renderXeroStaffMappings xeroEmployees mappingRows mappingCounts)}
             {renderXeroAccordionItem "pay-items" "Pay items" False (renderXeroPayItems xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection connectionActionsAllowed)}
-            {renderXeroAccordionItem "payroll-calendar" "Payroll calendar" False (renderXeroPayrollCalendarSelection xeroPayrollCalendars maybePayrollCalendarSelection)}
-            {renderXeroAccordionItem "readiness" "Readiness" False (renderXeroReadyChecklist readyChecklist)}
             {renderXeroAccordionItem "draft-timesheets" "Draft timesheets" False (renderXeroTimesheetPanel timesheetPanel)}
         </div>
     </div>
 |]
+
+renderXeroStaffMappingsFragment :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
+renderXeroStaffMappingsFragment =
+    renderXeroStaffMappingsData
+
+xeroStaffMappingsFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
+xeroStaffMappingsFragmentRef =
+    mkLiveFragmentRef
+        AdminXeroStaffMappingsFragment
+        "xero-staff-mappings-data"
+        (pathTo ShowAdminXeroStaffMappingsFragmentAction)
 
 renderXeroAccordionItem :: Text -> Text -> Bool -> Html -> Html
 renderXeroAccordionItem sectionId title isOpen content =

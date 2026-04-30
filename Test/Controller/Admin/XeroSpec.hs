@@ -314,6 +314,9 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
                 pageResponse `responseBodyShouldContain` "admin_xero"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
+                pageResponse `responseBodyShouldNotContain` "Tenant ID"
+                pageResponse `responseBodyShouldNotContain` "Connected</dt>"
+                pageResponse `responseBodyShouldNotContain` "Last sync:"
 
                 xeroVersionBefore <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
                 response <- withXeroConfigForTest (Right testXeroConfig) do
@@ -389,8 +392,13 @@ tests = beforeAll testContext do
                 syncedResponse `responseStatusShouldBe` status200
                 syncedResponse `responseBodyShouldContain` "Staff mappings"
                 syncedResponse `responseBodyShouldContain` "Local Worker - local@example.com"
-                syncedResponse `responseBodyShouldContain` "Possible Xero match: Local Worker"
+                syncedResponse `responseBodyShouldNotContain` "Possible Xero match: Local Worker"
                 syncedResponse `responseBodyShouldContain` "name=\"xeroEmployeeSelection\""
+                syncedResponse `responseBodyShouldContain` "Show matched"
+                syncedResponse `responseBodyShouldContain` "xero-staff-mapping-show-matched-toggle"
+                syncedResponse `responseBodyShouldContain` "id=\"xero-staff-mappings\""
+                syncedResponse `responseBodyShouldContain` "id=\"xero-staff-mappings-data\""
+                syncedResponse `responseBodyShouldContain` ">Match</button>"
                 syncedResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
                 syncedResponse `responseBodyShouldContain` "hx-trigger=\"change\""
                 syncedResponse `responseBodyShouldContain` "hx-swap=\"none\""
@@ -423,13 +431,16 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
-                response `responseBodyShouldContain` "id=\"xero-staff-mapping-counts\""
-                response `responseBodyShouldContain` "id=\"xero-staff-mapping-counts\" class=\"d-flex flex-wrap gap-2\" hx-swap-oob=\"outerHTML\""
-                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
-                response `responseBodyShouldNotContain` ("id=\"xero-staff-mapping-control-" <> tshow staff.id <> "\"")
-                response `responseBodyShouldContain` ("id=\"xero-staff-mapping-control-" <> tshow trialStaff.id <> "\"")
+                response `responseBodyShouldNotContain` "id=\"xero-staff-mappings\""
+                response `responseBodyShouldNotContain` "id=\"xero-staff-mappings-data\""
+                response `responseBodyShouldNotContain` "xero-staff-mapping-show-matched-toggle"
                 response `responseBodyShouldContain` "Saved Xero employee mapping for Ada Lovelace."
-                response `responseBodyShouldContain` "Ada Lovelace"
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_staff_mappings")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-staff-mappings-data")
+                triggerHeader `shouldSatisfy` maybe True (not . Text.isInfixOf "\"targetId\":\"xero-staff-mappings\"")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowAdminXeroStaffMappingsFragment")
                 versionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` (versionBefore + 1)
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetchOne
@@ -437,8 +448,28 @@ tests = beforeAll testContext do
                 mapping.xeroEmployeeId `shouldBe` Just employee.xeroEmployeeId
                 mapping.xeroEmployeeName `shouldBe` Just employee.displayName
                 mapping.lastVerifiedAt `shouldSatisfy` isJust
-                mappingBody <- responseBody response
-                Text.count "Ada Lovelace - ada@example.com" (cs mappingBody) `shouldBe` 0
+                mappingResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminXeroStaffMappingsFragmentAction
+                mappingResponse `responseStatusShouldBe` status200
+                mappingResponse `responseBodyShouldContain` "id=\"xero-staff-mappings-data\""
+                mappingResponse `responseBodyShouldNotContain` "id=\"xero-staff-mappings\""
+                mappingResponse `responseBodyShouldNotContain` "xero-staff-mapping-show-matched-toggle"
+                mappingResponse `responseBodyShouldContain` "id=\"xero-staff-mapping-counts\""
+                mappingResponse `responseBodyShouldContain` "xero-staff-mapping-row-matched"
+                mappingResponse `responseBodyShouldContain` ("id=\"xero-staff-mapping-control-" <> tshow staff.id <> "\"")
+                mappingResponse `responseBodyShouldContain` ("id=\"xero-staff-mapping-control-" <> tshow trialStaff.id <> "\"")
+                mappingResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
+                mappingBody <- responseBody mappingResponse
+                let mappingText = cs mappingBody
+                let beforeMatchedAdaInMutation = fst (Text.breakOn "Ada Lovelace" mappingText)
+                beforeMatchedAdaInMutation `shouldSatisfy` Text.isInfixOf "Trial Worker"
+                fullFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminXeroFragmentAction
+                fullFragmentResponse `responseBodyShouldContain` "xero-staff-mapping-row-matched"
+                fullFragmentBody <- responseBody fullFragmentResponse
+                let fullFragmentText = cs fullFragmentBody
+                let beforeMatchedAda = fst (Text.breakOn "Ada Lovelace" fullFragmentText)
+                beforeMatchedAda `shouldSatisfy` Text.isInfixOf "Trial Worker"
 
                 duplicateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -484,7 +515,13 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Saved Xero employee mapping for Ada Lovelace."
-                response `responseBodyShouldContain` ("id=\"xero-staff-mapping-control-" <> tshow staff.id <> "\"")
+                response `responseBodyShouldNotContain` "id=\"xero-staff-mappings\""
+                response `responseBodyShouldNotContain` "id=\"xero-staff-mappings-data\""
+                response `responseBodyShouldNotContain` "xero-staff-mapping-show-matched-toggle"
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_staff_mappings")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-staff-mappings-data")
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` "verified"
                 mapping.xeroEmployeeId `shouldBe` Just employee.xeroEmployeeId
@@ -1082,6 +1119,31 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
                 pageResponse `responseBodyShouldContain` "reconnect required"
                 pageResponse `responseBodyShouldContain` "Xero needs to be reconnected before sync can continue."
+
+        it "sends HTMX sync requests into the reconnect flow when the refresh token is expired" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero HTMX Expired Refresh Venue"
+                owner <- createUserRecord "xero-htmx-expired-refresh@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                connection <- createSyncableXeroConnection venue owner
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (failingRefreshXeroClient "{\"error\":\"invalid_grant\",\"error_description\":\"Refresh token has expired\"}") do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction SyncXeroPayrollReferenceDataAction
+
+                response `responseStatusShouldBe` status200
+                responseHeaders response `shouldSatisfy` any (\(name, value) ->
+                    let redirectTarget = cs value :: String
+                     in name == "HX-Redirect" && "login.xero.com" `List.isInfixOf` redirectTarget && "state=" `List.isInfixOf` redirectTarget
+                    )
+                updatedConnection <- fetch connection.id
+                updatedConnection.connectionStatus `shouldBe` "reauthorization_required"
+                syncRun <- query @XeroSyncRun |> fetchOne
+                syncRun.syncStatus `shouldBe` "failed"
+                stateCount <- query @XeroOauthState |> fetchCount
+                stateCount `shouldBe` 1
 
         it "repairs an existing same-tenant Xero connection during reconnect" $ withContext do
             withCleanDb do

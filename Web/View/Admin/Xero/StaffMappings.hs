@@ -1,38 +1,72 @@
 module Web.View.Admin.Xero.StaffMappings
     ( renderXeroStaffMappingControlsOob
+    , renderXeroStaffMappingsData
+    , renderXeroStaffMappingsOob
     , renderXeroStaffMappings
     ) where
 
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
+import qualified Data.List as List
 import qualified Data.Text as Text
 import Web.View.Prelude
 
 renderXeroStaffMappings :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
-renderXeroStaffMappings xeroEmployees mappingRows mappingCounts
+renderXeroStaffMappings =
+    renderXeroStaffMappingsWith noOobSwap
+
+renderXeroStaffMappingsOob :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
+renderXeroStaffMappingsOob =
+    renderXeroStaffMappingsWith outerHtmlOobSwap
+
+renderXeroStaffMappingsWith :: OobSwapAttr -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
+renderXeroStaffMappingsWith maybeOobSwap xeroEmployees mappingRows mappingCounts
+    | null xeroEmployees = renderXeroStaffMappingsShell maybeOobSwap False (renderXeroStaffMappingsData xeroEmployees mappingRows mappingCounts)
+    | null mappingRows = renderXeroStaffMappingsShell maybeOobSwap False (renderXeroStaffMappingsData xeroEmployees mappingRows mappingCounts)
+    | otherwise = renderXeroStaffMappingsShell maybeOobSwap True (renderXeroStaffMappingsData xeroEmployees mappingRows mappingCounts)
+
+renderXeroStaffMappingsShell :: OobSwapAttr -> Bool -> Html -> Html
+renderXeroStaffMappingsShell maybeOobSwap showMatchedToggle body = [hsx|
+    <div id="xero-staff-mappings"
+         class={appSurfaceClasses "p-3 xero-staff-mappings"}
+         hx-swap-oob={maybeOobSwap}>
+        {when showMatchedToggle renderXeroStaffMappingsHeaderActions}
+        {body}
+    </div>
+|]
+
+renderXeroStaffMappingsHeaderActions :: Html
+renderXeroStaffMappingsHeaderActions = [hsx|
+    <div class="d-flex justify-content-end mb-3">
+        {renderXeroStaffMappingShowMatchedToggle}
+    </div>
+|]
+
+renderXeroStaffMappingsData :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
+renderXeroStaffMappingsData xeroEmployees mappingRows mappingCounts
     | null xeroEmployees = [hsx|
-        <div class={appSurfaceClasses "p-3"}>
-            <h3 class="h6 mb-2">Staff mappings</h3>
+        <div id="xero-staff-mappings-data">
             <p class="small app-muted mb-0">Sync payroll reference data before mapping staff to Xero employees.</p>
         </div>
     |]
     | null mappingRows = [hsx|
-        <div class={appSurfaceClasses "p-3"}>
-            <h3 class="h6 mb-2">Staff mappings</h3>
+        <div id="xero-staff-mappings-data">
             <p class="small app-muted mb-0">No active staff are available for Xero payroll mapping.</p>
         </div>
     |]
     | otherwise = [hsx|
-        <div class={appSurfaceClasses "p-3"}>
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                <div>
-                    <h3 class="h6 mb-1">Staff mappings</h3>
-                    <p class="small app-muted mb-0">Map active staff to synced Xero payroll employees, or mark them as not paid through Xero.</p>
-                </div>
+        <div id="xero-staff-mappings-data"
+             class="xero-staff-mappings-data">
+            <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
                 {renderXeroStaffMappingCounts mappingCounts}
             </div>
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
+                <table class="table table-sm align-middle mb-0 xero-staff-mappings-table">
+                    <colgroup>
+                        <col class="xero-staff-mappings-col-staff" />
+                        <col class="xero-staff-mappings-col-email" />
+                        <col class="xero-staff-mappings-col-employee" />
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>Staff</th>
@@ -41,12 +75,15 @@ renderXeroStaffMappings xeroEmployees mappingRows mappingCounts
                         </tr>
                     </thead>
                     <tbody>
-                        {forEach mappingRows (renderXeroStaffMappingRow xeroEmployees mappingRows)}
+                        {forEach orderedRows (renderXeroStaffMappingRow xeroEmployees mappingRows)}
                     </tbody>
                 </table>
             </div>
         </div>
     |]
+    where
+        (matchedRows, unmatchedRows) = List.partition xeroStaffMappingRowIsMatched mappingRows
+        orderedRows = unmatchedRows <> matchedRows
 
 renderXeroStaffMappingRow :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingRow -> Html
 renderXeroStaffMappingRow xeroEmployees mappingRows row =
@@ -55,25 +92,27 @@ renderXeroStaffMappingRow xeroEmployees mappingRows row =
         currentSelection = xeroMappingSelectionValue mapping
         selectableEmployees = filter (xeroEmployeeAvailableForRow row mappingRows) xeroEmployees
      in [hsx|
-        <tr>
+        <tr class={classes [("xero-staff-mapping-row-matched", xeroStaffMappingRowIsMatched row)]}
+            data-xero-staff-mapping-status={mapping.mappingStatus}>
             <td>{renderXeroStaffMappingStaffCell row}</td>
             <td>{renderXeroStaffEmail row.mappingRowUser}</td>
-            <td>{renderXeroStaffMappingControl selectableEmployees currentSelection staff}</td>
+            <td>{renderXeroStaffMappingControl selectableEmployees currentSelection row staff}</td>
         </tr>
     |]
 
 renderXeroStaffMappingStaffCell :: XeroStaffMappingRow -> Html
 renderXeroStaffMappingStaffCell row = [hsx|
-    <div class="d-flex flex-column gap-1">
-        <span>{staffFullName row.mappingRowStaff}</span>
-        {renderXeroStaffPossibleMatchBadge row.mappingRowSuggestedEmployee}
-    </div>
+    <span>{staffFullName row.mappingRowStaff}</span>
 |]
 
-renderXeroStaffPossibleMatchBadge :: Maybe XeroEmployee -> Html
-renderXeroStaffPossibleMatchBadge Nothing = mempty
-renderXeroStaffPossibleMatchBadge (Just employee) = [hsx|
-    <span class={appStatusBadgeClass AppStatusWarning <> " align-self-start"}>Possible Xero match: {employee.displayName}</span>
+renderXeroStaffMappingShowMatchedToggle :: Html
+renderXeroStaffMappingShowMatchedToggle = [hsx|
+    <div class="form-check form-switch mb-0 ms-auto">
+        <input id="xero-show-matched-staff-toggle"
+               class="form-check-input xero-staff-mapping-show-matched-toggle"
+               type="checkbox" />
+        <label class="form-check-label small" for="xero-show-matched-staff-toggle">Show matched</label>
+    </div>
 |]
 
 renderXeroStaffMappingCounts :: XeroStaffMappingCounts -> Html
@@ -94,8 +133,8 @@ renderXeroStaffMappingCountsWith maybeOobSwap mappingCounts = [hsx|
     </div>
 |]
 
-renderXeroStaffMappingControl :: [XeroEmployee] -> Text -> Staff -> Html
-renderXeroStaffMappingControl selectableEmployees currentSelection staff = [hsx|
+renderXeroStaffMappingControl :: [XeroEmployee] -> Text -> XeroStaffMappingRow -> Staff -> Html
+renderXeroStaffMappingControl selectableEmployees currentSelection row staff = [hsx|
     <div id={xeroStaffMappingControlId staff.id} class="d-flex align-items-center gap-2">
         <form class="flex-grow-1"
               method="POST"
@@ -110,7 +149,7 @@ renderXeroStaffMappingControl selectableEmployees currentSelection staff = [hsx|
                 {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
             </select>
         </form>
-        {renderXeroStaffMappingSuggestButton staff}
+        {renderXeroStaffMappingSuggestButton row staff}
     </div>
 |]
 
@@ -138,19 +177,19 @@ renderXeroStaffMappingControlOob xeroEmployees mappingRows row =
                     {forEach selectableEmployees (renderXeroEmployeeOption currentSelection)}
                 </select>
             </form>
-            {renderXeroStaffMappingSuggestButton staff}
+            {renderXeroStaffMappingSuggestButton row staff}
         </div>
     |]
 
-renderXeroStaffMappingSuggestButton :: Staff -> Html
-renderXeroStaffMappingSuggestButton staff = [hsx|
+renderXeroStaffMappingSuggestButton :: XeroStaffMappingRow -> Staff -> Html
+renderXeroStaffMappingSuggestButton row staff = [hsx|
     <form method="POST"
           action={SuggestXeroStaffMappingAction staff.id}
           data-disable-javascript-submission="true"
           hx-post={pathTo (SuggestXeroStaffMappingAction staff.id)}
           hx-target="#admin-xero-fragment"
           hx-swap="none">
-        <button class="btn btn-outline-secondary btn-sm" type="submit">Suggest</button>
+        <button class="btn btn-outline-secondary btn-sm" type="submit" disabled={isNothing row.mappingRowSuggestedEmployee}>Match</button>
     </form>
 |]
 
@@ -169,6 +208,10 @@ renderXeroStaffMappingControlsOob maybeUnchangedStaffId xeroEmployees mappingRow
 xeroStaffMappingControlId :: Id Staff -> Text
 xeroStaffMappingControlId staffId =
     "xero-staff-mapping-control-" <> tshow staffId
+
+xeroStaffMappingRowIsMatched :: XeroStaffMappingRow -> Bool
+xeroStaffMappingRowIsMatched row =
+    row.mappingRowMapping.mappingStatus == "verified"
 
 xeroEmployeeAvailableForRow :: XeroStaffMappingRow -> [XeroStaffMappingRow] -> XeroEmployee -> Bool
 xeroEmployeeAvailableForRow currentRow mappingRows =
