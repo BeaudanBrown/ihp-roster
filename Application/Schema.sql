@@ -921,6 +921,73 @@ CREATE TABLE timesheet_entry_versions (
     FOREIGN KEY (timesheet_entry_id) REFERENCES timesheet_entries (id) ON DELETE RESTRICT,
     FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
+CREATE TABLE xero_submission_runs (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    submitted_by_user_id UUID NOT NULL,
+    pay_period_start DATE NOT NULL,
+    pay_period_end DATE NOT NULL,
+    source_kind TEXT DEFAULT 'approved_timesheets' NOT NULL,
+    status TEXT DEFAULT 'previewed' NOT NULL,
+    preview_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    readiness_snapshot_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    xero_duplicate_check_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    completed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    error_summary TEXT DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    FOREIGN KEY (submitted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (source_kind = 'approved_timesheets'),
+    CHECK (status = 'previewed' OR status = 'blocked' OR status = 'pending' OR status = 'submitted' OR status = 'partially_failed' OR status = 'failed' OR status = 'superseded'),
+    CHECK (pay_period_end >= pay_period_start)
+);
+CREATE TABLE xero_timesheet_submissions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    xero_submission_run_id UUID NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    staff_id UUID NOT NULL,
+    xero_employee_id TEXT NOT NULL,
+    pay_period_start DATE NOT NULL,
+    pay_period_end DATE NOT NULL,
+    status TEXT DEFAULT 'pending' NOT NULL,
+    idempotency_key TEXT NOT NULL,
+    request_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    response_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    xero_timesheet_id TEXT DEFAULT NULL,
+    xero_timesheet_status TEXT DEFAULT NULL,
+    xero_updated_date_utc TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    attempt_count INT DEFAULT 0 NOT NULL,
+    last_error TEXT DEFAULT NULL,
+    submitted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (xero_submission_run_id) REFERENCES xero_submission_runs (id) ON DELETE RESTRICT,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
+    CHECK (status = 'blocked' OR status = 'pending' OR status = 'submitted' OR status = 'failed' OR status = 'skipped' OR status = 'superseded'),
+    CHECK (char_length(idempotency_key) <= 128),
+    CHECK (attempt_count >= 0),
+    CHECK (pay_period_end >= pay_period_start)
+);
+CREATE TABLE xero_timesheet_submission_entries (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    xero_timesheet_submission_id UUID NOT NULL,
+    timesheet_entry_id UUID NOT NULL,
+    pay_config_snapshot_id UUID NOT NULL,
+    entry_updated_at_at_preview TIMESTAMP WITH TIME ZONE NOT NULL,
+    entry_approved_at_at_preview TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (xero_timesheet_submission_id) REFERENCES xero_timesheet_submissions (id) ON DELETE RESTRICT,
+    FOREIGN KEY (timesheet_entry_id) REFERENCES timesheet_entries (id) ON DELETE RESTRICT,
+    FOREIGN KEY (pay_config_snapshot_id) REFERENCES pay_config_snapshots (id) ON DELETE RESTRICT
+);
 CREATE TABLE venue_membership_role_events (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -1021,6 +1088,12 @@ CREATE INDEX idx_xero_payroll_calendar_selections_venue_status ON xero_payroll_c
 CREATE UNIQUE INDEX idx_xero_pay_item_account_code_selections_connection ON xero_pay_item_account_code_selections (xero_connection_id);
 CREATE UNIQUE INDEX idx_xero_pay_item_requirement_records_connection_key ON xero_pay_item_requirement_records (xero_connection_id, requirement_key);
 CREATE INDEX idx_xero_pay_item_requirement_records_venue_status ON xero_pay_item_requirement_records (venue_id, requirement_status);
+CREATE INDEX idx_xero_submission_runs_connection_period ON xero_submission_runs (xero_connection_id, pay_period_start, pay_period_end);
+CREATE INDEX idx_xero_timesheet_submissions_run ON xero_timesheet_submissions (xero_submission_run_id);
+CREATE INDEX idx_xero_timesheet_submissions_staff_period ON xero_timesheet_submissions (staff_id, pay_period_start, pay_period_end);
+CREATE UNIQUE INDEX idx_xero_timesheet_submissions_active_remote_period ON xero_timesheet_submissions (xero_connection_id, xero_employee_id, pay_period_start, pay_period_end) WHERE status <> 'superseded';
+CREATE INDEX idx_xero_timesheet_submission_entries_submission ON xero_timesheet_submission_entries (xero_timesheet_submission_id);
+CREATE UNIQUE INDEX idx_xero_timesheet_submission_entries_unique_entry ON xero_timesheet_submission_entries (xero_timesheet_submission_id, timesheet_entry_id);
 
 CREATE OR REPLACE FUNCTION prevent_hard_delete()
 RETURNS TRIGGER
@@ -1068,6 +1141,9 @@ CREATE TRIGGER prevent_hard_delete_xero_earnings_rate_mappings BEFORE DELETE ON 
 CREATE TRIGGER prevent_hard_delete_xero_payroll_calendar_selections BEFORE DELETE ON xero_payroll_calendar_selections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_pay_item_account_code_selections BEFORE DELETE ON xero_pay_item_account_code_selections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_pay_item_requirement_records BEFORE DELETE ON xero_pay_item_requirement_records FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_submission_runs BEFORE DELETE ON xero_submission_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_timesheet_submissions BEFORE DELETE ON xero_timesheet_submissions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_timesheet_submission_entries BEFORE DELETE ON xero_timesheet_submission_entries FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
 CREATE OR REPLACE FUNCTION enforce_roster_week_venue_integrity()
 RETURNS TRIGGER

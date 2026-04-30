@@ -52,6 +52,9 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe VenueMembershipRoleEvent)
         let _ = (Nothing :: Maybe Passkey)
         let _ = (Nothing :: Maybe AppJob)
+        let _ = (Nothing :: Maybe XeroSubmissionRun)
+        let _ = (Nothing :: Maybe XeroTimesheetSubmission)
+        let _ = (Nothing :: Maybe XeroTimesheetSubmissionEntry)
         True `shouldBe` True
 
     it "generates venue and venue membership models" do
@@ -222,6 +225,24 @@ tests = describe "Schema" do
         migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD CONSTRAINT roster_days_roster_week_id_fk FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD CONSTRAINT export_jobs_purged_by_user_id_fk FOREIGN KEY (purged_by_user_id) REFERENCES users (id) ON DELETE RESTRICT"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "DROP CONSTRAINT IF EXISTS roster_slots_roster_day_id_fkey"
+
+    it "persists Xero timesheet submission runs, per-staff submissions, and source entry links" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_submission_runs"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_timesheet_submissions"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE xero_timesheet_submission_entries"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "idempotency_key TEXT NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "request_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "response_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_timesheet_id TEXT DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "xero_timesheet_status TEXT DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (timesheet_entry_id) REFERENCES timesheet_entries (id) ON DELETE RESTRICT"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_xero_submission_runs_connection_period ON xero_submission_runs (xero_connection_id, pay_period_start, pay_period_end);"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_xero_timesheet_submissions_active_remote_period ON xero_timesheet_submissions (xero_connection_id, xero_employee_id, pay_period_start, pay_period_end) WHERE status <> 'superseded';"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_xero_timesheet_submission_entries_unique_entry ON xero_timesheet_submission_entries (xero_timesheet_submission_id, timesheet_entry_id);"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_xero_submission_runs BEFORE DELETE ON xero_submission_runs"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_xero_timesheet_submissions BEFORE DELETE ON xero_timesheet_submissions"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_xero_timesheet_submission_entries BEFORE DELETE ON xero_timesheet_submission_entries"
 
     it "enforces case-insensitive uniqueness for login emails" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
