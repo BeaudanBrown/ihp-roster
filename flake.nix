@@ -703,6 +703,8 @@ EOF
                             if [ -f "$DEV_XERO_SEED_FILE" ]; then
                                 echo "Restoring dev Xero connection from $DEV_XERO_SEED_FILE"
                                 psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f "$DEV_XERO_SEED_FILE"
+                                echo "Loading dev Xero pay item mappings"
+                                psql -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Support/Seed/DevXeroPayItemMappings.sql
                             fi
                         '';
 
