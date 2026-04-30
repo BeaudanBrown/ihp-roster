@@ -88,7 +88,7 @@ psql -h "$PWD/build/db" app -c "\dt"
   - `currentUserIsSuperAdmin = True`
   Keep that shape intact so later audit/UI layers can distinguish founder support mode from ordinary venue membership access.
 - For payroll-adjacent mutations, append provenance rows from shared helpers instead of scattering ad hoc JSON snapshots across controllers. Timesheet corrections use `timesheet_entry_versions`; leave lifecycle transitions use `leave_request_events`; venue-role assignment/change uses `venue_membership_role_events`.
-- Keep pay/config reproducibility centralized in `Application/Helper/Pay.hs`: venue-admin snapshot creation should serialize the current venue-owned config tables into `pay_config_snapshots`, and payroll-adjacent workflows should bind approved rows/exports to those immutable snapshot versions instead of trusting mutable current config.
+- Keep pay/config reproducibility centralized in `Application/Helper/Pay.hs`: payroll-adjacent workflows should bind approved rows, exports, and Xero submissions to append-only relational pay config versions (`staff_pay_versions` and `shift_type_pay_versions`) instead of trusting mutable current config.
 - Payroll report parity now depends on two persisted facts:
   - `timesheet_entries.shift_type_id` is the authoritative shift-type input for pay resolution and report grouping
   - effective award level resolution uses `shift_types.override_award_level_id` first, then `staff.default_award_level_id`

@@ -1,6 +1,6 @@
 ---
 id: ir-6s3f
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T06:56:50Z
@@ -22,3 +22,9 @@ Approval stores selected pay version ids. Export generation records included ent
 
 Controller/domain tests prove approved entries carry version ids, exported/submitted entries cannot be silently mutated, unapprove/edit behavior is explicit, and audit/export metadata shows the locked version context.
 
+
+## Notes
+
+**2026-04-30T07:28:58Z**
+
+Approval now locks selected pay versions; exports record export_job_entries provenance; Xero preview/submission stores staff/shift pay version ids; edit/delete/unapprove gates block entries that already have export or Xero provenance.

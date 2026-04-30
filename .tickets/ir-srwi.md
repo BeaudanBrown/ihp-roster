@@ -1,6 +1,6 @@
 ---
 id: ir-srwi
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T06:56:38Z
@@ -22,3 +22,9 @@ Migrate timesheet_entries from pay_config_snapshot_id to explicit version refere
 
 Schema/types regenerated; pay SQL and helpers use relational version ids; tests mutate current pay config by creating newer versions and prove approved entry pay result remains stable.
 
+
+## Notes
+
+**2026-04-30T07:28:59Z**
+
+Implemented approval-time staff_pay_version_id and shift_type_pay_version_id binding, helper orchestration, pay result decoding, profile seed/test fixture conversion, and calculate_timesheet_pay relational resolution. regen-types, typecheck, and focused Pay/Payroll/Exports/Xero specs pass.

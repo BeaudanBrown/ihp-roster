@@ -1,6 +1,6 @@
 ---
 id: ir-f7j7
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T06:56:44Z
@@ -22,3 +22,9 @@ Shift type display fields may remain editable only when they are not historical/
 
 Admin tests cover creating new versions for pay-relevant edits, old approved entries continue referencing old versions, and non-pay edits do not create pay versions.
 
+
+## Notes
+
+**2026-04-30T07:28:58Z**
+
+Converted pay-relevant staff and shift type admin edits to create append-only staff_pay_versions/shift_type_pay_versions; non-pay shift type sort changes no longer create pay versions. Existing approved rows retain their pinned version ids.

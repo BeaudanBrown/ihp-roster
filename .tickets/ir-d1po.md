@@ -1,6 +1,6 @@
 ---
 id: ir-d1po
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T06:56:59Z
@@ -22,3 +22,9 @@ Drop pay_config_snapshots and pay_config_snapshot_id references from Schema.sql,
 
 No app-runtime references to pay_config_snapshots, pay_config_snapshot_id, or payConfigSnapshotId remain except historical migration notes; schema has no pay_config_snapshots table; typecheck and focused payroll/export/Xero tests pass.
 
+
+## Notes
+
+**2026-04-30T07:29:04Z**
+
+Removed pay_config_snapshots and pay_config_snapshot_id from Schema.sql, generated/runtime helper paths, export/Xero payloads, tests, fixtures, and profile seed. Remaining matches are historical migration notes only.

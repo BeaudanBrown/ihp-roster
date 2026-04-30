@@ -1,6 +1,6 @@
 ---
 id: ir-hw2v
-status: open
+status: closed
 deps: []
 links: [ir-lz0x, ir-z5dj, ir-3vc6]
 created: 2026-04-30T06:56:25Z
@@ -22,3 +22,9 @@ Use plans/68-append-only-pay-config-versioning.md as the implementation plan. Hi
 
 Approved timesheets, payroll exports, and Xero submissions reference immutable version rows; mutable pay-relevant edit actions create new versions instead of updating locked facts; JSON pay_config_snapshots are removed from schema/code/tests/specs; focused payroll/export/Xero tests prove old output remains stable after new versions are created.
 
+
+## Notes
+
+**2026-04-30T07:29:20Z**
+
+Completed child implementation: relational pay version schema/resolution, admin version creation, approval/export/Xero provenance locks, JSON snapshot removal, docs updates, regen-types, typecheck, focused Pay/Payroll/Exports/Xero specs.

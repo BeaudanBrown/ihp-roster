@@ -1,6 +1,6 @@
 ---
 id: ir-3qku
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T06:57:06Z
@@ -22,3 +22,9 @@ After implementation direction is accepted, update specs/02-domain-model.md, spe
 
 Active docs consistently describe immutable relational version ids and locking gates; old JSON snapshot guidance is marked superseded; tracker links point to ir-hw2v work.
 
+
+## Notes
+
+**2026-04-30T07:29:04Z**
+
+Updated Application/AGENTS.md and Test/AGENTS.md to describe append-only relational pay version ids and approval fixture requirements. Active specs no longer contain JSON snapshot guidance; plan 65 already marks the snapshot direction superseded by plan 68/ir-hw2v.

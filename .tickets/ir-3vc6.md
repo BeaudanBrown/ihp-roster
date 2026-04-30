@@ -1,6 +1,6 @@
 ---
 id: ir-3vc6
-status: open
+status: closed
 deps: []
 links: [ir-lz0x, ir-caf4, ir-z5dj, ir-hw2v]
 created: 2026-04-30T06:31:22Z
@@ -28,3 +28,7 @@ Tests mutate shift type override/default award level/rates after approval and pr
 **2026-04-30T06:57:13Z**
 
 Design pivot: do not implement the JSON pay_config_snapshots remediation as originally written. Supersede this with ir-hw2v, which replaces JSON snapshots with append-only relational pay config versions and explicit approval/export/Xero locks.
+
+**2026-04-30T07:29:20Z**
+
+Superseded by ir-hw2v append-only relational pay config version implementation. JSON pay_config_snapshots/pay_config_snapshot_id were removed from runtime schema/code instead of becoming payroll source of truth.
