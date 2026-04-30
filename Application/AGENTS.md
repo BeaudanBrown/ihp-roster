@@ -101,6 +101,12 @@ psql -h "$PWD/build/db" app -c "\dt"
 - Award-level monetary inputs live in `award_level_base_rates` and `award_level_penalty_rates`, scoped by effective award level, employment basis, penalty kind, and operative dates. Any payroll/export change that needs wage math should read those canonical rows instead of recreating parallel monetary fields.
 - `day_names.weekday_index` is treated as real weekday numbering for pay resolution (`EXTRACT(DOW ...)`: Sunday `0` through Saturday `6`). When rendering week-scoped report columns, do not sort/export by raw `weekday_index`; reorder labels by the selected week start date so Monday-first (or venue-specific epoch-first) week views stay stable while the SQL pay engine still resolves overrides correctly.
 - The pay payload now exposes effective shift-type/pay-level identifiers and labels plus real monetary fields (`baseRate`, per-segment `amount`, `totals.totalAmount`) for payroll export/report shaping.
+- Keep FWC MAPD sync concerns split by module:
+  - `Application/FwcMapd/Payload.hs` for external payload types and JSON decoding
+  - `Application/FwcMapd/Curation.hs` for curation profiles, filtering, searchable text, and penalty-kind normalization
+  - `Application/FwcMapd/RawStore.hs` for API fetch/decode and raw MAPD row persistence
+  - `Application/FwcMapd/Projection.hs` for projecting raw MAPD rows into award-level/base-rate/penalty tables
+  - `Application/FwcMapd/Sync.hs` as the stable runner/facade used by jobs and scripts
 - Keep reusable overlay helpers in focused view helper modules:
   - `Application/Helper/View/Overlay.hs` for shared dialog mount ids, overlay config/button types, and workflow dialog / `setModal` footer rendering
   - `Application/Helper/View/Toast.hs` for toast mount ids, toast config, and toast rendering
