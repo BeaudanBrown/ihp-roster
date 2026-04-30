@@ -1,8 +1,11 @@
 module Application.Helper.View
     ( module Application.Helper.View
+    , module Application.Helper.View.Awards
     , module Application.Helper.View.Chrome
+    , module Application.Helper.View.Format
     , module Application.Helper.View.Leave
     , module Application.Helper.View.Overlay
+    , module Application.Helper.View.Staff
     , module Application.Helper.View.Status
     , module Application.Helper.View.Toast
     ) where
@@ -10,14 +13,15 @@ module Application.Helper.View
 import Application.Helper.Controller (VenueRole (..), currentUserIsSuperAdmin,
                                       currentVenueRoleOrNothing,
                                       hasRole)
+import Application.Helper.View.Awards
 import Application.Helper.View.Chrome
+import Application.Helper.View.Format
 import Application.Helper.View.Leave
 import Application.Helper.View.Overlay
+import Application.Helper.View.Staff
 import Application.Helper.View.Status
 import Application.Helper.View.Toast
-import qualified Data.Char as Char
-import Data.List (elemIndex, sortBy)
-import qualified Data.Scientific as Scientific
+import Data.List (elemIndex)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
@@ -71,84 +75,6 @@ renderWhenAudience :: (?context :: ControllerContext) => ViewAudience -> Html ->
 renderWhenAudience audience =
     when (currentUserMatchesAudience audience)
 
--- | True when a staff record is a trial placeholder (no linked user account).
-isTrialStaff :: Staff -> Bool
-isTrialStaff staff = isNothing staff.userId
-
-linkedActiveStaffForRosterPanel :: [Staff] -> [Staff]
-linkedActiveStaffForRosterPanel =
-    sortBy sortStaff
-        . filter (\staff -> staff.isActive && isJust staff.userId)
-    where
-        sortStaff left right =
-            compare left.firstName right.firstName <> compare left.lastName right.lastName
-
-staffDisplayName :: [Staff] -> Staff -> Text
-staffDisplayName staffMembers staff =
-    let
-        baseName = staffDisplayBaseName staff
-        needsLastInitial =
-            any
-                (\other -> other.id /= staff.id && normalizedStaffDisplayBaseName other == normalizedStaffDisplayBaseName staff)
-                staffMembers
-     in
-        if needsLastInitial
-            then baseName <> renderStaffLastInitial staff
-            else baseName
-
-staffDisplayBaseName :: Staff -> Text
-staffDisplayBaseName staff =
-    fromMaybe staff.firstName (nonBlankText =<< staff.preferredName)
-
-normalizedStaffDisplayBaseName :: Staff -> Text
-normalizedStaffDisplayBaseName = Text.toCaseFold . staffDisplayBaseName
-
-renderStaffLastInitial :: Staff -> Text
-renderStaffLastInitial staff =
-    case Text.find (not . Char.isSpace) (Text.strip staff.lastName) of
-        Just char -> " " <> Text.singleton (Char.toUpper char) <> "."
-        Nothing   -> ""
-
-awardLevelDisplayLabel :: AwardLevel -> Text
-awardLevelDisplayLabel awardLevel =
-    maybe "" (<> " - ") awardLevel.classificationLevel <> awardLevel.classification
-
-awardLevelOptionLabel :: [AwardLevelBaseRate] -> AwardLevel -> Text
-awardLevelOptionLabel awardLevelBaseRates awardLevel =
-    case awardLevelRateLabels awardLevelBaseRates awardLevel of
-        []         -> awardLevelDisplayLabel awardLevel
-        rateLabels -> awardLevelDisplayLabel awardLevel <> " (" <> Text.intercalate ", " rateLabels <> ")"
-
-awardLevelRateLabels :: [AwardLevelBaseRate] -> AwardLevel -> [Text]
-awardLevelRateLabels awardLevelBaseRates awardLevel =
-    mapMaybe rateLabel [Permanent, Casual]
-    where
-        rateLabel employmentBasis =
-            fmap
-                (\rate -> employmentBasisShortLabel employmentBasis <> " " <> formatHourlyRate rate.hourlyRate)
-                (find (matchingRate employmentBasis) awardLevelBaseRates)
-
-        matchingRate employmentBasis rate =
-            rate.awardLevelId == unpackId awardLevel.id
-                && rate.employmentBasis == employmentBasis
-
-employmentBasisShortLabel :: StaffEmploymentBasisEnum -> Text
-employmentBasisShortLabel Permanent = "perm"
-employmentBasisShortLabel Casual    = "casual"
-
-formatHourlyRate :: Scientific.Scientific -> Text
-formatHourlyRate rate =
-    "$" <> trimWholeDollars rendered <> "/hr"
-    where
-        rendered = Text.pack (Scientific.formatScientific Scientific.Fixed (Just 2) rate)
-        trimWholeDollars value =
-            fromMaybe value (Text.stripSuffix ".00" value)
-
-nonBlankText :: Text -> Maybe Text
-nonBlankText text =
-    let stripped = Text.strip text
-     in if Text.null stripped then Nothing else Just stripped
-
 data TimePickerConfig = TimePickerConfig
     { timePickerFieldName       :: !Text
     , timePickerCurrentValue    :: !Text
@@ -168,36 +94,12 @@ data TimePickerConfig = TimePickerConfig
 timePickerModalId :: Text
 timePickerModalId = "quarter-hour-time-picker-modal"
 
-formatDateDisplay :: Day -> Text
-formatDateDisplay day = Text.pack (formatTime defaultTimeLocale "%d/%m/%Y" day)
-
-formatDayMonthDisplay :: Day -> Text
-formatDayMonthDisplay day = Text.pack (formatTime defaultTimeLocale "%d/%m" day)
-
-formatUtcTimestamp :: UTCTime -> Text
-formatUtcTimestamp =
-    Text.pack . formatTime defaultTimeLocale "%Y-%m-%d %H:%M UTC"
-
-boolParam :: Bool -> Text
-boolParam True  = "true"
-boolParam False = "false"
-
 timesheetModalTitle :: Day -> Text
 timesheetModalTitle day =
     "Timesheet "
         <> Text.pack (formatTime defaultTimeLocale "%A" day)
         <> " "
         <> formatDayMonthDisplay day
-
-appendQueryParams :: Text -> [(Text, Text)] -> Text
-appendQueryParams basePath params
-    | null nonEmptyParams = basePath
-    | Text.isInfixOf "?" basePath = basePath <> "&" <> renderedParams
-    | otherwise = basePath <> "?" <> renderedParams
-    where
-        nonEmptyParams = filter (not . Text.null . snd) params
-        renderedParams = Text.intercalate "&" (map renderParam nonEmptyParams)
-        renderParam (key, value) = key <> "=" <> value
 
 -- | Canonical quarter-hour time options from 06:00 through 23:45.
 -- Value format is 24-hour HH:MM for storage; label format is 12-hour with AM/PM.

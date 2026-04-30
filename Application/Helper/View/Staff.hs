@@ -1,0 +1,58 @@
+module Application.Helper.View.Staff
+    ( isTrialStaff
+    , linkedActiveStaffForRosterPanel
+    , nonBlankText
+    , normalizedStaffDisplayBaseName
+    , renderStaffLastInitial
+    , staffDisplayBaseName
+    , staffDisplayName
+    ) where
+
+import qualified Data.Char as Char
+import Data.List (sortBy)
+import Generated.Types
+import IHP.ViewPrelude
+import qualified Data.Text as Text
+
+-- | True when a staff record is a trial placeholder (no linked user account).
+isTrialStaff :: Staff -> Bool
+isTrialStaff staff = isNothing staff.userId
+
+linkedActiveStaffForRosterPanel :: [Staff] -> [Staff]
+linkedActiveStaffForRosterPanel =
+    sortBy sortStaff
+        . filter (\staff -> staff.isActive && isJust staff.userId)
+    where
+        sortStaff left right =
+            compare left.firstName right.firstName <> compare left.lastName right.lastName
+
+staffDisplayName :: [Staff] -> Staff -> Text
+staffDisplayName staffMembers staff =
+    let
+        baseName = staffDisplayBaseName staff
+        needsLastInitial =
+            any
+                (\other -> other.id /= staff.id && normalizedStaffDisplayBaseName other == normalizedStaffDisplayBaseName staff)
+                staffMembers
+     in
+        if needsLastInitial
+            then baseName <> renderStaffLastInitial staff
+            else baseName
+
+staffDisplayBaseName :: Staff -> Text
+staffDisplayBaseName staff =
+    fromMaybe staff.firstName (nonBlankText =<< staff.preferredName)
+
+normalizedStaffDisplayBaseName :: Staff -> Text
+normalizedStaffDisplayBaseName = Text.toCaseFold . staffDisplayBaseName
+
+renderStaffLastInitial :: Staff -> Text
+renderStaffLastInitial staff =
+    case Text.find (not . Char.isSpace) (Text.strip staff.lastName) of
+        Just char -> " " <> Text.singleton (Char.toUpper char) <> "."
+        Nothing   -> ""
+
+nonBlankText :: Text -> Maybe Text
+nonBlankText text =
+    let stripped = Text.strip text
+     in if Text.null stripped then Nothing else Just stripped
