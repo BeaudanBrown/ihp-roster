@@ -107,7 +107,8 @@ renderForm post = formFor post [hsx|
 
 ## Global Header Pattern
 - Authenticated navigation is centralized in `Web/View/Layout.hs` (`renderAppHeader`) so every signed-in page gets the same header.
-- Keep nav button labels/order consistent: `roster`, `profile`, `timesheets`, `leave`, `admin`, `support`, `logout`.
+- Keep nav button labels/order consistent: `roster`, `profile`, `timesheets`, `leave`, `xero`, `admin`, `support`, `logout`.
+- Keep `xero` link visibility owner/super-admin only via the shared Xero audience logic.
 - Keep `admin` link visibility role-gated (admin only) via `currentUserIsAdmin`.
 - Keep `support` link visibility founder-only via `currentUserIsSupportAdmin`; do not expose it to ordinary venue admins.
 - Do not duplicate primary nav in page-level views unless there is a specific workflow reason.

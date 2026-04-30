@@ -258,6 +258,11 @@ the declarative `LiveFragmentProtection` path from
 
 ### 5. Runtime Assets Still Depend On CDNs
 
+**Current status, 2026-04-30:** completed/superseded. `Web/View/Layout.hs`
+now loads HTMX and Bootstrap Icons from `static/vendor/` via `assetPath`
+alongside the vendored Bootstrap assets. Keep this section as historical audit
+context, not active remediation work.
+
 **Priority:** medium
 
 **Finding:** `Web/View/Layout.hs` loads Bootstrap locally but still loads:

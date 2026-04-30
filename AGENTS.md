@@ -18,7 +18,7 @@
 ## Styling
 - **Bootstrap 5.3.8** is included via vendor files — use Bootstrap classes in HSX
 - `static/app.css` is the CSS entrypoint; feature styles live under `static/css/`
-- App JavaScript is split by concern across `static/app-bootstrap.js`, `static/app-date-pickers.js`, `static/app-passkeys.js`, `static/app-live-updates.js`, and `static/app.js`
+- App JavaScript is split by concern across `static/app-bootstrap.js`, `static/app-date-pickers.js`, `static/app-passkeys.js`, `static/app-live-updates.js`, `static/app-dialog-overlays.js`, `static/app-toasts.js`, `static/app-time-picker.js`, `static/app-roster.js`, `static/app-timesheets.js`, and `static/app.js`
 - The layout shell is defined in `Web/View/Layout.hs` — edit `defaultLayout` to change page structure
 - Use `assetPath` for all static asset references (enables cache-busting in production)
 
