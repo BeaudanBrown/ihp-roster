@@ -1,4 +1,33 @@
 -- Your database schema. Use the Schema Designer at http://localhost:8001/ to add some tables.
+--
+-- Schema navigation map:
+-- - schema-nav: enum-types - shared status/role/action enums. Some finite
+--   domains intentionally remain TEXT + explicit OR checks for IHP parser
+--   compatibility; hardening belongs in ir-caf4.
+-- - schema-nav: identity-and-access - venues, users, email verification,
+--   passkeys, memberships, invitations, and onboarding.
+-- - schema-nav: staff-profiles - venue staff profile and employment defaults.
+-- - schema-nav: venue-config - shift types and venue-level defaults.
+-- - schema-nav: reporting-config - report definitions and shift-type filters.
+-- - schema-nav: roster-group-config - roster groups, staff group assignments,
+--   and slot/day names.
+-- - schema-nav: pay-reference - pay snapshots, FWC MAPD imports, award levels,
+--   rates, allowances, and public holidays.
+-- - schema-nav: async-jobs - durable app jobs and progress/result payloads.
+-- - schema-nav: roster-planning - roster weeks, days, slots, and staff shift
+--   preferences.
+-- - schema-nav: leave-timesheets-audit - leave requests, audit trail, and
+--   export jobs.
+-- - schema-nav: xero - OAuth connections, reference sync rows, mappings, and
+--   pay item setup.
+-- - schema-nav: timesheets - timesheet entries and version history.
+-- - schema-nav: xero-submissions - Xero submission runs and submitted entries.
+-- - schema-nav: indexes - composite, partial, uniqueness, and lookup indexes.
+-- - schema-nav: retention-triggers - hard-delete guards for retained tables.
+-- - schema-nav: tenant-integrity-triggers - cross-table venue consistency.
+-- - schema-nav: pay-sql-functions - SQL pay calculation helpers.
+
+-- schema-nav: enum-types
 CREATE TYPE venue_status_enum AS ENUM ('active', 'inactive');
 CREATE TYPE venue_role_enum AS ENUM ('worker', 'manager', 'venue_admin', 'venue_owner');
 CREATE TYPE platform_role_enum AS ENUM ('super_admin');
@@ -11,6 +40,7 @@ CREATE TYPE venue_membership_role_event_type_enum AS ENUM ('assigned', 'changed'
 CREATE TYPE staff_employment_basis_enum AS ENUM ('permanent', 'casual');
 CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_after_midnight', 'saturday_penalty', 'sunday_penalty', 'public_holiday_penalty', 'delayed_meal_break_weekday', 'delayed_meal_break_saturday', 'delayed_meal_break_sunday', 'delayed_meal_break_public_holiday');
 
+-- schema-nav: identity-and-access
 CREATE TABLE venues (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     name TEXT NOT NULL,
@@ -119,6 +149,8 @@ CREATE TABLE venue_onboarding_invitations (
     FOREIGN KEY (invited_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (accepted_by_user_id) REFERENCES users (id) ON DELETE SET NULL
 );
+
+-- schema-nav: staff-profiles
 CREATE TABLE staff (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -143,6 +175,8 @@ CREATE TABLE staff (
     FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((ideal_shifts_per_week >= 0) AND (ideal_shifts_per_week <= 7))
 );
+
+-- schema-nav: venue-config
 CREATE TABLE shift_types (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -158,6 +192,8 @@ CREATE TABLE shift_types (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
+
+-- schema-nav: reporting-config
 CREATE TABLE report_definitions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -189,6 +225,8 @@ CREATE TABLE report_definition_shift_type_filters (
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
+
+-- schema-nav: roster-group-config
 CREATE TABLE roster_groups (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -266,6 +304,8 @@ CREATE TABLE venue_config (
     CHECK (late_to_early_min_start_gap_minutes >= 0),
     CHECK (staff_timesheet_edit_window_days >= 0)
 );
+
+-- schema-nav: pay-reference
 CREATE TABLE pay_config_snapshots (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -500,6 +540,8 @@ CREATE TABLE public_holidays (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(jurisdiction, holiday_date, name, region)
 );
+
+-- schema-nav: async-jobs
 CREATE TABLE app_jobs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
@@ -523,6 +565,8 @@ CREATE TABLE app_jobs (
     FOREIGN KEY (requested_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE SET NULL
 );
+
+-- schema-nav: roster-planning
 CREATE TABLE roster_weeks (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -593,6 +637,8 @@ CREATE TABLE staff_shift_preferences (
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK ((weekday_index >= 0) AND (weekday_index <= 6))
 );
+
+-- schema-nav: leave-timesheets-audit
 CREATE TABLE leave_requests (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -670,6 +716,8 @@ CREATE TABLE export_jobs (
     FOREIGN KEY (downloaded_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (purged_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
+
+-- schema-nav: xero
 CREATE TABLE xero_connections (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -877,6 +925,8 @@ CREATE TABLE xero_pay_item_requirement_records (
     FOREIGN KEY (updated_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (requirement_status = 'proposed' OR requirement_status = 'matched' OR requirement_status = 'created' OR requirement_status = 'ignored' OR requirement_status = 'stale' OR requirement_status = 'rate_changed')
 );
+
+-- schema-nav: timesheets
 CREATE TABLE timesheet_entries (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -921,6 +971,8 @@ CREATE TABLE timesheet_entry_versions (
     FOREIGN KEY (timesheet_entry_id) REFERENCES timesheet_entries (id) ON DELETE RESTRICT,
     FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
+
+-- schema-nav: xero-submissions
 CREATE TABLE xero_submission_runs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -1003,6 +1055,7 @@ CREATE TABLE venue_membership_role_events (
     FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 
+-- schema-nav: indexes
 -- Composite indexes for common venue-scoped access paths
 CREATE INDEX idx_venue_memberships_venue_user ON venue_memberships (venue_id, user_id);
 CREATE INDEX idx_venue_memberships_user_active ON venue_memberships (user_id, is_active);
@@ -1095,6 +1148,7 @@ CREATE UNIQUE INDEX idx_xero_timesheet_submissions_active_remote_period ON xero_
 CREATE INDEX idx_xero_timesheet_submission_entries_submission ON xero_timesheet_submission_entries (xero_timesheet_submission_id);
 CREATE UNIQUE INDEX idx_xero_timesheet_submission_entries_unique_entry ON xero_timesheet_submission_entries (xero_timesheet_submission_id, timesheet_entry_id);
 
+-- schema-nav: retention-triggers
 CREATE OR REPLACE FUNCTION prevent_hard_delete()
 RETURNS TRIGGER
 AS $$
@@ -1145,6 +1199,7 @@ CREATE TRIGGER prevent_hard_delete_xero_submission_runs BEFORE DELETE ON xero_su
 CREATE TRIGGER prevent_hard_delete_xero_timesheet_submissions BEFORE DELETE ON xero_timesheet_submissions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_timesheet_submission_entries BEFORE DELETE ON xero_timesheet_submission_entries FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
+-- schema-nav: tenant-integrity-triggers
 CREATE OR REPLACE FUNCTION enforce_roster_week_venue_integrity()
 RETURNS TRIGGER
 AS $$
@@ -1351,6 +1406,7 @@ CREATE TRIGGER enforce_xero_payroll_calendar_selections_venue_integrity BEFORE I
 CREATE TRIGGER enforce_xero_pay_item_account_code_selections_venue_integrity BEFORE INSERT OR UPDATE ON xero_pay_item_account_code_selections FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_pay_item_requirement_records_venue_integrity BEFORE INSERT OR UPDATE ON xero_pay_item_requirement_records FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 
+-- schema-nav: pay-sql-functions
 CREATE OR REPLACE FUNCTION resolve_effective_pay_level(p_staff_id UUID, p_shift_type_id UUID, p_day_of_week INT)
 RETURNS UUID
 AS $$
