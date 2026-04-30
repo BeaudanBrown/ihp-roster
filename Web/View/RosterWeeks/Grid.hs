@@ -63,23 +63,30 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
             <div class="app-panel overflow-hidden mb-5 mb-xl-0">
                 {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities}
-                <div class="table-responsive">
-                    <table class="table table-bordered table-sm mb-0 align-middle roster-grid"
-                           style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
-                        {renderRosterGridColGroup gridSlotNames}
-                        <thead class="text-center text-uppercase fw-bold roster-grid-head">
-                            <tr>
-                                <th rowspan="2" class="py-2 roster-day-column">Day</th>
-                                {forEach gridSlotNames renderSlotHeaderGroup}
-                            </tr>
-                            <tr>
-                                {forEach gridSlotNames renderSlotSubHeaders}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {forEach gridRosterDays (renderRosterDay dayModel)}
-                        </tbody>
-                    </table>
+                <div class="roster-grid-frame"
+                     style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
+                    <div class="roster-day-rail" aria-label="Roster days">
+                        <div class="roster-day-rail-head">Day</div>
+                        <div class="roster-day-rail-body">
+                            {forEach gridRosterDays (renderRosterDayRailSection dayModel)}
+                        </div>
+                    </div>
+                    <div class="roster-slots-scroller">
+                        <table class="table table-bordered table-sm mb-0 align-middle roster-grid roster-slots-grid">
+                            {renderRosterGridColGroup gridSlotNames}
+                            <thead class="text-center text-uppercase fw-bold roster-grid-head">
+                                <tr>
+                                    {forEach gridSlotNames renderSlotHeaderGroup}
+                                </tr>
+                                <tr>
+                                    {forEach gridSlotNames renderSlotSubHeaders}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {forEach gridRosterDays (renderRosterDay dayModel)}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -90,7 +97,6 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
 renderRosterGridColGroup :: [SlotName] -> Html
 renderRosterGridColGroup slotNames = [hsx|
     <colgroup>
-        <col style={("width: var(--roster-day-share);" :: Text)} />
         {forEach slotNames renderRosterBlockColGroup}
     </colgroup>
 |]
@@ -144,6 +150,28 @@ renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderMode
         dayRows = Map.findWithDefault (rowsForDay rosterDay daySlots) (coerce (get #id rosterDay)) dayRenderIndexes.rosterDayRowsByDayId
         daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) dayAllSlots
 
+renderRosterDayRailSection :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
+renderRosterDayRailSection RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayAllSlots, dayRenderIndexes } rosterDay =
+    let daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) dayAllSlots
+        dayRows = Map.findWithDefault (rowsForDay rosterDay daySlots) (coerce (get #id rosterDay)) dayRenderIndexes.rosterDayRowsByDayId
+        rowCount = length dayRows
+        lastRowIndex = lastRowIndexForRows dayRows
+        date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) dayWeekStartDate
+     in [hsx|
+        <div class={classes [("roster-day-rail-section", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}
+             style={"--roster-day-label-rows:" <> tshow rowCount}>
+            <div class="roster-day-label-stack">
+                <div class="roster-day-label-row roster-day-label-row-primary">
+                    <div class="roster-day-heading">{renderPrimaryDayLabel date}</div>
+                </div>
+                <div class="roster-day-label-row roster-day-label-row-controls">
+                    {renderDayRowControls dayIsEditable rosterDay lastRowIndex}
+                </div>
+                {renderEmptyDayLabelRows rowCount 2}
+            </div>
+        </div>
+    |]
+
 rowsForDay :: RosterDay -> [RosterSlot] -> [(Int, [RosterSlot])]
 rowsForDay rosterDay slots =
     map (\rowIndex -> (rowIndex, Map.findWithDefault [] rowIndex slotsByRowIndex)) visibleIndices
@@ -196,32 +224,14 @@ renderRowOob rowModel rowData =
     [hsx|<template>{renderRowWithAttrs rowModel rowData (Just "outerHTML")}</template>|]
 
 renderRowWithAttrs :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
-renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowStaffOptionStates, rowDate, rowRosterDay, rowCount, rowLastRowIndex, rowRenderIndexes } (rowPosition, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
+renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowStaffOptionStates, rowRosterDay, rowRenderIndexes } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
     <tr id={rosterRowDomIdText rowRosterDay.id rowIndex}
         data-roster-row="true"
         hx-swap-oob={maybeSwapOob}
         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True), ("day-alt-dark", odd (get #dayOffset rowRosterDay)), ("day-alt-light", even (get #dayOffset rowRosterDay))]}>
-        {renderDayLabel rowIsEditable rowDate rowRosterDay rowCount rowPosition rowLastRowIndex}
         {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowStaffOptionStates rowRosterDay rowIndex rowSlots rowRenderIndexes)}
     </tr>
 |]
-
-renderDayLabel :: (?context :: ControllerContext) => Bool -> Day -> RosterDay -> Int -> Int -> Int -> Html
-renderDayLabel isEditable date rosterDay rowCount rowPosition lastRowIndex
-    | rowPosition == 0 = [hsx|
-        <td class="fw-bold day-label day-label-stack" rowspan={tshow rowCount}>
-            <div class="roster-day-label-stack" style={"--roster-day-label-rows:" <> tshow rowCount}>
-                <div class="roster-day-label-row roster-day-label-row-primary">
-                    <div class="roster-day-heading">{renderPrimaryDayLabel date}</div>
-                </div>
-                <div class="roster-day-label-row roster-day-label-row-controls">
-                    {renderDayRowControls isEditable rosterDay lastRowIndex}
-                </div>
-                {renderEmptyDayLabelRows rowCount 2}
-            </div>
-        </td>
-    |]
-    | otherwise = mempty
 
 renderPrimaryDayLabel :: Day -> Html
 renderPrimaryDayLabel date = [hsx|

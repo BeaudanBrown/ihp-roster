@@ -70,9 +70,9 @@ tests = beforeAll testContext do
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 fromJust triggerHeader `shouldContain` "app-live-fragments-refresh"
                 fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
-                fromJust triggerHeader `shouldContain` (cs (rosterDaySectionDomId rosterDay.id) :: String)
+                fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
                 fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekDaySectionFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
 
                 updatedDay <- fetch rosterDay.id
@@ -148,9 +148,9 @@ tests = beforeAll testContext do
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
-                fromJust triggerHeader `shouldContain` (cs (rosterDaySectionDomId rosterDay.id) :: String)
+                fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
                 fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekDaySectionFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
 
                 slotsForDay <- query @RosterSlot
@@ -185,9 +185,9 @@ tests = beforeAll testContext do
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
-                fromJust triggerHeader `shouldContain` (cs (rosterDaySectionDomId rosterDay.id) :: String)
+                fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
                 fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekDaySectionFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
 
                 slotsForDay <- query @RosterSlot

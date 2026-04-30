@@ -22,28 +22,45 @@ test.describe('Roster mobile baseline', () => {
 
     test('keeps the roster shell within the viewport and contains any table overflow locally', async ({ page }) => {
         await expectNoHorizontalViewportOverflow(page);
-        await expectContainerToManageHorizontalOverflow(page, '.table-responsive');
+        await expectContainerToManageHorizontalOverflow(page, '.roster-slots-scroller');
 
-        const rosterTableMetrics = await page.locator('.roster-layout .table-responsive').first().evaluate((container) => {
-            if (!(container instanceof HTMLElement)) {
-                throw new Error('Expected roster table container to be an HTMLElement');
+        const rosterTableMetrics = await page.locator('.roster-grid-frame').first().evaluate((frame) => {
+            if (!(frame instanceof HTMLElement)) {
+                throw new Error('Expected roster grid frame to be an HTMLElement');
             }
 
-            const table = container.querySelector('table.roster-grid');
-            const dayHeader = container.querySelector('.roster-day-column');
-            const dayCell = container.querySelector('.day-label');
+            const scroller = frame.querySelector('.roster-slots-scroller');
+            const table = frame.querySelector('table.roster-grid');
+            const dayRail = frame.querySelector('.roster-day-rail');
+            const daySection = frame.querySelector('.roster-day-rail-section');
 
-            if (!(table instanceof HTMLElement) || !(dayHeader instanceof HTMLElement) || !(dayCell instanceof HTMLElement)) {
+            if (
+                !(scroller instanceof HTMLElement)
+                || !(table instanceof HTMLElement)
+                || !(dayRail instanceof HTMLElement)
+                || !(daySection instanceof HTMLElement)
+            ) {
                 return null;
             }
 
+            const railBefore = dayRail.getBoundingClientRect();
+            const scrollerBefore = scroller.getBoundingClientRect();
+            scroller.scrollLeft = Math.floor((scroller.scrollWidth - scroller.clientWidth) / 2);
+            const railAfter = dayRail.getBoundingClientRect();
+            const scrollerAfter = scroller.getBoundingClientRect();
+
             return {
-                containerClientWidth: container.clientWidth,
-                containerScrollWidth: container.scrollWidth,
-                overflowX: getComputedStyle(container).overflowX,
+                scrollerClientWidth: scroller.clientWidth,
+                scrollerScrollWidth: scroller.scrollWidth,
+                overflowX: getComputedStyle(scroller).overflowX,
                 tableMinWidth: getComputedStyle(table).minWidth,
-                dayHeaderPosition: getComputedStyle(dayHeader).position,
-                dayCellPosition: getComputedStyle(dayCell).position,
+                dayRailPosition: getComputedStyle(dayRail).position,
+                daySectionPosition: getComputedStyle(daySection).position,
+                railLeftBefore: Math.round(railBefore.left),
+                railLeftAfter: Math.round(railAfter.left),
+                railRightAfter: Math.round(railAfter.right),
+                scrollerLeftBefore: Math.round(scrollerBefore.left),
+                scrollerLeftAfter: Math.round(scrollerAfter.left),
                 columnWidths: Array.from(table.querySelectorAll('col')).map((col) =>
                     Math.round(Number.parseFloat(getComputedStyle(col).width))
                 ),
@@ -52,12 +69,15 @@ test.describe('Roster mobile baseline', () => {
 
         expect(rosterTableMetrics).not.toBeNull();
         expect(rosterTableMetrics?.overflowX).toBe('auto');
-        expect(rosterTableMetrics?.containerScrollWidth).toBeGreaterThan(rosterTableMetrics?.containerClientWidth ?? 0);
+        expect(rosterTableMetrics?.scrollerScrollWidth).toBeGreaterThan(rosterTableMetrics?.scrollerClientWidth ?? 0);
         expect(rosterTableMetrics?.tableMinWidth).not.toBe('0px');
-        expect(rosterTableMetrics?.dayHeaderPosition).toBe('sticky');
-        expect(rosterTableMetrics?.dayCellPosition).toBe('sticky');
-        expect(rosterTableMetrics?.columnWidths[1]).toBeGreaterThan(rosterTableMetrics?.columnWidths[3] ?? 0);
-        expect(rosterTableMetrics?.columnWidths[2]).toBeGreaterThan(rosterTableMetrics?.columnWidths[1] ?? 0);
+        expect(rosterTableMetrics?.dayRailPosition).toBe('static');
+        expect(rosterTableMetrics?.daySectionPosition).toBe('static');
+        expect(rosterTableMetrics?.railLeftAfter).toBe(rosterTableMetrics?.railLeftBefore);
+        expect(rosterTableMetrics?.scrollerLeftAfter).toBe(rosterTableMetrics?.scrollerLeftBefore);
+        expect(rosterTableMetrics?.scrollerLeftAfter).toBeGreaterThanOrEqual((rosterTableMetrics?.railRightAfter ?? 0) - 1);
+        expect(rosterTableMetrics?.columnWidths[1]).toBeGreaterThan(rosterTableMetrics?.columnWidths[2] ?? 0);
+        expect(rosterTableMetrics?.columnWidths[1]).toBeGreaterThan(rosterTableMetrics?.columnWidths[0] ?? 0);
 
         const metrics = await page.evaluate(() => {
             const side = document.querySelector('.roster-layout-side');
@@ -97,25 +117,26 @@ test.describe('Roster mobile baseline', () => {
     });
 
     test('uses compact closed-day controls without add or remove actions', async ({ page }) => {
-        const firstDaySection = page.locator('tbody[data-roster-day-section="true"]').first();
-        const closeButton = firstDaySection.locator('[data-roster-day-closed-toggle="true"]');
+        const firstDayRailSection = page.locator('.roster-day-rail-section').first();
+        const firstSlotDaySection = page.locator('tbody[data-roster-day-section="true"]').first();
+        const closeButton = firstDayRailSection.locator('[data-roster-day-closed-toggle="true"]');
 
         await expect(closeButton).toBeVisible();
         await expect(closeButton.locator('.bi-unlock')).toBeVisible();
-        await expect(firstDaySection.locator('[data-roster-day-add="true"]')).toBeVisible();
-        await expect(firstDaySection.locator('[data-roster-day-remove="true"]')).toBeVisible();
+        await expect(firstDayRailSection.locator('[data-roster-day-add="true"]')).toBeVisible();
+        await expect(firstDayRailSection.locator('[data-roster-day-remove="true"]')).toBeVisible();
 
         await closeButton.click();
 
-        const reopenButton = firstDaySection.locator('[data-roster-day-closed-toggle="true"]');
+        const reopenButton = firstDayRailSection.locator('[data-roster-day-closed-toggle="true"]');
         await expect(reopenButton).toContainText('CLOSED');
         await expect(reopenButton.locator('.bi-lock-fill')).toBeVisible();
-        await expect(firstDaySection.locator('[data-roster-day-add="true"]')).toHaveCount(0);
-        await expect(firstDaySection.locator('[data-roster-day-remove="true"]')).toHaveCount(0);
-        await expect(firstDaySection.locator('tr[data-roster-row]')).toHaveCount(2);
+        await expect(firstDayRailSection.locator('[data-roster-day-add="true"]')).toHaveCount(0);
+        await expect(firstDayRailSection.locator('[data-roster-day-remove="true"]')).toHaveCount(0);
+        await expect(firstSlotDaySection.locator('tr[data-roster-row]')).toHaveCount(2);
 
         await reopenButton.click();
-        await expect(firstDaySection.locator('[data-roster-day-add="true"]')).toBeVisible();
+        await expect(firstDayRailSection.locator('[data-roster-day-add="true"]')).toBeVisible();
     });
 
     test('keeps editable roster cells reachable without requiring the staff sidebar first', async ({ page }) => {
@@ -135,16 +156,23 @@ test.describe('Roster mobile baseline', () => {
                     throw new Error('Expected roster field to be an HTMLElement');
                 }
 
+                const scroller = element.closest('.roster-slots-scroller');
+                if (!(scroller instanceof HTMLElement)) {
+                    throw new Error('Expected roster field to live in the slot scroller');
+                }
+
+                element.scrollIntoView({ block: 'nearest', inline: 'center' });
                 const rect = element.getBoundingClientRect();
+                const scrollerRect = scroller.getBoundingClientRect();
+                const visibleLeft = Math.max(rect.left, scrollerRect.left, 0);
+                const visibleRight = Math.min(rect.right, scrollerRect.right, window.innerWidth);
+
                 return {
-                    left: Math.round(rect.left),
-                    right: Math.round(rect.right),
-                    viewportWidth: window.innerWidth,
+                    visibleWidth: Math.round(Math.max(0, visibleRight - visibleLeft)),
                 };
             });
 
-            expect(reachable.left).toBeGreaterThanOrEqual(-10);
-            expect(reachable.right).toBeLessThanOrEqual(reachable.viewportWidth + 10);
+            expect(reachable.visibleWidth).toBeGreaterThan(20);
             await expectNoHorizontalViewportOverflow(page);
         }
     });

@@ -151,7 +151,7 @@ test.describe('Mobile experience smoke', () => {
         const dayRows = firstDaySection.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
         const initialRowCount = await dayRows.count();
 
-        await expectContainerToManageHorizontalOverflow(page, '.table-responsive');
+        await expectContainerToManageHorizontalOverflow(page, '.roster-slots-scroller');
         await expectNoHorizontalViewportOverflow(page);
 
         const addButton = page.locator('[data-roster-day-add="true"]').first();

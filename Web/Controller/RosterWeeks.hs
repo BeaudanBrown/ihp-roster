@@ -247,7 +247,7 @@ instance Controller RosterWeeksController where
         broadcastRosterWeekInvalidation
             rosterGroupId
             rosterWeek.weekOffset
-            [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
             , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
             ]
 
@@ -260,7 +260,7 @@ instance Controller RosterWeeksController where
             then do
                 setHtmxPushUrl targetPath
                 respondWithActorRosterFragmentRefresh
-                    [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+                    [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
                     , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
                     ]
             else do
@@ -316,13 +316,13 @@ instance Controller RosterWeeksController where
                 broadcastRosterWeekInvalidation
                     rosterGroupId
                     rosterWeek.weekOffset
-                    [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+                    [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
                     , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
                     ]
                 if isHtmxRequest
                     then
                         respondWithActorRosterFragmentRefresh
-                            [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+                            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
                             , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
                             ]
                     else do
@@ -389,13 +389,13 @@ instance Controller RosterWeeksController where
         broadcastRosterWeekInvalidation
             rosterGroupId
             rosterWeek.weekOffset
-            [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
             , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
             ]
         if isHtmxRequest
             then
                 respondWithActorRosterFragmentRefresh
-                    [ buildRosterDaySectionFragmentRef rosterGroupId rosterWeek.weekOffset (coerce rosterDay.id)
+                    [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
                     , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
                     ]
             else do

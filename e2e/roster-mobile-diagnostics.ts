@@ -20,7 +20,7 @@ type RosterLayoutMetrics = {
 const rosterDiagnosticSelectors = {
     rosterShell: '#roster-week-shell',
     rosterContent: '#roster-content',
-    rosterTableContainer: '.table-responsive',
+    rosterTableContainer: '.roster-slots-scroller',
     rosterGrid: 'table.roster-grid',
     staffPanel: '.roster-staff-panel',
     firstEditableRow: 'tr[data-roster-row]:has(select[name="staffId"])',

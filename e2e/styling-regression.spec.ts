@@ -25,21 +25,25 @@ test.describe('Styling regression contracts', () => {
         await expectStylesheetServed(page, '/css/components.css');
         await expectStylesheetServed(page, '/css/features/roster.css');
 
-        const metrics = await page.locator('.roster-layout .table-responsive').first().evaluate((container) => {
-            if (!(container instanceof HTMLElement)) {
-                throw new Error('Expected roster table container to be an HTMLElement');
+        const metrics = await page.locator('.roster-grid-frame').first().evaluate((frame) => {
+            if (!(frame instanceof HTMLElement)) {
+                throw new Error('Expected roster grid frame to be an HTMLElement');
             }
 
-            const table = container.querySelector('table.roster-grid');
+            const scroller = frame.querySelector('.roster-slots-scroller');
+            const table = frame.querySelector('table.roster-grid');
             const gridHeader = document.querySelector('.roster-grid-header');
             const navGroup = document.querySelector('.roster-week-nav-group');
-            const renderedDayCell = document.querySelector('.roster-grid tr.day-row[class*="day-alt-"] td:not(.day-label)');
+            const renderedDayCell = document.querySelector('.roster-grid tr.day-row[class*="day-alt-"] td');
+            const renderedDayRail = document.querySelector('.roster-day-rail-section[class*="day-alt-"]');
 
             if (
-                !(table instanceof HTMLElement)
+                !(scroller instanceof HTMLElement)
+                || !(table instanceof HTMLElement)
                 || !(gridHeader instanceof HTMLElement)
                 || !(navGroup instanceof HTMLElement)
                 || !(renderedDayCell instanceof HTMLElement)
+                || !(renderedDayRail instanceof HTMLElement)
             ) {
                 return null;
             }
@@ -64,6 +68,7 @@ test.describe('Styling regression contracts', () => {
             }
 
             const renderedDayCellStyle = getComputedStyle(renderedDayCell);
+            const renderedDayRailStyle = getComputedStyle(renderedDayRail);
             const probeLightStyle = getComputedStyle(probeLightCell);
             const probeDarkStyle = getComputedStyle(probeDarkCell);
 
@@ -76,9 +81,11 @@ test.describe('Styling regression contracts', () => {
             probe.remove();
 
             return {
-                tableOverflowX: getComputedStyle(container).overflowX,
-                tableScrollWidth: container.scrollWidth,
-                tableClientWidth: container.clientWidth,
+                tableOverflowX: getComputedStyle(scroller).overflowX,
+                tableScrollWidth: scroller.scrollWidth,
+                tableClientWidth: scroller.clientWidth,
+                frameScrollWidth: frame.scrollWidth,
+                frameClientWidth: frame.clientWidth,
                 tableMinWidth: getComputedStyle(table).minWidth,
                 headerPosition: getComputedStyle(gridHeader).position,
                 headerDisplay: getComputedStyle(gridHeader).display,
@@ -88,12 +95,14 @@ test.describe('Styling regression contracts', () => {
                 navButtonBorders: Array.from(navGroup.querySelectorAll('.roster-week-nav-button')).map((child) => getComputedStyle(child).borderColor),
                 navOverviewTriggerRadius: getComputedStyle(navGroup.querySelector('.roster-week-overview-trigger') as Element).borderRadius,
                 renderedDayCellBackground: renderedDayCellStyle.backgroundColor,
+                renderedDayRailBackground: renderedDayRailStyle.backgroundColor,
                 ...probeMetrics,
             };
         });
 
         expect(metrics).not.toBeNull();
         expect(metrics?.tableScrollWidth).toBeLessThanOrEqual((metrics?.tableClientWidth ?? 0) + 1);
+        expect(metrics?.frameScrollWidth).toBeLessThanOrEqual((metrics?.frameClientWidth ?? 0) + 1);
         expect(metrics?.tableMinWidth).toBe('0px');
         expect(metrics?.headerPosition).toBe('relative');
         expect(metrics?.headerDisplay).toBe('flex');
@@ -103,6 +112,7 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.navButtonBorders.every((border) => border === 'rgba(0, 0, 0, 0)')).toBe(true);
         expect(Number.parseFloat(metrics?.navOverviewTriggerRadius ?? '0')).toBeGreaterThan(100);
         expect(metrics?.renderedDayCellBackground).not.toBe('rgb(13, 17, 25)');
+        expect(metrics?.renderedDayRailBackground).not.toBe('rgb(13, 17, 25)');
         expect(metrics?.lightDayTableBackground).toBe('#131d2c');
         expect(metrics?.darkDayTableBackground).toBe('#1a2433');
         expect(metrics?.lightDayCellBackground).not.toBe(metrics?.darkDayCellBackground);
@@ -332,7 +342,7 @@ test.describe('Styling regression contracts', () => {
             }
 
             const center = header.querySelector('.roster-grid-header-center');
-            const tableContainer = document.querySelector('.roster-layout .table-responsive');
+            const tableContainer = document.querySelector('.roster-slots-scroller');
             const table = document.querySelector('table.roster-grid');
 
             if (!(center instanceof HTMLElement) || !(tableContainer instanceof HTMLElement) || !(table instanceof HTMLElement)) {
@@ -363,9 +373,9 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.centerPosition).toBe('static');
         expect(metrics?.centerTransform).toBe('none');
         expect(metrics?.centerTop).toBeGreaterThanOrEqual(metrics?.headerTop ?? 0);
-        expect(metrics?.tableContainerPosition).toBe('relative');
+        expect(metrics?.tableContainerPosition).toBe('static');
         expect(metrics?.tableContainerOverflowX).toBe('auto');
-        expect(metrics?.tableMinWidth).toBe('928px');
+        expect(metrics?.tableMinWidth).toBe('768px');
         expect(metrics?.documentScrollWidth).toBeLessThanOrEqual(metrics?.viewportWidth ?? 0);
     });
 });

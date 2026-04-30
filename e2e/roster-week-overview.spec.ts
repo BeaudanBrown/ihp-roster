@@ -62,32 +62,36 @@ test.describe('Roster week overview', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, e2eRosterPath, '#roster-week-shell');
 
-        const metrics = await page.locator('.roster-layout .table-responsive').first().evaluate((container) => {
-            if (!(container instanceof HTMLElement)) {
-                throw new Error('Expected roster table container to be an HTMLElement');
+        const metrics = await page.locator('.roster-grid-frame').first().evaluate((frame) => {
+            if (!(frame instanceof HTMLElement)) {
+                throw new Error('Expected roster grid frame to be an HTMLElement');
             }
 
-            const table = container.querySelector('table.roster-grid');
-            const dayCell = container.querySelector('.day-label');
+            const scroller = frame.querySelector('.roster-slots-scroller');
+            const table = frame.querySelector('table.roster-grid');
+            const dayRail = frame.querySelector('.roster-day-rail');
 
-            if (!(table instanceof HTMLElement) || !(dayCell instanceof HTMLElement)) {
+            if (!(scroller instanceof HTMLElement) || !(table instanceof HTMLElement) || !(dayRail instanceof HTMLElement)) {
                 return null;
             }
 
             return {
-                clientWidth: container.clientWidth,
-                scrollWidth: container.scrollWidth,
-                overflowX: getComputedStyle(container).overflowX,
+                clientWidth: scroller.clientWidth,
+                scrollWidth: scroller.scrollWidth,
+                frameScrollWidth: frame.scrollWidth,
+                frameClientWidth: frame.clientWidth,
+                overflowX: getComputedStyle(scroller).overflowX,
                 tableMinWidth: getComputedStyle(table).minWidth,
-                dayCellPosition: getComputedStyle(dayCell).position,
+                dayRailPosition: getComputedStyle(dayRail).position,
             };
         });
 
         expect(metrics).not.toBeNull();
         expect(metrics?.overflowX).toBe('hidden');
         expect(metrics?.scrollWidth).toBeLessThanOrEqual((metrics?.clientWidth ?? 0) + 1);
+        expect(metrics?.frameScrollWidth).toBeLessThanOrEqual((metrics?.frameClientWidth ?? 0) + 1);
         expect(metrics?.tableMinWidth).toBe('0px');
-        expect(metrics?.dayCellPosition).toBe('static');
+        expect(metrics?.dayRailPosition).toBe('static');
     });
 
     test('worker cannot see manager-only roster controls or leave metrics', async ({ page }) => {
