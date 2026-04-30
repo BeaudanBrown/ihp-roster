@@ -1,6 +1,6 @@
 ---
 id: ir-8yyg
-status: in_progress
+status: closed
 deps: [ir-fv82]
 links: []
 created: 2026-04-30T01:11:35Z
@@ -57,3 +57,7 @@ Guardrails:
 **2026-04-30T01:27:34Z**
 
 Started Xero view split. Extracted StaffMappings, Calendars, and Readiness modules while preserving existing DOM ids/HTMX/OOB attributes. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Xero". Remaining: connection/sync and pay-item section modules before closing.
+
+**2026-04-30T01:34:15Z**
+
+Completed Xero view split by extracting connection/sync details and pay item rendering into Web.View.Admin.Xero.Connection and Web.View.Admin.Xero.PayItems. Existing section ids, HTMX targets, OOB behavior, and form names are preserved. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Xero".
