@@ -8,9 +8,8 @@ type: task
 priority: 2
 assignee: Beaudan Brown
 parent: ir-sryt
-tags: [area:performance, coordinator:coordinator-b64]
+tags: [area:performance, area:profiling, coordinator:coordinator-b64]
 ---
 # Expose projection-cache metrics for development
 
 Report hit/miss/warm/invalidation facts in a dev-visible way.
-

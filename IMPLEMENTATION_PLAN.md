@@ -47,6 +47,7 @@ Business requirements remain canonical in `specs/`.
   - `plans/61-view-helper-split.md`
   - `plans/62-live-fragment-system-refactor.md`
   - `plans/67-component-boundary-cleanup.md`
+  - `plans/69-profiling-system-refactor.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
 

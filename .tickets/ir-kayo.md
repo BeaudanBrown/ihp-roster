@@ -8,9 +8,8 @@ type: task
 priority: 1
 assignee: Beaudan Brown
 parent: ir-sryt
-tags: [area:performance, coordinator:coordinator-b64]
+tags: [area:performance, area:profiling, coordinator:coordinator-b64]
 ---
 # Instrument roster, timesheet, leave, and live-update hot paths
 
 Add targeted spans where performance questions recur.
-
