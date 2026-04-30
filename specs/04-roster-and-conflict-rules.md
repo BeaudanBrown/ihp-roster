@@ -2,12 +2,12 @@
 
 ## Roster lifecycle
 
-1. Managers, Venue Admins and Venue Owners can browse any roster week offset.
-2. Viewing a missing week as Manager, Venue Admin or Venue Owner auto-creates that week in draft mode (`is_live = false`).
+1. Any authenticated current-venue member with a completed profile can browse roster week offsets.
+2. Viewing a missing week as any authenticated current-venue member auto-creates that week in draft mode (`is_live = false`).
 3. Managers, Venue Admins and Venue Owners edit assignments directly on the roster week page.
 4. Managers, Venue Admins and Venue Owners control live/draft state from roster settings.
-5. Staff can browse all week offsets, but only published/live roster content is shown.
-6. When a staff user views an unpublished week, the page shows that the week is not published yet.
+5. Staff can browse all week offsets and may cause draft week materialization, but only published/live roster content is shown.
+6. When a staff user views an unpublished week, the page shows the roster shell with a "not published yet" state rather than draft assignments.
 
 ## Copy week
 

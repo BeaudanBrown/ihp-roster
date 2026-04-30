@@ -23,3 +23,9 @@ source: coordinator standalone feature
 
 Any visited week materializes safely, copy-from-previous remains available in the week controls, overwrite behavior is explicit, and controller/e2e coverage proves the flow.
 
+
+## Notes
+
+**2026-04-30T07:23:08Z**
+
+2026-04-30 reconciliation: any-member missing-week materialization is current behavior and no longer the open gap. Remaining children should focus on copy-overwrite verification and reusable week controls.

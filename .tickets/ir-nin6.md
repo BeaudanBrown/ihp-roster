@@ -1,6 +1,6 @@
 ---
 id: ir-nin6
-status: open
+status: closed
 deps: []
 links: [ir-y8mj, ir-59gm, ir-5o6t]
 created: 2026-04-30T06:31:42Z
