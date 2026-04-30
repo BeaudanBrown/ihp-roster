@@ -3,7 +3,8 @@ module Web.View.RosterWeeks.StaffPanel
     , renderRosterStaffPanelFragmentOob
     ) where
 
-import Application.Helper.View (appendQueryParams, staffDisplayName)
+import Application.Helper.Url (appendQueryParams)
+import Application.Helper.View (staffDisplayName)
 import qualified Data.Text as Text
 import Web.RosterWeeks.Dom (rosterStaffPanelFragmentId)
 import Web.RosterWeeks.Types (RosterStaffPanelEntry (..))

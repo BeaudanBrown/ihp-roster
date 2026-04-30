@@ -12,7 +12,7 @@ import Application.Helper.Pay (PaySegment (..), PayTotals (..),
                                collapsePayVersionManifests,
                                fetchTimesheetPayResultsForEntries,
                                payVersionManifestForEntry, timesheetEntryIdKey)
-import Application.Helper.View (isTrialStaff)
+import Application.Helper.Staff (isTrialStaff)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)

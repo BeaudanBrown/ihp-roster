@@ -8,7 +8,7 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences
-import Application.Helper.View (appendQueryParams)
+import Application.Helper.Url (appendQueryParams)
 import Control.Monad (void)
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)

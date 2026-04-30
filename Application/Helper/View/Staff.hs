@@ -8,16 +8,15 @@ module Application.Helper.View.Staff
     , staffDisplayName
     ) where
 
+import Application.Helper.Staff (isTrialStaff)
 import qualified Data.Char as Char
 import Data.List (sortBy)
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ViewPrelude
 
--- | True when a staff record is a trial placeholder (no linked user account).
-isTrialStaff :: Staff -> Bool
-isTrialStaff staff = isNothing staff.userId
-
+-- Compatibility re-export for existing views. Non-view modules should import
+-- isTrialStaff from Application.Helper.Staff.
 linkedActiveStaffForRosterPanel :: [Staff] -> [Staff]
 linkedActiveStaffForRosterPanel =
     sortBy sortStaff

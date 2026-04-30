@@ -11,7 +11,7 @@ import Application.Helper.LiveUpdate (LiveFragmentRef, LiveUpdateScope (..),
                                       liveFragmentsRefreshTriggerPayload)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
-import Application.Helper.View (appendQueryParams)
+import Application.Helper.Url (appendQueryParams)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import Data.List (nub)

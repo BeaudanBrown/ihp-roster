@@ -13,7 +13,7 @@ module Web.RosterWeeks.Projection
     ) where
 
 import Application.Helper.LiveUpdate
-import Application.Helper.View (appendQueryParams)
+import Application.Helper.Url (appendQueryParams)
 import Data.Coerce (coerce)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude

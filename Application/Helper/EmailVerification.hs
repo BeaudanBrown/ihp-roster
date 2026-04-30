@@ -1,6 +1,6 @@
 module Application.Helper.EmailVerification where
 
-import Application.Helper.View (appendQueryParams)
+import Application.Helper.Url (appendQueryParams)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import IHP.EnvVar

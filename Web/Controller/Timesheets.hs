@@ -14,9 +14,9 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                payVersionManifestForEntry)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
-import Application.Helper.View (ToastOverlayPosition (..), appendQueryParams,
-                                dialogOverlayMountId, renderToastOob,
-                                successToast)
+import Application.Helper.Url (appendQueryParams)
+import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
+                                renderToastOob, successToast)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)

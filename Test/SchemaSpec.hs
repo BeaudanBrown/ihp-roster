@@ -3,8 +3,10 @@ module Test.SchemaSpec where
 import Application.Helper.Controller
 import Application.Helper.Export
 import Application.Helper.Export.Render (csvCell)
-import Application.Helper.View (appendQueryParams, formatDateDisplay,
-                                isTrialStaff, linkedActiveStaffForRosterPanel,
+import Application.Helper.Staff (isTrialStaff)
+import Application.Helper.Url (appendQueryParams)
+import Application.Helper.View (formatDateDisplay,
+                                linkedActiveStaffForRosterPanel,
                                 quarterHourTimeOptions,
                                 quarterHourTimeOptionsInRange,
                                 storageTimeToDisplayLabel)

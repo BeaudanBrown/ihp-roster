@@ -2,7 +2,11 @@ module Web.Timesheets.Paths
     ( timesheetWeekUrl
     ) where
 
-import Web.View.Prelude
+import Application.Helper.Url (appendQueryParams)
+import IHP.Prelude
+import IHP.Router.UrlGenerator (pathTo)
+import Web.Routes ()
+import Web.Types
 
 timesheetWeekUrl :: Int -> Bool -> Bool -> Text
 timesheetWeekUrl weekOffset showApproved showAllStaff =
