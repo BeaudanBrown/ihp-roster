@@ -16,11 +16,11 @@ Remove unsafe textToId use and similar exception-based parsing from user-control
 
 ## Design
 
-Use UUID.fromText or ParamReader-based parsing that returns Maybe/Either. Convert malformed composite keys into user-facing validation errors and keep existing allowed-roster-group/slot/weekday checks.
+Use UUID.fromText or ParamReader-based parsing that returns Maybe/Either. Convert malformed composite keys into user-facing validation errors and keep existing allowed-roster-group/weekday checks plus whole-hour start-window validation.
 
 ## Acceptance Criteria
 
-Malformed shiftPreferenceKeys and malformed request IDs return validation failures or 4xx/redirect responses without 500s; preference update tests cover invalid UUID text, invalid weekday text, cross-group slot IDs, and cross-venue IDs.
+Malformed shiftPreferenceKeys and malformed request IDs return validation failures or 4xx/redirect responses without 500s; preference update tests cover invalid UUID text, invalid weekday text, invalid hour windows, and cross-venue IDs.
 
 ## Notes
 

@@ -12,5 +12,4 @@ tags: [workstream, coordinator:coordinator-mux, area:staff, area:roster]
 ---
 # Add recurring roster-group shift preference UI
 
-Let staff record weekly roster-group-aware preferences by weekday and slot.
-
+Let staff record weekly roster-group-aware availability by weekday, with whole-hour preferred start windows for days they are available.

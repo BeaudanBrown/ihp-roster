@@ -105,8 +105,8 @@ lengths, and parser-safe database constraints where appropriate.
 4. Harden staff/profile, onboarding/invitation, admin config, export filter,
    and Xero mapping forms with the same helper patterns.
 5. Replace unsafe shift-preference key parsing with total parsing. Validate
-   weekday, staff, roster group, slot, venue, and group membership before
-   applying any mutation.
+   weekday, staff, roster group, venue, group membership, and whole-hour
+   preferred start-window bounds before applying any mutation.
 6. Harden CSV rendering with a single reusable cell sanitizer. Preserve correct
    CSV quoting while neutralizing spreadsheet formula execution.
 7. Replace manual query string assembly with URL-encoded construction and update

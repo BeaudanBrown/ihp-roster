@@ -21,7 +21,7 @@ Roster assignment UI must support filter toggles:
 
 - Hide staff at ideal shifts or greater.
 - Hide staff on leave.
-- Hide staff with no preferences for the roster group/day.
+- Hide staff with no availability preference for the roster group/day.
 - Hide staff already assigned a shift that day.
 
 ## Sheet-style roster presentation
@@ -48,7 +48,16 @@ A slot assignment can produce conflict flags. Priority order and visual severity
 
 **Advisory Conflicts (Rendered as Light Pink dropdown background):**
 4. Availability refusal conflict.
-5. Ideal-shift threshold exceeded.
+5. Preferred start-window conflict.
+6. Ideal-shift threshold exceeded.
+
+## Staff shift preferences
+
+- Preferences are recurring weekly availability templates scoped to a staff member and roster group.
+- One active preference row per weekday means the staff member is available that day.
+- Each available day stores a whole-hour preferred start window (`preferred_start_hour` to `preferred_end_hour`, inclusive).
+- Slot names such as Early/Mid/Late are roster layout labels only; they are not part of staff availability preferences.
+- If a roster slot has a start time outside the preferred start window, show an advisory conflict. Slots without a start time only use the available/unavailable day signal.
 
 ## Late-to-Early rule
 

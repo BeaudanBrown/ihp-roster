@@ -67,7 +67,9 @@
   - Staff, start/end dates, status (`pending | approved | denied`).
   - Must support status history and actor attribution.
 - `staff_shift_preferences`
-  - Recurring roster-group/day/slot preferences.
+  - Recurring roster-group/weekday availability preferences.
+  - Each active row means the staff member is available for that roster group on that weekday.
+  - `preferred_start_hour` and `preferred_end_hour` store the preferred shift start window as whole-hour values (`0..23`, start <= end).
   - A staff member with no preferences for a roster group/day is treated as unable to work that roster day for V1 filtering.
 
 ## Configuration

@@ -18,7 +18,7 @@
 ## Styling
 - **Bootstrap 5.3.8** is included via vendor files — use Bootstrap classes in HSX
 - `static/app.css` is the CSS entrypoint; feature styles live under `static/css/`
-- App JavaScript is split by concern across `static/app-bootstrap.js`, `static/app-date-pickers.js`, `static/app-passkeys.js`, `static/app-live-updates.js`, `static/app-dialog-overlays.js`, `static/app-toasts.js`, `static/app-time-picker.js`, `static/app-roster.js`, `static/app-timesheets.js`, and `static/app.js`
+- App JavaScript is split by concern across `static/app-bootstrap.js`, `static/app-date-pickers.js`, `static/app-passkeys.js`, `static/app-live-updates.js`, `static/app-dialog-overlays.js`, `static/app-toasts.js`, `static/app-time-picker.js`, `static/app-roster.js`, `static/app-timesheets.js`, `static/app-preferences.js`, and `static/app.js`
 - The layout shell is defined in `Web/View/Layout.hs` — edit `defaultLayout` to change page structure
 - Use `assetPath` for all static asset references (enables cache-busting in production)
 
@@ -284,6 +284,7 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
 - Treat that as a bootstrap invariant problem, not as an invitation to keep venue creation ad hoc. Venue creation, fixture seeding, and repair scripts should converge on one idempotent minimum-setup function.
 - Future roster architecture should move toward roster groups as the scheduling boundary inside a venue. The long-term invariant is: every active venue has at least one active roster group, and every active roster group has at least one active slot definition.
 - Staff applicability to roster groups should stay separate from venue membership/auth authority. Some staff may be eligible for one group, several groups, or all groups.
+- Staff shift preferences are roster-group/weekday availability rows with whole-hour preferred start-window bounds. Slot names such as Early/Mid/Late are roster layout labels only and must not be used as preference dimensions.
 
 ## Auth Model Notes
 - Current business authority is venue-scoped. `venue_memberships.venue_role` is what grants manager/admin access; `users.user_role = 'admin'` is not a cross-venue superuser.
