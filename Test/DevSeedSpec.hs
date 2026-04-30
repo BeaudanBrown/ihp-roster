@@ -76,6 +76,16 @@ tests = beforeAll testContext do
                 let noteLengths = map Text.length (mapMaybe (.note) rosterSlots)
                 noteLengths `shouldSatisfy` (all (<= 2))
                 sort (nub (map (.idealShiftsPerWeek) seededStaff)) `shouldBe` [0, 1, 2, 3, 4, 5]
+                let seededStaffNames = map (\staff -> (staff.firstName, staff.lastName)) seededStaff
+                let expectedSeededStaffNames =
+                        [ ("James", "Lebron")
+                        , ("Oliver", "Grey")
+                        , ("Odette", "Garrison")
+                        , ("Sally", "Martin")
+                        , ("Sonia", "Michaels")
+                        , ("Tracy", "Green")
+                        ]
+                expectedSeededStaffNames `shouldSatisfy` all (`elem` seededStaffNames)
 
         it "seeds at least two staffed roster rows for every roster day" $ withContext do
             withCleanDb do

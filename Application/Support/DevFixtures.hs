@@ -788,9 +788,10 @@ uniqueWeekdaySequence seedValue keys =
     nub (map (\offset -> deterministicIndex seedValue (keys <> [offset]) 7) [0 :: Int .. 20])
 
 preferredNameFor :: Int -> Int -> Text -> Maybe Text -> Maybe Text
-preferredNameFor seedValue index firstName fallbackPreferredName
+preferredNameFor _ _ _ (Just preferredName) = Just preferredName
+preferredNameFor seedValue index firstName Nothing
     | deterministicPercent seedValue [index, 601] < 32 =
-        fallbackPreferredName <|> generatedNickname firstName
+        generatedNickname firstName
     | otherwise = Nothing
 
 generatedNickname :: Text -> Maybe Text
@@ -817,12 +818,12 @@ generatedStaffCatalog =
     zipWith (\index (firstName, lastName, preferredName) -> (index, firstName, lastName, preferredName)) [0 ..] $
         [ ("Alice", "Front", Nothing)
         , ("Bob", "Both", Nothing)
-        , ("Cara", "Kitchen", Just "CJ")
-        , ("Dylan", "Leave", Nothing)
-        , ("Eve", "Closer", Nothing)
-        , ("Frank", "Prep", Just "Frankie")
-        , ("Gina", "Bar", Nothing)
-        , ("Hugo", "Runner", Nothing)
+        , ("James", "Lebron", Just "JL")
+        , ("Oliver", "Grey", Nothing)
+        , ("Odette", "Garrison", Nothing)
+        , ("Sally", "Martin", Nothing)
+        , ("Sonia", "Michaels", Nothing)
+        , ("Tracy", "Green", Nothing)
         , ("Alice", "Host", Just "Ali")
         , ("Jules", "Cook", Nothing)
         , ("Kira", "Cafe", Nothing)
