@@ -5,17 +5,11 @@ import Application.Async.Queue (AppJobRequest (..), EnqueueAppJobResult (..),
                                 fetchLatestAppJobByKind)
 import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
-import Application.Helper.Controller (currentSupportVenueOptions,
-                                      defaultRosterWeekStartsOn,
-                                      unsafeEnumFromText)
+import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
 import Application.Helper.LiveUpdate (broadcastLiveInvalidation,
                                       liveUpdateSourceClientId)
-import Application.Helper.VenueBootstrap (createVenueWithBootstrapConfigInCurrentTransaction,
-                                          defaultVenueBootstrapTimezone)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
-import Application.Helper.View (appendQueryParams)
-import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobDedupeKey,
                                        publicHolidayRefreshJobKind)
@@ -34,17 +28,10 @@ instance Controller SupportController where
         ensureProfileCompleted
 
     action SupportAction = do
-        let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-        createdVenue <- case paramOrNothing @(Id Venue) "createdVenueId" of
-            Nothing      -> pure Nothing
-            Just venueId -> Just <$> fetchCreatedVenue venueId
-        let venue = buildSupportVenueForm
-        let venueTimezone = defaultVenueBootstrapTimezone
-        let venueRosterWeekStartsOn = defaultRosterWeekStartsOn
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         render IndexView { .. }
 
@@ -56,57 +43,11 @@ instance Controller SupportController where
         (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
         respondHtml (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
 
-    action CreateSupportVenueAction = do
-        let venues = currentSupportVenueOptions
-        onboardingInvitations <- fetchVenueOnboardingInvitations
-        passkeys <- fetchCurrentUserPasskeys
-        (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
-        (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-        let createdVenue = Nothing
-        let venueTimezone = paramOrDefault defaultVenueBootstrapTimezone "timezone"
-        let venueRosterWeekStartsOn = fromMaybe defaultRosterWeekStartsOn (paramOrNothing @Int "rosterWeekStartsOn")
-        let venue = buildSupportVenueForm |> fill @'["name"]
-        let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
-        venue
-            |> validateField #name nonEmpty
-            |> ifValid \case
-                Left venue -> do
-                    render IndexView { .. }
-                Right venue -> do
-                    if venueRosterWeekStartsOn `elem` validRosterWeekStartDays && not (isEmpty venueTimezone)
-                        then do
-                            createdVenue <- withTransaction do
-                                (createdVenue, venueConfig) <- createVenueWithBootstrapConfigInCurrentTransaction venue.name venueTimezone venueRosterWeekStartsOn
-                                _ <- recordAuditEvent
-                                    (unpackId createdVenue.id)
-                                    (unpackId currentUser.id)
-                                    "venue_bootstrapped"
-                                    "venues"
-                                    (unpackId createdVenue.id)
-                                    (Aeson.object
-                                        [ "venueName" Aeson..= createdVenue.name
-                                        , "timezone" Aeson..= venueConfig.timezone
-                                        , "rosterWeekStartsOn" Aeson..= venueConfig.rosterWeekStartsOn
-                                        ]
-                                    )
-                                    requestAuditSourceChannel
-                                pure createdVenue
-                            setSuccessMessage ("Venue created: " <> createdVenue.name)
-                            redirectToPath (appendQueryParams (pathTo SupportAction) [("createdVenueId", tshow createdVenue.id)])
-                        else do
-                            setErrorMessage "Provide a venue name, timezone, and valid roster week start."
-                            render IndexView { .. }
-
     action CreateSupportVenueOnboardingInvitationAction = do
-        let venues = currentSupportVenueOptions
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-        let createdVenue = Nothing
-        let venue = buildSupportVenueForm
-        let venueTimezone = defaultVenueBootstrapTimezone
-        let venueRosterWeekStartsOn = defaultRosterWeekStartsOn
         now <- getCurrentTime
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm |> fill @'["email"]
         onboardingInvitation
@@ -195,23 +136,11 @@ instance Controller SupportController where
                     then redirectToPath nextPath
                     else redirectTo SupportAction
 
-buildSupportVenueForm :: Venue
-buildSupportVenueForm =
-    newRecord @Venue
-        |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
-
 buildSupportVenueOnboardingInvitationForm :: VenueOnboardingInvitation
 buildSupportVenueOnboardingInvitationForm =
     newRecord @VenueOnboardingInvitation
         |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
         |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
-
-fetchCreatedVenue :: (?modelContext :: ModelContext) => Id Venue -> IO Venue
-fetchCreatedVenue venueId =
-    query @Venue
-        |> filterWhere (#id, venueId)
-        |> filterWhere (#status, unsafeEnumFromText @VenueStatusEnum "active")
-        |> fetchOne
 
 fetchVenueOnboardingInvitations :: (?modelContext :: ModelContext) => IO [VenueOnboardingInvitation]
 fetchVenueOnboardingInvitations =

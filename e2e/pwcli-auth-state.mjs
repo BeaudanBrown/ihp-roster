@@ -26,7 +26,7 @@ const ROLE_CONFIGS = {
     support: {
         email: 'admin@bepis.lol',
         password: 'admin',
-        readySelector: '#support-venue-id',
+        readySelector: '#support-create-onboarding-email',
         targetPath: '/Support',
     },
     worker: {

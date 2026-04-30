@@ -11,7 +11,6 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole),
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.PublicHolidays.Job (publicHolidayRefreshJobKind)
 import Config
-import qualified Data.ByteString.Char8 as BS
 import qualified Data.Serialize as Serialize
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
@@ -332,13 +331,11 @@ tests = beforeAll testContext do
                     callAction SupportAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Switch Venue"
+                response `responseBodyShouldNotContain` "Switch Venue"
+                response `responseBodyShouldNotContain` "Current support venue"
                 response `responseBodyShouldContain` "Invite Venue Owner"
-                response `responseBodyShouldContain` "Create Venue"
-                response `responseBodyShouldContain` "Roster week starts on"
-                response `responseBodyShouldContain` "Australia/Melbourne"
-                response `responseBodyShouldContain` "Alpha Venue"
-                response `responseBodyShouldContain` "Beta Venue"
+                response `responseBodyShouldNotContain` "Create Venue"
+                response `responseBodyShouldNotContain` "Roster week starts on"
                 response `responseBodyShouldContain` "Sign-In Methods"
                 response `responseBodyShouldContain` "Support laptop"
                 response `responseBodyShouldContain` "Award Rates"
@@ -356,7 +353,8 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Support"
-                response `responseBodyShouldContain` "Create Venue"
+                response `responseBodyShouldContain` "Invite Venue Owner"
+                response `responseBodyShouldNotContain` "Create Venue"
                 response `responseBodyShouldContain` "data-live-update-surface=\""
                 response `responseBodyShouldContain` "support_platform"
 
@@ -533,53 +531,6 @@ tests = beforeAll testContext do
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
                 invitationCount <- query @VenueOnboardingInvitation |> filterWhere (#email, "blocked-owner@example.com") |> fetchCount
                 invitationCount `shouldBe` 0
-
-        it "lets super-admin create a bootstrapped venue without creating an invitation" $ withContext do
-            withCleanDb do
-                homeVenue <- createVenueWithConfig "Home Venue"
-                founder <- createUserRecordWithPlatformRole "founder-create-venue@example.com" "staff" (Just SuperAdminRole) True
-                _ <- createVenueMembershipRecord homeVenue founder "venue_owner"
-
-                response <- withPasskeyVerifiedUser founder do
-                    callActionWithParams CreateSupportVenueAction
-                        [ ("name", "Fresh Venue")
-                        , ("timezone", "Pacific/Auckland")
-                        , ("rosterWeekStartsOn", "2")
-                        ]
-
-                response `responseStatusShouldBe` status302
-                lookup HTTP.hLocation (responseHeaders response) `shouldSatisfy` maybe False ("createdVenueId=" `BS.isInfixOf`)
-
-                venue <- query @Venue |> filterWhere (#name, "Fresh Venue") |> fetchOne
-                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
-                slotCount <- query @SlotName |> filterWhere (#rosterGroupId, unpackId rosterGroup.id) |> fetchCount
-                invitationCount <- query @VenueInvitation |> filterWhere (#venueId, unpackId venue.id) |> fetchCount
-                auditEvent <- query @AuditEvent |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-
-                venueConfig.timezone `shouldBe` "Pacific/Auckland"
-                venueConfig.rosterWeekStartsOn `shouldBe` 2
-                slotCount `shouldBe` 3
-                invitationCount `shouldBe` 0
-                auditEvent.eventType `shouldBe` "venue_bootstrapped"
-                auditEvent.targetTable `shouldBe` "venues"
-                auditEvent.targetId `shouldBe` unpackId venue.id
-
-        it "denies venue creation to ordinary venue admins" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Venue A"
-                admin <- createUserRecord "venue-admin-create@example.com" "admin" True
-                _ <- createVenueMembershipRecord venue admin "venue_admin"
-
-                response <- withUser admin do
-                    callActionWithParams CreateSupportVenueAction
-                        [ ("name", "Blocked Venue")
-                        ]
-
-                response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
-                venueCount <- query @Venue |> filterWhere (#name, "Blocked Venue") |> fetchCount
-                venueCount `shouldBe` 0
 
     describe "Current venue selection" do
         it "stores the earliest active membership venue during beforeLogin" $ withContext do

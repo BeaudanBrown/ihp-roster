@@ -122,7 +122,6 @@ data SupportController
     = SupportAction
     | ShowFwcMapdAwardRatesSectionAction
     | ShowPublicHolidaysSectionAction
-    | CreateSupportVenueAction
     | CreateSupportVenueOnboardingInvitationAction
     | CreateFwcMapdRefreshJobAction
     | CreatePublicHolidayRefreshJobAction
