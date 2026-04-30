@@ -46,6 +46,7 @@ Business requirements remain canonical in `specs/`.
   - `plans/60-v1-schema-hardening.md`
   - `plans/61-view-helper-split.md`
   - `plans/62-live-fragment-system-refactor.md`
+  - `plans/67-component-boundary-cleanup.md`
 - Historical completed and superseded slices:
   - `plans/90-historical-completed-slices.md`
 
@@ -66,6 +67,7 @@ Business requirements remain canonical in `specs/`.
 - `ir-176p` — Xero payroll integration
 - `ir-mjov` — Xero connection foundation maintenance
 - `ir-6vvh` — code smell remediation backlog
+- `ir-18tm` — component boundary cleanup from the 2026-04-30 scan
 - `ir-caf4` — V1 schema hardening
 - `ir-2usx` — view helper split
 - `ir-g778` — release readiness and first-client acceptance

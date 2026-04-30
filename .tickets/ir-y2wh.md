@@ -1,8 +1,8 @@
 ---
 id: ir-y2wh
-status: open
+status: closed
 deps: []
-links: []
+links: [ir-5mdm, ir-a7dt]
 created: 2026-04-30T05:42:53Z
 type: epic
 priority: 2

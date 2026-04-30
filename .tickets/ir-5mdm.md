@@ -1,8 +1,8 @@
 ---
 id: ir-5mdm
-status: open
+status: closed
 deps: [ir-jkt2]
-links: []
+links: [ir-y2wh, ir-a7dt]
 created: 2026-04-30T05:43:27Z
 type: task
 priority: 2

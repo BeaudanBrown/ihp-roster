@@ -2,7 +2,7 @@
 id: ir-f2p4
 status: open
 deps: []
-links: []
+links: [ir-jooi, ir-ihv0]
 created: 2026-04-29T04:41:30Z
 type: task
 priority: 2
