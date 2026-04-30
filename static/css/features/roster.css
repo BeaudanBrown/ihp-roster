@@ -852,11 +852,6 @@
         scrollbar-width: thin;
     }
 
-    .roster-grid .roster-day-column,
-    .roster-grid .day-label {
-        position: sticky;
-        box-shadow: 2px 0 0 var(--app-border-strong), 8px 0 14px var(--app-shadow-sm-raw);
-    }
 }
 
 @media (min-width: 992px) {
