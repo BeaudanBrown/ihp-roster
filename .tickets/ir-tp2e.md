@@ -1,6 +1,6 @@
 ---
 id: ir-tp2e
-status: open
+status: closed
 deps: [ir-shsr]
 links: []
 created: 2026-04-30T00:09:34Z
@@ -36,3 +36,9 @@ links separately so source edits can mark submitted runs stale.
 - There is a unique guard against duplicate active local submissions for the
   same connection, employee, and pay period.
 - Tests cover schema shape and deletion/retention expectations.
+
+## Notes
+
+**2026-04-30T00:40:46Z**
+
+2026-04-30: Implemented Xero draft-timesheet foundation slice through readiness validation. Added Payroll AU Timesheets client support, submission persistence tables/types/schema checks, structured readiness blockers/validator, employee-period duplicate detection, and Admin Xero readiness checklist alignment. Verified with regen-types, typecheck, and focused Xero/Schema Hspec.

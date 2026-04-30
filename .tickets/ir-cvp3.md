@@ -1,6 +1,6 @@
 ---
 id: ir-cvp3
-status: open
+status: closed
 deps: [ir-shsr]
 links: []
 created: 2026-04-30T00:09:34Z
@@ -38,3 +38,9 @@ Expected client additions:
 - HTTP errors and Xero semantic errors remain debuggable.
 - Unit tests cover GET list, GET single, POST create, POST update, and error
   parsing.
+
+## Notes
+
+**2026-04-30T00:40:46Z**
+
+2026-04-30: Implemented Xero draft-timesheet foundation slice through readiness validation. Added Payroll AU Timesheets client support, submission persistence tables/types/schema checks, structured readiness blockers/validator, employee-period duplicate detection, and Admin Xero readiness checklist alignment. Verified with regen-types, typecheck, and focused Xero/Schema Hspec.

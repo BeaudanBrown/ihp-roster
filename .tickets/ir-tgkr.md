@@ -1,6 +1,6 @@
 ---
 id: ir-tgkr
-status: open
+status: closed
 deps: [ir-axdb]
 links: []
 created: 2026-04-30T00:09:48Z
@@ -35,3 +35,9 @@ counts visible enough that a manager can tell what remains.
 - Existing connection/sync/staff/calendar/account-code checks keep working.
 - Hspec coverage proves incomplete pay item requirements and earnings mappings
   block readiness.
+
+## Notes
+
+**2026-04-30T00:40:46Z**
+
+2026-04-30: Implemented Xero draft-timesheet foundation slice through readiness validation. Added Payroll AU Timesheets client support, submission persistence tables/types/schema checks, structured readiness blockers/validator, employee-period duplicate detection, and Admin Xero readiness checklist alignment. Verified with regen-types, typecheck, and focused Xero/Schema Hspec.

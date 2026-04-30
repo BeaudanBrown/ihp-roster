@@ -1,6 +1,6 @@
 ---
 id: ir-p9kg
-status: open
+status: closed
 deps: [ir-tgkr]
 links: []
 created: 2026-04-30T00:09:48Z
@@ -28,3 +28,9 @@ known.
   render actionable messages.
 - The validator can return blockers without performing Xero writes.
 - Tests assert blocker codes, not only message text.
+
+## Notes
+
+**2026-04-30T00:40:46Z**
+
+2026-04-30: Implemented Xero draft-timesheet foundation slice through readiness validation. Added Payroll AU Timesheets client support, submission persistence tables/types/schema checks, structured readiness blockers/validator, employee-period duplicate detection, and Admin Xero readiness checklist alignment. Verified with regen-types, typecheck, and focused Xero/Schema Hspec.

@@ -1,6 +1,6 @@
 ---
 id: ir-3vau
-status: open
+status: closed
 deps: [ir-cvp3, ir-tp2e, ir-axdb, ir-p9kg]
 links: []
 created: 2026-04-30T00:09:34Z
@@ -50,3 +50,7 @@ matches the period Xero expects for that selected payroll calendar.
 **2026-04-30T00:22:26Z**
 
 2026-04-30: Product decision: readiness must prove the local period exactly matches the period Xero expects for the selected payroll calendar. Mixed pay-config snapshots are hard-blocked; new rates should only affect the first pay period starting after the new financial-year/effective date.
+
+**2026-04-30T00:40:46Z**
+
+2026-04-30: Implemented Xero draft-timesheet foundation slice through readiness validation. Added Payroll AU Timesheets client support, submission persistence tables/types/schema checks, structured readiness blockers/validator, employee-period duplicate detection, and Admin Xero readiness checklist alignment. Verified with regen-types, typecheck, and focused Xero/Schema Hspec.
