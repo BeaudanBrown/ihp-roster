@@ -1,14 +1,14 @@
-module Application.Xero.Admin.ReferenceSync
+module Web.Controller.Admin.Xero.ReferenceSync
     ( syncXeroPayrollReferenceDataAction
     ) where
 
 import Application.Helper.Xero
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
-import Application.Xero.Admin.Responses
 import Application.Xero.Connection
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 
 syncXeroPayrollReferenceDataAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()

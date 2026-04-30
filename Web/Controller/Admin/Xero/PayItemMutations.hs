@@ -1,4 +1,4 @@
-module Application.Xero.Admin.PayItemMutations
+module Web.Controller.Admin.Xero.PayItemMutations
     ( createMissingXeroPayItemsAction
     ) where
 
@@ -7,10 +7,10 @@ import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
-import Application.Xero.Admin.Responses
 import Application.Xero.Connection
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 
 createMissingXeroPayItemsAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()

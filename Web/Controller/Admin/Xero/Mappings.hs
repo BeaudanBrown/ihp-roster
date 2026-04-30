@@ -1,4 +1,4 @@
-module Application.Xero.Admin.Mappings
+module Web.Controller.Admin.Xero.Mappings
     ( saveXeroEarningsRateMappingAction
     , saveXeroPayItemAccountCodeSelectionAction
     , saveXeroPayrollCalendarSelectionAction
@@ -10,11 +10,11 @@ import Application.Helper.Profiling
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Xero.Admin.ReadModel
-import Application.Xero.Admin.Responses
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
+import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 
 saveXeroStaffMappingAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()

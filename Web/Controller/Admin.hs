@@ -13,7 +13,6 @@ import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
-import Application.Xero.Admin.Responses
 import Application.Xero.Connection
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -21,6 +20,7 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Web.Controller.Admin.Support
 import Web.Controller.Admin.Xero
+import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 import Web.View.Admin.Index
 import Web.View.Admin.Invites

@@ -1,4 +1,4 @@
-module Application.Xero.Admin.Responses
+module Web.Controller.Admin.Xero.Responses
     ( broadcastAdminXeroInvalidation
     , currentUserCanManageXeroIntegration
     , fetchCurrentVenueXeroAdminSectionData

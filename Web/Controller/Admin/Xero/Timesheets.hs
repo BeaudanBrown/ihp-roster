@@ -1,4 +1,4 @@
-module Application.Xero.Admin.Timesheets
+module Web.Controller.Admin.Xero.Timesheets
     ( previewXeroDraftTimesheetsAction
     , retryXeroDraftTimesheetSubmissionAction
     , submitXeroDraftTimesheetsAction
@@ -6,10 +6,10 @@ module Application.Xero.Admin.Timesheets
 
 import Application.Helper.XeroTimesheetReadiness
 import Application.Xero.Admin.ReadModel
-import Application.Xero.Admin.Responses
 import Application.Xero.Timesheets.Preview
 import Application.Xero.Timesheets.Submission
 import qualified Data.Aeson as Aeson
+import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 
 previewXeroDraftTimesheetsAction ::

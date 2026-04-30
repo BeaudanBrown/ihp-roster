@@ -1,6 +1,6 @@
 ---
 id: ir-jhsv
-status: open
+status: closed
 deps: []
 links: [ir-23k7]
 created: 2026-04-30T06:34:41Z
@@ -21,3 +21,9 @@ Keep domain/read-model/service logic under Application.Xero.*. Move web action a
 ## Acceptance Criteria
 
 Application.Xero.Admin modules no longer import Web.Controller.Prelude for controller behavior; web responses and params live under Web.Controller.Admin.Xero; Xero admin routes, action types, DOM ids, OOB fragments, and tests remain stable.
+
+## Notes
+
+**2026-04-30T08:01:19Z**
+
+Moved Xero admin web action/response modules from Application.Xero.Admin into Web.Controller.Admin.Xero.*. Application.Xero.Admin no longer imports Web.Controller.Prelude; app-layer PayItems/ReferenceData now use explicit Generated.Types/IHP.ControllerPrelude/ControllerContext imports. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Xero".

@@ -7,9 +7,11 @@ module Application.Xero.Admin.ReferenceData
     , upsertXeroPayrollCalendar
     ) where
 
+import Application.Helper.ControllerContext
 import Application.Helper.Xero
 import Control.Monad (void)
-import Web.Controller.Prelude
+import Generated.Types
+import IHP.ControllerPrelude
 
 markStaleXeroStaffMappings ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

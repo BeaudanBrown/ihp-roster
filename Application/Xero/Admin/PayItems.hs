@@ -7,6 +7,7 @@ module Application.Xero.Admin.PayItems
     , xeroPayItemVerificationFailureMessage
     ) where
 
+import Application.Helper.ControllerContext
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes (XeroPayItemRequirement (..))
 import Application.Helper.XeroPayItems (xeroManagedPayItemNamePrefix)
@@ -20,7 +21,8 @@ import qualified Data.Maybe as Maybe
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
-import Web.Controller.Prelude
+import Generated.Types
+import IHP.ControllerPrelude
 
 selectedXeroPayItemAccountCode :: [Text] -> Maybe XeroPayItemAccountCodeSelection -> Maybe Text
 selectedXeroPayItemAccountCode accountCodeOptions maybeSelection =
