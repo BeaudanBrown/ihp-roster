@@ -1,5 +1,6 @@
 /* Roster week, staff panel, roster grid, conflict, and roster export styles. */
 
+.app-surface-toolbar,
 .roster-grid-header {
     position: relative;
     display: flex;

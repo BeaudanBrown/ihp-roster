@@ -65,16 +65,16 @@
 }
 
 .timesheet-entry-shift-type {
-    color: var(--app-text);
+    color: var(--app-timesheet-text);
     font-size: var(--text-sm);
-    font-weight: 700;
-    line-height: 1.15;
+    line-height: 1.2;
 }
 
 .timesheet-entry-staff-name {
     color: var(--app-timesheet-text-strong);
     font-size: var(--text-sm);
-    line-height: 1.2;
+    font-weight: 700;
+    line-height: 1.15;
 }
 
 .timesheet-entry-time-range {

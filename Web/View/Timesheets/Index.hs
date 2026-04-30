@@ -289,8 +289,8 @@ renderEntryCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayTod
     <article class="timesheet-entry-card" data-timesheet-entry-approved={boolParam entry.isApproved}>
         <div class="timesheet-entry-main">
             <div class="timesheet-entry-identity">
-                <div class="timesheet-entry-shift-type">{shiftTypeLabel}</div>
                 <div class="timesheet-entry-staff-name">{staffName}</div>
+                <div class="timesheet-entry-shift-type">{shiftTypeLabel}</div>
             </div>
 
             <div class="timesheet-entry-time">
