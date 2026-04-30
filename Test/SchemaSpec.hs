@@ -272,7 +272,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_preferences (staff_id, roster_group_id, slot_name_id, weekday_index) WHERE deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((had_break = FALSE) AND break_start_time IS NULL AND break_end_time IS NULL AND break_minutes = 0) OR ((had_break = TRUE) AND break_start_time IS NOT NULL AND break_end_time IS NOT NULL AND break_minutes > 0))"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL))"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL))"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD CONSTRAINT timesheet_entries_approval_shape_check"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_roster_slots_active_cell"
 
