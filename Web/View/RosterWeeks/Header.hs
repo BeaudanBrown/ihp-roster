@@ -138,7 +138,6 @@ renderRosterExportMenuSection viewCapabilities
         <div class="px-1 py-1">
             <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Share roster</div>
             <div class="d-grid gap-2">
-                {renderRosterExportButton "png" "Export PNG"}
                 {renderRosterExportButton "jpg" "Export JPG"}
             </div>
         </div>

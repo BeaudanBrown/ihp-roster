@@ -81,7 +81,6 @@
     if (typeof window === 'undefined') return;
 
     const exportConfigs = {
-        png: { mimeType: 'image/png', extension: 'png' },
         jpg: { mimeType: 'image/jpeg', extension: 'jpg', quality: 0.92 },
     };
     const exportPixelRatio = 2;
@@ -399,7 +398,7 @@
 
         const surfaceEl = document.createElement('div');
         surfaceEl.className = 'roster-export-surface';
-        const measuredWidth = Math.ceil(rosterTable.getBoundingClientRect().width + 56);
+        const measuredWidth = Math.ceil(rosterTable.getBoundingClientRect().width);
         const exportWidth = Math.max(exportMinWidth, Math.min(exportMaxWidth, measuredWidth));
         surfaceEl.style.width = `${exportWidth}px`;
         surfaceEl.appendChild(exportTable);
@@ -446,7 +445,7 @@
     async function handleRosterExport(buttonEl) {
         if (!(buttonEl instanceof HTMLButtonElement)) return;
 
-        const formatKey = buttonEl.dataset.rosterExportFormat || 'png';
+        const formatKey = buttonEl.dataset.rosterExportFormat || 'jpg';
         const formatConfig = exportConfigs[formatKey];
         if (!formatConfig) return;
 

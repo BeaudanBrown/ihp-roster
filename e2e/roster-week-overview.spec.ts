@@ -33,12 +33,12 @@ test.describe('Roster week overview', () => {
         await expect(page.locator('#roster-week-shell')).toBeVisible();
     });
 
-    test('exports the live roster as a png from the roster actions menu', async ({ page }) => {
+    test('exports the live roster as a jpg from the roster actions menu', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, e2eRosterPath, '#roster-week-shell');
 
         await page.getByRole('button', { name: 'Roster actions' }).click();
-        const exportButton = page.getByRole('button', { name: 'Export PNG' });
+        const exportButton = page.getByRole('button', { name: 'Export JPG' });
         await expect(exportButton).toBeVisible();
 
         await exportButton.click();
@@ -88,7 +88,7 @@ test.describe('Roster week overview', () => {
         await page.getByRole('button', { name: 'Roster actions' }).click();
         const actionsMenu = page.locator('.roster-week-more-menu.show');
         await expect(actionsMenu).toBeVisible();
-        await expect(actionsMenu.getByRole('button', { name: 'Export PNG' })).toHaveCount(0);
+        await expect(actionsMenu.getByRole('button', { name: 'Export JPG' })).toHaveCount(0);
         await expect(actionsMenu.getByText('Hide from dropdowns')).toHaveCount(0);
         await expect(actionsMenu.getByRole('button', { name: 'Sync Slots' })).toHaveCount(0);
 
