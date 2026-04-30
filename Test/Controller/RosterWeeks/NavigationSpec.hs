@@ -1,0 +1,245 @@
+module Test.Controller.RosterWeeks.NavigationSpec where
+
+import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
+                                        syncStaffRosterGroupAssignments)
+import Config
+import qualified Data.ByteString.Char8 as ByteString
+import Data.Maybe (fromJust)
+import Data.Time.Calendar (addDays)
+import Data.Time.LocalTime (TimeOfDay (..))
+import Generated.Types
+import IHP.ControllerPrelude
+import IHP.FrameworkConfig
+import IHP.HaskellSupport
+import IHP.Prelude
+import IHP.Test.Mocking
+import Network.HTTP.Types.Status
+import Network.Wai
+import Test.Hspec
+import Test.Support
+import Web.Controller.RosterWeeks ()
+import Web.FrontController ()
+import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDaySectionDomId,
+                            rosterRowDomIdText, rosterStaffPanelFragmentId)
+import Web.Routes
+import Web.Types
+
+tests :: Spec
+tests = beforeAll testContext do
+    describe "RosterWeeksController" do
+        it "redirects unauthenticated users from RosterWeeksAction" $ withContext do
+            response <- callAction RosterWeeksAction
+            response `responseStatusShouldBe` status302
+
+        it "redirects venue-less super-admins from roster weeks to support" $ withContext do
+            withCleanDb do
+                user <- createUserRecordWithPlatformRole "roster-bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withUser user do
+                    callAction RosterWeeksAction
+
+                response `responseStatusShouldBe` status302
+                responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
+
+        it "redirects unauthenticated users from ShowRosterWeekAction" $ withContext do
+            response <- callAction (ShowRosterWeekAction 0)
+            response `responseStatusShouldBe` status302
+
+        it "redirects unauthenticated users from ShowRosterWeekContentFragmentAction" $ withContext do
+            response <- callAction (ShowRosterWeekContentFragmentAction 0)
+            response `responseStatusShouldBe` status302
+
+        it "redirects unauthenticated users from ShowRosterWeekStaffPanelFragmentAction" $ withContext do
+            response <- callAction (ShowRosterWeekStaffPanelFragmentAction 0)
+            response `responseStatusShouldBe` status302
+
+        it "redirects unauthenticated users from ShowRosterWeekRowFragmentAction" $ withContext do
+            response <- callAction (ShowRosterWeekRowFragmentAction 0 "11111111-1111-1111-1111-111111111111" 0)
+            response `responseStatusShouldBe` status302
+
+        it "redirects unauthenticated users from CreateRosterWeekAction" $ withContext do
+            response <- callAction (CreateRosterWeekAction 0)
+            response `responseStatusShouldBe` status302
+
+        it "redirects unauthenticated users from CopyRosterWeekAction" $ withContext do
+            response <- callAction (CopyRosterWeekAction 0 1)
+            response `responseStatusShouldBe` status302
+
+        it "redirects unauthenticated users from ToggleRosterDayClosedAction" $ withContext do
+            response <- callAction (ToggleRosterDayClosedAction "11111111-1111-1111-1111-111111111111")
+            response `responseStatusShouldBe` status302
+
+        it "redirects unauthenticated users from AddRosterRowAction" $ withContext do
+            response <- callAction (AddRosterRowAction "11111111-1111-1111-1111-111111111111")
+            response `responseStatusShouldBe` status302
+
+        it "redirects unauthenticated users from RemoveRosterRowAction" $ withContext do
+            response <- callAction (RemoveRosterRowAction "11111111-1111-1111-1111-111111111111")
+            response `responseStatusShouldBe` status302
+
+        it "redirects unauthenticated users from UpdateRosterSlotAction" $ withContext do
+            response <- callAction (UpdateRosterSlotAction "22222222-2222-2222-2222-222222222222")
+            response `responseStatusShouldBe` status302
+
+        it "redirects venue members without a completed staff profile to edit profile" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-needs-profile@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue user "worker"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction RosterWeeksAction
+
+                response `responseStatusShouldBe` status302
+                responseHeaders response `shouldContain` [("Location", "http://localhost/EditProfile")]
+
+        it "visiting a missing week auto-creates an empty draft roster" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-auto-create@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                slotNames <- query @SlotName
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#isActive, True)
+                    |> fetch
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                createdWeek <- query @RosterWeek
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#weekOffset, 0)
+                    |> fetchOne
+                createdWeek.isLive `shouldBe` False
+                createdDays <- query @RosterDay
+                    |> filterWhere (#rosterWeekId, unpackId createdWeek.id)
+                    |> fetch
+                length createdDays `shouldBe` 7
+                createdSlots <- query @RosterSlot
+                    |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) createdDays)
+                    |> fetch
+                length createdSlots `shouldBe` (7 * 4 * length slotNames)
+
+        it "staff cannot see draft weeks but still gets the roster shell" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-staff-draft@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- fetchSlotNameRecord venue "Early"
+                _ <- createRosterWeekRecord venue 0 False
+
+                response <- withUser user do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "roster-grid"
+                response `responseBodyShouldNotContain` "Crew, Alpha"
+
+        it "empty roster pages still expose declarative live-update surface metadata" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-empty-live-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- fetchSlotNameRecord venue "Early"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "roster_week"
+                response `responseBodyShouldContain` "rosterGroupId"
+                response `responseBodyShouldContain` "weekOffset"
+                response `responseBodyShouldNotContain` "/helpers.js"
+                response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
+                response `responseBodyShouldNotContain` "ihp-auto-refresh-id"
+
+        it "staff on hidden draft pages still expose declarative live-update surface metadata" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-hidden-draft-live-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createRosterWeekRecord venue 0 False
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "roster_week"
+                response `responseBodyShouldContain` "rosterGroupId"
+                response `responseBodyShouldContain` "weekOffset"
+
+        it "manager can see draft weeks" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-draft@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+
+                response <- withUser manager do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` ">Alpha</option>"
+                response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?rosterWeekId="
+                response `responseBodyShouldContain` ">Live</label>"
+
+        it "does not render conflict highlights on live roster weeks" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-live-no-conflicts@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <-
+                    createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                        >>= updateRecord . set #startTime (Just (TimeOfDay 8 0 0))
+                _ <- createLeaveRequestRecord venue staffMember defaultWeekEpoch (addDays 1 defaultWeekEpoch) "approved"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` "conflict-critical"
+                response `responseBodyShouldNotContain` "Staff member is on approved leave."
+
+        it "manager roster pages render reusable week controls in the header" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- fetchSlotNameRecord venue "Early"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-roster-week-controls=\"manager-actions\""
+                response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
+                response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
+                response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
+                response `responseBodyShouldContain` "roster-live-toggle-"
+
+        it "roster group switcher preserves weekOffset in the submitted form" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-group-switcher@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 3)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "action=\"/ShowRosterWeek?weekOffset=3\""
+                response `responseBodyShouldContain` "type=\"hidden\" name=\"weekOffset\" value=\"3\""
+                response `responseBodyShouldContain` "name=\"rosterGroupId\""
+

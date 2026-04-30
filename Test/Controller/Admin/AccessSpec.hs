@@ -1,0 +1,190 @@
+module Test.Controller.Admin.AccessSpec where
+
+import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.LiveUpdate (LiveUpdateScope (..),
+                                      currentLiveUpdateVersion)
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
+                                        fetchActiveRosterGroupSlotNames)
+import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
+import Application.Helper.Xero
+import Config
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as AesonKeyMap
+import qualified Data.Aeson.Types as AesonTypes
+import qualified Data.ByteString.Lazy.Char8 as LByteString
+import qualified Data.IORef as IORef
+import qualified Data.List as List
+import Data.Scientific (Scientific)
+import qualified Data.Text as Text
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime,
+                        getCurrentTime)
+import Generated.Types
+import IHP.ControllerPrelude
+import IHP.FrameworkConfig
+import IHP.HaskellSupport
+import IHP.Prelude
+import IHP.Test.Mocking
+import Network.HTTP.Types.Status
+import Network.Wai (responseHeaders)
+import Test.Hspec
+import Test.Support
+import qualified Test.XeroMock as XeroMock
+import Web.Controller.Admin ()
+import Web.FrontController ()
+import Web.Routes
+import Web.Types
+
+tests :: Spec
+tests = beforeAll testContext do
+    describe "AdminController" do
+        it "redirects unauthenticated users from admin page" $ withContext do
+            response <- callAction AdminAction
+            response `responseStatusShouldBe` status302
+
+        it "redirects venue-less super-admins from admin to support" $ withContext do
+            withCleanDb do
+                user <- createUserRecordWithPlatformRole "admin-bootstrap-super-admin@example.com" "staff" (Just SuperAdminRole) True
+
+                response <- withUser user do
+                    callAction AdminAction
+
+                response `responseStatusShouldBe` status302
+                responseHeaders response `shouldContain` [("Location", "http://localhost/Support")]
+
+        it "shows current-venue admin sections with FWC-backed award level data" $ withContext do
+            withCleanDb do
+                venueA <- createVenueWithConfig "Venue A"
+                venueB <- createVenueWithConfig "Venue B"
+                admin <- createUserRecord "admin-page@example.com" "staff" True
+                _ <- createVenueMembershipRecord venueA admin "venue_admin"
+                _ <- createVenueMembershipRecord venueB admin "venue_admin"
+
+                levelA <- createPayLevelRecordWithRates venueA "Level A" 31.50 3.15 6.30 1 1.25 1.50
+                _ <- createShiftTypeRecord venueA levelA "Kitchen"
+                _ <- createSlotNameRecord venueA "Default Only"
+                venueAGroupB <- createVenueRosterGroupWithDefaults venueA "Back of House" 10 True
+                _ <- newRecord @SlotName
+                    |> set #venueId (unpackId venueA.id)
+                    |> set #rosterGroupId (unpackId venueAGroupB.id)
+                    |> set #name "Pass"
+                    |> set #sortOrder 3
+                    |> set #isActive True
+                    |> createRecord
+                _ <- createPayConfigSnapshotRecord venueA admin 1 (Aeson.object [])
+                _ <- createPayConfigSnapshotRecord venueA admin 2 (Aeson.object [])
+
+                levelB <- createPayLevelRecord venueB "Level B"
+                _ <- createShiftTypeRecord venueB levelB "Bar"
+                _ <- createSlotNameRecord venueB "Graveyard"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venueA.id do
+                    callActionWithParams AdminAction [("rosterGroupId", idToParam venueAGroupB.id)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Roster Groups"
+                response `responseBodyShouldContain` "Shift Types"
+                response `responseBodyShouldContain` "Slot Names"
+                response `responseBodyShouldContain` "Invites"
+                response `responseBodyShouldContain` "Exports"
+                response `responseBodyShouldContain` "Staff Hours CSV"
+                response `responseBodyShouldContain` "Hourly Breakdown ZIP"
+                response `responseBodyShouldContain` "Payroll Earnings CSV"
+                response `responseBodyShouldContain` "admin-slot-names-fragment"
+                response `responseBodyShouldContain` "admin-invites-fragment"
+                body <- responseBody response
+                (cs body :: String) `shouldContainInOrder` ["Invites", "Exports", "Shift Types", "Roster Groups"]
+                response `responseBodyShouldNotContain` "Venue Config"
+                response `responseBodyShouldNotContain` "Award Levels"
+                response `responseBodyShouldNotContain` "Pay Levels"
+                response `responseBodyShouldNotContain` "Pay Level Day Rules"
+                response `responseBodyShouldNotContain` "slot-names-heading"
+                response `responseBodyShouldNotContain` "/helpers.js"
+                response `responseBodyShouldNotContain` "/ihp-auto-refresh.js"
+                response `responseBodyShouldContain` "Kitchen"
+                response `responseBodyShouldContain` "Level A"
+                response `responseBodyShouldContain` "Level A (perm $31.50/hr)"
+                response `responseBodyShouldContain` "Use staff default award level"
+                response `responseBodyShouldContain` "Back of House"
+                response `responseBodyShouldContain` "Pass"
+                response `responseBodyShouldContain` "Default Only"
+                response `responseBodyShouldNotContain` "Bar"
+                response `responseBodyShouldNotContain` "Graveyard"
+
+        it "scopes slot names to the roster group card and fragment target" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Slot Group Venue"
+                admin <- createUserRecord "admin-slot-groups@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                firstGroup <- createVenueRosterGroupWithDefaults venue "Front Lane" 10 True
+                secondGroup <- createVenueRosterGroupWithDefaults venue "Back Lane" 20 True
+                _ <- newRecord @SlotName
+                    |> set #venueId (unpackId venue.id)
+                    |> set #rosterGroupId (unpackId firstGroup.id)
+                    |> set #name "Front Register"
+                    |> set #sortOrder 0
+                    |> set #isActive True
+                    |> createRecord
+                _ <- newRecord @SlotName
+                    |> set #venueId (unpackId venue.id)
+                    |> set #rosterGroupId (unpackId secondGroup.id)
+                    |> set #name "Back Pass"
+                    |> set #sortOrder 0
+                    |> set #isActive True
+                    |> createRecord
+
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction AdminAction
+                pageResponse `responseStatusShouldBe` status200
+                pageResponse `responseBodyShouldContain` "Front Lane"
+                pageResponse `responseBodyShouldContain` "Back Lane"
+                pageResponse `responseBodyShouldContain` "Front Register"
+                pageResponse `responseBodyShouldContain` "Back Pass"
+                pageResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
+                pageResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
+                pageResponse `responseBodyShouldContain` "data-live-update-surface=\""
+                pageResponse `responseBodyShouldContain` "admin_slot_names"
+                pageResponse `responseBodyShouldContain` ("admin-slot-names-fragment-" <> tshow firstGroup.id)
+                pageResponse `responseBodyShouldContain` ("admin-slot-names-fragment-" <> tshow secondGroup.id)
+                pageResponse `responseBodyShouldContain` ("hx-target=\"#admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
+                pageResponse `responseBodyShouldContain` ("hx-target=\"#admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
+
+                firstFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowAdminSlotNamesFragmentAction
+                        [("rosterGroupId", idToParam firstGroup.id)]
+                firstFragmentResponse `responseStatusShouldBe` status200
+                firstFragmentResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
+                firstFragmentResponse `responseBodyShouldContain` "Front Register"
+                firstFragmentResponse `responseBodyShouldNotContain` "Back Pass"
+                firstFragmentResponse `responseBodyShouldNotContain` "id=\"app\""
+
+                secondFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams ShowAdminSlotNamesFragmentAction
+                        [("rosterGroupId", idToParam secondGroup.id)]
+                secondFragmentResponse `responseStatusShouldBe` status200
+                secondFragmentResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
+                secondFragmentResponse `responseBodyShouldContain` "Back Pass"
+                secondFragmentResponse `responseBodyShouldNotContain` "Front Register"
+
+        it "rejects non-admin venue members from admin screens" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "manager-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction AdminAction
+
+                response `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
+
+
+shouldContainInOrder :: String -> [String] -> Expectation
+shouldContainInOrder haystack needles =
+    case mapM markerPosition needles of
+        Nothing -> expectationFailure ("Expected body to contain all markers in order: " ++ cs (show needles))
+        Just positions -> positions `shouldSatisfy` ordered
+    where
+        markerPosition marker = List.findIndex (List.isPrefixOf marker) (List.tails haystack)
+        ordered positions = positions == List.sort positions
