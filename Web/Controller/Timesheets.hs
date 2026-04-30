@@ -1,5 +1,6 @@
 module Web.Controller.Timesheets where
 
+import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
                                       LiveFragmentRef (..),
@@ -10,7 +11,6 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       mkLiveFragmentRef)
 import Application.Helper.Pay (ensureCurrentVenuePayConfigSnapshot)
 import Application.Helper.Profiling
-import Application.Helper.LiveSurface
 import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayPosition (..), appendQueryParams,
                                 dialogOverlayMountId, renderToastOob,
@@ -398,28 +398,9 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
     let dayOffset = timesheetDayOffset weekStartDate workedOn
     let mainFragment =
             if renderMainFragmentOob
-                then renderDaySectionOob
-                    projection.timesheetEntries
-                    projection.timesheetStaffMembers
-                    projection.timesheetShiftTypes
-                    projection.timesheetToday
-                    projection.timesheetEditWindowDays
-                    weekOffset
-                    weekStartDate
-                    projection.timesheetShowApproved
-                    projection.timesheetShowAllStaff
-                    dayOffset
-                else renderDaySection
-                    projection.timesheetEntries
-                    projection.timesheetStaffMembers
-                    projection.timesheetShiftTypes
-                    projection.timesheetToday
-                    projection.timesheetEditWindowDays
-                    weekOffset
-                    weekStartDate
-                    projection.timesheetShowApproved
-                    projection.timesheetShowAllStaff
-                    dayOffset
+                then renderDaySectionOob dayModel
+                else renderDaySection dayModel
+        dayModel = timesheetDayRenderModelFromProjection projection dayOffset
     respondHtmlProfiled $
         mconcat
             [ mainFragment
@@ -447,17 +428,7 @@ respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn newWorkedOn showApprov
 renderTimesheetDaySectionFromProjection :: (?context :: ControllerContext, ?request :: Request) => Bool -> TimesheetWeekProjection -> Int -> Blaze.Html
 renderTimesheetDaySectionFromProjection renderOob projection dayOffset =
     let renderer = if renderOob then renderDaySectionOob else renderDaySection
-     in renderer
-            projection.timesheetEntries
-            projection.timesheetStaffMembers
-            projection.timesheetShiftTypes
-            projection.timesheetToday
-            projection.timesheetEditWindowDays
-            projection.timesheetWeekOffset
-            projection.timesheetWeekStartDate
-            projection.timesheetShowApproved
-            projection.timesheetShowAllStaff
-            dayOffset
+     in renderer (timesheetDayRenderModelFromProjection projection dayOffset)
 
 fetchTimesheetWeekProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetProjectionRequest -> IO TimesheetWeekProjection
 fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset = weekOffset, projectionShowApproved = showApproved, projectionShowAllStaff = showAllStaff } = do
@@ -577,19 +548,22 @@ renderTimesheetWeekProjectionFragment projection fragment =
         TimesheetProjectionPage ->
             Just (renderTimesheetWeekShell (timesheetIndexView projection))
         TimesheetProjectionDaySection dayOffset ->
-            Just
-                (renderDaySection
-                    projection.timesheetEntries
-                    projection.timesheetStaffMembers
-                    projection.timesheetShiftTypes
-                    projection.timesheetToday
-                    projection.timesheetEditWindowDays
-                    projection.timesheetWeekOffset
-                    projection.timesheetWeekStartDate
-                    projection.timesheetShowApproved
-                    projection.timesheetShowAllStaff
-                    dayOffset
-                )
+            Just (renderDaySection (timesheetDayRenderModelFromProjection projection dayOffset))
+
+timesheetDayRenderModelFromProjection :: TimesheetWeekProjection -> Int -> TimesheetDayRenderModel
+timesheetDayRenderModelFromProjection projection dayOffset =
+    TimesheetDayRenderModel
+        { dayEntries = projection.timesheetEntries
+        , dayStaffMembers = projection.timesheetStaffMembers
+        , dayShiftTypes = projection.timesheetShiftTypes
+        , dayToday = projection.timesheetToday
+        , dayEditWindowDays = projection.timesheetEditWindowDays
+        , dayWeekOffset = projection.timesheetWeekOffset
+        , dayWeekStartDate = projection.timesheetWeekStartDate
+        , dayShowApproved = projection.timesheetShowApproved
+        , dayShowAllStaff = projection.timesheetShowAllStaff
+        , dayOffset
+        }
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
 timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetShowApproved, timesheetShowAllStaff, timesheetCurrentViewerStaffId } =

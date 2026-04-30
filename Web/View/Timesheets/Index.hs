@@ -31,6 +31,19 @@ data IndexView = IndexView
     , liveUpdateScope      :: Maybe LiveUpdateScope
     }
 
+data TimesheetDayRenderModel = TimesheetDayRenderModel
+    { dayEntries        :: [TimesheetEntry]
+    , dayStaffMembers   :: [Staff]
+    , dayShiftTypes     :: [ShiftType]
+    , dayToday          :: Day
+    , dayEditWindowDays :: Int
+    , dayWeekOffset     :: Int
+    , dayWeekStartDate  :: Day
+    , dayShowApproved   :: Bool
+    , dayShowAllStaff   :: Bool
+    , dayOffset         :: Int
+    }
+
 timesheetWeekShellId :: Text
 timesheetWeekShellId = "timesheet-week-shell"
 
@@ -38,7 +51,7 @@ instance View IndexView where
     html = renderTimesheetWeekShell
 
 renderTimesheetWeekShell :: IndexView -> Html
-renderTimesheetWeekShell IndexView { .. } =
+renderTimesheetWeekShell view@IndexView { .. } =
     let page = renderAppPage (AppPageConfig
             { appPageTitle = "Timesheets"
             , appPageDescription = Nothing
@@ -56,7 +69,7 @@ renderTimesheetWeekShell IndexView { .. } =
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
                         <div class="d-flex flex-column gap-3">
-                            {forEach [0 .. 6] (renderDaySection entries staffMembers shiftTypes today editWindowDays weekOffset weekStartDate showApproved showAllStaff)}
+                            {forEach [0 .. 6] (renderDaySection . timesheetDayRenderModel view)}
                         </div>
                     |]
                     }
@@ -188,16 +201,31 @@ renderTimesheetWeekLabel :: Day -> Text
 renderTimesheetWeekLabel weekStartDate =
     "Week of " <> Text.pack (formatTime defaultTimeLocale "%-d %b" weekStartDate)
 
-renderDaySection :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
+timesheetDayRenderModel :: IndexView -> Int -> TimesheetDayRenderModel
+timesheetDayRenderModel IndexView { entries, staffMembers, shiftTypes, today, editWindowDays, weekOffset, weekStartDate, showApproved, showAllStaff } dayOffset =
+    TimesheetDayRenderModel
+        { dayEntries = entries
+        , dayStaffMembers = staffMembers
+        , dayShiftTypes = shiftTypes
+        , dayToday = today
+        , dayEditWindowDays = editWindowDays
+        , dayWeekOffset = weekOffset
+        , dayWeekStartDate = weekStartDate
+        , dayShowApproved = showApproved
+        , dayShowAllStaff = showAllStaff
+        , dayOffset
+        }
+
+renderDaySection :: (?context :: ControllerContext) => TimesheetDayRenderModel -> Html
 renderDaySection =
     renderDaySectionWithSwap Nothing
 
-renderDaySectionOob :: (?context :: ControllerContext) => [TimesheetEntry] -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
+renderDaySectionOob :: (?context :: ControllerContext) => TimesheetDayRenderModel -> Html
 renderDaySectionOob =
     renderDaySectionWithSwap (Just "outerHTML")
 
-renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Day -> Bool -> Bool -> Int -> Html
-renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes today editWindowDays weekOffset weekStartDate showApproved showAllStaff dayOffset = [hsx|
+renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> TimesheetDayRenderModel -> Html
+renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries, dayWeekStartDate, dayWeekOffset, dayShowApproved, dayShowAllStaff, dayOffset } = [hsx|
     <section id={timesheetDaySectionDomId dayOffset}
              class="app-panel timesheet-day-panel"
              data-timesheet-day-offset={tshow dayOffset}
@@ -215,49 +243,49 @@ renderDaySectionWithSwap maybeSwapOob entries staffMembers shiftTypes today edit
                 <span class="timesheet-day-add-label">{weekdayLabel} {formatDateCompact dayDate}</span>
             </a>
 
-            {renderDayEntries dayOffset dayEntries staffMembers shiftTypes today editWindowDays weekOffset showApproved showAllStaff}
+            {renderDayEntries model dayEntriesForDate}
         </div>
     </section>
 |]
     where
-        dayDate = addDays (toInteger dayOffset) weekStartDate
-        dayEntries = filter (\entry -> entry.workedOn == dayDate) entries
+        dayDate = addDays (toInteger dayOffset) dayWeekStartDate
+        dayEntriesForDate = filter (\entry -> entry.workedOn == dayDate) dayEntries
         weekdayLabel = Text.pack (formatTime defaultTimeLocale "%A" dayDate)
         daySectionUrl =
             appendQueryParams
                 (pathTo
                     (ShowTimesheetDaySectionFragmentAction
-                        { weekOffset = weekOffset
+                        { weekOffset = dayWeekOffset
                         , dayOffset = dayOffset
                         }
                     )
                 )
-                [ ("showApproved", boolParam showApproved)
-                , ("showAllStaff", boolParam showAllStaff)
+                [ ("showApproved", boolParam dayShowApproved)
+                , ("showAllStaff", boolParam dayShowAllStaff)
                 ]
         newEntryUrl =
             appendQueryParams
                 (pathTo NewTimesheetEntryAction)
-                [ ("weekOffset", tshow weekOffset)
+                [ ("weekOffset", tshow dayWeekOffset)
                 , ("workedOn", tshow dayDate)
-                , ("showApproved", boolParam showApproved)
-                , ("showAllStaff", boolParam showAllStaff)
+                , ("showApproved", boolParam dayShowApproved)
+                , ("showAllStaff", boolParam dayShowAllStaff)
                 ]
 
 timesheetDaySectionDomId :: Int -> Text
 timesheetDaySectionDomId dayOffset = "timesheet-day-section-" <> tshow dayOffset
 
-renderDayEntries :: (?context :: ControllerContext) => Int -> [TimesheetEntry] -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Bool -> Bool -> Html
-renderDayEntries dayOffset dayEntries staffMembers shiftTypes today editWindowDays weekOffset showApproved showAllStaff
+renderDayEntries :: (?context :: ControllerContext) => TimesheetDayRenderModel -> [TimesheetEntry] -> Html
+renderDayEntries model dayEntries
     | null dayEntries = [hsx|<p class="timesheet-day-empty app-muted mb-0">No entries for this day.</p>|]
     | otherwise = [hsx|
         <div class="timesheet-entry-list">
-            {forEach dayEntries (renderEntryCard dayOffset staffMembers shiftTypes today editWindowDays weekOffset showApproved showAllStaff)}
+            {forEach dayEntries (renderEntryCard model)}
         </div>
     |]
 
-renderEntryCard :: (?context :: ControllerContext) => Int -> [Staff] -> [ShiftType] -> Day -> Int -> Int -> Bool -> Bool -> TimesheetEntry -> Html
-renderEntryCard dayOffset staffMembers shiftTypes today editWindowDays weekOffset showApproved showAllStaff entry = [hsx|
+renderEntryCard :: (?context :: ControllerContext) => TimesheetDayRenderModel -> TimesheetEntry -> Html
+renderEntryCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayToday, dayEditWindowDays, dayWeekOffset, dayShowApproved, dayShowAllStaff, dayOffset } entry = [hsx|
     <article class="timesheet-entry-card" data-timesheet-entry-approved={boolParam entry.isApproved}>
         <div class="timesheet-entry-main">
             <div class="timesheet-entry-identity">
@@ -274,8 +302,8 @@ renderEntryCard dayOffset staffMembers shiftTypes today editWindowDays weekOffse
             </div>
 
             <div class="timesheet-entry-actions">
-                {renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff}
-                {renderEditActions entry canEdit weekOffset showApproved showAllStaff}
+                {renderApprovalAction dayOffset entry dayWeekOffset dayShowApproved dayShowAllStaff}
+                {renderEditActions entry canEdit dayWeekOffset dayShowApproved dayShowAllStaff}
             </div>
         </div>
 
@@ -283,13 +311,13 @@ renderEntryCard dayOffset staffMembers shiftTypes today editWindowDays weekOffse
     </article>
 |]
     where
-        staffName = case find (\s -> unpackId (get #id s) == entry.staffId) staffMembers of
+        staffName = case find (\s -> unpackId (get #id s) == entry.staffId) dayStaffMembers of
             Just staff -> staff.firstName <> " " <> staff.lastName
             Nothing    -> "Unknown" :: Text
-        shiftTypeLabel = case find (\shiftType -> unpackId (get #id shiftType) == entry.shiftTypeId) shiftTypes of
+        shiftTypeLabel = case find (\shiftType -> unpackId (get #id shiftType) == entry.shiftTypeId) dayShiftTypes of
             Just shiftType -> shiftType.name
             Nothing        -> "Shift"
-        canEdit = currentUserIsManager || isWithinEditWindow today entry.workedOn editWindowDays
+        canEdit = currentUserIsManager || isWithinEditWindow dayToday entry.workedOn dayEditWindowDays
 
 renderEditActions :: TimesheetEntry -> Bool -> Int -> Bool -> Bool -> Html
 renderEditActions entry canEdit weekOffset showApproved showAllStaff

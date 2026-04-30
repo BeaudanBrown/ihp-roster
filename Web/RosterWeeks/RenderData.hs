@@ -33,8 +33,8 @@ where
 
 import Application.Helper.Conflict
 import Application.Helper.Controller
-import Application.Helper.LiveUpdate
 import Application.Helper.LiveSurface
+import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.SurfaceProjection
@@ -133,21 +133,23 @@ renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } ->
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
              in renderRosterContentFragment
-                    (Just rosterWeek)
-                    rosterDays
-                    rosterWeek.weekOffset
-                    rosterGroups
-                    currentRosterGroup
-                    assignmentFilters
-                    staffMembers
-                    staffOptionStates
-                    panelStaff
-                    orderedSlotNames
-                    weekStartDate
-                    allSlots
-                    slotConflicts
-                    renderIndexes
-                    viewCapabilities
+                    RosterGridRenderModel
+                        { gridRosterWeek = Just rosterWeek
+                        , gridRosterDays = rosterDays
+                        , gridWeekOffset = rosterWeek.weekOffset
+                        , gridRosterGroups = rosterGroups
+                        , gridCurrentRosterGroup = currentRosterGroup
+                        , gridAssignmentFilters = assignmentFilters
+                        , gridStaffMembers = staffMembers
+                        , gridStaffOptionStates = staffOptionStates
+                        , gridPanelStaff = panelStaff
+                        , gridSlotNames = orderedSlotNames
+                        , gridWeekStartDate = weekStartDate
+                        , gridAllSlots = allSlots
+                        , gridSlotConflicts = slotConflicts
+                        , gridRenderIndexes = renderIndexes
+                        , gridViewCapabilities = viewCapabilities
+                        }
 
 renderRosterStaffPanelFromProjection :: (?context :: ControllerContext, ?request :: Request) => Maybe RosterRenderData -> Blaze.Html
 renderRosterStaffPanelFromProjection rosterData =
@@ -319,7 +321,7 @@ renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers
     let indexedRows = zip [0 :: Int ..] dayRows
     (rowPosition, (_, rowSlots)) <- find (\(_, (rowIndex, _)) -> rowIndex == targetRowIndex) indexedRows
     let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate
-    pure (renderRowOob True orderedSlotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes (rowPosition, (targetRowIndex, rowSlots)))
+    pure (renderRowOob RosterRowRenderModel { rowIsEditable = True, rowSlotNames = orderedSlotNames, rowAssignmentFilters = assignmentFilters, rowStaffMembers = staffMembers, rowStaffOptionStates = staffOptionStates, rowDate = date, rowRosterDay = rosterDay, rowCount, rowLastRowIndex = lastRowIndex, rowRenderIndexes = renderIndexes } (rowPosition, (targetRowIndex, rowSlots)))
 
 renderRequestedRowFragment :: (?context :: ControllerContext, ?request :: Request) => Bool -> Calendar.Day -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState -> RosterRenderIndexes -> (UUID.UUID, Int) -> Maybe Blaze.Html
 renderRequestedRowFragment isEditable weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates renderIndexes (rosterDayUuid, targetRowIndex) = do
@@ -330,14 +332,14 @@ renderRequestedRowFragment isEditable weekStartDate orderedSlotNames assignmentF
     let indexedRows = zip [0 :: Int ..] dayRows
     (rowPosition, (_, rowSlots)) <- find (\(_, (rowIndex, _)) -> rowIndex == targetRowIndex) indexedRows
     let date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate
-    pure (renderRowFragment isEditable orderedSlotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes (rowPosition, (targetRowIndex, rowSlots)))
+    pure (renderRowFragment RosterRowRenderModel { rowIsEditable = isEditable, rowSlotNames = orderedSlotNames, rowAssignmentFilters = assignmentFilters, rowStaffMembers = staffMembers, rowStaffOptionStates = staffOptionStates, rowDate = date, rowRosterDay = rosterDay, rowCount, rowLastRowIndex = lastRowIndex, rowRenderIndexes = renderIndexes } (rowPosition, (targetRowIndex, rowSlots)))
 
 renderRequestedDaySection :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> UUID.UUID -> Maybe Blaze.Html
 renderRequestedDaySection weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts renderIndexes rosterDayUuid = do
     rosterDay <- Map.lookup rosterDayUuid renderIndexes.rosterDayById
-    pure (renderRosterDaySectionFragment True orderedSlotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay)
+    pure (renderRosterDaySectionFragment RosterDayRenderModel { dayIsEditable = True, daySlotNames = orderedSlotNames, dayAssignmentFilters = assignmentFilters, dayStaffMembers = staffMembers, dayStaffOptionStates = staffOptionStates, dayWeekStartDate = weekStartDate, dayAllSlots = allSlots, daySlotConflicts = slotConflicts, dayRenderIndexes = renderIndexes } rosterDay)
 
 renderRequestedDaySectionFragment :: (?context :: ControllerContext, ?request :: Request) => Bool -> Calendar.Day -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> UUID.UUID -> Maybe Blaze.Html
 renderRequestedDaySectionFragment isEditable weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates allSlots slotConflicts renderIndexes rosterDayUuid = do
     rosterDay <- Map.lookup rosterDayUuid renderIndexes.rosterDayById
-    pure (renderRosterDaySectionFragment isEditable orderedSlotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay)
+    pure (renderRosterDaySectionFragment RosterDayRenderModel { dayIsEditable = isEditable, daySlotNames = orderedSlotNames, dayAssignmentFilters = assignmentFilters, dayStaffMembers = staffMembers, dayStaffOptionStates = staffOptionStates, dayWeekStartDate = weekStartDate, dayAllSlots = allSlots, daySlotConflicts = slotConflicts, dayRenderIndexes = renderIndexes } rosterDay)

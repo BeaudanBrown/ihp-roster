@@ -1,10 +1,13 @@
 module Web.RosterWeeks.Types
     ( RosterAssignmentFilters (..)
     , RosterAssignmentOptionState (..)
+    , RosterDayRenderModel (..)
+    , RosterGridRenderModel (..)
     , RosterProjectionFragment (..)
     , RosterProjectionScope (..)
     , RosterRenderData (..)
     , RosterRenderIndexes (..)
+    , RosterRowRenderModel (..)
     , RosterStaffPanelEntry (..)
     , RosterViewCapabilities (..)
     , RosterWeekOverviewDay (..)
@@ -100,6 +103,49 @@ data RosterRenderData = RosterRenderData
     , allSlots          :: [RosterSlot]
     , slotConflicts     :: [(Id RosterSlot, [RosterConflict])]
     , renderIndexes     :: RosterRenderIndexes
+    }
+
+data RosterGridRenderModel = RosterGridRenderModel
+    { gridRosterWeek         :: Maybe RosterWeek
+    , gridRosterDays         :: [RosterDay]
+    , gridWeekOffset         :: Int
+    , gridRosterGroups       :: [RosterGroup]
+    , gridCurrentRosterGroup :: RosterGroup
+    , gridAssignmentFilters  :: RosterAssignmentFilters
+    , gridStaffMembers       :: [Staff]
+    , gridStaffOptionStates  :: Map (UUID, UUID) RosterAssignmentOptionState
+    , gridPanelStaff         :: [RosterStaffPanelEntry]
+    , gridSlotNames          :: [SlotName]
+    , gridWeekStartDate      :: Day
+    , gridAllSlots           :: [RosterSlot]
+    , gridSlotConflicts      :: [(Id RosterSlot, [RosterConflict])]
+    , gridRenderIndexes      :: RosterRenderIndexes
+    , gridViewCapabilities   :: RosterViewCapabilities
+    }
+
+data RosterDayRenderModel = RosterDayRenderModel
+    { dayIsEditable        :: Bool
+    , daySlotNames         :: [SlotName]
+    , dayAssignmentFilters :: RosterAssignmentFilters
+    , dayStaffMembers      :: [Staff]
+    , dayStaffOptionStates :: Map (UUID, UUID) RosterAssignmentOptionState
+    , dayWeekStartDate     :: Day
+    , dayAllSlots          :: [RosterSlot]
+    , daySlotConflicts     :: [(Id RosterSlot, [RosterConflict])]
+    , dayRenderIndexes     :: RosterRenderIndexes
+    }
+
+data RosterRowRenderModel = RosterRowRenderModel
+    { rowIsEditable        :: Bool
+    , rowSlotNames         :: [SlotName]
+    , rowAssignmentFilters :: RosterAssignmentFilters
+    , rowStaffMembers      :: [Staff]
+    , rowStaffOptionStates :: Map (UUID, UUID) RosterAssignmentOptionState
+    , rowDate              :: Day
+    , rowRosterDay         :: RosterDay
+    , rowCount             :: Int
+    , rowLastRowIndex      :: Int
+    , rowRenderIndexes     :: RosterRenderIndexes
     }
 
 data RosterProjectionScope = RosterProjectionScope

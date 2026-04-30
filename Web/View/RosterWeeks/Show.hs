@@ -24,7 +24,23 @@ renderRosterWeekShell ShowView { .. } =
             , appPageBody =
                 mconcat
                     [ renderPasskeySetupPrompt passkeySetupPrompt
-                    , renderRosterContentFragment rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes viewCapabilities
+                    , renderRosterContentFragment RosterGridRenderModel
+                        { gridRosterWeek = rosterWeek
+                        , gridRosterDays = rosterDays
+                        , gridWeekOffset = weekOffset
+                        , gridRosterGroups = rosterGroups
+                        , gridCurrentRosterGroup = currentRosterGroup
+                        , gridAssignmentFilters = assignmentFilters
+                        , gridStaffMembers = staffMembers
+                        , gridStaffOptionStates = staffOptionStates
+                        , gridPanelStaff = panelStaff
+                        , gridSlotNames = slotNames
+                        , gridWeekStartDate = weekStartDate
+                        , gridAllSlots = allSlots
+                        , gridSlotConflicts = slotConflicts
+                        , gridRenderIndexes = renderIndexes
+                        , gridViewCapabilities = viewCapabilities
+                        }
                     ]
             })
      in [hsx|

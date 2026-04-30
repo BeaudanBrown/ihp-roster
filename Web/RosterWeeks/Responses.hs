@@ -15,7 +15,8 @@ import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.RenderData (fetchVisibleRosterRenderDataCached,
                                    renderVisibleRosterProjectionFragment)
-import Web.RosterWeeks.Types (RosterProjectionFragment (RosterProjectionContent),
+import Web.RosterWeeks.Types (RosterGridRenderModel (..),
+                              RosterProjectionFragment (RosterProjectionContent),
                               RosterRenderData (..))
 import Web.View.RosterWeeks.Grid (renderRosterContentFragment,
                                   renderRosterContentFragmentOob)
@@ -40,21 +41,23 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
              in respondHtmlProfiled $
                     renderRosterContentFragmentOob
-                        (Just rosterWeek)
-                        rosterDays
-                        weekOffset
-                        rosterGroups
-                        currentRosterGroup
-                        assignmentFilters
-                        staffMembers
-                        staffOptionStates
-                        panelStaff
-                        orderedSlotNames
-                        weekStartDate
-                        allSlots
-                        slotConflicts
-                        renderIndexes
-                        viewCapabilities
+                        RosterGridRenderModel
+                            { gridRosterWeek = Just rosterWeek
+                            , gridRosterDays = rosterDays
+                            , gridWeekOffset = weekOffset
+                            , gridRosterGroups = rosterGroups
+                            , gridCurrentRosterGroup = currentRosterGroup
+                            , gridAssignmentFilters = assignmentFilters
+                            , gridStaffMembers = staffMembers
+                            , gridStaffOptionStates = staffOptionStates
+                            , gridPanelStaff = panelStaff
+                            , gridSlotNames = orderedSlotNames
+                            , gridWeekStartDate = weekStartDate
+                            , gridAllSlots = allSlots
+                            , gridSlotConflicts = slotConflicts
+                            , gridRenderIndexes = renderIndexes
+                            , gridViewCapabilities = viewCapabilities
+                            }
 
 respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
@@ -68,21 +71,23 @@ respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
                 Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, allSlots, slotConflicts, renderIndexes } ->
                     let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
                      in renderRosterContentFragment
-                            (Just rosterWeek)
-                            rosterDays
-                            weekOffset
-                            rosterGroups
-                            currentRosterGroup
-                            assignmentFilters
-                            staffMembers
-                            staffOptionStates
-                            panelStaff
-                            orderedSlotNames
-                            weekStartDate
-                            allSlots
-                            slotConflicts
-                            renderIndexes
-                            viewCapabilities
+                            RosterGridRenderModel
+                                { gridRosterWeek = Just rosterWeek
+                                , gridRosterDays = rosterDays
+                                , gridWeekOffset = weekOffset
+                                , gridRosterGroups = rosterGroups
+                                , gridCurrentRosterGroup = currentRosterGroup
+                                , gridAssignmentFilters = assignmentFilters
+                                , gridStaffMembers = staffMembers
+                                , gridStaffOptionStates = staffOptionStates
+                                , gridPanelStaff = panelStaff
+                                , gridSlotNames = orderedSlotNames
+                                , gridWeekStartDate = weekStartDate
+                                , gridAllSlots = allSlots
+                                , gridSlotConflicts = slotConflicts
+                                , gridRenderIndexes = renderIndexes
+                                , gridViewCapabilities = viewCapabilities
+                                }
             , renderToastOob ToastBottomCenter (successToast successMessage)
             ]
 

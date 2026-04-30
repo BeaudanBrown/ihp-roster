@@ -25,52 +25,65 @@ import Web.View.Prelude
 import Web.View.RosterWeeks.Header (renderRosterGridHeader)
 import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment)
 
-renderRosterContentFragment :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterViewCapabilities -> Html
+renderRosterContentFragment :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderRosterContentFragment =
     renderRosterContentFragmentWithSwap Nothing
 
-renderRosterContentFragmentOob :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterViewCapabilities -> Html
+renderRosterContentFragmentOob :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderRosterContentFragmentOob =
     renderRosterContentFragmentWithSwap (Just "outerHTML")
 
-renderRosterContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterViewCapabilities -> Html
-renderRosterContentFragmentWithSwap maybeSwapOob rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes viewCapabilities = [hsx|
+renderRosterContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
+renderRosterContentFragmentWithSwap maybeSwapOob gridModel = [hsx|
     <div id={rosterContentFragmentId} hx-swap-oob={maybeSwapOob}>
-        {renderRosterContent rosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes viewCapabilities}
+        {renderRosterContent gridModel}
     </div>
 |]
 
-renderRosterContent :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterViewCapabilities -> Html
+renderRosterContent :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderRosterContent =
     renderRosterGrid
 
-renderRosterGrid :: (?context :: ControllerContext) => Maybe RosterWeek -> [RosterDay] -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [RosterStaffPanelEntry] -> [SlotName] -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterViewCapabilities -> Html
-renderRosterGrid maybeRosterWeek rosterDays weekOffset rosterGroups currentRosterGroup assignmentFilters staffMembers staffOptionStates panelStaff slotNames weekStartDate allSlots slotConflicts renderIndexes viewCapabilities = [hsx|
+renderRosterGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
+renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridPanelStaff, gridSlotNames, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities } =
+    let dayModel =
+            RosterDayRenderModel
+                { dayIsEditable = rosterWeekIsEditable gridRosterWeek
+                , daySlotNames = gridSlotNames
+                , dayAssignmentFilters = gridAssignmentFilters
+                , dayStaffMembers = gridStaffMembers
+                , dayStaffOptionStates = gridStaffOptionStates
+                , dayWeekStartDate = gridWeekStartDate
+                , dayAllSlots = gridAllSlots
+                , daySlotConflicts = gridSlotConflicts
+                , dayRenderIndexes = gridRenderIndexes
+                }
+     in [hsx|
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
             <div class="app-panel overflow-hidden mb-5 mb-xl-0">
-                {renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities}
+                {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities}
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm mb-0 align-middle roster-grid"
-                           style={"--roster-slot-count:" <> tshow (max 1 (length slotNames)) <> ";"}>
-                        {renderRosterGridColGroup slotNames}
+                           style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
+                        {renderRosterGridColGroup gridSlotNames}
                         <thead class="text-center text-uppercase fw-bold roster-grid-head">
                             <tr>
                                 <th rowspan="2" class="py-2 roster-day-column">Day</th>
-                                {forEach slotNames renderSlotHeaderGroup}
+                                {forEach gridSlotNames renderSlotHeaderGroup}
                             </tr>
                             <tr>
-                                {forEach slotNames renderSlotSubHeaders}
+                                {forEach gridSlotNames renderSlotSubHeaders}
                             </tr>
                         </thead>
                         <tbody>
-                            {forEach rosterDays (renderRosterDay (rosterWeekIsEditable maybeRosterWeek) slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes)}
+                            {forEach gridRosterDays (renderRosterDay dayModel)}
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
-        {forEach maybeRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment weekOffset (coerce rosterWeek.rosterGroupId) panelStaff)}
+        {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) gridPanelStaff)}
     </div>
 |]
 
@@ -107,29 +120,29 @@ renderSlotSubHeaders _ =
         , [hsx|<th class="py-1 roster-subhead roster-col-code roster-block-end">Flag</th>|]
         ]
 
-renderRosterDay :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
+renderRosterDay :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
 renderRosterDay =
     renderRosterDaySectionFragment
 
-renderRosterDaySectionFragment :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
+renderRosterDaySectionFragment :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
 renderRosterDaySectionFragment =
     renderRosterDaySectionFragmentWithSwap Nothing
 
-renderRosterDaySectionFragmentOob :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
-renderRosterDaySectionFragmentOob isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay =
-    [hsx|<template>{renderRosterDaySectionFragmentWithSwap (Just "outerHTML") isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay}</template>|]
+renderRosterDaySectionFragmentOob :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
+renderRosterDaySectionFragmentOob dayModel rosterDay =
+    [hsx|<template>{renderRosterDaySectionFragmentWithSwap (Just "outerHTML") dayModel rosterDay}</template>|]
 
-renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> [RosterSlot] -> [(Id RosterSlot, [RosterConflict])] -> RosterRenderIndexes -> RosterDay -> Html
-renderRosterDaySectionFragmentWithSwap maybeSwapOob isEditable slotNames assignmentFilters staffMembers staffOptionStates weekStartDate allSlots slotConflicts renderIndexes rosterDay = [hsx|
+renderRosterDaySectionFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterDayRenderModel -> RosterDay -> Html
+renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayWeekStartDate, dayAllSlots, dayRenderIndexes } rosterDay = [hsx|
     <tbody id={rosterDaySectionDomId rosterDay.id}
            data-roster-day-section="true"
            hx-swap-oob={maybeSwapOob}>
-        {renderDayRows isEditable slotNames assignmentFilters staffMembers staffOptionStates (Calendar.addDays (toInteger (get #dayOffset rosterDay)) weekStartDate) rosterDay dayRows renderIndexes}
+        {renderDayRows dayModel (Calendar.addDays (toInteger (get #dayOffset rosterDay)) dayWeekStartDate) rosterDay dayRows}
     </tbody>
 |]
     where
-        dayRows = Map.findWithDefault (rowsForDay rosterDay daySlots) (coerce (get #id rosterDay)) renderIndexes.rosterDayRowsByDayId
-        daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) allSlots
+        dayRows = Map.findWithDefault (rowsForDay rosterDay daySlots) (coerce (get #id rosterDay)) dayRenderIndexes.rosterDayRowsByDayId
+        daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) dayAllSlots
 
 rowsForDay :: RosterDay -> [RosterSlot] -> [(Int, [RosterSlot])]
 rowsForDay rosterDay slots =
@@ -148,34 +161,48 @@ rowsForDay rosterDay slots =
 lastRowIndexForRows :: [(Int, [RosterSlot])] -> Int
 lastRowIndexForRows dayRows = maybe (-1) fst (last dayRows)
 
-renderDayRows :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> [(Int, [RosterSlot])] -> RosterRenderIndexes -> Html
-renderDayRows isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay dayRows renderIndexes = [hsx|
-    {forEach indexedRows (renderRow isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes)}
+renderDayRows :: (?context :: ControllerContext) => RosterDayRenderModel -> Day -> RosterDay -> [(Int, [RosterSlot])] -> Html
+renderDayRows RosterDayRenderModel { dayIsEditable, daySlotNames, dayAssignmentFilters, dayStaffMembers, dayStaffOptionStates, dayRenderIndexes } date rosterDay dayRows =
+    let rowModel =
+            RosterRowRenderModel
+                { rowIsEditable = dayIsEditable
+                , rowSlotNames = daySlotNames
+                , rowAssignmentFilters = dayAssignmentFilters
+                , rowStaffMembers = dayStaffMembers
+                , rowStaffOptionStates = dayStaffOptionStates
+                , rowDate = date
+                , rowRosterDay = rosterDay
+                , rowCount
+                , rowLastRowIndex = lastRowIndex
+                , rowRenderIndexes = dayRenderIndexes
+                }
+     in [hsx|
+    {forEach indexedRows (renderRow rowModel)}
 |]
     where
         rowCount = length dayRows
         lastRowIndex = lastRowIndexForRows dayRows
         indexedRows = zip [0 :: Int ..] dayRows
 
-renderRow :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> RosterRenderIndexes -> (Int, (Int, [RosterSlot])) -> Html
-renderRow isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes rowData =
-    renderRowWithAttrs isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes rowData Nothing
+renderRow :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Html
+renderRow rowModel rowData =
+    renderRowWithAttrs rowModel rowData Nothing
 
-renderRowFragment :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> RosterRenderIndexes -> (Int, (Int, [RosterSlot])) -> Html
+renderRowFragment :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Html
 renderRowFragment = renderRow
 
-renderRowOob :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> RosterRenderIndexes -> (Int, (Int, [RosterSlot])) -> Html
-renderRowOob isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes rowData =
-    [hsx|<template>{renderRowWithAttrs isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes rowData (Just "outerHTML")}</template>|]
+renderRowOob :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Html
+renderRowOob rowModel rowData =
+    [hsx|<template>{renderRowWithAttrs rowModel rowData (Just "outerHTML")}</template>|]
 
-renderRowWithAttrs :: (?context :: ControllerContext) => Bool -> [SlotName] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Day -> RosterDay -> Int -> Int -> RosterRenderIndexes -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
-renderRowWithAttrs isEditable slotNames assignmentFilters staffMembers staffOptionStates date rosterDay rowCount lastRowIndex renderIndexes (rowPosition, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
-    <tr id={rosterRowDomIdText rosterDay.id rowIndex}
+renderRowWithAttrs :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
+renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowStaffOptionStates, rowDate, rowRosterDay, rowCount, rowLastRowIndex, rowRenderIndexes } (rowPosition, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
+    <tr id={rosterRowDomIdText rowRosterDay.id rowIndex}
         data-roster-row="true"
         hx-swap-oob={maybeSwapOob}
-        class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rosterDay), True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
-        {renderDayLabel isEditable date rosterDay rowCount rowPosition lastRowIndex}
-        {forEach (zip [0 :: Int ..] slotNames) (renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates rosterDay rowIndex rowSlots renderIndexes)}
+        class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True), ("day-alt-dark", odd (get #dayOffset rowRosterDay)), ("day-alt-light", even (get #dayOffset rowRosterDay))]}>
+        {renderDayLabel rowIsEditable rowDate rowRosterDay rowCount rowPosition rowLastRowIndex}
+        {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowStaffOptionStates rowRosterDay rowIndex rowSlots rowRenderIndexes)}
     </tr>
 |]
 
