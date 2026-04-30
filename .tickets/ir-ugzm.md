@@ -56,3 +56,7 @@ Guardrails:
 **2026-04-30T01:40:21Z**
 
 Extracted reference-data upsert/stale helpers into Application.Xero.Admin.ReferenceData and pay-item create/verification orchestration into Application.Xero.Admin.PayItems. Controller still owns response formatting for this slice. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Xero".
+
+**2026-04-30T01:44:50Z**
+
+Extracted Xero admin response/transport helpers into Application.Xero.Admin.Responses so mutation services can reuse HTMX fragment/toast/full-page response behavior without keeping it in the controller. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Xero".
