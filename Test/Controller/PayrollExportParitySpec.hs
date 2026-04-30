@@ -35,7 +35,7 @@ tests = beforeAll testContext do
 
                 get #exportType exportJob `shouldBe` exportJobTypeToText StaffPayCsv
                 get #fileName exportJob `shouldBe` Just "staff_hours-2025-01-06-to-2025-01-12.csv"
-                get #payConfigSnapshotVersion exportJob `shouldBe` Just "v1"
+                get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
                 unsafeStripCarriageReturns (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
 
         it "renders the canonical payroll earnings CSV shape exactly after normalizing row ids" $ withContext do
@@ -46,8 +46,8 @@ tests = beforeAll testContext do
 
                 get #exportType exportJob `shouldBe` exportJobTypeToText PayrollEarningsCsv
                 get #fileName exportJob `shouldBe` Just "payroll_earnings-2025-01-06-to-2025-01-12.csv"
-                get #payConfigSnapshotVersion exportJob `shouldBe` Just "v1"
-                normalizePayrollEarningsCsv (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
+                get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
+                normalizePayrollEarningsCsv (fromMaybe "" (get #fileContents exportJob)) `shouldBe` normalizeExpectedPayrollEarningsCsv expectedCsv
 
         it "keeps only approved non-trial hours and buckets canonical rows into the expected days" $ withContext do
             withCleanDb do
@@ -60,7 +60,7 @@ tests = beforeAll testContext do
                 lookupCsvRow csvRows "Ava LVL 2" `shouldBe` ["2.50", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "5.00", "0.00", "3.50", "1.00", "0.00"]
                 lookupCsvRow csvRows "Kai LVL 1" `shouldBe` ["0.00", "0.00", "0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00"]
 
-        it "keeps snapshot-pinned payroll CSV output stable after later pay-config changes" $ withContext do
+        it "keeps relational-version-pinned payroll CSV output stable after later pay-config changes" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture
                 expectedCsv <- readExportFixtureText "staff_hours-expected.csv"
@@ -71,10 +71,10 @@ tests = beforeAll testContext do
 
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
 
-                get #payConfigSnapshotVersion exportJob `shouldBe` Just "v1"
+                get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
                 unsafeStripCarriageReturns (fromMaybe "" (get #fileContents exportJob)) `shouldBe` unsafeStripCarriageReturns expectedCsv
 
-        it "marks payroll exports as mixed when approved rows span multiple pay snapshots" $ withContext do
+        it "marks payroll exports as mixed when approved rows span multiple pay version manifests" $ withContext do
             withCleanDb do
                 fixture <- seedCanonicalPayrollFixture
                 secondSnapshot <- createPayrollSnapshotWithVersion fixture.venue fixture.admin 2 [fixture.levelOne, fixture.levelTwo] [fixture.barShift, fixture.floorShift, fixture.kitchenShift] fixture.dayNames []
@@ -87,7 +87,7 @@ tests = beforeAll testContext do
                 exportJob <- generatePayrollExportJob fixture.admin fixture.venue StaffPayCsv
                 let csvRows = csvRowsByKey (fromMaybe "" (get #fileContents exportJob))
 
-                get #payConfigSnapshotVersion exportJob `shouldBe` Just "mixed"
+                get #payConfigVersionManifest exportJob `shouldBe` Just "mixed"
                 lookupCsvRow csvRows "Kai LVL 1" `shouldBe` ["0.00", "0.00", "0.00", "4.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "0.00", "2.00"]
 
         it "aggregates multiple staff, employment bases, roles, breaks, and overnight penalty buckets" $ withContext do
@@ -164,7 +164,7 @@ normalizePayrollEarningsCsv csvText =
             if Text.isPrefixOf "staff_first_name," row
                 then row
                 else case Text.splitOn "," row of
-                firstName : lastName : workDate : earningsRateName : hours : trackingCode : _description : _staffId : _entryIds : snapshot : penaltyKind : payLevelName : shiftTypeName : [] ->
+                firstName : lastName : workDate : earningsRateName : hours : trackingCode : _description : _staffId : _entryIds : _manifest : penaltyKind : payLevelName : shiftTypeName : [] ->
                     Text.intercalate ","
                         [ firstName
                         , lastName
@@ -175,12 +175,16 @@ normalizePayrollEarningsCsv csvText =
                         , "<description>"
                         , "<staff_id>"
                         , "<timesheet_entry_ids>"
-                        , snapshot
+                        , "<pay_config_version_manifest>"
                         , penaltyKind
                         , payLevelName
                         , shiftTypeName
                         ]
                 _ -> row
+
+normalizeExpectedPayrollEarningsCsv :: Text -> Text
+normalizeExpectedPayrollEarningsCsv =
+    Text.replace "\r" ""
 
 data PayrollMatrixFixture = PayrollMatrixFixture
     { venue :: !Venue

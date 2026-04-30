@@ -52,13 +52,7 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "exports-admin@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 staff <- createStaffRecord venue Nothing "Ava" "Hours"
-                snapshot <- createPayConfigSnapshotRecord venue admin 1 (Aeson.object [])
-                _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 10)
-                    >>= updateRecord
-                        . set #payConfigSnapshotId (Just (unpackId snapshot.id))
-                        . set #isApproved True
-                        . set #approvedAt (Just approvedAt)
-                        . set #approvedByUserId (Just (unpackId admin.id))
+                _ <- createApprovedTimesheetEntryRecordAt venue staff admin (fromGregorian 2025 1 10) approvedAt
                 _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 11)
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -77,13 +71,13 @@ tests = beforeAll testContext do
                 exportJob.status `shouldBe` exportJobStatusToText ExportReady
                 exportJob.rangeStart `shouldBe` Just (fromGregorian 2025 1 6)
                 exportJob.rangeEnd `shouldBe` Just (fromGregorian 2025 1 12)
-                exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
+                exportJob.payConfigVersionManifest `shouldSatisfy` isJust
                 exportJob.fileName `shouldBe` Just "approved-timesheets-2025-01-06-to-2025-01-12.csv"
                 exportJob.fileContents `shouldSatisfy` isJust
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
-                    Text.isInfixOf "worked_on,staff_name,start_time,end_time,break_minutes,pay_config_snapshot_version,approved_at,approved_by_email"
+                    Text.isInfixOf "worked_on,staff_name,start_time,end_time,break_minutes,pay_config_version_manifest,approved_at,approved_by_email"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy` Text.isInfixOf "2025-01-10"
-                fromMaybe "" exportJob.fileContents `shouldSatisfy` Text.isInfixOf ",v1,"
+                fromMaybe "" exportJob.fileContents `shouldSatisfy` Text.isInfixOf ("," <> fromMaybe "" exportJob.payConfigVersionManifest <> ",")
                 fromMaybe "" exportJob.fileContents `shouldSatisfy` (not . Text.isInfixOf "2025-01-11")
 
                 auditEvent <- query @AuditEvent |> fetchOne
@@ -139,7 +133,7 @@ tests = beforeAll testContext do
                 exportJob <- query @ExportJob |> orderByDesc #createdAt |> fetchOne
                 exportJob.exportType `shouldBe` exportJobTypeToText StaffPayCsv
                 exportJob.fileName `shouldBe` Just "staff_hours-2025-01-06-to-2025-01-12.csv"
-                exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
+                exportJob.payConfigVersionManifest `shouldSatisfy` isJust
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
                     Text.isInfixOf "Name/Type,Mond Ord,Mond 7-12,Mond 12+"
                 fromMaybe "" exportJob.fileContents `shouldSatisfy`
@@ -225,7 +219,7 @@ tests = beforeAll testContext do
                 exportJob.fileName `shouldBe` Just "staff_hours-2025-01-08-to-2025-01-15.zip"
                 exportJob.contentType `shouldBe` Just "application/zip"
                 exportJob.fileEncoding `shouldBe` "base64"
-                exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
+                exportJob.payConfigVersionManifest `shouldSatisfy` isJust
 
                 let archive =
                         fromMaybe Zip.emptyArchive do
@@ -310,9 +304,9 @@ tests = beforeAll testContext do
                 exportJob.fileName `shouldBe` Just "payroll_earnings-2025-01-06-to-2025-01-12.csv"
                 exportJob.contentType `shouldBe` Just "text/csv; charset=utf-8"
                 exportJob.fileEncoding `shouldBe` "utf8"
-                exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
+                exportJob.payConfigVersionManifest `shouldSatisfy` isJust
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf "staff_first_name,staff_last_name,work_date,earnings_rate_name,hours,tracking_code,description,staff_id,timesheet_entry_ids,pay_config_snapshot_version,source_penalty_kind,source_pay_level_name,source_shift_type_name"
+                    Text.isInfixOf "staff_first_name,staff_last_name,work_date,earnings_rate_name,hours,tracking_code,description,staff_id,timesheet_entry_ids,pay_config_version_manifest,source_penalty_kind,source_pay_level_name,source_shift_type_name"
                 csvContents `shouldSatisfy`
                     Text.isInfixOf "Rae,Worker,2025-01-06,LVL 1 - Ordinary,5.00,Bar,"
                 csvContents `shouldSatisfy`
@@ -320,7 +314,7 @@ tests = beforeAll testContext do
                 csvContents `shouldSatisfy`
                     Text.isInfixOf "Rae,Worker,2025-01-11,LVL 1 - Saturday,2.00,Kitchen,"
                 csvContents `shouldSatisfy`
-                    Text.isInfixOf ",v1,public_holiday_penalty,LVL 1,Bar"
+                    Text.isInfixOf ",public_holiday_penalty,LVL 1,Bar"
                 csvContents `shouldSatisfy`
                     (not . Text.isInfixOf "Trial")
 
@@ -362,7 +356,7 @@ tests = beforeAll testContext do
                 exportJob.fileName `shouldBe` Just "hourly_breakdown-2025-01-06-to-2025-01-12.zip"
                 exportJob.contentType `shouldBe` Just "application/zip"
                 exportJob.fileEncoding `shouldBe` "base64"
-                exportJob.payConfigSnapshotVersion `shouldBe` Just "v1"
+                exportJob.payConfigVersionManifest `shouldSatisfy` isJust
 
                 downloadResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams (DownloadExportJobAction exportJob.id)
@@ -391,13 +385,7 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "exports-download@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 staff <- createStaffRecord venue Nothing "Bea" "Hours"
-                snapshot <- createPayConfigSnapshotRecord venue admin 1 (Aeson.object [])
-                _ <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 10)
-                    >>= updateRecord
-                        . set #payConfigSnapshotId (Just (unpackId snapshot.id))
-                        . set #isApproved True
-                        . set #approvedAt (Just (UTCTime (fromGregorian 2025 1 10) (secondsToDiffTime 0)))
-                        . set #approvedByUserId (Just (unpackId admin.id))
+                _ <- createApprovedTimesheetEntryRecordAt venue staff admin (fromGregorian 2025 1 10) (UTCTime (fromGregorian 2025 1 10) (secondsToDiffTime 0))
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateExportJobAction
                         [ ("exportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))

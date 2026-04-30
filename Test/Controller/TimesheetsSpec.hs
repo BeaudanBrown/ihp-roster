@@ -380,16 +380,16 @@ tests = beforeAll testContext do
                 updatedEntry <- fetch entry.id
                 updatedEntry.isApproved `shouldBe` True
                 updatedEntry.approvedByUserId `shouldBe` Just (unpackId manager.id)
-                updatedEntry.payConfigSnapshotId `shouldSatisfy` isJust
+                updatedEntry.staffPayVersionId `shouldSatisfy` isJust
 
                 version <- query @TimesheetEntryVersion |> fetchOne
                 inputValue version.versionAction `shouldBe` "approved"
                 version.timesheetEntryId `shouldBe` unpackId entry.id
                 version.actorUserId `shouldBe` unpackId manager.id
 
-                snapshot <- query @PayConfigSnapshot |> fetchOne
-                updatedEntry.payConfigSnapshotId `shouldBe` Just (unpackId snapshot.id)
-                snapshot.versionLabel `shouldBe` "v1"
+                snapshot <- query @StaffPayVersion |> fetchOne
+                updatedEntry.staffPayVersionId `shouldBe` Just (unpackId snapshot.id)
+                snapshot.staffId `shouldBe` updatedEntry.staffId
 
                 auditEvent <- query @AuditEvent |> fetchOne
                 auditEvent.venueId `shouldBe` unpackId venue.id
@@ -415,7 +415,7 @@ tests = beforeAll testContext do
                 updatedEntry <- fetch entry.id
                 updatedEntry.isApproved `shouldBe` False
                 updatedEntry.approvedByUserId `shouldBe` Nothing
-                updatedEntry.payConfigSnapshotId `shouldBe` Nothing
+                updatedEntry.staffPayVersionId `shouldBe` Nothing
 
                 version <- query @TimesheetEntryVersion |> fetchOne
                 inputValue version.versionAction `shouldBe` "unapproved"

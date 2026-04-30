@@ -67,14 +67,15 @@ tests =
                     map (.previewXeroEmployeeId) previewRun.previewRunTimesheets `shouldBe` ["employee-a", "employee-b"]
                     previewRun.previewRunRequestArrayJson `shouldSatisfy` isArrayOfLength 2
 
-            it "keeps source entry ids and pay snapshot ids in metadata but omits TrackingItemID from Xero request JSON" $ withContext do
+            it "keeps source entry ids and pay version ids in metadata but omits TrackingItemID from Xero request JSON" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                     previewRun <- buildFixturePreview fixture
 
                     let preview = onlyPreview previewRun
                     preview.previewSourceEntryIds `shouldBe` map (unpackId . (.id)) fixture.entries
-                    preview.previewPayConfigSnapshotIds `shouldBe` sort (nub (mapMaybe (.payConfigSnapshotId) fixture.entries))
+                    preview.previewStaffPayVersionIds `shouldBe` sort (nub (mapMaybe (.staffPayVersionId) fixture.entries))
+                    preview.previewShiftPayVersionIds `shouldBe` sort (nub (mapMaybe (.shiftTypePayVersionId) fixture.entries))
                     preview.previewRequestObjectJson `shouldSatisfy` not . jsonContainsKey "TrackingItemID"
 
             it "persists preview payload, readiness snapshot, and duplicate-check snapshot without posting to Xero" $ withContext do

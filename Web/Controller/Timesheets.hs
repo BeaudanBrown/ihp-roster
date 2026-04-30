@@ -9,7 +9,9 @@ import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       currentLiveUpdateVersion,
                                       liveUpdateSourceClientId,
                                       mkLiveFragmentRef)
-import Application.Helper.Pay (ensureCurrentVenuePayConfigSnapshot)
+import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
+                               lockPayVersionsForApproval,
+                               payVersionManifestForEntry)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
 import Application.Helper.View (ToastOverlayPosition (..), appendQueryParams,
@@ -142,6 +144,8 @@ instance Controller TimesheetsController where
         let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
         staffMembers <- fetchStaffForForm
         shiftTypes <- fetchShiftTypesForForm
+        when existingEntry.isApproved do
+            ensureTimesheetEntryNotPayrollLocked existingEntry weekOffset showApproved showAllStaff
 
         let wasApproved = existingEntry.isApproved
         existingEntry
@@ -200,6 +204,7 @@ instance Controller TimesheetsController where
 
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
+        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff
         now <- getCurrentTime
         withTransaction do
             softDeletedEntry <- timesheetEntry
@@ -239,11 +244,13 @@ instance Controller TimesheetsController where
         let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
 
         now <- getCurrentTime
-        snapshot <- ensureCurrentVenuePayConfigSnapshot
+        (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval currentUser.id timesheetEntry
         withTransaction do
+            lockPayVersionsForApproval currentUser.id now staffPayVersion shiftTypePayVersion
             updatedEntry <- timesheetEntry
                 |> set #isApproved True
-                |> set #payConfigSnapshotId (Just (unpackId (get #id snapshot)))
+                |> set #staffPayVersionId (Just (unpackId (get #id staffPayVersion)))
+                |> set #shiftTypePayVersionId (Just (unpackId (get #id shiftTypePayVersion)))
                 |> set #approvedAt (Just now)
                 |> set #approvedByUserId (Just (unpackId (get #id currentUser)))
                 |> updateRecord
@@ -263,7 +270,7 @@ instance Controller TimesheetsController where
                     [ "staffId" Aeson..= timesheetEntry.staffId
                     , "workedOn" Aeson..= timesheetEntry.workedOn
                     , "wasApproved" Aeson..= timesheetEntry.isApproved
-                    , "payConfigSnapshotVersion" Aeson..= snapshot.versionLabel
+                    , "payConfigVersionManifest" Aeson..= payVersionManifestForEntry updatedEntry
                     , "approvedAt" Aeson..= now
                     ]
                 )
@@ -281,11 +288,13 @@ instance Controller TimesheetsController where
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
+        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff
 
         withTransaction do
             updatedEntry <- timesheetEntry
                 |> set #isApproved False
-                |> set #payConfigSnapshotId Nothing
+                |> set #staffPayVersionId Nothing
+                |> set #shiftTypePayVersionId Nothing
                 |> set #approvedAt Nothing
                 |> set #approvedByUserId Nothing
                 |> updateRecord
@@ -357,18 +366,47 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff = 
                     Nothing -> pure []
                     Just staff ->
                         applyApprovedFilter
-                            ( query @TimesheetEntry
-                                |> filterWhere (#venueId, unpackId currentVenueId)
-                                |> filterWhere (#staffId, unpackId (get #id staff))
-                                |> filterWhereIn (#workedOn, weekDays)
-                                |> filterWhere (#deletedAt, Nothing)
-                            )
-                            |> orderByAsc #workedOn
-                            |> orderByAsc #isApproved
-                            |> orderByAsc #startTime
-                            |> fetch
+                                ( query @TimesheetEntry
+                                    |> filterWhere (#venueId, unpackId currentVenueId)
+                                    |> filterWhere (#staffId, unpackId (get #id staff))
+                                    |> filterWhereIn (#workedOn, weekDays)
+                                    |> filterWhere (#deletedAt, Nothing)
+                                )
+                                |> orderByAsc #workedOn
+                                |> orderByAsc #isApproved
+                                |> orderByAsc #startTime
+                                |> fetch
 
     pure (entries, staffMembers, unpackId . get #id <$> maybeCurrentViewerStaff)
+
+ensureTimesheetEntryNotPayrollLocked ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    TimesheetEntry ->
+    Int ->
+    Bool ->
+    Bool ->
+    IO ()
+ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff = do
+    locked <- timesheetEntryHasPayrollProvenance timesheetEntry
+    when locked do
+        let message = "This approved timesheet entry is locked because it has been exported or submitted to Xero."
+        if isHtmxRequest
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff message True True
+            else do
+                setErrorMessage message
+                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
+
+timesheetEntryHasPayrollProvenance :: (?modelContext :: ModelContext) => TimesheetEntry -> IO Bool
+timesheetEntryHasPayrollProvenance timesheetEntry = do
+    exportEntryCount <-
+        query @ExportJobEntry
+            |> filterWhere (#timesheetEntryId, unpackId (get #id timesheetEntry))
+            |> fetchCount
+    xeroEntryCount <-
+        query @XeroTimesheetSubmissionEntry
+            |> filterWhere (#timesheetEntryId, unpackId (get #id timesheetEntry))
+            |> fetchCount
+    pure (exportEntryCount > 0 || xeroEntryCount > 0)
 
 fetchStaffForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffForForm =
@@ -616,7 +654,8 @@ resetApprovalOnEdit wasApproved entry
     | wasApproved =
         entry
             |> set #isApproved False
-            |> set #payConfigSnapshotId Nothing
+            |> set #staffPayVersionId Nothing
+            |> set #shiftTypePayVersionId Nothing
             |> set #approvedAt Nothing
             |> set #approvedByUserId Nothing
     | otherwise = entry

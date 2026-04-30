@@ -56,24 +56,28 @@ tests = do
                 readinessBlockerCodes readiness `shouldSatisfy` elem "earnings_mapping_not_verified"
                 readinessBlockerCodes readiness `shouldSatisfy` elem "managed_pay_item_not_ready"
 
-        it "blocks mixed pay configuration snapshots" $ withContext do
+        it "allows a Xero period to include multiple relational pay versions" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
                 secondEntry <- createApprovedTimesheetEntryRecord fixture.venue fixture.staff fixture.owner (fromGregorian 2026 4 28)
-                secondSnapshot <-
-                    newRecord @PayConfigSnapshot
+                secondStaffVersion <-
+                    newRecord @StaffPayVersion
                         |> set #venueId (unpackId fixture.venue.id)
-                        |> set #versionNumber 99
-                        |> set #versionLabel ("test-v99" :: Text)
+                        |> set #staffId (unpackId fixture.staff.id)
+                        |> set #defaultAwardLevelId (fmap unpackId fixture.staff.defaultAwardLevelId)
+                        |> set #employmentBasis fixture.staff.employmentBasis
+                        |> set #effectiveFrom (fromGregorian 2026 4 28)
+                        |> set #effectiveTo (Just (fromGregorian 2026 4 28))
                         |> set #createdByUserId (unpackId fixture.owner.id)
                         |> createRecord
                 secondEntry
-                    |> set #payConfigSnapshotId (Just (unpackId secondSnapshot.id))
+                    |> set #staffPayVersionId (Just (unpackId secondStaffVersion.id))
                     |> updateRecord
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 
-                readinessBlockerCodes readiness `shouldSatisfy` elem "mixed_pay_config_snapshots"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "mixed_pay_config_versions"
+                xeroTimesheetReady readiness `shouldBe` True
 
         it "blocks an existing Xero timesheet for the same employee and period" $ withContext do
             withCleanDb do

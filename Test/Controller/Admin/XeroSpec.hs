@@ -1004,7 +1004,8 @@ tests = beforeAll testContext do
                         |> set #isApproved False
                         |> set #approvedAt Nothing
                         |> set #approvedByUserId Nothing
-                        |> set #payConfigSnapshotId Nothing
+                        |> set #staffPayVersionId Nothing
+                        |> set #shiftTypePayVersionId Nothing
                         |> updateRecord
 
                 blockedPage <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do

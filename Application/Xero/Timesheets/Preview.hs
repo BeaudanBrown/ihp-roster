@@ -46,7 +46,8 @@ data XeroTimesheetPreviewLine = XeroTimesheetPreviewLine
     , previewLineXeroEarningsRateId   :: !Text
     , previewLineNumberOfUnits        :: ![Scientific.Scientific]
     , previewLineSourceEntryIds       :: ![UUID]
-    , previewLinePayConfigSnapshotIds :: ![UUID]
+    , previewLineStaffPayVersionIds   :: ![UUID]
+    , previewLineShiftPayVersionIds   :: ![UUID]
     }
     deriving (Eq, Show)
 
@@ -56,7 +57,8 @@ data XeroTimesheetPreview = XeroTimesheetPreview
     , previewPayPeriodStart       :: !Day
     , previewPayPeriodEnd         :: !Day
     , previewSourceEntryIds       :: ![UUID]
-    , previewPayConfigSnapshotIds :: ![UUID]
+    , previewStaffPayVersionIds   :: ![UUID]
+    , previewShiftPayVersionIds   :: ![UUID]
     , previewLines                :: ![XeroTimesheetPreviewLine]
     , previewRequestObjectJson    :: !Aeson.Value
     }
@@ -74,7 +76,8 @@ data SegmentContribution = SegmentContribution
     { contributionStaffId        :: !UUID
     , contributionXeroEmployeeId :: !Text
     , contributionEntryId        :: !UUID
-    , contributionSnapshotId     :: !UUID
+    , contributionStaffVersionId :: !UUID
+    , contributionShiftVersionId :: !UUID
     , contributionWorkedOn       :: !Day
     , contributionLocalBucketKey :: !Text
     , contributionEarningsRateId :: !Text
@@ -87,7 +90,8 @@ data LineAggregation = LineAggregation
     , lineAggregationEarningsRateId :: !Text
     , lineAggregationUnitsByDay     :: !(Map.Map Day Scientific.Scientific)
     , lineAggregationEntryIds       :: ![UUID]
-    , lineAggregationSnapshotIds    :: ![UUID]
+    , lineAggregationStaffVersionIds :: ![UUID]
+    , lineAggregationShiftVersionIds :: ![UUID]
     }
     deriving (Eq, Show)
 
@@ -95,7 +99,8 @@ data TimesheetAggregation = TimesheetAggregation
     { timesheetAggregationEmployeeId  :: !Text
     , timesheetAggregationStaffIds    :: ![UUID]
     , timesheetAggregationEntryIds    :: ![UUID]
-    , timesheetAggregationSnapshotIds :: ![UUID]
+    , timesheetAggregationStaffVersionIds :: ![UUID]
+    , timesheetAggregationShiftVersionIds :: ![UUID]
     , timesheetAggregationLines       :: !(Map.Map Text LineAggregation)
     }
     deriving (Eq, Show)
@@ -212,12 +217,13 @@ entryContributions :: XeroTimesheetPreviewInput -> TimesheetEntry -> Either Text
 entryContributions input entry = do
     staff <- maybeToEither ("Missing staff for timesheet entry " <> tshow (unpackId entry.id)) (find (\staff -> unpackId staff.id == entry.staffId) input.previewStaff)
     xeroEmployeeId <- staffXeroEmployeeId input entry
-    snapshotId <- maybeToEither ("Missing pay config snapshot for timesheet entry " <> tshow (unpackId entry.id)) entry.payConfigSnapshotId
+    staffVersionId <- maybeToEither ("Missing staff pay version for timesheet entry " <> tshow (unpackId entry.id)) entry.staffPayVersionId
+    shiftVersionId <- maybeToEither ("Missing shift type pay version for timesheet entry " <> tshow (unpackId entry.id)) entry.shiftTypePayVersionId
     payResult <- maybeToEither ("Missing pay result for timesheet entry " <> tshow (unpackId entry.id)) (Map.lookup (timesheetEntryIdKey entry.id) input.previewPayResultsByEntryId)
     entry.approvedAt |> maybeToEither ("Missing approval timestamp for timesheet entry " <> tshow (unpackId entry.id)) |> const (pure ())
     payResult.segments
         |> filter (\segment -> segment.minutes > 0)
-        |> mapM (segmentContribution input entry staff xeroEmployeeId snapshotId payResult)
+        |> mapM (segmentContribution input entry staff xeroEmployeeId staffVersionId shiftVersionId payResult)
 
 segmentContribution ::
     XeroTimesheetPreviewInput ->
@@ -225,10 +231,11 @@ segmentContribution ::
     Staff ->
     Text ->
     UUID ->
+    UUID ->
     TimesheetPayResult ->
     PaySegment ->
     Either Text SegmentContribution
-segmentContribution input entry staff xeroEmployeeId snapshotId payResult segment = do
+segmentContribution input entry staff xeroEmployeeId staffVersionId shiftVersionId payResult segment = do
     segmentDate <- maybeToEither ("Missing pay segment date for timesheet entry " <> tshow (unpackId entry.id)) segment.segmentDate
     let workedOn = segmentDate
     localBucketKey <- localBucketKeyForSegment input staff payResult segment workedOn
@@ -237,7 +244,8 @@ segmentContribution input entry staff xeroEmployeeId snapshotId payResult segmen
         { contributionStaffId = unpackId staff.id
         , contributionXeroEmployeeId = xeroEmployeeId
         , contributionEntryId = unpackId entry.id
-        , contributionSnapshotId = snapshotId
+        , contributionStaffVersionId = staffVersionId
+        , contributionShiftVersionId = shiftVersionId
         , contributionWorkedOn = workedOn
         , contributionLocalBucketKey = localBucketKey
         , contributionEarningsRateId = earningsRateId
@@ -327,7 +335,8 @@ newTimesheetAggregation input contribution =
         { timesheetAggregationEmployeeId = contribution.contributionXeroEmployeeId
         , timesheetAggregationStaffIds = [contribution.contributionStaffId]
         , timesheetAggregationEntryIds = [contribution.contributionEntryId]
-        , timesheetAggregationSnapshotIds = [contribution.contributionSnapshotId]
+        , timesheetAggregationStaffVersionIds = [contribution.contributionStaffVersionId]
+        , timesheetAggregationShiftVersionIds = [contribution.contributionShiftVersionId]
         , timesheetAggregationLines =
             Map.singleton
                 contribution.contributionEarningsRateId
@@ -341,7 +350,8 @@ newLineAggregation _ contribution =
         , lineAggregationEarningsRateId = contribution.contributionEarningsRateId
         , lineAggregationUnitsByDay = Map.singleton contribution.contributionWorkedOn contribution.contributionUnits
         , lineAggregationEntryIds = [contribution.contributionEntryId]
-        , lineAggregationSnapshotIds = [contribution.contributionSnapshotId]
+        , lineAggregationStaffVersionIds = [contribution.contributionStaffVersionId]
+        , lineAggregationShiftVersionIds = [contribution.contributionShiftVersionId]
         }
 
 mergeTimesheet :: TimesheetAggregation -> TimesheetAggregation -> TimesheetAggregation
@@ -349,7 +359,8 @@ mergeTimesheet new old =
     old
         { timesheetAggregationStaffIds = sortNub (old.timesheetAggregationStaffIds <> new.timesheetAggregationStaffIds)
         , timesheetAggregationEntryIds = sortNub (old.timesheetAggregationEntryIds <> new.timesheetAggregationEntryIds)
-        , timesheetAggregationSnapshotIds = sortNub (old.timesheetAggregationSnapshotIds <> new.timesheetAggregationSnapshotIds)
+        , timesheetAggregationStaffVersionIds = sortNub (old.timesheetAggregationStaffVersionIds <> new.timesheetAggregationStaffVersionIds)
+        , timesheetAggregationShiftVersionIds = sortNub (old.timesheetAggregationShiftVersionIds <> new.timesheetAggregationShiftVersionIds)
         , timesheetAggregationLines = Map.unionWith mergeLine old.timesheetAggregationLines new.timesheetAggregationLines
         }
 
@@ -358,7 +369,8 @@ mergeLine old new =
     old
         { lineAggregationUnitsByDay = Map.unionWith (+) old.lineAggregationUnitsByDay new.lineAggregationUnitsByDay
         , lineAggregationEntryIds = sortNub (old.lineAggregationEntryIds <> new.lineAggregationEntryIds)
-        , lineAggregationSnapshotIds = sortNub (old.lineAggregationSnapshotIds <> new.lineAggregationSnapshotIds)
+        , lineAggregationStaffVersionIds = sortNub (old.lineAggregationStaffVersionIds <> new.lineAggregationStaffVersionIds)
+        , lineAggregationShiftVersionIds = sortNub (old.lineAggregationShiftVersionIds <> new.lineAggregationShiftVersionIds)
         }
 
 toPreview :: XeroTimesheetPreviewInput -> TimesheetAggregation -> XeroTimesheetPreview
@@ -375,7 +387,8 @@ toPreview input aggregation =
             , previewPayPeriodStart = input.previewPeriodStart
             , previewPayPeriodEnd = input.previewPeriodEnd
             , previewSourceEntryIds = aggregation.timesheetAggregationEntryIds
-            , previewPayConfigSnapshotIds = aggregation.timesheetAggregationSnapshotIds
+            , previewStaffPayVersionIds = aggregation.timesheetAggregationStaffVersionIds
+            , previewShiftPayVersionIds = aggregation.timesheetAggregationShiftVersionIds
             , previewLines = lines
             , previewRequestObjectJson = requestObject
             }
@@ -387,7 +400,8 @@ toPreviewLine input aggregation =
         , previewLineXeroEarningsRateId = aggregation.lineAggregationEarningsRateId
         , previewLineNumberOfUnits = map (\day -> Map.findWithDefault 0 day aggregation.lineAggregationUnitsByDay) (periodDays input.previewPeriodStart input.previewPeriodEnd)
         , previewLineSourceEntryIds = aggregation.lineAggregationEntryIds
-        , previewLinePayConfigSnapshotIds = aggregation.lineAggregationSnapshotIds
+        , previewLineStaffPayVersionIds = aggregation.lineAggregationStaffVersionIds
+        , previewLineShiftPayVersionIds = aggregation.lineAggregationShiftVersionIds
         }
 
 timesheetRequestObject :: XeroTimesheetPreviewInput -> Text -> [XeroTimesheetPreviewLine] -> Aeson.Value
@@ -424,7 +438,8 @@ timesheetPreviewJson preview =
         , "periodStart" Aeson..= preview.previewPayPeriodStart
         , "periodEnd" Aeson..= preview.previewPayPeriodEnd
         , "sourceTimesheetEntryIds" Aeson..= preview.previewSourceEntryIds
-        , "payConfigSnapshotIds" Aeson..= preview.previewPayConfigSnapshotIds
+        , "staffPayVersionIds" Aeson..= preview.previewStaffPayVersionIds
+        , "shiftTypePayVersionIds" Aeson..= preview.previewShiftPayVersionIds
         , "requestObject" Aeson..= preview.previewRequestObjectJson
         , "lines" Aeson..= map linePreviewJson preview.previewLines
         ]
@@ -436,7 +451,8 @@ linePreviewJson line =
         , "xeroEarningsRateId" Aeson..= line.previewLineXeroEarningsRateId
         , "numberOfUnits" Aeson..= line.previewLineNumberOfUnits
         , "sourceTimesheetEntryIds" Aeson..= line.previewLineSourceEntryIds
-        , "payConfigSnapshotIds" Aeson..= line.previewLinePayConfigSnapshotIds
+        , "staffPayVersionIds" Aeson..= line.previewLineStaffPayVersionIds
+        , "shiftTypePayVersionIds" Aeson..= line.previewLineShiftPayVersionIds
         ]
 
 xeroReadinessSnapshotJson :: XeroTimesheetReadiness -> Aeson.Value

@@ -354,11 +354,15 @@ isVenueRosterWeekStartLocked = do
         query @ExportJob
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> fetchCount
-    paySnapshotCount <-
-        query @PayConfigSnapshot
+    staffPayVersionCount <-
+        query @StaffPayVersion
             |> filterWhere (#venueId, unpackId currentVenueId)
-        |> fetchCount
-    pure (any (> 0) [rosterWeekCount, timesheetEntryCount, leaveRequestCount, exportJobCount, paySnapshotCount])
+            |> fetchCount
+    shiftTypePayVersionCount <-
+        query @ShiftTypePayVersion
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchCount
+    pure (any (> 0) [rosterWeekCount, timesheetEntryCount, leaveRequestCount, exportJobCount, staffPayVersionCount, shiftTypePayVersionCount])
 
 parseRequiredName :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Text -> IO (Maybe Text)
 parseRequiredName paramName errorMessage =

@@ -202,13 +202,14 @@ fetchPreviewSourceEntries preview =
 
 insertSubmissionEntry :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> TimesheetEntry -> IO ()
 insertSubmissionEntry submission entry =
-    case (entry.payConfigSnapshotId, entry.approvedAt) of
-        (Just snapshotId, Just approvedAt) ->
+    case (entry.staffPayVersionId, entry.shiftTypePayVersionId, entry.approvedAt) of
+        (Just staffVersionId, Just shiftTypeVersionId, Just approvedAt) ->
             void $
                 newRecord @XeroTimesheetSubmissionEntry
                     |> set #xeroTimesheetSubmissionId (unpackId submission.id)
                     |> set #timesheetEntryId (unpackId entry.id)
-                    |> set #payConfigSnapshotId snapshotId
+                    |> set #staffPayVersionId staffVersionId
+                    |> set #shiftTypePayVersionId shiftTypeVersionId
                     |> set #entryUpdatedAtAtPreview entry.updatedAt
                     |> set #entryApprovedAtAtPreview approvedAt
                     |> createRecord

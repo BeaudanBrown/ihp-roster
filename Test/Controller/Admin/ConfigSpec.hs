@@ -414,7 +414,7 @@ tests = beforeAll testContext do
                 slotConfigVersionAfter <- currentLiveUpdateVersion RosterGroupConfigScope { venueId = unpackId venue.id, rosterGroupId = updatedSlotName.rosterGroupId }
                 slotConfigVersionAfter `shouldBe` slotConfigVersionBefore + 4
 
-        it "updates the roster week start before venue history exists and snapshots the new setting" $ withContext do
+        it "updates the roster week start before venue history exists" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-week-start@example.com" "staff" True
@@ -427,11 +427,9 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
 
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                snapshots <- query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch
 
                 venueConfig.rosterWeekStartsOn `shouldBe` 2
                 venueConfig.weekOffsetEpoch `shouldBe` defaultWeekOffsetEpochForStartDay 2
-                map (.versionLabel) snapshots `shouldBe` ["v1"]
 
         it "rejects updates to config rows outside the current venue" $ withContext do
             withCleanDb do
@@ -456,7 +454,7 @@ tests = beforeAll testContext do
                 unchangedShiftType.name `shouldBe` "Foreign Shift"
                 unchangedShiftType.isActive `shouldBe` True
 
-        it "snapshots payroll-relevant FWC-backed config changes while skipping roster-only edits" $ withContext do
+        it "versions payroll-relevant FWC-backed config changes while skipping roster-only edits" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Venue"
                 admin <- createUserRecord "admin-save@example.com" "staff" True
@@ -468,7 +466,7 @@ tests = beforeAll testContext do
                         , ("isActive", "true")
                         ]
                 rosterGroupResponse `responseStatusShouldBe` status302
-                query @PayConfigSnapshot |> fetch `shouldReturn` []
+                query @ShiftTypePayVersion |> fetch `shouldReturn` []
 
                 _ <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
 
@@ -479,7 +477,7 @@ tests = beforeAll testContext do
                         , ("overrideAwardLevelId", "")
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
-                (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v1"]
+                (query @ShiftTypePayVersion |> orderByDesc #createdAt |> fetch >>= pure . map (.payrollLabel)) `shouldReturn` ["Supervisor"]
 
                 createdRosterGroup <- query @RosterGroup |> filterWhere (#name, "Back of House") |> fetchOne
                 slotResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -488,10 +486,10 @@ tests = beforeAll testContext do
                         , ("rosterGroupId", idToParam createdRosterGroup.id)
                         ]
                 slotResponse `responseStatusShouldBe` status302
-                (query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch >>= pure . map (.versionLabel)) `shouldReturn` ["v1"]
+                (query @ShiftTypePayVersion |> orderByDesc #createdAt |> fetch >>= pure . map (.payrollLabel)) `shouldReturn` ["Supervisor"]
 
-                snapshots <- query @PayConfigSnapshot |> orderByDesc #versionNumber |> fetch
-                map (.createdByUserId) snapshots `shouldBe` [unpackId admin.id]
+                versions <- query @ShiftTypePayVersion |> orderByDesc #createdAt |> fetch
+                map (.createdByUserId) versions `shouldBe` [unpackId admin.id]
 
 shouldContainInOrder :: String -> [String] -> Expectation
 shouldContainInOrder haystack needles =

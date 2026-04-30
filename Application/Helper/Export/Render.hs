@@ -62,7 +62,7 @@ renderPayrollEarningsCsv records =
                 , "description"
                 , "staff_id"
                 , "timesheet_entry_ids"
-                , "pay_config_snapshot_version"
+                , "pay_config_version_manifest"
                 , "source_penalty_kind"
                 , "source_pay_level_name"
                 , "source_shift_type_name"
@@ -79,7 +79,7 @@ renderPayrollEarningsCsv records =
                 , csvCell record.description
                 , csvCell (tshow record.staffId)
                 , csvCell (Text.intercalate " " (map tshow record.timesheetEntryIds))
-                , csvCell (fromMaybe "" record.payConfigSnapshot)
+                , csvCell (fromMaybe "" record.payConfigVersionManifest)
                 , csvCell record.sourcePenaltyKind
                 , csvCell (fromMaybe "" record.sourcePayLevelName)
                 , csvCell (fromMaybe "" record.sourceShiftTypeName)
@@ -294,7 +294,7 @@ renderApprovedTimesheetCsv ::
     Map.Map UUID User ->
     Map.Map UUID Text ->
     Text
-renderApprovedTimesheetCsv entries staffById approversById snapshotVersionsByEntryId =
+renderApprovedTimesheetCsv entries staffById approversById versionManifestByEntryId =
     Text.unlines (csvHeader : map renderRow entries)
     where
         csvHeader =
@@ -304,7 +304,7 @@ renderApprovedTimesheetCsv entries staffById approversById snapshotVersionsByEnt
                 , "start_time"
                 , "end_time"
                 , "break_minutes"
-                , "pay_config_snapshot_version"
+                , "pay_config_version_manifest"
                 , "approved_at"
                 , "approved_by_email"
                 ]
@@ -316,7 +316,7 @@ renderApprovedTimesheetCsv entries staffById approversById snapshotVersionsByEnt
                 , csvCell (formatTimeOfDay entry.startTime)
                 , csvCell (formatTimeOfDay entry.endTime)
                 , csvCell (tshow entry.breakMinutes)
-                , csvCell (fromMaybe "" (entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId)))
+                , csvCell (fromMaybe "" (Map.lookup (unpackId entry.id) versionManifestByEntryId))
                 , csvCell (maybe "" formatUtc entry.approvedAt)
                 , csvCell (maybe "" (.email) (entry.approvedByUserId >>= (`Map.lookup` approversById)))
                 ]

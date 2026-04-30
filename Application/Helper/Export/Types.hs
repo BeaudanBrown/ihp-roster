@@ -59,8 +59,8 @@ data StaffPayCsvPayload = StaffPayCsvPayload
     , csvContents           :: !Text
     , entryCount            :: !Int
     , rowCount              :: !Int
-    , snapshotVersions      :: ![Text]
-    , exportSnapshotVersion :: !(Maybe Text)
+    , versionManifests      :: ![Text]
+    , exportVersionManifest :: !(Maybe Text)
     }
     deriving (Eq, Show)
 
@@ -74,7 +74,7 @@ data PayrollEarningsCsvRecord = PayrollEarningsCsvRecord
     , description         :: !Text
     , staffId             :: !UUID
     , timesheetEntryIds   :: ![UUID]
-    , payConfigSnapshot   :: !(Maybe Text)
+    , payConfigVersionManifest   :: !(Maybe Text)
     , sourcePenaltyKind   :: !Text
     , sourcePayLevelName  :: !(Maybe Text)
     , sourceShiftTypeName :: !(Maybe Text)
@@ -87,8 +87,8 @@ data PayrollEarningsCsvPayload = PayrollEarningsCsvPayload
     , csvContents           :: !Text
     , entryCount            :: !Int
     , rowCount              :: !Int
-    , snapshotVersions      :: ![Text]
-    , exportSnapshotVersion :: !(Maybe Text)
+    , versionManifests      :: ![Text]
+    , exportVersionManifest :: !(Maybe Text)
     }
     deriving (Eq, Show)
 
@@ -98,8 +98,8 @@ data HourlyBreakdownZipPayload = HourlyBreakdownZipPayload
     , zipContentsBase64     :: !Text
     , entryCount            :: !Int
     , fileCount             :: !Int
-    , snapshotVersions      :: ![Text]
-    , exportSnapshotVersion :: !(Maybe Text)
+    , versionManifests      :: ![Text]
+    , exportVersionManifest :: !(Maybe Text)
     }
     deriving (Eq, Show)
 

@@ -6,9 +6,12 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroups,
                                         fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
+import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.View (appendQueryParams)
+import Control.Monad (void)
 import Data.Time.Calendar (Day)
+import Data.Time.Clock (getCurrentTime, utctDay)
 import Web.Controller.Prelude
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Projection (buildRosterContentFragmentRef)
@@ -112,6 +115,9 @@ instance Controller StaffController where
                                         updatedStaff <- staff |> updateRecord
                                         syncStaffRosterGroupAssignments updatedStaff selectedRosterGroupIds
                                         replaceStaffShiftPreferences updatedStaff (nub (previousRosterGroupIds <> selectedRosterGroupIds)) submittedSelections
+                                        when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
+                                            today <- utctDay <$> getCurrentTime
+                                            void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
                                         pure updatedStaff
                                     when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
                                         broadcastStaffXeroInvalidation

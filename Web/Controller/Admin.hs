@@ -139,7 +139,7 @@ instance Controller AdminController where
                 isLocked <- isVenueRosterWeekStartLocked
                 if isLocked
                     then do
-                        setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll snapshot data exists."
+                        setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll version data exists."
                         redirectToAdminFor (paramOrNothing "rosterGroupId")
                     else do
                         _ <- withTransaction do
@@ -148,7 +148,6 @@ instance Controller AdminController where
                                     |> set #rosterWeekStartsOn rosterWeekStartsOn
                                     |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
                                     |> updateRecord
-                            _ <- syncCurrentVenuePayConfigSnapshot
                             pure updatedVenueConfig
                         setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
                         redirectToAdminFor (paramOrNothing "rosterGroupId")
@@ -300,6 +299,7 @@ instance Controller AdminController where
                 case maybeOverrideAwardLevelId of
                     Nothing -> respondToShiftTypesSectionMutation
                     Just overrideAwardLevelId -> do
+                        now <- getCurrentTime
                         shiftType <- withTransaction do
                             shiftType <-
                                 newRecord @ShiftType
@@ -309,7 +309,7 @@ instance Controller AdminController where
                                     |> set #overrideAwardLevelId overrideAwardLevelId
                                     |> set #isActive isActive
                                     |> createRecord
-                            _ <- syncCurrentVenuePayConfigSnapshot
+                            _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
                             pure shiftType
                         setSuccessMessage "Shift type added"
                         broadcastAdminShiftTypesInvalidation currentVenueId
@@ -330,6 +330,7 @@ instance Controller AdminController where
                 case maybeOverrideAwardLevelId of
                     Nothing -> respondToShiftTypesSectionMutation
                     Just overrideAwardLevelId -> do
+                        now <- getCurrentTime
                         sortOrder <-
                             if not shiftType.isActive && isActive
                                 then nextShiftTypeSortOrder
@@ -342,7 +343,9 @@ instance Controller AdminController where
                                     |> set #overrideAwardLevelId overrideAwardLevelId
                                     |> set #isActive isActive
                                     |> updateRecord
-                            _ <- syncCurrentVenuePayConfigSnapshot
+                            when (shiftType.name /= updatedShiftType.name || shiftType.overrideAwardLevelId /= updatedShiftType.overrideAwardLevelId) do
+                                _ <- ensureShiftTypePayVersionForShiftType currentUser.id updatedShiftType (utctDay now)
+                                pure ()
                             pure updatedShiftType
                         setSuccessMessage "Shift type updated"
                         broadcastAdminShiftTypesInvalidation currentVenueId
@@ -356,7 +359,6 @@ instance Controller AdminController where
         ensureRecordInCurrentVenue shiftType.venueId
         withTransaction do
             reorderActiveShiftTypes shiftType.id (-1)
-            _ <- syncCurrentVenuePayConfigSnapshot
             pure ()
         setSuccessMessage "Shift type order updated"
         broadcastAdminShiftTypesInvalidation currentVenueId
@@ -367,7 +369,6 @@ instance Controller AdminController where
         ensureRecordInCurrentVenue shiftType.venueId
         withTransaction do
             reorderActiveShiftTypes shiftType.id 1
-            _ <- syncCurrentVenuePayConfigSnapshot
             pure ()
         setSuccessMessage "Shift type order updated"
         broadcastAdminShiftTypesInvalidation currentVenueId

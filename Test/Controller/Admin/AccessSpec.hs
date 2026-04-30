@@ -72,9 +72,6 @@ tests = beforeAll testContext do
                     |> set #sortOrder 3
                     |> set #isActive True
                     |> createRecord
-                _ <- createPayConfigSnapshotRecord venueA admin 1 (Aeson.object [])
-                _ <- createPayConfigSnapshotRecord venueA admin 2 (Aeson.object [])
-
                 levelB <- createPayLevelRecord venueB "Level B"
                 _ <- createShiftTypeRecord venueB levelB "Bar"
                 _ <- createSlotNameRecord venueB "Graveyard"

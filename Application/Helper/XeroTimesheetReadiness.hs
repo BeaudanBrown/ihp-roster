@@ -84,7 +84,6 @@ validateXeroTimesheetReadiness request = do
                 , referenceSyncBlockers latestSync
                 , calendarBlockers request maybeCalendarSelection maybeCalendar
                 , entryBlockers entries
-                , snapshotBlockers entries
                 , staffMappingBlockers entries staffMappings
                 , earningsMappingBlockers buckets earningsMappings
                 , payItemRequirementBlockers payItemRequirements maybeAccountCodeSelection
@@ -252,15 +251,8 @@ entryBlockers entries =
             catMaybes
                 [ if entry.isApproved then Nothing else Just (entryBlocker "entry_not_approved" "Every included timesheet entry must be approved." entry)
                 , if isNothing entry.deletedAt then Nothing else Just (entryBlocker "entry_deleted" "Deleted timesheet entries cannot be submitted to Xero." entry)
-                , if isJust entry.payConfigSnapshotId then Nothing else Just (entryBlocker "entry_missing_pay_config_snapshot" "Approved entries must be pinned to a pay configuration snapshot." entry)
+                , if isJust entry.staffPayVersionId && isJust entry.shiftTypePayVersionId then Nothing else Just (entryBlocker "entry_missing_pay_versions" "Approved entries must be pinned to relational pay config versions." entry)
                 ]
-
-snapshotBlockers :: [TimesheetEntry] -> [XeroReadinessBlocker]
-snapshotBlockers entries =
-    let snapshotIds = List.nub (mapMaybe (.payConfigSnapshotId) entries)
-     in if length snapshotIds <= 1
-            then []
-            else [blocker "mixed_pay_config_snapshots" "All entries in one Xero submission period must use the same pay configuration snapshot."]
 
 staffMappingBlockers :: [TimesheetEntry] -> [XeroStaffMapping] -> [XeroReadinessBlocker]
 staffMappingBlockers entries mappings =

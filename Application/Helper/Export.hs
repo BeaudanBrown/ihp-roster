@@ -9,8 +9,9 @@ import Application.Helper.Export.Render
 import Application.Helper.Export.Types
 import Application.Helper.Pay (PaySegment (..), PayTotals (..),
                                TimesheetPayResult (..),
-                               ensureCurrentVenuePayConfigSnapshot,
+                               collapsePayVersionManifests,
                                fetchTimesheetPayResultsForEntries,
+                               payVersionManifestForEntry,
                                timesheetEntryIdKey)
 import Application.Helper.View (isTrialStaff)
 import Control.Monad (void)
@@ -110,8 +111,8 @@ persistFixedStaffPayExport rangeStart rangeEnd payloads = withTransaction do
     now <- getCurrentTime
     let expiresAt = addUTCTime exportExpirySeconds now
     let exportType = exportJobTypeToText StaffPayCsv
-    let snapshotVersions = List.sort (List.nub (concatMap (.snapshotVersions) payloads))
-    let exportSnapshotVersion = collapseSnapshotVersions snapshotVersions
+    let versionManifests = List.sort (List.nub (concatMap (.versionManifests) payloads))
+    let exportVersionManifest = collapseVersionManifests versionManifests
     let entryCount = sum (map (.entryCount) payloads)
     let rowCount = sum (map (.rowCount) payloads)
     let isSingleWeek = length payloads == 1
@@ -146,14 +147,14 @@ persistFixedStaffPayExport rangeStart rangeEnd payloads = withTransaction do
             , "approvedOnly" Aeson..= True
             , "entryCount" Aeson..= entryCount
             , "rowCount" Aeson..= rowCount
-            , "snapshotVersions" Aeson..= snapshotVersions
+            , "versionManifests" Aeson..= versionManifests
             , "packaging" Aeson..= if isSingleWeek then ("csv" :: Text) else "zip_weekly_csv"
             ])
         fileName
         contentType
         fileEncoding
         fileContents
-        exportSnapshotVersion
+        exportVersionManifest
         expiresAt
         (Aeson.object
             [ "exportType" Aeson..= exportType
@@ -161,7 +162,7 @@ persistFixedStaffPayExport rangeStart rangeEnd payloads = withTransaction do
             , "rangeEnd" Aeson..= rangeEnd
             , "entryCount" Aeson..= entryCount
             , "rowCount" Aeson..= rowCount
-            , "payConfigSnapshotVersion" Aeson..= exportSnapshotVersion
+            , "payConfigVersionManifest" Aeson..= exportVersionManifest
             , "deliveryMethod" Aeson..= browserDownloadMethod
             ])
 
@@ -173,10 +174,10 @@ requestFixedHourlyBreakdownZipExport ::
 requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
     shiftTypes <- fetchCurrentVenueActiveShiftTypes
-    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries entries
+    versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
     let dates = [rangeStart .. rangeEnd]
-    let snapshotVersions = List.sort (List.nub (Map.elems snapshotVersionsByEntryId))
-    let exportSnapshotVersion = collapseSnapshotVersions snapshotVersions
+    let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
+    let exportVersionManifest = collapseVersionManifests versionManifests
     let fileName = "hourly_breakdown-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".zip"
     let fileContents =
             renderTextZipBase64
@@ -195,13 +196,13 @@ requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
                 , "approvedOnly" Aeson..= True
                 , "entryCount" Aeson..= length entries
                 , "fileCount" Aeson..= length dates
-                , "snapshotVersions" Aeson..= snapshotVersions
+                , "versionManifests" Aeson..= versionManifests
                 ])
             fileName
             "application/zip"
             "base64"
             fileContents
-            exportSnapshotVersion
+            exportVersionManifest
             (addUTCTime exportExpirySeconds now)
             (Aeson.object
                 [ "exportType" Aeson..= exportJobTypeToText HourlyBreakdownZip
@@ -209,7 +210,7 @@ requestFixedHourlyBreakdownZipExport rangeStart rangeEnd = do
                 , "rangeEnd" Aeson..= rangeEnd
                 , "entryCount" Aeson..= length entries
                 , "fileCount" Aeson..= length dates
-                , "payConfigSnapshotVersion" Aeson..= exportSnapshotVersion
+                , "payConfigVersionManifest" Aeson..= exportVersionManifest
                 , "deliveryMethod" Aeson..= browserDownloadMethod
                 ])
     pure (Right exportJob)
@@ -223,7 +224,7 @@ requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
     staffById <- fetchReportStaffMap entries
     payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
-    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries entries
+    versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
     let filteredEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
     let missingEntryIds =
             map (tshow . get #id) $
@@ -232,13 +233,13 @@ requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
     if not (null missingEntryIds)
         then pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
         else do
-            let records = buildPayrollEarningsCsvRecords filteredEntries staffById payResultsByEntryId snapshotVersionsByEntryId
-            let snapshotVersions =
+            let records = buildPayrollEarningsCsvRecords filteredEntries staffById payResultsByEntryId versionManifestsByEntryId
+            let versionManifests =
                     filteredEntries
-                        |> mapMaybe (\entry -> entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId))
+                        |> mapMaybe (\entry -> Map.lookup (coerce (get #id entry)) versionManifestsByEntryId)
                         |> List.nub
                         |> List.sort
-            let exportSnapshotVersion = collapseSnapshotVersions snapshotVersions
+            let exportVersionManifest = collapseVersionManifests versionManifests
             let fileName = "payroll_earnings-" <> tshow rangeStart <> "-to-" <> tshow rangeEnd <> ".csv"
             exportJob <- withTransaction do
                 now <- getCurrentTime
@@ -252,13 +253,13 @@ requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
                         , "approvedOnly" Aeson..= True
                         , "entryCount" Aeson..= length filteredEntries
                         , "rowCount" Aeson..= length records
-                        , "snapshotVersions" Aeson..= snapshotVersions
+                        , "versionManifests" Aeson..= versionManifests
                         ])
                     fileName
                     "text/csv; charset=utf-8"
                     "utf8"
                     (renderPayrollEarningsCsv records)
-                    exportSnapshotVersion
+                    exportVersionManifest
                     (addUTCTime exportExpirySeconds now)
                     (Aeson.object
                         [ "exportType" Aeson..= exportJobTypeToText PayrollEarningsCsv
@@ -266,7 +267,7 @@ requestFixedPayrollEarningsCsvExport rangeStart rangeEnd = do
                         , "rangeEnd" Aeson..= rangeEnd
                         , "entryCount" Aeson..= length filteredEntries
                         , "rowCount" Aeson..= length records
-                        , "payConfigSnapshotVersion" Aeson..= exportSnapshotVersion
+                        , "payConfigVersionManifest" Aeson..= exportVersionManifest
                         , "deliveryMethod" Aeson..= browserDownloadMethod
                         ])
             pure (Right exportJob)
@@ -394,13 +395,15 @@ requestStaffPayCsvExport reportDefinition selectedWeekOffset = do
                 exportJob <-
                     exportJob
                         |> set #status (exportJobStatusToText ExportReady)
-                        |> set #payConfigSnapshotVersion payload.exportSnapshotVersion
+                        |> set #payConfigVersionManifest payload.exportVersionManifest
                         |> set #scope initialScope
                         |> set #fileName (Just payload.fileName)
                         |> set #contentType (Just "text/csv; charset=utf-8")
                         |> set #fileEncoding "utf8"
                         |> set #fileContents (Just payload.csvContents)
                         |> updateRecord
+
+                recordExportJobEntriesForRange exportJob payload.weekSelection.weekStart payload.weekSelection.weekEnd
 
                 void $ recordCurrentUserAuditEvent
                     "export_generated"
@@ -415,7 +418,7 @@ requestStaffPayCsvExport reportDefinition selectedWeekOffset = do
                         , "weekEnd" Aeson..= payload.weekSelection.weekEnd
                         , "entryCount" Aeson..= payload.entryCount
                         , "rowCount" Aeson..= payload.rowCount
-                        , "payConfigSnapshotVersion" Aeson..= payload.exportSnapshotVersion
+                        , "payConfigVersionManifest" Aeson..= payload.exportVersionManifest
                         , "deliveryMethod" Aeson..= exportJob.deliveryMethod
                         ]
                     )
@@ -457,13 +460,15 @@ requestHourlyBreakdownZipExport reportDefinition selectedWeekOffset = do
                 exportJob <-
                     exportJob
                         |> set #status (exportJobStatusToText ExportReady)
-                        |> set #payConfigSnapshotVersion payload.exportSnapshotVersion
+                        |> set #payConfigVersionManifest payload.exportVersionManifest
                         |> set #scope initialScope
                         |> set #fileName (Just payload.fileName)
                         |> set #contentType (Just "application/zip")
                         |> set #fileEncoding "base64"
                         |> set #fileContents (Just payload.zipContentsBase64)
                         |> updateRecord
+
+                recordExportJobEntriesForRange exportJob payload.weekSelection.weekStart payload.weekSelection.weekEnd
 
                 void $ recordCurrentUserAuditEvent
                     "export_generated"
@@ -478,7 +483,7 @@ requestHourlyBreakdownZipExport reportDefinition selectedWeekOffset = do
                         , "weekEnd" Aeson..= payload.weekSelection.weekEnd
                         , "entryCount" Aeson..= payload.entryCount
                         , "fileCount" Aeson..= payload.fileCount
-                        , "payConfigSnapshotVersion" Aeson..= payload.exportSnapshotVersion
+                        , "payConfigVersionManifest" Aeson..= payload.exportVersionManifest
                         , "deliveryMethod" Aeson..= exportJob.deliveryMethod
                         ]
                     )
@@ -520,13 +525,15 @@ requestPayrollEarningsCsvExport reportDefinition selectedWeekOffset = do
                 exportJob <-
                     exportJob
                         |> set #status (exportJobStatusToText ExportReady)
-                        |> set #payConfigSnapshotVersion payload.exportSnapshotVersion
+                        |> set #payConfigVersionManifest payload.exportVersionManifest
                         |> set #scope initialScope
                         |> set #fileName (Just payload.fileName)
                         |> set #contentType (Just "text/csv; charset=utf-8")
                         |> set #fileEncoding "utf8"
                         |> set #fileContents (Just payload.csvContents)
                         |> updateRecord
+
+                recordExportJobEntriesForRange exportJob payload.weekSelection.weekStart payload.weekSelection.weekEnd
 
                 void $ recordCurrentUserAuditEvent
                     "export_generated"
@@ -541,7 +548,7 @@ requestPayrollEarningsCsvExport reportDefinition selectedWeekOffset = do
                         , "weekEnd" Aeson..= payload.weekSelection.weekEnd
                         , "entryCount" Aeson..= payload.entryCount
                         , "rowCount" Aeson..= payload.rowCount
-                        , "payConfigSnapshotVersion" Aeson..= payload.exportSnapshotVersion
+                        , "payConfigVersionManifest" Aeson..= payload.exportVersionManifest
                         , "deliveryMethod" Aeson..= exportJob.deliveryMethod
                         ]
                     )
@@ -560,7 +567,7 @@ buildStaffPayCsvPayload reportDefinition selectedWeekOffset = do
     entries <- fetchApprovedTimesheetEntries reportWeekSelection.weekStart reportWeekSelection.weekEnd
     staffById <- fetchReportStaffMap entries
     payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
-    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries entries
+    versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
     let filteredEntries = filter (shouldIncludeStaffPayEntry reportDefinition staffById) entries
     let missingEntryIds =
             map (tshow . get #id) $
@@ -570,13 +577,13 @@ buildStaffPayCsvPayload reportDefinition selectedWeekOffset = do
         then pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
         else do
             let records = buildStaffPayCsvRecords reportDefinition reportWeekSelection filteredEntries staffById payResultsByEntryId
-            let exportSnapshotVersions =
+            let exportVersionManifests =
                     filteredEntries
-                        |> mapMaybe (\entry -> entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId))
+                        |> mapMaybe (\entry -> Map.lookup (coerce (get #id entry)) versionManifestsByEntryId)
                         |> List.nub
                         |> List.sort
-            let exportSnapshotVersion =
-                    case exportSnapshotVersions of
+            let exportVersionManifest =
+                    case exportVersionManifests of
                         []             -> Nothing
                         [versionLabel] -> Just versionLabel
                         _              -> Just "mixed"
@@ -588,8 +595,8 @@ buildStaffPayCsvPayload reportDefinition selectedWeekOffset = do
                         , csvContents = renderStaffPayCsv reportWeekSelection records
                         , entryCount = length filteredEntries
                         , rowCount = length records
-                        , snapshotVersions = exportSnapshotVersions
-                        , exportSnapshotVersion
+                        , versionManifests = exportVersionManifests
+                        , exportVersionManifest
                         }
 
 buildStaffPayCsvScope :: VenueReportDefinition -> StaffPayCsvPayload -> Aeson.Value
@@ -605,7 +612,7 @@ buildStaffPayCsvScope reportDefinition payload =
         , "dayLabels" Aeson..= payload.weekSelection.dayLabels
         , "entryCount" Aeson..= payload.entryCount
         , "rowCount" Aeson..= payload.rowCount
-        , "snapshotVersions" Aeson..= payload.snapshotVersions
+        , "versionManifests" Aeson..= payload.versionManifests
         , "filterShiftTypes" Aeson..= map (.name) reportDefinition.shiftTypeFilters
         ]
 
@@ -619,7 +626,7 @@ buildPayrollEarningsCsvPayload reportDefinition selectedWeekOffset = do
     entries <- fetchApprovedTimesheetEntries reportWeekSelection.weekStart reportWeekSelection.weekEnd
     staffById <- fetchReportStaffMap entries
     payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
-    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries entries
+    versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
     let filteredEntries = filter (shouldIncludeStaffPayEntry reportDefinition staffById) entries
     let missingEntryIds =
             map (tshow . get #id) $
@@ -628,14 +635,14 @@ buildPayrollEarningsCsvPayload reportDefinition selectedWeekOffset = do
     if not (null missingEntryIds)
         then pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
         else do
-            let records = buildPayrollEarningsCsvRecords filteredEntries staffById payResultsByEntryId snapshotVersionsByEntryId
-            let exportSnapshotVersions =
+            let records = buildPayrollEarningsCsvRecords filteredEntries staffById payResultsByEntryId versionManifestsByEntryId
+            let exportVersionManifests =
                     filteredEntries
-                        |> mapMaybe (\entry -> entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId))
+                        |> mapMaybe (\entry -> Map.lookup (coerce (get #id entry)) versionManifestsByEntryId)
                         |> List.nub
                         |> List.sort
-            let exportSnapshotVersion =
-                    case exportSnapshotVersions of
+            let exportVersionManifest =
+                    case exportVersionManifests of
                         []             -> Nothing
                         [versionLabel] -> Just versionLabel
                         _              -> Just "mixed"
@@ -647,8 +654,8 @@ buildPayrollEarningsCsvPayload reportDefinition selectedWeekOffset = do
                         , csvContents = renderPayrollEarningsCsv records
                         , entryCount = length filteredEntries
                         , rowCount = length records
-                        , snapshotVersions = exportSnapshotVersions
-                        , exportSnapshotVersion
+                        , versionManifests = exportVersionManifests
+                        , exportVersionManifest
                         }
 
 buildPayrollEarningsCsvScope :: VenueReportDefinition -> PayrollEarningsCsvPayload -> Aeson.Value
@@ -664,7 +671,7 @@ buildPayrollEarningsCsvScope reportDefinition payload =
         , "dayLabels" Aeson..= payload.weekSelection.dayLabels
         , "entryCount" Aeson..= payload.entryCount
         , "rowCount" Aeson..= payload.rowCount
-        , "snapshotVersions" Aeson..= payload.snapshotVersions
+        , "versionManifests" Aeson..= payload.versionManifests
         , "filterShiftTypes" Aeson..= map (.name) reportDefinition.shiftTypeFilters
         ]
 
@@ -677,15 +684,15 @@ buildHourlyBreakdownZipPayload reportDefinition selectedWeekOffset = do
     reportWeekSelection <- fetchReportWeekSelection selectedWeekOffset
     entries <- fetchApprovedTimesheetEntries reportWeekSelection.weekStart reportWeekSelection.weekEnd
     let filteredEntries = filter (shouldIncludeHourlyBreakdownEntry reportDefinition) entries
-    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries filteredEntries
+    versionManifestsByEntryId <- fetchVersionManifestsForEntries filteredEntries
     shiftTypes <- fetchCurrentVenueReportShiftTypes reportDefinition
-    let snapshotVersions =
+    let versionManifests =
             filteredEntries
-                |> mapMaybe (\entry -> entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId))
+                |> mapMaybe (\entry -> Map.lookup (coerce (get #id entry)) versionManifestsByEntryId)
                 |> List.nub
                 |> List.sort
-    let exportSnapshotVersion =
-            case snapshotVersions of
+    let exportVersionManifest =
+            case versionManifests of
                 []             -> Nothing
                 [versionLabel] -> Just versionLabel
                 _              -> Just "mixed"
@@ -698,8 +705,8 @@ buildHourlyBreakdownZipPayload reportDefinition selectedWeekOffset = do
                 , zipContentsBase64
                 , entryCount = length filteredEntries
                 , fileCount = length reportWeekSelection.dayLabels
-                , snapshotVersions
-                , exportSnapshotVersion
+                , versionManifests
+                , exportVersionManifest
                 }
 
 buildHourlyBreakdownZipScope :: VenueReportDefinition -> HourlyBreakdownZipPayload -> Aeson.Value
@@ -715,7 +722,7 @@ buildHourlyBreakdownZipScope reportDefinition payload =
         , "dayLabels" Aeson..= payload.weekSelection.dayLabels
         , "entryCount" Aeson..= payload.entryCount
         , "fileCount" Aeson..= payload.fileCount
-        , "snapshotVersions" Aeson..= payload.snapshotVersions
+        , "versionManifests" Aeson..= payload.versionManifests
         , "filterShiftTypes" Aeson..= map (.name) reportDefinition.shiftTypeFilters
         ]
 
@@ -766,7 +773,7 @@ buildFixedStaffPayCsvPayload reportWeekSlice = do
     entries <- fetchApprovedTimesheetEntries reportWeekSlice.sliceStart reportWeekSlice.sliceEnd
     staffById <- fetchReportStaffMap entries
     payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
-    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries entries
+    versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
     let reportWeekSelection = reportWeekSlice.weekSelection
     let filteredEntries = filter (shouldIncludeFixedStaffPayEntry staffById) entries
     let missingEntryIds =
@@ -777,9 +784,9 @@ buildFixedStaffPayCsvPayload reportWeekSlice = do
         then pure (Left "Failed to resolve payroll data for one or more approved timesheet entries.")
         else do
             let records = buildFixedStaffPayCsvRecords reportWeekSelection filteredEntries staffById payResultsByEntryId
-            let snapshotVersions =
+            let versionManifests =
                     filteredEntries
-                        |> mapMaybe (\entry -> entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId))
+                        |> mapMaybe (\entry -> Map.lookup (coerce (get #id entry)) versionManifestsByEntryId)
                         |> List.nub
                         |> List.sort
             pure $
@@ -790,8 +797,8 @@ buildFixedStaffPayCsvPayload reportWeekSlice = do
                         , csvContents = renderStaffPayCsv reportWeekSelection records
                         , entryCount = length filteredEntries
                         , rowCount = length records
-                        , snapshotVersions
-                        , exportSnapshotVersion = collapseSnapshotVersions snapshotVersions
+                        , versionManifests
+                        , exportVersionManifest = collapseVersionManifests versionManifests
                         }
 
 buildFixedStaffPayCsvRecords ::
@@ -847,9 +854,9 @@ weeklyFolderName :: ReportWeekSelection -> Text
 weeklyFolderName reportWeekSelection =
     tshow reportWeekSelection.weekStart <> "-to-" <> tshow reportWeekSelection.weekEnd
 
-collapseSnapshotVersions :: [Text] -> Maybe Text
-collapseSnapshotVersions snapshotVersions =
-    case List.nub snapshotVersions of
+collapseVersionManifests :: [Text] -> Maybe Text
+collapseVersionManifests versionManifests =
+    case List.nub versionManifests of
         []             -> Nothing
         [versionLabel] -> Just versionLabel
         _              -> Just "mixed"
@@ -877,8 +884,8 @@ persistReadyExportJob ::
     UTCTime ->
     Aeson.Value ->
     IO ExportJob
-persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportSnapshotVersion expiresAt auditPayload = do
-    _ <- ensureCurrentVenuePayConfigSnapshot
+persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName contentType fileEncoding fileContents exportVersionManifest expiresAt auditPayload = do
+    _ <- pure ()
     exportJob <-
         newRecord @ExportJob
             |> set #venueId (unpackId currentVenueId)
@@ -897,13 +904,15 @@ persistReadyExportJob exportType rangeStart rangeEnd finalScope fileName content
     exportJob <-
         exportJob
             |> set #status (exportJobStatusToText ExportReady)
-            |> set #payConfigSnapshotVersion exportSnapshotVersion
+            |> set #payConfigVersionManifest exportVersionManifest
             |> set #scope finalScope
             |> set #fileName (Just fileName)
             |> set #contentType (Just contentType)
             |> set #fileEncoding fileEncoding
             |> set #fileContents (Just fileContents)
             |> updateRecord
+
+    recordExportJobEntriesForRange exportJob rangeStart rangeEnd
 
     void $ recordCurrentUserAuditEvent
         "export_generated"
@@ -1016,7 +1025,7 @@ data PayrollEarningsAggregation = PayrollEarningsAggregation
     , aggregationMinutes             :: !Int
     , aggregationStaffId             :: !UUID
     , aggregationTimesheetEntryIds   :: ![UUID]
-    , aggregationSnapshotVersions    :: ![Text]
+    , aggregationVersionManifests    :: ![Text]
     , aggregationSourcePenaltyKind   :: !Text
     , aggregationSourcePayLevelName  :: !(Maybe Text)
     , aggregationSourceShiftTypeName :: !(Maybe Text)
@@ -1029,7 +1038,7 @@ buildPayrollEarningsCsvRecords ::
     Map.Map Text TimesheetPayResult ->
     Map.Map UUID Text ->
     [PayrollEarningsCsvRecord]
-buildPayrollEarningsCsvRecords entries staffById payResultsByEntryId snapshotVersionsByEntryId =
+buildPayrollEarningsCsvRecords entries staffById payResultsByEntryId versionManifestsByEntryId =
     aggregated
         |> Map.elems
         |> map toRecord
@@ -1057,7 +1066,7 @@ buildPayrollEarningsCsvRecords entries staffById payResultsByEntryId snapshotVer
                             sourcePenaltyKind = payrollEarningsPenaltyKind segment
                             sourcePayLevelName = segment.payLevelName <|> payResult.payLevelName
                             sourceShiftTypeName = segment.shiftTypeName <|> payResult.shiftTypeName
-                            snapshotVersions = maybeToList (entry.payConfigSnapshotId >>= (`Map.lookup` snapshotVersionsByEntryId))
+                            versionManifests = maybeToList (Map.lookup (coerce (get #id entry)) versionManifestsByEntryId)
                             key = (staffId, segmentDate, earningsRateName, trackingCode)
                             newAggregation =
                                 PayrollEarningsAggregation
@@ -1069,7 +1078,7 @@ buildPayrollEarningsCsvRecords entries staffById payResultsByEntryId snapshotVer
                                     , aggregationMinutes = segment.minutes
                                     , aggregationStaffId = staffId
                                     , aggregationTimesheetEntryIds = [entryId]
-                                    , aggregationSnapshotVersions = snapshotVersions
+                                    , aggregationVersionManifests = versionManifests
                                     , aggregationSourcePenaltyKind = sourcePenaltyKind
                                     , aggregationSourcePayLevelName = sourcePayLevelName
                                     , aggregationSourceShiftTypeName = sourceShiftTypeName
@@ -1080,7 +1089,7 @@ buildPayrollEarningsCsvRecords entries staffById payResultsByEntryId snapshotVer
             old
                 { aggregationMinutes = old.aggregationMinutes + new.aggregationMinutes
                 , aggregationTimesheetEntryIds = List.sort (List.nub (old.aggregationTimesheetEntryIds <> new.aggregationTimesheetEntryIds))
-                , aggregationSnapshotVersions = List.sort (List.nub (old.aggregationSnapshotVersions <> new.aggregationSnapshotVersions))
+                , aggregationVersionManifests = List.sort (List.nub (old.aggregationVersionManifests <> new.aggregationVersionManifests))
                 }
 
         toRecord aggregation =
@@ -1094,14 +1103,14 @@ buildPayrollEarningsCsvRecords entries staffById payResultsByEntryId snapshotVer
                 , description = "IHP entries: " <> Text.intercalate " " (map tshow aggregation.aggregationTimesheetEntryIds)
                 , staffId = aggregation.aggregationStaffId
                 , timesheetEntryIds = aggregation.aggregationTimesheetEntryIds
-                , payConfigSnapshot = snapshotVersionForAggregation aggregation.aggregationSnapshotVersions
+                , payConfigVersionManifest = versionManifestForAggregation aggregation.aggregationVersionManifests
                 , sourcePenaltyKind = aggregation.aggregationSourcePenaltyKind
                 , sourcePayLevelName = aggregation.aggregationSourcePayLevelName
                 , sourceShiftTypeName = aggregation.aggregationSourceShiftTypeName
                 }
 
-        snapshotVersionForAggregation snapshotVersions =
-            case List.nub snapshotVersions of
+        versionManifestForAggregation versionManifests =
+            case List.nub versionManifests of
                 []                -> Nothing
                 [snapshotVersion] -> Just snapshotVersion
                 _                 -> Just "mixed"
@@ -1141,7 +1150,7 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = withTransaction do
     now <- getCurrentTime
     let expiresAt = addUTCTime exportExpirySeconds now
     let exportType = exportJobTypeToText ApprovedTimesheetsCsv
-    _ <- ensureCurrentVenuePayConfigSnapshot
+    _ <- pure ()
     let initialScope =
             Aeson.object
                 [ "rangeStart" Aeson..= rangeStart
@@ -1166,14 +1175,14 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = withTransaction do
     entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
     staffById <- fetchStaffMap entries
     approversById <- fetchApproverMap entries
-    snapshotVersionsByEntryId <- fetchSnapshotVersionsForEntries entries
-    let snapshotVersions = List.sort (List.nub (Map.elems snapshotVersionsByEntryId))
-    let exportSnapshotVersion =
-            case snapshotVersions of
+    versionManifestsByEntryId <- fetchVersionManifestsForEntries entries
+    let versionManifests = List.sort (List.nub (Map.elems versionManifestsByEntryId))
+    let exportVersionManifest =
+            case versionManifests of
                 []             -> Nothing
                 [versionLabel] -> Just versionLabel
                 _              -> Just "mixed"
-    let csvContents = renderApprovedTimesheetCsv entries staffById approversById snapshotVersionsByEntryId
+    let csvContents = renderApprovedTimesheetCsv entries staffById approversById versionManifestsByEntryId
     let fileName = buildApprovedTimesheetExportFileName rangeStart rangeEnd
     let finalScope =
             Aeson.object
@@ -1181,18 +1190,20 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = withTransaction do
                 , "rangeEnd" Aeson..= rangeEnd
                 , "approvedOnly" Aeson..= True
                 , "entryCount" Aeson..= length entries
-                , "snapshotVersions" Aeson..= snapshotVersions
+                , "versionManifests" Aeson..= versionManifests
                 ]
     exportJob <-
         exportJob
             |> set #status (exportJobStatusToText ExportReady)
-            |> set #payConfigSnapshotVersion exportSnapshotVersion
+            |> set #payConfigVersionManifest exportVersionManifest
             |> set #scope finalScope
             |> set #fileName (Just fileName)
             |> set #contentType (Just "text/csv; charset=utf-8")
             |> set #fileEncoding "utf8"
             |> set #fileContents (Just csvContents)
             |> updateRecord
+
+    recordExportJobEntries exportJob entries
 
     void $ recordCurrentUserAuditEvent
         "export_generated"
@@ -1203,7 +1214,7 @@ requestApprovedTimesheetsCsvExport rangeStart rangeEnd = withTransaction do
             , "rangeStart" Aeson..= rangeStart
             , "rangeEnd" Aeson..= rangeEnd
             , "entryCount" Aeson..= length entries
-            , "payConfigSnapshotVersion" Aeson..= exportSnapshotVersion
+            , "payConfigVersionManifest" Aeson..= exportVersionManifest
             , "deliveryMethod" Aeson..= exportJob.deliveryMethod
             ]
         )
@@ -1316,15 +1327,39 @@ fetchApproverMap entries =
     where
         approverIds = List.nub (mapMaybe (.approvedByUserId) entries)
 
-fetchSnapshotVersionsForEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID Text)
-fetchSnapshotVersionsForEntries entries =
-    if null snapshotIds
-        then pure Map.empty
-        else do
-            snapshots <- query @PayConfigSnapshot |> filterWhereIn (#id, map Id snapshotIds) |> fetch
-            pure (Map.fromList (map (\snapshot -> (coerce (get #id snapshot), snapshot.versionLabel)) snapshots))
+fetchVersionManifestsForEntries :: (?modelContext :: ModelContext) => [TimesheetEntry] -> IO (Map.Map UUID Text)
+fetchVersionManifestsForEntries entries =
+    pure (Map.fromList (mapMaybe entryManifest entries))
     where
-        snapshotIds = List.nub (mapMaybe (.payConfigSnapshotId) entries)
+        entryManifest entry =
+            fmap (\manifest -> (coerce (get #id entry), manifest)) (payVersionManifestForEntry entry)
+
+recordExportJobEntriesForRange ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    ExportJob ->
+    Day ->
+    Day ->
+    IO ()
+recordExportJobEntriesForRange exportJob rangeStart rangeEnd = do
+    entries <- fetchApprovedTimesheetEntries rangeStart rangeEnd
+    recordExportJobEntries exportJob entries
+
+recordExportJobEntries :: (?modelContext :: ModelContext) => ExportJob -> [TimesheetEntry] -> IO ()
+recordExportJobEntries exportJob entries =
+    mapM_ createRecord (mapMaybe exportEntryRecord entries)
+    where
+        exportEntryRecord entry = do
+            staffPayVersionId <- entry.staffPayVersionId
+            shiftTypePayVersionId <- entry.shiftTypePayVersionId
+            approvedAt <- entry.approvedAt
+            pure $
+                newRecord @ExportJobEntry
+                    |> set #exportJobId (unpackId (get #id exportJob))
+                    |> set #timesheetEntryId (unpackId (get #id entry))
+                    |> set #staffPayVersionId staffPayVersionId
+                    |> set #shiftTypePayVersionId shiftTypePayVersionId
+                    |> set #entryUpdatedAtAtExport entry.updatedAt
+                    |> set #entryApprovedAtAtExport approvedAt
 
 shouldExpireExportJob :: UTCTime -> ExportJob -> Bool
 shouldExpireExportJob now exportJob =
