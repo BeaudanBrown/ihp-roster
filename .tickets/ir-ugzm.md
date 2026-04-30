@@ -60,3 +60,7 @@ Extracted reference-data upsert/stale helpers into Application.Xero.Admin.Refere
 **2026-04-30T01:44:50Z**
 
 Extracted Xero admin response/transport helpers into Application.Xero.Admin.Responses so mutation services can reuse HTMX fragment/toast/full-page response behavior without keeping it in the controller. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Xero".
+
+**2026-04-30T01:50:00Z**
+
+Extracted Xero admin staff, earnings-rate, pay-item account-code, and payroll-calendar mapping mutations into Application.Xero.Admin.Mappings. Controller routing now imports the service actions directly while preserving existing HTMX/toast/full-page responses. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Xero".
