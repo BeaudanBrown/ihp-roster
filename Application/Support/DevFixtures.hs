@@ -24,6 +24,7 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.ModelSupport.Types (CanCreate (createMany))
 import IHP.Prelude
 
@@ -60,7 +61,8 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     -- `seed-dev app` rebuilds the dev DB from schema + bootstrap fixtures first.
     -- Wipe those bootstrap rows here so the scripted demo surface is the only
     -- seeded venue set that remains afterwards.
-    resetDatabase
+    resetDevFixtureData
+    ensureSeedShiftTypeAwardLevels
     venue <- createVenueWithConfig "Development Sandbox Venue"
     admin <- createSeededUserRecordWithPassword "venue2@bepis.lol" "venue2" "admin" True
     _ <- provisionVenueUser venue admin "venue_admin" "venue2" "bepis"
@@ -80,8 +82,8 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     frontSlots <- fetchActiveRosterGroupSlotNames (get #id frontGroup)
     backSlots <- fetchActiveRosterGroupSlotNames (get #id backGroup)
 
-    floorShift <- createSeedShiftTypeRecord venue "Floor" 10
-    kitchenShift <- createSeedShiftTypeRecord venue "Kitchen" 20
+    floorShift <- createSeedShiftTypeRecord venue "Floor" 10 seededFloorAwardLevelId
+    kitchenShift <- createSeedShiftTypeRecord venue "Kitchen" 20 seededKitchenAwardLevelId
     managerStaffs <- mapM (createManagerStaff venue) (zip [0 ..] managerUsers)
     workerStaff <- seededWorkerStaff |> set #idealShiftsPerWeek 3 |> updateRecord
     seededStaff <- createGeneratedStaff venue scenario.scenarioSeed scenario.staffCount
@@ -144,15 +146,41 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
             , scenario = scenario
             }
 
-createSeedShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> Text -> Int -> IO ShiftType
-createSeedShiftTypeRecord venue shiftTypeName sortOrder =
+createSeedShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> Text -> Int -> Id AwardLevel -> IO ShiftType
+createSeedShiftTypeRecord venue shiftTypeName sortOrder awardLevelId =
     newRecord @ShiftType
         |> set #venueId (unpackId (get #id venue))
         |> set #name shiftTypeName
         |> set #sortOrder sortOrder
-        |> set #overrideAwardLevelId Nothing
+        |> set #overrideAwardLevelId (Just awardLevelId)
         |> set #isActive True
         |> createRecord
+
+seededFloorAwardLevelId :: Id AwardLevel
+seededFloorAwardLevelId =
+    seededHospitalityAwardLevelId "2cba4998-4691-4eeb-9bd3-e79263c54769"
+
+seededKitchenAwardLevelId :: Id AwardLevel
+seededKitchenAwardLevelId =
+    seededHospitalityAwardLevelId "8a53b7c8-574c-49f8-abd4-0caf3b46a22f"
+
+seededHospitalityAwardLevelId :: Text -> Id AwardLevel
+seededHospitalityAwardLevelId value =
+    Id (fromMaybe (error ("Invalid dev award level id: " <> cs value)) (UUID.fromText value))
+
+resetDevFixtureData :: (?modelContext :: ModelContext) => IO ()
+resetDevFixtureData = do
+    sqlExecDiscardResult
+        "TRUNCATE TABLE app_jobs, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_submission_runs, xero_payroll_calendar_selections, xero_earnings_rate_mappings, xero_staff_mappings, xero_payroll_calendars, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_days, roster_weeks, export_job_entries, shift_type_pay_versions, staff_pay_versions, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        ()
+    pure ()
+
+ensureSeedShiftTypeAwardLevels :: (?modelContext :: ModelContext) => IO ()
+ensureSeedShiftTypeAwardLevels = do
+    sqlExecDiscardResult
+        "INSERT INTO award_levels (id, award_fixed_id, classification_fixed_id, classification, classification_level, parent_classification_name, clause_description, operative_from, operative_to, published_year, is_active, raw_json) VALUES ('2cba4998-4691-4eeb-9bd3-e79263c54769', 9, 243, 'Level 1', '2.0', 'Food and beverage attendant grade 1; Guest service grade 1; Kitchen attendant grade 1', 'Hospitality Employees', '2025-07-01', NULL, 2025, TRUE, '{}'::jsonb), ('8a53b7c8-574c-49f8-abd4-0caf3b46a22f', 9, 268, 'Level 4', '5.0', 'Clerical grade 3; Cook (tradesperson) grade 3; Food and beverage attendant (tradesperson) grade 4; Front office grade 3; Gardener grade 3 (tradesperson); Guest service grade 4; Leisure attendant grade 3; Storeperson grade 3', 'Hospitality Employees', '2025-07-01', NULL, 2025, TRUE, '{}'::jsonb) ON CONFLICT (id) DO NOTHING"
+        ()
+    pure ()
 
 seedSandboxRoleAliasAccounts :: (?modelContext :: ModelContext) => Venue -> IO ()
 seedSandboxRoleAliasAccounts venue = do

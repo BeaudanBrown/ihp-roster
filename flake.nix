@@ -662,6 +662,10 @@ SQL
                             export DATABASE_URL="postgresql:///$DB_NAME?host=$DB_SOCKET"
                             DEV_PASSKEY_SEED_FILE="''${DEV_PASSKEY_SEED_FILE:-$PWD/build/dev-passkeys.sql}"
                             DEV_XERO_SEED_FILE="''${DEV_XERO_SEED_FILE:-$PWD/build/dev-xero-connection.sql}"
+
+                            echo "Loading hard-coded dev award and public holiday data"
+                            psql -h "$DB_SOCKET" -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Support/Seed/DevReferenceData.sql
+
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             mkdir -p build/Script
@@ -691,9 +695,6 @@ EOF
                                 printf '%s\n' "$GHC_OPTS" > "$SEED_DEV_GHC_OPTS_STAMP"
                             fi
                             build/Script/SeedDev "''${SCRIPT_ARGS[@]}"
-
-                            echo "Loading hard-coded dev award and public holiday data"
-                            psql -h "$DB_SOCKET" -v ON_ERROR_STOP=1 -d "$DB_NAME" -f Application/Support/Seed/DevReferenceData.sql
 
                             if [ -f "$DEV_PASSKEY_SEED_FILE" ]; then
                                 echo "Restoring dev passkeys from $DEV_PASSKEY_SEED_FILE"

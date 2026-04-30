@@ -257,7 +257,7 @@ tests = beforeAll testContext do
                 get #status fixture.sandboxInvitation `shouldBe` InvitationStatusEnumPending
                 get #email fixture.sandboxInvitation `shouldBe` "pending-invite@example.com"
 
-        it "does not seed synthetic FWC MAPD or award-level pay data" $ withContext do
+        it "does not seed synthetic FWC MAPD or award-rate pay data" $ withContext do
             withCleanDb do
                 _ <- seedDevelopmentFixtureForWeek defaultWeekEpoch
 
@@ -278,12 +278,38 @@ tests = beforeAll testContext do
                 fwcPayRateCount `shouldBe` 0
                 fwcPenaltyRateCount `shouldBe` 0
                 fwcWageAllowanceCount `shouldBe` 0
-                awardLevelCount `shouldBe` 0
+                awardLevelCount `shouldBe` 2
                 awardLevelBaseRateCount `shouldBe` 0
                 awardLevelPenaltyRateCount `shouldBe` 0
                 awardTimePenaltyAllowanceCount `shouldBe` 0
                 staffPayVersionCount `shouldSatisfy` (> 0)
                 shiftTypePayVersionCount `shouldSatisfy` (> 0)
+
+        it "maps seeded shift types to the current hospitality award levels" $ withContext do
+            withCleanDb do
+                fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
+
+                shiftTypes <-
+                    query @ShiftType
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> orderByAsc #sortOrder
+                        |> fetch
+                shiftTypeVersions <-
+                    query @ShiftTypePayVersion
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> orderByAsc #payrollLabel
+                        |> fetch
+
+                map (\shiftType -> (shiftType.name, tshow <$> shiftType.overrideAwardLevelId)) shiftTypes
+                    `shouldBe`
+                        [ ("Floor", Just "2cba4998-4691-4eeb-9bd3-e79263c54769")
+                        , ("Kitchen", Just "8a53b7c8-574c-49f8-abd4-0caf3b46a22f")
+                        ]
+                map (\version -> (version.payrollLabel, tshow <$> version.overrideAwardLevelId)) shiftTypeVersions
+                    `shouldBe`
+                        [ ("Floor", Just "2cba4998-4691-4eeb-9bd3-e79263c54769")
+                        , ("Kitchen", Just "8a53b7c8-574c-49f8-abd4-0caf3b46a22f")
+                        ]
 
         it "seeds three times as many sandbox timesheets with break coverage on most entries" $ withContext do
             withCleanDb do
