@@ -314,6 +314,8 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
                 pageResponse `responseBodyShouldContain` "admin_xero"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
+                pageResponse `responseBodyShouldContain` "hx-indicator=\"#xero-reference-sync-indicator\""
+                pageResponse `responseBodyShouldContain` "id=\"xero-reference-sync-indicator\""
                 pageResponse `responseBodyShouldNotContain` "Tenant ID"
                 pageResponse `responseBodyShouldNotContain` "Connected</dt>"
                 pageResponse `responseBodyShouldNotContain` "Last sync:"
@@ -326,7 +328,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status302
                 xeroVersionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
-                xeroVersionAfter `shouldBe` (xeroVersionBefore + 1)
+                xeroVersionAfter `shouldBe` (xeroVersionBefore + 2)
                 employeeCount <- query @XeroEmployee |> fetchCount
                 employeeCount `shouldBe` 1
                 earningsRateCount <- query @XeroEarningsRate |> fetchCount
@@ -1145,6 +1147,35 @@ tests = beforeAll testContext do
                 syncRun.syncStatus `shouldBe` "failed"
                 stateCount <- query @XeroOauthState |> fetchCount
                 stateCount `shouldBe` 1
+                [oauthState] <- query @XeroOauthState |> fetch
+                oauthState.stateToken `shouldSatisfy` Text.isPrefixOf "payroll-reference-sync:"
+
+        it "returns from reconnect with an automatic Xero reference sync trigger" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Auto Sync After Reconnect Venue"
+                owner <- createUserRecord "xero-auto-sync-after-reconnect@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _connection <- createSyncableXeroConnection venue owner
+                oauthState <- createTestXeroOauthState venue owner "payroll-reference-sync:auto-sync-state" 600 Nothing
+                let tokenResponse = XeroTokenResponse "auto-sync-access-token" "auto-sync-refresh-token" 1800 (Just requiredXeroScopesText)
+                let tenant = XeroTenant "connection-auto-sync" "tenant-existing" (Just "Existing Demo Company")
+
+                callbackResponse <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (successfulXeroClient tokenResponse [tenant]) do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callActionWithParams XeroOAuthCallbackAction [("state", cs oauthState.stateToken), ("code", "auto-sync-code")]
+
+                callbackResponse `responseStatusShouldBe` status302
+                lookup "Location" (responseHeaders callbackResponse) `shouldSatisfy` maybe False (Text.isInfixOf "/Xero?syncAfterReconnect=true" . cs)
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callActionWithParams XeroAction [("syncAfterReconnect", "true")]
+                pageResponse `responseStatusShouldBe` status200
+                pageResponse `responseBodyShouldContain` "id=\"xero-auto-reference-sync\""
+                pageResponse `responseBodyShouldContain` "hx-trigger=\"load\""
+                pageResponse `responseBodyShouldContain` "hx-post=\"/SyncXeroPayrollReferenceData\""
+                pageResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
+                pageResponse `responseBodyShouldContain` "hx-push-url=\"/Xero\""
+                pageResponse `responseBodyShouldContain` "hx-indicator=\"#xero-reference-sync-indicator\""
 
         it "repairs an existing same-tenant Xero connection during reconnect" $ withContext do
             withCleanDb do

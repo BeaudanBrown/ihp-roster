@@ -9,7 +9,7 @@ import Application.Xero.Connection
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
-import Web.Controller.Admin.Xero.Connection (redirectToXeroAuthorization)
+import Web.Controller.Admin.Xero.Connection (redirectToXeroAuthorizationForReferenceSync)
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 
@@ -38,10 +38,11 @@ syncXeroPayrollReferenceData connection = do
             |> set #syncKind ("payroll_reference_data" :: Text)
             |> set #startedAt now
             |> createRecord
+    broadcastAdminXeroInvalidation currentVenueId
     readXeroConfig >>= \case
         Left message -> failXeroReferenceSync syncRun connection message
         Right xeroConfig -> do
-            refreshResult <- refreshXeroConnectionAccess xeroConfig connection
+            refreshResult <- refreshXeroConnectionAccessWithoutBroadcast xeroConfig connection
             case refreshResult of
                 Left message -> failXeroReferenceSyncOrReconnect syncRun connection message
                 Right (refreshedConnection, accessToken) -> do
@@ -127,8 +128,7 @@ failXeroReferenceSyncOrReconnect ::
 failXeroReferenceSyncOrReconnect syncRun connection message
     | shouldStartReconnectAfterSyncFailure message && currentUserCanManageXeroIntegration = do
         recordFailedXeroReferenceSync syncRun connection message
-        broadcastAdminXeroInvalidation currentVenueId
-        redirectToXeroAuthorization
+        redirectToXeroAuthorizationForReferenceSync
     | otherwise =
         failXeroReferenceSync syncRun connection message
 

@@ -4,6 +4,7 @@ module Application.Xero.Connection
     , markXeroConnectionReauthorizationRequired
     , persistXeroRefreshedTokens
     , refreshXeroConnectionAccess
+    , refreshXeroConnectionAccessWithoutBroadcast
     , xeroClientErrorText
     ) where
 
@@ -32,10 +33,27 @@ refreshXeroConnectionAccess ::
     XeroConnection ->
     IO (Either Text (XeroConnection, Text))
 refreshXeroConnectionAccess xeroConfig connection =
+    refreshXeroConnectionAccessWithBroadcast True xeroConfig connection
+
+refreshXeroConnectionAccessWithoutBroadcast ::
+    (?modelContext :: ModelContext) =>
+    XeroConfig ->
+    XeroConnection ->
+    IO (Either Text (XeroConnection, Text))
+refreshXeroConnectionAccessWithoutBroadcast xeroConfig connection =
+    refreshXeroConnectionAccessWithBroadcast False xeroConfig connection
+
+refreshXeroConnectionAccessWithBroadcast ::
+    (?modelContext :: ModelContext) =>
+    Bool ->
+    XeroConfig ->
+    XeroConnection ->
+    IO (Either Text (XeroConnection, Text))
+refreshXeroConnectionAccessWithBroadcast shouldBroadcast xeroConfig connection =
     case decryptXeroToken xeroConfig.tokenEncryptionKey connection.encryptedRefreshToken of
         Left message -> do
             let friendly = "Could not decrypt the stored Xero refresh token. Reconnect Xero to continue."
-            markXeroConnectionReauthorizationRequired connection (friendly <> " " <> message)
+            markXeroConnectionReauthorizationRequiredWithBroadcast shouldBroadcast connection (friendly <> " " <> message)
             pure (Left friendly)
         Right refreshToken -> do
             xeroClient <- currentXeroClient
@@ -48,11 +66,11 @@ refreshXeroConnectionAccess xeroConfig connection =
                 Left err
                     | isXeroRefreshTokenExpiredError err -> do
                         let friendly = "Xero needs to be reconnected because the refresh token expired or was revoked."
-                        markXeroConnectionReauthorizationRequired connection (friendly <> " " <> xeroClientErrorText err)
+                        markXeroConnectionReauthorizationRequiredWithBroadcast shouldBroadcast connection (friendly <> " " <> xeroClientErrorText err)
                         pure (Left friendly)
                     | otherwise -> do
                         let message = "Xero token refresh failed: " <> xeroClientErrorText err
-                        markXeroConnectionError connection message
+                        markXeroConnectionErrorWithBroadcast shouldBroadcast connection message
                         pure (Left message)
 
 persistXeroRefreshedTokens ::
@@ -80,12 +98,21 @@ markXeroConnectionReauthorizationRequired ::
     Text ->
     IO ()
 markXeroConnectionReauthorizationRequired connection message = do
+    markXeroConnectionReauthorizationRequiredWithBroadcast True connection message
+
+markXeroConnectionReauthorizationRequiredWithBroadcast ::
+    (?modelContext :: ModelContext) =>
+    Bool ->
+    XeroConnection ->
+    Text ->
+    IO ()
+markXeroConnectionReauthorizationRequiredWithBroadcast shouldBroadcast connection message = do
     _ <- connection
         |> set #connectionStatus "reauthorization_required"
         |> set #encryptedAccessToken Nothing
         |> set #lastError (Just message)
         |> updateRecord
-    broadcastXeroConnectionUpdate connection
+    when shouldBroadcast (broadcastXeroConnectionUpdate connection)
 
 markXeroConnectionError ::
     (?modelContext :: ModelContext) =>
@@ -93,11 +120,20 @@ markXeroConnectionError ::
     Text ->
     IO ()
 markXeroConnectionError connection message = do
+    markXeroConnectionErrorWithBroadcast True connection message
+
+markXeroConnectionErrorWithBroadcast ::
+    (?modelContext :: ModelContext) =>
+    Bool ->
+    XeroConnection ->
+    Text ->
+    IO ()
+markXeroConnectionErrorWithBroadcast shouldBroadcast connection message = do
     _ <- connection
         |> set #connectionStatus "error"
         |> set #lastError (Just message)
         |> updateRecord
-    broadcastXeroConnectionUpdate connection
+    when shouldBroadcast (broadcastXeroConnectionUpdate connection)
 
 broadcastXeroConnectionUpdate :: XeroConnection -> IO ()
 broadcastXeroConnectionUpdate connection =

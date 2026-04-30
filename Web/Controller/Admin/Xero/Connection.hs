@@ -1,10 +1,12 @@
 module Web.Controller.Admin.Xero.Connection
     ( disconnectXeroConnectionAction
     , redirectToXeroAuthorization
+    , redirectToXeroAuthorizationForReferenceSync
     , startXeroConnectionAction
     , xeroOAuthCallbackAction
     ) where
 
+import Application.Helper.Url (appendQueryParams)
 import Application.Helper.Xero
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Connection
@@ -22,31 +24,43 @@ startXeroConnectionAction =
 
 redirectToXeroAuthorization :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 redirectToXeroAuthorization =
-        readXeroConfig >>= \case
-            Left message -> do
-                setErrorMessage message
-                redirectTo XeroAction
-            Right xeroConfig -> do
-                now <- getCurrentTime
-                stateToken <- generateXeroStateToken
-                oauthState <- newRecord @XeroOauthState
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #userId (unpackId currentUser.id)
-                    |> set #stateToken stateToken
-                    |> set #requestedScopes requiredXeroScopesText
-                    |> set #redirectUri xeroConfig.redirectUri
-                    |> set #expiresAt (addUTCTime (15 * 60) now)
-                    |> createRecord
-                void $ recordCurrentUserAuditEvent
-                    "xero_connection_started"
-                    "xero_oauth_states"
-                    (unpackId oauthState.id)
-                    (Aeson.object
-                        [ "scopes" Aeson..= requiredXeroScopes
-                        , "redirectUri" Aeson..= xeroConfig.redirectUri
-                        ]
-                    )
-                redirectToXeroAuthorizationUrl (buildXeroAuthorizationUrl xeroConfig stateToken)
+    redirectToXeroAuthorizationWithStateToken identityXeroStateToken
+
+redirectToXeroAuthorizationForReferenceSync :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+redirectToXeroAuthorizationForReferenceSync =
+    redirectToXeroAuthorizationWithStateToken referenceSyncOAuthStateToken
+
+redirectToXeroAuthorizationWithStateToken :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => (Text -> Text) -> IO ()
+redirectToXeroAuthorizationWithStateToken stateTokenTransform =
+    readXeroConfig >>= \case
+        Left message -> do
+            setErrorMessage message
+            redirectTo XeroAction
+        Right xeroConfig -> do
+            now <- getCurrentTime
+            stateToken <- stateTokenTransform <$> generateXeroStateToken
+            oauthState <- newRecord @XeroOauthState
+                |> set #venueId (unpackId currentVenueId)
+                |> set #userId (unpackId currentUser.id)
+                |> set #stateToken stateToken
+                |> set #requestedScopes requiredXeroScopesText
+                |> set #redirectUri xeroConfig.redirectUri
+                |> set #expiresAt (addUTCTime (15 * 60) now)
+                |> createRecord
+            void $ recordCurrentUserAuditEvent
+                "xero_connection_started"
+                "xero_oauth_states"
+                (unpackId oauthState.id)
+                (Aeson.object
+                    [ "scopes" Aeson..= requiredXeroScopes
+                    , "redirectUri" Aeson..= xeroConfig.redirectUri
+                    ]
+                )
+            redirectToXeroAuthorizationUrl (buildXeroAuthorizationUrl xeroConfig stateToken)
+
+identityXeroStateToken :: Text -> Text
+identityXeroStateToken stateToken =
+    stateToken
 
 redirectToXeroAuthorizationUrl :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
 redirectToXeroAuthorizationUrl authorizationUrl =
@@ -229,7 +243,7 @@ completeXeroOAuthCallback now actorUserId oauthState code =
                             tenant <- chooseXeroTenantForOAuth tenants
                             connection <- persistCompletedXeroConnection now actorUserId xeroConfig oauthState tokenResponse tenant
                             setSuccessMessage ("Connected Xero tenant " <> fromMaybe connection.tenantId connection.tenantName <> ".")
-                            redirectTo XeroAction
+                            redirectAfterCompletedXeroConnection oauthState
 
 persistCompletedXeroConnection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -302,6 +316,26 @@ persistCompletedXeroConnection now actorUserId xeroConfig oauthState tokenRespon
                 ]
             )
         pure connection
+
+referenceSyncOAuthStatePrefix :: Text
+referenceSyncOAuthStatePrefix = "payroll-reference-sync:"
+
+referenceSyncOAuthStateToken :: Text -> Text
+referenceSyncOAuthStateToken stateToken =
+    referenceSyncOAuthStatePrefix <> stateToken
+
+shouldResumeReferenceSyncAfterOAuth :: XeroOauthState -> Bool
+shouldResumeReferenceSyncAfterOAuth oauthState =
+    referenceSyncOAuthStatePrefix `Text.isPrefixOf` oauthState.stateToken
+
+redirectAfterCompletedXeroConnection ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    XeroOauthState ->
+    IO ()
+redirectAfterCompletedXeroConnection oauthState =
+    if shouldResumeReferenceSyncAfterOAuth oauthState
+        then redirectToPath (appendQueryParams (pathTo XeroAction) [("syncAfterReconnect", "true")])
+        else redirectTo XeroAction
 
 chooseXeroTenantForOAuth ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

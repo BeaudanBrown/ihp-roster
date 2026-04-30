@@ -41,11 +41,13 @@ renderXeroConnectionDetails connection _ maybeSyncRun employeeCount earningsRate
                   data-disable-javascript-submission="true"
                   hx-post={pathTo SyncXeroPayrollReferenceDataAction}
                   hx-target="#admin-xero-fragment"
-                  hx-swap="outerHTML">
+                  hx-swap="outerHTML"
+                  hx-indicator="#xero-reference-sync-indicator">
                 <button class="btn btn-outline-primary" type="submit" disabled={connection.connectionStatus /= "active"}>Sync payroll reference data</button>
             </form>
             {renderXeroReconnectControls connectionActionsAllowed}
         </div>
+        {renderXeroReferenceSyncIndicator maybeSyncRun}
         <div class="row g-3">
             <div class="col-12 col-xl-6">
                 {renderXeroPayItemAccountCodeSelection xeroEarningsRates maybePayItemAccountCodeSelection connectionActionsAllowed}
@@ -114,12 +116,47 @@ renderXeroConnectionNotice connection =
         _ -> mempty
 
 renderXeroReferenceSummary :: Maybe XeroSyncRun -> Int -> Int -> Int -> Html
-renderXeroReferenceSummary _ employeeCount earningsRateCount payrollCalendarCount = [hsx|
+renderXeroReferenceSummary maybeSyncRun employeeCount earningsRateCount payrollCalendarCount = [hsx|
     <div class="d-flex flex-column gap-2">
         <div class="d-flex flex-wrap gap-2">
             {renderAppStatusBadge AppStatusNeutral (tshow employeeCount <> " employees")}
             {renderAppStatusBadge AppStatusNeutral (tshow earningsRateCount <> " earnings rates")}
             {renderAppStatusBadge AppStatusNeutral (tshow payrollCalendarCount <> " payroll calendars")}
+            {renderXeroReferenceSyncStatus maybeSyncRun}
         </div>
     </div>
 |]
+
+renderXeroReferenceSyncStatus :: Maybe XeroSyncRun -> Html
+renderXeroReferenceSyncStatus (Just syncRun)
+    | syncRun.syncStatus == "running" = renderAppStatusBadge AppStatusInfo "syncing"
+    | otherwise = mempty
+renderXeroReferenceSyncStatus Nothing =
+    mempty
+
+renderXeroReferenceSyncIndicator :: Maybe XeroSyncRun -> Html
+renderXeroReferenceSyncIndicator maybeSyncRun =
+    mconcat
+        [ renderClientSideIndicator
+        , renderServerSideRunningIndicator maybeSyncRun
+        ]
+
+renderClientSideIndicator :: Html
+renderClientSideIndicator = [hsx|
+    <div id="xero-reference-sync-indicator" class="htmx-indicator d-flex align-items-center gap-2 small text-primary" role="status" aria-live="polite">
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        <span>Syncing payroll reference data...</span>
+    </div>
+|]
+
+renderServerSideRunningIndicator :: Maybe XeroSyncRun -> Html
+renderServerSideRunningIndicator (Just syncRun)
+    | syncRun.syncStatus == "running" = [hsx|
+        <div class="d-flex align-items-center gap-2 small text-primary" role="status" aria-live="polite">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>Syncing payroll reference data...</span>
+        </div>
+    |]
+    | otherwise = mempty
+renderServerSideRunningIndicator Nothing =
+    mempty
