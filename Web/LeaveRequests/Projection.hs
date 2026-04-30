@@ -147,7 +147,7 @@ leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveP
         , staffMembers = leaveProjectionStaffMembers
         , currentViewerStaffId = leaveProjectionCurrentViewerStaffId
         , today = leaveProjectionToday
-        , liveUpdateScope = Just (buildLeaveRequestsScope currentVenueId)
+        , liveUpdateSurface = Just (mkDefinedLiveSurface leaveRequestsLiveSurfaceDefinition ())
         }
 
 invalidateAffectedRosterWeeksForLeave :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO ()

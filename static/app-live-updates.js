@@ -458,43 +458,12 @@
         return Number.isInteger(value) && value >= 0 ? value : null;
     }
 
-    function buildScopeKey(scope) {
-        if (!scope || !scope.kind) return null;
-
-        switch (scope.kind) {
-            case 'support_platform':
-                return scope.kind;
-            case 'roster_week':
-                if (!scope.venueId) return null;
-                if (!scope.rosterGroupId || !Number.isInteger(scope.weekOffset)) return null;
-                return `${scope.kind}:${scope.venueId}:${scope.rosterGroupId}:${scope.weekOffset}`;
-            case 'roster_group_config':
-            case 'admin_slot_names':
-                if (!scope.venueId) return null;
-                if (!scope.rosterGroupId) return null;
-                return `${scope.kind}:${scope.venueId}:${scope.rosterGroupId}`;
-            case 'timesheet_week':
-                if (!scope.venueId) return null;
-                if (!Number.isInteger(scope.weekOffset)) return null;
-                return `${scope.kind}:${scope.venueId}:${scope.weekOffset}`;
-            case 'leave_requests':
-            case 'admin_invites':
-            case 'admin_shift_types':
-            case 'admin_roster_groups':
-            case 'admin_xero':
-                if (!scope.venueId) return null;
-                return `${scope.kind}:${scope.venueId}`;
-            default:
-                return null;
-        }
-    }
-
     function messageScopeKey(message) {
         if (message && typeof message.scopeKey === 'string' && message.scopeKey.length > 0) {
             return message.scopeKey;
         }
 
-        return buildScopeKey(message ? message.scope : null);
+        return null;
     }
 
     function subscribeScope(subscription) {
@@ -530,7 +499,7 @@
 
         if (!config || !config.scope) return null;
 
-        const scopeKey = config.scopeKey || buildScopeKey(config.scope);
+        const scopeKey = typeof config.scopeKey === 'string' && config.scopeKey.length > 0 ? config.scopeKey : null;
         if (!scopeKey) {
             reportSurfaceConfigError(ownerEl, new Error('Invalid live-update surface scope'));
             return null;

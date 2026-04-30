@@ -19,6 +19,19 @@ type LiveSurfaceFixture = {
     decorateRequestsWithin: string[];
 };
 
+function scopeKeyForFixture(scope: LiveUpdateScope) {
+    switch (scope.kind) {
+        case 'timesheet_week':
+            return `timesheet_week:${scope.venueId}:${scope.weekOffset}`;
+        case 'admin_invites':
+            return `admin_invites:${scope.venueId}`;
+        case 'admin_xero':
+            return `admin_xero:${scope.venueId}`;
+        default:
+            return null;
+    }
+}
+
 async function installLiveUpdateHarness(page: Page) {
     await page.addInitScript(() => {
         const win = window as Window & {
@@ -70,6 +83,11 @@ async function openBlankRuntimePage(page: Page) {
 }
 
 async function addSyntheticSurface(page: Page, surface: LiveSurfaceFixture) {
+    const fixtureScopeKey = surface.scopeKey ?? scopeKeyForFixture(surface.scope);
+    const surfaceWithScopeKey = {
+        ...surface,
+        ...(fixtureScopeKey ? { scopeKey: fixtureScopeKey } : {}),
+    };
     await page.evaluate((config) => {
         document.body.insertAdjacentHTML(
             'beforeend',
@@ -85,7 +103,7 @@ async function addSyntheticSurface(page: Page, surface: LiveSurfaceFixture) {
         if (!owner) throw new Error('Synthetic owner was not inserted');
         owner.setAttribute('data-live-update-surface', JSON.stringify(config));
         document.dispatchEvent(new CustomEvent('app:page-ready'));
-    }, surface);
+    }, surfaceWithScopeKey);
 }
 
 async function liveUpdateCommands(page: Page) {
@@ -349,6 +367,7 @@ test.describe('Declarative live-update adapter', () => {
                 data: JSON.stringify({
                     type: 'subscribed',
                     scope: subscribedScope,
+                    scopeKey: `timesheet_week:${subscribedScope.venueId}:${subscribedScope.weekOffset}`,
                     currentVersion: 7,
                     resync: true,
                 }),
@@ -398,6 +417,7 @@ test.describe('Declarative live-update adapter', () => {
                 feature: 'same-scope-one',
                 socketPath: '/live-updates',
                 scope: surfaceScope,
+                scopeKey: `timesheet_week:${surfaceScope.venueId}:${surfaceScope.weekOffset}`,
                 resyncFragments: [
                     {
                         fragmentKey: { kind: 'timesheet_day_section', dayOffset: 1 },
@@ -454,6 +474,7 @@ test.describe('Declarative live-update adapter', () => {
                 data: JSON.stringify({
                     type: 'subscribed',
                     scope: subscribedScope,
+                    scopeKey: `timesheet_week:${subscribedScope.venueId}:${subscribedScope.weekOffset}`,
                     currentVersion: 4,
                     resync: true,
                 }),

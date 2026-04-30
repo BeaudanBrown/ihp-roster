@@ -251,7 +251,7 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMem
         , showApproved = timesheetShowApproved
         , showAllStaff = timesheetShowAllStaff
         , currentViewerStaffId = timesheetCurrentViewerStaffId
-        , liveUpdateScope = Just (buildTimesheetWeekScope currentVenueId timesheetWeekOffset)
+        , liveUpdateSurface = Just (mkDefinedLiveSurface timesheetLiveSurfaceDefinition (TimesheetProjectionRequest timesheetWeekOffset timesheetShowApproved timesheetShowAllStaff))
         }
 
 weekOffsetFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Int

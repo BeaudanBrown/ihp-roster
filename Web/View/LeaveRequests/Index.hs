@@ -4,11 +4,7 @@ import Application.Helper.Controller (LeaveRequestStatus (..),
                                       leaveRequestCanBeDeleted,
                                       parseLeaveRequestStatus)
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson, mkLiveSurface)
-import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveFragmentProtection (..),
-                                      LiveFragmentRef (..),
-                                      LiveUpdateScope (..), mkLiveFragmentRef)
+                                       liveSurfaceConfigJson)
 import Data.Coerce (coerce)
 import Data.List (sortOn)
 import Data.Ord (Down (..))
@@ -19,7 +15,7 @@ data IndexView = IndexView
     , staffMembers         :: [Staff]
     , currentViewerStaffId :: Maybe UUID
     , today                :: Day
-    , liveUpdateScope      :: Maybe LiveUpdateScope
+    , liveUpdateSurface    :: Maybe LiveSurfaceConfig
     }
 
 leaveRequestsShellId :: Text
@@ -54,22 +50,10 @@ renderLeaveRequestsShell IndexView { .. } =
             })
      in [hsx|
         <section id={leaveRequestsShellId}
-                 data-live-update-surface={liveSurfaceConfigJson . leaveRequestsLiveSurface <$> liveUpdateScope}>
+                 data-live-update-surface={liveSurfaceConfigJson <$> liveUpdateSurface}>
             {page}
         </section>
     |]
-
-leaveRequestsLiveSurface :: (?context :: ControllerContext) => LiveUpdateScope -> LiveSurfaceConfig
-leaveRequestsLiveSurface scope =
-    (mkLiveSurface
-        "leave-requests"
-        scope
-        [ mkLiveFragmentRef
-            LeaveRequestsContentFragment
-            leaveRequestsContentFragmentId
-            (pathTo ShowLeaveRequestsContentFragmentAction)
-        ])
-        { decorateRequestsWithin = ["#" <> leaveRequestsShellId] }
 
 renderNewLeaveRequestAction :: Html
 renderNewLeaveRequestAction = [hsx|
