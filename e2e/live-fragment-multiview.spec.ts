@@ -1,6 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { addRowToFirstRosterDay, editableRosterRows, gotoWhenReady, loginAs, openProfileLeaveSection, setFlatpickrDate } from './test-helpers';
+import { addRowToFirstRosterDay, editableRosterRows, gotoWhenReady, loginAs, openProfileLeaveSection, runSql, setFlatpickrDate } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -129,26 +129,37 @@ test.describe('Live fragment multi-view coverage', () => {
         const actorPage = await actorContext.newPage();
         const requesterPage = await requesterContext.newPage();
         const viewerPage = await viewerContext.newPage();
-        const note = `roster-live-leave-${Date.now()}`;
-        const managerStaffId = 'a0000000-0000-0000-0000-000000000101';
+        const note = 'Alpha leave request';
+        const targetStaffId = 'a0000000-0000-0000-0000-000000000101';
 
         await loginManager(actorPage);
         await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
 
-        await loginAs(requesterPage, 'e2e-test@example.com', 'test-password-123');
-        const startDate = await isoCurrentWeekStart(requesterPage);
-        const endDate = await requesterPage.evaluate((start) => {
+        const startDate = await isoCurrentWeekStart(actorPage);
+        const endDate = await actorPage.evaluate((start) => {
             const next = new Date(`${start}T00:00:00Z`);
             next.setUTCDate(next.getUTCDate() + 1);
             return next.toISOString().slice(0, 10);
         }, startDate);
-        await createProfileLeaveRequest(requesterPage, note, startDate, endDate);
+        runSql(`
+            UPDATE leave_requests
+            SET
+                start_date = '${startDate}',
+                end_date = '${endDate}',
+                staff_id = '${targetStaffId}',
+                status = 'pending',
+                deleted_at = NULL,
+                updated_at = NOW()
+            WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'
+              AND notes = '${note}';
+        `);
+        await gotoWhenReady(actorPage, '/LeaveRequests', '#leave-requests-content');
 
         await loginAndOpenRoster(viewerPage);
         const viewerTargetRow = await ensureEditableRosterRow(viewerPage, 1);
         const viewerTargetSelect = viewerTargetRow.locator('select[name="staffId"]').first();
-        await viewerTargetSelect.selectOption(managerStaffId);
-        await expect(viewerTargetSelect).toHaveValue(managerStaffId);
+        await viewerTargetSelect.selectOption(targetStaffId);
+        await expect(viewerTargetSelect).toHaveValue(targetStaffId);
         const viewerTargetStaffCell = viewerTargetRow.locator('.slot-staff-cell').first();
 
         const leaveRow = actorPage.locator('#leave-requests-content article').filter({ hasText: note });

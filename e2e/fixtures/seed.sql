@@ -19,7 +19,10 @@ WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0
 DELETE FROM leave_requests
 WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
 
-DELETE FROM pay_config_snapshots
+DELETE FROM staff_pay_versions
+WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
+
+DELETE FROM shift_type_pay_versions
 WHERE venue_id IN ('a1000000-0000-0000-0000-000000000001', 'a1000000-0000-0000-0000-000000000002');
 
 DELETE FROM report_definition_shift_type_filters
@@ -521,50 +524,139 @@ ON CONFLICT (id) DO UPDATE SET
     name = EXCLUDED.name,
     is_active = EXCLUDED.is_active;
 
-INSERT INTO pay_config_snapshots (id, venue_id, version_number, version_label, created_by_user_id, snapshot)
+INSERT INTO staff_pay_versions (
+    id,
+    venue_id,
+    staff_id,
+    default_award_level_id,
+    employment_basis,
+    effective_from,
+    created_by_user_id,
+    locked_at,
+    locked_by_user_id
+)
 VALUES
     (
-        'a1000000-0000-0000-0000-000000000181',
+        'a1000000-0000-0000-0000-000000000301',
         'a1000000-0000-0000-0000-000000000001',
-        1,
-        'v1',
+        'a0000000-0000-0000-0000-000000000101',
+        'a1000000-0000-0000-0000-000000000111',
+        'permanent',
+        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
         'a0000000-0000-0000-0000-000000000003',
-        jsonb_build_object(
-            'venueConfig', jsonb_build_object(
-                'id', 'a1000000-0000-0000-0000-000000000011',
-                'timezone', 'Australia/Melbourne',
-                'rosterWeekStartsOn', 1,
-                'weekOffsetEpoch', (CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1)),
-                'lateToEarlyMinStartGapMinutes', 600,
-                'staffTimesheetEditWindowDays', 7
-            ),
-            'awardLevels', jsonb_build_array(
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000111', 'classificationLevel', NULL, 'classification', 'LVL 1', 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000112', 'classificationLevel', NULL, 'classification', 'LVL 2', 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000113', 'classificationLevel', NULL, 'classification', 'Floor Level', 'isActive', TRUE)
-            ),
-            'shiftTypes', jsonb_build_array(
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000131', 'name', 'Bar', 'overrideAwardLevelId', 'a1000000-0000-0000-0000-000000000111', 'sortOrder', 10, 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000132', 'name', 'Kitchen', 'overrideAwardLevelId', 'a1000000-0000-0000-0000-000000000111', 'sortOrder', 20, 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000133', 'name', 'Floor', 'overrideAwardLevelId', 'a1000000-0000-0000-0000-000000000113', 'sortOrder', 30, 'isActive', TRUE)
-            ),
-            'dayNames', jsonb_build_array(
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000151', 'weekdayIndex', 1, 'name', 'Monday', 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000152', 'weekdayIndex', 2, 'name', 'Tuesday', 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000153', 'weekdayIndex', 3, 'name', 'Wednesday', 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000154', 'weekdayIndex', 4, 'name', 'Thursday', 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000155', 'weekdayIndex', 5, 'name', 'Friday', 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000156', 'weekdayIndex', 6, 'name', 'Saturday', 'isActive', TRUE),
-                jsonb_build_object('id', 'a1000000-0000-0000-0000-000000000157', 'weekdayIndex', 0, 'name', 'Sunday', 'isActive', TRUE)
-            )
-        )
+        '2025-01-12 01:00:00+00',
+        'a0000000-0000-0000-0000-000000000003'
+    ),
+    (
+        'a1000000-0000-0000-0000-000000000302',
+        'a1000000-0000-0000-0000-000000000001',
+        'a1000000-0000-0000-0000-000000000031',
+        'a1000000-0000-0000-0000-000000000111',
+        'permanent',
+        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
+        'a0000000-0000-0000-0000-000000000003',
+        '2025-01-12 01:00:00+00',
+        'a0000000-0000-0000-0000-000000000003'
+    ),
+    (
+        'a1000000-0000-0000-0000-000000000303',
+        'a1000000-0000-0000-0000-000000000001',
+        'a1000000-0000-0000-0000-000000000033',
+        'a1000000-0000-0000-0000-000000000111',
+        'permanent',
+        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
+        'a0000000-0000-0000-0000-000000000003',
+        NULL,
+        NULL
+    ),
+    (
+        'a1000000-0000-0000-0000-000000000304',
+        'a1000000-0000-0000-0000-000000000002',
+        'a1000000-0000-0000-0000-000000000032',
+        'a1000000-0000-0000-0000-000000000121',
+        'permanent',
+        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
+        'a0000000-0000-0000-0000-000000000003',
+        NULL,
+        NULL
     )
 ON CONFLICT (id) DO UPDATE SET
     venue_id = EXCLUDED.venue_id,
-    version_number = EXCLUDED.version_number,
-    version_label = EXCLUDED.version_label,
+    staff_id = EXCLUDED.staff_id,
+    default_award_level_id = EXCLUDED.default_award_level_id,
+    employment_basis = EXCLUDED.employment_basis,
+    effective_from = EXCLUDED.effective_from,
     created_by_user_id = EXCLUDED.created_by_user_id,
-    snapshot = EXCLUDED.snapshot;
+    locked_at = EXCLUDED.locked_at,
+    locked_by_user_id = EXCLUDED.locked_by_user_id,
+    updated_at = NOW();
+
+INSERT INTO shift_type_pay_versions (
+    id,
+    venue_id,
+    shift_type_id,
+    override_award_level_id,
+    payroll_label,
+    effective_from,
+    created_by_user_id,
+    locked_at,
+    locked_by_user_id
+)
+VALUES
+    (
+        'a1000000-0000-0000-0000-000000000311',
+        'a1000000-0000-0000-0000-000000000001',
+        'a1000000-0000-0000-0000-000000000131',
+        'a1000000-0000-0000-0000-000000000111',
+        'Bar',
+        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
+        'a0000000-0000-0000-0000-000000000003',
+        '2025-01-12 01:00:00+00',
+        'a0000000-0000-0000-0000-000000000003'
+    ),
+    (
+        'a1000000-0000-0000-0000-000000000312',
+        'a1000000-0000-0000-0000-000000000001',
+        'a1000000-0000-0000-0000-000000000132',
+        'a1000000-0000-0000-0000-000000000111',
+        'Kitchen',
+        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
+        'a0000000-0000-0000-0000-000000000003',
+        '2025-01-12 01:00:00+00',
+        'a0000000-0000-0000-0000-000000000003'
+    ),
+    (
+        'a1000000-0000-0000-0000-000000000313',
+        'a1000000-0000-0000-0000-000000000001',
+        'a1000000-0000-0000-0000-000000000133',
+        'a1000000-0000-0000-0000-000000000113',
+        'Floor',
+        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
+        'a0000000-0000-0000-0000-000000000003',
+        '2025-01-12 01:00:00+00',
+        'a0000000-0000-0000-0000-000000000003'
+    ),
+    (
+        'a1000000-0000-0000-0000-000000000314',
+        'a1000000-0000-0000-0000-000000000002',
+        'a1000000-0000-0000-0000-000000000141',
+        'a1000000-0000-0000-0000-000000000121',
+        'Beta Shift',
+        CURRENT_DATE - ((EXTRACT(ISODOW FROM CURRENT_DATE)::INT) - 1),
+        'a0000000-0000-0000-0000-000000000003',
+        NULL,
+        NULL
+    )
+ON CONFLICT (id) DO UPDATE SET
+    venue_id = EXCLUDED.venue_id,
+    shift_type_id = EXCLUDED.shift_type_id,
+    override_award_level_id = EXCLUDED.override_award_level_id,
+    payroll_label = EXCLUDED.payroll_label,
+    effective_from = EXCLUDED.effective_from,
+    created_by_user_id = EXCLUDED.created_by_user_id,
+    locked_at = EXCLUDED.locked_at,
+    locked_by_user_id = EXCLUDED.locked_by_user_id,
+    updated_at = NOW();
 
 INSERT INTO report_definitions (id, venue_id, slug, name, description, engine, sort_order, is_active)
 VALUES
@@ -740,7 +832,8 @@ INSERT INTO timesheet_entries (
     end_time,
     had_break,
     break_minutes,
-    pay_config_snapshot_id,
+    staff_pay_version_id,
+    shift_type_pay_version_id,
     is_approved,
     approved_at,
     approved_by_user_id
@@ -756,7 +849,8 @@ VALUES
         '16:00',
         FALSE,
         0,
-        'a1000000-0000-0000-0000-000000000181',
+        'a1000000-0000-0000-0000-000000000302',
+        'a1000000-0000-0000-0000-000000000311',
         TRUE,
         '2025-01-12 01:00:00+00',
         'a0000000-0000-0000-0000-000000000001'
@@ -771,7 +865,8 @@ VALUES
         '14:00',
         FALSE,
         0,
-        'a1000000-0000-0000-0000-000000000181',
+        'a1000000-0000-0000-0000-000000000302',
+        'a1000000-0000-0000-0000-000000000312',
         TRUE,
         '2025-01-12 01:05:00+00',
         'a0000000-0000-0000-0000-000000000001'
@@ -786,7 +881,8 @@ VALUES
         '01:00',
         FALSE,
         0,
-        'a1000000-0000-0000-0000-000000000181',
+        'a1000000-0000-0000-0000-000000000302',
+        'a1000000-0000-0000-0000-000000000311',
         TRUE,
         '2025-01-12 01:10:00+00',
         'a0000000-0000-0000-0000-000000000001'
@@ -801,7 +897,8 @@ VALUES
         '11:00',
         FALSE,
         0,
-        'a1000000-0000-0000-0000-000000000181',
+        'a1000000-0000-0000-0000-000000000301',
+        'a1000000-0000-0000-0000-000000000313',
         TRUE,
         '2025-01-12 01:15:00+00',
         'a0000000-0000-0000-0000-000000000003'
@@ -816,6 +913,7 @@ VALUES
         '15:00',
         FALSE,
         0,
+        NULL,
         NULL,
         FALSE,
         NULL,
@@ -832,6 +930,7 @@ VALUES
         FALSE,
         0,
         NULL,
+        NULL,
         FALSE,
         NULL,
         NULL
@@ -845,7 +944,8 @@ ON CONFLICT (id) DO UPDATE SET
     end_time = EXCLUDED.end_time,
     had_break = EXCLUDED.had_break,
     break_minutes = EXCLUDED.break_minutes,
-    pay_config_snapshot_id = EXCLUDED.pay_config_snapshot_id,
+    staff_pay_version_id = EXCLUDED.staff_pay_version_id,
+    shift_type_pay_version_id = EXCLUDED.shift_type_pay_version_id,
     is_approved = EXCLUDED.is_approved,
     approved_at = EXCLUDED.approved_at,
     approved_by_user_id = EXCLUDED.approved_by_user_id;

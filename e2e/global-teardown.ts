@@ -99,7 +99,13 @@ export default function globalTeardown() {
         )
            OR actor_user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%');
 
-        DELETE FROM pay_config_snapshots
+        DELETE FROM staff_pay_versions
+        WHERE venue_id IN (
+            SELECT id FROM venues WHERE name LIKE 'e2e-owner-%'
+        )
+           OR created_by_user_id IN (SELECT id FROM users WHERE email LIKE 'e2e-%');
+
+        DELETE FROM shift_type_pay_versions
         WHERE venue_id IN (
             SELECT id FROM venues WHERE name LIKE 'e2e-owner-%'
         )

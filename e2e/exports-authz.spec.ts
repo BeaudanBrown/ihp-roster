@@ -9,20 +9,22 @@ test.describe('Export authorization and negative cases', () => {
 
     test('manager cannot access exports', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await page.goto('/ExportJobs');
+        await page.goto('/Admin');
 
-        await expect(page).toHaveTitle(/Access denied/i);
-        await expect(page.locator('body')).toContainText('Error 403');
-        await expect(page.locator('body')).toContainText('Access denied');
+        await expect(page.locator('#roster-week-shell')).toBeVisible();
+        await expect(page.getByRole('link', { name: 'admin' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Exports' })).toHaveCount(0);
+        await expect(page.locator('[data-fixed-export-card="true"]')).toHaveCount(0);
     });
 
     test('worker cannot access exports', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
-        await page.goto('/ExportJobs');
+        await page.goto('/Admin');
 
-        await expect(page).toHaveTitle(/Access denied/i);
-        await expect(page.locator('body')).toContainText('Error 403');
-        await expect(page.locator('body')).toContainText('Access denied');
+        await expect(page.locator('#roster-week-shell')).toBeVisible();
+        await expect(page.getByRole('link', { name: 'admin' })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Exports' })).toHaveCount(0);
+        await expect(page.locator('[data-fixed-export-card="true"]')).toHaveCount(0);
     });
 
     test('venue admin sees the fixed export catalog without report-definition management', async ({ page }) => {

@@ -107,9 +107,18 @@ test.describe('HTMX submit regressions', () => {
 
         const approvedEntry = page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]').first();
         await expect(approvedEntry).toBeVisible();
+        const daySection = approvedEntry.locator('xpath=ancestor::*[starts-with(@id, "timesheet-day-section-")]').first();
+        const daySectionId = await daySection.getAttribute('id');
+        expect(daySectionId).not.toBeNull();
+        const updatedDaySection = page.locator(`#${daySectionId}`);
 
-        const initialApprovedCount = await page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]').count();
-        await approvedEntry.getByRole('link', { name: 'Edit' }).click();
+        const editLink = approvedEntry.getByRole('link', { name: 'Edit' });
+        const editHref = await editLink.getAttribute('href');
+        expect(editHref).not.toBeNull();
+        const deletedEntryId = new URL(editHref!, page.url()).searchParams.get('timesheetEntryId');
+        expect(deletedEntryId).not.toBeNull();
+
+        await editLink.click();
         await expect(page.locator('#timesheet-entry-edit-form')).toBeVisible();
 
         await page.evaluate(() => {
@@ -128,7 +137,7 @@ test.describe('HTMX submit regressions', () => {
         await deleteResponsePromise;
 
         await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
-        await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(initialApprovedCount - 1);
+        await expect(updatedDaySection.locator(`.timesheet-entry-card a[href*="${deletedEntryId}"]`)).toHaveCount(0);
         await expect
             .poll(() => page.evaluate(() => (window as Window & { __timesheetDeleteConfirmCalls?: number }).__timesheetDeleteConfirmCalls ?? 0))
             .toBe(1);

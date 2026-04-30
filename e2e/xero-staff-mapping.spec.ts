@@ -15,7 +15,7 @@ function resetXeroStaffMappingFixture() {
             xero_employee_id = NULL,
             xero_employee_name = NULL,
             xero_employee_email = NULL,
-            mapping_status = 'unmapped',
+            mapping_status = 'not_applicable',
             last_verified_at = NULL,
             updated_at = NOW()
         WHERE venue_id = '${alphaVenueId}';
@@ -168,7 +168,12 @@ function resetXeroStaffMappingFixture() {
 async function openXeroSection(page: import('@playwright/test').Page) {
     await gotoWhenReady(page, '/Xero', '#admin-xero-fragment');
     await expect(page.locator('#admin-xero-fragment')).toBeVisible();
-    await expect(page.locator('select[name="xeroEmployeeSelection"]').first()).toBeVisible();
+    const staffMappingsToggle = page.getByRole('button', { name: 'Staff mappings' });
+    if ((await staffMappingsToggle.getAttribute('aria-expanded')) !== 'true') {
+        await staffMappingsToggle.click();
+    }
+    await expect(staffMappingsToggle).toHaveAttribute('aria-expanded', 'true', { timeout: E2E_TIMEOUT.action });
+    await expect(page.locator('select[name="xeroEmployeeSelection"]').first()).toBeVisible({ timeout: E2E_TIMEOUT.action });
 }
 
 test.describe('Xero staff mapping', () => {
