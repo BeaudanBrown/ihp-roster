@@ -91,8 +91,9 @@ psql -h "$PWD/build/db" app -c "\dt"
 - Keep pay/config reproducibility centralized in `Application/Helper/Pay.hs`: venue-admin snapshot creation should serialize the current venue-owned config tables into `pay_config_snapshots`, and payroll-adjacent workflows should bind approved rows/exports to those immutable snapshot versions instead of trusting mutable current config.
 - Payroll report parity now depends on two persisted facts:
   - `timesheet_entries.shift_type_id` is the authoritative shift-type input for pay resolution and report grouping
-  - `pay_level_day_rules` models `shift_type_id + day_name_id -> pay_level_id` overrides, not multiplier tweaks
-- Pay levels now carry the old-system monetary inputs directly (`base_rate`, `evening_penalty`, `after_12_penalty`, `weekday_multiplier`, `saturday_multiplier`, `sunday_multiplier`). Any payroll snapshot/export change that needs wage math should serialize and read those fields through `Application/Helper/Pay.hs` instead of recalculating them ad hoc elsewhere.
+  - effective award level resolution uses `shift_types.override_award_level_id` first, then `staff.default_award_level_id`
+- The current schema does not have `pay_level_day_rules`. Treat day-specific award-level overrides as future work unless a new schema change reintroduces them.
+- Award-level monetary inputs live in `award_level_base_rates` and `award_level_penalty_rates`, scoped by effective award level, employment basis, penalty kind, and operative dates. Any payroll/export change that needs wage math should read those canonical rows instead of recreating parallel monetary fields.
 - `day_names.weekday_index` is treated as real weekday numbering for pay resolution (`EXTRACT(DOW ...)`: Sunday `0` through Saturday `6`). When rendering week-scoped report columns, do not sort/export by raw `weekday_index`; reorder labels by the selected week start date so Monday-first (or venue-specific epoch-first) week views stay stable while the SQL pay engine still resolves overrides correctly.
 - The pay payload now exposes effective shift-type/pay-level identifiers and labels plus real monetary fields (`baseRate`, per-segment `amount`, `totals.totalAmount`) for payroll export/report shaping.
 - Keep reusable overlay helpers in focused view helper modules:

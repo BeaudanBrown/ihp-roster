@@ -82,8 +82,16 @@
   - `slot_names`
   - `day_names`
   - `shift_types`
-  - `pay_levels`
-  - `pay_level_day_rules`
+  - `award_levels`
+  - `award_level_base_rates`
+  - `award_level_penalty_rates`
+  - `staff.default_award_level_id`
+  - `shift_types.override_award_level_id`
+
+The current pay configuration model does not include day-specific pay-level
+override rows. A shift type may override the staff member's default award level
+for every entry using that shift type. Reintroducing day-specific overrides
+would require a new schema and pay-engine change.
 
 ## Data classification requirements
 

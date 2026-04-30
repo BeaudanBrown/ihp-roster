@@ -30,12 +30,18 @@ Canonical pay math is implemented in PostgreSQL functions; application-layer orc
 
 For each calculable segment:
 
-1. Use `pay_level_day_rules` override when present.
-2. Otherwise fall back to `shift_type.default_pay_level`.
+1. Use `shift_types.override_award_level_id` when the entry's shift type has an override.
+2. Otherwise fall back to `staff.default_award_level_id`.
+3. Resolve monetary values from `award_level_base_rates` and `award_level_penalty_rates` for the effective award level and staff employment basis.
+
+The SQL payloads and helper names still use "pay level" in some places for
+legacy compatibility, but the current schema-backed concept is an award level.
+There is no current `pay_level_day_rules` table; day-specific award-level
+overrides are future work if the product needs them again.
 
 ## Historical reproducibility requirements
 
-- Past pay results must remain explainable even after later changes to pay levels, day rules, shift types or venue configuration.
+- Past pay results must remain explainable even after later changes to award levels, rates, shift types or venue configuration.
 - The historical stability model is snapshot/version based:
   - venue admin bulk config edits create a new immutable pay/config version on save
   - approved records and exports store the version reference used
