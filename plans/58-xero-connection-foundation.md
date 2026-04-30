@@ -3,10 +3,15 @@
 Read after `IMPLEMENTATION_PLAN.md`, `plans/57-xero-payroll-integration.md`,
 `AGENTS.md`, `Web/Controller/AGENTS.md`, and `Web/View/AGENTS.md`.
 
+**Current status, 2026-04-30:** the original venue-admin access wording in this
+plan is superseded. Current code and tests restrict Xero connection, sync,
+mapping, preview, and submission surfaces to the current venue owner or a super
+admin. Venue admins should not see or manage Xero controls.
+
 ## Goal
 
-Implement the first local Xero integration slice: a venue admin can open the
-Admin UI, start Xero OAuth, authorize a demo company, return to ihp-roster, and
+Implement the first local Xero integration slice: a venue owner can open the
+Xero UI, start Xero OAuth, authorize a demo company, return to ihp-roster, and
 see the connected Xero tenant recorded for the current venue.
 
 This plan intentionally stops before employee sync, earnings-rate sync, payroll
@@ -33,7 +38,7 @@ http://localhost:8000/XeroOAuthCallback
 
 ## Product Shape
 
-Add a new Xero section to the existing `/Admin` configuration accordion.
+Add a Xero management surface for venue owners and super admins.
 
 For an unconnected venue, show:
 
@@ -163,7 +168,7 @@ cleaner. Minimal actions:
 - require authenticated current user
 - require current venue
 - require completed profile
-- require venue admin role
+- require venue owner or super-admin Xero access
 - create an unconsumed OAuth state row for the current venue/user
 - redirect to Xero's authorization URL
 
@@ -179,7 +184,7 @@ cleaner. Minimal actions:
 - mark the OAuth state consumed
 - upsert or supersede the venue connection
 - record audit events
-- redirect back to `/Admin` with success or error flash
+- redirect back to `/Xero` with success or error flash
 
 If Xero returns more than one connected tenant, the first implementation may
 store the first tenant and leave explicit tenant picker UI for the next slice,
@@ -187,11 +192,11 @@ but the code should make that behavior obvious and easy to replace.
 
 `DisconnectXeroConnectionAction` should:
 
-- require venue admin role
+- require venue owner or super-admin Xero access
 - mark the active connection `disconnected`
 - clear or retain encrypted tokens according to the chosen retention policy
 - record disconnected actor/time and audit
-- redirect back to `/Admin`
+- redirect back to `/Xero`
 
 ## Audit
 
@@ -210,12 +215,12 @@ actor, source channel, tenant id/name, and failure class.
 Never include raw access tokens, refresh tokens, client secret, or encryption key
 in audit payloads or logs.
 
-## Admin UI Integration
+## Xero UI Integration
 
-Extend `Web/View/Admin/Index.hs` and `Web/Controller/Admin.hs` so the Admin page
-loads the current venue's active Xero connection and renders the Xero section.
+Extend the Xero/admin controller and views so the owner-only Xero page loads the
+current venue's active Xero connection and renders the Xero section.
 
-Keep the section visually consistent with existing config accordion sections.
+Keep the section visually consistent with existing admin configuration sections.
 Use normal form buttons and redirects for connect/disconnect.
 
 Suggested accordion placement: after `Exports`, because Xero builds on payroll
@@ -248,15 +253,15 @@ Manual verification:
 1. Confirm Xero env vars are present without printing values.
 2. Ensure the Xero developer app has redirect URI
    `http://localhost:8000/XeroOAuthCallback`.
-3. Run `bash ./bin/in-env seed-dev app` if a deterministic admin login is
+3. Run `bash ./bin/in-env seed-dev app` if a deterministic owner login is
    needed.
-4. Log in as a venue admin.
-5. Open `/Admin`.
-6. Expand `Xero`.
+4. Log in as a venue owner.
+5. Open `/Xero`.
+6. Confirm the Xero management page renders.
 7. Click `Connect Xero`.
 8. Authorize the demo company in Xero.
 9. Return to ihp-roster.
-10. Confirm `/Admin` shows connected tenant details.
+10. Confirm `/Xero` shows connected tenant details.
 11. Disconnect and confirm the status changes without hard deleting history.
 
 ## Test Coverage
@@ -271,7 +276,7 @@ Add focused controller/unit coverage for:
 - successful callback stores encrypted token material and tenant metadata
 - raw token strings are not stored in plaintext
 - disconnect marks connection status and actor metadata
-- non-admin users cannot start, callback, or disconnect for a venue
+- non-owner venue roles cannot start, callback, or disconnect for a venue
 
 Use a mocked Xero client boundary for callback tests. Do not depend on live Xero
 API calls in automated tests.
@@ -280,8 +285,8 @@ API calls in automated tests.
 
 This slice is complete when:
 
-1. `/Admin` contains a Xero section for venue admins.
-2. A local admin can start OAuth from the Xero section.
+1. `/Xero` contains a Xero section for venue owners and super admins.
+2. A local owner can start OAuth from the Xero section.
 3. The app validates OAuth state on callback.
 4. The app exchanges the callback code, fetches connected tenants, and stores the
    selected Xero tenant for the current venue.
