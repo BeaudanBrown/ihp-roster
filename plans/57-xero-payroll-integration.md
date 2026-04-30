@@ -50,6 +50,10 @@ The initial target is Xero Payroll AU:
 - `POST /Timesheets` to create draft timesheets
 - `POST /Timesheets/{TimesheetID}` to update draft timesheets when safe
 
+Detailed endpoint and implementation notes for the draft-timesheet lane live in
+`plans/63-xero-timesheet-submission.md`. Use that file as the implementation
+contract for phases 5 and 6.
+
 Required Xero scopes for the first useful version are expected to include:
 
 - `offline_access`
@@ -260,7 +264,7 @@ side effect, not just a downloadable generated file.
 
 ## Current Implementation Status
 
-As of 2026-04-28, the implementation has moved beyond the original connection
+As of 2026-04-30, the implementation has moved beyond the original connection
 foundation text:
 
 ### Implemented
@@ -290,8 +294,17 @@ foundation text:
   `xero_earnings_rate_mappings`.
 - Venue payroll-calendar selection exists through
   `xero_payroll_calendar_selections`.
+- Managed pay item requirements are derived from venue-used
+  award-level/employment-basis scopes, persisted in
+  `xero_pay_item_requirement_records`, and shown in the Admin Xero section.
+- Live `POST /PayItems` create support exists. It creates one missing managed
+  earnings rate at a time, preloads existing Xero earnings rates before each
+  create, treats Xero semantic validation responses as failures even when the
+  HTTP status is 200, and pulls `GET /PayItems` after submission to verify the
+  intended pay items are actually present.
+- Created managed pay items are linked into `xero_earnings_rate_mappings`.
 - The Admin Xero section shows a ready-to-submit checklist covering connection,
-  reference sync, staff mappings, earnings mappings, and payroll calendar
+  reference sync, staff mappings, pay item account code, and payroll calendar
   selection.
 - The staff mapping UI is hidden for venues without a linked Xero connection and
   only becomes actionable after employee reference data has been synced.
@@ -303,13 +316,10 @@ foundation text:
 
 ### Not Yet Implemented
 
-- Deterministic Xero pay item requirements are now derived from venue-used
-  award-level/employment-basis scopes, persisted in
-  `xero_pay_item_requirement_records`, and shown in the Admin Xero section. The
-  preview uses namespaced `RATEPERUNIT` requirements and stores synced Xero
-  earnings-rate name matches where present.
-- No live `POST /PayItems` write path, Xero pay item update path, or automated
-  mapping from created pay items exists yet.
+- No Xero managed pay item update path exists yet.
+- The current Admin Xero readiness checklist is still too coarse for
+  draft-timesheet submission. It needs explicit readiness/blocker diagnostics for
+  verified earnings/pay item mappings and active managed pay item requirements.
 - No Xero-shaped timesheet preview exists yet.
 - No draft Xero timesheet submission, submission history, idempotency-key
   persistence, duplicate timesheet detection, or correction workflow exists yet.
@@ -389,9 +399,7 @@ Remaining optional mapping/config screens:
 
 ### Phase 4 - Pay item provisioning
 
-Status: in progress. The deterministic requirement derivation, durable
-requirement record sync, and admin review preview are implemented; live Xero
-create/update actions remain.
+Status: create path implemented; update path remains.
 
 Build the admin-reviewed pay item provisioning lane before timesheet preview:
 
@@ -416,8 +424,19 @@ Completed slices:
   live Xero writes
 - durable `xero_pay_item_requirement_records` sync for `proposed`, `matched`,
   `ignored`, `stale`, and `rate_changed` requirement states
+- live `POST /PayItems` create action with one-request-per-pay-item submission,
+  semantic error detection, post-create pull verification, and mapping upsert for
+  created earnings rates
+
+Remaining:
+
+- managed pay item update flow for `rate_changed` records
+- richer readiness diagnostics for unmapped/unverified pay item requirements
 
 ### Phase 5 - Xero timesheet preview
+
+Status: not implemented. The implementation contract is expanded in
+`plans/63-xero-timesheet-submission.md`.
 
 Build a Xero-shaped preview using the existing approved-timesheet and pay-result
 pipeline:
@@ -435,6 +454,9 @@ pipeline:
 The preview should be deterministic and testable without hitting Xero.
 
 ### Phase 6 - Draft submission
+
+Status: not implemented. The implementation contract is expanded in
+`plans/63-xero-timesheet-submission.md`.
 
 Submit one Xero timesheet per employee/pay period:
 
@@ -481,13 +503,14 @@ Block submission when:
 - the venue has no active Xero connection
 - the token cannot be refreshed
 - the selected Xero tenant is disconnected
-- the selected week does not match the configured payroll calendar/pay period
+- the selected IHP period does not exactly match the configured Xero payroll
+  calendar's expected pay period
 - any included staff row lacks a verified Xero employee mapping
 - any local earning bucket lacks a verified Xero earnings-rate mapping
-- approved entries span multiple incompatible pay config snapshot versions unless
-  the user explicitly accepts a mixed-snapshot submission
+- approved entries span multiple pay config snapshot versions
 - a source entry has been edited, unapproved, or deleted since preview generation
-- Xero already has a non-draft timesheet for the employee/pay period
+- Xero already has any timesheet for the employee/pay period until explicit
+  update support exists
 
 ## Security And Compliance
 
@@ -546,8 +569,9 @@ Manual/demo-company verification:
   wants IHP to create/update employees.
 - Whether Xero AU accepts rate-per-unit loading earnings rates on timesheets in
   the target tenant exactly as the docs imply.
-- Whether mixed pay-config snapshot weeks should be blocked or allowed with an
-  explicit warning.
+- Which Xero payroll calendar types should be covered by automated tests first.
+  The product direction is to derive the upload period from the selected Xero
+  payroll calendar, not to hard-code weekly periods.
 - Whether leave should be exported to Xero in the same lane or kept separate
   until timesheet submission is stable.
 
