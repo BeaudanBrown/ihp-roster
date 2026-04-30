@@ -41,3 +41,7 @@ Xero payroll calendar and still uses one pay config snapshot.
 **2026-04-30T03:05:53Z**
 
 2026-04-30: Submission should start only after preview persistence exists. Use the refactored OpenAPI contract/mock harness for concrete HTTP tests; rerun readiness and duplicate checks immediately before POST /Timesheets; persist request/response/idempotency/source-entry audit state. Child tasks: ir-tsvi, ir-yikx.
+
+**2026-04-30T04:46:03Z**
+
+2026-04-30: UI product decision for first slice: put preview/submission inside the existing Xero page; venue-owner only; preview table is one row per employee; show latest run only; show submission errors and a light retry affordance, but do not build full retry UX or a historical run list yet. Child task: ir-uxn9.

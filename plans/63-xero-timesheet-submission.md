@@ -538,7 +538,8 @@ Minimum preview tests:
 7. Build preview payload generation.
 8. Persist preview runs.
 9. Build create-only draft submission.
-10. Add correction/update handling after draft creation is proven.
+10. Add the first Xero page preview/submission UI.
+11. Add correction/update handling after draft creation is proven.
 
 ## Draft Submission Service
 
@@ -546,6 +547,8 @@ Track create-only submission under `ir-ujwc` and its child tasks:
 
 - `ir-tsvi` - Implement Xero draft timesheet submission service.
 - `ir-yikx` - Cover Xero submission with strict contract mock tests.
+- `ir-uxn9` - Add Xero timesheet preview and submit UI on the existing Xero
+  page.
 
 The submission service should consume the same preview payload shape produced by
 `ir-lgy7`; do not rebuild a second payload path in the controller. A reasonable
@@ -595,6 +598,47 @@ Minimum submission tests:
 - partial success marks the run `partially_failed`
 - remote duplicate blocks create before `POST /Timesheets`
 - retry reuses the persisted idempotency key for the same submission row
+
+## First Xero Page UI Slice
+
+Build the first user-facing draft-timesheet workflow inside the existing Xero
+page, not as a separate page. This slice is for venue owners only. Do not expose
+draft-timesheet preview or submission controls to ordinary venue admins or
+managers.
+
+Initial UI scope:
+
+- Use the selected verified Xero payroll calendar to derive the current
+  submission period.
+- Show readiness blockers and warnings before preview/submission.
+- Provide a preview action that persists the latest preview run using the same
+  `xero_submission_runs.preview_payload_json`,
+  `readiness_snapshot_json`, and `xero_duplicate_check_json` shape used by the
+  submission service.
+- Render the preview as one row per Xero employee. Keep the first version dense:
+  employee, period, total units, earnings-rate/line summary, source-entry count,
+  and any blocker/error state are enough.
+- Show only the latest run for now. Do not build a historical run list in this
+  slice.
+- Provide a submit action that calls the existing create-only submission service.
+  It must still rerun readiness and duplicate detection immediately before
+  write.
+- Show per-employee submission status and errors from
+  `xero_timesheet_submissions`.
+- A retry button or affordance can be shown for failed rows, but full retry UX
+  polish is not required in this slice.
+- Do not approve Xero timesheets, create pay runs, implement update/correction
+  support, or build a separate preview/submission UI route.
+
+Minimum UI tests:
+
+- venue owners can see the panel on the existing Xero page
+- non-owner venue roles cannot see or invoke preview/submission actions
+- preview action persists a latest preview run and renders one row per employee
+- submit action calls the existing submission service and renders latest
+  run/submission status
+- readiness blockers and per-employee submission errors are visible
+- historical runs are not rendered as a list in this first slice
 
 ## Tests
 
