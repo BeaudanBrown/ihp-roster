@@ -2,6 +2,7 @@ module Test.SchemaSpec where
 
 import Application.Helper.Controller
 import Application.Helper.Export
+import Application.Helper.Export.Render (csvCell)
 import Application.Helper.View (appendQueryParams, formatDateDisplay,
                                 isTrialStaff, linkedActiveStaffForRosterPanel,
                                 quarterHourTimeOptions,
@@ -481,6 +482,19 @@ tests = describe "Schema" do
         it "appends params to paths that already have query params" do
             appendQueryParams "/EditTimesheetEntry?timesheetEntryId=b72efdcc-5a11-4697-a0b1-b85f8d112c1f" [("weekOffset", "60")]
                 `shouldBe` "/EditTimesheetEntry?timesheetEntryId=b72efdcc-5a11-4697-a0b1-b85f8d112c1f&weekOffset=60"
+
+        it "URL-encodes arbitrary query keys and values while omitting empty values" do
+            appendQueryParams "/Reports?existing=true" [("staff name", "Ava & Bea"), ("token", "a=b%c"), ("empty", "")]
+                `shouldBe` "/Reports?existing=true&staff%20name=Ava%20%26%20Bea&token=a%3Db%25c"
+
+    describe "CSV rendering helpers" do
+        it "neutralizes spreadsheet formulas while preserving CSV escaping" do
+            csvCell "=SUM(1,1)" `shouldBe` "\"'=SUM(1,1)\""
+            csvCell " +cmd" `shouldBe` "' +cmd"
+            csvCell "-10" `shouldBe` "'-10"
+            csvCell "@user" `shouldBe` "'@user"
+            csvCell "\t=cmd" `shouldBe` "\"'\t=cmd\""
+            csvCell "hello, \"world\"" `shouldBe` "\"hello, \"\"world\"\"\""
 
     it "all schema column names round-trip through IHP NameSupport" do
         -- Every column name must survive columnNameToFieldName and

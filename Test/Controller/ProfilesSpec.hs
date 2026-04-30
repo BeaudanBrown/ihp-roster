@@ -7,6 +7,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
                                                  encodeShiftPreferenceKey)
 import Config
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -234,6 +235,30 @@ tests = beforeAll testContext do
                 length memberships `shouldBe` 1
                 length rosterGroups `shouldBe` 1
                 refreshedUser.isProfileCompleted `shouldBe` True
+
+        it "normalizes profile text and rejects oversized names before saving" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Validation Venue"
+                user <- createUserRecord "profile-validation@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue user "worker"
+                let oversizedName = Text.replicate 81 "A"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams UpdateProfileAction
+                            [ ("firstName", cs oversizedName)
+                            , ("lastName", "  Smith  ")
+                            , ("preferredName", "   ")
+                            , ("phone", "  0400000000  ")
+                            , ("emergencyContactName", "Casey Smith")
+                            , ("emergencyContactPhone", "0411111111")
+                            , ("idealShiftsPerWeek", "3")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "is longer than 80 characters"
+                staffExists <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
+                staffExists `shouldBe` False
 
         it "returns an HTMX profile fragment update instead of redirecting" $ withContext do
             withCleanDb do

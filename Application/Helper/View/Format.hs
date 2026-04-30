@@ -7,9 +7,11 @@ module Application.Helper.View.Format
     ) where
 
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as TextEncoding
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import IHP.ViewPrelude
+import qualified Network.HTTP.Types.URI as URI
 
 formatDateDisplay :: Day -> Text
 formatDateDisplay day = Text.pack (formatTime defaultTimeLocale "%d/%m/%Y" day)
@@ -32,5 +34,11 @@ appendQueryParams basePath params
     | otherwise = basePath <> "?" <> renderedParams
     where
         nonEmptyParams = filter (not . Text.null . snd) params
-        renderedParams = Text.intercalate "&" (map renderParam nonEmptyParams)
-        renderParam (key, value) = key <> "=" <> value
+        renderedParams =
+            TextEncoding.decodeUtf8
+                ( URI.renderQuery
+                    False
+                    [ (TextEncoding.encodeUtf8 key, Just (TextEncoding.encodeUtf8 value))
+                    | (key, value) <- nonEmptyParams
+                    ]
+                )

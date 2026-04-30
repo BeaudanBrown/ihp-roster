@@ -49,7 +49,8 @@ CREATE TABLE venues (
     closed_by_user_id UUID DEFAULT NULL,
     retention_until TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120))
 );
 CREATE TABLE users (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -66,6 +67,7 @@ CREATE TABLE users (
     deactivation_reason TEXT DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    CHECK ((char_length(btrim(email)) > 0) AND (char_length(email) <= 254)),
     CHECK ((user_role = 'staff') OR (user_role = 'manager') OR (user_role = 'admin'))
 );
 ALTER TABLE venues
@@ -97,7 +99,8 @@ CREATE TABLE passkeys (
     last_used_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(credential_id),
-    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120))
 );
 CREATE TABLE venue_memberships (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -131,7 +134,8 @@ CREATE TABLE venue_invitations (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE CASCADE,
     FOREIGN KEY (invited_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
-    FOREIGN KEY (accepted_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+    FOREIGN KEY (accepted_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
+    CHECK ((char_length(btrim(email)) > 0) AND (char_length(email) <= 254))
 );
 CREATE TABLE venue_onboarding_invitations (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -147,7 +151,8 @@ CREATE TABLE venue_onboarding_invitations (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (invited_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
-    FOREIGN KEY (accepted_by_user_id) REFERENCES users (id) ON DELETE SET NULL
+    FOREIGN KEY (accepted_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
+    CHECK ((char_length(btrim(email)) > 0) AND (char_length(email) <= 254))
 );
 
 -- schema-nav: staff-profiles
@@ -173,6 +178,12 @@ CREATE TABLE staff (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((char_length(btrim(first_name)) > 0) AND (char_length(first_name) <= 80)),
+    CHECK ((char_length(btrim(last_name)) > 0) AND (char_length(last_name) <= 80)),
+    CHECK (preferred_name IS NULL OR ((char_length(btrim(preferred_name)) > 0) AND (char_length(preferred_name) <= 80))),
+    CHECK ((char_length(btrim(phone)) > 0) AND (char_length(phone) <= 80)),
+    CHECK ((char_length(btrim(emergency_contact_name)) > 0) AND (char_length(emergency_contact_name) <= 120)),
+    CHECK ((char_length(btrim(emergency_contact_phone)) > 0) AND (char_length(emergency_contact_phone) <= 80)),
     CHECK ((ideal_shifts_per_week >= 0) AND (ideal_shifts_per_week <= 7))
 );
 
@@ -190,7 +201,8 @@ CREATE TABLE shift_types (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120))
 );
 
 -- schema-nav: reporting-config
@@ -240,7 +252,8 @@ CREATE TABLE roster_groups (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120))
 );
 CREATE TABLE staff_roster_groups (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -269,7 +282,8 @@ CREATE TABLE slot_names (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (roster_group_id) REFERENCES roster_groups (id) ON DELETE RESTRICT,
-    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120))
 );
 CREATE TABLE day_names (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -684,6 +698,7 @@ CREATE TABLE leave_requests (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (notes IS NULL OR char_length(notes) <= 1000),
     CHECK (end_date > start_date)
 );
 CREATE TABLE leave_request_events (

@@ -49,12 +49,15 @@ instance Controller UsersController where
                 invitationOrNothing <- fetchInvitation invitationId
                 case invitationOrNothing of
                     Just invitation | invitationIsActive now invitation -> do
-                        let passwordConfirmation = param @Text "passwordConfirmation"
+                        let passwordConfirmation = normalizeText (paramOrDefault @Text "" "passwordConfirmation")
                         let user = newRecord @User |> set #email invitation.email
                         user
+                            |> requireParam #passwordHash "passwordHash" "Password is required"
                             |> fill @'["passwordHash"]
+                            |> normalizeTextField #passwordHash
                             |> validateField #passwordHash (isEqual passwordConfirmation |> withCustomErrorMessage "Passwords don't match")
                             |> validateField #passwordHash nonEmpty
+                            |> validateField #passwordHash (boundedText 256)
                             |> validateField #email isEmail
                             |> validateIsUnique #email
                             >>= ifValid \case
@@ -155,17 +158,20 @@ instance Controller UsersController where
                 invitationOrNothing <- fetchVenueOnboardingInvitation invitationId
                 case invitationOrNothing of
                     Just invitation | venueOnboardingInvitationIsActive now invitation -> do
-                        let passwordConfirmation = param @Text "passwordConfirmation"
-                        let venueTimezone = paramOrDefault defaultVenueBootstrapTimezone "timezone"
+                        let passwordConfirmation = normalizeText (paramOrDefault @Text "" "passwordConfirmation")
+                        let venueTimezone = normalizeText (paramOrDefault defaultVenueBootstrapTimezone "timezone")
                         let venueRosterWeekStartsOn = fromMaybe defaultRosterWeekStartsOn (paramOrNothing @Int "rosterWeekStartsOn")
                         let user = newRecord @User |> set #email invitation.email
                         let venue =
                                 newRecord @Venue
                                     |> set #status (unsafeEnumFromText @VenueStatusEnum "active")
                         user
+                            |> requireParam #passwordHash "passwordHash" "Password is required"
                             |> fill @'["passwordHash"]
+                            |> normalizeTextField #passwordHash
                             |> validateField #passwordHash (isEqual passwordConfirmation |> withCustomErrorMessage "Passwords don't match")
                             |> validateField #passwordHash nonEmpty
+                            |> validateField #passwordHash (boundedText 256)
                             |> validateField #email isEmail
                             |> validateIsUnique #email
                             >>= ifValid \case
@@ -179,7 +185,11 @@ instance Controller UsersController where
                                         , venueRosterWeekStartsOn
                                         }
                                 Right user -> do
-                                    let venueWithName = venue |> fill @'["name"] |> validateField #name nonEmpty
+                                    let venueWithName =
+                                            venue
+                                                |> requireParam #name "name" "Venue name is required"
+                                                |> fill @'["name"]
+                                                |> requiredBoundedTextField #name 120
                                     case venueWithName.meta.annotations of
                                         [] | venueRosterWeekStartsOn `elem` validRosterWeekStartDays && not (isEmpty venueTimezone) -> do
                                             hashed <- hashPassword user.passwordHash

@@ -9,6 +9,7 @@ import Application.Helper.WeekBoundaries (orderedWeekdayIndexes,
                                           weekdayIndexLabel)
 import qualified Data.Text as Text
 import Data.Time.Clock (getCurrentTime)
+import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
@@ -152,8 +153,8 @@ decodeShiftPreferenceKey :: Text -> Maybe ShiftPreferenceSelection
 decodeShiftPreferenceKey rawKey =
     case Text.splitOn "|" rawKey of
         [rosterGroupIdText, weekdayIndexText, slotNameIdText] -> do
-            let rosterGroupId = textToId rosterGroupIdText :: Id RosterGroup
-            let slotNameId = textToId slotNameIdText :: Id SlotName
+            rosterGroupId <- Id <$> UUID.fromText rosterGroupIdText
+            slotNameId <- Id <$> UUID.fromText slotNameIdText
             weekdayIndex <- readMaybe (cs weekdayIndexText)
             pure ShiftPreferenceSelection { rosterGroupId, weekdayIndex, slotNameId }
         _ -> Nothing

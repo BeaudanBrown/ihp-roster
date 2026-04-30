@@ -67,14 +67,14 @@ instance Controller StaffController where
         ensureRecordInCurrentVenue staff.venueId
         let originalStaff = staff
         maybeLinkedUserEmail <- fetchStaffLinkedUserEmail staff
-        let submittedShiftPreferenceKeys = nub (paramList @Text "shiftPreferenceKeys")
+        let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let weekOffset = paramOrDefault @Int 0 "weekOffset"
         let maybeRosterGroupId = paramOrNothing "rosterGroupId"
         venueConfig <- fetchVenueConfig
         rosterGroups <- fetchCurrentVenueRosterGroups
         awardLevels <- fetchAwardLevelsForStaffForm
         awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
-        let submittedRosterGroupIds = nub (paramList @(Id RosterGroup) "rosterGroupIds")
+        let submittedRosterGroupIds = nub (mapMaybe parseRosterGroupIdText (paramTexts "rosterGroupIds"))
         maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
         let canManageStaffPay = hasRole VenueAdminRole
         maybeSubmittedDefaultAwardLevelId <- parseSubmittedDefaultAwardLevelId canManageStaffPay
@@ -144,15 +144,26 @@ instance Controller StaffController where
 buildStaff :: (?request :: Request) => Bool -> Maybe (Maybe (Id AwardLevel)) -> Staff -> Staff
 buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId staff =
     staff
+        |> requireParam #firstName "firstName" "First name is required"
+        |> requireParam #lastName "lastName" "Last name is required"
+        |> requireParam #phone "phone" "Phone is required"
+        |> requireParam #emergencyContactName "emergencyContactName" "Emergency contact name is required"
+        |> requireParam #emergencyContactPhone "emergencyContactPhone" "Emergency contact phone is required"
+        |> requireParam #idealShiftsPerWeek "idealShiftsPerWeek" "Ideal shifts per week is required"
         |> fill @'["firstName", "lastName", "preferredName", "phone", "emergencyContactName", "emergencyContactPhone", "idealShiftsPerWeek", "isActive"]
+        |> normalizeStaffTextFields
         |> applyStaffPayFields
-        |> validateField #firstName nonEmpty
-        |> validateField #lastName nonEmpty
-        |> validateField #phone nonEmpty
-        |> validateField #emergencyContactName nonEmpty
-        |> validateField #emergencyContactPhone nonEmpty
+        |> requiredBoundedTextField #firstName 80
+        |> requiredBoundedTextField #lastName 80
+        |> validateField #preferredName (validateMaybe (boundedText 80))
+        |> requiredBoundedTextField #phone 80
+        |> requiredBoundedTextField #emergencyContactName 120
+        |> requiredBoundedTextField #emergencyContactPhone 80
         |> validateField #idealShiftsPerWeek (isInRange (0, 7))
     where
+        normalizeStaffTextFields =
+            normalizeMaybeTextField #preferredName
+
         applyStaffPayFields currentStaff
             | not canManageStaffPay = currentStaff
             | otherwise =
@@ -205,14 +216,23 @@ fetchStaffLinkedUserEmail staff =
 
 parseStaffRosterGroupIds :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe [Id RosterGroup])
 parseStaffRosterGroupIds = do
-    let submittedRosterGroupIds = nub (paramList @(Id RosterGroup) "rosterGroupIds")
+    let submittedRosterGroupTexts = nub (paramTexts "rosterGroupIds")
+    let submittedRosterGroupIds = mapMaybe parseRosterGroupIdText submittedRosterGroupTexts
     currentVenueRosterGroupIds <- fetchCurrentVenueRosterGroupIds
     if null submittedRosterGroupIds
         then do
             setErrorMessage "Choose at least one roster group for this staff member."
             pure Nothing
+        else if length submittedRosterGroupIds /= length submittedRosterGroupTexts
+            then do
+                setErrorMessage "Choose roster groups from the current venue."
+                pure Nothing
         else if all (`elem` currentVenueRosterGroupIds) submittedRosterGroupIds
             then pure (Just submittedRosterGroupIds)
             else do
                 setErrorMessage "Choose roster groups from the current venue."
                 pure Nothing
+
+parseRosterGroupIdText :: Text -> Maybe (Id RosterGroup)
+parseRosterGroupIdText value =
+    Id <$> parseUUIDText value

@@ -130,6 +130,29 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` ">Day<"
                 response `responseBodyShouldNotContain` "07/01/2025</div>"
 
+        it "rejects malformed required timesheet ids without creating an entry" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Required Venue"
+                user <- createUserRecord "timesheet-required@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "manager"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateTimesheetEntryAction
+                            [ ("weekOffset", "0")
+                            , ("staffId", "not-a-uuid")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            , ("workedOn", "2025-01-07")
+                            , ("startTime", "09:00")
+                            , ("endTime", "17:00")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                entryExists <- query @TimesheetEntry |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
+                entryExists `shouldBe` False
+
         it "renders the delete action in the HTMX timesheet edit modal footer with a single confirm source" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Venue"

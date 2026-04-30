@@ -3,6 +3,7 @@ module Application.Helper.Controller
     , module Application.Helper.ControllerContext
     , module Application.Helper.ControllerAccess
     , module Application.Helper.ControllerSupport
+    , module Application.Helper.Controller.Input
     , module Application.Helper.TimeRules
     , module Application.Helper.WeekBoundaries
     , module Application.Helper.Htmx
@@ -10,6 +11,7 @@ module Application.Helper.Controller
     ) where
 
 import Application.Helper.Audit
+import Application.Helper.Controller.Input
 import Application.Helper.ControllerAccess
 import Application.Helper.ControllerContext
 import Application.Helper.ControllerSupport

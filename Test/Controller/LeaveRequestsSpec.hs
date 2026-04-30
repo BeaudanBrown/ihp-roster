@@ -198,6 +198,25 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
 
+        it "rejects missing required leave dates without creating a row" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Leave Required Venue"
+                user <- createUserRecord "leave-required@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createStaffRecord venue (Just user) "Liv" "Required"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateLeaveRequestAction
+                            [ ("endDate", "2025-01-10")
+                            , ("notes", "  <script>alert(1)</script>  ")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Please choose an unavailable from date"
+                leaveExists <- query @LeaveRequest |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
+                leaveExists `shouldBe` False
+
         it "renders explicit delete forms instead of js-delete links for authenticated leave pages" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"

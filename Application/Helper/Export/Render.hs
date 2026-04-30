@@ -334,6 +334,20 @@ formatUtc timestamp = Text.pack (formatTime defaultTimeLocale "%Y-%m-%d %H:%M:%S
 
 csvCell :: Text -> Text
 csvCell value
-    | Text.any (`elem` [',', '"', '\n', '\r']) value =
-        "\"" <> Text.replace "\"" "\"\"" value <> "\""
-    | otherwise = value
+    | Text.any (`elem` [',', '"', '\n', '\r', '\t']) neutralizedValue =
+        "\"" <> Text.replace "\"" "\"\"" neutralizedValue <> "\""
+    | otherwise = neutralizedValue
+    where
+        neutralizedValue = neutralizeSpreadsheetFormula value
+
+neutralizeSpreadsheetFormula :: Text -> Text
+neutralizeSpreadsheetFormula value
+    | Text.isPrefixOf "\t" value || Text.isPrefixOf "\r" value || Text.isPrefixOf "\n" value = "'" <> value
+    | otherwise =
+        case Text.uncons (Text.dropWhile isSpreadsheetFormulaWhitespace value) of
+            Just (firstChar, _) | firstChar `elem` ['=', '+', '-', '@'] -> "'" <> value
+            _ -> value
+
+isSpreadsheetFormulaWhitespace :: Char -> Bool
+isSpreadsheetFormulaWhitespace char =
+    char == ' ' || char == '\t' || char == '\r' || char == '\n'

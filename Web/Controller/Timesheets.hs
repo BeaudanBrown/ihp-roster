@@ -663,6 +663,9 @@ resetApprovalOnEdit wasApproved entry
 buildTimesheetEntry :: (?context :: ControllerContext, ?request :: Request) => TimesheetEntry -> TimesheetEntry
 buildTimesheetEntry entry =
     entry
+        |> requireParam #staffId "staffId" "Please choose a staff member"
+        |> requireParam #workedOn "workedOn" "Please choose a day"
+        |> requireParam #shiftTypeId "shiftTypeId" "Please choose a shift type"
         |> fill @'["staffId", "workedOn"]
         |> fill @'["shiftTypeId"]
         |> parseAndSetStartTime

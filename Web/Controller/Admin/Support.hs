@@ -371,6 +371,10 @@ parseRequiredName paramName errorMessage =
             then do
                 setErrorMessage errorMessage
                 pure Nothing
+            else if Text.length value > 120
+                then do
+                    setErrorMessage "Name must be 120 characters or fewer."
+                    pure Nothing
             else pure (Just value)
 
 parseRequiredEmail :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Text -> IO (Maybe Text)
@@ -380,14 +384,19 @@ parseRequiredEmail paramName emptyMessage =
             setErrorMessage emptyMessage
             pure Nothing
         value ->
-            case isEmail value of
-                Success -> pure (Just value)
-                Failure _ -> do
-                    setErrorMessage "Enter a valid email address."
+            if Text.length value > 254
+                then do
+                    setErrorMessage "Email must be 254 characters or fewer."
                     pure Nothing
-                FailureHtml _ -> do
-                    setErrorMessage "Enter a valid email address."
-                    pure Nothing
+                else
+                    case isEmail value of
+                        Success -> pure (Just value)
+                        Failure _ -> do
+                            setErrorMessage "Enter a valid email address."
+                            pure Nothing
+                        FailureHtml _ -> do
+                            setErrorMessage "Enter a valid email address."
+                            pure Nothing
 
 parseIsActiveParam :: (?context :: ControllerContext, ?request :: Request) => Bool
 parseIsActiveParam = paramOrDefault "true" "isActive" == ("true" :: Text)

@@ -100,6 +100,33 @@ tests = beforeAll testContext do
                     |> fetch
                 sort (map (.rosterGroupId) assignments) `shouldBe` sort [unpackId frontOfHouse.id, unpackId backOfHouse.id]
 
+        it "rejects malformed roster group and shift preference ids without throwing" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "staff-malformed-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Alpha" "Crew"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateStaffAction staff.id)
+                            [ ("firstName", "Alpha")
+                            , ("lastName", "Crew")
+                            , ("phone", "0400000000")
+                            , ("emergencyContactName", "Jordan Crew")
+                            , ("emergencyContactPhone", "0411111111")
+                            , ("idealShiftsPerWeek", "4")
+                            , ("isActive", "on")
+                            , ("weekOffset", "0")
+                            , ("rosterGroupIds", "not-a-uuid")
+                            , ("shiftPreferenceKeys", "bad|key|not-a-uuid")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                preferenceExists <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetchExists
+                preferenceExists `shouldBe` False
+
         it "allows venue admins to update staff employment basis and default pay level" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

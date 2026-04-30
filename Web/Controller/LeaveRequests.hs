@@ -452,7 +452,11 @@ ensureLeaveDeleteAllowed leaveRequest =
 buildLeaveRequest :: (?context :: ControllerContext, ?request :: Request) => LeaveRequest -> LeaveRequest
 buildLeaveRequest leaveRequest =
     leaveRequest
+        |> requireParam #startDate "startDate" "Please choose an unavailable from date"
+        |> requireParam #endDate "endDate" "Please choose an available again date"
         |> fill @'["startDate", "endDate", "notes"]
+        |> normalizeMaybeTextField #notes
+        |> validateField #notes (validateMaybe (boundedText 1000))
         |> validateField #endDate (validateEndDate leaveRequest.startDate)
     where
         validateEndDate startDate endDate =

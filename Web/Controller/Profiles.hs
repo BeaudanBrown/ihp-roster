@@ -41,7 +41,7 @@ instance Controller ProfilesController where
 
     action UpdateProfileAction = do
         maybeExistingStaff <- fetchCurrentUserStaff
-        let submittedShiftPreferenceKeys = nub (paramList @Text "shiftPreferenceKeys")
+        let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
         let currentUserEmail = currentUser.email
         let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
@@ -51,12 +51,20 @@ instance Controller ProfilesController where
         leaveRequests <- fetchCurrentUserLeaveRequests
         leaveRequestForm <- buildDefaultLeaveRequest
         staff
+            |> requireParam #firstName "firstName" "First name is required"
+            |> requireParam #lastName "lastName" "Last name is required"
+            |> requireParam #phone "phone" "Phone is required"
+            |> requireParam #emergencyContactName "emergencyContactName" "Emergency contact name is required"
+            |> requireParam #emergencyContactPhone "emergencyContactPhone" "Emergency contact phone is required"
+            |> requireParam #idealShiftsPerWeek "idealShiftsPerWeek" "Ideal shifts per week is required"
             |> fill @'["firstName", "lastName", "preferredName", "phone", "emergencyContactName", "emergencyContactPhone", "idealShiftsPerWeek"]
-            |> validateField #firstName nonEmpty
-            |> validateField #lastName nonEmpty
-            |> validateField #phone nonEmpty
-            |> validateField #emergencyContactName nonEmpty
-            |> validateField #emergencyContactPhone nonEmpty
+            |> normalizeMaybeTextField #preferredName
+            |> requiredBoundedTextField #firstName 80
+            |> requiredBoundedTextField #lastName 80
+            |> validateField #preferredName (validateMaybe (boundedText 80))
+            |> requiredBoundedTextField #phone 80
+            |> requiredBoundedTextField #emergencyContactName 120
+            |> requiredBoundedTextField #emergencyContactPhone 80
             |> validateField #idealShiftsPerWeek (isInRange (0, 7))
             |> ifValid \case
                 Left staff -> do
