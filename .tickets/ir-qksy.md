@@ -1,6 +1,6 @@
 ---
 id: ir-qksy
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T06:29:38Z
@@ -21,3 +21,9 @@ Use UUID.fromText or ParamReader-based parsing that returns Maybe/Either. Conver
 ## Acceptance Criteria
 
 Malformed shiftPreferenceKeys and malformed request IDs return validation failures or 4xx/redirect responses without 500s; preference update tests cover invalid UUID text, invalid weekday text, cross-group slot IDs, and cross-venue IDs.
+
+## Notes
+
+**2026-04-30T07:54:33Z**
+
+Replaced throwing staff shift preference key UUID parsing with total UUID parsing; switched staff roster-group checkbox parsing away from paramList @(Id ...) so malformed values rerender instead of 500ing. Added malformed request coverage.

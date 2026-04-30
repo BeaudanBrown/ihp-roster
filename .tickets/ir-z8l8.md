@@ -1,6 +1,6 @@
 ---
 id: ir-z8l8
-status: open
+status: closed
 deps: [ir-z51k, ir-qksy, ir-c6cu, ir-36t6, ir-l4ux]
 links: []
 created: 2026-04-30T06:30:37Z
@@ -21,3 +21,9 @@ Document concise, actionable rules in AGENTS.md, Web/Controller/AGENTS.md, Web/V
 ## Acceptance Criteria
 
 Agent docs call out fill missing-param behavior, safe ID parsing, server-side required validation, encoded query helpers, CSV formula injection, raw SQL restrictions, and required regression test categories. Documentation is verified against local IHP docs/source.
+
+## Notes
+
+**2026-04-30T07:54:33Z**
+
+Updated root, controller, view, application, and test AGENTS.md guidance with implemented input helpers, safe id parsing, URL encoding, CSV formula neutralization, schema backstops, and required regression-test categories.

@@ -1,6 +1,6 @@
 ---
 id: ir-c6cu
-status: open
+status: closed
 deps: []
 links: [ir-caf4, ir-7gm0]
 created: 2026-04-30T06:29:54Z
@@ -21,3 +21,9 @@ Start with high-value fields: staff/profile names and phone fields, leave notes,
 ## Acceptance Criteria
 
 Controller builders normalize text consistently; schema CHECK constraints exist for selected bounded fields; migrations, regen-types, typecheck, make db, and startup parser checks pass; tests cover oversized and whitespace-only submissions.
+
+## Notes
+
+**2026-04-30T07:54:33Z**
+
+Added controller text normalization plus parser-safe char_length/btrim schema constraints and migration for high-value names, emails, staff contact fields, passkey names, and leave notes. Ran regen-types, typecheck, make db, and dev-wait startup check.

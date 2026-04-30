@@ -1,6 +1,6 @@
 ---
 id: ir-z51k
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T06:29:25Z
@@ -21,3 +21,9 @@ Keep validation inside record builders where possible so errors render next to f
 ## Acceptance Criteria
 
 Missing required fields produce validation errors instead of defaults or DB exceptions; malformed typed params do not produce unhandled 500s; focused Hspec coverage exists for leave, timesheets, staff/profile, onboarding, and admin config boundaries.
+
+## Notes
+
+**2026-04-30T07:54:33Z**
+
+Implemented Application.Helper.Controller.Input helpers; applied required-param, text normalization, and bounded text validation to leave, timesheets, staff/profile, onboarding, and admin name/email flows. Added focused Hspec coverage.

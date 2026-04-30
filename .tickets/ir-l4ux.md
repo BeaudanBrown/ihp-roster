@@ -1,6 +1,6 @@
 ---
 id: ir-l4ux
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T06:29:32Z
@@ -21,3 +21,9 @@ Centralize CSV cell escaping/neutralization in Application.Helper.Export.Render.
 ## Acceptance Criteria
 
 CSV golden/controller tests cover cells beginning with =, +, -, @, tab/space-prefixed formula text, quotes, commas, and newlines; exported files remain parseable and formulas are not active when opened in common spreadsheets.
+
+## Notes
+
+**2026-04-30T07:54:33Z**
+
+Centralized spreadsheet formula neutralization in Application.Helper.Export.Render.csvCell; cells with formula prefixes after whitespace or leading control whitespace are apostrophe-prefixed before CSV quoting. Added regression coverage.
