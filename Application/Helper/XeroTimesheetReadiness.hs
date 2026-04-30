@@ -1,0 +1,392 @@
+module Application.Helper.XeroTimesheetReadiness
+    ( XeroReadinessBlocker (..)
+    , XeroReadinessSeverity (..)
+    , XeroTimesheetReadiness (..)
+    , XeroTimesheetReadinessRequest (..)
+    , deriveXeroPayrollCalendarPeriod
+    , readinessBlockerCodes
+    , validateXeroTimesheetReadiness
+    , xeroReadinessSeverityText
+    ) where
+
+import Application.Helper.Xero
+import Application.Helper.XeroAdminTypes
+import Application.Helper.XeroPayItems
+import Control.Monad (guard)
+import qualified Data.List as List
+import qualified Data.Text as Text
+import Data.Time.Calendar (Day, addDays, diffDays)
+import Generated.Types
+import IHP.ControllerPrelude
+
+data XeroReadinessSeverity
+    = XeroReadinessBlocker
+    | XeroReadinessWarning
+    deriving (Eq, Show)
+
+xeroReadinessSeverityText :: XeroReadinessSeverity -> Text
+xeroReadinessSeverityText XeroReadinessBlocker = "blocker"
+xeroReadinessSeverityText XeroReadinessWarning = "warning"
+
+data XeroReadinessBlocker = XeroReadinessBlockerDetail
+    { xeroBlockerCode             :: !Text
+    , xeroBlockerSeverity         :: !XeroReadinessSeverity
+    , xeroBlockerMessage          :: !Text
+    , xeroBlockerAffectedStaffId  :: !(Maybe UUID)
+    , xeroBlockerTimesheetEntryId :: !(Maybe UUID)
+    , xeroBlockerLocalBucketKey   :: !(Maybe Text)
+    , xeroBlockerXeroObjectId     :: !(Maybe Text)
+    , xeroBlockerActionHint       :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
+data XeroTimesheetReadiness = XeroTimesheetReadiness
+    { xeroTimesheetReady          :: !Bool
+    , xeroReadinessPeriodStart    :: !Day
+    , xeroReadinessPeriodEnd      :: !Day
+    , xeroReadinessBlockers       :: ![XeroReadinessBlocker]
+    , xeroReadinessWarnings       :: ![XeroReadinessBlocker]
+    , xeroReadinessStaffCount     :: !Int
+    , xeroReadinessEntryCount     :: !Int
+    , xeroReadinessPayBucketCount :: !Int
+    }
+    deriving (Eq, Show)
+
+data XeroTimesheetReadinessRequest = XeroTimesheetReadinessRequest
+    { readinessVenueId          :: !(Id Venue)
+    , readinessPeriodStart      :: !Day
+    , readinessPeriodEnd        :: !Day
+    , readinessRemoteTimesheets :: ![XeroTimesheetRef]
+    }
+    deriving (Eq, Show)
+
+validateXeroTimesheetReadiness ::
+    (?modelContext :: ModelContext) =>
+    XeroTimesheetReadinessRequest ->
+    IO XeroTimesheetReadiness
+validateXeroTimesheetReadiness request = do
+    maybeConnection <- fetchActiveXeroConnection request.readinessVenueId
+    latestSync <- fetchLatestXeroSyncRun request.readinessVenueId
+    entries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
+    let includedStaffIds = List.nub (map (.staffId) entries)
+    staffMappings <- maybe (pure []) (fetchVerifiedStaffMappings includedStaffIds) maybeConnection
+    buckets <- fetchVenueLocalBuckets request.readinessVenueId request.readinessPeriodStart
+    earningsMappings <- maybe (pure []) (fetchVerifiedEarningsMappings buckets) maybeConnection
+    payItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
+    maybeCalendarSelection <- maybe (pure Nothing) fetchVerifiedPayrollCalendarSelection maybeConnection
+    maybeCalendar <- fetchSelectedPayrollCalendar maybeCalendarSelection
+    maybeAccountCodeSelection <- maybe (pure Nothing) fetchVerifiedPayItemAccountCodeSelection maybeConnection
+
+    let blockers =
+            concat
+                [ connectionBlockers maybeConnection
+                , referenceSyncBlockers latestSync
+                , calendarBlockers request maybeCalendarSelection maybeCalendar
+                , entryBlockers entries
+                , snapshotBlockers entries
+                , staffMappingBlockers entries staffMappings
+                , earningsMappingBlockers buckets earningsMappings
+                , payItemRequirementBlockers payItemRequirements maybeAccountCodeSelection
+                , duplicateBlockers request entries staffMappings request.readinessRemoteTimesheets
+                ]
+    let warnings = duplicateWarnings request entries staffMappings request.readinessRemoteTimesheets
+    pure XeroTimesheetReadiness
+        { xeroTimesheetReady = null blockers
+        , xeroReadinessPeriodStart = request.readinessPeriodStart
+        , xeroReadinessPeriodEnd = request.readinessPeriodEnd
+        , xeroReadinessBlockers = blockers
+        , xeroReadinessWarnings = warnings
+        , xeroReadinessStaffCount = length includedStaffIds
+        , xeroReadinessEntryCount = length entries
+        , xeroReadinessPayBucketCount = length buckets
+        }
+
+fetchActiveXeroConnection :: (?modelContext :: ModelContext) => Id Venue -> IO (Maybe XeroConnection)
+fetchActiveXeroConnection venueId =
+    query @XeroConnection
+        |> filterWhere (#venueId, unpackId venueId)
+        |> filterWhere (#connectionStatus, "active" :: Text)
+        |> orderByDesc #connectedAt
+        |> fetchOneOrNothing
+
+fetchLatestXeroSyncRun :: (?modelContext :: ModelContext) => Id Venue -> IO (Maybe XeroSyncRun)
+fetchLatestXeroSyncRun venueId =
+    query @XeroSyncRun
+        |> filterWhere (#venueId, unpackId venueId)
+        |> filterWhere (#syncKind, "payroll_reference_data" :: Text)
+        |> orderByDesc #startedAt
+        |> fetchOneOrNothing
+
+fetchPeriodTimesheetEntries :: (?modelContext :: ModelContext) => Id Venue -> Day -> Day -> IO [TimesheetEntry]
+fetchPeriodTimesheetEntries venueId periodStart periodEnd =
+    query @TimesheetEntry
+        |> filterWhere (#venueId, unpackId venueId)
+        |> filterWhereGreaterThanOrEqualTo (#workedOn, periodStart)
+        |> filterWhereLessThanOrEqualTo (#workedOn, periodEnd)
+        |> orderBy #workedOn
+        |> fetch
+
+fetchVerifiedStaffMappings :: (?modelContext :: ModelContext) => [UUID] -> XeroConnection -> IO [XeroStaffMapping]
+fetchVerifiedStaffMappings staffIds connection =
+    query @XeroStaffMapping
+        |> filterWhere (#xeroConnectionId, unpackId connection.id)
+        |> filterWhereIn (#staffId, staffIds)
+        |> filterWhere (#mappingStatus, "verified" :: Text)
+        |> fetch
+
+fetchVerifiedEarningsMappings :: (?modelContext :: ModelContext) => [XeroLocalEarningsBucket] -> XeroConnection -> IO [XeroEarningsRateMapping]
+fetchVerifiedEarningsMappings buckets connection =
+    query @XeroEarningsRateMapping
+        |> filterWhere (#xeroConnectionId, unpackId connection.id)
+        |> filterWhereIn (#localBucketKey, map (.localBucketKey) buckets)
+        |> filterWhere (#mappingStatus, "verified" :: Text)
+        |> fetch
+
+fetchPayItemRequirements :: (?modelContext :: ModelContext) => XeroConnection -> IO [XeroPayItemRequirementRecord]
+fetchPayItemRequirements connection =
+    query @XeroPayItemRequirementRecord
+        |> filterWhere (#xeroConnectionId, unpackId connection.id)
+        |> fetch
+
+fetchVerifiedPayrollCalendarSelection :: (?modelContext :: ModelContext) => XeroConnection -> IO (Maybe XeroPayrollCalendarSelection)
+fetchVerifiedPayrollCalendarSelection connection =
+    query @XeroPayrollCalendarSelection
+        |> filterWhere (#xeroConnectionId, unpackId connection.id)
+        |> filterWhere (#calendarStatus, "verified" :: Text)
+        |> fetchOneOrNothing
+
+fetchSelectedPayrollCalendar :: (?modelContext :: ModelContext) => Maybe XeroPayrollCalendarSelection -> IO (Maybe XeroPayrollCalendar)
+fetchSelectedPayrollCalendar Nothing = pure Nothing
+fetchSelectedPayrollCalendar (Just selection) =
+    case selection.xeroPayrollCalendarId of
+        Nothing -> pure Nothing
+        Just calendarId ->
+            query @XeroPayrollCalendar
+                |> filterWhere (#xeroConnectionId, selection.xeroConnectionId)
+                |> filterWhere (#xeroPayrollCalendarId, calendarId)
+                |> fetchOneOrNothing
+
+fetchVerifiedPayItemAccountCodeSelection :: (?modelContext :: ModelContext) => XeroConnection -> IO (Maybe XeroPayItemAccountCodeSelection)
+fetchVerifiedPayItemAccountCodeSelection connection =
+    query @XeroPayItemAccountCodeSelection
+        |> filterWhere (#xeroConnectionId, unpackId connection.id)
+        |> filterWhere (#selectionStatus, "verified" :: Text)
+        |> fetchOneOrNothing
+
+fetchVenueLocalBuckets :: (?modelContext :: ModelContext) => Id Venue -> Day -> IO [XeroLocalEarningsBucket]
+fetchVenueLocalBuckets venueId effectiveDay = do
+    staffMembers <-
+        query @Staff
+            |> filterWhere (#venueId, unpackId venueId)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
+            |> fetch
+    shiftTypes <-
+        query @ShiftType
+            |> filterWhere (#venueId, unpackId venueId)
+            |> filterWhere (#isActive, True)
+            |> filterWhere (#archivedAt, Nothing)
+            |> fetch
+    awardLevels <-
+        query @AwardLevel
+            |> filterWhere (#isActive, True)
+            |> fetch
+    baseRates <- query @AwardLevelBaseRate |> fetch
+    penaltyRates <- query @AwardLevelPenaltyRate |> fetch
+    timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
+    pure (deriveXeroLocalEarningsBuckets effectiveDay (deriveXeroUsedAwardPayScopes staffMembers shiftTypes) awardLevels baseRates penaltyRates timeAllowances)
+
+connectionBlockers :: Maybe XeroConnection -> [XeroReadinessBlocker]
+connectionBlockers Nothing = [blocker "no_active_xero_connection" "Connect Xero before preparing payroll timesheets."]
+connectionBlockers (Just connection)
+    | connection.connectionStatus /= "active" =
+        [blocker "xero_connection_not_active" "Reconnect Xero before preparing payroll timesheets."]
+    | otherwise = []
+
+referenceSyncBlockers :: Maybe XeroSyncRun -> [XeroReadinessBlocker]
+referenceSyncBlockers (Just syncRun)
+    | syncRun.syncStatus == "succeeded" = []
+    | otherwise = [blocker "latest_reference_sync_not_successful" "Run a successful Xero payroll reference sync before preparing timesheets."]
+referenceSyncBlockers Nothing = [blocker "missing_reference_sync" "Sync Xero payroll reference data before preparing timesheets."]
+
+calendarBlockers :: XeroTimesheetReadinessRequest -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayrollCalendar -> [XeroReadinessBlocker]
+calendarBlockers _ Nothing _ = [blocker "missing_payroll_calendar_selection" "Select and verify a Xero payroll calendar."]
+calendarBlockers _ _ Nothing = [blocker "missing_selected_payroll_calendar" "The selected Xero payroll calendar has not been synced."]
+calendarBlockers request _ (Just calendar) =
+    case deriveXeroPayrollCalendarPeriod calendar request.readinessPeriodStart of
+        Nothing ->
+            [blocker "unsupported_payroll_calendar_period" "The selected Xero payroll calendar period cannot be derived."]
+        Just (expectedStart, expectedEnd)
+            | expectedStart == request.readinessPeriodStart && expectedEnd == request.readinessPeriodEnd -> []
+            | otherwise ->
+                [ (blockerWith
+                    "payroll_calendar_period_mismatch"
+                    ("The local period must exactly match the selected Xero payroll calendar period " <> tshow expectedStart <> " to " <> tshow expectedEnd <> ".")
+                  )
+                    { xeroBlockerXeroObjectId = Just calendar.xeroPayrollCalendarId }
+                ]
+
+deriveXeroPayrollCalendarPeriod :: XeroPayrollCalendar -> Day -> Maybe (Day, Day)
+deriveXeroPayrollCalendarPeriod calendar localPeriodStart = do
+    anchor <- calendar.startDate
+    days <- calendarLengthDays calendar.calendarType
+    let offset = diffDays localPeriodStart anchor
+    guard (days > 0)
+    let periodIndex = floorDiv offset days
+    let expectedStart = addDays (periodIndex * days) anchor
+    pure (expectedStart, addDays (days - 1) expectedStart)
+
+calendarLengthDays :: Maybe Text -> Maybe Integer
+calendarLengthDays maybeCalendarType =
+    case Text.toCaseFold . Text.strip <$> maybeCalendarType of
+        Just "weekly"      -> Just 7
+        Just "week"        -> Just 7
+        Just "fortnightly" -> Just 14
+        Just "biweekly"    -> Just 14
+        Just "fourweekly"  -> Just 28
+        Just "four weekly" -> Just 28
+        _                  -> Nothing
+
+floorDiv :: Integer -> Integer -> Integer
+floorDiv numerator denominator =
+    let (quotient, remainder) = numerator `quotRem` denominator
+     in if remainder < 0 then quotient - 1 else quotient
+
+entryBlockers :: [TimesheetEntry] -> [XeroReadinessBlocker]
+entryBlockers [] = [blocker "missing_approved_entries" "There are no timesheet entries in the selected period."]
+entryBlockers entries =
+    concatMap entryStateBlockers entries
+    where
+        entryStateBlockers entry =
+            catMaybes
+                [ if entry.isApproved then Nothing else Just (entryBlocker "entry_not_approved" "Every included timesheet entry must be approved." entry)
+                , if isNothing entry.deletedAt then Nothing else Just (entryBlocker "entry_deleted" "Deleted timesheet entries cannot be submitted to Xero." entry)
+                , if isJust entry.payConfigSnapshotId then Nothing else Just (entryBlocker "entry_missing_pay_config_snapshot" "Approved entries must be pinned to a pay configuration snapshot." entry)
+                ]
+
+snapshotBlockers :: [TimesheetEntry] -> [XeroReadinessBlocker]
+snapshotBlockers entries =
+    let snapshotIds = List.nub (mapMaybe (.payConfigSnapshotId) entries)
+     in if length snapshotIds <= 1
+            then []
+            else [blocker "mixed_pay_config_snapshots" "All entries in one Xero submission period must use the same pay configuration snapshot."]
+
+staffMappingBlockers :: [TimesheetEntry] -> [XeroStaffMapping] -> [XeroReadinessBlocker]
+staffMappingBlockers entries mappings =
+    List.nub (map (.staffId) entries)
+        |> mapMaybe \staffId ->
+            if any (\mapping -> mapping.staffId == staffId && isJust mapping.xeroEmployeeId) mappings
+                then Nothing
+                else
+                    Just
+                        ( blockerWith
+                            "staff_mapping_not_verified"
+                            "Every included staff member must be mapped to a verified Xero employee."
+                        )
+                            { xeroBlockerAffectedStaffId = Just staffId
+                            }
+
+earningsMappingBlockers :: [XeroLocalEarningsBucket] -> [XeroEarningsRateMapping] -> [XeroReadinessBlocker]
+earningsMappingBlockers buckets mappings =
+    buckets
+        |> mapMaybe \bucket ->
+            if any (\mapping -> mapping.localBucketKey == bucket.localBucketKey && isJust mapping.xeroEarningsRateId) mappings
+                then Nothing
+                else
+                    Just
+                        ( blockerWith
+                            "earnings_mapping_not_verified"
+                            "Every local Xero earnings bucket must be mapped to a verified Xero earnings rate."
+                        )
+                            { xeroBlockerLocalBucketKey = Just bucket.localBucketKey
+                            }
+
+payItemRequirementBlockers :: [XeroPayItemRequirementRecord] -> Maybe XeroPayItemAccountCodeSelection -> [XeroReadinessBlocker]
+payItemRequirementBlockers requirements maybeAccountCodeSelection =
+    accountCodeBlockers <> requirementBlockers
+    where
+        activeRequirements = filter (\record -> record.requirementStatus /= "ignored") requirements
+        proposedRequirements = filter (\record -> record.requirementStatus == "proposed") activeRequirements
+        accountCodeReady =
+            maybe False (\selection -> selection.selectionStatus == "verified" && maybe False (not . Text.null . Text.strip) selection.accountCode) maybeAccountCodeSelection
+        accountCodeBlockers =
+            if null proposedRequirements || accountCodeReady
+                then []
+                else [blocker "missing_pay_item_account_code" "Select a Xero pay item account code before creating proposed managed pay items."]
+        requirementBlockers =
+            activeRequirements
+                |> mapMaybe \record ->
+                    if record.requirementStatus `elem` ["matched", "created"]
+                        then Nothing
+                        else
+                            Just
+                                ( blockerWith
+                                    "managed_pay_item_not_ready"
+                                    "Managed Xero pay item requirements must be matched or created before timesheet readiness."
+                                )
+                                    { xeroBlockerLocalBucketKey = Just record.requirementKey
+                                    , xeroBlockerXeroObjectId = record.xeroEarningsRateId
+                                    }
+
+duplicateBlockers :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroTimesheetRef] -> [XeroReadinessBlocker]
+duplicateBlockers request entries mappings remoteTimesheets =
+    matchingRemoteTimesheets request entries mappings remoteTimesheets
+        |> map \remote ->
+            (blockerWith
+                "existing_xero_timesheet"
+                "Xero already has a timesheet for this employee and period. Create is blocked until update support exists."
+            )
+                { xeroBlockerXeroObjectId = remote.xeroTimesheetId }
+
+duplicateWarnings :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroTimesheetRef] -> [XeroReadinessBlocker]
+duplicateWarnings request entries mappings remoteTimesheets =
+    matchingRemoteTimesheets request entries mappings remoteTimesheets
+        |> filter (\remote -> maybe False ((== "draft") . Text.toCaseFold) remote.xeroTimesheetStatus)
+        |> map \remote ->
+            (blockerWith
+                "existing_xero_draft_timesheet"
+                "An existing Xero draft timesheet can become an update candidate after update support lands."
+            )
+                { xeroBlockerSeverity = XeroReadinessWarning
+                , xeroBlockerXeroObjectId = remote.xeroTimesheetId
+                }
+
+matchingRemoteTimesheets :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroTimesheetRef] -> [XeroTimesheetRef]
+matchingRemoteTimesheets request entries mappings remoteTimesheets =
+    let includedStaffIds = List.nub (map (.staffId) entries)
+        mappedEmployeeIds =
+            mappings
+                |> filter (\mapping -> mapping.staffId `elem` includedStaffIds)
+                |> mapMaybe (.xeroEmployeeId)
+     in remoteTimesheets
+            |> filter \remote ->
+                remote.xeroTimesheetStartDate == request.readinessPeriodStart
+                    && remote.xeroTimesheetEndDate == request.readinessPeriodEnd
+                    && remote.xeroTimesheetEmployeeId `elem` mappedEmployeeIds
+
+blocker :: Text -> Text -> XeroReadinessBlocker
+blocker code message = blockerWith code message
+
+entryBlocker :: Text -> Text -> TimesheetEntry -> XeroReadinessBlocker
+entryBlocker code message entry =
+    (blockerWith code message)
+        { xeroBlockerAffectedStaffId = Just entry.staffId
+        , xeroBlockerTimesheetEntryId = Just (unpackId entry.id)
+        }
+
+blockerWith :: Text -> Text -> XeroReadinessBlocker
+blockerWith code message =
+    XeroReadinessBlockerDetail
+        { xeroBlockerCode = code
+        , xeroBlockerSeverity = XeroReadinessBlocker
+        , xeroBlockerMessage = message
+        , xeroBlockerAffectedStaffId = Nothing
+        , xeroBlockerTimesheetEntryId = Nothing
+        , xeroBlockerLocalBucketKey = Nothing
+        , xeroBlockerXeroObjectId = Nothing
+        , xeroBlockerActionHint = Nothing
+        }
+
+readinessBlockerCodes :: XeroTimesheetReadiness -> [Text]
+readinessBlockerCodes readiness =
+    map (.xeroBlockerCode) readiness.xeroReadinessBlockers

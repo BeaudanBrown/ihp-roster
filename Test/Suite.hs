@@ -39,6 +39,7 @@ import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
 import qualified Test.XeroKeepaliveSpec
+import qualified Test.XeroTimesheetReadinessSpec
 
 data TestSuite = TestSuite
     { suiteLabel :: String
@@ -144,4 +145,5 @@ allSuites =
     , TestSuite "Mail" Test.MailSpec.tests
     , TestSuite "SurfaceProjection" Test.SurfaceProjectionSpec.tests
     , TestSuite "XeroKeepalive" Test.XeroKeepaliveSpec.tests
+    , TestSuite "XeroTimesheetReadiness" Test.XeroTimesheetReadinessSpec.tests
     ]
