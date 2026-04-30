@@ -105,9 +105,12 @@ tests = beforeAll testContext do
                 hiddenShiftTypesResponse `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
                 hiddenShiftTypesResponse `responseBodyShouldContain` "data-live-update-surface=\""
                 hiddenShiftTypesResponse `responseBodyShouldContain` "admin_shift_types"
+                hiddenShiftTypesResponse `responseBodyShouldContain` "&quot;deferUntilBlur&quot;:true"
+                hiddenShiftTypesResponse `responseBodyShouldContain` "&quot;kind&quot;:&quot;focused_field&quot;"
                 hiddenShiftTypesResponse `responseBodyShouldContain` "hx-get=\"/ShowAdminShiftTypesFragment?showInactiveShiftTypes=true\""
                 hiddenShiftTypesResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
                 hiddenShiftTypesResponse `responseBodyShouldContain` "Active Shift"
+                hiddenShiftTypesResponse `responseBodyShouldNotContain` "btn btn-outline-secondary w-100"
                 hiddenShiftTypesResponse `responseBodyShouldNotContain` "Inactive Shift"
                 hiddenShiftTypesResponse `responseBodyShouldNotContain` "id=\"app\""
 
@@ -158,6 +161,10 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
                 pageResponse `responseBodyShouldContain` "name=\"showInactiveShiftTypes\" value=\"true\""
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateShiftType?shiftTypeId=" <> tshow shiftType.id <> "\"")
+                pageResponse `responseBodyShouldContain` "hx-trigger=\"input changed delay:600ms, blur changed\""
+                pageResponse `responseBodyShouldContain` "hx-trigger=\"change\""
+                pageResponse `responseBodyShouldContain` "hx-include=\"closest form\""
+                pageResponse `responseBodyShouldContain` "data-admin-shift-type-field-key=\""
                 pageResponse `responseBodyShouldContain` "hx-post=\"/CreateRosterGroup\""
                 pageResponse `responseBodyShouldContain` "admin_roster_groups"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""

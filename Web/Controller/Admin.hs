@@ -352,7 +352,8 @@ instance Controller AdminController where
                                 _ <- ensureShiftTypePayVersionForShiftType currentUser.id updatedShiftType (utctDay now)
                                 pure ()
                             pure updatedShiftType
-                        setSuccessMessage "Shift type updated"
+                        unless isHtmxRequest do
+                            setSuccessMessage "Shift type updated"
                         broadcastAdminShiftTypesInvalidation currentVenueId
                         let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
                         when shouldRefreshXero do
