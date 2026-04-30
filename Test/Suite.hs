@@ -38,6 +38,7 @@ import qualified Test.SchemaSpec
 import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
+import qualified Test.XeroContractSpec
 import qualified Test.XeroKeepaliveSpec
 import qualified Test.XeroTimesheetReadinessSpec
 
@@ -144,6 +145,7 @@ allSuites =
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
     , TestSuite "Mail" Test.MailSpec.tests
     , TestSuite "SurfaceProjection" Test.SurfaceProjectionSpec.tests
+    , TestSuite "XeroContract" Test.XeroContractSpec.tests
     , TestSuite "XeroKeepalive" Test.XeroKeepaliveSpec.tests
     , TestSuite "XeroTimesheetReadiness" Test.XeroTimesheetReadinessSpec.tests
     ]

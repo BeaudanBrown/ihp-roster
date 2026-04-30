@@ -3,8 +3,11 @@ module Application.Helper.Xero
     , XeroClientError (..)
     , XeroConfig (..)
     , XeroEarningsRateRef (..)
+    , XeroHttpRequest (..)
     , XeroEmployeeRef (..)
     , XeroPayrollCalendarRef (..)
+    , XeroRequestBody (..)
+    , XeroRequestBaseUrls (..)
     , XeroTimesheetLineRef (..)
     , XeroTimesheetObjectResponse (..)
     , XeroTimesheetQuery (..)
@@ -13,6 +16,18 @@ module Application.Helper.Xero
     , XeroTenant (..)
     , XeroTokenResponse (..)
     , buildXeroAuthorizationUrl
+    , buildCreatePayItemRequest
+    , buildCreateTimesheetRequest
+    , buildDeleteXeroConnectionRequest
+    , buildExchangeCodeForTokenRequest
+    , buildFetchConnectedTenantsRequest
+    , buildFetchEarningsRatesRequest
+    , buildFetchPayrollCalendarsRequest
+    , buildFetchPayrollEmployeesRequest
+    , buildFetchTimesheetRequest
+    , buildFetchTimesheetsRequest
+    , buildRefreshXeroTokenRequest
+    , buildUpdateTimesheetRequest
     , currentXeroClient
     , decryptXeroToken
     , encryptXeroToken
@@ -22,6 +37,7 @@ module Application.Helper.Xero
     , requiredXeroScopesText
     , withXeroClientForTest
     , withXeroConfigForTest
+    , withXeroRequestBaseUrlsForTest
     , xeroTimesheetsUrl
     )
 where
@@ -214,6 +230,26 @@ data XeroTimesheetQuery = XeroTimesheetQuery
     }
     deriving (Eq, Show)
 
+data XeroRequestBody
+    = XeroJsonBody Aeson.Value
+    | XeroFormBody [(ByteString, ByteString)]
+    deriving (Eq, Show)
+
+data XeroHttpRequest = XeroHttpRequest
+    { xeroRequestMethod  :: !ByteString
+    , xeroRequestUrl     :: !Text
+    , xeroRequestHeaders :: ![(HeaderName, ByteString)]
+    , xeroRequestBody    :: !(Maybe XeroRequestBody)
+    }
+    deriving (Eq, Show)
+
+data XeroRequestBaseUrls = XeroRequestBaseUrls
+    { xeroIdentityTokenUrl  :: !Text
+    , xeroConnectionsUrl    :: !Text
+    , xeroPayrollBaseUrl    :: !Text
+    }
+    deriving (Eq, Show)
+
 data XeroClientError
     = XeroHttpError Text
     | XeroDecodeError Text
@@ -370,8 +406,24 @@ xeroConfigOverrideRef :: IORef.IORef (Maybe (Either Text XeroConfig))
 xeroConfigOverrideRef = unsafePerformIO (IORef.newIORef Nothing)
 {-# NOINLINE xeroConfigOverrideRef #-}
 
+xeroRequestBaseUrlsOverrideRef :: IORef.IORef (Maybe XeroRequestBaseUrls)
+xeroRequestBaseUrlsOverrideRef = unsafePerformIO (IORef.newIORef Nothing)
+{-# NOINLINE xeroRequestBaseUrlsOverrideRef #-}
+
 currentXeroClient :: IO XeroClient
 currentXeroClient = IORef.readIORef xeroClientRef
+
+defaultXeroRequestBaseUrls :: XeroRequestBaseUrls
+defaultXeroRequestBaseUrls =
+    XeroRequestBaseUrls
+        { xeroIdentityTokenUrl = "https://identity.xero.com/connect/token"
+        , xeroConnectionsUrl = "https://api.xero.com/connections"
+        , xeroPayrollBaseUrl = "https://api.xero.com/payroll.xro/1.0"
+        }
+
+currentXeroRequestBaseUrls :: IO XeroRequestBaseUrls
+currentXeroRequestBaseUrls =
+    fromMaybe defaultXeroRequestBaseUrls <$> IORef.readIORef xeroRequestBaseUrlsOverrideRef
 
 withXeroClientForTest :: XeroClient -> IO a -> IO a
 withXeroClientForTest client action =
@@ -387,154 +439,269 @@ withXeroConfigForTest configResult action =
         (IORef.writeIORef xeroConfigOverrideRef)
         (const action)
 
+withXeroRequestBaseUrlsForTest :: XeroRequestBaseUrls -> IO a -> IO a
+withXeroRequestBaseUrlsForTest urls action =
+    Exception.bracket
+        (IORef.atomicModifyIORef' xeroRequestBaseUrlsOverrideRef \old -> (Just urls, old))
+        (IORef.writeIORef xeroRequestBaseUrlsOverrideRef)
+        (const action)
+
 exchangeCodeForTokenRequest :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
-exchangeCodeForTokenRequest config code =
-    postXeroTokenRequest
+exchangeCodeForTokenRequest config code = do
+    urls <- currentXeroRequestBaseUrls
+    sendXeroJsonRequest "Xero token request" (buildExchangeCodeForTokenRequestWith urls config code)
+
+refreshXeroTokenRequest :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
+refreshXeroTokenRequest config refreshToken = do
+    urls <- currentXeroRequestBaseUrls
+    sendXeroJsonRequest "Xero token request" (buildRefreshXeroTokenRequestWith urls config refreshToken)
+
+fetchConnectedTenantsRequest :: Text -> IO (Either XeroClientError [XeroTenant])
+fetchConnectedTenantsRequest accessToken = do
+    urls <- currentXeroRequestBaseUrls
+    sendXeroJsonRequest "Xero connections request" (buildFetchConnectedTenantsRequestWith urls accessToken)
+
+deleteXeroConnectionRequest :: Text -> Text -> IO (Either XeroClientError ())
+deleteXeroConnectionRequest accessToken connectionId = do
+    urls <- currentXeroRequestBaseUrls
+    sendXeroEmptyRequest "Xero disconnect request" (buildDeleteXeroConnectionRequestWith urls accessToken connectionId)
+
+fetchPayrollEmployeesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
+fetchPayrollEmployeesRequest accessToken tenantId = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroEmployeesResponse <$>
+        sendXeroJsonRequest "Xero payroll employees request" (buildFetchPayrollEmployeesRequestWith urls accessToken tenantId)
+
+fetchEarningsRatesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
+fetchEarningsRatesRequest accessToken tenantId = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroPayItemsResponse <$>
+        sendXeroJsonRequest "Xero payroll pay items request" (buildFetchEarningsRatesRequestWith urls accessToken tenantId)
+
+fetchPayrollCalendarsRequest :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
+fetchPayrollCalendarsRequest accessToken tenantId = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroPayrollCalendarsResponse <$>
+        sendXeroJsonRequest "Xero payroll calendars request" (buildFetchPayrollCalendarsRequestWith urls accessToken tenantId)
+
+createPayItemRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
+createPayItemRequest accessToken tenantId idempotencyKey body = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroPayItemsResponse <$>
+        sendXeroJsonRequest "Xero payroll pay item create request" (buildCreatePayItemRequestWith urls accessToken tenantId idempotencyKey body)
+
+fetchTimesheetsRequest :: Text -> Text -> XeroTimesheetQuery -> IO (Either XeroClientError [XeroTimesheetRef])
+fetchTimesheetsRequest accessToken tenantId query = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroTimesheetsResponse <$>
+        sendXeroJsonRequest "Xero payroll timesheets request" (buildFetchTimesheetsRequestWith urls accessToken tenantId query)
+
+fetchTimesheetRequest :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetRef)
+fetchTimesheetRequest accessToken tenantId timesheetId = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroTimesheetObjectResponse <$>
+        sendXeroJsonRequest "Xero payroll timesheet request" (buildFetchTimesheetRequestWith urls accessToken tenantId timesheetId)
+
+createTimesheetRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
+createTimesheetRequest accessToken tenantId idempotencyKey body = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroTimesheetsResponse <$>
+        sendXeroJsonRequest "Xero payroll timesheet create request" (buildCreateTimesheetRequestWith urls accessToken tenantId idempotencyKey body)
+
+updateTimesheetRequest :: Text -> Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
+updateTimesheetRequest accessToken tenantId idempotencyKey timesheetId body = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroTimesheetsResponse <$>
+        sendXeroJsonRequest "Xero payroll timesheet update request" (buildUpdateTimesheetRequestWith urls accessToken tenantId idempotencyKey timesheetId body)
+
+buildExchangeCodeForTokenRequest :: XeroConfig -> Text -> XeroHttpRequest
+buildExchangeCodeForTokenRequest config code =
+    buildExchangeCodeForTokenRequestWith defaultXeroRequestBaseUrls config code
+
+buildExchangeCodeForTokenRequestWith :: XeroRequestBaseUrls -> XeroConfig -> Text -> XeroHttpRequest
+buildExchangeCodeForTokenRequestWith urls config code =
+    buildXeroTokenRequest
+        urls
         config
         [ ("grant_type", "authorization_code")
         , ("code", TextEncoding.encodeUtf8 code)
         , ("redirect_uri", TextEncoding.encodeUtf8 config.redirectUri)
         ]
 
-refreshXeroTokenRequest :: XeroConfig -> Text -> IO (Either XeroClientError XeroTokenResponse)
-refreshXeroTokenRequest config refreshToken =
-    postXeroTokenRequest
+buildRefreshXeroTokenRequest :: XeroConfig -> Text -> XeroHttpRequest
+buildRefreshXeroTokenRequest config refreshToken =
+    buildRefreshXeroTokenRequestWith defaultXeroRequestBaseUrls config refreshToken
+
+buildRefreshXeroTokenRequestWith :: XeroRequestBaseUrls -> XeroConfig -> Text -> XeroHttpRequest
+buildRefreshXeroTokenRequestWith urls config refreshToken =
+    buildXeroTokenRequest
+        urls
         config
         [ ("grant_type", "refresh_token")
         , ("refresh_token", TextEncoding.encodeUtf8 refreshToken)
         ]
 
-postXeroTokenRequest :: XeroConfig -> [(ByteString, ByteString)] -> IO (Either XeroClientError XeroTokenResponse)
-postXeroTokenRequest config body =
+buildXeroTokenRequest :: XeroRequestBaseUrls -> XeroConfig -> [(ByteString, ByteString)] -> XeroHttpRequest
+buildXeroTokenRequest urls config body =
+    XeroHttpRequest
+        { xeroRequestMethod = "POST"
+        , xeroRequestUrl = urls.xeroIdentityTokenUrl
+        , xeroRequestHeaders =
+            [ ("Authorization", basicAuthorizationHeader config)
+            , ("Accept", "application/json")
+            , ("Content-Type", "application/x-www-form-urlencoded")
+            ]
+        , xeroRequestBody = Just (XeroFormBody body)
+        }
+
+buildFetchConnectedTenantsRequest :: Text -> XeroHttpRequest
+buildFetchConnectedTenantsRequest accessToken =
+    buildFetchConnectedTenantsRequestWith defaultXeroRequestBaseUrls accessToken
+
+buildFetchConnectedTenantsRequestWith :: XeroRequestBaseUrls -> Text -> XeroHttpRequest
+buildFetchConnectedTenantsRequestWith urls accessToken =
+    XeroHttpRequest
+        { xeroRequestMethod = "GET"
+        , xeroRequestUrl = urls.xeroConnectionsUrl
+        , xeroRequestHeaders = xeroJsonAuthHeaders accessToken
+        , xeroRequestBody = Nothing
+        }
+
+buildDeleteXeroConnectionRequest :: Text -> Text -> XeroHttpRequest
+buildDeleteXeroConnectionRequest accessToken connectionId =
+    buildDeleteXeroConnectionRequestWith defaultXeroRequestBaseUrls accessToken connectionId
+
+buildDeleteXeroConnectionRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroHttpRequest
+buildDeleteXeroConnectionRequestWith urls accessToken connectionId =
+    XeroHttpRequest
+        { xeroRequestMethod = "DELETE"
+        , xeroRequestUrl = urls.xeroConnectionsUrl <> "/" <> connectionId
+        , xeroRequestHeaders = xeroJsonAuthHeaders accessToken
+        , xeroRequestBody = Nothing
+        }
+
+buildFetchPayrollEmployeesRequest :: Text -> Text -> XeroHttpRequest
+buildFetchPayrollEmployeesRequest accessToken tenantId =
+    buildFetchPayrollEmployeesRequestWith defaultXeroRequestBaseUrls accessToken tenantId
+
+buildFetchPayrollEmployeesRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroHttpRequest
+buildFetchPayrollEmployeesRequestWith urls accessToken tenantId =
+    buildXeroPayrollGetRequest accessToken tenantId (urls.xeroPayrollBaseUrl <> "/Employees") []
+
+buildFetchEarningsRatesRequest :: Text -> Text -> XeroHttpRequest
+buildFetchEarningsRatesRequest accessToken tenantId =
+    buildFetchEarningsRatesRequestWith defaultXeroRequestBaseUrls accessToken tenantId
+
+buildFetchEarningsRatesRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroHttpRequest
+buildFetchEarningsRatesRequestWith urls accessToken tenantId =
+    buildXeroPayrollGetRequest accessToken tenantId (urls.xeroPayrollBaseUrl <> "/PayItems") []
+
+buildFetchPayrollCalendarsRequest :: Text -> Text -> XeroHttpRequest
+buildFetchPayrollCalendarsRequest accessToken tenantId =
+    buildFetchPayrollCalendarsRequestWith defaultXeroRequestBaseUrls accessToken tenantId
+
+buildFetchPayrollCalendarsRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroHttpRequest
+buildFetchPayrollCalendarsRequestWith urls accessToken tenantId =
+    buildXeroPayrollGetRequest accessToken tenantId (urls.xeroPayrollBaseUrl <> "/PayrollCalendars") []
+
+buildCreatePayItemRequest :: Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
+buildCreatePayItemRequest accessToken tenantId idempotencyKey body =
+    buildCreatePayItemRequestWith defaultXeroRequestBaseUrls accessToken tenantId idempotencyKey body
+
+buildCreatePayItemRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
+buildCreatePayItemRequestWith urls accessToken tenantId idempotencyKey body =
+    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollBaseUrl <> "/PayItems") body
+
+buildFetchTimesheetsRequest :: Text -> Text -> XeroTimesheetQuery -> XeroHttpRequest
+buildFetchTimesheetsRequest accessToken tenantId query =
+    buildFetchTimesheetsRequestWith defaultXeroRequestBaseUrls accessToken tenantId query
+
+buildFetchTimesheetsRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroTimesheetQuery -> XeroHttpRequest
+buildFetchTimesheetsRequestWith urls accessToken tenantId query =
+    buildXeroPayrollGetRequest accessToken tenantId (xeroTimesheetsUrlWith urls query) (timesheetQueryHeaders query)
+
+buildFetchTimesheetRequest :: Text -> Text -> Text -> XeroHttpRequest
+buildFetchTimesheetRequest accessToken tenantId timesheetId =
+    buildFetchTimesheetRequestWith defaultXeroRequestBaseUrls accessToken tenantId timesheetId
+
+buildFetchTimesheetRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> XeroHttpRequest
+buildFetchTimesheetRequestWith urls accessToken tenantId timesheetId =
+    buildXeroPayrollGetRequest accessToken tenantId (urls.xeroPayrollBaseUrl <> "/Timesheets/" <> timesheetId) []
+
+buildCreateTimesheetRequest :: Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
+buildCreateTimesheetRequest accessToken tenantId idempotencyKey body =
+    buildCreateTimesheetRequestWith defaultXeroRequestBaseUrls accessToken tenantId idempotencyKey body
+
+buildCreateTimesheetRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
+buildCreateTimesheetRequestWith urls accessToken tenantId idempotencyKey body =
+    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollBaseUrl <> "/Timesheets") body
+
+buildUpdateTimesheetRequest :: Text -> Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
+buildUpdateTimesheetRequest accessToken tenantId idempotencyKey timesheetId body =
+    buildUpdateTimesheetRequestWith defaultXeroRequestBaseUrls accessToken tenantId idempotencyKey timesheetId body
+
+buildUpdateTimesheetRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
+buildUpdateTimesheetRequestWith urls accessToken tenantId idempotencyKey timesheetId body =
+    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollBaseUrl <> "/Timesheets/" <> timesheetId) body
+
+buildXeroPayrollGetRequest :: Text -> Text -> Text -> [(HeaderName, ByteString)] -> XeroHttpRequest
+buildXeroPayrollGetRequest accessToken tenantId url extraHeaders =
+    XeroHttpRequest
+        { xeroRequestMethod = "GET"
+        , xeroRequestUrl = url
+        , xeroRequestHeaders = xeroPayrollHeaders accessToken tenantId <> extraHeaders
+        , xeroRequestBody = Nothing
+        }
+
+buildXeroPayrollPostRequest :: Text -> Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
+buildXeroPayrollPostRequest accessToken tenantId idempotencyKey url body =
+    XeroHttpRequest
+        { xeroRequestMethod = "POST"
+        , xeroRequestUrl = url
+        , xeroRequestHeaders =
+            xeroPayrollHeaders accessToken tenantId
+                <> [ ("Idempotency-Key", TextEncoding.encodeUtf8 idempotencyKey)
+                   , ("Content-Type", "application/json")
+                   ]
+        , xeroRequestBody = Just (XeroJsonBody body)
+        }
+
+xeroJsonAuthHeaders :: Text -> [(HeaderName, ByteString)]
+xeroJsonAuthHeaders accessToken =
+    [ ("Authorization", "Bearer " <> TextEncoding.encodeUtf8 accessToken)
+    , ("Accept", "application/json")
+    ]
+
+xeroPayrollHeaders :: Text -> Text -> [(HeaderName, ByteString)]
+xeroPayrollHeaders accessToken tenantId =
+    xeroJsonAuthHeaders accessToken
+        <> [("Xero-Tenant-Id", TextEncoding.encodeUtf8 tenantId)]
+
+sendXeroJsonRequest :: Aeson.FromJSON value => Text -> XeroHttpRequest -> IO (Either XeroClientError value)
+sendXeroJsonRequest label xeroRequest =
     handleXeroHttpExceptions do
-        request <- parseRequest "https://identity.xero.com/connect/token"
-        let requestWithBody =
-                request
-                    |> setRequestMethod "POST"
-                    |> setRequestHeader "Authorization" [basicAuthorizationHeader config]
-                    |> setRequestHeader "Accept" ["application/json"]
-                    |> setRequestBodyURLEncoded body
-        response <- httpLBS requestWithBody
-        decodeXeroResponse "Xero token request" response
-
-fetchConnectedTenantsRequest :: Text -> IO (Either XeroClientError [XeroTenant])
-fetchConnectedTenantsRequest accessToken =
-    handleXeroHttpExceptions do
-        request <- parseRequest "https://api.xero.com/connections"
-        let requestWithHeaders =
-                request
-                    |> setRequestMethod "GET"
-                    |> setRequestHeader "Authorization" ["Bearer " <> TextEncoding.encodeUtf8 accessToken]
-                    |> setRequestHeader "Accept" ["application/json"]
-        response <- httpLBS requestWithHeaders
-        decodeXeroResponse "Xero connections request" response
-
-deleteXeroConnectionRequest :: Text -> Text -> IO (Either XeroClientError ())
-deleteXeroConnectionRequest accessToken connectionId =
-    handleXeroHttpExceptions do
-        request <- parseRequest ("https://api.xero.com/connections/" <> cs connectionId)
-        let requestWithHeaders =
-                request
-                    |> setRequestMethod "DELETE"
-                    |> setRequestHeader "Authorization" ["Bearer " <> TextEncoding.encodeUtf8 accessToken]
-                    |> setRequestHeader "Accept" ["application/json"]
-        response <- httpLBS requestWithHeaders
-        decodeXeroEmptyResponse "Xero disconnect request" response
-
-fetchPayrollEmployeesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
-fetchPayrollEmployeesRequest accessToken tenantId =
-    fmap unXeroEmployeesResponse <$>
-        getXeroPayrollRequest "Xero payroll employees request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/Employees"
-
-fetchEarningsRatesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
-fetchEarningsRatesRequest accessToken tenantId =
-    fmap unXeroPayItemsResponse <$>
-        getXeroPayrollRequest "Xero payroll pay items request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/PayItems"
-
-fetchPayrollCalendarsRequest :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
-fetchPayrollCalendarsRequest accessToken tenantId =
-    fmap unXeroPayrollCalendarsResponse <$>
-        getXeroPayrollRequest "Xero payroll calendars request" accessToken tenantId "https://api.xero.com/payroll.xro/1.0/PayrollCalendars"
-
-createPayItemRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
-createPayItemRequest accessToken tenantId idempotencyKey body =
-    fmap unXeroPayItemsResponse <$>
-        postXeroPayrollRequest "Xero payroll pay item create request" accessToken tenantId idempotencyKey "https://api.xero.com/payroll.xro/1.0/PayItems" body
-
-fetchTimesheetsRequest :: Text -> Text -> XeroTimesheetQuery -> IO (Either XeroClientError [XeroTimesheetRef])
-fetchTimesheetsRequest accessToken tenantId query =
-    fmap unXeroTimesheetsResponse <$>
-        getXeroPayrollRequestWithHeaders
-            "Xero payroll timesheets request"
-            accessToken
-            tenantId
-            (xeroTimesheetsUrl query)
-            (timesheetQueryHeaders query)
-
-fetchTimesheetRequest :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetRef)
-fetchTimesheetRequest accessToken tenantId timesheetId =
-    fmap unXeroTimesheetObjectResponse <$>
-        getXeroPayrollRequest
-            "Xero payroll timesheet request"
-            accessToken
-            tenantId
-            ("https://api.xero.com/payroll.xro/1.0/Timesheets/" <> cs timesheetId)
-
-createTimesheetRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
-createTimesheetRequest accessToken tenantId idempotencyKey body =
-    fmap unXeroTimesheetsResponse <$>
-        postXeroPayrollRequest
-            "Xero payroll timesheet create request"
-            accessToken
-            tenantId
-            idempotencyKey
-            "https://api.xero.com/payroll.xro/1.0/Timesheets"
-            body
-
-updateTimesheetRequest :: Text -> Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroTimesheetRef])
-updateTimesheetRequest accessToken tenantId idempotencyKey timesheetId body =
-    fmap unXeroTimesheetsResponse <$>
-        postXeroPayrollRequest
-            "Xero payroll timesheet update request"
-            accessToken
-            tenantId
-            idempotencyKey
-            ("https://api.xero.com/payroll.xro/1.0/Timesheets/" <> cs timesheetId)
-            body
-
-getXeroPayrollRequest :: Aeson.FromJSON value => Text -> Text -> Text -> String -> IO (Either XeroClientError value)
-getXeroPayrollRequest label accessToken tenantId url =
-    getXeroPayrollRequestWithHeaders label accessToken tenantId url []
-
-getXeroPayrollRequestWithHeaders :: Aeson.FromJSON value => Text -> Text -> Text -> String -> [(HeaderName, ByteString)] -> IO (Either XeroClientError value)
-getXeroPayrollRequestWithHeaders label accessToken tenantId url extraHeaders =
-    handleXeroHttpExceptions do
-        request <- parseRequest url
-        let requestWithHeaders =
-                request
-                    |> setRequestMethod "GET"
-                    |> setRequestHeader "Authorization" ["Bearer " <> TextEncoding.encodeUtf8 accessToken]
-                    |> setRequestHeader "Xero-Tenant-Id" [TextEncoding.encodeUtf8 tenantId]
-                    |> setRequestHeader "Accept" ["application/json"]
-                    |> applyRequestHeaders extraHeaders
+        requestWithHeaders <- toHttpRequest xeroRequest
         response <- httpLBS requestWithHeaders
         decodeXeroResponse label response
 
-postXeroPayrollRequest :: Aeson.FromJSON value => Text -> Text -> Text -> Text -> String -> Aeson.Value -> IO (Either XeroClientError value)
-postXeroPayrollRequest label accessToken tenantId idempotencyKey url body =
+sendXeroEmptyRequest :: Text -> XeroHttpRequest -> IO (Either XeroClientError ())
+sendXeroEmptyRequest label xeroRequest =
     handleXeroHttpExceptions do
-        request <- parseRequest url
-        let requestWithHeaders =
-                request
-                    |> setRequestMethod "POST"
-                    |> setRequestHeader "Authorization" ["Bearer " <> TextEncoding.encodeUtf8 accessToken]
-                    |> setRequestHeader "Xero-Tenant-Id" [TextEncoding.encodeUtf8 tenantId]
-                    |> setRequestHeader "Idempotency-Key" [TextEncoding.encodeUtf8 idempotencyKey]
-                    |> setRequestHeader "Accept" ["application/json"]
-                    |> setRequestHeader "Content-Type" ["application/json"]
-                    |> setRequestBodyJSON body
+        requestWithHeaders <- toHttpRequest xeroRequest
         response <- httpLBS requestWithHeaders
-        decodeXeroResponse label response
+        decodeXeroEmptyResponse label response
+
+toHttpRequest :: XeroHttpRequest -> IO Request
+toHttpRequest xeroRequest = do
+    request <- parseRequest (cs xeroRequest.xeroRequestUrl)
+    let requestWithHeaders =
+            request
+                |> setRequestMethod xeroRequest.xeroRequestMethod
+                |> applyRequestHeaders xeroRequest.xeroRequestHeaders
+    pure case xeroRequest.xeroRequestBody of
+        Nothing -> requestWithHeaders
+        Just (XeroJsonBody body) -> setRequestBodyJSON body requestWithHeaders
+        Just (XeroFormBody body) -> setRequestBodyURLEncoded body requestWithHeaders
 
 applyRequestHeaders :: [(HeaderName, ByteString)] -> Request -> Request
 applyRequestHeaders headers request =
@@ -542,7 +709,11 @@ applyRequestHeaders headers request =
 
 xeroTimesheetsUrl :: XeroTimesheetQuery -> String
 xeroTimesheetsUrl query =
-    cs ("https://api.xero.com/payroll.xro/1.0/Timesheets" <> renderedQuery)
+    cs (xeroTimesheetsUrlWith defaultXeroRequestBaseUrls query)
+
+xeroTimesheetsUrlWith :: XeroRequestBaseUrls -> XeroTimesheetQuery -> Text
+xeroTimesheetsUrlWith urls query =
+    urls.xeroPayrollBaseUrl <> "/Timesheets" <> renderedQuery
     where
         params =
             catMaybes
