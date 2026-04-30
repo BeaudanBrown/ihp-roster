@@ -1,12 +1,12 @@
 module Web.Controller.Staff where
 
 import qualified Application.Helper.LiveUpdate as LiveUpdate
+import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupIds,
                                         fetchCurrentVenueRosterGroups,
                                         fetchStaffRosterGroupIds,
                                         syncStaffRosterGroupAssignments)
-import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.View (appendQueryParams)
 import Control.Monad (void)

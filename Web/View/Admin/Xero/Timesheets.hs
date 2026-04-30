@@ -89,7 +89,7 @@ renderReadiness readiness = [hsx|
 |]
 
 renderReadinessBadge :: Bool -> Html
-renderReadinessBadge True = renderAppStatusBadge AppStatusSuccess "ready"
+renderReadinessBadge True  = renderAppStatusBadge AppStatusSuccess "ready"
 renderReadinessBadge False = renderAppStatusBadge AppStatusDanger "blocked"
 
 renderIssues :: Text -> Text -> Text -> [XeroTimesheetIssueView] -> Html

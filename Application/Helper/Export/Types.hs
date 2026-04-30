@@ -65,19 +65,19 @@ data StaffPayCsvPayload = StaffPayCsvPayload
     deriving (Eq, Show)
 
 data PayrollEarningsCsvRecord = PayrollEarningsCsvRecord
-    { staffFirstName      :: !Text
-    , staffLastName       :: !Text
-    , workDate            :: !Day
-    , earningsRateName    :: !Text
-    , hours               :: !Double
-    , trackingCode        :: !(Maybe Text)
-    , description         :: !Text
-    , staffId             :: !UUID
-    , timesheetEntryIds   :: ![UUID]
-    , payConfigVersionManifest   :: !(Maybe Text)
-    , sourcePenaltyKind   :: !Text
-    , sourcePayLevelName  :: !(Maybe Text)
-    , sourceShiftTypeName :: !(Maybe Text)
+    { staffFirstName           :: !Text
+    , staffLastName            :: !Text
+    , workDate                 :: !Day
+    , earningsRateName         :: !Text
+    , hours                    :: !Double
+    , trackingCode             :: !(Maybe Text)
+    , description              :: !Text
+    , staffId                  :: !UUID
+    , timesheetEntryIds        :: ![UUID]
+    , payConfigVersionManifest :: !(Maybe Text)
+    , sourcePenaltyKind        :: !Text
+    , sourcePayLevelName       :: !(Maybe Text)
+    , sourceShiftTypeName      :: !(Maybe Text)
     }
     deriving (Eq, Show)
 

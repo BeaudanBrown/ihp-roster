@@ -5,10 +5,10 @@ import Application.Helper.Controller (PlatformRole (..), currentVenueSessionKey,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey,
                                       platformRoleToEnum, unsafeEnumFromText)
-import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
-                                        ensureVenueRosterDefaults)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
+import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
+                                        ensureVenueRosterDefaults)
 import Config
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson

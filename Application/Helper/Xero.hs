@@ -54,10 +54,10 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Aeson.Types as AesonTypes
+import qualified Data.Bifunctor as Bifunctor
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LByteString
-import qualified Data.Bifunctor as Bifunctor
 import Data.Char (isDigit)
 import qualified Data.IORef as IORef
 import Data.Scientific (Scientific)

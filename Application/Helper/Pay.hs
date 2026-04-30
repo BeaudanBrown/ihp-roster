@@ -64,15 +64,15 @@ instance Aeson.FromJSON PayTotals where
             <*> obj .: "totalAmount"
 
 data TimesheetPayResult = TimesheetPayResult
-    { entryId                  :: !Text
-    , shiftTypeId              :: !(Maybe UUID)
-    , shiftTypeName            :: !(Maybe Text)
-    , payLevelId               :: !(Maybe UUID)
-    , payLevelName             :: !(Maybe Text)
-    , staffPayVersionId        :: !(Maybe UUID)
-    , shiftTypePayVersionId    :: !(Maybe UUID)
-    , segments                 :: ![PaySegment]
-    , totals                   :: !PayTotals
+    { entryId               :: !Text
+    , shiftTypeId           :: !(Maybe UUID)
+    , shiftTypeName         :: !(Maybe Text)
+    , payLevelId            :: !(Maybe UUID)
+    , payLevelName          :: !(Maybe Text)
+    , staffPayVersionId     :: !(Maybe UUID)
+    , shiftTypePayVersionId :: !(Maybe UUID)
+    , segments              :: ![PaySegment]
+    , totals                :: !PayTotals
     }
     deriving (Eq, Show)
 
@@ -145,7 +145,7 @@ payVersionManifestForEntries =
     List.sort . List.nub . mapMaybe payVersionManifestForEntry
 
 collapsePayVersionManifests :: [Text] -> Maybe Text
-collapsePayVersionManifests [] = Nothing
+collapsePayVersionManifests []        = Nothing
 collapsePayVersionManifests manifests = Just (Text.intercalate " | " manifests)
 
 ensureStaffPayVersionForStaff ::

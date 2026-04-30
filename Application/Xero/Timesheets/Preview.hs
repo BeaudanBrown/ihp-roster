@@ -42,25 +42,25 @@ data XeroTimesheetPreviewInput = XeroTimesheetPreviewInput
     deriving (Eq, Show)
 
 data XeroTimesheetPreviewLine = XeroTimesheetPreviewLine
-    { previewLineLocalBucketKey       :: !Text
-    , previewLineXeroEarningsRateId   :: !Text
-    , previewLineNumberOfUnits        :: ![Scientific.Scientific]
-    , previewLineSourceEntryIds       :: ![UUID]
-    , previewLineStaffPayVersionIds   :: ![UUID]
-    , previewLineShiftPayVersionIds   :: ![UUID]
+    { previewLineLocalBucketKey     :: !Text
+    , previewLineXeroEarningsRateId :: !Text
+    , previewLineNumberOfUnits      :: ![Scientific.Scientific]
+    , previewLineSourceEntryIds     :: ![UUID]
+    , previewLineStaffPayVersionIds :: ![UUID]
+    , previewLineShiftPayVersionIds :: ![UUID]
     }
     deriving (Eq, Show)
 
 data XeroTimesheetPreview = XeroTimesheetPreview
-    { previewStaffIds             :: ![UUID]
-    , previewXeroEmployeeId       :: !Text
-    , previewPayPeriodStart       :: !Day
-    , previewPayPeriodEnd         :: !Day
-    , previewSourceEntryIds       :: ![UUID]
-    , previewStaffPayVersionIds   :: ![UUID]
-    , previewShiftPayVersionIds   :: ![UUID]
-    , previewLines                :: ![XeroTimesheetPreviewLine]
-    , previewRequestObjectJson    :: !Aeson.Value
+    { previewStaffIds           :: ![UUID]
+    , previewXeroEmployeeId     :: !Text
+    , previewPayPeriodStart     :: !Day
+    , previewPayPeriodEnd       :: !Day
+    , previewSourceEntryIds     :: ![UUID]
+    , previewStaffPayVersionIds :: ![UUID]
+    , previewShiftPayVersionIds :: ![UUID]
+    , previewLines              :: ![XeroTimesheetPreviewLine]
+    , previewRequestObjectJson  :: !Aeson.Value
     }
     deriving (Eq, Show)
 
@@ -86,22 +86,22 @@ data SegmentContribution = SegmentContribution
     deriving (Eq, Show)
 
 data LineAggregation = LineAggregation
-    { lineAggregationLocalBucketKey :: !Text
-    , lineAggregationEarningsRateId :: !Text
-    , lineAggregationUnitsByDay     :: !(Map.Map Day Scientific.Scientific)
-    , lineAggregationEntryIds       :: ![UUID]
+    { lineAggregationLocalBucketKey  :: !Text
+    , lineAggregationEarningsRateId  :: !Text
+    , lineAggregationUnitsByDay      :: !(Map.Map Day Scientific.Scientific)
+    , lineAggregationEntryIds        :: ![UUID]
     , lineAggregationStaffVersionIds :: ![UUID]
     , lineAggregationShiftVersionIds :: ![UUID]
     }
     deriving (Eq, Show)
 
 data TimesheetAggregation = TimesheetAggregation
-    { timesheetAggregationEmployeeId  :: !Text
-    , timesheetAggregationStaffIds    :: ![UUID]
-    , timesheetAggregationEntryIds    :: ![UUID]
+    { timesheetAggregationEmployeeId      :: !Text
+    , timesheetAggregationStaffIds        :: ![UUID]
+    , timesheetAggregationEntryIds        :: ![UUID]
     , timesheetAggregationStaffVersionIds :: ![UUID]
     , timesheetAggregationShiftVersionIds :: ![UUID]
-    , timesheetAggregationLines       :: !(Map.Map Text LineAggregation)
+    , timesheetAggregationLines           :: !(Map.Map Text LineAggregation)
     }
     deriving (Eq, Show)
 

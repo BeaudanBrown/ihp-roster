@@ -11,8 +11,7 @@ import Application.Helper.Pay (PaySegment (..), PayTotals (..),
                                TimesheetPayResult (..),
                                collapsePayVersionManifests,
                                fetchTimesheetPayResultsForEntries,
-                               payVersionManifestForEntry,
-                               timesheetEntryIdKey)
+                               payVersionManifestForEntry, timesheetEntryIdKey)
 import Application.Helper.View (isTrialStaff)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
