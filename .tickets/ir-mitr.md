@@ -1,6 +1,6 @@
 ---
 id: ir-mitr
-status: open
+status: closed
 deps: [ir-jkt2]
 links: []
 created: 2026-04-30T05:43:19Z

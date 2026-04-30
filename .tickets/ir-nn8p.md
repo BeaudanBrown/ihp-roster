@@ -2,7 +2,7 @@
 id: ir-nn8p
 status: open
 deps: []
-links: []
+links: [ir-f8tn, ir-59ps, ir-6vvh]
 created: 2026-04-29T04:41:30Z
 type: feature
 priority: 1
@@ -14,3 +14,9 @@ tags: [area:maintenance, source:plans-59]
 
 Queue invitation delivery through app jobs with retry/error state instead of forkIO from request handlers.
 
+
+## Notes
+
+**2026-04-30T06:32:06Z**
+
+2026-04-30 audit note: current code appears to use Application.InvitationDelivery.Job and app_jobs for venue and onboarding invitation delivery; verify no forkIO/request-thread delivery path remains, then close or narrow this ticket.
