@@ -1,5 +1,6 @@
 module Application.Xero.Timesheets.Submission
-    ( submitXeroDraftTimesheets
+    ( retryXeroDraftTimesheetSubmission
+    , submitXeroDraftTimesheets
     , xeroTimesheetSubmissionRequestJson
     )
 where
@@ -46,6 +47,59 @@ submitXeroDraftTimesheets submittedByUserId request = do
                                         Left message -> pure (Left message)
                                         Right previewRun ->
                                             persistAndSubmitPreview submittedByUserId xeroClient accessToken refreshedConnection readinessRequest readiness duplicateSnapshot previewRun
+
+retryXeroDraftTimesheetSubmission ::
+    (?modelContext :: ModelContext) =>
+    Id XeroTimesheetSubmission ->
+    IO (Either Text XeroTimesheetSubmission)
+retryXeroDraftTimesheetSubmission submissionId = do
+    maybeSubmission <-
+        query @XeroTimesheetSubmission
+            |> filterWhere (#id, submissionId)
+            |> fetchOneOrNothing
+    case maybeSubmission of
+        Nothing -> pure (Left "Xero timesheet submission was not found.")
+        Just submission
+            | submission.status == "submitted" -> pure (Left "Xero timesheet submission has already been submitted.")
+            | otherwise -> retryExistingSubmission submission
+
+retryExistingSubmission ::
+    (?modelContext :: ModelContext) =>
+    XeroTimesheetSubmission ->
+    IO (Either Text XeroTimesheetSubmission)
+retryExistingSubmission submission = do
+    run <- fetch (Id submission.xeroSubmissionRunId :: Id XeroSubmissionRun)
+    connection <- fetch (Id submission.xeroConnectionId :: Id XeroConnection)
+    readXeroConfig >>= \case
+        Left message -> pure (Left message)
+        Right xeroConfig ->
+            refreshXeroConnectionAccess xeroConfig connection >>= \case
+                Left message -> pure (Left message)
+                Right (refreshedConnection, accessToken) -> do
+                    xeroClient <- currentXeroClient
+                    fetchRemoteTimesheetsForDuplicateCheck xeroClient accessToken refreshedConnection.tenantId >>= \case
+                        Left message -> pure (Left message)
+                        Right remoteTimesheets -> do
+                            let readinessRequest =
+                                    XeroTimesheetReadinessRequest
+                                        { readinessVenueId = Id run.venueId
+                                        , readinessPeriodStart = run.payPeriodStart
+                                        , readinessPeriodEnd = run.payPeriodEnd
+                                        , readinessRemoteTimesheets = remoteTimesheets
+                                        }
+                                duplicateSnapshot = duplicateCheckSnapshotJson remoteTimesheets
+                            readiness <- validateXeroTimesheetReadiness readinessRequest
+                            _ <-
+                                run
+                                    |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
+                                    |> set #xeroDuplicateCheckJson duplicateSnapshot
+                                    |> updateRecord
+                            updatedSubmission <-
+                                if not readiness.xeroTimesheetReady
+                                    then markSubmissionBlocked submission (blockedReadinessSummary readiness)
+                                    else submitExistingSubmission xeroClient accessToken refreshedConnection submission
+                            refreshRunStatus run
+                            pure (Right updatedSubmission)
 
 persistAndSubmitPreview ::
     (?modelContext :: ModelContext) =>
@@ -117,10 +171,20 @@ submitOnePreview xeroClient accessToken connection run preview = do
             |> createRecord
     sourceEntries <- fetchPreviewSourceEntries preview
     forM_ sourceEntries (insertSubmissionEntry submission)
+    submitExistingSubmission xeroClient accessToken connection submission
+
+submitExistingSubmission ::
+    (?modelContext :: ModelContext) =>
+    XeroClient ->
+    Text ->
+    XeroConnection ->
+    XeroTimesheetSubmission ->
+    IO XeroTimesheetSubmission
+submitExistingSubmission xeroClient accessToken connection submission = do
     now <- getCurrentTime
-    createTimesheet xeroClient accessToken connection.tenantId idempotencyKey requestJson >>= \case
+    createTimesheet xeroClient accessToken connection.tenantId submission.idempotencyKey submission.requestPayloadJson >>= \case
         Right refs -> markSubmissionSubmitted submission now refs
-        Left err -> markSubmissionFailed submission now (xeroClientErrorText err)
+        Left err   -> markSubmissionFailed submission now (xeroClientErrorText err)
 
 xeroTimesheetSubmissionRequestJson :: XeroTimesheetPreview -> Aeson.Value
 xeroTimesheetSubmissionRequestJson preview =
@@ -173,10 +237,33 @@ markSubmissionFailed submission now message =
         |> set #submittedAt (Just now)
         |> updateRecord
 
+markSubmissionBlocked :: (?modelContext :: ModelContext) => XeroTimesheetSubmission -> Text -> IO XeroTimesheetSubmission
+markSubmissionBlocked submission message =
+    submission
+        |> set #status ("blocked" :: Text)
+        |> set #responsePayloadJson (Aeson.object ["error" Aeson..= message])
+        |> set #lastError (Just message)
+        |> updateRecord
+
+refreshRunStatus :: (?modelContext :: ModelContext) => XeroSubmissionRun -> IO XeroSubmissionRun
+refreshRunStatus run = do
+    submissions <-
+        query @XeroTimesheetSubmission
+            |> filterWhere (#xeroSubmissionRunId, unpackId run.id)
+            |> fetch
+    now <- getCurrentTime
+    run
+        |> set #status (runStatusFromSubmissions submissions)
+        |> set #submittedAt (Just now)
+        |> set #completedAt (Just now)
+        |> set #errorSummary (submissionErrorSummary submissions)
+        |> updateRecord
+
 runStatusFromSubmissions :: [XeroTimesheetSubmission] -> Text
 runStatusFromSubmissions submissions
     | null submissions = "failed"
     | all ((== "submitted") . (.status)) submissions = "submitted"
+    | all ((== "blocked") . (.status)) submissions = "blocked"
     | all ((== "failed") . (.status)) submissions = "failed"
     | otherwise = "partially_failed"
 

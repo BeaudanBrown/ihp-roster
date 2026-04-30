@@ -7,6 +7,7 @@ import qualified Data.Aeson.Key as Key
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.ByteString.Char8 as ByteStringChar8
 import qualified Data.ByteString.Lazy as LByteString
+import qualified Data.IORef as IORef
 import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
@@ -285,9 +286,18 @@ withStrictXeroMock :: OpenApiSpec -> OpenApiSpec -> (XeroRequestBaseUrls -> IO a
 withStrictXeroMock identitySpec payrollSpec action =
     withStrictXeroMockBaseUrl identitySpec payrollSpec (action . xeroRequestBaseUrlsFor)
 
+withStrictXeroMockTimesheetCreateResponses :: OpenApiSpec -> OpenApiSpec -> [Wai.Response] -> (XeroRequestBaseUrls -> IO a) -> IO a
+withStrictXeroMockTimesheetCreateResponses identitySpec payrollSpec timesheetCreateResponses action =
+    withStrictXeroMockBaseUrlWithTimesheetCreateResponses identitySpec payrollSpec timesheetCreateResponses (action . xeroRequestBaseUrlsFor)
+
 withStrictXeroMockBaseUrl :: OpenApiSpec -> OpenApiSpec -> (Text -> IO a) -> IO a
 withStrictXeroMockBaseUrl identitySpec payrollSpec action =
-    Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec)) \port ->
+    withStrictXeroMockBaseUrlWithTimesheetCreateResponses identitySpec payrollSpec [] action
+
+withStrictXeroMockBaseUrlWithTimesheetCreateResponses :: OpenApiSpec -> OpenApiSpec -> [Wai.Response] -> (Text -> IO a) -> IO a
+withStrictXeroMockBaseUrlWithTimesheetCreateResponses identitySpec payrollSpec timesheetCreateResponses action = do
+    timesheetCreateResponseRef <- IORef.newIORef timesheetCreateResponses
+    Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef)) \port ->
         action ("http://127.0.0.1:" <> tshow port)
 
 xeroRequestBaseUrlsFor :: Text -> XeroRequestBaseUrls
@@ -365,12 +375,13 @@ fixedXeroRawResponse status body action =
         app _ respond =
             respond (Wai.responseLBS status [("Content-Type", "application/json")] body)
 
-xeroStrictMockApp :: OpenApiSpec -> OpenApiSpec -> Wai.Application
-xeroStrictMockApp identitySpec payrollSpec request respond = do
+xeroStrictMockApp :: OpenApiSpec -> OpenApiSpec -> IORef.IORef [Wai.Response] -> Wai.Application
+xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef request respond = do
     body <- Wai.strictRequestBody request
     let baseUrl = requestBaseUrl request
     let mockRequest = waiToXeroHttpRequest baseUrl request body
-    case mockContractForRequest baseUrl request body of
+    maybeContract <- mockContractForRequest baseUrl request body
+    case maybeContract of
         Nothing ->
             respond (jsonResponse status404 (Aeson.object ["error" Aeson..= ("unexpected Xero mock endpoint" :: Text)]))
         Just (spec, contract, response) -> do
@@ -384,25 +395,31 @@ xeroStrictMockApp identitySpec payrollSpec request respond = do
         mockContractForRequest baseUrl request body =
             case (Wai.requestMethod request, Wai.rawPathInfo request) of
                 (method, "/connect/token")
-                    | method == methodPost -> Just (identitySpec, mockTokenContract baseUrl body, jsonResponse status200 tokenFixture)
+                    | method == methodPost -> pure (Just (identitySpec, mockTokenContract baseUrl body, jsonResponse status200 tokenFixture))
                 (method, "/connections")
-                    | method == methodGet -> Just (identitySpec, (identityContract "mock connections list" "GET" "/Connections" "/connections" NoRequestBody) { contractRequestServer = baseUrl }, jsonResponse status200 connectionsFixture)
+                    | method == methodGet -> pure (Just (identitySpec, (identityContract "mock connections list" "GET" "/Connections" "/connections" NoRequestBody) { contractRequestServer = baseUrl }, jsonResponse status200 connectionsFixture))
                 (method, "/connections/connection-id")
-                    | method == methodDelete -> Just (identitySpec, (identityContract "mock connection delete" "DELETE" "/Connections/{id}" "/connections/connection-id" NoRequestBody) { contractRequestServer = baseUrl }, Wai.responseLBS status204 [] "")
+                    | method == methodDelete -> pure (Just (identitySpec, (identityContract "mock connection delete" "DELETE" "/Connections/{id}" "/connections/connection-id" NoRequestBody) { contractRequestServer = baseUrl }, Wai.responseLBS status204 [] ""))
                 (method, "/payroll.xro/1.0/Employees")
-                    | method == methodGet -> Just (payrollSpec, mockPayrollReadContract baseUrl "mock employees list" "/Employees" "/Employees" [], jsonResponse status200 employeesFixture)
+                    | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock employees list" "/Employees" "/Employees" [], jsonResponse status200 employeesFixture))
                 (method, "/payroll.xro/1.0/PayItems")
-                    | method == methodGet -> Just (payrollSpec, mockPayrollReadContract baseUrl "mock pay items list" "/PayItems" "/PayItems" [], jsonResponse status200 payItemsFixture)
-                    | method == methodPost -> Just (payrollSpec, mockPayrollWriteContract baseUrl "mock pay item create" "/PayItems" "/PayItems" (JsonObjectWithArrayField "EarningsRates"), jsonResponse status200 payItemsFixture)
+                    | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock pay items list" "/PayItems" "/PayItems" [], jsonResponse status200 payItemsFixture))
+                    | method == methodPost -> pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock pay item create" "/PayItems" "/PayItems" (JsonObjectWithArrayField "EarningsRates"), jsonResponse status200 payItemsFixture))
                 (method, "/payroll.xro/1.0/PayrollCalendars")
-                    | method == methodGet -> Just (payrollSpec, mockPayrollReadContract baseUrl "mock payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], jsonResponse status200 calendarsFixture)
+                    | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], jsonResponse status200 calendarsFixture))
                 (method, "/payroll.xro/1.0/Timesheets")
-                    | method == methodGet -> Just (payrollSpec, (mockPayrollReadContract baseUrl "mock timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 timesheetsFixture)
-                    | method == methodPost -> Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet create" "/Timesheets" "/Timesheets" JsonArrayBody, jsonResponse status200 timesheetsFixture)
+                    | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 timesheetsFixture))
+                    | method == methodPost -> do
+                        response <- nextTimesheetCreateResponse
+                        pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet create" "/Timesheets" "/Timesheets" JsonArrayBody, response))
                 (method, "/payroll.xro/1.0/Timesheets/timesheet-id")
-                    | method == methodGet -> Just (payrollSpec, mockPayrollReadContract baseUrl "mock timesheet show" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" [], jsonResponse status200 timesheetFixture)
-                    | method == methodPost -> Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet update" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" JsonArrayBody, jsonResponse status200 timesheetsFixture)
-                _ -> Nothing
+                    | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock timesheet show" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" [], jsonResponse status200 timesheetFixture))
+                    | method == methodPost -> pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet update" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" JsonArrayBody, jsonResponse status200 timesheetsFixture))
+                _ -> pure Nothing
+
+        nextTimesheetCreateResponse = IORef.atomicModifyIORef' timesheetCreateResponseRef \case
+            [] -> ([], jsonResponse status200 timesheetsFixture)
+            response : rest -> (rest, response)
 
 mockTokenContract :: Text -> LByteString.ByteString -> XeroEndpointContract
 mockTokenContract baseUrl body =
