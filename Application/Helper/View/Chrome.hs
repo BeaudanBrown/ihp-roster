@@ -1,4 +1,17 @@
-module Application.Helper.View.Chrome where
+module Application.Helper.View.Chrome
+    ( AppAccordionItemConfig (..)
+    , AppPageConfig (..)
+    , AppPanelConfig (..)
+    , PartialNavigationLink (..)
+    , appPanelWithActions
+    , appSurfaceClasses
+    , defaultAppPanelConfig
+    , renderAppAccordionItem
+    , renderAppPage
+    , renderAppPanel
+    , renderPartialNavigationLink
+    , simpleAppPanel
+    ) where
 
 import qualified Data.Text as Text
 import Generated.Types
@@ -51,6 +64,36 @@ data PartialNavigationLink = PartialNavigationLink
 appSurfaceClasses :: Text -> Text
 appSurfaceClasses extraClasses =
     Text.unwords (filter (not . Text.null) ["app-surface", extraClasses])
+
+defaultAppPanelConfig :: Html -> AppPanelConfig
+defaultAppPanelConfig appPanelBody =
+    AppPanelConfig
+        { appPanelTitle = Nothing
+        , appPanelDescription = Nothing
+        , appPanelHasActions = False
+        , appPanelActions = mempty
+        , appPanelHasCustomHeader = False
+        , appPanelCustomHeader = mempty
+        , appPanelClass = ""
+        , appPanelBodyClass = ""
+        , appPanelBody
+        }
+
+simpleAppPanel :: Text -> Maybe Text -> Html -> Html
+simpleAppPanel title description body =
+    renderAppPanel (defaultAppPanelConfig body)
+        { appPanelTitle = Just title
+        , appPanelDescription = description
+        }
+
+appPanelWithActions :: Text -> Maybe Text -> Html -> Html -> Html
+appPanelWithActions title description actions body =
+    renderAppPanel (defaultAppPanelConfig body)
+        { appPanelTitle = Just title
+        , appPanelDescription = description
+        , appPanelHasActions = True
+        , appPanelActions = actions
+        }
 
 renderAppPage :: AppPageConfig -> Html
 renderAppPage AppPageConfig { appPageTitle, appPageDescription, appPageActions, appPageWidthClass, appPageBody } = [hsx|

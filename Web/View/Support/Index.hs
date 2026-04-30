@@ -32,16 +32,7 @@ data IndexView = IndexView
 instance View IndexView where
     html IndexView { .. } =
         let switchVenuePanel =
-                renderAppPanel AppPanelConfig
-                    { appPanelTitle = Nothing
-                    , appPanelDescription = Nothing
-                    , appPanelHasActions = False
-                    , appPanelActions = mempty
-                    , appPanelHasCustomHeader = False
-                    , appPanelCustomHeader = mempty
-                    , appPanelClass = ""
-                    , appPanelBodyClass = ""
-                    , appPanelBody = [hsx|
+                renderAppPanel (defaultAppPanelConfig [hsx|
                         <div class={appSurfaceClasses "p-3 mb-4 app-surface-muted"}>
                             <div class="small text-uppercase app-muted mb-1">Current support venue</div>
                             <div class="fw-semibold">
@@ -59,19 +50,9 @@ instance View IndexView where
                                 <button class="btn btn-primary w-100" type="submit">Switch Venue</button>
                             </div>
                         </form>
-                    |]
-                    }
+                    |])
             createVenuePanel =
-                renderAppPanel AppPanelConfig
-                    { appPanelTitle = Just "Create Venue"
-                    , appPanelDescription = Nothing
-                    , appPanelHasActions = False
-                    , appPanelActions = mempty
-                    , appPanelHasCustomHeader = False
-                    , appPanelCustomHeader = mempty
-                    , appPanelClass = ""
-                    , appPanelBodyClass = ""
-                    , appPanelBody = [hsx|
+                simpleAppPanel "Create Venue" Nothing [hsx|
                         <form method="POST" action={CreateSupportVenueAction} class="row g-3" data-disable-javascript-submission="true">
                             {renderVenueBootstrapFields venue venueTimezone venueRosterWeekStartsOn}
                             <div class="col-12 col-lg-6 d-flex align-items-end">
@@ -79,18 +60,11 @@ instance View IndexView where
                             </div>
                         </form>
                     |]
-                    }
             inviteVenueOwnerPanel =
-                renderAppPanel AppPanelConfig
-                    { appPanelTitle = Just "Invite Venue Owner"
-                    , appPanelDescription = Just "Send a one-time onboarding link so the owner can create their account and configure their venue before it exists."
-                    , appPanelHasActions = False
-                    , appPanelActions = mempty
-                    , appPanelHasCustomHeader = False
-                    , appPanelCustomHeader = mempty
-                    , appPanelClass = ""
-                    , appPanelBodyClass = ""
-                    , appPanelBody = [hsx|
+                simpleAppPanel
+                    "Invite Venue Owner"
+                    (Just "Send a one-time onboarding link so the owner can create their account and configure their venue before it exists.")
+                    [hsx|
                         <form method="POST" action={CreateSupportVenueOnboardingInvitationAction} class="row g-3" data-disable-javascript-submission="true">
                             <div class="col-12 col-lg-7">
                                 <label class="form-label" for="support-create-onboarding-email">Owner email</label>
@@ -110,43 +84,21 @@ instance View IndexView where
                         </form>
                         {renderVenueOnboardingInvitationList onboardingInvitations}
                     |]
-                    }
             signInMethodsPanel =
-                renderAppPanel AppPanelConfig
-                    { appPanelTitle = Just "Sign-In Methods"
-                    , appPanelDescription = Nothing
-                    , appPanelHasActions = False
-                    , appPanelActions = mempty
-                    , appPanelHasCustomHeader = False
-                    , appPanelCustomHeader = mempty
-                    , appPanelClass = ""
-                    , appPanelBodyClass = ""
-                    , appPanelBody = renderPasskeyManagement passkeys (pathTo SupportAction)
-                    }
+                simpleAppPanel
+                    "Sign-In Methods"
+                    Nothing
+                    (renderPasskeyManagement passkeys (pathTo SupportAction))
             awardRatesPanel =
-                renderAppPanel AppPanelConfig
-                    { appPanelTitle = Just "Award Rates"
-                    , appPanelDescription = Just "Read-only Fair Work MAPD cache and refresh controls for platform support."
-                    , appPanelHasActions = False
-                    , appPanelActions = mempty
-                    , appPanelHasCustomHeader = False
-                    , appPanelCustomHeader = mempty
-                    , appPanelClass = ""
-                    , appPanelBodyClass = ""
-                    , appPanelBody = renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob
-                    }
+                simpleAppPanel
+                    "Award Rates"
+                    (Just "Read-only Fair Work MAPD cache and refresh controls for platform support.")
+                    (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
             publicHolidaysPanel =
-                renderAppPanel AppPanelConfig
-                    { appPanelTitle = Just "Public Holidays"
-                    , appPanelDescription = Just "Victorian public holiday cache used by payroll penalty calculations."
-                    , appPanelHasActions = False
-                    , appPanelActions = mempty
-                    , appPanelHasCustomHeader = False
-                    , appPanelCustomHeader = mempty
-                    , appPanelClass = ""
-                    , appPanelBodyClass = ""
-                    , appPanelBody = renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob
-                    }
+                simpleAppPanel
+                    "Public Holidays"
+                    (Just "Victorian public holiday cache used by payroll penalty calculations.")
+                    (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
             page =
                 renderAppPage (AppPageConfig
                     { appPageTitle = "Support"

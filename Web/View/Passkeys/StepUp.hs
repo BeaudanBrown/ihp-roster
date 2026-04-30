@@ -14,17 +14,10 @@ instance View StepUpView where
             , appPageActions = mempty
             , appPageWidthClass = "app-form-width"
             , appPageBody =
-                renderAppPanel AppPanelConfig
-                    { appPanelTitle = Just "Verify with a passkey"
-                    , appPanelDescription = Just "Venue admins and owners need passkey verification for high-security actions."
-                    , appPanelHasActions = False
-                    , appPanelActions = mempty
-                    , appPanelHasCustomHeader = False
-                    , appPanelCustomHeader = mempty
-                    , appPanelClass = ""
-                    , appPanelBodyClass = ""
-                    , appPanelBody = renderStepUpControl stepUpRedirectTo
-                    }
+                simpleAppPanel
+                    "Verify with a passkey"
+                    (Just "Venue admins and owners need passkey verification for high-security actions.")
+                    (renderStepUpControl stepUpRedirectTo)
             }
 
 renderStepUpControl :: Maybe Text -> Html
