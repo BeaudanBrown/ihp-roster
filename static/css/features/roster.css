@@ -1,80 +1,5 @@
 /* Roster week, staff panel, roster grid, conflict, and roster export styles. */
 
-.app-surface-toolbar,
-.roster-grid-header {
-    position: relative;
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    min-height: 4.5rem;
-    z-index: 4;
-}
-
-.app-surface-toolbar-side,
-.roster-grid-header-side {
-    display: flex;
-    flex: 1 1 0;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    align-items: center;
-    min-width: 0;
-}
-
-.app-surface-toolbar-side-right,
-.roster-grid-header-side-right {
-    justify-content: flex-end;
-}
-
-.app-surface-toolbar-center,
-.roster-grid-header-center {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    justify-content: center;
-    pointer-events: none;
-}
-
-.app-surface-toolbar-center > *,
-.roster-grid-header-center > * {
-    pointer-events: auto;
-}
-
-.app-week-nav-group,
-.roster-week-nav-group {
-    gap: 0.4rem;
-    align-items: center;
-    padding: 0.1rem;
-    border-radius: 999px;
-    background: var(--app-white-alpha-03);
-    box-shadow: inset 0 0 0 1px var(--app-slate-alpha-14);
-}
-
-.app-week-nav-group.btn-group > .btn,
-.app-week-nav-group.btn-group > .dropdown,
-.app-week-nav-group.btn-group > a,
-.app-week-nav-group.btn-group > .app-week-nav-label,
-.roster-week-nav-group.btn-group > .btn,
-.roster-week-nav-group.btn-group > .dropdown,
-.roster-week-nav-group.btn-group > a {
-    margin-left: 0 !important;
-}
-
-.app-week-nav-group > .btn,
-.app-week-nav-group > .dropdown,
-.app-week-nav-group > a,
-.app-week-nav-group > .app-week-nav-label,
-.roster-week-nav-group > .btn,
-.roster-week-nav-group > .dropdown,
-.roster-week-nav-group > a {
-    border-radius: 999px !important;
-}
-
-.app-week-nav-group > .dropdown > .btn,
-.roster-week-nav-group > .dropdown > .btn {
-    border-radius: 999px !important;
-}
-
 .roster-export-button[disabled] {
     opacity: 0.7;
 }
@@ -91,27 +16,6 @@
 
 .roster-assignment-filter-grid .form-check-label {
     display: block;
-}
-
-.app-week-nav-button,
-.roster-week-nav-button {
-    min-height: 2.35rem;
-    padding: 0.45rem 0.95rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 600;
-    line-height: 1;
-    border-color: transparent;
-    background: var(--app-white-alpha-02);
-    box-shadow: inset 0 0 0 1px var(--app-slate-alpha-45);
-}
-
-.roster-week-nav-button:hover,
-.roster-week-nav-button:focus {
-    background: var(--app-white-alpha-06);
-    border-color: transparent;
-    box-shadow: inset 0 0 0 1px var(--app-slate-alpha-70);
 }
 
 .roster-week-nav-arrow {
@@ -915,25 +819,6 @@
 }
 
 @media (max-width: 991.98px) {
-    .app-surface-toolbar,
-    .roster-grid-header {
-        min-height: auto;
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .app-surface-toolbar-center,
-    .roster-grid-header-center {
-        position: static;
-        transform: none;
-        order: -1;
-        pointer-events: auto;
-    }
-
-    .app-surface-toolbar-side,
-    .app-surface-toolbar-side-right,
-    .roster-grid-header-side,
-    .roster-grid-header-side-right,
     [data-roster-week-controls="manager-actions"] {
         justify-content: center;
     }
@@ -984,37 +869,6 @@
     .app-content {
         padding-left: 0.85rem;
         padding-right: 0.85rem;
-    }
-
-    .leave-requests-toolbar {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .leave-requests-toolbar .btn {
-        width: 100%;
-    }
-
-    .leave-request-list-head {
-        display: none;
-    }
-
-    .leave-request-row {
-        grid-template-columns: 1fr;
-        gap: 0.45rem;
-        padding: 0.85rem 0;
-    }
-
-    .leave-request-row-actions {
-        justify-content: stretch;
-    }
-
-    .leave-request-row-actions form {
-        flex: 1 1 100%;
-    }
-
-    .leave-request-row-actions .btn {
-        width: 100%;
     }
 
     .app-page {

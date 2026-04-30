@@ -87,5 +87,39 @@
     gap: 0.45rem;
 }
 
+.leave-request-row-actions form {
+    margin: 0;
+}
 
+@media (max-width: 575.98px) {
+    .leave-requests-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .leave-requests-toolbar .btn {
+        width: 100%;
+    }
+
+    .leave-request-list-head {
+        display: none;
+    }
+
+    .leave-request-row {
+        grid-template-columns: 1fr;
+        gap: 0.45rem;
+        padding: 0.85rem 0;
+    }
+
+    .leave-request-row-actions {
+        justify-content: stretch;
+    }
+
+    .leave-request-row-actions form {
+        flex: 1 1 100%;
+    }
+
+    .leave-request-row-actions .btn {
+        width: 100%;
+    }
 }

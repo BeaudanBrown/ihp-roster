@@ -27,7 +27,7 @@ renderWeekOverviewDropdown weekOffset rosterGroupId weekStartDate =
      in
         [hsx|
             <div class="dropdown roster-week-overview" data-week-overview="true">
-                <button class="btn btn-outline-secondary roster-week-nav-button roster-week-overview-trigger"
+                <button class="btn btn-outline-secondary app-week-nav-button roster-week-nav-button roster-week-overview-trigger"
                         type="button"
                         id={triggerId}
                         data-bs-toggle="dropdown"
