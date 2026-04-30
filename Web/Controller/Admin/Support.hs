@@ -13,6 +13,7 @@ import Control.Monad (void)
 import Data.Functor ((<&>))
 import qualified Data.List as List
 import qualified Data.Text as Text
+import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.Admin.Invites
 import Web.View.Admin.RosterGroups
@@ -79,6 +80,28 @@ nextShiftTypeSortOrder =
         |> fetchOneOrNothing
         <&> maybe 0 ((+ 1) . get #sortOrder)
 
+data AdminSectionMutationResponse = AdminSectionMutationResponse
+    { adminSectionSuccessMessage :: !(Maybe Text)
+    , adminSectionRedirectGroup  :: !(Maybe (Id RosterGroup))
+    , adminSectionRenderFragment :: !(IO Blaze.Html)
+    }
+
+respondToAdminSectionMutation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    AdminSectionMutationResponse ->
+    IO ()
+respondToAdminSectionMutation AdminSectionMutationResponse { .. } =
+    if isHtmxRequest
+        then do
+            maybeSetFlashSuccess adminSectionSuccessMessage
+            adminSectionRenderFragment >>= respondHtml
+        else do
+            maybeSetFlashSuccess adminSectionSuccessMessage
+            redirectToAdminFor adminSectionRedirectGroup
+    where
+        maybeSetFlashSuccess =
+            maybe (pure ()) setSuccessMessage
+
 respondToSlotNameMutation :: (?context :: ControllerContext, ?request :: Request) => Text -> Id RosterGroup -> IO ()
 respondToSlotNameMutation successMessage rosterGroupId =
     if isHtmxRequest
@@ -93,14 +116,15 @@ respondToSlotNameSectionMutation ::
     Id RosterGroup ->
     IO ()
 respondToSlotNameSectionMutation successMessage rosterGroupId =
-    if isHtmxRequest
-        then do
+    respondToAdminSectionMutation AdminSectionMutationResponse
+        { adminSectionSuccessMessage =
+            if isHtmxRequest then Nothing else Just successMessage
+        , adminSectionRedirectGroup = Just rosterGroupId
+        , adminSectionRenderFragment = do
             currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
             slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
-            respondHtml (renderRosterGroupSlotNamesFragment currentRosterGroup slotNames)
-        else do
-            setSuccessMessage successMessage
-            redirectToAdminFor (Just rosterGroupId)
+            pure (renderRosterGroupSlotNamesFragment currentRosterGroup slotNames)
+        }
 
 respondToInvitesSectionMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -108,40 +132,48 @@ respondToInvitesSectionMutation ::
     Id RosterGroup ->
     IO ()
 respondToInvitesSectionMutation successMessage rosterGroupId =
-    if isHtmxRequest
-        then do
-            unless (Text.null successMessage) (setSuccessMessage successMessage)
+    respondToAdminSectionMutation AdminSectionMutationResponse
+        { adminSectionSuccessMessage = nonEmptySuccessMessage successMessage
+        , adminSectionRedirectGroup = Just rosterGroupId
+        , adminSectionRenderFragment = do
             invitations <- fetchCurrentVenueInvitations
-            respondHtml (renderInvitesSectionFragment invitations rosterGroupId)
-        else do
-            unless (Text.null successMessage) (setSuccessMessage successMessage)
-            redirectToAdminFor (Just rosterGroupId)
+            pure (renderInvitesSectionFragment invitations rosterGroupId)
+        }
 
 respondToShiftTypesSectionMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 respondToShiftTypesSectionMutation =
-    if isHtmxRequest
-        then do
+    respondToAdminSectionMutation AdminSectionMutationResponse
+        { adminSectionSuccessMessage = Nothing
+        , adminSectionRedirectGroup = paramOrNothing "rosterGroupId"
+        , adminSectionRenderFragment = do
             shiftTypes <- fetchCurrentVenueShiftTypes
             awardLevels <- fetchActiveAwardLevels
             awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
             let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
-            respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)
-        else redirectToAdminFor (paramOrNothing "rosterGroupId")
+            pure (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)
+        }
 
 respondToRosterGroupsSectionMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Maybe (Id RosterGroup) ->
     IO ()
 respondToRosterGroupsSectionMutation maybeRosterGroupId =
-    if isHtmxRequest
-        then do
+    respondToAdminSectionMutation AdminSectionMutationResponse
+        { adminSectionSuccessMessage = Nothing
+        , adminSectionRedirectGroup = maybeRosterGroupId
+        , adminSectionRenderFragment = do
             rosterGroups <- fetchCurrentVenueRosterGroups
             slotNames <- fetchActiveCurrentVenueSlotNames
             let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-            respondHtml (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)
-        else redirectToAdminFor maybeRosterGroupId
+            pure (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)
+        }
+
+nonEmptySuccessMessage :: Text -> Maybe Text
+nonEmptySuccessMessage message
+    | Text.null message = Nothing
+    | otherwise = Just message
 
 broadcastSlotNameInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
