@@ -19,9 +19,9 @@ import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Types.Header (HeaderName)
 import Network.HTTP.Types.Method (methodDelete, methodGet, methodPost)
-import Network.HTTP.Types.Status (Status, status200, status204, status400, status404)
+import Network.HTTP.Types.Status (Status, status200, status204, status400, status401, status403, status404, status429)
 import qualified Network.HTTP.Types.URI as URI
-import Network.HTTP.Simple (getResponseStatusCode, httpLBS, parseRequest, setRequestHeader, setRequestMethod)
+import Network.HTTP.Simple (Request, getResponseStatusCode, httpLBS, parseRequest, setRequestBodyJSON, setRequestHeader, setRequestMethod)
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import Test.Hspec
@@ -136,15 +136,15 @@ tests =
             forM_ (xeroRequestContractCases identitySpec payrollSpec) \(spec, contract, request) ->
                 validateXeroRequest spec contract request
 
+        it "keeps the OpenAPI contract table in step with exported Xero request builders" do
+            helperSource <- TextIO.readFile "Application/Helper/Xero.hs"
+            exportedBuildRequestNames helperSource `shouldBe` expectedBuildRequestExports
+            List.sort (map (contractName . middleOfThree) (xeroRequestContractCases identitySpec payrollSpec))
+                `shouldBe` List.sort expectedContractCaseNames
+            coveredXeroClientOperationNames `shouldBe` expectedContractCaseNames
+
         it "exercises the concrete XeroClient HTTP transport against a strict localhost OpenAPI mock" do
-            Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec)) \port -> do
-                let baseUrl = "http://127.0.0.1:" <> tshow port
-                let urls =
-                        XeroRequestBaseUrls
-                            { xeroIdentityTokenUrl = baseUrl <> "/connect/token"
-                            , xeroConnectionsUrl = baseUrl <> "/connections"
-                            , xeroPayrollBaseUrl = baseUrl <> "/payroll.xro/1.0"
-                            }
+            withStrictXeroMock identitySpec payrollSpec \urls -> do
                 withXeroRequestBaseUrlsForTest urls do
                     client <- currentXeroClient
                     exchangeResult <- client.exchangeCodeForToken testConfig "auth-code"
@@ -184,17 +184,33 @@ tests =
                     fmap (map (.xeroTimesheetEmployeeId)) updateTimesheetResult `shouldBe` Right ["employee-id"]
 
         it "rejects malformed localhost mock requests before returning fixtures" do
-            Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec)) \port -> do
-                request <-
-                    parseRequest (cs ("http://127.0.0.1:" <> tshow port <> "/payroll.xro/1.0/Employees" :: Text))
-                response <-
-                    httpLBS
-                        ( request
-                            |> setRequestMethod "GET"
-                            |> setRequestHeader "Authorization" ["Bearer access-token"]
-                            |> setRequestHeader "Accept" ["application/json"]
-                        )
-                getResponseStatusCode response `shouldBe` 400
+            withStrictXeroMockBaseUrl identitySpec payrollSpec \baseUrl -> do
+                forM_ malformedMockRequests \(label, expectedStatus, buildRequest) -> do
+                    response <- httpLBS =<< buildRequest baseUrl
+                    getResponseStatusCode response `shouldBe` expectedStatus
+
+        it "surfaces Xero HTTP and decode errors through the concrete transport" do
+            fixedXeroResponse status400 (Aeson.object ["Type" Aeson..= ("ValidationException" :: Text), "Message" Aeson..= ("Bad payroll data" :: Text)]) \urls -> do
+                result <- withXeroRequestBaseUrlsForTest urls do
+                    client <- currentXeroClient
+                    client.fetchPayrollEmployees "access-token" "tenant-id"
+                result `shouldSatisfyLeftText` \message ->
+                    "ValidationException" `Text.isInfixOf` message && "Bad payroll data" `Text.isInfixOf` message
+
+            forM_ [(status401, "401"), (status403, "403"), (status429, "429")] \(status, marker) ->
+                fixedXeroResponse status (Aeson.object ["message" Aeson..= ("Xero rejected the request" :: Text)]) \urls -> do
+                    result <- withXeroRequestBaseUrlsForTest urls do
+                        client <- currentXeroClient
+                        client.fetchPayrollEmployees "access-token" "tenant-id"
+                    result `shouldSatisfyLeftText` Text.isInfixOf ("status " <> marker)
+
+            fixedXeroRawResponse status200 "not-json" \urls -> do
+                result <- withXeroRequestBaseUrlsForTest urls do
+                    client <- currentXeroClient
+                    client.fetchPayrollEmployees "access-token" "tenant-id"
+                result `shouldSatisfy` \case
+                    Left (XeroDecodeError _) -> True
+                    _ -> False
 
 data OpenApiSpec = OpenApiSpec
     { specPath :: !FilePath
@@ -305,6 +321,68 @@ xeroRequestContractCases identitySpec payrollSpec =
         identityOpenApi = identitySpec
         payrollOpenApi = payrollSpec
 
+expectedBuildRequestExports :: [Text]
+expectedBuildRequestExports =
+    [ "buildCreatePayItemRequest"
+    , "buildCreateTimesheetRequest"
+    , "buildDeleteXeroConnectionRequest"
+    , "buildExchangeCodeForTokenRequest"
+    , "buildFetchConnectedTenantsRequest"
+    , "buildFetchEarningsRatesRequest"
+    , "buildFetchPayrollCalendarsRequest"
+    , "buildFetchPayrollEmployeesRequest"
+    , "buildFetchTimesheetRequest"
+    , "buildFetchTimesheetsRequest"
+    , "buildRefreshXeroTokenRequest"
+    , "buildUpdateTimesheetRequest"
+    ]
+
+expectedContractCaseNames :: [Text]
+expectedContractCaseNames =
+    [ "token exchange"
+    , "token refresh"
+    , "connections list"
+    , "connection delete"
+    , "employees list"
+    , "pay items list"
+    , "payroll calendars list"
+    , "timesheets list"
+    , "timesheet show"
+    , "pay item create"
+    , "timesheet create"
+    , "timesheet update"
+    ]
+
+coveredXeroClientOperationNames :: [Text]
+coveredXeroClientOperationNames =
+    [ "token exchange"
+    , "token refresh"
+    , "connections list"
+    , "connection delete"
+    , "employees list"
+    , "pay items list"
+    , "payroll calendars list"
+    , "timesheets list"
+    , "timesheet show"
+    , "pay item create"
+    , "timesheet create"
+    , "timesheet update"
+    ]
+
+exportedBuildRequestNames :: Text -> [Text]
+exportedBuildRequestNames source =
+    source
+        |> Text.lines
+        |> map Text.strip
+        |> filter (\line -> ", build" `Text.isPrefixOf` line && "Request" `Text.isInfixOf` line)
+        |> map (Text.dropWhile (== ','))
+        |> map Text.strip
+        |> filter (not . Text.isInfixOf "With")
+        |> List.sort
+
+middleOfThree :: (a, b, c) -> b
+middleOfThree (_, value, _) = value
+
 tokenContract :: Text -> BodyContract -> XeroEndpointContract
 tokenContract name body =
     XeroEndpointContract
@@ -378,16 +456,17 @@ samplePayItemsBody =
 sampleTimesheetArrayBody :: Aeson.Value
 sampleTimesheetArrayBody =
     Aeson.Array
-        ( Vector.fromList
-            [ Aeson.object
-                [ "EmployeeID" Aeson..= ("employee-id" :: Text)
-                , "StartDate" Aeson..= ("2026-04-27" :: Text)
-                , "EndDate" Aeson..= ("2026-05-03" :: Text)
-                , "Status" Aeson..= ("DRAFT" :: Text)
-                , "TimesheetLines" Aeson..= [Aeson.object ["EarningsRateID" Aeson..= ("earnings-id" :: Text), "NumberOfUnits" Aeson..= ([2 :: Int, 0, 0, 0, 0, 0, 0] :: [Int])]]
-                ]
-            ]
-        )
+        (Vector.fromList [sampleTimesheetObject])
+
+sampleTimesheetObject :: Aeson.Value
+sampleTimesheetObject =
+    Aeson.object
+        [ "EmployeeID" Aeson..= ("employee-id" :: Text)
+        , "StartDate" Aeson..= ("2026-04-27" :: Text)
+        , "EndDate" Aeson..= ("2026-05-03" :: Text)
+        , "Status" Aeson..= ("DRAFT" :: Text)
+        , "TimesheetLines" Aeson..= [Aeson.object ["EarningsRateID" Aeson..= ("earnings-id" :: Text), "NumberOfUnits" Aeson..= ([2 :: Int, 0, 0, 0, 0, 0, 0] :: [Int])]]
+        ]
 
 sampleTimesheetQuery :: XeroTimesheetQuery
 sampleTimesheetQuery =
@@ -490,6 +569,125 @@ requestQueryParams request =
 shouldSatisfyWithMessage :: Show value => value -> (value -> Bool) -> Text -> Expectation
 shouldSatisfyWithMessage value predicate message =
     unless (predicate value) (expectationFailure (cs (message <> ": " <> tshow value)))
+
+shouldSatisfyLeftText :: Show value => Either XeroClientError value -> (Text -> Bool) -> Expectation
+shouldSatisfyLeftText result predicate =
+    case result of
+        Left err | predicate (xeroClientErrorMessage err) -> pure ()
+        _ -> expectationFailure (cs ("Expected XeroClientError matching predicate, got: " <> tshow result))
+
+xeroClientErrorMessage :: XeroClientError -> Text
+xeroClientErrorMessage = \case
+    XeroHttpError message -> message
+    XeroDecodeError message -> message
+    XeroNoTenantsError -> "No tenants"
+
+withStrictXeroMock :: OpenApiSpec -> OpenApiSpec -> (XeroRequestBaseUrls -> IO a) -> IO a
+withStrictXeroMock identitySpec payrollSpec action =
+    withStrictXeroMockBaseUrl identitySpec payrollSpec (action . xeroRequestBaseUrlsFor)
+
+withStrictXeroMockBaseUrl :: OpenApiSpec -> OpenApiSpec -> (Text -> IO a) -> IO a
+withStrictXeroMockBaseUrl identitySpec payrollSpec action =
+    Warp.testWithApplication (pure (xeroStrictMockApp identitySpec payrollSpec)) \port ->
+        action ("http://127.0.0.1:" <> tshow port)
+
+xeroRequestBaseUrlsFor :: Text -> XeroRequestBaseUrls
+xeroRequestBaseUrlsFor baseUrl =
+    XeroRequestBaseUrls
+        { xeroIdentityTokenUrl = baseUrl <> "/connect/token"
+        , xeroConnectionsUrl = baseUrl <> "/connections"
+        , xeroPayrollBaseUrl = baseUrl <> "/payroll.xro/1.0"
+        }
+
+malformedMockRequests :: [(Text, Int, Text -> IO Request)]
+malformedMockRequests =
+    [ ( "missing Xero-Tenant-Id"
+      , 400
+      , \baseUrl -> do
+            request <- parseRequest (cs (baseUrl <> "/payroll.xro/1.0/Employees"))
+            pure
+                ( request
+                    |> setRequestMethod "GET"
+                    |> setRequestHeader "Authorization" ["Bearer access-token"]
+                    |> setRequestHeader "Accept" ["application/json"]
+                )
+      )
+    , ( "missing Idempotency-Key"
+      , 400
+      , \baseUrl -> do
+            request <- parseRequest (cs (baseUrl <> "/payroll.xro/1.0/PayItems"))
+            pure
+                ( request
+                    |> setRequestMethod "POST"
+                    |> setRequestHeader "Authorization" ["Bearer access-token"]
+                    |> setRequestHeader "Accept" ["application/json"]
+                    |> setRequestHeader "Xero-Tenant-Id" ["tenant-id"]
+                    |> setRequestBodyJSON samplePayItemsBody
+                )
+      )
+    , ( "wrong Timesheets body envelope"
+      , 400
+      , \baseUrl -> do
+            request <- parseRequest (cs (baseUrl <> "/payroll.xro/1.0/Timesheets"))
+            pure
+                ( request
+                    |> setRequestMethod "POST"
+                    |> setRequestHeader "Authorization" ["Bearer access-token"]
+                    |> setRequestHeader "Accept" ["application/json"]
+                    |> setRequestHeader "Xero-Tenant-Id" ["tenant-id"]
+                    |> setRequestHeader "Idempotency-Key" ["idem-create"]
+                    |> setRequestBodyJSON (Aeson.object ["Timesheets" Aeson..= [sampleTimesheetObject]])
+                )
+      )
+    , ( "unknown Timesheets query param"
+      , 400
+      , \baseUrl -> do
+            request <- parseRequest (cs (baseUrl <> "/payroll.xro/1.0/Timesheets?unexpected=1"))
+            pure
+                ( request
+                    |> setRequestMethod "GET"
+                    |> setRequestHeader "Authorization" ["Bearer access-token"]
+                    |> setRequestHeader "Accept" ["application/json"]
+                    |> setRequestHeader "Xero-Tenant-Id" ["tenant-id"]
+                )
+      )
+    , ( "unexpected method"
+      , 404
+      , \baseUrl -> do
+            request <- parseRequest (cs (baseUrl <> "/payroll.xro/1.0/Employees"))
+            pure
+                ( request
+                    |> setRequestMethod "DELETE"
+                    |> setRequestHeader "Authorization" ["Bearer access-token"]
+                    |> setRequestHeader "Accept" ["application/json"]
+                    |> setRequestHeader "Xero-Tenant-Id" ["tenant-id"]
+                )
+      )
+    , ( "unexpected path"
+      , 404
+      , \baseUrl -> do
+            request <- parseRequest (cs (baseUrl <> "/payroll.xro/1.0/SuperFunds"))
+            pure
+                ( request
+                    |> setRequestMethod "GET"
+                    |> setRequestHeader "Authorization" ["Bearer access-token"]
+                    |> setRequestHeader "Accept" ["application/json"]
+                    |> setRequestHeader "Xero-Tenant-Id" ["tenant-id"]
+                )
+      )
+    ]
+
+fixedXeroResponse :: Status -> Aeson.Value -> (XeroRequestBaseUrls -> IO a) -> IO a
+fixedXeroResponse status body =
+    fixedXeroRawResponse status (Aeson.encode body)
+
+fixedXeroRawResponse :: Status -> LByteString.ByteString -> (XeroRequestBaseUrls -> IO a) -> IO a
+fixedXeroRawResponse status body action =
+    Warp.testWithApplication (pure app) \port ->
+        action (xeroRequestBaseUrlsFor ("http://127.0.0.1:" <> tshow port))
+    where
+        app _ respond =
+            respond (Wai.responseLBS status [("Content-Type", "application/json")] body)
 
 xeroStrictMockApp :: OpenApiSpec -> OpenApiSpec -> Wai.Application
 xeroStrictMockApp identitySpec payrollSpec request respond = do

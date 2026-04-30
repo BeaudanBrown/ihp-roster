@@ -30,6 +30,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
+import qualified Test.XeroContractSpec as XeroContract
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -333,6 +334,33 @@ tests = beforeAll testContext do
                 auditEvents <- query @AuditEvent |> filterWhere (#eventType, "xero_connection_completed" :: Text) |> fetch
                 length auditEvents `shouldBe` 1
 
+        it "completes Xero OAuth callback through the strict localhost Xero mock" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Mock Callback Venue"
+                admin <- createUserRecord "xero-mock-callback@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                oauthState <- createTestXeroOauthState venue admin "xero-mock-callback-state" 600 Nothing
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withAdminStrictXeroMock \urls -> do
+                        withXeroRequestBaseUrlsForTest urls do
+                            withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                                callActionWithParams XeroOAuthCallbackAction
+                                    [ ("state", cs oauthState.stateToken)
+                                    , ("code", "auth-code")
+                                    ]
+
+                response `responseStatusShouldBe` status302
+                connection <- query @XeroConnection |> fetchOne
+                connection.tenantId `shouldBe` "tenant-id"
+                connection.tenantName `shouldBe` Just "Demo Company"
+                connection.xeroConnectionRemoteId `shouldBe` Just "connection-id"
+                connection.connectionStatus `shouldBe` "active"
+                decryptXeroToken testXeroConfig.tokenEncryptionKey connection.encryptedRefreshToken `shouldBe` Right "refresh-token"
+                fmap (decryptXeroToken testXeroConfig.tokenEncryptionKey) connection.encryptedAccessToken `shouldBe` Just (Right "access-token")
+                updatedState <- fetch oauthState.id
+                updatedState.consumedAt `shouldSatisfy` isJust
+
         it "disconnects an active Xero connection without hard deleting history" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Disconnect Venue"
@@ -448,6 +476,35 @@ tests = beforeAll testContext do
                 updatedConnection <- fetch connection.id
                 updatedConnection.lastSyncAt `shouldSatisfy` isJust
                 decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "new-refresh-token"
+
+        it "syncs Xero payroll reference data through the strict localhost Xero mock" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Mock Sync Venue"
+                admin <- createUserRecord "xero-mock-sync@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                connection <- createSyncableXeroConnection venue admin
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withAdminStrictXeroMock \urls -> do
+                        withXeroRequestBaseUrlsForTest urls do
+                            withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                                callAction SyncXeroPayrollReferenceDataAction
+
+                response `responseStatusShouldBe` status302
+                employeeCount <- query @XeroEmployee |> fetchCount
+                employeeCount `shouldBe` 1
+                earningsRateCount <- query @XeroEarningsRate |> fetchCount
+                earningsRateCount `shouldBe` 1
+                payrollCalendarCount <- query @XeroPayrollCalendar |> fetchCount
+                payrollCalendarCount `shouldBe` 1
+                syncRun <- query @XeroSyncRun |> fetchOne
+                syncRun.syncStatus `shouldBe` "succeeded"
+                syncRun.employeesCount `shouldBe` 1
+                syncRun.earningsRatesCount `shouldBe` 1
+                syncRun.payrollCalendarsCount `shouldBe` 1
+                updatedConnection <- fetch connection.id
+                updatedConnection.lastSyncAt `shouldSatisfy` isJust
+                decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "refresh-token"
 
         it "shows Xero staff mapping only after employees have synced" $ withContext do
             withCleanDb do
@@ -1568,6 +1625,12 @@ testXeroConfig =
         , redirectUri = "http://localhost:8000/XeroOAuthCallback"
         , tokenEncryptionKey = "test-token-encryption-key"
         }
+
+withAdminStrictXeroMock :: (XeroRequestBaseUrls -> IO a) -> IO a
+withAdminStrictXeroMock action = do
+    identitySpec <- XeroContract.loadOpenApiSpec "vendor/xero-openapi/xero-identity.yaml"
+    payrollSpec <- XeroContract.loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au.yaml"
+    XeroContract.withStrictXeroMock identitySpec payrollSpec action
 
 successfulXeroClient :: XeroTokenResponse -> [XeroTenant] -> XeroClient
 successfulXeroClient tokenResponse tenants =
