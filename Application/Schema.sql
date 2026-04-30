@@ -11,8 +11,8 @@
 -- - schema-nav: reporting-config - report definitions and shift-type filters.
 -- - schema-nav: roster-group-config - roster groups, staff group assignments,
 --   and slot/day names.
--- - schema-nav: pay-reference - pay snapshots, FWC MAPD imports, award levels,
---   rates, allowances, and public holidays.
+-- - schema-nav: pay-reference - relational pay config versions, FWC MAPD
+--   imports, award levels, rates, allowances, and public holidays.
 -- - schema-nav: async-jobs - durable app jobs and progress/result payloads.
 -- - schema-nav: roster-planning - roster weeks, days, slots, and staff shift
 --   preferences.
@@ -306,18 +306,47 @@ CREATE TABLE venue_config (
 );
 
 -- schema-nav: pay-reference
-CREATE TABLE pay_config_snapshots (
+CREATE TABLE staff_pay_versions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
-    version_number INT NOT NULL,
-    version_label TEXT NOT NULL,
+    staff_id UUID NOT NULL,
+    default_award_level_id UUID DEFAULT NULL,
+    employment_basis staff_employment_basis_enum NOT NULL,
+    effective_from DATE NOT NULL,
+    effective_to DATE DEFAULT NULL,
+    superseded_by_id UUID DEFAULT NULL,
     created_by_user_id UUID NOT NULL,
-    snapshot JSONB DEFAULT '{}'::JSONB NOT NULL,
+    locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    locked_by_user_id UUID DEFAULT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    UNIQUE(venue_id, version_number),
-    UNIQUE(venue_id, version_label),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
-    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
+    FOREIGN KEY (superseded_by_id) REFERENCES staff_pay_versions (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (locked_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (effective_to IS NULL OR effective_to >= effective_from)
+);
+CREATE TABLE shift_type_pay_versions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    shift_type_id UUID NOT NULL,
+    override_award_level_id UUID DEFAULT NULL,
+    payroll_label TEXT NOT NULL,
+    effective_from DATE NOT NULL,
+    effective_to DATE DEFAULT NULL,
+    superseded_by_id UUID DEFAULT NULL,
+    created_by_user_id UUID NOT NULL,
+    locked_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    locked_by_user_id UUID DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
+    FOREIGN KEY (superseded_by_id) REFERENCES shift_type_pay_versions (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (locked_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (effective_to IS NULL OR effective_to >= effective_from)
 );
 CREATE TABLE fwc_mapd_sync_runs (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -691,7 +720,7 @@ CREATE TABLE export_jobs (
     export_type TEXT NOT NULL,
     status TEXT DEFAULT 'pending' NOT NULL,
     schema_version INT DEFAULT 1 NOT NULL,
-    pay_config_snapshot_version TEXT,
+    pay_config_version_manifest TEXT,
     range_start DATE,
     range_end DATE,
     scope JSONB DEFAULT '{}'::JSONB NOT NULL,
@@ -939,7 +968,8 @@ CREATE TABLE timesheet_entries (
     break_start_time TIME,
     break_end_time TIME,
     break_minutes INT DEFAULT 0 NOT NULL,
-    pay_config_snapshot_id UUID,
+    staff_pay_version_id UUID,
+    shift_type_pay_version_id UUID,
     is_approved BOOLEAN DEFAULT FALSE NOT NULL,
     approved_at TIMESTAMP WITH TIME ZONE,
     approved_by_user_id UUID,
@@ -951,12 +981,13 @@ CREATE TABLE timesheet_entries (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
-    FOREIGN KEY (pay_config_snapshot_id) REFERENCES pay_config_snapshots (id) ON DELETE RESTRICT,
+    FOREIGN KEY (staff_pay_version_id) REFERENCES staff_pay_versions (id) ON DELETE RESTRICT,
+    FOREIGN KEY (shift_type_pay_version_id) REFERENCES shift_type_pay_versions (id) ON DELETE RESTRICT,
     FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (break_minutes >= 0),
     CHECK (((had_break = FALSE) AND break_start_time IS NULL AND break_end_time IS NULL AND break_minutes = 0) OR ((had_break = TRUE) AND break_start_time IS NOT NULL AND break_end_time IS NOT NULL AND break_minutes > 0)),
-    CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND pay_config_snapshot_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND pay_config_snapshot_id IS NOT NULL))
+    CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL))
 );
 CREATE TABLE timesheet_entry_versions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -970,6 +1001,21 @@ CREATE TABLE timesheet_entry_versions (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (timesheet_entry_id) REFERENCES timesheet_entries (id) ON DELETE RESTRICT,
     FOREIGN KEY (actor_user_id) REFERENCES users (id) ON DELETE RESTRICT
+);
+CREATE TABLE export_job_entries (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    export_job_id UUID NOT NULL,
+    timesheet_entry_id UUID NOT NULL,
+    staff_pay_version_id UUID NOT NULL,
+    shift_type_pay_version_id UUID NOT NULL,
+    entry_updated_at_at_export TIMESTAMP WITH TIME ZONE NOT NULL,
+    entry_approved_at_at_export TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (export_job_id) REFERENCES export_jobs (id) ON DELETE RESTRICT,
+    FOREIGN KEY (timesheet_entry_id) REFERENCES timesheet_entries (id) ON DELETE RESTRICT,
+    FOREIGN KEY (staff_pay_version_id) REFERENCES staff_pay_versions (id) ON DELETE RESTRICT,
+    FOREIGN KEY (shift_type_pay_version_id) REFERENCES shift_type_pay_versions (id) ON DELETE RESTRICT
 );
 
 -- schema-nav: xero-submissions
@@ -1031,14 +1077,16 @@ CREATE TABLE xero_timesheet_submission_entries (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     xero_timesheet_submission_id UUID NOT NULL,
     timesheet_entry_id UUID NOT NULL,
-    pay_config_snapshot_id UUID NOT NULL,
+    staff_pay_version_id UUID NOT NULL,
+    shift_type_pay_version_id UUID NOT NULL,
     entry_updated_at_at_preview TIMESTAMP WITH TIME ZONE NOT NULL,
     entry_approved_at_at_preview TIMESTAMP WITH TIME ZONE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (xero_timesheet_submission_id) REFERENCES xero_timesheet_submissions (id) ON DELETE RESTRICT,
     FOREIGN KEY (timesheet_entry_id) REFERENCES timesheet_entries (id) ON DELETE RESTRICT,
-    FOREIGN KEY (pay_config_snapshot_id) REFERENCES pay_config_snapshots (id) ON DELETE RESTRICT
+    FOREIGN KEY (staff_pay_version_id) REFERENCES staff_pay_versions (id) ON DELETE RESTRICT,
+    FOREIGN KEY (shift_type_pay_version_id) REFERENCES shift_type_pay_versions (id) ON DELETE RESTRICT
 );
 CREATE TABLE venue_membership_role_events (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1083,7 +1131,10 @@ CREATE INDEX idx_roster_weeks_venue_offset ON roster_weeks (venue_id, week_offse
 CREATE INDEX idx_roster_slots_day ON roster_slots (roster_day_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL AND deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, slot_name_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_pay_config_snapshots_venue_version ON pay_config_snapshots (venue_id, version_number DESC);
+CREATE INDEX idx_staff_pay_versions_staff_effective ON staff_pay_versions (staff_id, effective_from DESC, created_at DESC);
+CREATE UNIQUE INDEX idx_staff_pay_versions_one_open ON staff_pay_versions (staff_id) WHERE effective_to IS NULL;
+CREATE INDEX idx_shift_type_pay_versions_shift_effective ON shift_type_pay_versions (shift_type_id, effective_from DESC, created_at DESC);
+CREATE UNIQUE INDEX idx_shift_type_pay_versions_one_open ON shift_type_pay_versions (shift_type_id) WHERE effective_to IS NULL;
 CREATE INDEX idx_fwc_mapd_sync_runs_started_at ON fwc_mapd_sync_runs (started_at DESC);
 CREATE INDEX idx_fwc_mapd_awards_fixed_id ON fwc_mapd_awards (award_fixed_id, award_operative_to);
 CREATE INDEX idx_fwc_mapd_awards_code ON fwc_mapd_awards (code);
@@ -1102,7 +1153,8 @@ CREATE INDEX idx_app_jobs_venue_created_at ON app_jobs (venue_id, created_at DES
 CREATE UNIQUE INDEX idx_app_jobs_active_dedupe ON app_jobs (dedupe_key) WHERE dedupe_key IS NOT NULL AND (status = 'job_status_not_started' OR status = 'job_status_running' OR status = 'job_status_retry');
 CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_venue_worked_on ON timesheet_entries (venue_id, worked_on) WHERE deleted_at IS NULL;
-CREATE INDEX idx_timesheet_entries_snapshot ON timesheet_entries (pay_config_snapshot_id);
+CREATE INDEX idx_timesheet_entries_staff_pay_version ON timesheet_entries (staff_pay_version_id);
+CREATE INDEX idx_timesheet_entries_shift_type_pay_version ON timesheet_entries (shift_type_pay_version_id);
 CREATE INDEX idx_timesheet_entry_versions_entry_created_at ON timesheet_entry_versions (timesheet_entry_id, created_at DESC);
 CREATE INDEX idx_leave_requests_venue_staff ON leave_requests (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_leave_requests_venue_start_date ON leave_requests (venue_id, start_date) WHERE deleted_at IS NULL;
@@ -1116,6 +1168,8 @@ CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_pre
 CREATE INDEX idx_audit_events_venue_created_at ON audit_events (venue_id, created_at DESC);
 CREATE INDEX idx_audit_events_target ON audit_events (target_table, target_id);
 CREATE INDEX idx_export_jobs_venue_created_at ON export_jobs (venue_id, created_at DESC);
+CREATE INDEX idx_export_job_entries_export ON export_job_entries (export_job_id);
+CREATE UNIQUE INDEX idx_export_job_entries_unique_entry ON export_job_entries (export_job_id, timesheet_entry_id);
 CREATE INDEX idx_venue_membership_role_events_membership_created_at ON venue_membership_role_events (venue_membership_id, created_at DESC);
 CREATE UNIQUE INDEX idx_export_jobs_generated_file_id ON export_jobs (generated_file_id);
 CREATE UNIQUE INDEX idx_export_jobs_download_token ON export_jobs (download_token);
@@ -1173,7 +1227,8 @@ CREATE TRIGGER prevent_hard_delete_shift_types BEFORE DELETE ON shift_types FOR 
 CREATE TRIGGER prevent_hard_delete_report_definitions BEFORE DELETE ON report_definitions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_report_definition_shift_type_filters BEFORE DELETE ON report_definition_shift_type_filters FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_venue_config BEFORE DELETE ON venue_config FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
-CREATE TRIGGER prevent_hard_delete_pay_config_snapshots BEFORE DELETE ON pay_config_snapshots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_staff_pay_versions BEFORE DELETE ON staff_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_shift_type_pay_versions BEFORE DELETE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_weeks BEFORE DELETE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_days BEFORE DELETE ON roster_days FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_slots BEFORE DELETE ON roster_slots FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -1185,6 +1240,7 @@ CREATE TRIGGER prevent_hard_delete_timesheet_entry_versions BEFORE DELETE ON tim
 CREATE TRIGGER prevent_hard_delete_venue_membership_role_events BEFORE DELETE ON venue_membership_role_events FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_audit_events BEFORE DELETE ON audit_events FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_export_jobs BEFORE DELETE ON export_jobs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_export_job_entries BEFORE DELETE ON export_job_entries FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_connections BEFORE DELETE ON xero_connections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_sync_runs BEFORE DELETE ON xero_sync_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_employees BEFORE DELETE ON xero_employees FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -1313,15 +1369,28 @@ BEGIN
         RAISE EXCEPTION 'timesheet entry venue_id must match shift_type_id venue';
     END IF;
 
-    IF NEW.pay_config_snapshot_id IS NOT NULL
+    IF NEW.staff_pay_version_id IS NOT NULL
         AND NOT EXISTS (
             SELECT 1
-            FROM pay_config_snapshots pcs
-            WHERE pcs.id = NEW.pay_config_snapshot_id
-                AND pcs.venue_id = NEW.venue_id
+            FROM staff_pay_versions spv
+            WHERE spv.id = NEW.staff_pay_version_id
+                AND spv.venue_id = NEW.venue_id
+                AND spv.staff_id = NEW.staff_id
         )
     THEN
-        RAISE EXCEPTION 'timesheet entry venue_id must match pay_config_snapshot_id venue';
+        RAISE EXCEPTION 'timesheet entry staff_pay_version_id must match entry staff and venue';
+    END IF;
+
+    IF NEW.shift_type_pay_version_id IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1
+            FROM shift_type_pay_versions stpv
+            WHERE stpv.id = NEW.shift_type_pay_version_id
+                AND stpv.venue_id = NEW.venue_id
+                AND stpv.shift_type_id = NEW.shift_type_id
+        )
+    THEN
+        RAISE EXCEPTION 'timesheet entry shift_type_pay_version_id must match entry shift type and venue';
     END IF;
 
     RETURN NEW;
@@ -1428,34 +1497,19 @@ AS $$
         );
 $$ LANGUAGE SQL;
 
-CREATE OR REPLACE FUNCTION resolve_effective_pay_level_snapshot(p_snapshot JSONB, p_shift_type_id UUID, p_day_of_week INT)
-RETURNS UUID
-AS $$
-    SELECT
-        COALESCE(
-            (
-                SELECT COALESCE(
-                    NULL,
-                    NULLIF(shift_type ->> 'overrideAwardLevelId', '')::UUID
-                )
-                FROM jsonb_array_elements(COALESCE(p_snapshot -> 'shiftTypes', '[]'::JSONB)) shift_type
-                WHERE (shift_type ->> 'id')::UUID = p_shift_type_id
-                LIMIT 1
-            ),
-            p_shift_type_id
-        );
-$$ LANGUAGE SQL;
-
 CREATE OR REPLACE FUNCTION calculate_timesheet_pay(p_entry_id UUID)
 RETURNS JSONB
 AS $$
     WITH entry_data AS (
         SELECT
             te.*,
-            pcs.version_label AS pay_config_snapshot_version,
-            pcs.snapshot AS pay_config_snapshot
+            spv.default_award_level_id AS version_staff_award_level_id,
+            spv.employment_basis AS version_employment_basis,
+            stpv.override_award_level_id AS version_shift_award_level_id,
+            stpv.payroll_label AS version_shift_type_name
         FROM timesheet_entries te
-        LEFT JOIN pay_config_snapshots pcs ON pcs.id = te.pay_config_snapshot_id
+        LEFT JOIN staff_pay_versions spv ON spv.id = te.staff_pay_version_id
+        LEFT JOIN shift_type_pay_versions stpv ON stpv.id = te.shift_type_pay_version_id
         WHERE te.id = p_entry_id
             AND te.deleted_at IS NULL
         LIMIT 1
@@ -1472,14 +1526,18 @@ AS $$
             e.break_start_time,
             e.break_end_time,
             e.break_minutes,
-            e.pay_config_snapshot_id,
-            e.pay_config_snapshot_version,
-            e.pay_config_snapshot,
-            (
-                SELECT s.employment_basis
-                FROM staff s
-                WHERE s.id = e.staff_id
-                LIMIT 1
+            e.staff_pay_version_id,
+            e.shift_type_pay_version_id,
+            e.approved_at,
+            e.version_shift_type_name,
+            COALESCE(
+                e.version_employment_basis,
+                (
+                    SELECT s.employment_basis
+                    FROM staff s
+                    WHERE s.id = e.staff_id
+                    LIMIT 1
+                )
             ) AS employment_basis,
             (EXTRACT(EPOCH FROM e.start_time) / 60)::INT AS start_minute_of_day,
             (
@@ -1527,32 +1585,29 @@ AS $$
                 ) - (EXTRACT(EPOCH FROM e.start_time) / 60)::INT - e.break_minutes,
                 0
             ) AS paid_minutes,
-            resolve_effective_pay_level(
-                e.staff_id,
-                e.shift_type_id,
-                EXTRACT(DOW FROM e.worked_on)::INT
+            COALESCE(
+                e.version_shift_award_level_id,
+                e.version_staff_award_level_id,
+                resolve_effective_pay_level(
+                    e.staff_id,
+                    e.shift_type_id,
+                    EXTRACT(DOW FROM e.worked_on)::INT
+                )
             ) AS pay_level_id
         FROM entry_data e
     ),
     labelled AS (
         SELECT
             r.*,
-            CASE
-                WHEN r.pay_config_snapshot_id IS NOT NULL THEN
-                    (
-                        SELECT shift_type ->> 'name'
-                        FROM jsonb_array_elements(COALESCE(r.pay_config_snapshot -> 'shiftTypes', '[]'::JSONB)) shift_type
-                        WHERE (shift_type ->> 'id')::UUID = r.shift_type_id
-                        LIMIT 1
-                    )
-                ELSE
-                    (
-                        SELECT st.name
-                        FROM shift_types st
-                        WHERE st.id = r.shift_type_id
-                        LIMIT 1
-                    )
-            END AS shift_type_name,
+            COALESCE(
+                r.version_shift_type_name,
+                (
+                    SELECT st.name
+                    FROM shift_types st
+                    WHERE st.id = r.shift_type_id
+                    LIMIT 1
+                )
+            ) AS shift_type_name,
             (
                 SELECT COALESCE(al.classification_level || ' - ', '') || al.classification
                 FROM award_levels al
@@ -1573,6 +1628,7 @@ AS $$
                         AND albr.employment_basis = r.employment_basis
                         AND (albr.operative_from IS NULL OR albr.operative_from <= r.worked_on)
                         AND (albr.operative_to IS NULL OR albr.operative_to >= r.worked_on)
+                        AND (r.approved_at IS NULL OR albr.created_at <= r.approved_at)
                     ORDER BY albr.operative_from DESC NULLS LAST, albr.created_at DESC
                     LIMIT 1
                 ),
@@ -1586,6 +1642,7 @@ AS $$
                         AND albr.employment_basis = 'permanent'
                         AND (albr.operative_from IS NULL OR albr.operative_from <= r.worked_on)
                         AND (albr.operative_to IS NULL OR albr.operative_to >= r.worked_on)
+                        AND (r.approved_at IS NULL OR albr.created_at <= r.approved_at)
                     ORDER BY albr.operative_from DESC NULLS LAST, albr.created_at DESC
                     LIMIT 1
                 ),
@@ -1596,6 +1653,7 @@ AS $$
                         AND albr.employment_basis = r.employment_basis
                         AND (albr.operative_from IS NULL OR albr.operative_from <= r.worked_on)
                         AND (albr.operative_to IS NULL OR albr.operative_to >= r.worked_on)
+                        AND (r.approved_at IS NULL OR albr.created_at <= r.approved_at)
                     ORDER BY albr.operative_from DESC NULLS LAST, albr.created_at DESC
                     LIMIT 1
                 ),
@@ -1690,6 +1748,7 @@ AS $$
                                                 END
                                             AND (alpr.operative_from IS NULL OR alpr.operative_from <= scoped.segment_date)
                                             AND (alpr.operative_to IS NULL OR alpr.operative_to >= scoped.segment_date)
+                                            AND (scoped.approved_at IS NULL OR alpr.created_at <= scoped.approved_at)
                                         ORDER BY alpr.operative_from DESC NULLS LAST, alpr.created_at DESC
                                         LIMIT 1
                                     ),
@@ -1708,6 +1767,7 @@ AS $$
                                 AND alpr.penalty_kind = scoped.penalty_kind
                                 AND (alpr.operative_from IS NULL OR alpr.operative_from <= scoped.segment_date)
                                 AND (alpr.operative_to IS NULL OR alpr.operative_to >= scoped.segment_date)
+                                AND (scoped.approved_at IS NULL OR alpr.created_at <= scoped.approved_at)
                             ORDER BY alpr.operative_from DESC NULLS LAST, alpr.created_at DESC
                             LIMIT 1
                         ),
@@ -1722,6 +1782,7 @@ AS $$
                                 AND atpa.penalty_kind = scoped.penalty_kind
                                 AND (atpa.operative_from IS NULL OR atpa.operative_from <= scoped.segment_date)
                                 AND (atpa.operative_to IS NULL OR atpa.operative_to >= scoped.segment_date)
+                                AND (scoped.approved_at IS NULL OR atpa.created_at <= scoped.approved_at)
                             ORDER BY atpa.operative_from DESC NULLS LAST, atpa.created_at DESC
                             LIMIT 1
                         ),
@@ -1733,6 +1794,7 @@ AS $$
                                 AND alpr.penalty_kind = scoped.penalty_kind
                                 AND (alpr.operative_from IS NULL OR alpr.operative_from <= scoped.segment_date)
                                 AND (alpr.operative_to IS NULL OR alpr.operative_to >= scoped.segment_date)
+                                AND (scoped.approved_at IS NULL OR alpr.created_at <= scoped.approved_at)
                             ORDER BY alpr.operative_from DESC NULLS LAST, alpr.created_at DESC
                             LIMIT 1
                         ),
@@ -1756,9 +1818,9 @@ AS $$
                 pw.award_fixed_id,
                 pw.employment_basis,
                 pw.permanent_base_rate,
-                pw.pay_config_snapshot_id,
-                pw.pay_config_snapshot_version,
-                pw.pay_config_snapshot,
+                pw.staff_pay_version_id,
+                pw.shift_type_pay_version_id,
+                pw.approved_at,
                 scoped_segments.segment_name,
                 scoped_segments.segment_date,
                 scoped_segments.penalty_kind,
@@ -1935,8 +1997,8 @@ AS $$
             'shiftTypeName', pw.shift_type_name,
             'payLevelId', pw.pay_level_id,
             'payLevelName', pw.pay_level_name,
-            'payConfigSnapshotId', pw.pay_config_snapshot_id,
-            'payConfigSnapshotVersion', pw.pay_config_snapshot_version,
+            'staffPayVersionId', pw.staff_pay_version_id,
+            'shiftTypePayVersionId', pw.shift_type_pay_version_id,
             'breakMinutes', pw.break_minutes,
             'paidMinutes', pw.paid_minutes,
             'segments', sj.segments,

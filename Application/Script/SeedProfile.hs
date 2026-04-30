@@ -70,6 +70,8 @@ buildProfileSeedPlan options currentWeekOffset =
             [ ("venues", venueCount options)
             , ("users", userCount)
             , ("staff", staffCount)
+            , ("staff_pay_versions", venueCount options * staffPerVenue options)
+            , ("shift_type_pay_versions", venueCount options * length shiftTypeTemplates)
             , ("roster_weeks", rosterWeekCount)
             , ("roster_days", rosterDayCount)
             , ("roster_slots", rosterSlotCount)
@@ -101,7 +103,8 @@ writeProfileSeed dir plan = do
     writeCsv dir "staff.csv" staffColumns (staffRows plan)
     writeCsv dir "shift_types.csv" shiftTypeColumns (shiftTypeRows plan)
     writeCsv dir "day_names.csv" dayNameColumns (dayNameRows plan)
-    writeCsv dir "pay_config_snapshots.csv" payConfigSnapshotColumns (payConfigSnapshotRows plan)
+    writeCsv dir "staff_pay_versions.csv" staffPayVersionColumns (staffPayVersionRows plan)
+    writeCsv dir "shift_type_pay_versions.csv" shiftTypePayVersionColumns (shiftTypePayVersionRows plan)
     writeCsv dir "report_definitions.csv" reportDefinitionColumns (reportDefinitionRows plan)
     writeCsv dir "roster_groups.csv" rosterGroupColumns (rosterGroupRows plan)
     writeCsv dir "slot_names.csv" slotNameColumns (slotNameRows plan)
@@ -276,7 +279,8 @@ tableLoads =
     , ("staff", staffColumns, "staff.csv")
     , ("shift_types", shiftTypeColumns, "shift_types.csv")
     , ("day_names", dayNameColumns, "day_names.csv")
-    , ("pay_config_snapshots", payConfigSnapshotColumns, "pay_config_snapshots.csv")
+    , ("staff_pay_versions", staffPayVersionColumns, "staff_pay_versions.csv")
+    , ("shift_type_pay_versions", shiftTypePayVersionColumns, "shift_type_pay_versions.csv")
     , ("report_definitions", reportDefinitionColumns, "report_definitions.csv")
     , ("roster_groups", rosterGroupColumns, "roster_groups.csv")
     , ("slot_names", slotNameColumns, "slot_names.csv")
@@ -301,10 +305,11 @@ venueConfigColumns = ["id", "venue_id", "timezone", "roster_week_starts_on", "we
 venueMembershipColumns = ["id", "venue_id", "user_id", "venue_role", "is_active"]
 staffColumns = ["id", "venue_id", "user_id", "first_name", "last_name", "preferred_name", "phone", "emergency_contact_name", "emergency_contact_phone", "ideal_shifts_per_week", "is_active"]
 
-shiftTypeColumns, dayNameColumns, payConfigSnapshotColumns :: [Text]
+shiftTypeColumns, dayNameColumns, staffPayVersionColumns, shiftTypePayVersionColumns :: [Text]
 shiftTypeColumns = ["id", "venue_id", "name", "sort_order", "override_award_level_id", "is_active"]
 dayNameColumns = ["id", "venue_id", "weekday_index", "name", "is_active"]
-payConfigSnapshotColumns = ["id", "venue_id", "version_number", "version_label", "created_by_user_id", "snapshot"]
+staffPayVersionColumns = ["id", "venue_id", "staff_id", "default_award_level_id", "employment_basis", "effective_from", "created_by_user_id", "locked_at", "locked_by_user_id"]
+shiftTypePayVersionColumns = ["id", "venue_id", "shift_type_id", "override_award_level_id", "payroll_label", "effective_from", "created_by_user_id", "locked_at", "locked_by_user_id"]
 
 reportDefinitionColumns, rosterGroupColumns, slotNameColumns, staffRosterGroupColumns :: [Text]
 reportDefinitionColumns = ["id", "venue_id", "slug", "name", "description", "engine", "sort_order", "is_active"]
@@ -320,7 +325,7 @@ rosterSlotColumns = ["id", "roster_day_id", "staff_id", "slot_name_id", "slot_so
 
 leaveRequestColumns, timesheetEntryColumns, timesheetEntryVersionColumns :: [Text]
 leaveRequestColumns = ["id", "venue_id", "staff_id", "start_date", "end_date", "status", "notes"]
-timesheetEntryColumns = ["id", "venue_id", "staff_id", "shift_type_id", "worked_on", "start_time", "end_time", "had_break", "break_start_time", "break_end_time", "break_minutes", "pay_config_snapshot_id", "is_approved", "approved_at", "approved_by_user_id"]
+timesheetEntryColumns = ["id", "venue_id", "staff_id", "shift_type_id", "worked_on", "start_time", "end_time", "had_break", "break_start_time", "break_end_time", "break_minutes", "staff_pay_version_id", "shift_type_pay_version_id", "is_approved", "approved_at", "approved_by_user_id"]
 timesheetEntryVersionColumns = ["id", "venue_id", "timesheet_entry_id", "actor_user_id", "version_action", "snapshot", "payload"]
 
 xeroConnectionColumns, xeroSyncRunColumns, xeroEmployeeColumns, xeroStaffMappingColumns :: [Text]
@@ -429,10 +434,18 @@ payLevelDayRuleRows plan =
     , (weekdayIndex, overrideLevel) <- [(6, 2), (0, 3)]
     ]
 
-payConfigSnapshotRows :: ProfileSeedPlan -> [[Maybe Text]]
-payConfigSnapshotRows plan =
-    [ row [payConfigSnapshotId venueIndex, venueId venueIndex, "1", "v1", adminUserId venueIndex, "{\"profileSeed\":true,\"version\":1}"]
+staffPayVersionRows :: ProfileSeedPlan -> [[Maybe Text]]
+staffPayVersionRows plan =
+    [ row [staffPayVersionId venueIndex staffIndex, venueId venueIndex, staffId venueIndex staffIndex, nullText, "permanent", dateText (weekStartForOffset (minimum (weekOffsets plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex]
     | venueIndex <- venueIndexes plan
+    , staffIndex <- staffIndexes plan
+    ]
+
+shiftTypePayVersionRows :: ProfileSeedPlan -> [[Maybe Text]]
+shiftTypePayVersionRows plan =
+    [ row [shiftTypePayVersionId venueIndex shiftIndex, venueId venueIndex, shiftTypeId venueIndex shiftIndex, nullText, shiftName, dateText (weekStartForOffset (minimum (weekOffsets plan))), adminUserId venueIndex, timestampText, adminUserId venueIndex]
+    | venueIndex <- venueIndexes plan
+    , (shiftIndex, shiftName, _) <- shiftTypeTemplates
     ]
 
 reportDefinitionRows :: ProfileSeedPlan -> [[Maybe Text]]
@@ -546,7 +559,7 @@ timesheetEntryRows plan =
         , "12:00:00"
         , "12:30:00"
         , "30"
-        , payConfigSnapshotId venueIndex
+        , if isApproved then staffPayVersionId venueIndex staffIndex else nullText, if isApproved then shiftTypePayVersionId venueIndex (1 + deterministicIndex plan [venueIndex, staffIndex, weekOrdinal, 70] (length shiftTypeTemplates)) else nullText
         , if isApproved then "true" else "false"
         , if isApproved then timestampText else nullText
         , if isApproved then adminUserId venueIndex else nullText
@@ -782,8 +795,11 @@ shiftTypeId venueIndex shiftIndex = uuidText 7 venueIndex shiftIndex 0
 dayNameId :: Int -> Int -> Text
 dayNameId venueIndex weekdayIndex = uuidText 8 venueIndex weekdayIndex 0
 
-payConfigSnapshotId :: Int -> Text
-payConfigSnapshotId venueIndex = uuidText 10 venueIndex 0 0
+staffPayVersionId :: Int -> Int -> Text
+staffPayVersionId venueIndex staffIndex = uuidText 26 venueIndex staffIndex 0
+
+shiftTypePayVersionId :: Int -> Int -> Text
+shiftTypePayVersionId venueIndex shiftIndex = uuidText 27 venueIndex shiftIndex 0
 
 rosterGroupId :: Int -> Int -> Text
 rosterGroupId venueIndex groupIndex = uuidText 12 venueIndex groupIndex 0

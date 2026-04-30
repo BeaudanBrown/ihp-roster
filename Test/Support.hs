@@ -7,6 +7,8 @@ import Application.Helper.Controller (PlatformRole (..), currentVenueSessionKey,
                                       platformRoleToEnum, unsafeEnumFromText)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
                                         ensureVenueRosterDefaults)
+import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
+                               lockPayVersionsForApproval)
 import Config
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -60,7 +62,7 @@ withControllerTestContext action =
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do
     sqlExecDiscardResult
-        "TRUNCATE TABLE app_jobs, award_time_penalty_allowances, award_level_penalty_rates, award_level_base_rates, award_levels, fwc_mapd_wage_allowances, fwc_mapd_penalty_rates, fwc_mapd_pay_rates, fwc_mapd_classifications, fwc_mapd_awards, fwc_mapd_sync_runs, public_holidays, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_submission_runs, xero_payroll_calendar_selections, xero_earnings_rate_mappings, xero_staff_mappings, xero_payroll_calendars, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_days, roster_weeks, pay_config_snapshots, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff, passkeys, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE app_jobs, award_time_penalty_allowances, award_level_penalty_rates, award_level_base_rates, award_levels, fwc_mapd_wage_allowances, fwc_mapd_penalty_rates, fwc_mapd_pay_rates, fwc_mapd_classifications, fwc_mapd_awards, fwc_mapd_sync_runs, public_holidays, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_submission_runs, xero_payroll_calendar_selections, xero_earnings_rate_mappings, xero_staff_mappings, xero_payroll_calendars, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_days, roster_weeks, export_job_entries, shift_type_pay_versions, staff_pay_versions, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff, passkeys, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
@@ -265,10 +267,12 @@ createApprovedTimesheetEntryRecord venue staff approver workedOn = do
 createApprovedTimesheetEntryRecordAt :: (?modelContext :: ModelContext) => Venue -> Staff -> User -> Day -> UTCTime -> IO TimesheetEntry
 createApprovedTimesheetEntryRecordAt venue staff approver workedOn approvedAt = do
     entry <- createTimesheetEntryRecord venue staff workedOn
-    snapshot <- ensureTestPayConfigSnapshot venue approver
+    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval approver.id entry
+    lockPayVersionsForApproval approver.id approvedAt staffPayVersion shiftTypePayVersion
     entry
         |> set #isApproved True
-        |> set #payConfigSnapshotId (Just (unpackId snapshot.id))
+        |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
+        |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
         |> set #approvedAt (Just approvedAt)
         |> set #approvedByUserId (Just (unpackId approver.id))
         |> updateRecord
@@ -436,26 +440,6 @@ ensureVenueDefaultShiftType venue = do
             Nothing -> do
                 payLevel <- createPayLevelRecord venue ("Default Level " <> tshow venue.id)
                 createShiftTypeRecord venue payLevel "Default Shift"
-
-createPayConfigSnapshotRecord :: (?modelContext :: ModelContext) => Venue -> User -> Int -> Aeson.Value -> IO PayConfigSnapshot
-createPayConfigSnapshotRecord venue user versionNumber snapshot =
-    newRecord @PayConfigSnapshot
-        |> set #venueId (unpackId (get #id venue))
-        |> set #versionNumber versionNumber
-        |> set #versionLabel ("v" <> tshow versionNumber)
-        |> set #createdByUserId (unpackId (get #id user))
-        |> set #snapshot snapshot
-        |> createRecord
-
-ensureTestPayConfigSnapshot :: (?modelContext :: ModelContext) => Venue -> User -> IO PayConfigSnapshot
-ensureTestPayConfigSnapshot venue user =
-    query @PayConfigSnapshot
-        |> filterWhere (#venueId, unpackId venue.id)
-        |> filterWhere (#versionNumber, 1)
-        |> fetchOneOrNothing
-        >>= \case
-            Just snapshot -> pure snapshot
-            Nothing       -> createPayConfigSnapshotRecord venue user 1 (Aeson.object [])
 
 ensureProfileCompleteStaffRecord :: (?modelContext :: ModelContext) => Venue -> User -> IO Staff
 ensureProfileCompleteStaffRecord venue user =

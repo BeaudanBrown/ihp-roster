@@ -40,7 +40,7 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe AwardLevelPenaltyRate)
         let _ = (Nothing :: Maybe FwcMapdPenaltyRate)
         let _ = (Nothing :: Maybe PublicHoliday)
-        let _ = (Nothing :: Maybe PayConfigSnapshot)
+        let _ = (Nothing :: Maybe StaffPayVersion)
         let _ = (Nothing :: Maybe ShiftType)
         let _ = (Nothing :: Maybe ReportDefinition)
         let _ = (Nothing :: Maybe ReportDefinitionShiftTypeFilter)
@@ -86,7 +86,8 @@ tests = describe "Schema" do
         let _rosterWeekVenueId = get #venueId (newRecord @RosterWeek)
         let _rosterWeekRosterGroupId = get #rosterGroupId (newRecord @RosterWeek)
         let _timesheetVenueId = get #venueId (newRecord @TimesheetEntry)
-        let _timesheetSnapshotId = get #payConfigSnapshotId (newRecord @TimesheetEntry)
+        let _timesheetStaffPayVersionId = get #staffPayVersionId (newRecord @TimesheetEntry)
+        let _timesheetShiftTypePayVersionId = get #shiftTypePayVersionId (newRecord @TimesheetEntry)
         let _leaveVenueId = get #venueId (newRecord @LeaveRequest)
         let _shiftPreferenceVenueId = get #venueId (newRecord @StaffShiftPreference)
         let _shiftPreferenceRosterGroupId = get #rosterGroupId (newRecord @StaffShiftPreference)
@@ -271,7 +272,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_preferences (staff_id, roster_group_id, slot_name_id, weekday_index) WHERE deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((had_break = FALSE) AND break_start_time IS NULL AND break_end_time IS NULL AND break_minutes = 0) OR ((had_break = TRUE) AND break_start_time IS NOT NULL AND break_end_time IS NOT NULL AND break_minutes > 0))"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND pay_config_snapshot_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND pay_config_snapshot_id IS NOT NULL))"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL))"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD CONSTRAINT timesheet_entries_approval_shape_check"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_roster_slots_active_cell"
 
@@ -508,7 +509,7 @@ tests = describe "Schema" do
                 , "actor_user_id", "event_type", "target_table", "target_id"
                 , "source_channel", "payload"
                 , "requested_by_user_id", "export_type", "schema_version"
-                , "pay_config_snapshot_version", "range_start", "range_end"
+                , "pay_config_version_manifest", "range_start", "range_end"
                 , "scope", "delivery_method", "destination_metadata"
                 , "generated_file_id", "file_name", "content_type"
                 , "file_contents", "download_token", "expires_at"

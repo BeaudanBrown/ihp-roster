@@ -25,14 +25,13 @@ tests :: Spec
 tests = do
     describe "Pay helper orchestration" do
         it "decodes single-entry pay payloads" do
-            let payload = "{\"entryId\":\"11111111-1111-1111-1111-111111111111\",\"shiftTypeName\":\"Ordinary\",\"payLevelName\":\"Level 1\",\"payConfigSnapshotVersion\":\"v1\",\"segments\":[{\"segment\":\"ordinary\",\"minutes\":480,\"shiftTypeName\":\"Ordinary\",\"payLevelName\":\"Level 1\",\"dayRuleMultiplier\":1.25,\"weekendMultiplier\":1.5,\"multiplier\":1.875,\"baseRate\":0,\"amount\":0}],\"totals\":{\"paidMinutes\":480,\"totalAmount\":0}}"
+            let payload = "{\"entryId\":\"11111111-1111-1111-1111-111111111111\",\"shiftTypeName\":\"Ordinary\",\"payLevelName\":\"Level 1\",\"segments\":[{\"segment\":\"ordinary\",\"minutes\":480,\"shiftTypeName\":\"Ordinary\",\"payLevelName\":\"Level 1\",\"dayRuleMultiplier\":1.25,\"weekendMultiplier\":1.5,\"multiplier\":1.875,\"baseRate\":0,\"amount\":0}],\"totals\":{\"paidMinutes\":480,\"totalAmount\":0}}"
             case decodeTimesheetPayResult payload of
                 Left err -> expectationFailure ("Expected decode success, got: " <> Text.unpack err)
                 Right result -> do
                     result.entryId `shouldBe` "11111111-1111-1111-1111-111111111111"
                     result.shiftTypeName `shouldBe` Just "Ordinary"
                     result.payLevelName `shouldBe` Just "Level 1"
-                    result.payConfigSnapshotVersion `shouldBe` Just "v1"
                     result.totals.paidMinutes `shouldBe` 480
                     fmap (.segment) result.segments `shouldBe` ["ordinary"]
 
@@ -43,8 +42,8 @@ tests = do
                     , shiftTypeName = Just "Ordinary"
                     , payLevelId = Nothing
                     , payLevelName = Just "Level 1"
-                    , payConfigSnapshotId = Nothing
-                    , payConfigSnapshotVersion = Nothing
+                    , staffPayVersionId = Nothing
+                    , shiftTypePayVersionId = Nothing
                     , segments =
                         [ PaySegment
                             { segment = "evening"

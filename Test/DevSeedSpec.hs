@@ -260,7 +260,8 @@ tests = beforeAll testContext do
                 awardLevelBaseRateCount <- query @AwardLevelBaseRate |> fetchCount
                 awardLevelPenaltyRateCount <- query @AwardLevelPenaltyRate |> fetchCount
                 awardTimePenaltyAllowanceCount <- query @AwardTimePenaltyAllowance |> fetchCount
-                payConfigSnapshotCount <- query @PayConfigSnapshot |> fetchCount
+                staffPayVersionCount <- query @StaffPayVersion |> fetchCount
+                shiftTypePayVersionCount <- query @ShiftTypePayVersion |> fetchCount
 
                 fwcAwardCount `shouldBe` 0
                 fwcClassificationCount `shouldBe` 0
@@ -271,7 +272,8 @@ tests = beforeAll testContext do
                 awardLevelBaseRateCount `shouldBe` 0
                 awardLevelPenaltyRateCount `shouldBe` 0
                 awardTimePenaltyAllowanceCount `shouldBe` 0
-                payConfigSnapshotCount `shouldBe` 1
+                staffPayVersionCount `shouldSatisfy` (> 0)
+                shiftTypePayVersionCount `shouldSatisfy` (> 0)
 
         it "seeds three times as many sandbox timesheets with break coverage on most entries" $ withContext do
             withCleanDb do

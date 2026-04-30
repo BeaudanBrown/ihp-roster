@@ -1,6 +1,8 @@
 module Application.Support.DevFixtures where
 
 import Application.Helper.Controller (PlatformRole (..))
+import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
+                               lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
                                         fetchActiveRosterGroupSlotNames,
@@ -648,14 +650,6 @@ seedTimesheets ::
     UTCTime ->
     IO ()
 seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift staffPool approvedAt = do
-    approvalSnapshot <-
-        newRecord @PayConfigSnapshot
-            |> set #venueId (unpackId venue.id)
-            |> set #versionNumber 1
-            |> set #versionLabel ("v1" :: Text)
-            |> set #createdByUserId (unpackId admin.id)
-            |> set #snapshot (Aeson.object ["source" Aeson..= ("dev_seed" :: Text)])
-            |> createRecord
     forM_ (zip [0 ..] (take scenario.approvedTimesheets (cycle staffPool))) \(index, staff) -> do
         let shiftTypeId =
                 if index `mod` 4 == 0
@@ -663,7 +657,7 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
                     else unpackId (get #id floorShift)
         let (hadBreak, breakStartTime, breakEndTime, breakMinutes) =
                 seededBreakFields scenario.scenarioSeed index
-        _ <-
+        entry <-
             createTimesheetEntryRecord venue staff (dayAtOffset fixtureWeekStart (toInteger (index `mod` 7)))
                 >>= updateRecord
                     . set #shiftTypeId shiftTypeId
@@ -673,10 +667,15 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
                     . set #breakStartTime breakStartTime
                     . set #breakEndTime breakEndTime
                     . set #breakMinutes breakMinutes
-                    . set #isApproved True
-                    . set #payConfigSnapshotId (Just (unpackId approvalSnapshot.id))
-                    . set #approvedAt (Just approvedAt)
-                    . set #approvedByUserId (Just (unpackId admin.id))
+        (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id entry
+        lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
+        _ <- entry
+            |> set #isApproved True
+            |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
+            |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
+            |> set #approvedAt (Just approvedAt)
+            |> set #approvedByUserId (Just (unpackId admin.id))
+            |> updateRecord
         pure ()
     forM_ (zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle staffPool)))) \(index, staff) -> do
         let globalIndex = scenario.approvedTimesheets + index

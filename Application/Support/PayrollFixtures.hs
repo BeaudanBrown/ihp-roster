@@ -1,6 +1,7 @@
 module Application.Support.PayrollFixtures where
 
-import Application.Helper.Pay (buildPayConfigSnapshotPayload)
+import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
+                               lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueRosterDefaults,
                                         fetchVenueDayNames)
 import Application.Helper.VenueBootstrap (provisionVenueUser)
@@ -25,7 +26,7 @@ data CanonicalPayrollFixture = CanonicalPayrollFixture
     , avaStaff     :: !Staff
     , kaiStaff     :: !Staff
     , trialStaff   :: !Staff
-    , snapshot     :: !PayConfigSnapshot
+    , snapshot     :: !()
     , approvedAt   :: !UTCTime
     }
 
@@ -52,21 +53,26 @@ createAndApproveEntry ::
     Venue ->
     Staff ->
     Day ->
-    PayConfigSnapshot ->
+    () ->
     User ->
     UTCTime ->
     [TimesheetEntry -> TimesheetEntry] ->
     IO TimesheetEntry
-createAndApproveEntry venue staff workedOn snapshot admin approvedAt transforms = do
+createAndApproveEntry venue staff workedOn _snapshot admin approvedAt transforms = do
     entry <- createTimesheetEntryRecord venue staff workedOn
-    entry
+    updatedEntry <- entry
         |> applyTransforms transforms
-        |> approveEntryWithSnapshot snapshot admin approvedAt
+        |> updateRecord
+    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id updatedEntry
+    lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
+    updatedEntry
+        |> approveEntryWithVersions staffPayVersion shiftTypePayVersion admin approvedAt
         |> updateRecord
 
-approveEntryWithSnapshot :: PayConfigSnapshot -> User -> UTCTime -> TimesheetEntry -> TimesheetEntry
-approveEntryWithSnapshot snapshot admin approvedAt =
-    set #payConfigSnapshotId (Just (unpackId snapshot.id))
+approveEntryWithVersions :: StaffPayVersion -> ShiftTypePayVersion -> User -> UTCTime -> TimesheetEntry -> TimesheetEntry
+approveEntryWithVersions staffPayVersion shiftTypePayVersion admin approvedAt =
+    set #staffPayVersionId (Just (unpackId staffPayVersion.id))
+        . set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
         . set #isApproved True
         . set #approvedAt (Just approvedAt)
         . set #approvedByUserId (Just (unpackId admin.id))
@@ -82,7 +88,7 @@ createPayrollSnapshot ::
     [ShiftType] ->
     [DayName] ->
     [ShiftType] ->
-    IO PayConfigSnapshot
+    IO ()
 createPayrollSnapshot venue admin payLevels shiftTypes dayNames rules =
     createPayrollSnapshotWithVersion venue admin 1 payLevels shiftTypes dayNames rules
 
@@ -95,15 +101,9 @@ createPayrollSnapshotWithVersion ::
     [ShiftType] ->
     [DayName] ->
     [ShiftType] ->
-    IO PayConfigSnapshot
-createPayrollSnapshotWithVersion venue admin versionNumber awardLevels shiftTypes _dayNames _rules = do
-    venueConfig <- query @VenueConfig
-        |> filterWhere (#venueId, unpackId venue.id)
-        |> fetchOne
-    awardLevelBaseRates <- query @AwardLevelBaseRate |> orderByAsc #createdAt |> fetch
-    awardLevelPenaltyRates <- query @AwardLevelPenaltyRate |> orderByAsc #createdAt |> fetch
-    createPayConfigSnapshotRecord venue admin versionNumber $
-        buildPayConfigSnapshotPayload venueConfig awardLevels awardLevelBaseRates awardLevelPenaltyRates shiftTypes
+    IO ()
+createPayrollSnapshotWithVersion _venue _admin _versionNumber _awardLevels _shiftTypes _dayNames _rules =
+    pure ()
 
 seedCanonicalPayrollFixture :: (?modelContext :: ModelContext) => IO CanonicalPayrollFixture
 seedCanonicalPayrollFixture = seedCanonicalPayrollFixtureForWeek defaultWeekEpoch

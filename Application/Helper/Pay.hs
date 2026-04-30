@@ -1,8 +1,10 @@
 module Application.Helper.Pay where
 
 import Application.Helper.Controller
+import Control.Monad (void)
 import Data.Aeson ((.:), (.:?))
 import qualified Data.Aeson as Aeson
+import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import qualified Data.Scientific as Scientific
 import qualified Data.Set as Set
@@ -67,8 +69,8 @@ data TimesheetPayResult = TimesheetPayResult
     , shiftTypeName            :: !(Maybe Text)
     , payLevelId               :: !(Maybe UUID)
     , payLevelName             :: !(Maybe Text)
-    , payConfigSnapshotId      :: !(Maybe UUID)
-    , payConfigSnapshotVersion :: !(Maybe Text)
+    , staffPayVersionId        :: !(Maybe UUID)
+    , shiftTypePayVersionId    :: !(Maybe UUID)
     , segments                 :: ![PaySegment]
     , totals                   :: !PayTotals
     }
@@ -82,8 +84,8 @@ instance Aeson.FromJSON TimesheetPayResult where
             <*> obj .:? "shiftTypeName"
             <*> obj .:? "payLevelId"
             <*> obj .:? "payLevelName"
-            <*> obj .:? "payConfigSnapshotId"
-            <*> obj .:? "payConfigSnapshotVersion"
+            <*> obj .:? "staffPayVersionId"
+            <*> obj .:? "shiftTypePayVersionId"
             <*> obj .: "segments"
             <*> obj .: "totals"
 
@@ -132,158 +134,118 @@ buildTimesheetPayResultsByEntryId :: [TimesheetPayResult] -> Map.Map Text Timesh
 buildTimesheetPayResultsByEntryId results =
     Map.fromList (map (\result -> (result.entryId, result)) results)
 
-snapshotVersionLabel :: Int -> Text
-snapshotVersionLabel versionNumber = "v" <> tshow versionNumber
+payVersionManifestForEntry :: TimesheetEntry -> Maybe Text
+payVersionManifestForEntry entry = do
+    staffVersionId <- entry.staffPayVersionId
+    shiftVersionId <- entry.shiftTypePayVersionId
+    pure ("staff:" <> tshow staffVersionId <> ";shift:" <> tshow shiftVersionId)
 
-fetchCurrentVenuePayConfigSnapshots ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    IO [PayConfigSnapshot]
-fetchCurrentVenuePayConfigSnapshots =
-    query @PayConfigSnapshot
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> orderByDesc #versionNumber
-        |> fetch
+payVersionManifestForEntries :: [TimesheetEntry] -> [Text]
+payVersionManifestForEntries =
+    List.sort . List.nub . mapMaybe payVersionManifestForEntry
 
-fetchLatestCurrentVenuePayConfigSnapshot ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    IO (Maybe PayConfigSnapshot)
-fetchLatestCurrentVenuePayConfigSnapshot =
-    query @PayConfigSnapshot
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> orderByDesc #versionNumber
+collapsePayVersionManifests :: [Text] -> Maybe Text
+collapsePayVersionManifests [] = Nothing
+collapsePayVersionManifests manifests = Just (Text.intercalate " | " manifests)
+
+ensureStaffPayVersionForStaff ::
+    (?modelContext :: ModelContext) =>
+    Id User ->
+    Staff ->
+    Day ->
+    IO StaffPayVersion
+ensureStaffPayVersionForStaff actorUserId staff effectiveFrom = do
+    currentVersion <- query @StaffPayVersion
+        |> filterWhere (#staffId, unpackId staff.id)
+        |> filterWhere (#effectiveTo, Nothing :: Maybe Day)
         |> fetchOneOrNothing
-
-createCurrentVenuePayConfigSnapshot ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    IO PayConfigSnapshot
-createCurrentVenuePayConfigSnapshot = do
-    latestSnapshot <- fetchLatestCurrentVenuePayConfigSnapshot
-    snapshotPayload <- buildCurrentVenuePayConfigSnapshotPayload
-    let versionNumber = maybe 1 ((+ 1) . (.versionNumber)) latestSnapshot
-    newRecord @PayConfigSnapshot
-        |> set #venueId (unpackId currentVenueId)
-        |> set #versionNumber versionNumber
-        |> set #versionLabel (snapshotVersionLabel versionNumber)
-        |> set #createdByUserId (unpackId (get #id authenticatedCurrentUser))
-        |> set #snapshot snapshotPayload
-        |> createRecord
-
-syncCurrentVenuePayConfigSnapshot ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    IO PayConfigSnapshot
-syncCurrentVenuePayConfigSnapshot = do
-    latestSnapshot <- fetchLatestCurrentVenuePayConfigSnapshot
-    snapshotPayload <- buildCurrentVenuePayConfigSnapshotPayload
-
-    case latestSnapshot of
-        Just snapshot
-            | snapshot.snapshot == snapshotPayload ->
-                pure snapshot
+    case currentVersion of
+        Just version
+            | version.defaultAwardLevelId == fmap unpackId staff.defaultAwardLevelId
+                && version.employmentBasis == staff.employmentBasis ->
+                pure version
         _ -> do
-            let versionNumber = maybe 1 ((+ 1) . (.versionNumber)) latestSnapshot
-            newRecord @PayConfigSnapshot
-                |> set #venueId (unpackId currentVenueId)
-                |> set #versionNumber versionNumber
-                |> set #versionLabel (snapshotVersionLabel versionNumber)
-                |> set #createdByUserId (unpackId (get #id authenticatedCurrentUser))
-                |> set #snapshot snapshotPayload
+            forM_ currentVersion \version ->
+                void
+                    ( version
+                        |> set #effectiveTo (Just effectiveFrom)
+                        |> updateRecord
+                    )
+            newRecord @StaffPayVersion
+                |> set #venueId staff.venueId
+                |> set #staffId (unpackId staff.id)
+                |> set #defaultAwardLevelId (fmap unpackId staff.defaultAwardLevelId)
+                |> set #employmentBasis staff.employmentBasis
+                |> set #effectiveFrom effectiveFrom
+                |> set #createdByUserId (unpackId actorUserId)
                 |> createRecord
 
-ensureCurrentVenuePayConfigSnapshot ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    IO PayConfigSnapshot
-ensureCurrentVenuePayConfigSnapshot =
-    fetchLatestCurrentVenuePayConfigSnapshot >>= \case
-        Just snapshot -> pure snapshot
-        Nothing -> createCurrentVenuePayConfigSnapshot
+ensureShiftTypePayVersionForShiftType ::
+    (?modelContext :: ModelContext) =>
+    Id User ->
+    ShiftType ->
+    Day ->
+    IO ShiftTypePayVersion
+ensureShiftTypePayVersionForShiftType actorUserId shiftType effectiveFrom = do
+    currentVersion <- query @ShiftTypePayVersion
+        |> filterWhere (#shiftTypeId, unpackId shiftType.id)
+        |> filterWhere (#effectiveTo, Nothing :: Maybe Day)
+        |> fetchOneOrNothing
+    case currentVersion of
+        Just version
+            | version.overrideAwardLevelId == fmap unpackId shiftType.overrideAwardLevelId
+                && version.payrollLabel == shiftType.name ->
+                pure version
+        _ -> do
+            forM_ currentVersion \version ->
+                void
+                    ( version
+                        |> set #effectiveTo (Just effectiveFrom)
+                        |> updateRecord
+                    )
+            newRecord @ShiftTypePayVersion
+                |> set #venueId shiftType.venueId
+                |> set #shiftTypeId (unpackId shiftType.id)
+                |> set #overrideAwardLevelId (fmap unpackId shiftType.overrideAwardLevelId)
+                |> set #payrollLabel shiftType.name
+                |> set #effectiveFrom effectiveFrom
+                |> set #createdByUserId (unpackId actorUserId)
+                |> createRecord
 
-buildCurrentVenuePayConfigSnapshotPayload ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    IO Aeson.Value
-buildCurrentVenuePayConfigSnapshotPayload = do
-    venueConfig <- fetchVenueConfig
-    awardLevels <- query @AwardLevel |> orderByAsc #classification |> fetch
-    awardLevelBaseRates <- query @AwardLevelBaseRate |> orderByAsc #createdAt |> fetch
-    awardLevelPenaltyRates <- query @AwardLevelPenaltyRate |> orderByAsc #createdAt |> fetch
-    shiftTypes <- query @ShiftType |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #createdAt |> fetch
+ensurePayVersionsForTimesheetApproval ::
+    (?modelContext :: ModelContext) =>
+    Id User ->
+    TimesheetEntry ->
+    IO (StaffPayVersion, ShiftTypePayVersion)
+ensurePayVersionsForTimesheetApproval actorUserId entry = do
+    staff <- fetch (Id entry.staffId :: Id Staff)
+    shiftType <- fetch (Id entry.shiftTypeId :: Id ShiftType)
+    staffVersion <- ensureStaffPayVersionForStaff actorUserId staff entry.workedOn
+    shiftTypeVersion <- ensureShiftTypePayVersionForShiftType actorUserId shiftType entry.workedOn
+    pure (staffVersion, shiftTypeVersion)
 
-    pure (buildPayConfigSnapshotPayload venueConfig awardLevels awardLevelBaseRates awardLevelPenaltyRates shiftTypes)
-
-buildPayConfigSnapshotPayload ::
-    VenueConfig ->
-    [AwardLevel] ->
-    [AwardLevelBaseRate] ->
-    [AwardLevelPenaltyRate] ->
-    [ShiftType] ->
-    Aeson.Value
-buildPayConfigSnapshotPayload venueConfig awardLevels awardLevelBaseRates awardLevelPenaltyRates shiftTypes =
-    Aeson.object
-        [ "venueConfig" Aeson..= serializeVenueConfig venueConfig
-        , "awardLevels" Aeson..= map serializeAwardLevel awardLevels
-        , "awardLevelBaseRates" Aeson..= map serializeAwardLevelBaseRate awardLevelBaseRates
-        , "awardLevelPenaltyRates" Aeson..= map serializeAwardLevelPenaltyRate awardLevelPenaltyRates
-        , "shiftTypes" Aeson..= map serializeShiftType shiftTypes
-        ]
-
-serializeVenueConfig :: VenueConfig -> Aeson.Value
-serializeVenueConfig venueConfig =
-    Aeson.object
-        [ "id" Aeson..= unpackId (get #id venueConfig)
-        , "timezone" Aeson..= venueConfig.timezone
-        , "rosterWeekStartsOn" Aeson..= venueConfig.rosterWeekStartsOn
-        , "weekOffsetEpoch" Aeson..= venueConfig.weekOffsetEpoch
-        , "lateToEarlyMinStartGapMinutes" Aeson..= venueConfig.lateToEarlyMinStartGapMinutes
-        , "staffTimesheetEditWindowDays" Aeson..= venueConfig.staffTimesheetEditWindowDays
-        , "publicHolidayJurisdiction" Aeson..= venueConfig.publicHolidayJurisdiction
-        ]
-
-serializeAwardLevel :: AwardLevel -> Aeson.Value
-serializeAwardLevel awardLevel =
-    Aeson.object
-        [ "id" Aeson..= unpackId (get #id awardLevel)
-        , "awardFixedId" Aeson..= awardLevel.awardFixedId
-        , "classificationFixedId" Aeson..= awardLevel.classificationFixedId
-        , "classification" Aeson..= awardLevel.classification
-        , "classificationLevel" Aeson..= awardLevel.classificationLevel
-        , "parentClassificationName" Aeson..= awardLevel.parentClassificationName
-        , "isActive" Aeson..= awardLevel.isActive
-        ]
-
-serializeAwardLevelBaseRate :: AwardLevelBaseRate -> Aeson.Value
-serializeAwardLevelBaseRate rate =
-    Aeson.object
-        [ "id" Aeson..= unpackId (get #id rate)
-        , "awardLevelId" Aeson..= rate.awardLevelId
-        , "employmentBasis" Aeson..= inputValue rate.employmentBasis
-        , "hourlyRate" Aeson..= rate.hourlyRate
-        , "rateLabel" Aeson..= rate.rateLabel
-        , "operativeFrom" Aeson..= rate.operativeFrom
-        , "operativeTo" Aeson..= rate.operativeTo
-        ]
-
-serializeAwardLevelPenaltyRate :: AwardLevelPenaltyRate -> Aeson.Value
-serializeAwardLevelPenaltyRate rate =
-    Aeson.object
-        [ "id" Aeson..= unpackId (get #id rate)
-        , "awardLevelId" Aeson..= rate.awardLevelId
-        , "employmentBasis" Aeson..= inputValue rate.employmentBasis
-        , "penaltyKind" Aeson..= inputValue rate.penaltyKind
-        , "hourlyRate" Aeson..= rate.hourlyRate
-        , "startsAtTime" Aeson..= rate.startsAtTime
-        , "endsAtTime" Aeson..= rate.endsAtTime
-        , "operativeFrom" Aeson..= rate.operativeFrom
-        , "operativeTo" Aeson..= rate.operativeTo
-        ]
-
-serializeShiftType :: ShiftType -> Aeson.Value
-serializeShiftType shiftType =
-    Aeson.object
-        [ "id" Aeson..= unpackId (get #id shiftType)
-        , "name" Aeson..= shiftType.name
-        , "sortOrder" Aeson..= shiftType.sortOrder
-        , "overrideAwardLevelId" Aeson..= shiftType.overrideAwardLevelId
-        , "isActive" Aeson..= shiftType.isActive
-        ]
+lockPayVersionsForApproval ::
+    (?modelContext :: ModelContext) =>
+    Id User ->
+    UTCTime ->
+    StaffPayVersion ->
+    ShiftTypePayVersion ->
+    IO ()
+lockPayVersionsForApproval actorUserId lockedAt staffVersion shiftTypeVersion = do
+    when (isNothing staffVersion.lockedAt) do
+        void
+            ( staffVersion
+                |> set #lockedAt (Just lockedAt)
+                |> set #lockedByUserId (Just (unpackId actorUserId))
+                |> updateRecord
+            )
+    when (isNothing shiftTypeVersion.lockedAt) do
+        void
+            ( shiftTypeVersion
+                |> set #lockedAt (Just lockedAt)
+                |> set #lockedByUserId (Just (unpackId actorUserId))
+                |> updateRecord
+            )
 
 fetchTimesheetPay :: (?modelContext :: ModelContext) => Id TimesheetEntry -> IO (Either Text TimesheetPayResult)
 fetchTimesheetPay entryId = do
