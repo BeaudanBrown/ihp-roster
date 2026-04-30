@@ -312,19 +312,39 @@ ordinaryEffectiveFrom input payLevelId employmentBasis segmentDate =
 penaltyEffectiveFrom :: XeroTimesheetPreviewInput -> AwardLevel -> UUID -> StaffEmploymentBasisEnum -> Text -> Day -> Either Text (Maybe Day)
 penaltyEffectiveFrom input awardLevel payLevelId employmentBasis penaltyKindText segmentDate = do
     penaltyKind <- maybeToEither ("Unsupported Xero pay-item penalty kind " <> penaltyKindText) (parsePenaltyKind penaltyKindText)
-    let levelPenalty =
-            input.previewAwardLevelPenalties
-                |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == penaltyKind && activeOn segmentDate rate.operativeFrom rate.operativeTo)
-                |> List.sortOn (.operativeFrom)
-                |> listToMaybe
-                |> fmap (.operativeFrom)
-        timeAllowance =
-            input.previewTimePenaltyAllowances
-                |> filter (\allowance -> allowance.awardFixedId == awardLevel.awardFixedId && allowance.penaltyKind == penaltyKind && activeOn segmentDate allowance.operativeFrom allowance.operativeTo)
-                |> List.sortOn (.operativeFrom)
-                |> listToMaybe
-                |> fmap (.operativeFrom)
-    maybeToEither ("Missing active pay item source for penalty kind " <> penaltyKindText) (levelPenalty <|> timeAllowance)
+    case delayedMealBreakSourcePenaltyKind penaltyKind of
+        Just Nothing ->
+            ordinaryEffectiveFrom input payLevelId employmentBasis segmentDate
+        Just (Just sourcePenaltyKind) ->
+            activeLevelPenaltyEffectiveFrom input payLevelId employmentBasis sourcePenaltyKind segmentDate
+                |> maybeToEither ("Missing active pay item source for penalty kind " <> penaltyKindText)
+        Nothing ->
+            maybeToEither ("Missing active pay item source for penalty kind " <> penaltyKindText) do
+                activeLevelPenaltyEffectiveFrom input payLevelId employmentBasis penaltyKind segmentDate
+                    <|> activeTimeAllowanceEffectiveFrom input awardLevel.awardFixedId penaltyKind segmentDate
+
+activeLevelPenaltyEffectiveFrom :: XeroTimesheetPreviewInput -> UUID -> StaffEmploymentBasisEnum -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
+activeLevelPenaltyEffectiveFrom input payLevelId employmentBasis penaltyKind segmentDate =
+    input.previewAwardLevelPenalties
+        |> filter (\rate -> rate.awardLevelId == payLevelId && rate.employmentBasis == employmentBasis && rate.penaltyKind == penaltyKind && activeOn segmentDate rate.operativeFrom rate.operativeTo)
+        |> List.sortOn (.operativeFrom)
+        |> listToMaybe
+        |> fmap (.operativeFrom)
+
+activeTimeAllowanceEffectiveFrom :: XeroTimesheetPreviewInput -> Int -> AwardPenaltyKindEnum -> Day -> Maybe (Maybe Day)
+activeTimeAllowanceEffectiveFrom input awardFixedId penaltyKind segmentDate =
+    input.previewTimePenaltyAllowances
+        |> filter (\allowance -> allowance.awardFixedId == awardFixedId && allowance.penaltyKind == penaltyKind && activeOn segmentDate allowance.operativeFrom allowance.operativeTo)
+        |> List.sortOn (.operativeFrom)
+        |> listToMaybe
+        |> fmap (.operativeFrom)
+
+delayedMealBreakSourcePenaltyKind :: AwardPenaltyKindEnum -> Maybe (Maybe AwardPenaltyKindEnum)
+delayedMealBreakSourcePenaltyKind DelayedMealBreakWeekday       = Just Nothing
+delayedMealBreakSourcePenaltyKind DelayedMealBreakSaturday      = Just (Just SaturdayPenalty)
+delayedMealBreakSourcePenaltyKind DelayedMealBreakSunday        = Just (Just SundayPenalty)
+delayedMealBreakSourcePenaltyKind DelayedMealBreakPublicHoliday = Just (Just PublicHolidayPenalty)
+delayedMealBreakSourcePenaltyKind _                             = Nothing
 
 parsePenaltyKind :: Text -> Maybe AwardPenaltyKindEnum
 parsePenaltyKind "evening_after_7pm"                 = Just EveningAfter7Pm

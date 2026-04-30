@@ -90,6 +90,20 @@ tests =
 
                     (onlyPreviewLine previewRun).previewLineXeroEarningsRateId `shouldSatisfy` Text.isPrefixOf "earnings-"
 
+            it "maps weekday delayed meal break segments to the managed pay item bucket" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 17 0 0)]
+
+                    previewRun <- buildFixturePreview fixture
+
+                    let lines = (onlyPreview previewRun).previewLines
+                    map (.previewLineLocalBucketKey) lines `shouldSatisfy` any (Text.isInfixOf "penalty:delayed_meal_break_weekday")
+                    delayedLine <-
+                        case find (Text.isInfixOf "penalty:delayed_meal_break_weekday" . (.previewLineLocalBucketKey)) lines of
+                            Just line -> pure line
+                            Nothing   -> expectationFailure "expected a delayed meal break preview line" >> error "unreachable"
+                    delayedLine.previewLineNumberOfUnits `shouldBe` [2, 0, 0, 0, 0, 0, 0]
+
             it "persists preview payload, readiness snapshot, and duplicate-check snapshot without posting to Xero" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
