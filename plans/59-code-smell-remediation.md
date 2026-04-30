@@ -135,6 +135,12 @@ Implementation guardrails:
 
 ### 1. Raw Background Threads In Request Handlers
 
+**Current status, 2026-04-30:** completed/superseded. Invitation delivery now
+queues durable app jobs through `Application.InvitationDelivery.Job`, and
+`Application.Async.Registry` dispatches the venue invitation and venue
+onboarding invitation job kinds. Current controllers enqueue jobs instead of
+starting raw request-thread `forkIO` delivery.
+
 **Priority:** high
 
 **Finding:** Invitation delivery is launched with raw `forkIO` from controller
@@ -205,6 +211,13 @@ their behavioral value.
 - Xero fragment response tests still cover the rendered ids and OOB controls.
 
 ### 3. Production Code Imports A Seed/Test Utility Module
+
+**Current status, 2026-04-30:** completed/superseded. Production venue
+bootstrap code now lives in `Application.Helper.VenueBootstrap`; production
+controllers import that helper directly. `Application.Support` remains a
+test/seed compatibility module and imports the bootstrap helper for fixture
+convenience, but production controllers no longer depend on its destructive
+reset helpers.
 
 **Priority:** high
 
