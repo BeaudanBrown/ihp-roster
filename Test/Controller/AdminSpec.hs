@@ -30,7 +30,7 @@ import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
-import qualified Test.XeroContractSpec as XeroContract
+import qualified Test.XeroMock as XeroMock
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -1628,9 +1628,8 @@ testXeroConfig =
 
 withAdminStrictXeroMock :: (XeroRequestBaseUrls -> IO a) -> IO a
 withAdminStrictXeroMock action = do
-    identitySpec <- XeroContract.loadOpenApiSpec "vendor/xero-openapi/xero-identity.yaml"
-    payrollSpec <- XeroContract.loadOpenApiSpec "vendor/xero-openapi/xero-payroll-au.yaml"
-    XeroContract.withStrictXeroMock identitySpec payrollSpec action
+    (identitySpec, payrollSpec) <- XeroMock.loadXeroOpenApiSpecs
+    XeroMock.withStrictXeroMock identitySpec payrollSpec action
 
 successfulXeroClient :: XeroTokenResponse -> [XeroTenant] -> XeroClient
 successfulXeroClient tokenResponse tenants =
