@@ -75,6 +75,65 @@ data XeroReadyChecklist = XeroReadyChecklist
     , xeroReadyManagedPayItemTotalCount :: Int
     }
 
+data XeroTimesheetIssueView = XeroTimesheetIssueView
+    { timesheetIssueSeverity :: Text
+    , timesheetIssueMessage  :: Text
+    , timesheetIssueHint     :: Maybe Text
+    }
+    deriving (Eq, Show)
+
+data XeroTimesheetReadinessView = XeroTimesheetReadinessView
+    { timesheetReadinessReady       :: Bool
+    , timesheetReadinessPeriodStart :: Day
+    , timesheetReadinessPeriodEnd   :: Day
+    , timesheetReadinessStaffCount  :: Int
+    , timesheetReadinessEntryCount  :: Int
+    , timesheetReadinessBucketCount :: Int
+    , timesheetReadinessBlockers    :: [XeroTimesheetIssueView]
+    , timesheetReadinessWarnings    :: [XeroTimesheetIssueView]
+    }
+    deriving (Eq, Show)
+
+data XeroTimesheetPreviewLineView = XeroTimesheetPreviewLineView
+    { previewLineViewLocalBucketKey     :: Text
+    , previewLineViewXeroEarningsRateId :: Text
+    , previewLineViewEarningsRateName   :: Text
+    , previewLineViewTotalUnits         :: Scientific
+    }
+    deriving (Eq, Show)
+
+data XeroTimesheetPreviewRowView = XeroTimesheetPreviewRowView
+    { previewRowXeroEmployeeId :: Text
+    , previewRowEmployeeName   :: Text
+    , previewRowPeriodStart    :: Day
+    , previewRowPeriodEnd      :: Day
+    , previewRowTotalUnits     :: Scientific
+    , previewRowLines          :: [XeroTimesheetPreviewLineView]
+    , previewRowSourceCount    :: Int
+    }
+    deriving (Eq, Show)
+
+data XeroTimesheetSubmissionRowView = XeroTimesheetSubmissionRowView
+    { submissionRowSubmission :: XeroTimesheetSubmission
+    , submissionRowStaff      :: Maybe Staff
+    , submissionRowEmployee   :: Maybe XeroEmployee
+    }
+
+data XeroTimesheetRunView = XeroTimesheetRunView
+    { timesheetRun                 :: XeroSubmissionRun
+    , timesheetRunPreviewRows      :: [XeroTimesheetPreviewRowView]
+    , timesheetRunSubmissionRows   :: [XeroTimesheetSubmissionRowView]
+    , timesheetRunSubmittedBy      :: Maybe User
+    , timesheetRunHasHistoricalSib :: Bool
+    }
+
+data XeroTimesheetPanelData = XeroTimesheetPanelData
+    { xeroTimesheetActionsAllowed :: Bool
+    , xeroTimesheetReadiness      :: Maybe XeroTimesheetReadinessView
+    , xeroTimesheetPeriodMessage  :: Maybe Text
+    , xeroTimesheetLatestRun      :: Maybe XeroTimesheetRunView
+    }
+
 data XeroAdminSectionData = XeroAdminSectionData
     { xeroConnection                  :: Maybe XeroConnection
     , xeroConnectedByUser             :: Maybe User
@@ -92,4 +151,5 @@ data XeroAdminSectionData = XeroAdminSectionData
     , xeroPayItemAccountCodeSelection :: Maybe XeroPayItemAccountCodeSelection
     , xeroReadyChecklist              :: XeroReadyChecklist
     , xeroConnectionActionsAllowed    :: Bool
+    , xeroTimesheetPanelData          :: XeroTimesheetPanelData
     }

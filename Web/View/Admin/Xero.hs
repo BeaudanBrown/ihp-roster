@@ -20,6 +20,7 @@ import Web.View.Admin.Xero.Connection
 import Web.View.Admin.Xero.PayItems
 import Web.View.Admin.Xero.Readiness
 import Web.View.Admin.Xero.StaffMappings
+import Web.View.Admin.Xero.Timesheets
 import Web.View.Prelude
 
 data XeroView = XeroView
@@ -66,7 +67,7 @@ adminXeroLiveSurface =
 
 renderXeroSection :: XeroAdminSectionData -> Html
 renderXeroSection XeroAdminSectionData { xeroConnection = maybeConnection, .. } =
-    renderXeroConnectionBody maybeConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed
+    renderXeroConnectionBody maybeConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed xeroTimesheetPanelData
 
 renderXeroSectionFragment :: XeroAdminSectionData -> Html
 renderXeroSectionFragment =
@@ -85,13 +86,13 @@ renderXeroSectionFragmentWithSwap maybeSwapOob xeroSectionData = [hsx|
     </div>
 |]
 
-renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> Html
-renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed = [hsx|
+renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> XeroTimesheetPanelData -> Html
+renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed _ = [hsx|
     <div class="accordion admin-config-accordion" id="admin-xero-sections">
         {renderXeroAccordionItem "connection" "Connection" True (renderXeroDisconnectedConnectionDetails connectionActionsAllowed)}
     </div>
 |]
-renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed = [hsx|
+renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
     <div class="d-flex flex-column gap-3">
         <div class="accordion admin-config-accordion" id="admin-xero-sections">
             {renderXeroAccordionItem "connection" "Connection" True (renderXeroConnectionDetails connection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount connectionActionsAllowed)}
@@ -99,6 +100,7 @@ renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun emp
             {renderXeroAccordionItem "pay-items" "Pay items" False (renderXeroPayItems xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection connectionActionsAllowed)}
             {renderXeroAccordionItem "payroll-calendar" "Payroll calendar" False (renderXeroPayrollCalendarSelection xeroPayrollCalendars maybePayrollCalendarSelection)}
             {renderXeroAccordionItem "readiness" "Readiness" False (renderXeroReadyChecklist readyChecklist)}
+            {renderXeroAccordionItem "draft-timesheets" "Draft timesheets" False (renderXeroTimesheetPanel timesheetPanel)}
         </div>
     </div>
 |]

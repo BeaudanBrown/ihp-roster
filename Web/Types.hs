@@ -92,6 +92,9 @@ data AdminController
     | SaveXeroEarningsRateMappingAction
     | SaveXeroPayItemAccountCodeSelectionAction
     | SaveXeroPayrollCalendarSelectionAction
+    | PreviewXeroDraftTimesheetsAction
+    | SubmitXeroDraftTimesheetsAction
+    | RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId :: !(Id XeroTimesheetSubmission) }
     | UpdateVenueConfigAction
     | ShowAdminSlotNamesFragmentAction
     | ShowAdminInvitesFragmentAction

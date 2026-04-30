@@ -17,7 +17,9 @@ module Application.Xero.Admin.ReadModel
     , fetchCurrentVenueXeroPayrollCalendars
     , fetchCurrentVenueXeroStaffMappingRows
     , fetchCurrentVenueXeroConnection
+    , fetchCurrentVenueXeroTimesheetPanelData
     , fetchLatestCurrentVenueXeroSyncRun
+    , currentVenueXeroTimesheetReadinessRequest
     , fetchXeroConnectedByUser
     , staffFullNameText
     , xeroEmployeeAvailableForStaff
@@ -31,9 +33,15 @@ import Application.Helper.Profiling
 import Application.Helper.VenueScopedQueries
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
+import Application.Helper.XeroTimesheetReadiness
+import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Char as Char
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
+import Data.Scientific (Scientific)
 import qualified Data.Text as Text
+import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -375,7 +383,208 @@ fetchCurrentVenueXeroAdminSectionData xeroConnectionActionsAllowed = do
     xeroPayrollCalendarSelection <- profileActionSpan "admin.xero.calendar.fetch_selection" (fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection)
     xeroPayItemAccountCodeSelection <- profileActionSpan "admin.xero.pay_item_account_code.fetch_selection" (fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection)
     let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayItemRequirements xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
+    xeroTimesheetPanelData <- profileActionSpan "admin.xero.timesheets.fetch_panel" (fetchCurrentVenueXeroTimesheetPanelData xeroConnectionActionsAllowed xeroConnection xeroPayrollCalendarSelection)
     pure XeroAdminSectionData { .. }
+
+fetchCurrentVenueXeroTimesheetPanelData ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Bool ->
+    Maybe XeroConnection ->
+    Maybe XeroPayrollCalendarSelection ->
+    IO XeroTimesheetPanelData
+fetchCurrentVenueXeroTimesheetPanelData actionsAllowed maybeConnection maybeCalendarSelection = do
+    maybeReadinessRequest <- currentVenueXeroTimesheetReadinessRequest maybeConnection maybeCalendarSelection
+    xeroTimesheetReadiness <-
+        case maybeReadinessRequest of
+            Nothing -> pure Nothing
+            Just readinessRequest -> Just . xeroTimesheetReadinessView <$> validateXeroTimesheetReadiness readinessRequest
+    xeroTimesheetLatestRun <- fetchCurrentVenueLatestXeroTimesheetRun maybeConnection
+    pure XeroTimesheetPanelData
+        { xeroTimesheetActionsAllowed = actionsAllowed
+        , xeroTimesheetReadiness
+        , xeroTimesheetPeriodMessage =
+            case (maybeConnection, maybeCalendarSelection, maybeReadinessRequest) of
+                (Nothing, _, _) -> Just "Connect Xero before preparing draft timesheets."
+                (_, Nothing, _) -> Just "Select and verify a Xero payroll calendar before preparing draft timesheets."
+                (_, _, Nothing) -> Just "The selected Xero payroll calendar period could not be derived."
+                _ -> Nothing
+        , xeroTimesheetLatestRun
+        }
+
+currentVenueXeroTimesheetReadinessRequest ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Maybe XeroConnection ->
+    Maybe XeroPayrollCalendarSelection ->
+    IO (Maybe XeroTimesheetReadinessRequest)
+currentVenueXeroTimesheetReadinessRequest Nothing _ = pure Nothing
+currentVenueXeroTimesheetReadinessRequest _ Nothing = pure Nothing
+currentVenueXeroTimesheetReadinessRequest (Just connection) (Just selection) =
+    case selection.xeroPayrollCalendarId of
+        Nothing -> pure Nothing
+        Just calendarId -> do
+            maybeCalendar <-
+                query @XeroPayrollCalendar
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                    |> filterWhere (#xeroPayrollCalendarId, calendarId)
+                    |> fetchOneOrNothing
+            today <- utctDay <$> getCurrentTime
+            pure do
+                calendar <- maybeCalendar
+                (periodStart, periodEnd) <- deriveXeroPayrollCalendarPeriod calendar today
+                pure XeroTimesheetReadinessRequest
+                    { readinessVenueId = currentVenueId
+                    , readinessPeriodStart = periodStart
+                    , readinessPeriodEnd = periodEnd
+                    , readinessRemoteTimesheets = []
+                    }
+
+fetchCurrentVenueLatestXeroTimesheetRun ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Maybe XeroConnection ->
+    IO (Maybe XeroTimesheetRunView)
+fetchCurrentVenueLatestXeroTimesheetRun Nothing = pure Nothing
+fetchCurrentVenueLatestXeroTimesheetRun (Just connection) = do
+    maybeRun <-
+        query @XeroSubmissionRun
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> orderByDesc #createdAt
+            |> fetchOneOrNothing
+    case maybeRun of
+        Nothing  -> pure Nothing
+        Just run -> Just <$> buildXeroTimesheetRunView connection run
+
+buildXeroTimesheetRunView ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    XeroConnection ->
+    XeroSubmissionRun ->
+    IO XeroTimesheetRunView
+buildXeroTimesheetRunView connection run = do
+    submissions <-
+        query @XeroTimesheetSubmission
+            |> filterWhere (#xeroSubmissionRunId, unpackId run.id)
+            |> orderBy #xeroEmployeeId
+            |> fetch
+    staffMembers <-
+        query @Staff
+            |> filterWhereIn (#id, map (Id . (.staffId)) submissions)
+            |> fetch
+    employees <- fetchCurrentVenueXeroEmployees (Just connection)
+    earningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
+    submittedBy <-
+        query @User
+            |> filterWhere (#id, Id run.submittedByUserId)
+            |> fetchOneOrNothing
+    historicalCount <-
+        query @XeroSubmissionRun
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetchCount
+    pure XeroTimesheetRunView
+        { timesheetRun = run
+        , timesheetRunPreviewRows = previewRowsFromJson employees earningsRates run.previewPayloadJson
+        , timesheetRunSubmissionRows = map (submissionRowView staffMembers employees) submissions
+        , timesheetRunSubmittedBy = submittedBy
+        , timesheetRunHasHistoricalSib = historicalCount > 1
+        }
+
+submissionRowView :: [Staff] -> [XeroEmployee] -> XeroTimesheetSubmission -> XeroTimesheetSubmissionRowView
+submissionRowView staffMembers employees submission =
+    XeroTimesheetSubmissionRowView
+        { submissionRowSubmission = submission
+        , submissionRowStaff = List.find (\staff -> unpackId staff.id == submission.staffId) staffMembers
+        , submissionRowEmployee = List.find (\employee -> employee.xeroEmployeeId == submission.xeroEmployeeId) employees
+        }
+
+xeroTimesheetReadinessView :: XeroTimesheetReadiness -> XeroTimesheetReadinessView
+xeroTimesheetReadinessView readiness =
+    XeroTimesheetReadinessView
+        { timesheetReadinessReady = readiness.xeroTimesheetReady
+        , timesheetReadinessPeriodStart = readiness.xeroReadinessPeriodStart
+        , timesheetReadinessPeriodEnd = readiness.xeroReadinessPeriodEnd
+        , timesheetReadinessStaffCount = readiness.xeroReadinessStaffCount
+        , timesheetReadinessEntryCount = readiness.xeroReadinessEntryCount
+        , timesheetReadinessBucketCount = readiness.xeroReadinessPayBucketCount
+        , timesheetReadinessBlockers = map issueView readiness.xeroReadinessBlockers
+        , timesheetReadinessWarnings = map issueView readiness.xeroReadinessWarnings
+        }
+    where
+        issueView issue =
+            XeroTimesheetIssueView
+                { timesheetIssueSeverity = xeroReadinessSeverityText issue.xeroBlockerSeverity
+                , timesheetIssueMessage = issue.xeroBlockerMessage
+                , timesheetIssueHint = issue.xeroBlockerActionHint
+                }
+
+previewRowsFromJson :: [XeroEmployee] -> [XeroEarningsRate] -> Aeson.Value -> [XeroTimesheetPreviewRowView]
+previewRowsFromJson employees earningsRates value =
+    case AesonTypes.parseMaybe parsePreviewRows value of
+        Nothing   -> []
+        Just rows -> map (toPreviewRow employeeNames earningsRateNames) rows
+    where
+        employeeNames = Map.fromList (map (\employee -> (employee.xeroEmployeeId, employee.displayName)) employees)
+        earningsRateNames = Map.fromList (map (\rate -> (rate.xeroEarningsRateId, rate.name)) earningsRates)
+
+data RawPreviewRow = RawPreviewRow
+    { rawPreviewEmployeeId :: Text
+    , rawPreviewStart      :: Day
+    , rawPreviewEnd        :: Day
+    , rawPreviewSourceIds  :: [UUID]
+    , rawPreviewLines      :: [RawPreviewLine]
+    }
+
+data RawPreviewLine = RawPreviewLine
+    { rawPreviewLineBucket         :: Text
+    , rawPreviewLineEarningsRateId :: Text
+    , rawPreviewLineUnits          :: [Scientific]
+    }
+
+parsePreviewRows :: Aeson.Value -> AesonTypes.Parser [RawPreviewRow]
+parsePreviewRows =
+    Aeson.withObject "XeroTimesheetPreviewRun" \object -> do
+        timesheets <- object Aeson..: "timesheets"
+        mapM parsePreviewRow (timesheets :: [Aeson.Value])
+
+parsePreviewRow :: Aeson.Value -> AesonTypes.Parser RawPreviewRow
+parsePreviewRow =
+    Aeson.withObject "XeroTimesheetPreview" \object ->
+        RawPreviewRow
+            <$> object Aeson..: "xeroEmployeeId"
+            <*> object Aeson..: "periodStart"
+            <*> object Aeson..: "periodEnd"
+            <*> object Aeson..: "sourceTimesheetEntryIds"
+            <*> (object Aeson..: "lines" >>= mapM parsePreviewLine)
+
+parsePreviewLine :: Aeson.Value -> AesonTypes.Parser RawPreviewLine
+parsePreviewLine =
+    Aeson.withObject "XeroTimesheetPreviewLine" \object ->
+        RawPreviewLine
+            <$> object Aeson..: "localBucketKey"
+            <*> object Aeson..: "xeroEarningsRateId"
+            <*> object Aeson..: "numberOfUnits"
+
+toPreviewRow :: Map.Map Text Text -> Map.Map Text Text -> RawPreviewRow -> XeroTimesheetPreviewRowView
+toPreviewRow employeeNames earningsRateNames row =
+    let lines = map (toPreviewLine earningsRateNames) row.rawPreviewLines
+     in XeroTimesheetPreviewRowView
+            { previewRowXeroEmployeeId = row.rawPreviewEmployeeId
+            , previewRowEmployeeName = Map.findWithDefault row.rawPreviewEmployeeId row.rawPreviewEmployeeId employeeNames
+            , previewRowPeriodStart = row.rawPreviewStart
+            , previewRowPeriodEnd = row.rawPreviewEnd
+            , previewRowTotalUnits = sum (map (.previewLineViewTotalUnits) lines)
+            , previewRowLines = lines
+            , previewRowSourceCount = length row.rawPreviewSourceIds
+            }
+
+toPreviewLine :: Map.Map Text Text -> RawPreviewLine -> XeroTimesheetPreviewLineView
+toPreviewLine earningsRateNames line =
+    XeroTimesheetPreviewLineView
+        { previewLineViewLocalBucketKey = line.rawPreviewLineBucket
+        , previewLineViewXeroEarningsRateId = line.rawPreviewLineEarningsRateId
+        , previewLineViewEarningsRateName = Map.findWithDefault line.rawPreviewLineEarningsRateId line.rawPreviewLineEarningsRateId earningsRateNames
+        , previewLineViewTotalUnits = sum line.rawPreviewLineUnits
+        }
 
 data XeroEmployeeSuggestionResult
     = NoXeroEmployeeSuggestion

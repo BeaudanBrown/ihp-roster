@@ -121,6 +121,15 @@ instance Controller AdminController where
     action SaveXeroPayrollCalendarSelectionAction =
         requireCurrentVenueOwnerForXero saveXeroPayrollCalendarSelectionAction
 
+    action PreviewXeroDraftTimesheetsAction =
+        requireCurrentVenueOwnerForXero previewXeroDraftTimesheetsAction
+
+    action SubmitXeroDraftTimesheetsAction =
+        requireCurrentVenueOwnerForXero submitXeroDraftTimesheetsAction
+
+    action RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId } =
+        requireCurrentVenueOwnerForXero (retryXeroDraftTimesheetSubmissionAction xeroTimesheetSubmissionId)
+
     action UpdateVenueConfigAction = do
         venueConfig <- fetchVenueConfig
         requestedRosterWeekStartsOn <- parseRosterWeekStartsOn

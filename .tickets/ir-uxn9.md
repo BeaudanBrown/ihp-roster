@@ -1,6 +1,6 @@
 ---
 id: ir-uxn9
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T04:45:48Z
@@ -18,3 +18,13 @@ Add the first manager-facing Xero draft-timesheet UI inside the existing Xero ad
 
 The existing Xero page exposes the draft-timesheet preview/submission panel only to venue owners (and support/super-admin only if already allowed through venue-owner-equivalent access). The preview table shows one row per Xero employee with period, total units, line/earnings summary, source-entry count, and readiness/blocker state. The panel uses the selected verified Xero payroll calendar period. Generating preview persists xero_submission_runs.preview_payload_json/readiness_snapshot_json/xero_duplicate_check_json. Submitting calls the existing create-only submission service, does not approve timesheets or create pay runs, and shows latest run/submission status and errors. The UI shows only the latest run for now; no historical list. Focused controller/view tests cover owner visibility, non-owner gating, preview persistence, submit action wiring, and error display.
 
+
+## Notes
+
+**2026-04-30T04:52:37Z**
+
+Started UI implementation. Added owner-only Admin actions for Xero draft timesheet preview/submit/retry, extended the Xero read model with current selected-calendar readiness plus latest run/submission rows, and added the first draft-timesheet panel partial inside the existing Xero page.
+
+**2026-04-30T05:00:31Z**
+
+Implemented and verified the first Xero draft-timesheet UI slice. Owner-only existing Xero page panel now shows selected payroll-calendar readiness, preview persistence, latest run rows, submission statuses/errors, and retry buttons. Verified with bash ./bin/in-env typecheck, bash ./bin/in-env hspec-test --match "Xero" --match "Schema", and bash ./bin/in-env format.

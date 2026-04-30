@@ -20,6 +20,7 @@ import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (NominalDiffTime, addUTCTime, diffUTCTime,
                         getCurrentTime)
+import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -31,6 +32,7 @@ import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
+import qualified Test.XeroTimesheetPreviewSpec as Preview
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -909,6 +911,133 @@ tests = beforeAll testContext do
 
                 mappingCount <- query @XeroStaffMapping |> fetchCount
                 mappingCount `shouldBe` 0
+
+        it "shows the Xero draft-timesheet panel to venue owners" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction XeroAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Draft timesheets"
+                response `responseBodyShouldContain` "Preview draft timesheets"
+                response `responseBodyShouldContain` "Submit drafts to Xero"
+                response `responseBodyShouldContain` "Selected Xero payroll period"
+
+        it "blocks non-owner venue roles from Xero draft-timesheet page and actions" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                manager <- createUserRecord "xero-timesheet-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord fixture.venue manager "manager"
+
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
+                    callAction XeroAction
+                previewResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
+                    callAction PreviewXeroDraftTimesheetsAction
+                submitResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
+                    callAction SubmitXeroDraftTimesheetsAction
+
+                pageResponse `responseStatusShouldBe` status302
+                previewResponse `responseStatusShouldBe` status302
+                submitResponse `responseStatusShouldBe` status302
+                runCount <- query @XeroSubmissionRun |> fetchCount
+                runCount `shouldBe` 0
+
+        it "persists a latest Xero draft-timesheet preview and renders one row per employee" $ withContext do
+            withCleanDb do
+                fixture <-
+                    Preview.createPreviewFixture
+                        "weekly"
+                        [ Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                        , Preview.EntrySpec 1 Preview.fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 12 0 0)
+                        ]
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction PreviewXeroDraftTimesheetsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Prepared Xero draft-timesheet preview."
+                response `responseBodyShouldContain` "employee-a"
+                response `responseBodyShouldContain` "employee-b"
+                response `responseBodyShouldNotContain` "Historical runs"
+                run <- query @XeroSubmissionRun |> fetchOne
+                run.status `shouldBe` "previewed"
+                run.previewPayloadJson `shouldSatisfy` Preview.jsonContainsKey "timesheets"
+                run.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"
+                run.xeroDuplicateCheckJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
+
+        it "submits Xero draft timesheets through the existing service and renders latest submission status" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #tenantId ("tenant-id" :: Text)
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "submit-access-token" "submit-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction SubmitXeroDraftTimesheetsAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Submitted Xero draft timesheets."
+                response `responseBodyShouldContain` "Submission status"
+                response `responseBodyShouldContain` "submitted"
+                run <- query @XeroSubmissionRun |> fetchOne
+                run.status `shouldBe` "submitted"
+                submission <- query @XeroTimesheetSubmission |> fetchOne
+                submission.status `shouldBe` "submitted"
+
+        it "renders readiness blockers before Xero draft-timesheet submission" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                let entry = case fixture.entries of
+                        firstEntry : _ -> firstEntry
+                        []             -> error "expected fixture entry"
+                _ <-
+                    entry
+                        |> set #isApproved False
+                        |> set #approvedAt Nothing
+                        |> set #approvedByUserId Nothing
+                        |> set #payConfigSnapshotId Nothing
+                        |> updateRecord
+
+                blockedPage <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction XeroAction
+
+                blockedPage `responseStatusShouldBe` status200
+                blockedPage `responseBodyShouldContain` "Every included timesheet entry must be approved."
+
+        it "renders per-employee Xero submission errors with a retry affordance" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #tenantId ("tenant-id" :: Text)
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+                let tokenResponse = XeroTokenResponse "submit-access-token" "submit-refresh-token" 1800 (Just requiredXeroScopesText)
+                let failingCreateClient =
+                        (referenceSyncXeroClient tokenResponse [] [] [])
+                            { createTimesheet = \_ _ _ _ -> pure (Left (XeroHttpError "Xero validation failed: units are invalid"))
+                            }
+                failedResponse <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest failingCreateClient do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callAction SubmitXeroDraftTimesheetsAction
+
+                failedResponse `responseStatusShouldBe` status200
+                failedResponse `responseBodyShouldContain` "Xero validation failed: units are invalid"
+                failedResponse `responseBodyShouldContain` "Retry"
+                submission <- query @XeroTimesheetSubmission |> fetchOne
+                submission.status `shouldBe` "failed"
 
         it "records Xero payroll reference sync failures without storing stale rows" $ withContext do
             withCleanDb do
