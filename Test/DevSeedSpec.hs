@@ -401,7 +401,7 @@ tests = beforeAll testContext do
                 duplicateFirstNames `shouldContain` ["Alice"]
                 length (filter (isJust . (.preferredName)) seededStaff) `shouldSatisfy` (> 0)
 
-        it "keeps at least 80 percent of seeded assigned shifts aligned with recurring slot preferences" $ withContext do
+        it "keeps at least 80 percent of seeded assigned shifts aligned with recurring day preferences" $ withContext do
             withCleanDb do
                 fixture <- seedDevelopmentFixtureForWeek defaultWeekEpoch
 
@@ -436,14 +436,14 @@ tests = beforeAll testContext do
                             )
                 let preferenceKeys =
                         map
-                            (\preference -> (preference.staffId, preference.rosterGroupId, preference.weekdayIndex, preference.slotNameId))
+                            (\preference -> (preference.staffId, preference.rosterGroupId, preference.weekdayIndex))
                             shiftPreferences
                 let assignedPreferenceKeys =
                         mapMaybe
                             (\slot -> do
                                 staffId <- slot.staffId
                                 (dayOffset, rosterGroupId) <- Map.lookup slot.rosterDayId rosterDayContextById
-                                pure (staffId, rosterGroupId, weekdayIndexForDayOffset dayOffset, slot.slotNameId)
+                                pure (staffId, rosterGroupId, weekdayIndexForDayOffset dayOffset)
                             )
                             assignedSlotsWithStaff
                 let matchedAssignedCount = length (filter (`elem` preferenceKeys) assignedPreferenceKeys)

@@ -142,8 +142,9 @@ tests = beforeAll testContext do
                         |> set #venueId (unpackId venue.id)
                         |> set #staffId (unpackId unavailableStaff.id)
                         |> set #rosterGroupId slotName.rosterGroupId
-                        |> set #slotNameId (unpackId slotName.id)
                         |> set #weekdayIndex 2
+                        |> set #preferredStartHour 9
+                        |> set #preferredEndHour 17
                         |> createRecord
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 mondayRosterDay <- createRosterDayRecord rosterWeek 0
@@ -174,8 +175,9 @@ tests = beforeAll testContext do
                         |> set #venueId (unpackId venue.id)
                         |> set #staffId (unpackId staffMember.id)
                         |> set #rosterGroupId defaultSlotName.rosterGroupId
-                        |> set #slotNameId (unpackId defaultSlotName.id)
                         |> set #weekdayIndex 1
+                        |> set #preferredStartHour 9
+                        |> set #preferredEndHour 17
                         |> createRecord
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
                 mondayRosterDay <- createRosterDayRecord rosterWeek 0

@@ -123,11 +123,12 @@ createProtectedShiftPreference = do
     venue <- createVenueWithConfig "Delete Guard Venue"
     user <- createUserRecord "delete-guard@example.com" "staff" True
     staff <- createStaffRecord venue (Just user) "Delete" "Guard"
-    slotName <- fetchSlotNameRecord venue "Early"
+    rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
     newRecord @StaffShiftPreference
         |> set #venueId (unpackId venue.id)
         |> set #staffId (unpackId staff.id)
-        |> set #rosterGroupId slotName.rosterGroupId
-        |> set #slotNameId (unpackId slotName.id)
+        |> set #rosterGroupId (unpackId rosterGroup.id)
         |> set #weekdayIndex 1
+        |> set #preferredStartHour 9
+        |> set #preferredEndHour 17
         |> createRecord

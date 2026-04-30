@@ -5,7 +5,9 @@ import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..),
-                                                 encodeShiftPreferenceKey)
+                                                 encodeShiftPreferenceKey,
+                                                 shiftPreferenceEndHourParamName,
+                                                 shiftPreferenceStartHourParamName)
 import Config
 import qualified Data.Text as Text
 import Generated.Types
@@ -177,14 +179,8 @@ tests = beforeAll testContext do
                 staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
                 rosterGroup <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
                 _ <- createStaffRosterGroupRecord staff rosterGroup
-                slotName <- fetchSlotNameRecordForRosterGroup rosterGroup "Early"
                 let preferenceKey =
-                        encodeShiftPreferenceKey
-                            ShiftPreferenceSelection
-                                { rosterGroupId = rosterGroup.id
-                                , weekdayIndex = 1
-                                , slotNameId = slotName.id
-                                }
+                        encodeShiftPreferenceKey rosterGroup.id 1
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams UpdateProfileAction
@@ -196,14 +192,17 @@ tests = beforeAll testContext do
                         , ("emergencyContactPhone", "0411111111")
                         , ("idealShiftsPerWeek", "3")
                         , ("shiftPreferenceKeys", cs preferenceKey)
+                        , (cs (shiftPreferenceStartHourParamName preferenceKey), "12")
+                        , (cs (shiftPreferenceEndHourParamName preferenceKey), "20")
                         ]
 
                 response `responseStatusShouldBe` status302
 
                 preferences <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetch
                 map (.rosterGroupId) preferences `shouldBe` [unpackId rosterGroup.id]
-                map (.slotNameId) preferences `shouldBe` [unpackId slotName.id]
                 map (.weekdayIndex) preferences `shouldBe` [1]
+                map (.preferredStartHour) preferences `shouldBe` [12]
+                map (.preferredEndHour) preferences `shouldBe` [20]
 
         it "creates a linked staff row on the first successful profile submission" $ withContext do
             withCleanDb do
