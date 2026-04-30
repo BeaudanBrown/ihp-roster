@@ -36,13 +36,24 @@ test.describe('Mobile experience smoke', () => {
                 const brandRect = brand.getBoundingClientRect();
                 const toggleRect = toggle.getBoundingClientRect();
                 return {
+                    viewportWidth: window.innerWidth,
+                    documentScrollLeft: document.documentElement.scrollLeft,
+                    bodyScrollLeft: document.body.scrollLeft,
+                    navLeft: Math.round(navRect.left),
+                    navRight: Math.round(navRect.right),
                     brandInset: Math.round(brandRect.left - navRect.left),
                     toggleInset: Math.round(navRect.right - toggleRect.right),
+                    toggleRight: Math.round(toggleRect.right),
                 };
             });
 
+            expect(headerMetrics.documentScrollLeft).toBe(0);
+            expect(headerMetrics.bodyScrollLeft).toBe(0);
+            expect(headerMetrics.navLeft).toBeGreaterThanOrEqual(0);
+            expect(headerMetrics.navRight).toBeLessThanOrEqual(headerMetrics.viewportWidth + 1);
             expect(headerMetrics.brandInset).toBeGreaterThanOrEqual(8);
             expect(headerMetrics.toggleInset).toBeGreaterThanOrEqual(8);
+            expect(headerMetrics.viewportWidth - headerMetrics.toggleRight).toBeLessThanOrEqual(20);
         }
 
         const openedDrawer = await openAuthenticatedNavIfCollapsed(page);
