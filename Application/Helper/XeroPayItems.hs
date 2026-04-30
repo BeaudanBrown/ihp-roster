@@ -8,7 +8,7 @@ module Application.Helper.XeroPayItems
     ) where
 
 import Application.Helper.XeroAdminTypes
-import Control.Monad (void)
+import Control.Monad (void, zipWithM_)
 import qualified Data.List as List
 import qualified Data.Scientific as Scientific
 import qualified Data.Text as Text
@@ -454,6 +454,7 @@ syncXeroPayItemRequirementRecords connectionId venueId maybeActorUserId requirem
             |> filterWhere (#xeroConnectionId, unpackId connectionId)
             |> fetch
     savedRecords <- mapM (upsertRequirementRecord now existingRecords) dedupedRequirements
+    zipWithM_ (upsertMatchedEarningsRateMapping now) dedupedRequirements savedRecords
     let activeKeys = map (.payItemRequirementKey) dedupedRequirements
     mapM_ (markStaleIfMissing now activeKeys) existingRecords
     pure (zipWith attachRecord dedupedRequirements savedRecords)
@@ -499,6 +500,37 @@ syncXeroPayItemRequirementRecords connectionId venueId maybeActorUserId requirem
                 { payItemRequirementRecord = Just record
                 , payItemRequirementStatus = record.requirementStatus
                 }
+
+        upsertMatchedEarningsRateMapping now requirement record =
+            case requirement.payItemRequirementMatch of
+                Just earningsRate
+                    | record.requirementStatus `elem` ["matched", "created"] -> do
+                        existingMapping <-
+                            query @XeroEarningsRateMapping
+                                |> filterWhere (#venueId, unpackId venueId)
+                                |> filterWhere (#xeroConnectionId, unpackId connectionId)
+                                |> filterWhere (#localBucketKey, requirement.payItemRequirementKey)
+                                |> fetchOneOrNothing
+                        let localBucketLabel = fromMaybe requirement.payItemRequirementName (Text.stripPrefix xeroManagedPayItemNamePrefix requirement.payItemRequirementName)
+                        let prepared mapping =
+                                mapping
+                                    |> set #venueId (unpackId venueId)
+                                    |> set #xeroConnectionId (unpackId connectionId)
+                                    |> set #localBucketKey requirement.payItemRequirementKey
+                                    |> set #localBucketLabel localBucketLabel
+                                    |> set #xeroEarningsRateId (Just earningsRate.xeroEarningsRateId)
+                                    |> set #xeroEarningsRateName (Just earningsRate.name)
+                                    |> set #mappingStatus ("verified" :: Text)
+                                    |> set #lastVerifiedAt (Just now)
+                                    |> set #updatedByUserId (unpackId <$> maybeActorUserId)
+                        case existingMapping of
+                            Just mapping -> prepared mapping |> updateRecord |> void
+                            Nothing ->
+                                prepared (newRecord @XeroEarningsRateMapping)
+                                    |> set #createdByUserId (unpackId <$> maybeActorUserId)
+                                    |> createRecord
+                                    |> void
+                _ -> pure ()
 
 statusFor :: XeroPayItemRequirement -> Maybe XeroPayItemRequirementRecord -> Text
 statusFor requirement existing

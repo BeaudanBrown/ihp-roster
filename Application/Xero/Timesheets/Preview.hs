@@ -33,6 +33,7 @@ data XeroTimesheetPreviewInput = XeroTimesheetPreviewInput
     , previewStaff                 :: ![Staff]
     , previewStaffMappings         :: ![XeroStaffMapping]
     , previewEarningsMappings      :: ![XeroEarningsRateMapping]
+    , previewPayItemRequirements   :: ![XeroPayItemRequirementRecord]
     , previewPayResultsByEntryId   :: !(Map.Map Text TimesheetPayResult)
     , previewAwardLevels           :: ![AwardLevel]
     , previewAwardLevelBaseRates   :: ![AwardLevelBaseRate]
@@ -160,7 +161,7 @@ fetchPreviewInput ::
     XeroConnection ->
     IO XeroTimesheetPreviewInput
 fetchPreviewInput request connection = do
-    entries <-
+    approvedEntries <-
         query @TimesheetEntry
             |> filterWhere (#venueId, unpackId request.readinessVenueId)
             |> filterWhereGreaterThanOrEqualTo (#workedOn, request.readinessPeriodStart)
@@ -169,21 +170,30 @@ fetchPreviewInput request connection = do
             |> filterWhere (#deletedAt, Nothing)
             |> orderBy #workedOn
             |> fetch
+    staffMappings <-
+        query @XeroStaffMapping
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhereIn (#staffId, map (.staffId) approvedEntries)
+            |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> fetch
+    let entries =
+            approvedEntries
+                |> filter \entry ->
+                    any (\mapping -> mapping.staffId == entry.staffId && isJust mapping.xeroEmployeeId) staffMappings
     staffMembers <-
         query @Staff
             |> filterWhere (#venueId, unpackId request.readinessVenueId)
             |> filterWhereIn (#id, map (Id . (.staffId)) entries)
             |> fetch
-    staffMappings <-
-        query @XeroStaffMapping
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhereIn (#staffId, map (.staffId) entries)
-            |> filterWhere (#mappingStatus, "verified" :: Text)
-            |> fetch
     earningsMappings <-
         query @XeroEarningsRateMapping
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> fetch
+    payItemRequirements <-
+        query @XeroPayItemRequirementRecord
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhereIn (#requirementStatus, ["matched" :: Text, "created"])
             |> fetch
     payResults <- fetchTimesheetPayResultsForEntries entries
     awardLevels <- query @AwardLevel |> fetch
@@ -198,6 +208,7 @@ fetchPreviewInput request connection = do
         , previewStaff = staffMembers
         , previewStaffMappings = staffMappings
         , previewEarningsMappings = earningsMappings
+        , previewPayItemRequirements = payItemRequirements
         , previewPayResultsByEntryId = payResults
         , previewAwardLevels = awardLevels
         , previewAwardLevelBaseRates = baseRates
@@ -261,8 +272,14 @@ staffXeroEmployeeId input entry =
 earningsRateIdForBucket :: XeroTimesheetPreviewInput -> Text -> Either Text Text
 earningsRateIdForBucket input localBucketKey =
     maybeToEither ("Missing verified Xero earnings-rate mapping for bucket " <> localBucketKey) do
-        mapping <- find (\candidate -> candidate.localBucketKey == localBucketKey) input.previewEarningsMappings
-        mapping.xeroEarningsRateId
+        mappedEarningsRateId <|> managedRequirementEarningsRateId
+    where
+        mappedEarningsRateId = do
+            mapping <- find (\candidate -> candidate.localBucketKey == localBucketKey) input.previewEarningsMappings
+            mapping.xeroEarningsRateId
+        managedRequirementEarningsRateId = do
+            requirement <- find (\candidate -> candidate.requirementKey == localBucketKey) input.previewPayItemRequirements
+            requirement.xeroEarningsRateId
 
 localBucketKeyForSegment :: XeroTimesheetPreviewInput -> Staff -> TimesheetPayResult -> PaySegment -> Day -> Either Text Text
 localBucketKeyForSegment input staff payResult segment segmentDate = do

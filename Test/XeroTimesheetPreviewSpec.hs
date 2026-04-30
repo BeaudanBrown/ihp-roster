@@ -10,6 +10,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -77,6 +78,17 @@ tests =
                     preview.previewStaffPayVersionIds `shouldBe` sort (nub (mapMaybe (.staffPayVersionId) fixture.entries))
                     preview.previewShiftPayVersionIds `shouldBe` sort (nub (mapMaybe (.shiftTypePayVersionId) fixture.entries))
                     preview.previewRequestObjectJson `shouldSatisfy` not . jsonContainsKey "TrackingItemID"
+
+            it "uses matched managed pay item requirements when explicit earnings mappings are absent" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    mappings <- query @XeroEarningsRateMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                    forM_ mappings \mapping ->
+                        mapping |> set #mappingStatus ("stale" :: Text) |> updateRecord >>= const (pure ())
+
+                    previewRun <- buildFixturePreview fixture
+
+                    (onlyPreviewLine previewRun).previewLineXeroEarningsRateId `shouldSatisfy` Text.isPrefixOf "earnings-"
 
             it "persists preview payload, readiness snapshot, and duplicate-check snapshot without posting to Xero" $ withContext do
                 withCleanDb do
@@ -285,6 +297,7 @@ buildFixturePreview fixture = do
     payResults <- fetchTimesheetPayResultsForEntries fixture.entries
     staffMappings <- query @XeroStaffMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
     earningsMappings <- query @XeroEarningsRateMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+    payItemRequirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
     awardLevels <- query @AwardLevel |> fetch
     baseRates <- query @AwardLevelBaseRate |> fetch
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch
@@ -298,6 +311,7 @@ buildFixturePreview fixture = do
                 , previewStaff = [fixture.staffA, fixture.staffB]
                 , previewStaffMappings = staffMappings
                 , previewEarningsMappings = earningsMappings
+                , previewPayItemRequirements = payItemRequirements
                 , previewPayResultsByEntryId = payResults
                 , previewAwardLevels = awardLevels
                 , previewAwardLevelBaseRates = baseRates
