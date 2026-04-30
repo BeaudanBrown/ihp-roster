@@ -1,6 +1,6 @@
 ---
 id: ir-wipd
-status: open
+status: closed
 deps: [ir-d4lr]
 links: []
 created: 2026-04-29T04:41:30Z
@@ -14,3 +14,9 @@ tags: [area:view, area:maintenance, source:plans-61]
 
 Run typecheck and focused Hspec after the split.
 
+
+## Notes
+
+**2026-04-30T02:03:06Z**
+
+Application.Helper.View is now a compatibility re-export wrapper after splitting leaf, audience, time picker, timesheet, and staff dialog helpers into focused modules. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Schema" --match "TimesheetsController".
