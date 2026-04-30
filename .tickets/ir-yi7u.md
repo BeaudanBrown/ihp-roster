@@ -1,6 +1,6 @@
 ---
 id: ir-yi7u
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T06:34:23Z
@@ -21,3 +21,9 @@ Use the roster modules as the template: Web.Timesheets.Projection, RenderData, R
 ## Acceptance Criteria
 
 Web.Controller.Timesheets no longer owns projection definitions, fragment refs, render-model conversion, and large validation blocks; existing timesheet HTMX/live fragments keep the same ids, urls, filters, and authorization behavior; bash ./bin/in-env typecheck and focused timesheet Hspec pass.
+
+## Notes
+
+**2026-04-30T08:08:01Z**
+
+Split Web.Controller.Timesheets into focused Web.Timesheets.Projection, Web.Timesheets.Responses, and Web.Timesheets.Validation modules. Controller now keeps action orchestration while projection/live-surface definitions, fragment refs, response helpers, and validation moved out. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Timesheets".

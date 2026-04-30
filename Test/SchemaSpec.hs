@@ -23,7 +23,7 @@ import IHP.ModelSupport (inputValue, textToId)
 import IHP.NameSupport (columnNameToFieldName, fieldNameToColumnName)
 import IHP.Prelude
 import Test.Hspec
-import Web.Controller.Timesheets (resetApprovalOnEdit)
+import Web.Timesheets.Validation (resetApprovalOnEdit)
 
 tests :: Spec
 tests = describe "Schema" do
