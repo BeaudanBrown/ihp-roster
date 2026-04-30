@@ -20,8 +20,8 @@ import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
-import Web.Controller.LeaveRequests (affectedRosterWeekInvalidationTargetsForScopes)
 import Web.FrontController ()
+import Web.LeaveRequests.Projection (affectedRosterWeekInvalidationTargetsForScopes)
 import Web.Routes
 import Web.Types
 

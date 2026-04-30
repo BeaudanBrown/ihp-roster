@@ -1,6 +1,6 @@
 ---
 id: ir-gj4q
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T06:34:32Z
@@ -21,3 +21,9 @@ Create feature-owned leave modules for projection/render data/responses/live upd
 ## Acceptance Criteria
 
 Web.Controller.LeaveRequests no longer imports profile view fragment refs directly; profile leave markup uses a stable adapter instead of reaching across leave views ad hoc; leave page and profile leave fragments keep stable DOM ids and live-surface metadata; focused leave/profile tests pass.
+
+## Notes
+
+**2026-04-30T08:10:47Z**
+
+Extracted leave projection/live-surface ownership into Web.LeaveRequests.Projection and routed profile leave fragment ids/render helpers through Web.LeaveRequests.ProfileSelfService, so Web.Controller.LeaveRequests no longer imports Web.View.Profiles.Edit directly. Verified with bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match "Leave" --match "Profiles".
