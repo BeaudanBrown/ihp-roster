@@ -665,17 +665,31 @@ SQL
                             GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
                               | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
                             mkdir -p build/Script
-                            cat > build/Script/SeedDevMain.hs <<'EOF'
+                            cat > build/Script/SeedDevMain.hs.tmp <<'EOF'
 import qualified Application.Script.SeedDev as Script
 import qualified Config
 import IHP.ScriptSupport
 
 main = runScript Config.config Script.run
 EOF
-                            ghc $GHC_OPTS -iTest -main-is Main build/Script/SeedDevMain.hs \
-                                -o build/Script/SeedDev \
-                                -odir build/Script \
-                                -hidir build/Script
+                            if ! cmp -s build/Script/SeedDevMain.hs.tmp build/Script/SeedDevMain.hs; then
+                                mv build/Script/SeedDevMain.hs.tmp build/Script/SeedDevMain.hs
+                            else
+                                rm build/Script/SeedDevMain.hs.tmp
+                            fi
+
+                            SEED_DEV_GHC_OPTS_STAMP="build/Script/SeedDev.ghc-opts"
+                            if [ ! -x build/Script/SeedDev ] \
+                                || [ ! -f "$SEED_DEV_GHC_OPTS_STAMP" ] \
+                                || ! printf '%s\n' "$GHC_OPTS" | cmp -s "$SEED_DEV_GHC_OPTS_STAMP" - \
+                                || find Application Config Web build/Generated build/Script/SeedDevMain.hs \
+                                    -name '*.hs' -newer build/Script/SeedDev -print -quit | grep -q .; then
+                                ghc $GHC_OPTS -iTest -main-is Main build/Script/SeedDevMain.hs \
+                                    -o build/Script/SeedDev \
+                                    -odir build/Script \
+                                    -hidir build/Script
+                                printf '%s\n' "$GHC_OPTS" > "$SEED_DEV_GHC_OPTS_STAMP"
+                            fi
                             build/Script/SeedDev "''${SCRIPT_ARGS[@]}"
 
                             echo "Loading hard-coded dev award and public holiday data"
