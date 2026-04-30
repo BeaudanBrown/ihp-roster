@@ -57,7 +57,7 @@ renderInviteCreateForm rosterGroupId = [hsx|
                 <input id="new-invite-email" class="form-control" type="email" name="email" placeholder="new-user@example.com" required="required" />
             </div>
             <div class="col-12 col-md-3">
-                <button class="btn btn-outline-primary w-100" type="submit">Queue Invite Email</button>
+                <button class="btn btn-outline-primary w-100" type="submit">Send</button>
             </div>
         </div>
     </form>
