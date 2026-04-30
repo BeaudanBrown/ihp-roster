@@ -480,18 +480,31 @@ xeroEarningsRateMappingCountsFor rows =
                 Just "unmapped" -> True
                 _               -> False
 
-buildXeroReadyChecklist :: Maybe XeroConnection -> Maybe XeroSyncRun -> [XeroStaffMappingRow] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist
-buildXeroReadyChecklist maybeConnection maybeSyncRun staffRows maybeCalendarSelection maybePayItemAccountCodeSelection =
+buildXeroReadyChecklist :: Maybe XeroConnection -> Maybe XeroSyncRun -> [XeroStaffMappingRow] -> [XeroEarningsBucketRow] -> [XeroPayItemRequirement] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist
+buildXeroReadyChecklist maybeConnection maybeSyncRun staffRows earningsRows payItemRequirements maybeCalendarSelection maybePayItemAccountCodeSelection =
     XeroReadyChecklist
         { xeroReadyConnection = maybe False (\connection -> connection.connectionStatus == "active") maybeConnection
         , xeroReadyReferenceSync = maybe False (\syncRun -> syncRun.syncStatus == "succeeded") maybeSyncRun
         , xeroReadyStaffMappings = not (null staffRows) && all staffRowReady staffRows
+        , xeroReadyEarningsMappings = not (null earningsRows) && all earningsRowReady earningsRows
+        , xeroReadyManagedPayItems = not (null activeRequirements) && all payItemRequirementReady activeRequirements
         , xeroReadyPayItemAccountCode = maybe False (\selection -> selection.selectionStatus == "verified" && maybe False (not . Text.null . Text.strip) selection.accountCode) maybePayItemAccountCodeSelection
         , xeroReadyPayrollCalendar = maybe False (\selection -> selection.calendarStatus == "verified" && isJust selection.xeroPayrollCalendarId) maybeCalendarSelection
+        , xeroReadyStaffVerifiedCount = length (filter staffRowReady staffRows)
+        , xeroReadyStaffTotalCount = length staffRows
+        , xeroReadyEarningsVerifiedCount = length (filter earningsRowReady earningsRows)
+        , xeroReadyEarningsTotalCount = length earningsRows
+        , xeroReadyManagedPayItemReadyCount = length (filter payItemRequirementReady activeRequirements)
+        , xeroReadyManagedPayItemTotalCount = length activeRequirements
         }
     where
         staffRowReady row =
             row.mappingRowMapping.mappingStatus == "verified" || row.mappingRowMapping.mappingStatus == "not_applicable"
+        earningsRowReady row =
+            maybe False (\mapping -> mapping.mappingStatus == "verified" && isJust mapping.xeroEarningsRateId) row.earningsBucketRowMapping
+        activeRequirements = filter (\requirement -> requirement.payItemRequirementStatus /= "ignored") payItemRequirements
+        payItemRequirementReady requirement =
+            requirement.payItemRequirementStatus `elem` ["matched", "created"]
 
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -529,11 +542,12 @@ fetchCurrentVenueXeroAdminSectionData = do
     xeroStaffMappingRows <- profileActionSpan "admin.xero.staff_mapping.fetch_rows" (fetchCurrentVenueXeroStaffMappingRows xeroConnection)
     let xeroStaffMappingCounts = xeroStaffMappingCountsFor xeroStaffMappingRows
     xeroEarningsRates <- profileActionSpan "admin.xero.earnings_mapping.fetch_rates" (fetchCurrentVenueXeroEarningsRates xeroConnection)
+    xeroEarningsBucketRows <- profileActionSpan "admin.xero.earnings_mapping.fetch_rows" (fetchCurrentVenueXeroEarningsBucketRows xeroConnection)
     xeroPayItemRequirements <- profileActionSpan "admin.xero.pay_items.fetch_requirements" (fetchCurrentVenueXeroPayItemRequirements xeroConnection xeroEarningsRates)
     xeroPayrollCalendars <- profileActionSpan "admin.xero.calendar.fetch_calendars" (fetchCurrentVenueXeroPayrollCalendars xeroConnection)
     xeroPayrollCalendarSelection <- profileActionSpan "admin.xero.calendar.fetch_selection" (fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection)
     xeroPayItemAccountCodeSelection <- profileActionSpan "admin.xero.pay_item_account_code.fetch_selection" (fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection)
-    let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
+    let xeroReadyChecklist = buildXeroReadyChecklist xeroConnection xeroLatestSyncRun xeroStaffMappingRows xeroEarningsBucketRows xeroPayItemRequirements xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection
     let xeroConnectionActionsAllowed = currentUserCanManageXeroIntegration
     pure XeroAdminSectionData { .. }
 

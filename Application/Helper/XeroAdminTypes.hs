@@ -63,8 +63,16 @@ data XeroReadyChecklist = XeroReadyChecklist
     { xeroReadyConnection         :: Bool
     , xeroReadyReferenceSync      :: Bool
     , xeroReadyStaffMappings      :: Bool
+    , xeroReadyEarningsMappings   :: Bool
+    , xeroReadyManagedPayItems    :: Bool
     , xeroReadyPayItemAccountCode :: Bool
     , xeroReadyPayrollCalendar    :: Bool
+    , xeroReadyStaffVerifiedCount :: Int
+    , xeroReadyStaffTotalCount    :: Int
+    , xeroReadyEarningsVerifiedCount :: Int
+    , xeroReadyEarningsTotalCount :: Int
+    , xeroReadyManagedPayItemReadyCount :: Int
+    , xeroReadyManagedPayItemTotalCount :: Int
     }
 
 data XeroAdminSectionData = XeroAdminSectionData

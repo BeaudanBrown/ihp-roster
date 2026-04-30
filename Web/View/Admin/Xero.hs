@@ -640,7 +640,9 @@ renderXeroReadyChecklist checklist = [hsx|
         <div class="d-flex flex-column gap-2 small">
             {renderXeroReadyChecklistItem checklist.xeroReadyConnection "Xero connection is active"}
             {renderXeroReadyChecklistItem checklist.xeroReadyReferenceSync "Latest payroll reference sync succeeded"}
-            {renderXeroReadyChecklistItem checklist.xeroReadyStaffMappings "Staff mappings are complete"}
+            {renderXeroReadyChecklistItem checklist.xeroReadyStaffMappings ("Staff mappings are complete (" <> tshow checklist.xeroReadyStaffVerifiedCount <> "/" <> tshow checklist.xeroReadyStaffTotalCount <> ")")}
+            {renderXeroReadyChecklistItem checklist.xeroReadyEarningsMappings ("Earnings mappings are verified (" <> tshow checklist.xeroReadyEarningsVerifiedCount <> "/" <> tshow checklist.xeroReadyEarningsTotalCount <> ")")}
+            {renderXeroReadyChecklistItem checklist.xeroReadyManagedPayItems ("Managed pay items are matched or created (" <> tshow checklist.xeroReadyManagedPayItemReadyCount <> "/" <> tshow checklist.xeroReadyManagedPayItemTotalCount <> ")")}
             {renderXeroReadyChecklistItem checklist.xeroReadyPayItemAccountCode "Pay item account code is selected"}
             {renderXeroReadyChecklistItem checklist.xeroReadyPayrollCalendar "Payroll calendar is selected"}
         </div>
