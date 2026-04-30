@@ -22,6 +22,7 @@ used="$tmp_dir/used.txt"
 undefined="$tmp_dir/undefined.txt"
 missing_assets="$tmp_dir/missing-assets.txt"
 missing_makefile_entries="$tmp_dir/missing-makefile-entries.txt"
+ihp_css_assets="$tmp_dir/ihp-css-assets.txt"
 
 rg --no-heading --only-matching --replace '$2' --glob '!static/vendor/**' '(^|[;{"'\''[:space:]])(--[A-Za-z0-9_-]+)[[:space:]]*:' "${scan_files[@]}" \
   | sed 's/^.*://' \
@@ -63,19 +64,30 @@ mapfile -t makefile_css_files < <(
 
 printf '' > "$missing_assets"
 printf '' > "$missing_makefile_entries"
+cat > "$ihp_css_assets" <<'EOF'
+/vendor/flatpickr.min.css
+EOF
 
 layout_and_imported_css_assets=("${linked_css_assets[@]}" "${imported_css_assets[@]}")
 
 for asset in "${layout_and_imported_css_assets[@]}"; do
   asset_file="static${asset}"
-  ihp_asset_file="${IHP:-}/lib/IHP${asset}"
+  ihp_static_asset_file="${IHP:-}/static${asset}"
+  ihp_lib_asset_file="${IHP:-}/lib/IHP${asset}"
   ihp_dev_asset_file="${IHP_DEV_CHECKOUT:-}/ihp/data/static${asset}"
-  if [[ "$asset" != /vendor/* && ! -f "$asset_file" && ! -f "$ihp_asset_file" && ! -f "$ihp_dev_asset_file" ]]; then
+  is_ihp_asset=false
+  if rg -qx --fixed-strings "$asset" "$ihp_css_assets"; then
+    is_ihp_asset=true
+  fi
+
+  if [[ ! -f "$asset_file" && "$is_ihp_asset" != true && ! -f "$ihp_static_asset_file" && ! -f "$ihp_lib_asset_file" && ! -f "$ihp_dev_asset_file" ]]; then
     echo "$asset -> $asset_file" >> "$missing_assets"
   fi
 
   makefile_entry="${asset#/}"
-  if [[ ! " ${makefile_css_files[*]} " =~ " static/${makefile_entry} " ]]; then
+  local_makefile_entry="static/${makefile_entry}"
+  ihp_makefile_entry="\${IHP}/static/${makefile_entry}"
+  if [[ ! " ${makefile_css_files[*]} " =~ " ${local_makefile_entry} " && ! " ${makefile_css_files[*]} " =~ " ${ihp_makefile_entry} " ]]; then
     echo "$asset -> static/${makefile_entry}" >> "$missing_makefile_entries"
   fi
 done
@@ -96,7 +108,7 @@ fi
 
 echo
 echo "style-audit: hardcoded colors outside token files"
-rg -n '#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\(' static --glob '*.css' --glob '!static/vendor/**' \
+rg -n '#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\(' static --glob '*.css' --glob '!static/vendor/**' --glob '!static/prod.css' \
   | rg -v "$(printf '%s|' "${token_files[@]}" | sed 's/|$//')" \
   | head -80 \
   || true

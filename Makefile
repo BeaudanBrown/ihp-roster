@@ -1,4 +1,5 @@
 CSS_FILES += static/vendor/bootstrap-5.3.8/bootstrap.min.css
+CSS_FILES += static/vendor/bootstrap-icons-1.11.3/bootstrap-icons.min.css
 CSS_FILES += ${IHP}/static/vendor/flatpickr.min.css
 CSS_FILES += static/css/tokens.css
 CSS_FILES += static/css/bootstrap-bridge.css

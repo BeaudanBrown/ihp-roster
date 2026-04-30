@@ -1,6 +1,6 @@
 ---
 id: ir-jkt2
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-30T05:43:03Z
