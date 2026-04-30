@@ -1,7 +1,13 @@
 /* App shell, document-level layout, and authenticated navigation chrome. */
 
 html {
-    scrollbar-gutter: stable;
+    overflow-x: hidden;
+    width: 100%;
+}
+
+body {
+    overflow-x: hidden;
+    width: 100%;
 }
 
 body.modal-open {
@@ -25,6 +31,13 @@ a:not(.btn):hover {
 
 .app-shell {
     min-height: 100vh;
+    width: 100%;
+}
+
+@media (min-width: 768px) {
+    html {
+        scrollbar-gutter: stable;
+    }
 }
 
 .app-content {
