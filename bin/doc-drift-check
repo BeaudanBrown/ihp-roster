@@ -36,6 +36,7 @@ for script in \
     app-time-picker.js \
     app-roster.js \
     app-timesheets.js \
+    app-preferences.js \
     app.js
 do
     require_text AGENTS.md "static/$script"

@@ -108,79 +108,105 @@ renderPersonalProfileFields staff maybeEmail = [hsx|
     </div>
 |]
 
-renderShiftPreferenceSections :: [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [Text] -> Html
-renderShiftPreferenceSections weekdays sections selectedShiftPreferenceKeys =
+renderShiftPreferenceSections :: [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [ShiftPreferenceSelection] -> Html
+renderShiftPreferenceSections weekdays sections selectedShiftPreferences =
     if null sections
         then [hsx|<p class="app-muted mb-0">Shift preferences will appear once this staff member is assigned to at least one roster group.</p>|]
         else [hsx|
             <div class="vstack gap-3">
-                {forEach sections (renderShiftPreferenceSection weekdays selectedShiftPreferenceKeys)}
+                {forEach sections (renderShiftPreferenceSection weekdays selectedShiftPreferences)}
             </div>
         |]
 
-renderShiftPreferenceSection :: [PreferenceWeekday] -> [Text] -> StaffPreferenceGroupSection -> Html
-renderShiftPreferenceSection weekdays selectedShiftPreferenceKeys StaffPreferenceGroupSection { rosterGroup, slotNames } = [hsx|
+renderShiftPreferenceSection :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> StaffPreferenceGroupSection -> Html
+renderShiftPreferenceSection weekdays selectedShiftPreferences StaffPreferenceGroupSection { rosterGroup } = [hsx|
     <section class={appSurfaceClasses "p-3"}>
         <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
             <div>
                 <h5 class="mb-1">{rosterGroup.name}</h5>
-                <p class="app-muted mb-0 small">Tick the shifts this staff member is happy to work. A day with no selected slots counts as a hard cannot-do-day warning for Bepis roster highlights.</p>
+                <p class="app-muted mb-0 small">Tick available days and choose the preferred shift start window. A day left unticked counts as unavailable for roster highlights.</p>
             </div>
         </div>
-        {renderShiftPreferenceMatrix rosterGroup.id weekdays slotNames selectedShiftPreferenceKeys}
+        {renderShiftPreferenceRows rosterGroup.id weekdays selectedShiftPreferences}
     </section>
 |]
 
-renderShiftPreferenceMatrix :: Id RosterGroup -> [PreferenceWeekday] -> [SlotName] -> [Text] -> Html
-renderShiftPreferenceMatrix rosterGroupId weekdays slotNames selectedShiftPreferenceKeys
-    | null slotNames = [hsx|<p class="app-muted mb-0">This roster group has no active slots yet.</p>|]
-    | otherwise = [hsx|
-        <div class="table-responsive">
-            <table class="table table-sm align-middle mb-0">
-                <thead>
-                    <tr>
-                        <th>Day</th>
-                        {forEach slotNames renderShiftPreferenceSlotHeader}
-                    </tr>
-                </thead>
-                <tbody>
-                    {forEach weekdays (renderShiftPreferenceDayRow rosterGroupId slotNames selectedShiftPreferenceKeys)}
-                </tbody>
-            </table>
+renderShiftPreferenceRows :: Id RosterGroup -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderShiftPreferenceRows rosterGroupId weekdays selectedShiftPreferences = [hsx|
+    <div class="vstack gap-3">
+        {forEach weekdays (renderShiftPreferenceDayRow rosterGroupId selectedShiftPreferences)}
+    </div>
+|]
+
+renderShiftPreferenceDayRow :: Id RosterGroup -> [ShiftPreferenceSelection] -> PreferenceWeekday -> Html
+renderShiftPreferenceDayRow rosterGroupId selectedShiftPreferences weekday =
+    let key = encodeShiftPreferenceKey rosterGroupId weekday.weekdayIndex
+        selectedPreference = findSelectedShiftPreference rosterGroupId weekday.weekdayIndex selectedShiftPreferences
+        isSelected = isJust selectedPreference
+        startHour = maybe defaultPreferenceStartHour (.startHour) selectedPreference
+        endHour = maybe defaultPreferenceEndHour (.endHour) selectedPreference
+     in [hsx|
+        <div class="shift-preference-window border rounded p-3"
+             data-shift-preference-window="true"
+             data-start-label={formatPreferenceHour startHour}
+             data-end-label={formatPreferenceHour endHour}>
+            <div class="d-flex flex-column flex-lg-row gap-3 align-items-lg-center">
+                <label class="form-check d-flex align-items-center gap-2 mb-0 shift-preference-window__available">
+                    <input
+                        class="form-check-input mt-0"
+                        type="checkbox"
+                        name="shiftPreferenceKeys"
+                        value={key}
+                        checked={isSelected}
+                        data-shift-preference-available="true"
+                    />
+                    <span class="form-check-label fw-semibold">{weekday.label}</span>
+                </label>
+                <div class="shift-preference-window__controls flex-grow-1">
+                    <div class="d-flex justify-content-between small app-muted mb-2">
+                        <span>Preferred start</span>
+                        <span data-shift-preference-window-label="true">
+                            {formatPreferenceHour startHour} - {formatPreferenceHour endHour}
+                        </span>
+                    </div>
+                    <div class="row g-2 align-items-center">
+                        <div class="col-12 col-md-6">
+                            <label class="visually-hidden" for={"shiftPreferenceStart-" <> key}>Earliest preferred start</label>
+                            <input
+                                id={"shiftPreferenceStart-" <> key}
+                                class="form-range"
+                                type="range"
+                                min="0"
+                                max="23"
+                                step="1"
+                                name={shiftPreferenceStartHourParamName key}
+                                value={tshow startHour}
+                                data-shift-preference-start="true"
+                            />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="visually-hidden" for={"shiftPreferenceEnd-" <> key}>Latest preferred start</label>
+                            <input
+                                id={"shiftPreferenceEnd-" <> key}
+                                class="form-range"
+                                type="range"
+                                min="0"
+                                max="23"
+                                step="1"
+                                name={shiftPreferenceEndHourParamName key}
+                                value={tshow endHour}
+                                data-shift-preference-end="true"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     |]
 
-renderShiftPreferenceSlotHeader :: SlotName -> Html
-renderShiftPreferenceSlotHeader slotName = [hsx|<th class="text-center">{slotName.name}</th>|]
-
-renderShiftPreferenceDayRow :: Id RosterGroup -> [SlotName] -> [Text] -> PreferenceWeekday -> Html
-renderShiftPreferenceDayRow rosterGroupId slotNames selectedShiftPreferenceKeys weekday = [hsx|
-    <tr>
-        <th scope="row" class="fw-semibold">{weekday.label}</th>
-        {forEach slotNames (renderShiftPreferenceCheckbox rosterGroupId weekday.weekdayIndex selectedShiftPreferenceKeys)}
-    </tr>
-|]
-
-renderShiftPreferenceCheckbox :: Id RosterGroup -> Int -> [Text] -> SlotName -> Html
-renderShiftPreferenceCheckbox rosterGroupId weekdayIndex selectedShiftPreferenceKeys slotName =
-    let key =
-            encodeShiftPreferenceKey
-                ShiftPreferenceSelection
-                    { rosterGroupId
-                    , weekdayIndex
-                    , slotNameId = slotName.id
-                    }
-     in [hsx|
-        <td class="text-center">
-            <input
-                class="form-check-input"
-                type="checkbox"
-                name="shiftPreferenceKeys"
-                value={key}
-                checked={key `elem` selectedShiftPreferenceKeys}
-            />
-        </td>
-    |]
+findSelectedShiftPreference :: Id RosterGroup -> Int -> [ShiftPreferenceSelection] -> Maybe ShiftPreferenceSelection
+findSelectedShiftPreference rosterGroupId weekdayIndex =
+    find (\selection -> selection.rosterGroupId == rosterGroupId && selection.weekdayIndex == weekdayIndex)
 
 inputClass :: Staff -> Text -> Text
 inputClass staff fieldName =
