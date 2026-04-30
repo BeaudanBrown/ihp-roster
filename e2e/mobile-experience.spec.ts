@@ -21,6 +21,28 @@ test.describe('Mobile experience smoke', () => {
         const navToggle = page.locator('.navbar-toggler');
         if (await navToggle.isVisible()) {
             await expect(navToggle).toBeVisible();
+            const headerMetrics = await page.locator('.app-header-navbar').evaluate((navbar) => {
+                if (!(navbar instanceof HTMLElement)) {
+                    throw new Error('Expected app header navbar to be an HTMLElement');
+                }
+
+                const brand = navbar.querySelector('.navbar-brand');
+                const toggle = navbar.querySelector('.app-mobile-menu-toggle');
+                if (!(brand instanceof HTMLElement) || !(toggle instanceof HTMLElement)) {
+                    throw new Error('Expected mobile header brand and toggle controls');
+                }
+
+                const navRect = navbar.getBoundingClientRect();
+                const brandRect = brand.getBoundingClientRect();
+                const toggleRect = toggle.getBoundingClientRect();
+                return {
+                    brandInset: Math.round(brandRect.left - navRect.left),
+                    toggleInset: Math.round(navRect.right - toggleRect.right),
+                };
+            });
+
+            expect(headerMetrics.brandInset).toBeGreaterThanOrEqual(8);
+            expect(headerMetrics.toggleInset).toBeGreaterThanOrEqual(8);
         }
 
         const openedDrawer = await openAuthenticatedNavIfCollapsed(page);
@@ -48,6 +70,8 @@ test.describe('Mobile experience smoke', () => {
                 return {
                     drawerLeft: Math.round(drawerRect.left),
                     drawerRight: Math.round(drawerRect.right),
+                    drawerHeight: Math.round(drawerRect.height),
+                    viewportHeight: window.innerHeight,
                     viewportWidth: window.innerWidth,
                     linkHeight: Math.round(linkRect.height),
                     linkDisplay: getComputedStyle(firstLink).display,
@@ -56,6 +80,7 @@ test.describe('Mobile experience smoke', () => {
 
             expect(drawerMetrics.drawerLeft).toBeGreaterThanOrEqual(0);
             expect(drawerMetrics.drawerRight).toBeLessThanOrEqual(drawerMetrics.viewportWidth);
+            expect(drawerMetrics.drawerHeight).toBeGreaterThanOrEqual(drawerMetrics.viewportHeight - 1);
             expect(drawerMetrics.linkHeight).toBeGreaterThanOrEqual(44);
             expect(drawerMetrics.linkDisplay).toBe('flex');
             await mobileNav.getByRole('button', { name: 'Close navigation menu' }).click();

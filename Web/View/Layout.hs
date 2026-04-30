@@ -61,20 +61,20 @@ renderAppHeader =
                         <span class="navbar-toggler-icon"></span>
                     </button>
                 </nav>
-                <div class="offcanvas offcanvas-start app-mobile-nav d-md-none" tabindex="-1" id="app-mobile-nav" aria-labelledby="app-mobile-nav-title">
-                    <div class="offcanvas-header app-mobile-nav-header">
-                        <a id="app-mobile-nav-title" class="navbar-brand fw-semibold mb-0" href={RosterWeeksAction}>Bepis</a>
-                        <button type="button" class="btn-close btn-close-white app-mobile-nav-close" data-bs-dismiss="offcanvas" aria-label="Close navigation menu"></button>
-                    </div>
-                    <div class="offcanvas-body app-mobile-nav-body">
-                        {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch-mobile" "support-venue-switch-form app-mobile-nav-venue")}
-                        <nav class="app-mobile-nav-list" aria-label="Primary navigation">
-                            {renderMobileNavLinks}
-                        </nav>
-                        {renderMobileLogoutForm}
-                    </div>
-                </div>
             </header>
+            <div class="offcanvas offcanvas-start app-mobile-nav d-md-none" tabindex="-1" id="app-mobile-nav" aria-labelledby="app-mobile-nav-title">
+                <div class="offcanvas-header app-mobile-nav-header">
+                    <a id="app-mobile-nav-title" class="navbar-brand fw-semibold mb-0" href={RosterWeeksAction}>Bepis</a>
+                    <button type="button" class="btn-close btn-close-white app-mobile-nav-close" data-bs-dismiss="offcanvas" aria-label="Close navigation menu"></button>
+                </div>
+                <div class="offcanvas-body app-mobile-nav-body">
+                    {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch-mobile" "support-venue-switch-form app-mobile-nav-venue")}
+                    <nav class="app-mobile-nav-list" aria-label="Primary navigation">
+                        {renderMobileNavLinks}
+                    </nav>
+                    {renderMobileLogoutForm}
+                </div>
+            </div>
         |]
         Nothing -> mempty
 
