@@ -79,8 +79,8 @@ renderXeroSectionFragment =
     renderXeroSectionFragmentWithAutoSync False
 
 renderXeroSectionFragmentWithAutoSync :: Bool -> XeroAdminSectionData -> Html
-renderXeroSectionFragmentWithAutoSync shouldAutoSync =
-    renderXeroSectionFragmentWithSwap noOobSwap shouldAutoSync
+renderXeroSectionFragmentWithAutoSync =
+    renderXeroSectionFragmentWithSwap noOobSwap
 
 renderXeroSectionFragmentOob :: XeroAdminSectionData -> Html
 renderXeroSectionFragmentOob =

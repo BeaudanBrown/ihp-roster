@@ -269,7 +269,7 @@ entryWarnings entries =
     [ (blockerWith "entry_not_approved" "Unapproved entries remain in the pay period.")
         { xeroBlockerSeverity = XeroReadinessWarning
         }
-    | any (not . (.isApproved)) entries
+    | not (all (.isApproved) entries)
     ]
 
 staffMappingWarnings :: [TimesheetEntry] -> [XeroStaffMapping] -> [XeroReadinessBlocker]
