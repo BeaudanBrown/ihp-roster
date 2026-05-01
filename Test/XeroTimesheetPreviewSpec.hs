@@ -246,6 +246,8 @@ createPreviewMappings :: (?modelContext :: ModelContext) => Venue -> XeroConnect
 createPreviewMappings venue connection staffA staffB buckets = do
     createStaffMapping staffA "employee-a"
     createStaffMapping staffB "employee-b"
+    createXeroEmployee staffA "employee-a"
+    createXeroEmployee staffB "employee-b"
     forM_ buckets \bucket -> do
         let earningsRateId = "earnings-" <> bucket.localBucketKey
         _ <-
@@ -288,6 +290,19 @@ createPreviewMappings venue connection staffA staffB buckets = do
                 |> set #xeroEmployeeId (Just employeeId)
                 |> set #xeroEmployeeName (Just (staff.firstName <> " " <> staff.lastName))
                 |> set #mappingStatus ("verified" :: Text)
+                |> createRecord
+        createXeroEmployee staff employeeId = do
+            now <- getCurrentTime
+            newRecord @XeroEmployee
+                |> set #venueId (unpackId venue.id)
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #xeroEmployeeId employeeId
+                |> set #displayName (staff.firstName <> " " <> staff.lastName)
+                |> set #email Nothing
+                |> set #status (Just "ACTIVE")
+                |> set #payrollCalendarId (Just "calendar-preview")
+                |> set #rawPayload (Aeson.object ["EmployeeID" Aeson..= employeeId, "PayrollCalendarID" Aeson..= ("calendar-preview" :: Text)])
+                |> set #syncedAt now
                 |> createRecord
 
 currentVenueBuckets :: (?modelContext :: ModelContext) => Venue -> Day -> IO [XeroLocalEarningsBucket]

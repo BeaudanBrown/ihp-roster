@@ -331,6 +331,8 @@ tests = beforeAll testContext do
                 xeroVersionAfter `shouldBe` (xeroVersionBefore + 2)
                 employeeCount <- query @XeroEmployee |> fetchCount
                 employeeCount `shouldBe` 1
+                syncedEmployee <- query @XeroEmployee |> fetchOne
+                syncedEmployee.payrollCalendarId `shouldBe` Just "calendar-1"
                 earningsRateCount <- query @XeroEarningsRate |> fetchCount
                 earningsRateCount `shouldBe` 1
                 payrollCalendarCount <- query @XeroPayrollCalendar |> fetchCount

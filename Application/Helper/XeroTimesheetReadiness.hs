@@ -15,6 +15,7 @@ import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Control.Monad (guard)
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
@@ -77,6 +78,7 @@ validateXeroTimesheetReadiness request = do
     payItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
     maybeCalendarSelection <- maybe (pure Nothing) fetchVerifiedPayrollCalendarSelection maybeConnection
     maybeCalendar <- fetchSelectedPayrollCalendar maybeCalendarSelection
+    syncedEmployees <- maybe (pure []) (fetchMappedXeroEmployees staffMappings) maybeConnection
     maybeAccountCodeSelection <- maybe (pure Nothing) fetchVerifiedPayItemAccountCodeSelection maybeConnection
 
     let blockers =
@@ -84,6 +86,7 @@ validateXeroTimesheetReadiness request = do
                 [ connectionBlockers maybeConnection
                 , referenceSyncBlockers latestSync
                 , calendarBlockers request maybeCalendarSelection maybeCalendar
+                , employeePayrollCalendarBlockers request maybeConnection maybeCalendar staffMappings syncedEmployees
                 , entryBlockers entries
                 , earningsMappingBlockers buckets earningsMappings payItemRequirements
                 , payItemRequirementBlockers payItemRequirements maybeAccountCodeSelection
@@ -138,6 +141,16 @@ fetchVerifiedStaffMappings staffIds connection =
         |> filterWhereIn (#staffId, staffIds)
         |> filterWhere (#mappingStatus, "verified" :: Text)
         |> fetch
+
+fetchMappedXeroEmployees :: (?modelContext :: ModelContext) => [XeroStaffMapping] -> XeroConnection -> IO [XeroEmployee]
+fetchMappedXeroEmployees mappings connection =
+    case List.nub (mapMaybe (.xeroEmployeeId) mappings) of
+        [] -> pure []
+        employeeIds ->
+            query @XeroEmployee
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> filterWhereIn (#xeroEmployeeId, employeeIds)
+                |> fetch
 
 fetchVerifiedEarningsMappings :: (?modelContext :: ModelContext) => [XeroLocalEarningsBucket] -> XeroConnection -> IO [XeroEarningsRateMapping]
 fetchVerifiedEarningsMappings buckets connection =
@@ -220,6 +233,86 @@ calendarBlockers request _ (Just calendar) =
                   )
                     { xeroBlockerXeroObjectId = Just calendar.xeroPayrollCalendarId }
                 ]
+
+employeePayrollCalendarBlockers ::
+    XeroTimesheetReadinessRequest ->
+    Maybe XeroConnection ->
+    Maybe XeroPayrollCalendar ->
+    [XeroStaffMapping] ->
+    [XeroEmployee] ->
+    [XeroReadinessBlocker]
+employeePayrollCalendarBlockers _ Nothing _ _ _ = []
+employeePayrollCalendarBlockers _ _ Nothing _ _ = []
+employeePayrollCalendarBlockers request _ (Just calendar) mappings employees =
+    concatMap mappingBlockers mappedMappings
+    where
+        employeesByXeroId = Map.fromList [(employee.xeroEmployeeId, employee) | employee <- employees]
+        mappedMappings = filter (isJust . (.xeroEmployeeId)) mappings
+        mappingBlockers mapping =
+            case mapping.xeroEmployeeId of
+                Nothing -> []
+                Just xeroEmployeeId ->
+                    case Map.lookup xeroEmployeeId employeesByXeroId of
+                        Nothing ->
+                            [ (employeeBlocker
+                                mapping
+                                "xero_employee_not_synced"
+                                "The mapped Xero employee has not been synced. Sync payroll reference data before submitting timesheets."
+                              )
+                                { xeroBlockerXeroObjectId = Just xeroEmployeeId
+                                }
+                            ]
+                        Just employee ->
+                            employeeCalendarBlockers mapping employee
+        employeeCalendarBlockers mapping employee =
+            case employee.payrollCalendarId of
+                Nothing ->
+                    [ (employeeBlocker
+                        mapping
+                        "employee_payroll_calendar_missing"
+                        "The mapped Xero employee has no payroll calendar in synced reference data. Assign the employee to the selected Xero payroll calendar and sync again."
+                      )
+                        { xeroBlockerXeroObjectId = Just employee.xeroEmployeeId
+                        }
+                    ]
+                Just employeeCalendarId
+                    | employeeCalendarId /= calendar.xeroPayrollCalendarId ->
+                        [ (employeeBlocker
+                            mapping
+                            "employee_payroll_calendar_mismatch"
+                            ("The mapped Xero employee belongs to payroll calendar " <> employeeCalendarId <> ", but this venue is submitting calendar " <> calendar.xeroPayrollCalendarId <> ". Move the employee to the selected calendar in Xero or exclude this staff member from the current submission.")
+                          )
+                            { xeroBlockerXeroObjectId = Just employee.xeroEmployeeId
+                            }
+                        ]
+                    | otherwise ->
+                        case deriveXeroPayrollCalendarPeriod calendar request.readinessPeriodStart of
+                            Just (expectedStart, expectedEnd)
+                                | expectedStart == request.readinessPeriodStart && expectedEnd == request.readinessPeriodEnd -> []
+                                | otherwise -> [periodMismatchBlocker mapping employee expectedStart expectedEnd]
+                            Nothing ->
+                                [ (employeeBlocker
+                                    mapping
+                                    "employee_payroll_calendar_period_mismatch"
+                                    "The mapped Xero employee's payroll calendar period cannot be derived for the selected dates."
+                                  )
+                                    { xeroBlockerXeroObjectId = Just employee.xeroEmployeeId
+                                    }
+                                ]
+        periodMismatchBlocker mapping employee expectedStart expectedEnd =
+            (employeeBlocker
+                mapping
+                "employee_payroll_calendar_period_mismatch"
+                ("The mapped Xero employee's payroll calendar period is " <> tshow expectedStart <> " to " <> tshow expectedEnd <> ", not the selected period. Adjust the selected period before submitting.")
+            )
+                { xeroBlockerXeroObjectId = Just employee.xeroEmployeeId
+                }
+
+employeeBlocker :: XeroStaffMapping -> Text -> Text -> XeroReadinessBlocker
+employeeBlocker mapping code message =
+    (blockerWith code message)
+        { xeroBlockerAffectedStaffId = Just mapping.staffId
+        }
 
 deriveXeroPayrollCalendarPeriod :: XeroPayrollCalendar -> Day -> Maybe (Day, Day)
 deriveXeroPayrollCalendarPeriod calendar localPeriodStart = do

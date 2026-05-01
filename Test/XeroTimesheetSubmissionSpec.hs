@@ -79,6 +79,25 @@ tests =
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
                             submissions `shouldBe` []
 
+            it "blocks create when readiness finds an employee payroll calendar mismatch" $ withContext do
+                withCleanDb do
+                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    _ <- prepareConnectionForStrictMock fixture.connection
+                    forceFixtureEmployeeCalendar fixture "calendar-other"
+
+                    result <-
+                        withXeroConfigForTest (Right testXeroConfig) do
+                            withXeroClientForTest failIfCreateTimesheetClient do
+                                submitXeroDraftTimesheets fixture.owner.id fixture.request
+
+                    case result of
+                        Left message -> expectationFailure (cs message)
+                        Right run -> do
+                            run.status `shouldBe` "blocked"
+                            run.errorSummary `shouldSatisfy` maybe False ("belongs to payroll calendar calendar-other" `isInfixOf`)
+                            submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
+                            submissions `shouldBe` []
+
             it "persists semantic Xero validation errors from strict create responses" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
@@ -209,6 +228,32 @@ forceFixtureEmployeeId fixture employeeId = do
             |> fetch
     forM_ mappings \mapping ->
         void (mapping |> set #xeroEmployeeId (Just employeeId) |> updateRecord)
+
+forceFixtureEmployeeCalendar :: (?modelContext :: ModelContext) => PreviewFixture -> Text -> IO ()
+forceFixtureEmployeeCalendar fixture payrollCalendarId = do
+    employees <-
+        query @XeroEmployee
+            |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
+            |> fetch
+    forM_ employees \employee ->
+        void (employee |> set #payrollCalendarId (Just payrollCalendarId) |> updateRecord)
+
+failIfCreateTimesheetClient :: XeroClient
+failIfCreateTimesheetClient =
+    XeroClient
+        { exchangeCodeForToken = \_ _ -> pure (Right (XeroTokenResponse "access-token" "refresh-token" 1800 (Just requiredXeroScopesText)))
+        , fetchConnectedTenants = \_ -> pure (Right [])
+        , deleteXeroConnection = \_ _ -> pure (Right ())
+        , refreshXeroToken = \_ _ -> pure (Right (XeroTokenResponse "access-token" "refresh-token" 1800 (Just requiredXeroScopesText)))
+        , fetchPayrollEmployees = \_ _ -> pure (Right [])
+        , fetchEarningsRates = \_ _ -> pure (Right [])
+        , fetchPayrollCalendars = \_ _ -> pure (Right [])
+        , createPayItem = \_ _ _ _ -> pure (Right [])
+        , fetchTimesheets = \_ _ _ -> pure (Right [])
+        , fetchTimesheet = \_ _ _ -> pure (Left (XeroHttpError "unexpected fetchTimesheet call"))
+        , createTimesheet = \_ _ _ _ -> expectationFailure "createTimesheet should not be reached when readiness is blocked" >> pure (Left (XeroHttpError "unexpected createTimesheet call"))
+        , updateTimesheet = \_ _ _ _ _ -> pure (Left (XeroHttpError "unexpected updateTimesheet call"))
+        }
 
 isSingletonArray :: Maybe Aeson.Value -> Bool
 isSingletonArray (Just (Aeson.Array values)) = Vector.length values == 1
