@@ -13,8 +13,9 @@
     function syncWindow(container) {
         const startInput = container.querySelector('[data-shift-preference-start]');
         const endInput = container.querySelector('[data-shift-preference-end]');
-        const label = container.querySelector('[data-shift-preference-window-label]');
-        if (!startInput || !endInput || !label) return;
+        const startLabel = container.querySelector('[data-shift-preference-start-label]');
+        const endLabel = container.querySelector('[data-shift-preference-end-label]');
+        if (!startInput || !endInput || !startLabel || !endLabel) return;
 
         let startHour = Number.parseInt(startInput.value, 10);
         let endHour = Number.parseInt(endInput.value, 10);
@@ -31,7 +32,16 @@
             }
         }
 
-        label.textContent = `${formatHour(startHour)} - ${formatHour(endHour)}`;
+        const minHour = Number.parseInt(container.dataset.minHour || startInput.min || '5', 10);
+        const maxHour = Number.parseInt(container.dataset.maxHour || startInput.max || '23', 10);
+        const span = Math.max(1, maxHour - minHour);
+        const startPercent = ((startHour - minHour) / span) * 100;
+        const endPercent = ((endHour - minHour) / span) * 100;
+
+        container.style.setProperty('--preference-start', `${startPercent}%`);
+        container.style.setProperty('--preference-end', `${endPercent}%`);
+        startLabel.textContent = formatHour(startHour);
+        endLabel.textContent = formatHour(endHour);
     }
 
     function initShiftPreferenceWindows(target) {

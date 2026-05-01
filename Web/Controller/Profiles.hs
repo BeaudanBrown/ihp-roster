@@ -28,7 +28,7 @@ instance Controller ProfilesController where
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
         let currentUserEmail = currentUser.email
         let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
-        (preferenceWeekdays, preferenceSections, selectedShiftPreferences) <- profilePreferenceViewData maybeExistingStaff
+        (preferenceWeekdays, selectedShiftPreferences) <- profilePreferenceViewData maybeExistingStaff
         passkeys <- fetchCurrentUserPasskeys
         leaveRequests <- fetchCurrentUserLeaveRequests
         leaveRequestForm <- buildDefaultLeaveRequest
@@ -46,7 +46,7 @@ instance Controller ProfilesController where
         let currentUserEmail = currentUser.email
         let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
         passkeys <- fetchCurrentUserPasskeys
-        (preferenceWeekdays, preferenceSections, selectedShiftPreferences) <-
+        (preferenceWeekdays, selectedShiftPreferences) <-
             profilePreferenceViewDataWithSubmitted maybeExistingStaff submittedShiftPreferenceKeys
         leaveRequests <- fetchCurrentUserLeaveRequests
         leaveRequestForm <- buildDefaultLeaveRequest
@@ -69,29 +69,27 @@ instance Controller ProfilesController where
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection)
+                        then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection)
                         else render EditView { .. }
                 Right staff -> do
                     staff <- upsertCurrentUserStaff staff
-                    case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
+                    case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
                         Left preferenceError -> do
                             venueConfig <- fetchVenueConfig
                             setErrorMessage preferenceError
                             let currentUserEmail = currentUser.email
                             let preferenceWeekdays = allPreferenceWeekdays venueConfig
-                            preferenceSections <- fetchStaffPreferenceGroupSections staff
                             let selectedShiftPreferences =
-                                    case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
+                                    case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
                                         Right selections -> selections
                                         Left _           -> []
                             leaveRequests <- fetchCurrentUserLeaveRequests
                             leaveRequestForm <- buildDefaultLeaveRequest
                             if isHtmxRequest
-                                then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection)
+                                then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection)
                                 else render EditView { .. }
                         Right submittedSelections -> do
-                            rosterGroupIds <- map (.rosterGroup.id) <$> fetchStaffPreferenceGroupSections staff
-                            replaceStaffShiftPreferences staff rosterGroupIds submittedSelections
+                            replaceStaffShiftPreferences staff submittedSelections
                             invalidationTargets <- fetchProfileRosterInvalidationTargets currentVenueId staff
                             let invalidations = buildProfileRosterInvalidations invalidationTargets
                             forM_ invalidations \(rosterGroupId, weekOffset, fragments) ->
@@ -107,7 +105,7 @@ instance Controller ProfilesController where
                                     then
                                         respondHtml $
                                             mconcat
-                                                [ renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections submittedSelections passkeys leaveRequests leaveRequestForm openSection
+                                                [ renderProfileContentFragment staff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm openSection
                                                 , renderToastOob ToastBottomCenter (successToast "Profile updated")
                                                 ]
                                     else do
@@ -146,30 +144,28 @@ upsertCurrentUserStaff staff = do
                 syncStaffRosterGroupAssignments createdStaff [defaultRosterGroup.id]
                 pure createdStaff
 
-profilePreferenceViewData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> IO ([PreferenceWeekday], [StaffPreferenceGroupSection], [ShiftPreferenceSelection])
+profilePreferenceViewData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> IO ([PreferenceWeekday], [ShiftPreferenceSelection])
 profilePreferenceViewData maybeStaff =
     case maybeStaff of
-        Nothing -> pure ([], [], [])
+        Nothing -> pure ([], [])
         Just staff -> do
             venueConfig <- fetchVenueConfig
             let preferenceWeekdays = allPreferenceWeekdays venueConfig
-            preferenceSections <- fetchStaffPreferenceGroupSections staff
-            selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff (map (.rosterGroup.id) preferenceSections)
-            pure (preferenceWeekdays, preferenceSections, selectedShiftPreferences)
+            selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
+            pure (preferenceWeekdays, selectedShiftPreferences)
 
-profilePreferenceViewDataWithSubmitted :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe Staff -> [Text] -> IO ([PreferenceWeekday], [StaffPreferenceGroupSection], [ShiftPreferenceSelection])
+profilePreferenceViewDataWithSubmitted :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe Staff -> [Text] -> IO ([PreferenceWeekday], [ShiftPreferenceSelection])
 profilePreferenceViewDataWithSubmitted maybeStaff submittedShiftPreferenceKeys =
     case maybeStaff of
-        Nothing -> pure ([], [], [])
+        Nothing -> pure ([], [])
         Just staff -> do
             venueConfig <- fetchVenueConfig
             let preferenceWeekdays = allPreferenceWeekdays venueConfig
-            preferenceSections <- fetchStaffPreferenceGroupSections staff
             let selectedShiftPreferences =
-                    case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
+                    case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
                         Right selections -> selections
                         Left _           -> []
-            pure (preferenceWeekdays, preferenceSections, selectedShiftPreferences)
+            pure (preferenceWeekdays, selectedShiftPreferences)
 
 normalizeProfileOpenSection :: Text -> Text
 normalizeProfileOpenSection section

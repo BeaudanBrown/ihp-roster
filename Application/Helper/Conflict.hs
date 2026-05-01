@@ -59,7 +59,7 @@ data ConflictContext = ConflictContext
     , daySlots                      :: [RosterSlot]  -- All slots for this staff on the current day
     , weekRosterDays                :: [RosterDay] -- All days for the current week
     , leaveRequests                 :: [LeaveRequest] -- All leave requests for this staff
-    , shiftPreferences              :: [StaffShiftPreference] -- All recurring shift preferences for this staff in the current roster group
+    , shiftPreferences              :: [StaffShiftPreference] -- All recurring shift preferences for this staff
     , rosterDayDate                 :: Day -- The derived date of the roster day
     , lateToEarlyMinStartGapMinutes :: Int -- venue config threshold
     , staffIdealShifts              :: Maybe Int -- staff.idealShiftsPerWeek
@@ -143,7 +143,7 @@ shiftPreferencesForDay :: ConflictContext -> [StaffShiftPreference]
 shiftPreferencesForDay ctx =
     let weekdayIndex = weekdayIndexForDay ctx.rosterDayDate
      in filter
-            (\preference -> preference.rosterGroupId == ctx.rosterGroupId && preference.weekdayIndex == weekdayIndex)
+            (\preference -> preference.weekdayIndex == weekdayIndex)
             ctx.shiftPreferences
 
 checkLateToEarlyConflict :: ConflictContext -> Maybe RosterConflict

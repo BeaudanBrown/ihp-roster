@@ -4,27 +4,20 @@
 module Application.Helper.StaffShiftPreferences where
 
 import Application.Helper.Controller (currentVenueId)
-import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Application.Helper.WeekBoundaries (orderedWeekdayIndexes,
                                           weekdayIndexLabel)
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as Text
 import Data.Time.Clock (getCurrentTime)
-import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Prelude
 import Text.Read (readMaybe)
 
-data StaffPreferenceGroupSection = StaffPreferenceGroupSection
-    { rosterGroup :: RosterGroup
-    }
-
 data ShiftPreferenceSelection = ShiftPreferenceSelection
-    { rosterGroupId :: Id RosterGroup
-    , weekdayIndex  :: Int
-    , startHour     :: Int
-    , endHour       :: Int
+    { weekdayIndex :: Int
+    , startHour    :: Int
+    , endHour      :: Int
     }
     deriving (Eq, Show)
 
@@ -45,114 +38,81 @@ allPreferenceWeekdays venueConfig =
         )
         (orderedWeekdayIndexes venueConfig.rosterWeekStartsOn)
 
-fetchStaffPreferenceGroupSections :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Staff -> IO [StaffPreferenceGroupSection]
-fetchStaffPreferenceGroupSections staff = do
-    rosterGroupIds <- fetchStaffRosterGroupIds staff
-    fetchPreferenceSectionsForRosterGroups rosterGroupIds
-
-fetchPreferenceSectionsForRosterGroups :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Id RosterGroup] -> IO [StaffPreferenceGroupSection]
-fetchPreferenceSectionsForRosterGroups rosterGroupIds = do
-    rosterGroups <-
-        query @RosterGroup
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhereIn (#id, rosterGroupIds)
-            |> filterWhere (#isActive, True)
-            |> filterWhere (#archivedAt, Nothing)
-            |> orderByAsc #sortOrder
-            |> orderByAsc #createdAt
-            |> fetch
-    pure (map (\rosterGroup -> StaffPreferenceGroupSection { rosterGroup }) rosterGroups)
-
-fetchStaffShiftPreferenceSelections :: (?modelContext :: ModelContext) => Staff -> [Id RosterGroup] -> IO [ShiftPreferenceSelection]
-fetchStaffShiftPreferenceSelections staff rosterGroupIds = do
-    preferences <- fetchStaffShiftPreferences staff rosterGroupIds
+fetchStaffShiftPreferenceSelections :: (?modelContext :: ModelContext) => Staff -> IO [ShiftPreferenceSelection]
+fetchStaffShiftPreferenceSelections staff = do
+    preferences <- fetchStaffShiftPreferences staff
     pure (map staffShiftPreferenceSelection preferences)
 
-fetchStaffShiftPreferences :: (?modelContext :: ModelContext) => Staff -> [Id RosterGroup] -> IO [StaffShiftPreference]
-fetchStaffShiftPreferences staff rosterGroupIds
-    | null rosterGroupIds = pure []
-    | otherwise =
+fetchStaffShiftPreferences :: (?modelContext :: ModelContext) => Staff -> IO [StaffShiftPreference]
+fetchStaffShiftPreferences staff =
+    query @StaffShiftPreference
+        |> filterWhere (#staffId, unpackId staff.id)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetch
+
+replaceStaffShiftPreferences :: (?modelContext :: ModelContext) => Staff -> [ShiftPreferenceSelection] -> IO ()
+replaceStaffShiftPreferences staff selections = do
+    now <- getCurrentTime
+    existingPreferences <-
         query @StaffShiftPreference
             |> filterWhere (#staffId, unpackId staff.id)
-            |> filterWhereIn (#rosterGroupId, map unpackId rosterGroupIds)
             |> filterWhere (#deletedAt, Nothing)
             |> fetch
-
-replaceStaffShiftPreferences :: (?modelContext :: ModelContext) => Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> IO ()
-replaceStaffShiftPreferences staff rosterGroupIds selections = do
-    unless (null rosterGroupIds) do
-        now <- getCurrentTime
-        existingPreferences <-
-            query @StaffShiftPreference
-                |> filterWhere (#staffId, unpackId staff.id)
-                |> filterWhereIn (#rosterGroupId, map unpackId rosterGroupIds)
-                |> filterWhere (#deletedAt, Nothing)
-                |> fetch
-        forM_ existingPreferences \preference -> do
-            _ <- preference
-                |> set #deletedAt (Just now)
-                |> set #deleteReason (Just "staff_shift_preferences_replaced")
-                |> updateRecord
-            pure ()
+    forM_ existingPreferences \preference -> do
+        _ <- preference
+            |> set #deletedAt (Just now)
+            |> set #deleteReason (Just "staff_shift_preferences_replaced")
+            |> updateRecord
+        pure ()
     forM_ (nub selections) \selection -> do
         _ <-
             newRecord @StaffShiftPreference
                 |> set #venueId staff.venueId
                 |> set #staffId (unpackId staff.id)
-                |> set #rosterGroupId (unpackId selection.rosterGroupId)
                 |> set #weekdayIndex selection.weekdayIndex
                 |> set #preferredStartHour selection.startHour
                 |> set #preferredEndHour selection.endHour
                 |> createRecord
         pure ()
 
-parseShiftPreferenceSelections :: (?request :: Request) => [StaffPreferenceGroupSection] -> [PreferenceWeekday] -> [Text] -> Either Text [ShiftPreferenceSelection]
-parseShiftPreferenceSelections sections weekdays rawKeys =
+parseShiftPreferenceSelections :: (?request :: Request) => [PreferenceWeekday] -> [Text] -> Either Text [ShiftPreferenceSelection]
+parseShiftPreferenceSelections weekdays rawKeys =
     forM (nub rawKeys) decodeAndValidate
     where
         allowedWeekdayIndexes = map (.weekdayIndex) weekdays
-        allowedRosterGroupIds =
-            [ rosterGroup.id
-            | section <- sections
-            , let rosterGroup = section.rosterGroup
-            ]
 
         decodeAndValidate rawKey =
             case decodeShiftPreferenceKey rawKey of
                 Nothing -> Left "One or more submitted shift preferences could not be understood."
-                Just (rosterGroupId, weekdayIndex)
+                Just weekdayIndex
                     | weekdayIndex `notElem` allowedWeekdayIndexes ->
                         Left "One or more submitted shift preferences used an invalid weekday."
-                    | rosterGroupId `notElem` allowedRosterGroupIds ->
-                        Left "One or more submitted shift preferences used an invalid roster group."
                     | otherwise -> do
                         startHour <- parseHourParam (shiftPreferenceStartHourParamName rawKey)
                         endHour <- parseHourParam (shiftPreferenceEndHourParamName rawKey)
                         if startHour <= endHour
-                            then Right ShiftPreferenceSelection { rosterGroupId, weekdayIndex, startHour, endHour }
+                            then Right ShiftPreferenceSelection { weekdayIndex, startHour, endHour }
                             else Left "One or more submitted shift preferences used an invalid time window."
 
         parseHourParam paramName =
             case requestParamText paramName >>= readMaybe . cs of
-                Just hour | hour >= 0 && hour <= 23 -> Right hour
+                Just hour | hour >= preferenceMinimumHour && hour <= preferenceMaximumHour -> Right hour
                 _ -> Left "One or more submitted shift preferences used an invalid hour."
 
 encodeStaffShiftPreferenceKey :: StaffShiftPreference -> Text
 encodeStaffShiftPreferenceKey preference =
-    encodeShiftPreferenceKey (Id preference.rosterGroupId) preference.weekdayIndex
+    encodeShiftPreferenceKey preference.weekdayIndex
 
 staffShiftPreferenceSelection :: StaffShiftPreference -> ShiftPreferenceSelection
 staffShiftPreferenceSelection preference =
     ShiftPreferenceSelection
-        { rosterGroupId = Id preference.rosterGroupId
-        , weekdayIndex = preference.weekdayIndex
+        { weekdayIndex = preference.weekdayIndex
         , startHour = preference.preferredStartHour
         , endHour = preference.preferredEndHour
         }
 
-encodeShiftPreferenceKey :: Id RosterGroup -> Int -> Text
-encodeShiftPreferenceKey rosterGroupId weekdayIndex =
-    tshow rosterGroupId <> "|" <> tshow weekdayIndex
+encodeShiftPreferenceKey :: Int -> Text
+encodeShiftPreferenceKey = tshow
 
 shiftPreferenceStartHourParamName :: Text -> Text
 shiftPreferenceStartHourParamName key = "shiftPreferenceStartHour:" <> key
@@ -166,8 +126,14 @@ defaultPreferenceStartHour = 9
 defaultPreferenceEndHour :: Int
 defaultPreferenceEndHour = 17
 
+preferenceMinimumHour :: Int
+preferenceMinimumHour = 5
+
+preferenceMaximumHour :: Int
+preferenceMaximumHour = 23
+
 preferenceHourOptions :: [Int]
-preferenceHourOptions = [0 .. 23]
+preferenceHourOptions = [preferenceMinimumHour .. preferenceMaximumHour]
 
 formatPreferenceHour :: Int -> Text
 formatPreferenceHour hour
@@ -185,11 +151,6 @@ requestParamText paramName =
         , Text.decodeUtf8 name == paramName
         ]
 
-decodeShiftPreferenceKey :: Text -> Maybe (Id RosterGroup, Int)
+decodeShiftPreferenceKey :: Text -> Maybe Int
 decodeShiftPreferenceKey rawKey =
-    case Text.splitOn "|" rawKey of
-        [rosterGroupIdText, weekdayIndexText] -> do
-            rosterGroupId <- Id <$> UUID.fromText rosterGroupIdText
-            weekdayIndex <- readMaybe (cs weekdayIndexText)
-            pure (rosterGroupId, weekdayIndex)
-        _ -> Nothing
+    readMaybe (cs rawKey)

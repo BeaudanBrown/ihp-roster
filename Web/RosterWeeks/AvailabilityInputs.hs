@@ -27,13 +27,12 @@ fetchLeaveRequestsForRosterWindowByStatus statuses staffIds windowStartDate wind
             |> filterWhereGreaterThan (#endDate, windowStartDate)
             |> fetch
 
-fetchRosterShiftPreferencesForWindow :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> [UUID.UUID] -> [Int] -> IO [StaffShiftPreference]
-fetchRosterShiftPreferencesForWindow rosterGroupId staffIds weekdayIndexes
+fetchRosterShiftPreferencesForWindow :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [UUID.UUID] -> [Int] -> IO [StaffShiftPreference]
+fetchRosterShiftPreferencesForWindow staffIds weekdayIndexes
     | null staffIds || null weekdayIndexes = pure []
     | otherwise =
         query @StaffShiftPreference
             |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
             |> filterWhereIn (#staffId, staffIds)
             |> filterWhereIn (#weekdayIndex, weekdayIndexes)
             |> filterWhere (#deletedAt, Nothing)

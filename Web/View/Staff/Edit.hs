@@ -12,7 +12,6 @@ data EditView = EditView
     , awardLevelBaseRates      :: [AwardLevelBaseRate]
     , selectedRosterGroupIds   :: [Id RosterGroup]
     , preferenceWeekdays       :: [PreferenceWeekday]
-    , preferenceSections       :: [StaffPreferenceGroupSection]
     , selectedShiftPreferences :: [ShiftPreferenceSelection]
     , weekOffset               :: Int
     , maybeRosterGroupId       :: Maybe (Id RosterGroup)
@@ -23,19 +22,19 @@ instance View EditView where
         renderStaffEditPageModal
             weekOffset
             staffEditFormId
-            (renderForm PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
+            (renderForm PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
 
-renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId =
+renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId =
     renderStaffEditDialog
         staffEditFormId
-        (renderForm HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
+        (renderForm HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
 
-renderForm :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
-renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId action =
+renderForm :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
+renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId action =
     case formMode of
         HtmxOverlayForm -> [hsx|
             <form id={staffEditFormId}
@@ -47,7 +46,7 @@ renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLev
                   hx-target={"#" <> dialogOverlayMountId}
                   hx-swap="innerHTML"
                   hx-push-url="false">
-                {renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId}
+                {renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId}
             </form>
         |]
         PageOverlayForm -> [hsx|
@@ -55,12 +54,12 @@ renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLev
                   method="POST"
                   action={action}
                   class="mt-3">
-                {renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId}
+                {renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId}
             </form>
         |]
 
-renderFormFields :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> Html
-renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId = [hsx|
+renderFormFields :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> Html
+renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId = [hsx|
         <input type="hidden" name="weekOffset" value={tshow weekOffset} />
         {renderRosterGroupHiddenInput maybeRosterGroupId}
         {renderPersonalProfileFields staff maybeLinkedUserEmail}
@@ -81,7 +80,7 @@ renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelB
         </div>
         <div class="mb-3">
             <label class="form-label d-block">Shift Preferences</label>
-            {renderShiftPreferenceSections preferenceWeekdays preferenceSections selectedShiftPreferences}
+            {renderShiftPreferenceSections preferenceWeekdays selectedShiftPreferences}
         </div>
 |]
 

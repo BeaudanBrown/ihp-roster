@@ -26,7 +26,7 @@ buildSlotConflicts rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate ros
                         | rosterDay <- rosterDays
                         ]
             leaveRequests <- fetchApprovedLeaveRequestsForRosterWindow assignedStaffIds weekStartDate weekEndExclusive
-            shiftPreferences <- fetchRosterShiftPreferencesForWindow rosterGroupId assignedStaffIds visibleWeekdayIndexes
+            shiftPreferences <- fetchRosterShiftPreferencesForWindow assignedStaffIds visibleWeekdayIndexes
 
             let dayById = Map.fromList [ (coerce (get #id day), day) | day <- rosterDays ]
             let weekSlotsByStaff = Map.fromListWith (<>) [ (staffId, [slot]) | slot <- allSlots, staffId <- maybeToList slot.staffId ]

@@ -66,7 +66,7 @@ fetchAssignedRosterWeekStaff allSlots = do
                 |> fetch
 
 buildRosterStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterAssignmentFilters -> Calendar.Day -> [RosterDay] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
-buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate rosterDays visibleSlots staffMembers = do
+buildRosterStaffOptionStates _rosterGroupId assignmentFilters weekStartDate rosterDays visibleSlots staffMembers = do
     let staffIds = map (coerce . (.id)) staffMembers
     if null staffIds
         then pure Map.empty
@@ -79,7 +79,7 @@ buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate roste
                             | rosterDay <- rosterDays
                             ]
             leaveRequests <- fetchApprovedLeaveRequestsForRosterWindow staffIds weekStartDate weekEndExclusive
-            shiftPreferences <- fetchRosterShiftPreferencesForWindow rosterGroupId staffIds visibleWeekdayIndexes
+            shiftPreferences <- fetchRosterShiftPreferencesForWindow staffIds visibleWeekdayIndexes
 
             let dayById = Map.fromList [ (coerce (get #id day), day) | day <- rosterDays ]
             let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- visibleSlots, staffId <- maybeToList slot.staffId ]

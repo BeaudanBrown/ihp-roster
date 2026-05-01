@@ -357,7 +357,6 @@ staffShiftPreferenceRecord now staff preferenceId selection =
         |> set #id preferenceId
         |> set #venueId staff.venueId
         |> set #staffId (unpackId staff.id)
-        |> set #rosterGroupId (unpackId selection.rosterGroupId)
         |> set #weekdayIndex selection.weekdayIndex
         |> set #preferredStartHour selection.startHour
         |> set #preferredEndHour selection.endHour
@@ -372,14 +371,13 @@ buildShiftPreferenceSelections ::
 buildShiftPreferenceSelections seedValue staffIndex groupSlots =
     nub
         [ ShiftPreferenceSelection
-            { rosterGroupId = get #id rosterGroup
-            , weekdayIndex = weekdayIndex
-            , startHour = 0
+            { weekdayIndex = weekdayIndex
+            , startHour = 5
             , endHour = 23
             }
         | offset <- [0 :: Int .. 9]
         , let groupIndex = deterministicIndex seedValue [staffIndex, 410, offset] (length groupSlots)
-        , let (rosterGroup, slotNames) = groupSlots !! groupIndex
+        , let (_rosterGroup, slotNames) = groupSlots !! groupIndex
         , not (null slotNames)
         , let weekdayIndex = uniqueWeekdaySequence seedValue [staffIndex, 412] !! (offset `mod` 7)
         ]
@@ -550,7 +548,6 @@ ensureAssignedShiftPreferenceCoverage fixtureWeekStart rosterGroup rosterDays = 
     unless (null assignedStaffIds) do
         existingPreferences <-
             query @StaffShiftPreference
-                |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
                 |> filterWhereIn (#staffId, assignedStaffIds)
                 |> fetch
 
@@ -607,9 +604,8 @@ missingPreferenceTarget fixtureWeekStart dayOffsetsById rosterGroup existingTarg
                 { targetStaffId = staffId
                 , targetSelection =
                     ShiftPreferenceSelection
-                        { rosterGroupId = rosterGroup.id
-                        , weekdayIndex = weekdayIndexForFixtureDay fixtureWeekStart dayOffset
-                        , startHour = 0
+                        { weekdayIndex = weekdayIndexForFixtureDay fixtureWeekStart dayOffset
+                        , startHour = 5
                         , endHour = 23
                         }
                 }
@@ -623,8 +619,7 @@ staffShiftPreferenceToTarget preference =
         { targetStaffId = preference.staffId
         , targetSelection =
             ShiftPreferenceSelection
-                { rosterGroupId = Id preference.rosterGroupId
-                , weekdayIndex = preference.weekdayIndex
+                { weekdayIndex = preference.weekdayIndex
                 , startHour = preference.preferredStartHour
                 , endHour = preference.preferredEndHour
                 }

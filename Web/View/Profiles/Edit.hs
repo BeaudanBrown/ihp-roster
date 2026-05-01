@@ -50,7 +50,6 @@ data EditView = EditView
     { staff                    :: Staff
     , currentUserEmail         :: Text
     , preferenceWeekdays       :: [PreferenceWeekday]
-    , preferenceSections       :: [StaffPreferenceGroupSection]
     , selectedShiftPreferences :: [ShiftPreferenceSelection]
     , passkeys                 :: [Passkey]
     , leaveRequests            :: [LeaveRequest]
@@ -75,19 +74,19 @@ instance View EditView where
                     , appPanelCustomHeader = mempty
                     , appPanelClass = ""
                     , appPanelBodyClass = ""
-                    , appPanelBody = renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection
+                    , appPanelBody = renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection
                     }
             })
 
-renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Text -> Html
-renderProfileContentFragment staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection = [hsx|
+renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Text -> Html
+renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection = [hsx|
     <div id={profileContentFragmentId}>
         <div class="accordion" id={profileSectionsAccordionId}>
             {renderAccordionSection
                 "profile-details"
                 "Profile Details"
                 (openSection == "profile")
-                (renderProfileForm staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferences)
+                (renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPreferences)
             }
             {renderAccordionSection
                 "profile-security"
@@ -118,8 +117,8 @@ renderAccordionSection sectionId title isOpen body =
         , appAccordionItemBody = body
         }
 
-renderProfileForm :: Staff -> Text -> [PreferenceWeekday] -> [StaffPreferenceGroupSection] -> [ShiftPreferenceSelection] -> Html
-renderProfileForm staff currentUserEmail preferenceWeekdays preferenceSections selectedShiftPreferences = [hsx|
+renderProfileForm :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
+renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPreferences = [hsx|
     <form method="POST"
           action={UpdateProfileAction}
           data-disable-javascript-submission="true"
@@ -131,7 +130,7 @@ renderProfileForm staff currentUserEmail preferenceWeekdays preferenceSections s
         {renderPersonalProfileFields staff (Just currentUserEmail)}
         <div class="mt-4">
             <h5 class="mb-3">Shift Preferences</h5>
-            {renderShiftPreferenceSections preferenceWeekdays preferenceSections selectedShiftPreferences}
+            {renderShiftPreferenceSections preferenceWeekdays selectedShiftPreferences}
         </div>
         <div class="d-grid mt-4">
             <button type="submit" class="btn btn-primary">Save</button>

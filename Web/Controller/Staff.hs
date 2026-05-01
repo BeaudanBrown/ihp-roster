@@ -56,10 +56,9 @@ instance Controller StaffController where
         awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
         selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
-        preferenceSections <- fetchPreferenceSectionsForRosterGroups selectedRosterGroupIds
-        selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff selectedRosterGroupIds
+        selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId)
+            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId)
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
@@ -80,9 +79,8 @@ instance Controller StaffController where
         maybeSubmittedDefaultAwardLevelId <- parseSubmittedDefaultAwardLevelId canManageStaffPay
         previousRosterGroupIds <- fetchStaffRosterGroupIds staff
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
-        preferenceSections <- fetchPreferenceSectionsForRosterGroups submittedRosterGroupIds
         let selectedShiftPreferences =
-                case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
+                case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
                     Right selections -> selections
                     Left _           -> []
         staff
@@ -90,7 +88,7 @@ instance Controller StaffController where
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates submittedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId)
+                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates submittedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId)
                         else do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             render EditView { .. }
@@ -99,25 +97,25 @@ instance Controller StaffController where
                         (Nothing, _) -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
                         (_, Nothing) -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
                         (Just selectedRosterGroupIds, Just _) -> do
-                            case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
+                            case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
                                 Left preferenceError -> do
                                     setErrorMessage preferenceError
                                     if isHtmxRequest
-                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays preferenceSections selectedShiftPreferences weekOffset maybeRosterGroupId)
+                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId)
                                         else render EditView { .. }
                                 Right submittedSelections -> do
                                     updatedStaff <- withTransaction do
                                         updatedStaff <- staff |> updateRecord
                                         syncStaffRosterGroupAssignments updatedStaff selectedRosterGroupIds
-                                        replaceStaffShiftPreferences updatedStaff (nub (previousRosterGroupIds <> selectedRosterGroupIds)) submittedSelections
+                                        replaceStaffShiftPreferences updatedStaff submittedSelections
                                         when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
                                             today <- utctDay <$> getCurrentTime
                                             void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
