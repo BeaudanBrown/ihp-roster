@@ -134,8 +134,7 @@ Examples:
 - `slot_names.venue_id` can disagree with `roster_group_id`
 - `staff_roster_groups.staff_id` can point to a different venue than
   `roster_group_id`
-- `staff_shift_preferences` can mix a staff member and roster group across
-  venues
+- `staff_shift_preferences.venue_id` can disagree with `staff_id`
 - `leave_requests.venue_id` can disagree with `staff_id`
 - `timesheet_entries.venue_id` can disagree with `staff_id`, `shift_type_id`,
   or `pay_config_snapshot_id`
@@ -160,9 +159,9 @@ index on `(id, venue_id)` even though `id` is already globally unique.
   `roster_group_id`
 - `staff_roster_groups.staff_id` must belong to the same venue as
   `roster_group_id`
-- `staff_shift_preferences.staff_id` and `roster_group_id` must agree on
-  venue. Preference rows are keyed by roster group and weekday, with
-  whole-hour preferred start-window bounds.
+- `staff_shift_preferences.staff_id` must belong to the stored venue.
+  Preference rows are keyed by staff and weekday, with whole-hour preferred
+  start-window bounds.
 - `leave_requests.venue_id` must match `staff_id`
 - `timesheet_entries.venue_id` must match `staff_id`, `shift_type_id`, and
   `pay_config_snapshot_id` when a snapshot is present
@@ -182,11 +181,12 @@ index on `(id, venue_id)` even though `id` is already globally unique.
 
 **Priority:** resolved by scope decision
 
-**Finding:** The V1 product decision is that roster group/weekday shift
+**Finding:** The V1 product decision is that global staff weekday shift
 preferences are the canonical availability signal. A staff member with no
-preference for a roster group/day is treated as unable to work that roster day
-for V1 filtering. Active preference rows also carry a whole-hour preferred
-start window, used for advisory conflicts when a roster slot has a start time.
+preference for a weekday is treated as unable to work that roster day for V1
+filtering across roster groups. Active preference rows also carry a whole-hour
+preferred start window, used for advisory conflicts when a roster slot has a
+start time.
 
 **Recommendation:** Keep the schema focused on `staff_shift_preferences` and
 avoid adding a parallel day/date availability model until a future product need
@@ -194,12 +194,11 @@ requires it.
 
 **Acceptance checks:**
 
-- Staff with no preferences for the roster group/day are hidden when the filter
-  is active.
-- Preferences from another roster group do not make a staff member eligible.
-- Preference rows cannot be created for a staff member or roster group outside
-  the venue.
-- Preference start-window bounds are whole hours from 0 to 23 with start <= end.
+- Staff with no preferences for the roster day are hidden when the filter is
+  active.
+- Preferences are global across roster groups.
+- Preference rows cannot be created for a staff member outside the venue.
+- Preference start-window bounds are whole hours from 5 to 23 with start <= end.
 
 ### 4. Active Roster Slot Uniqueness Is Missing
 
@@ -239,7 +238,7 @@ are unconstrained in the database.
 - `roster_days.day_offset BETWEEN 0 AND 6`
 - `staff_shift_preferences.weekday_index BETWEEN 0 AND 6`
 - `staff_shift_preferences.preferred_start_hour` and `preferred_end_hour`
-  between 0 and 23, with start <= end
+  between 5 and 23, with start <= end
 - `staff.ideal_shifts_per_week BETWEEN 0 AND 7`
 - `venue_config.staff_timesheet_edit_window_days >= 0`
 - `venue_config.late_to_early_min_start_gap_minutes >= 0`

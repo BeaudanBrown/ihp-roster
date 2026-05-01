@@ -16,7 +16,7 @@ Remove unsafe textToId use and similar exception-based parsing from user-control
 
 ## Design
 
-Use UUID.fromText or ParamReader-based parsing that returns Maybe/Either. Convert malformed composite keys into user-facing validation errors and keep existing allowed-roster-group/weekday checks plus whole-hour start-window validation.
+Use total parsing that returns Maybe/Either. Convert malformed preference keys into user-facing validation errors and keep weekday checks plus whole-hour start-window validation.
 
 ## Acceptance Criteria
 

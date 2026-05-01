@@ -285,7 +285,7 @@ Playwright-based end-to-end tests live in `e2e/` and run against isolated tempor
 - Treat that as a bootstrap invariant problem, not as an invitation to keep venue creation ad hoc. Venue creation, fixture seeding, and repair scripts should converge on one idempotent minimum-setup function.
 - Future roster architecture should move toward roster groups as the scheduling boundary inside a venue. The long-term invariant is: every active venue has at least one active roster group, and every active roster group has at least one active slot definition.
 - Staff applicability to roster groups should stay separate from venue membership/auth authority. Some staff may be eligible for one group, several groups, or all groups.
-- Staff shift preferences are roster-group/weekday availability rows with whole-hour preferred start-window bounds. Slot names such as Early/Mid/Late are roster layout labels only and must not be used as preference dimensions.
+- Staff shift preferences are global staff/weekday availability rows with whole-hour preferred start-window bounds from 5 AM to 11 PM. Roster groups and slot names such as Early/Mid/Late are roster layout labels only and must not be used as preference dimensions.
 
 ## Auth Model Notes
 - Current business authority is venue-scoped. `venue_memberships.venue_role` is what grants manager/admin access; `users.user_role = 'admin'` is not a cross-venue superuser.

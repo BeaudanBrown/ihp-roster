@@ -67,9 +67,8 @@ Priority entry points:
 ### Unsafe Request-Derived ID Parsing
 
 `Application/Helper/StaffShiftPreferences.hs` decodes preference keys from
-request text. Bad UUID text must not be able to throw an exception or produce a
-500. Cross-venue and cross-group ids must be treated as invalid even if they are
-well-formed.
+request text. Malformed weekday keys or hour-window params must not be able to
+throw an exception or produce a 500.
 
 ### CSV Export Cells Need Formula Neutralization
 
@@ -105,8 +104,8 @@ lengths, and parser-safe database constraints where appropriate.
 4. Harden staff/profile, onboarding/invitation, admin config, export filter,
    and Xero mapping forms with the same helper patterns.
 5. Replace unsafe shift-preference key parsing with total parsing. Validate
-   weekday, staff, roster group, venue, group membership, and whole-hour
-   preferred start-window bounds before applying any mutation.
+   weekday, staff, venue, and whole-hour preferred start-window bounds before
+   applying any mutation.
 6. Harden CSV rendering with a single reusable cell sanitizer. Preserve correct
    CSV quoting while neutralizing spreadsheet formula execution.
 7. Replace manual query string assembly with URL-encoded construction and update
