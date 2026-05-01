@@ -58,27 +58,30 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
                 , daySlotConflicts = gridSlotConflicts
                 , dayRenderIndexes = gridRenderIndexes
                 }
-        slotColumnsAreEditable = rosterWeekIsEditable gridRosterWeek
+        slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
      in [hsx|
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
             <div class="app-panel overflow-hidden mb-5 mb-xl-0">
                 {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities}
                 <div class="roster-grid-frame"
+                     data-roster-column-editor={if slotColumnsAreEditable then ("available" :: Text) else "unavailable"}
                      style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
                     <div class="roster-day-rail" aria-label="Roster days">
-                        <div class="roster-day-rail-head">Day</div>
+                        <div class="roster-day-rail-head">
+                            <span class="roster-day-rail-head-label">Day</span>
+                            {renderRosterColumnEditDoneButton slotColumnsAreEditable}
+                        </div>
                         <div class="roster-day-rail-body">
                             {forEach gridRosterDays (renderRosterDayRailSection dayModel)}
                         </div>
                     </div>
                     <div class="roster-slots-scroller">
-                        {renderSlotColumnToolbar gridRosterWeek slotColumnsAreEditable}
                         <table class="table table-bordered table-sm mb-0 align-middle roster-grid roster-slots-grid">
                             {renderRosterGridColGroup gridSlotNames}
                             <thead class="text-center text-uppercase fw-bold roster-grid-head">
                                 <tr>
-                                    {forEach gridSlotNames (renderSlotHeaderGroup gridRosterWeek slotColumnsAreEditable (length gridSlotNames))}
+                                    {forEach (zip [0 :: Int ..] gridSlotNames) (renderSlotHeaderGroup gridRosterWeek slotColumnsAreEditable (length gridSlotNames))}
                                 </tr>
                                 <tr>
                                     {forEach gridSlotNames renderSlotSubHeaders}
@@ -115,44 +118,26 @@ rosterWeekIsEditable :: (?context :: ControllerContext) => Maybe RosterWeek -> B
 rosterWeekIsEditable maybeRosterWeek =
     currentUserIsManager && maybe False (not . (.isLive)) maybeRosterWeek
 
-renderSlotColumnToolbar :: (?context :: ControllerContext) => Maybe RosterWeek -> Bool -> Html
-renderSlotColumnToolbar (Just rosterWeek) True = [hsx|
-    <div class="d-flex justify-content-end align-items-center gap-2 px-2 py-2 roster-slot-column-toolbar">
-        <form method="POST"
-              action={CreateRosterWeekSlotDefinitionAction rosterWeek.id}
-              class="d-flex align-items-center gap-2 mb-0"
-              data-disable-javascript-submission="true"
-              hx-post={CreateRosterWeekSlotDefinitionAction rosterWeek.id}
-              hx-target={"#" <> rosterContentFragmentId}
-              hx-swap="none"
-              hx-push-url="false"
-              hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-            <input id={newSlotDefinitionInputId rosterWeek.id}
-                   type="text"
-                   name="name"
-                   maxlength="120"
-                   class="form-control form-control-sm roster-slot-column-name-input"
-                   aria-label="New column name"
-                   placeholder="Column name"
-                   required="required" />
-            <button type="submit"
-                    class="btn btn-sm btn-outline-primary"
-                    aria-label="Add roster column"
-                    title="Add roster column">
-                <i class="bi bi-plus-lg" aria-hidden="true"></i>
-            </button>
-        </form>
-    </div>
+renderRosterColumnEditDoneButton :: Bool -> Html
+renderRosterColumnEditDoneButton True = [hsx|
+    <button type="button"
+            class="btn btn-sm btn-outline-success roster-column-edit-done"
+            data-roster-column-edit-done="true"
+            aria-label="Finish editing roster columns"
+            title="Finish editing roster columns">
+        <i class="bi bi-check-lg" aria-hidden="true"></i>
+    </button>
 |]
-renderSlotColumnToolbar _ _ = mempty
+renderRosterColumnEditDoneButton False = mempty
 
-renderSlotHeaderGroup :: (?context :: ControllerContext) => Maybe RosterWeek -> Bool -> Int -> RosterWeekSlotDefinition -> Html
-renderSlotHeaderGroup _ False _ slotName = [hsx|
+renderSlotHeaderGroup :: (?context :: ControllerContext) => Maybe RosterWeek -> Bool -> Int -> (Int, RosterWeekSlotDefinition) -> Html
+renderSlotHeaderGroup _ False _ (_, slotName) = [hsx|
     <th colspan="3" class="py-2 roster-block-header">{slotName.name}</th>
 |]
-renderSlotHeaderGroup (Just _rosterWeek) True slotCount slotName = [hsx|
+renderSlotHeaderGroup (Just rosterWeek) True slotCount (slotIndex, slotName) = [hsx|
     <th colspan="3" class="py-2 roster-block-header">
         <div class="d-flex align-items-center justify-content-center gap-2 roster-slot-column-header">
+            <span class="roster-slot-column-name-static">{slotName.name}</span>
             <form method="POST"
                   action={UpdateRosterWeekSlotDefinitionAction slotName.id}
                   class="mb-0 roster-slot-column-name-form"
@@ -168,7 +153,7 @@ renderSlotHeaderGroup (Just _rosterWeek) True slotCount slotName = [hsx|
                        name="name"
                        value={slotName.name}
                        maxlength="120"
-                       class="form-control form-control-sm text-center roster-slot-column-name-input slot-cell-input"
+                       class="form-control form-control-sm text-center roster-slot-column-name-input"
                        aria-label="Roster column name"
                        data-roster-field-key={rosterSlotDefinitionFieldKey slotName.id}
                        required="required" />
@@ -181,8 +166,7 @@ renderSlotHeaderGroup (Just _rosterWeek) True slotCount slotName = [hsx|
                   hx-target={"#" <> rosterContentFragmentId}
                   hx-swap="none"
                   hx-push-url="false"
-                  hx-sync={"#" <> rosterWeekShellId <> ":replace"}
-                  hx-confirm="Remove this roster column from the draft week? Any assignments in the column will be removed.">
+                  hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
                 <input type="hidden" name="_method" value="DELETE" />
                 <button type="submit"
                         class="btn btn-sm btn-outline-danger roster-slot-column-delete"
@@ -192,16 +176,34 @@ renderSlotHeaderGroup (Just _rosterWeek) True slotCount slotName = [hsx|
                     <i class="bi bi-trash" aria-hidden="true"></i>
                 </button>
             </form>
+            {renderSlotAddButton rosterWeek (slotIndex == slotCount - 1)}
         </div>
     </th>
 |]
-renderSlotHeaderGroup _ _ _ slotName = [hsx|
+renderSlotHeaderGroup _ _ _ (_, slotName) = [hsx|
     <th colspan="3" class="py-2 roster-block-header">{slotName.name}</th>
 |]
 
-newSlotDefinitionInputId :: Id RosterWeek -> Text
-newSlotDefinitionInputId rosterWeekId =
-    "new-roster-slot-definition-" <> tshow rosterWeekId
+renderSlotAddButton :: (?context :: ControllerContext) => RosterWeek -> Bool -> Html
+renderSlotAddButton rosterWeek True = [hsx|
+    <form method="POST"
+          action={CreateRosterWeekSlotDefinitionAction rosterWeek.id}
+          class="mb-0 roster-slot-column-add-form"
+          data-disable-javascript-submission="true"
+          hx-post={CreateRosterWeekSlotDefinitionAction rosterWeek.id}
+          hx-target={"#" <> rosterContentFragmentId}
+          hx-swap="none"
+          hx-push-url="false"
+          hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+        <button type="submit"
+                class="btn btn-sm btn-outline-primary roster-slot-column-add"
+                aria-label="Add roster column"
+                title="Add roster column">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        </button>
+    </form>
+|]
+renderSlotAddButton _ False = mempty
 
 slotDefinitionInputId :: Id RosterWeekSlotDefinition -> Text
 slotDefinitionInputId slotDefinitionId =

@@ -211,7 +211,8 @@ instance Controller RosterWeeksController where
         ensureRosterWeekIsDraftForEdit rosterWeek
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        case normalizeRosterSlotDefinitionName (paramOrDefault @Text "" "name") of
+        requestedSlotName <- resolveRosterSlotDefinitionNameForCreate rosterWeek
+        case requestedSlotName of
             Left errorMessage -> respondToRosterSlotDefinitionError rosterWeek errorMessage
             Right slotName -> do
                 duplicate <- activeRosterWeekSlotDefinitionWithName rosterWeek slotName Nothing
@@ -645,6 +646,28 @@ normalizeRosterSlotDefinitionName submittedName =
                 if Text.length normalized > 120
                     then Left "Roster column name must be 120 characters or fewer."
                     else Right normalized
+
+resolveRosterSlotDefinitionNameForCreate :: (?modelContext :: ModelContext, ?request :: Request) => RosterWeek -> IO (Either Text Text)
+resolveRosterSlotDefinitionNameForCreate rosterWeek =
+    case Text.strip (paramOrDefault @Text "" "name") of
+        "" -> Right <$> nextDefaultRosterSlotDefinitionName rosterWeek
+        submittedName -> pure (normalizeRosterSlotDefinitionName submittedName)
+
+nextDefaultRosterSlotDefinitionName :: (?modelContext :: ModelContext) => RosterWeek -> IO Text
+nextDefaultRosterSlotDefinitionName rosterWeek = do
+    activeDefinitions <- query @RosterWeekSlotDefinition
+        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetch
+    let existingNames = map (.name) activeDefinitions
+    pure (firstAvailableDefaultName existingNames)
+
+firstAvailableDefaultName :: [Text] -> Text
+firstAvailableDefaultName existingNames =
+    fromMaybe "New column" (head (filter (`notElem` existingNames) candidateNames))
+  where
+    candidateNames =
+        "New column" : map (\index -> "New column " <> tshow index) [2 :: Int ..]
 
 activeRosterWeekSlotDefinitionWithName :: (?modelContext :: ModelContext) => RosterWeek -> Text -> Maybe (Id RosterWeekSlotDefinition) -> IO (Maybe RosterWeekSlotDefinition)
 activeRosterWeekSlotDefinitionWithName rosterWeek slotName maybeExceptId = do

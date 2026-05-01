@@ -31,31 +31,38 @@ test.describe('Roster week columns', () => {
         const initialEditorStaffSelects = await editorGrid.locator('select[name="staffId"]').count();
         const initialViewerStaffSelects = await viewerGrid.locator('select[name="staffId"]').count();
 
+        await expect(editorPage.locator('.roster-slot-column-name-form').first()).not.toBeVisible();
+        await expect(editorPage.getByRole('button', { name: 'Add roster column' })).not.toBeVisible();
+        await editorPage.getByRole('button', { name: 'Roster actions' }).click();
+        await editorPage.getByLabel('Edit roster columns').check();
+        await expect(editorPage.locator('.roster-slot-column-name-form').first()).toBeVisible();
+        await expect(editorPage.getByRole('button', { name: 'Finish editing roster columns' })).toBeVisible();
+
         const createResponsePromise = editorPage.waitForResponse((response) => {
             return response.request().method() === 'POST' && response.url().includes('/CreateRosterWeekSlotDefinition');
         });
-        await editorPage.locator('input[placeholder="Column name"]').fill(columnName);
         await editorPage.getByRole('button', { name: 'Add roster column' }).click();
         const createResponse = await createResponsePromise;
         expect(createResponse.status(), await createResponse.text()).toBe(200);
 
-        await expect(columnInput(editorPage, columnName)).toBeVisible();
-        await expect(columnInput(viewerPage, columnName)).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(columnInput(editorPage, 'New column')).toBeVisible();
+        await expect(columnInput(viewerPage, 'New column')).toBeAttached({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(columnInput(viewerPage, 'New column')).not.toBeVisible();
         await expect.poll(() => editorGrid.locator('select[name="staffId"]').count()).toBeGreaterThan(initialEditorStaffSelects);
         await expect.poll(() => viewerGrid.locator('select[name="staffId"]').count(), { timeout: E2E_TIMEOUT.liveUpdate }).toBeGreaterThan(initialViewerStaffSelects);
 
         const renameResponsePromise = editorPage.waitForResponse((response) => {
             return response.request().method() === 'POST' && response.url().includes('/UpdateRosterWeekSlotDefinition');
         });
-        await columnInput(editorPage, columnName).fill(renamedColumnName);
+        await columnInput(editorPage, 'New column').fill(renamedColumnName);
         await editorPage.keyboard.press('Tab');
         const renameResponse = await renameResponsePromise;
         expect(renameResponse.status(), await renameResponse.text()).toBe(200);
         await expect(columnInput(editorPage, renamedColumnName)).toBeVisible();
-        await expect(columnInput(viewerPage, renamedColumnName)).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
-        await expect(columnInput(viewerPage, columnName)).toHaveCount(0);
+        await expect(columnInput(viewerPage, renamedColumnName)).toBeAttached({ timeout: E2E_TIMEOUT.liveUpdate });
+        await expect(columnInput(viewerPage, renamedColumnName)).not.toBeVisible();
+        await expect(columnInput(viewerPage, 'New column')).toHaveCount(0);
 
-        editorPage.once('dialog', (dialog) => dialog.accept());
         const deleteResponsePromise = editorPage.waitForResponse((response) => {
             return response.request().method() === 'DELETE' && response.url().includes('/DeleteRosterWeekSlotDefinition');
         });
@@ -69,6 +76,8 @@ test.describe('Roster week columns', () => {
 
         await expect(columnInput(editorPage, renamedColumnName)).toHaveCount(0);
         await expect(columnInput(viewerPage, renamedColumnName)).toHaveCount(0, { timeout: E2E_TIMEOUT.liveUpdate });
+        await editorPage.getByRole('button', { name: 'Finish editing roster columns' }).click();
+        await expect(editorPage.locator('.roster-slot-column-name-form').first()).not.toBeVisible();
 
         await editorContext.close();
         await viewerContext.close();

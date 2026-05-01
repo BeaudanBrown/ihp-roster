@@ -124,11 +124,29 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
                 {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
             </div>
             <div class="dropdown-divider my-1"></div>
+            {renderRosterColumnEditMenuSection viewCapabilities}
             {renderRosterExportMenuSection viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
             {when (shouldShowRosterWeekMenuDivider maybeRosterWeek viewCapabilities) divider}
         </div>
     </div>
+|]
+
+renderRosterColumnEditMenuSection :: RosterViewCapabilities -> Html
+renderRosterColumnEditMenuSection viewCapabilities
+    | not viewCapabilities.canManageRosterColumns = mempty
+    | otherwise = [hsx|
+        <div class="px-1 py-1">
+            <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Roster columns</div>
+            <div class="form-check form-switch mb-0 px-1">
+                <input type="checkbox"
+                       id="roster-column-edit-toggle"
+                       class="form-check-input ms-0 me-2"
+                       data-roster-column-edit-toggle="true" />
+                <label class="form-check-label small" for="roster-column-edit-toggle">Edit roster columns</label>
+            </div>
+        </div>
+        <div class="dropdown-divider my-1"></div>
 |]
 
 renderRosterExportMenuSection :: RosterViewCapabilities -> Html

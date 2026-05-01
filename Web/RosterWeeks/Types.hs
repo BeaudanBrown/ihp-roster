@@ -49,6 +49,7 @@ data RosterViewCapabilities = RosterViewCapabilities
     , canCopyRosterWeek         :: Bool
     , canExportRosterImage      :: Bool
     , canManageAssignmentFilter :: Bool
+    , canManageRosterColumns    :: Bool
     , canViewLeaveMetrics       :: Bool
     }
 

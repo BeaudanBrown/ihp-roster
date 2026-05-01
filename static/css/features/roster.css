@@ -613,6 +613,58 @@
     color: var(--app-text);
 }
 
+.roster-column-edit-done,
+.roster-slot-column-name-form,
+.roster-slot-column-delete,
+.roster-slot-column-add-form {
+    display: none;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-day-rail-head {
+    background-color: color-mix(in srgb, var(--app-success) 16%, var(--roster-subhead));
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-day-rail-head-label {
+    display: none;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-column-edit-done {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-grid .roster-block-header {
+    background-color: color-mix(in srgb, var(--app-accent) 20%, var(--roster-header));
+    box-shadow: inset 0 -2px 0 var(--app-accent);
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-header {
+    position: relative;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-name-static {
+    display: none;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-name-form,
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-delete,
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-add-form {
+    display: inline-flex;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-name-form {
+    min-width: 0;
+    flex: 1 1 auto;
+    max-width: 11rem;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-name-input {
+    border-color: var(--app-accent);
+    background-color: var(--app-surface);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 35%, transparent);
+}
+
 .roster-grid .roster-subhead {
     background-color: var(--roster-subhead);
     font-size: var(--roster-text-xs);

@@ -77,6 +77,78 @@
     });
 })();
 
+(function enableRosterColumnEditMode() {
+    if (typeof window === 'undefined') return;
+
+    let columnEditEnabled = false;
+
+    function editorFrames() {
+        return Array.from(document.querySelectorAll('[data-roster-column-editor="available"]'))
+            .filter(function (frameEl) {
+                return frameEl instanceof HTMLElement;
+            });
+    }
+
+    function syncColumnEditMode() {
+        const enabled = Boolean(columnEditEnabled);
+        editorFrames().forEach(function (frameEl) {
+            frameEl.dataset.rosterColumnEditing = enabled ? 'true' : 'false';
+        });
+
+        document.querySelectorAll('[data-roster-column-edit-toggle]').forEach(function (toggleEl) {
+            if (toggleEl instanceof HTMLInputElement) {
+                toggleEl.checked = enabled;
+            }
+        });
+    }
+
+    function setColumnEditMode(enabled) {
+        columnEditEnabled = Boolean(enabled);
+        syncColumnEditMode();
+    }
+
+    function closeContainingDropdown(element) {
+        const dropdownEl = element instanceof HTMLElement ? element.closest('.dropdown') : null;
+        const triggerEl = dropdownEl ? dropdownEl.querySelector('[data-bs-toggle="dropdown"]') : null;
+        if (!(triggerEl instanceof HTMLElement)) return;
+
+        if (window.bootstrap && window.bootstrap.Dropdown) {
+            window.bootstrap.Dropdown.getOrCreateInstance(triggerEl).hide();
+        }
+    }
+
+    function finishColumnEditing() {
+        const activeEl = document.activeElement;
+        if (activeEl instanceof HTMLElement && activeEl.closest('[data-roster-column-editor="available"]')) {
+            activeEl.blur();
+            window.setTimeout(function () {
+                setColumnEditMode(false);
+            }, 350);
+            return;
+        }
+
+        setColumnEditMode(false);
+    }
+
+    document.addEventListener('change', function (event) {
+        const toggleEl = event.target.closest('[data-roster-column-edit-toggle]');
+        if (!(toggleEl instanceof HTMLInputElement)) return;
+
+        setColumnEditMode(toggleEl.checked);
+        closeContainingDropdown(toggleEl);
+    });
+
+    document.addEventListener('click', function (event) {
+        const doneButton = event.target.closest('[data-roster-column-edit-done]');
+        if (!(doneButton instanceof HTMLElement)) return;
+
+        event.preventDefault();
+        finishColumnEditing();
+    });
+
+    document.addEventListener('app:page-ready', syncColumnEditMode);
+})();
+
 (function enableRosterImageExport() {
     if (typeof window === 'undefined') return;
 
