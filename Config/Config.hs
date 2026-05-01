@@ -1,5 +1,6 @@
 module Config where
 
+import Application.Helper.Profiling (profilingMiddleware)
 import IHP.Environment
 import IHP.EnvVar
 import IHP.FrameworkConfig
@@ -29,5 +30,6 @@ config = do
             , credentials = smtpCredentials
             , encryption = smtpEncryption
             }
+    option $ CustomMiddleware profilingMiddleware
 
     pure ()

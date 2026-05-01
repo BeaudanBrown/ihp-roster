@@ -5,6 +5,7 @@ module Application.Helper.Profiling
     , initRequestProfiling
     , profileActionSpan
     , profileActionSpanWithDetail
+    , profilingMiddleware
     , renderProfiled
     , respondHtmlProfiled
     ) where
@@ -16,17 +17,18 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
+import qualified Data.Vault.Lazy as Vault
 import GHC.Clock (getMonotonicTimeNSec)
 import IHP.Controller.Context (ControllerContext, maybeFromContext, putContext)
 import IHP.Controller.Render (render, respondHtml)
 import IHP.ControllerSupport (Respond, setHeader)
-import IHP.Environment (Environment (Development))
-import IHP.FrameworkConfig (isDevelopment)
 import IHP.Prelude
 import IHP.ViewSupport (View)
-import Network.Wai (Request)
+import Network.HTTP.Types.Header (Header)
+import Network.Wai (Middleware, Request, Response)
 import qualified Network.Wai as Wai
 import qualified System.Environment as Environment
+import System.IO.Unsafe (unsafePerformIO)
 import qualified Text.Blaze.Html as Blaze
 
 data RequestProfile = RequestProfile
@@ -45,56 +47,52 @@ data RequestProfileSpan = RequestProfileSpan
     }
     deriving (Eq, Show)
 
+requestProfileVaultKey :: Vault.Key (IORef (Maybe RequestProfile))
+requestProfileVaultKey = unsafePerformIO Vault.newKey
+{-# NOINLINE requestProfileVaultKey #-}
+
+profilingMiddleware :: Middleware
+profilingMiddleware app request respond = do
+    maybeProfile <- newRequestProfileIfEnabled
+    profileRef <- newIORef maybeProfile
+    let request' = request { Wai.vault = Vault.insert requestProfileVaultKey profileRef request.vault }
+    app request' \response -> do
+        finalizedResponse <- finalizeResponseProfileHeaders request' profileRef response
+        respond finalizedResponse
+
 initRequestProfiling :: (?context :: ControllerContext) => IO ()
 initRequestProfiling = do
-    profilingEnabled <- isRequestProfilingEnabled
-    when profilingEnabled do
-        existingProfile :: Maybe RequestProfile <- maybeFromContext
-        case existingProfile of
-            Just _ -> pure ()
-            Nothing -> do
-                startedAtNs <- getMonotonicTimeNSec
-                requestProfileId <- UUID.toText <$> UUIDv4.nextRandom
-                spansRef <- newIORef []
-                nextSpanOrderRef <- newIORef 0
-                emittedRef <- newIORef False
-                putContext
-                    RequestProfile
-                        { requestProfileId
-                        , startedAtNs
-                        , spansRef
-                        , nextSpanOrderRef
-                        , emittedRef
-                        }
+    existingProfile :: Maybe RequestProfile <- maybeFromContext
+    case existingProfile of
+        Just _ -> pure ()
+        Nothing -> do
+            maybeProfile <- currentRequestProfileFromVault ?context.request
+            case maybeProfile of
+                Just profile -> putContext profile
+                Nothing -> do
+                    -- Fallback for controller tests or non-standard entrypoints that
+                    -- call initContext without the app middleware stack.
+                    maybeStandaloneProfile <- newRequestProfileIfEnabled
+                    forEach maybeStandaloneProfile putContext
 
 profileActionSpan :: (?context :: ControllerContext) => Text -> IO a -> IO a
 profileActionSpan name action =
     profileActionSpanWithDetail name (fmap (, Nothing) action)
 
 renderProfiled :: (View view, ?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => view -> IO ()
-renderProfiled view = do
-    emitRequestProfileResponseHeaders
-    render view
+renderProfiled =
+    render
 
 respondHtmlProfiled :: (?context :: ControllerContext, ?request :: Request) => Blaze.Html -> IO ()
-respondHtmlProfiled html = do
-    emitRequestProfileResponseHeaders
-    respondHtml html
+respondHtmlProfiled =
+    respondHtml
 
 emitRequestProfileResponseHeaders :: (?context :: ControllerContext, ?request :: Request) => IO ()
 emitRequestProfileResponseHeaders = do
     maybeProfile :: Maybe RequestProfile <- maybeFromContext
     forEach maybeProfile \profile -> do
-        wasEmitted <- readIORef profile.emittedRef
-        unless wasEmitted do
-            writeIORef profile.emittedRef True
-            completedAtNs <- getMonotonicTimeNSec
-            spans <- List.sortOn spanOrder <$> readIORef profile.spansRef
-            let totalDurationMs = durationBetweenMs profile.startedAtNs completedAtNs
-            setHeader ("X-Request-Id", cs profile.requestProfileId)
-            setHeader ("Server-Timing", cs (renderServerTiming totalDurationMs spans))
-            when isDevelopment do
-                TextIO.putStrLn (renderRequestProfileLog profile.requestProfileId totalDurationMs spans)
+        maybeHeaders <- finalizeRequestProfile ?request profile
+        forEach maybeHeaders (`forEach` setHeader)
 
 isRequestProfilingEnabled :: IO Bool
 isRequestProfilingEnabled = do
@@ -106,25 +104,84 @@ isRequestProfilingEnabled = do
 
 profileActionSpanWithDetail :: (?context :: ControllerContext) => Text -> IO (a, Maybe Text) -> IO a
 profileActionSpanWithDetail name action = do
-    startedAtNs <- getMonotonicTimeNSec
-    (result, detail) <- action
-    completedAtNs <- getMonotonicTimeNSec
-    appendRequestProfileSpan
-        RequestProfileSpan
-            { spanOrder = 0
-            , spanName = name
-            , durationMs = durationBetweenMs startedAtNs completedAtNs
-            , detail
-            }
-    pure result
-
-appendRequestProfileSpan :: (?context :: ControllerContext) => RequestProfileSpan -> IO ()
-appendRequestProfileSpan span = do
     maybeProfile :: Maybe RequestProfile <- maybeFromContext
-    forEach maybeProfile \profile -> do
-        spanOrder <- atomicModifyIORef' profile.nextSpanOrderRef \nextOrder -> (nextOrder + 1, nextOrder)
-        atomicModifyIORef' profile.spansRef \spans ->
-            (span { spanOrder } : spans, ())
+    case maybeProfile of
+        Nothing -> fst <$> action
+        Just profile -> do
+            startedAtNs <- getMonotonicTimeNSec
+            (result, detail) <- action
+            completedAtNs <- getMonotonicTimeNSec
+            appendRequestProfileSpan profile
+                RequestProfileSpan
+                    { spanOrder = 0
+                    , spanName = name
+                    , durationMs = durationBetweenMs startedAtNs completedAtNs
+                    , detail
+                    }
+            pure result
+
+appendRequestProfileSpan :: RequestProfile -> RequestProfileSpan -> IO ()
+appendRequestProfileSpan profile span = do
+    spanOrder <- atomicModifyIORef' profile.nextSpanOrderRef \nextOrder -> (nextOrder + 1, nextOrder)
+    atomicModifyIORef' profile.spansRef \spans ->
+        (span { spanOrder } : spans, ())
+
+newRequestProfileIfEnabled :: IO (Maybe RequestProfile)
+newRequestProfileIfEnabled = do
+    profilingEnabled <- isRequestProfilingEnabled
+    if profilingEnabled
+        then Just <$> newRequestProfile
+        else pure Nothing
+
+newRequestProfile :: IO RequestProfile
+newRequestProfile = do
+    startedAtNs <- getMonotonicTimeNSec
+    requestProfileId <- UUID.toText <$> UUIDv4.nextRandom
+    spansRef <- newIORef []
+    nextSpanOrderRef <- newIORef 0
+    emittedRef <- newIORef False
+    pure
+        RequestProfile
+            { requestProfileId
+            , startedAtNs
+            , spansRef
+            , nextSpanOrderRef
+            , emittedRef
+            }
+
+currentRequestProfileFromVault :: Request -> IO (Maybe RequestProfile)
+currentRequestProfileFromVault request =
+    case Vault.lookup requestProfileVaultKey request.vault of
+        Nothing  -> pure Nothing
+        Just ref -> readIORef ref
+
+finalizeResponseProfileHeaders :: Request -> IORef (Maybe RequestProfile) -> Response -> IO Response
+finalizeResponseProfileHeaders request profileRef response = do
+    maybeProfile <- readIORef profileRef
+    case maybeProfile of
+        Nothing -> pure response
+        Just profile -> do
+            maybeHeaders <- finalizeRequestProfile request profile
+            pure case maybeHeaders of
+                Nothing -> response
+                Just headers ->
+                    Wai.mapResponseHeaders (headers <>) response
+
+finalizeRequestProfile :: Request -> RequestProfile -> IO (Maybe [Header])
+finalizeRequestProfile request profile = do
+    wasEmitted <- readIORef profile.emittedRef
+    if wasEmitted
+        then pure Nothing
+        else do
+            writeIORef profile.emittedRef True
+            completedAtNs <- getMonotonicTimeNSec
+            spans <- List.sortOn spanOrder <$> readIORef profile.spansRef
+            let totalDurationMs = durationBetweenMs profile.startedAtNs completedAtNs
+            let headers =
+                    [ ("X-Request-Id", cs profile.requestProfileId)
+                    , ("Server-Timing", cs (renderServerTiming totalDurationMs spans))
+                    ]
+            pure (Just headers)
 
 durationBetweenMs :: Word64 -> Word64 -> Double
 durationBetweenMs startedAtNs completedAtNs =

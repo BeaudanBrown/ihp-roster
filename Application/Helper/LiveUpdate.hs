@@ -39,7 +39,8 @@ import IHP.Prelude
 import qualified Network.WebSockets as WebSocket
 import System.IO.Unsafe (unsafePerformIO)
 
-import Application.Helper.Profiling (profileActionSpan)
+import Application.Helper.Profiling (profileActionSpan,
+                                     profileActionSpanWithDetail)
 
 data LiveUpdateScope
     = RosterWeekScope
@@ -556,14 +557,15 @@ incrementLiveUpdateVersion scope =
          in (Map.insert scope nextVersion versions, nextVersion)
 
 broadcastLiveInvalidation :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO ()
-broadcastLiveInvalidation scope sourceClientId fragments =
-    profileActionSpan "live_updates.broadcast_invalidation" $
-        broadcastLiveInvalidationWithoutContext scope sourceClientId fragments
+broadcastLiveInvalidation scope sourceClientId fragments = do
+    _ <- broadcastLiveInvalidationDetailed scope sourceClientId fragments
+    pure ()
 
 broadcastLiveInvalidationDetailed :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailed scope sourceClientId fragments =
-    profileActionSpan "live_updates.broadcast_invalidation" $
-        broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments
+    profileActionSpanWithDetail "live_updates.broadcast_invalidation" do
+        result <- broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments
+        pure (result, Just (liveUpdateBroadcastDetail result))
 
 broadcastLiveInvalidationWithoutContext :: LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO ()
 broadcastLiveInvalidationWithoutContext scope sourceClientId fragments = do
@@ -591,14 +593,24 @@ broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments =
 
 broadcastLiveResync :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> IO ()
 broadcastLiveResync scope sourceClientId =
-    profileActionSpan "live_updates.broadcast_resync" $
-        broadcastLiveResyncWithoutContext scope sourceClientId
+    profileActionSpanWithDetail "live_updates.broadcast_resync" do
+        result <- broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId []
+        pure ((), Just (liveUpdateBroadcastDetail result))
 
 broadcastLiveResyncWithoutContext :: LiveUpdateScope -> Maybe Text -> IO ()
 broadcastLiveResyncWithoutContext scope sourceClientId =
     -- The declarative client treats an invalidation with no explicit fragments as
     -- "resync every fragment configured for this subscribed surface".
     broadcastLiveInvalidationWithoutContext scope sourceClientId []
+
+liveUpdateBroadcastDetail :: LiveUpdateBroadcastResult -> Text
+liveUpdateBroadcastDetail result =
+    Text.intercalate
+        ","
+        [ "subscribers=" <> tshow result.broadcastSubscriberCount
+        , "fragments=" <> tshow result.broadcastFragmentCount
+        , "dropped=" <> tshow result.broadcastDroppedSubscriptions
+        ]
 
 sendInvalidation :: LiveUpdateScope -> Int -> Maybe Text -> [LiveFragmentRef] -> LiveSubscription -> IO (Maybe UUID.UUID)
 sendInvalidation scope version sourceClientId fragments subscription = do
