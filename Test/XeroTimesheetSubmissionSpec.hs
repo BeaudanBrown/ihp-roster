@@ -79,24 +79,32 @@ tests =
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
                             submissions `shouldBe` []
 
-            it "blocks create when readiness finds an employee payroll calendar mismatch" $ withContext do
+            it "submits selected-calendar employees and excludes different-calendar employees" $ withContext do
                 withCleanDb do
-                    fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                    _ <- prepareConnectionForStrictMock fixture.connection
-                    forceFixtureEmployeeCalendar fixture "calendar-other"
+                    fixture <-
+                        createPreviewFixture
+                            "weekly"
+                            [ EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                            , EntrySpec 1 fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 12 0 0)
+                            ]
+                    prepareConnectionForStrictMock fixture.connection
+                    forceFixtureEmployeeCalendarById fixture "employee-b" "calendar-other"
 
                     result <-
-                        withXeroConfigForTest (Right testXeroConfig) do
-                            withXeroClientForTest failIfCreateTimesheetClient do
-                                submitXeroDraftTimesheets fixture.owner.id fixture.request
+                        XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
+                            withXeroRequestBaseUrlsForTest urls do
+                                withXeroConfigForTest (Right testXeroConfig) do
+                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
 
                     case result of
                         Left message -> expectationFailure (cs message)
                         Right run -> do
-                            run.status `shouldBe` "blocked"
-                            run.errorSummary `shouldSatisfy` maybe False ("belongs to payroll calendar calendar-other" `isInfixOf`)
+                            run.status `shouldBe` "submitted"
                             submissions <- query @XeroTimesheetSubmission |> filterWhere (#xeroSubmissionRunId, unpackId run.id) |> fetch
-                            submissions `shouldBe` []
+                            submissions `shouldSatisfy` ((== 1) . length)
+                            map (.xeroEmployeeId) submissions `shouldBe` ["employee-a"]
+                            entries <- query @XeroTimesheetSubmissionEntry |> fetch
+                            map (.timesheetEntryId) entries `shouldBe` map (unpackId . (.id)) (take 1 fixture.entries)
 
             it "persists semantic Xero validation errors from strict create responses" $ withContext do
                 withCleanDb do
@@ -228,12 +236,20 @@ forceFixtureEmployeeId fixture employeeId = do
             |> fetch
     forM_ mappings \mapping ->
         void (mapping |> set #xeroEmployeeId (Just employeeId) |> updateRecord)
-
-forceFixtureEmployeeCalendar :: (?modelContext :: ModelContext) => PreviewFixture -> Text -> IO ()
-forceFixtureEmployeeCalendar fixture payrollCalendarId = do
     employees <-
         query @XeroEmployee
             |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
+            |> filterWhere (#xeroEmployeeId, "employee-a" :: Text)
+            |> fetch
+    forM_ employees \employee ->
+        void (employee |> set #xeroEmployeeId employeeId |> updateRecord)
+
+forceFixtureEmployeeCalendarById :: (?modelContext :: ModelContext) => PreviewFixture -> Text -> Text -> IO ()
+forceFixtureEmployeeCalendarById fixture employeeId payrollCalendarId = do
+    employees <-
+        query @XeroEmployee
+            |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
+            |> filterWhere (#xeroEmployeeId, employeeId)
             |> fetch
     forM_ employees \employee ->
         void (employee |> set #payrollCalendarId (Just payrollCalendarId) |> updateRecord)

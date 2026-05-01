@@ -68,6 +68,23 @@ tests =
                     map (.previewXeroEmployeeId) previewRun.previewRunTimesheets `shouldBe` ["employee-a", "employee-b"]
                     previewRun.previewRunRequestArrayJson `shouldSatisfy` isArrayOfLength 2
 
+            it "fetches preview input only for employees on the selected payroll calendar" $ withContext do
+                withCleanDb do
+                    fixture <-
+                        createPreviewFixture
+                            "weekly"
+                            [ EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                            , EntrySpec 1 fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 12 0 0)
+                            ]
+                    forcePreviewEmployeeCalendar fixture "employee-b" "calendar-other"
+
+                    input <- fetchPreviewInput fixture.request fixture.connection
+                    case buildXeroTimesheetPreviewRun input of
+                        Left err -> expectationFailure (cs err)
+                        Right previewRun -> do
+                            map (.previewXeroEmployeeId) previewRun.previewRunTimesheets `shouldBe` ["employee-a"]
+                            concatMap (.previewSourceEntryIds) previewRun.previewRunTimesheets `shouldBe` map (unpackId . (.id)) (take 1 fixture.entries)
+
             it "keeps source entry ids and pay version ids in metadata but omits TrackingItemID from Xero request JSON" $ withContext do
                 withCleanDb do
                     fixture <- createPreviewFixture "weekly" [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
@@ -350,6 +367,16 @@ buildFixturePreview fixture = do
     case buildXeroTimesheetPreviewRun input of
         Left err         -> expectationFailure (cs err) >> error "unreachable"
         Right previewRun -> pure previewRun
+
+forcePreviewEmployeeCalendar :: (?modelContext :: ModelContext) => PreviewFixture -> Text -> Text -> IO ()
+forcePreviewEmployeeCalendar fixture employeeId payrollCalendarId = do
+    employees <-
+        query @XeroEmployee
+            |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id)
+            |> filterWhere (#xeroEmployeeId, employeeId)
+            |> fetch
+    forM_ employees \employee ->
+        employee |> set #payrollCalendarId (Just payrollCalendarId) |> updateRecord >>= const (pure ())
 
 onlyPreview :: XeroTimesheetPreviewRun -> XeroTimesheetPreview
 onlyPreview previewRun =

@@ -176,10 +176,11 @@ fetchPreviewInput request connection = do
             |> filterWhereIn (#staffId, map (.staffId) approvedEntries)
             |> filterWhere (#mappingStatus, "verified" :: Text)
             |> fetch
+    selectedPayrollCalendarEmployeeIds <- fetchSelectedPayrollCalendarEmployeeIds connection
     let entries =
             approvedEntries
                 |> filter \entry ->
-                    any (\mapping -> mapping.staffId == entry.staffId && isJust mapping.xeroEmployeeId) staffMappings
+                    any (mappingIncludesEntry entry selectedPayrollCalendarEmployeeIds) staffMappings
     staffMembers <-
         query @Staff
             |> filterWhere (#venueId, unpackId request.readinessVenueId)
@@ -215,6 +216,27 @@ fetchPreviewInput request connection = do
         , previewAwardLevelPenalties = penaltyRates
         , previewTimePenaltyAllowances = timeAllowances
         }
+
+fetchSelectedPayrollCalendarEmployeeIds :: (?modelContext :: ModelContext) => XeroConnection -> IO [Text]
+fetchSelectedPayrollCalendarEmployeeIds connection = do
+    maybeSelection <-
+        query @XeroPayrollCalendarSelection
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#calendarStatus, "verified" :: Text)
+            |> fetchOneOrNothing
+    case maybeSelection >>= (.xeroPayrollCalendarId) of
+        Nothing -> pure []
+        Just payrollCalendarId ->
+            fmap (map (.xeroEmployeeId)) $
+                query @XeroEmployee
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> filterWhere (#payrollCalendarId, Just payrollCalendarId)
+                |> fetch
+
+mappingIncludesEntry :: TimesheetEntry -> [Text] -> XeroStaffMapping -> Bool
+mappingIncludesEntry entry selectedPayrollCalendarEmployeeIds mapping =
+    mapping.staffId == entry.staffId
+        && maybe False (`elem` selectedPayrollCalendarEmployeeIds) mapping.xeroEmployeeId
 
 fetchActivePreviewXeroConnection :: (?modelContext :: ModelContext) => Id Venue -> IO (Maybe XeroConnection)
 fetchActivePreviewXeroConnection venueId =

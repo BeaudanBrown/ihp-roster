@@ -80,6 +80,7 @@ validateXeroTimesheetReadiness request = do
     maybeCalendar <- fetchSelectedPayrollCalendar maybeCalendarSelection
     syncedEmployees <- maybe (pure []) (fetchMappedXeroEmployees staffMappings) maybeConnection
     maybeAccountCodeSelection <- maybe (pure Nothing) fetchVerifiedPayItemAccountCodeSelection maybeConnection
+    let selectedCalendarStaffMappings = staffMappingsForSelectedPayrollCalendar maybeCalendar staffMappings syncedEmployees
 
     let blockers =
             concat
@@ -90,13 +91,14 @@ validateXeroTimesheetReadiness request = do
                 , entryBlockers entries
                 , earningsMappingBlockers buckets earningsMappings payItemRequirements
                 , payItemRequirementBlockers payItemRequirements maybeAccountCodeSelection
-                , duplicateBlockers request entries staffMappings request.readinessRemoteTimesheets
+                , duplicateBlockers request entries selectedCalendarStaffMappings request.readinessRemoteTimesheets
                 ]
     let warnings =
             concat
                 [ entryWarnings entries
                 , staffMappingWarnings entries staffMappings
-                , duplicateWarnings request entries staffMappings request.readinessRemoteTimesheets
+                , employeePayrollCalendarWarnings maybeConnection maybeCalendar staffMappings syncedEmployees
+                , duplicateWarnings request entries selectedCalendarStaffMappings request.readinessRemoteTimesheets
                 ]
     pure XeroTimesheetReadiness
         { xeroTimesheetReady = null blockers
@@ -277,14 +279,7 @@ employeePayrollCalendarBlockers request _ (Just calendar) mappings employees =
                     ]
                 Just employeeCalendarId
                     | employeeCalendarId /= calendar.xeroPayrollCalendarId ->
-                        [ (employeeBlocker
-                            mapping
-                            "employee_payroll_calendar_mismatch"
-                            ("The mapped Xero employee belongs to payroll calendar " <> employeeCalendarId <> ", but this venue is submitting calendar " <> calendar.xeroPayrollCalendarId <> ". Move the employee to the selected calendar in Xero or exclude this staff member from the current submission.")
-                          )
-                            { xeroBlockerXeroObjectId = Just employee.xeroEmployeeId
-                            }
-                        ]
+                        []
                     | otherwise ->
                         case deriveXeroPayrollCalendarPeriod calendar request.readinessPeriodStart of
                             Just (expectedStart, expectedEnd)
@@ -307,6 +302,45 @@ employeePayrollCalendarBlockers request _ (Just calendar) mappings employees =
             )
                 { xeroBlockerXeroObjectId = Just employee.xeroEmployeeId
                 }
+
+employeePayrollCalendarWarnings ::
+    Maybe XeroConnection ->
+    Maybe XeroPayrollCalendar ->
+    [XeroStaffMapping] ->
+    [XeroEmployee] ->
+    [XeroReadinessBlocker]
+employeePayrollCalendarWarnings Nothing _ _ _ = []
+employeePayrollCalendarWarnings _ Nothing _ _ = []
+employeePayrollCalendarWarnings _ (Just calendar) mappings employees =
+    concatMap mappingWarnings mappedMappings
+    where
+        employeesByXeroId = Map.fromList [(employee.xeroEmployeeId, employee) | employee <- employees]
+        mappedMappings = filter (isJust . (.xeroEmployeeId)) mappings
+        mappingWarnings mapping =
+            case mapping.xeroEmployeeId >>= (`Map.lookup` employeesByXeroId) of
+                Just employee
+                    | maybe False (/= calendar.xeroPayrollCalendarId) employee.payrollCalendarId ->
+                        [ (employeeBlocker
+                            mapping
+                            "employee_payroll_calendar_excluded"
+                            ("Skipped mapped Xero employee " <> employee.xeroEmployeeId <> " because they belong to payroll calendar " <> fromMaybe "" employee.payrollCalendarId <> ", not selected calendar " <> calendar.xeroPayrollCalendarId <> ".")
+                          )
+                            { xeroBlockerSeverity = XeroReadinessWarning
+                            , xeroBlockerXeroObjectId = Just employee.xeroEmployeeId
+                            }
+                        ]
+                _ -> []
+
+staffMappingsForSelectedPayrollCalendar :: Maybe XeroPayrollCalendar -> [XeroStaffMapping] -> [XeroEmployee] -> [XeroStaffMapping]
+staffMappingsForSelectedPayrollCalendar Nothing mappings _ = mappings
+staffMappingsForSelectedPayrollCalendar (Just calendar) mappings employees =
+    filter mappingUsesSelectedCalendar mappings
+    where
+        employeesByXeroId = Map.fromList [(employee.xeroEmployeeId, employee) | employee <- employees]
+        mappingUsesSelectedCalendar mapping =
+            case mapping.xeroEmployeeId >>= (`Map.lookup` employeesByXeroId) of
+                Just employee -> employee.payrollCalendarId == Just calendar.xeroPayrollCalendarId
+                Nothing       -> False
 
 employeeBlocker :: XeroStaffMapping -> Text -> Text -> XeroReadinessBlocker
 employeeBlocker mapping code message =
