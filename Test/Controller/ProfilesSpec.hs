@@ -138,6 +138,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "name=\"phone\""
                 response `responseBodyShouldContain` "name=\"emergencyContactName\""
                 response `responseBodyShouldContain` "name=\"emergencyContactPhone\""
+                response `responseBodyShouldContain` "name=\"idealShiftsPerWeek\""
+                response `responseBodyShouldContain` "name=\"shiftPreferenceKeys\""
 
         it "hides the dedicated leave header link for workers while keeping profile leave content available" $ withContext do
             withCleanDb do
@@ -231,6 +233,36 @@ tests = beforeAll testContext do
                 length memberships `shouldBe` 1
                 length rosterGroups `shouldBe` 1
                 refreshedUser.isProfileCompleted `shouldBe` True
+
+        it "saves shift preferences on the first successful profile submission" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Bootstrap Preferences Venue"
+                user <- createUserRecord "profile-bootstrap-preferences@example.com" "staff" False
+                _ <- createVenueMembershipRecord venue user "worker"
+                let preferenceKey = encodeShiftPreferenceKey 2
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams UpdateProfileAction
+                        [ ("firstName", "Taylor")
+                        , ("lastName", "Smith")
+                        , ("preferredName", "")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Casey Smith")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "4")
+                        , ("shiftPreferenceKeys", cs preferenceKey)
+                        , (cs (shiftPreferenceStartHourParamName preferenceKey), "8")
+                        , (cs (shiftPreferenceEndHourParamName preferenceKey), "14")
+                        ]
+
+                response `responseStatusShouldBe` status302
+
+                staff <- query @Staff |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#userId, Just (unpackId user.id)) |> fetchOne
+                preferences <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetch
+
+                map (.weekdayIndex) preferences `shouldBe` [2]
+                map (.preferredStartHour) preferences `shouldBe` [8]
+                map (.preferredEndHour) preferences `shouldBe` [14]
 
         it "normalizes profile text and rejects oversized names before saving" $ withContext do
             withCleanDb do

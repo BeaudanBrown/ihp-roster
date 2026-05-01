@@ -145,27 +145,24 @@ upsertCurrentUserStaff staff = do
                 pure createdStaff
 
 profilePreferenceViewData :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe Staff -> IO ([PreferenceWeekday], [ShiftPreferenceSelection])
-profilePreferenceViewData maybeStaff =
-    case maybeStaff of
-        Nothing -> pure ([], [])
-        Just staff -> do
-            venueConfig <- fetchVenueConfig
-            let preferenceWeekdays = allPreferenceWeekdays venueConfig
-            selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
-            pure (preferenceWeekdays, selectedShiftPreferences)
+profilePreferenceViewData maybeStaff = do
+    venueConfig <- fetchVenueConfig
+    let preferenceWeekdays = allPreferenceWeekdays venueConfig
+    selectedShiftPreferences <-
+        case maybeStaff of
+            Nothing    -> pure []
+            Just staff -> fetchStaffShiftPreferenceSelections staff
+    pure (preferenceWeekdays, selectedShiftPreferences)
 
 profilePreferenceViewDataWithSubmitted :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Maybe Staff -> [Text] -> IO ([PreferenceWeekday], [ShiftPreferenceSelection])
-profilePreferenceViewDataWithSubmitted maybeStaff submittedShiftPreferenceKeys =
-    case maybeStaff of
-        Nothing -> pure ([], [])
-        Just staff -> do
-            venueConfig <- fetchVenueConfig
-            let preferenceWeekdays = allPreferenceWeekdays venueConfig
-            let selectedShiftPreferences =
-                    case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
-                        Right selections -> selections
-                        Left _           -> []
-            pure (preferenceWeekdays, selectedShiftPreferences)
+profilePreferenceViewDataWithSubmitted _maybeStaff submittedShiftPreferenceKeys = do
+    venueConfig <- fetchVenueConfig
+    let preferenceWeekdays = allPreferenceWeekdays venueConfig
+    let selectedShiftPreferences =
+            case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
+                Right selections -> selections
+                Left _           -> []
+    pure (preferenceWeekdays, selectedShiftPreferences)
 
 normalizeProfileOpenSection :: Text -> Text
 normalizeProfileOpenSection section
