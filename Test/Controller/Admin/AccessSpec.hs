@@ -82,13 +82,12 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldContain` "Shift Types"
-                response `responseBodyShouldContain` "Slot Names"
                 response `responseBodyShouldContain` "Invites"
                 response `responseBodyShouldContain` "Exports"
                 response `responseBodyShouldContain` "Staff Hours CSV"
                 response `responseBodyShouldContain` "Hourly Breakdown ZIP"
                 response `responseBodyShouldContain` "Payroll Earnings CSV"
-                response `responseBodyShouldContain` "admin-slot-names-fragment"
+                response `responseBodyShouldNotContain` "admin-slot-names-fragment"
                 response `responseBodyShouldContain` "admin-invites-fragment"
                 body <- responseBody response
                 (cs body :: String) `shouldContainInOrder` ["Invites", "Exports", "Shift Types", "Roster Groups"]
@@ -104,8 +103,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Level A (perm $31.50/hr)"
                 response `responseBodyShouldContain` "Use staff default award level"
                 response `responseBodyShouldContain` "Back of House"
-                response `responseBodyShouldContain` "Pass"
-                response `responseBodyShouldContain` "Default Only"
+                response `responseBodyShouldNotContain` "Pass"
+                response `responseBodyShouldNotContain` "Default Only"
                 response `responseBodyShouldNotContain` "Bar"
                 response `responseBodyShouldNotContain` "Graveyard"
 
@@ -136,33 +135,10 @@ tests = beforeAll testContext do
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Front Lane"
                 pageResponse `responseBodyShouldContain` "Back Lane"
-                pageResponse `responseBodyShouldContain` "Front Register"
-                pageResponse `responseBodyShouldContain` "Back Pass"
-                pageResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
-                pageResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
+                pageResponse `responseBodyShouldNotContain` "Front Register"
+                pageResponse `responseBodyShouldNotContain` "Back Pass"
                 pageResponse `responseBodyShouldContain` "data-live-update-surface=\""
-                pageResponse `responseBodyShouldContain` "admin_slot_names"
-                pageResponse `responseBodyShouldContain` ("admin-slot-names-fragment-" <> tshow firstGroup.id)
-                pageResponse `responseBodyShouldContain` ("admin-slot-names-fragment-" <> tshow secondGroup.id)
-                pageResponse `responseBodyShouldContain` ("hx-target=\"#admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
-                pageResponse `responseBodyShouldContain` ("hx-target=\"#admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
-
-                firstFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams ShowAdminSlotNamesFragmentAction
-                        [("rosterGroupId", idToParam firstGroup.id)]
-                firstFragmentResponse `responseStatusShouldBe` status200
-                firstFragmentResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow firstGroup.id <> "\"")
-                firstFragmentResponse `responseBodyShouldContain` "Front Register"
-                firstFragmentResponse `responseBodyShouldNotContain` "Back Pass"
-                firstFragmentResponse `responseBodyShouldNotContain` "id=\"app\""
-
-                secondFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams ShowAdminSlotNamesFragmentAction
-                        [("rosterGroupId", idToParam secondGroup.id)]
-                secondFragmentResponse `responseStatusShouldBe` status200
-                secondFragmentResponse `responseBodyShouldContain` ("id=\"admin-slot-names-fragment-" <> tshow secondGroup.id <> "\"")
-                secondFragmentResponse `responseBodyShouldContain` "Back Pass"
-                secondFragmentResponse `responseBodyShouldNotContain` "Front Register"
+                pageResponse `responseBodyShouldNotContain` "admin_slot_names"
 
         it "rejects non-admin venue members from admin screens" $ withContext do
             withCleanDb do

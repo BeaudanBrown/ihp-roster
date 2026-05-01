@@ -139,17 +139,15 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/RosterWeeks"
 
-        it "does not let venue managers subscribe to admin slot-name live scopes" $ withContext do
+        it "does not let venue managers subscribe to admin roster-group live scopes" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "manager-live-admin-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 authorized <- withAuthenticatedControllerContext manager venue.id do
-                    isAuthorizedScope AdminSlotNamesScope
+                    isAuthorizedScope AdminRosterGroupsScope
                         { venueId = unpackId venue.id
-                        , rosterGroupId = unpackId rosterGroup.id
                         }
 
                 authorized `shouldBe` False
@@ -159,19 +157,17 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "admin-live-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
-                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
-                slotNamesAuthorized <- withAuthenticatedControllerContext admin venue.id do
-                    isAuthorizedScope AdminSlotNamesScope
+                rosterGroupsAuthorized <- withAuthenticatedControllerContext admin venue.id do
+                    isAuthorizedScope AdminRosterGroupsScope
                         { venueId = unpackId venue.id
-                        , rosterGroupId = unpackId rosterGroup.id
                         }
                 invitesAuthorized <- withAuthenticatedControllerContext admin venue.id do
                     isAuthorizedScope AdminInvitesScope
                         { venueId = unpackId venue.id
                         }
 
-                slotNamesAuthorized `shouldBe` True
+                rosterGroupsAuthorized `shouldBe` True
                 invitesAuthorized `shouldBe` True
 
         it "lets current-venue users subscribe to ordinary live scopes for their venue" $ withContext do
@@ -187,11 +183,6 @@ tests = beforeAll testContext do
                         , rosterGroupId = unpackId rosterGroup.id
                         , weekOffset = 0
                         }
-                rosterGroupConfigAuthorized <- withAuthenticatedControllerContext user venue.id do
-                    isAuthorizedScope RosterGroupConfigScope
-                        { venueId = unpackId venue.id
-                        , rosterGroupId = unpackId rosterGroup.id
-                        }
                 leaveAuthorized <- withAuthenticatedControllerContext user venue.id do
                     isAuthorizedScope LeaveRequestsScope
                         { venueId = unpackId venue.id
@@ -203,7 +194,6 @@ tests = beforeAll testContext do
                         }
 
                 rosterAuthorized `shouldBe` True
-                rosterGroupConfigAuthorized `shouldBe` True
                 leaveAuthorized `shouldBe` True
                 timesheetAuthorized `shouldBe` True
 
@@ -221,11 +211,6 @@ tests = beforeAll testContext do
                         , rosterGroupId = unpackId rosterGroupB.id
                         , weekOffset = 0
                         }
-                rosterGroupConfigAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    isAuthorizedScope RosterGroupConfigScope
-                        { venueId = unpackId venueB.id
-                        , rosterGroupId = unpackId rosterGroupB.id
-                        }
                 adminXeroAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     isAuthorizedScope AdminXeroScope
                         { venueId = unpackId venueB.id
@@ -241,7 +226,6 @@ tests = beforeAll testContext do
                         }
 
                 rosterAuthorized `shouldBe` False
-                rosterGroupConfigAuthorized `shouldBe` False
                 adminXeroAuthorized `shouldBe` False
                 leaveAuthorized `shouldBe` False
                 timesheetAuthorized `shouldBe` False
@@ -260,20 +244,13 @@ tests = beforeAll testContext do
                         , rosterGroupId = unpackId rosterGroupB.id
                         , weekOffset = 0
                         }
-                rosterGroupConfigAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    isAuthorizedScope RosterGroupConfigScope
+                adminRosterGroupsAuthorized <- withAuthenticatedControllerContext admin venueA.id do
+                    isAuthorizedScope AdminRosterGroupsScope
                         { venueId = unpackId venueA.id
-                        , rosterGroupId = unpackId rosterGroupB.id
-                        }
-                adminSlotNamesAuthorized <- withAuthenticatedControllerContext admin venueA.id do
-                    isAuthorizedScope AdminSlotNamesScope
-                        { venueId = unpackId venueA.id
-                        , rosterGroupId = unpackId rosterGroupB.id
                         }
 
                 rosterAuthorized `shouldBe` False
-                rosterGroupConfigAuthorized `shouldBe` False
-                adminSlotNamesAuthorized `shouldBe` False
+                adminRosterGroupsAuthorized `shouldBe` True
 
         it "lets super-admins subscribe to the support live scope without an active venue" $ withContext do
             withCleanDb do
@@ -714,8 +691,8 @@ tests = beforeAll testContext do
                 venueB <- createVenueWithConfig "Venue B"
                 manager <- createUserRecord "manager-slot-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venueA manager "manager"
-                slotNamesA <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueA)
-                slotNamesB <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueB)
+                _ <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueA)
+                _ <- forM ["Early", "Mid", "Late"] (fetchSlotNameRecord venueB)
 
                 response <- withUser manager do
                     callAction CreateRosterWeekAction { weekOffset = 0 }
@@ -732,13 +709,15 @@ tests = beforeAll testContext do
                 slots <- query @RosterSlot
                     |> filterWhereIn (#rosterDayId, map (unpackId . get #id) rosterDays)
                     |> fetch
+                slotDefinitions <- query @RosterWeekSlotDefinition
+                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
 
-                let venueASlotIds = map (unpackId . get #id) slotNamesA
-                let venueBSlotIds = map (unpackId . get #id) slotNamesB
+                let rosterWeekSlotDefinitionIds = map (unpackId . get #id) slotDefinitions
 
                 length slots `shouldBe` 84
-                map (.slotNameId) slots `shouldSatisfy` all (`elem` venueASlotIds)
-                map (.slotNameId) slots `shouldSatisfy` all (`notElem` venueBSlotIds)
+                map (.rosterWeekSlotDefinitionId) slots `shouldSatisfy` all (`elem` rosterWeekSlotDefinitionIds)
 
 withAuthenticatedControllerContext ::
     forall result.

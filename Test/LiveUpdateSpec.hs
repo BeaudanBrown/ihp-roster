@@ -12,13 +12,11 @@ import Test.Hspec
 
 tests :: Spec
 tests = describe "LiveUpdate runtime types" do
-    it "round-trips roster, roster-group-config, admin, leave, timesheet, and support scopes through JSON" do
+    it "round-trips roster, admin, leave, timesheet, and support scopes through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let scopes =
                 [ RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
-                , RosterGroupConfigScope { venueId, rosterGroupId }
-                , AdminSlotNamesScope { venueId, rosterGroupId }
                 , AdminShiftTypesScope { venueId }
                 , AdminRosterGroupsScope { venueId }
                 , AdminInvitesScope { venueId }
@@ -33,7 +31,6 @@ tests = describe "LiveUpdate runtime types" do
 
     it "round-trips roster, admin, profile, leave, timesheet, and support fragment keys through JSON" do
         let rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222"
-        let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let fragmentKeys =
                 [ RosterContentFragment
                 , RosterStaffPanelFragment
@@ -41,7 +38,6 @@ tests = describe "LiveUpdate runtime types" do
                 , LeaveRequestsContentFragment
                 , TimesheetDaySectionFragment { dayOffset = 4 }
                 , AdminInvitesFragment
-                , AdminSlotNamesFragment { rosterGroupId }
                 , AdminShiftTypesFragment
                 , AdminRosterGroupsFragment
                 , AdminXeroFragment
@@ -59,10 +55,6 @@ tests = describe "LiveUpdate runtime types" do
 
         liveUpdateScopeKey RosterWeekScope { venueId, rosterGroupId, weekOffset = -1 }
             `shouldBe` "roster_week:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:-1"
-        liveUpdateScopeKey RosterGroupConfigScope { venueId, rosterGroupId }
-            `shouldBe` "roster_group_config:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333"
-        liveUpdateScopeKey AdminSlotNamesScope { venueId, rosterGroupId }
-            `shouldBe` "admin_slot_names:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333"
         liveUpdateScopeKey AdminShiftTypesScope { venueId }
             `shouldBe` "admin_shift_types:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey AdminRosterGroupsScope { venueId }

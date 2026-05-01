@@ -173,7 +173,7 @@ seededHospitalityAwardLevelId value =
 resetDevFixtureData :: (?modelContext :: ModelContext) => IO ()
 resetDevFixtureData = do
     sqlExecDiscardResult
-        "TRUNCATE TABLE app_jobs, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_submission_runs, xero_payroll_calendar_selections, xero_earnings_rate_mappings, xero_staff_mappings, xero_payroll_calendars, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_days, roster_weeks, export_job_entries, shift_type_pay_versions, staff_pay_versions, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
+        "TRUNCATE TABLE app_jobs, xero_timesheet_submission_entries, xero_timesheet_submissions, xero_submission_runs, xero_payroll_calendar_selections, xero_earnings_rate_mappings, xero_staff_mappings, xero_payroll_calendars, xero_earnings_rates, xero_employees, xero_sync_runs, xero_oauth_states, xero_connections, export_jobs, audit_events, venue_membership_role_events, timesheet_entry_versions, timesheet_entries, leave_request_events, leave_requests, staff_shift_preferences, roster_slots, roster_week_slot_definitions, roster_days, roster_weeks, export_job_entries, shift_type_pay_versions, staff_pay_versions, venue_config, report_definition_shift_type_filters, report_definitions, day_names, slot_names, staff_roster_groups, roster_groups, shift_types, staff, email_verification_tokens, venue_invitations, venue_onboarding_invitations, venue_memberships, users, venues RESTART IDENTITY CASCADE"
         ()
     pure ()
 
@@ -816,18 +816,19 @@ createRosterRow ::
     [(Text, DevRosterSlotSeed)] ->
     IO ()
 createRosterRow rosterDay slotNames rowIndex assignments = do
-    rosterSlotIds <- map Id <$> freshUUIDs (length slotNames)
+    slotDefinitions <- forM slotNames (ensureRosterWeekSlotDefinitionForSlotName rosterDay)
+    rosterSlotIds <- map Id <$> freshUUIDs (length slotDefinitions)
     now <- getCurrentTime
-    void (createMany (zipWith (rosterSlotRecord now rosterDay rowIndex) rosterSlotIds slotNames))
+    void (createMany (zipWith (rosterSlotRecord now rosterDay rowIndex) rosterSlotIds slotDefinitions))
     where
         emptySeed = DevRosterSlotSeed { slotStaff = Nothing, slotStartTime = Nothing, slotNote = Nothing }
-        rosterSlotRecord now rosterDay rowIndex rosterSlotId slotName =
-            let slotSeed = fromMaybe emptySeed (lookup (get #name slotName) assignments)
+        rosterSlotRecord now rosterDay rowIndex rosterSlotId slotDefinition =
+            let slotSeed = fromMaybe emptySeed (lookup (get #name slotDefinition) assignments)
              in newRecord @RosterSlot
                     |> set #id rosterSlotId
                     |> set #rosterDayId (unpackId (get #id rosterDay))
-                    |> set #slotNameId (unpackId (get #id slotName))
-                    |> set #slotSortOrder slotName.sortOrder
+                    |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))
+                    |> set #slotSortOrder slotDefinition.sortOrder
                     |> set #staffId (fmap (unpackId . get #id) slotSeed.slotStaff)
                     |> set #rowIndex rowIndex
                     |> set #startTime slotSeed.slotStartTime

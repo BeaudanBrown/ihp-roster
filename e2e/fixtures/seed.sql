@@ -734,13 +734,25 @@ ON CONFLICT (id) DO UPDATE SET
     day_offset = EXCLUDED.day_offset,
     is_closed = EXCLUDED.is_closed;
 
-INSERT INTO roster_slots (id, roster_day_id, staff_id, slot_name_id, row_index, start_time, duration_minutes, note)
+INSERT INTO roster_week_slot_definitions (id, roster_week_id, name, sort_order)
+VALUES
+    ('a1000000-0000-0000-0000-000000000081', 'a1000000-0000-0000-0000-000000000051', 'Early', 0),
+    ('a1000000-0000-0000-0000-000000000082', 'a1000000-0000-0000-0000-000000000052', 'Late', 0),
+    ('a1000000-0000-0000-0000-000000000083', 'a1000000-0000-0000-0000-000000000053', 'Early', 0)
+ON CONFLICT (id) DO UPDATE SET
+    roster_week_id = EXCLUDED.roster_week_id,
+    name = EXCLUDED.name,
+    sort_order = EXCLUDED.sort_order,
+    deleted_at = NULL,
+    updated_at = NOW();
+
+INSERT INTO roster_slots (id, roster_day_id, staff_id, roster_week_slot_definition_id, row_index, start_time, duration_minutes, note)
 VALUES
     (
         'a1000000-0000-0000-0000-000000000071',
         'a1000000-0000-0000-0000-000000000061',
         'a1000000-0000-0000-0000-000000000031',
-        'a1000000-0000-0000-0000-000000000041',
+        'a1000000-0000-0000-0000-000000000081',
         0,
         '09:00',
         480,
@@ -750,7 +762,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000072',
         'a1000000-0000-0000-0000-000000000062',
         'a1000000-0000-0000-0000-000000000032',
-        'a1000000-0000-0000-0000-000000000042',
+        'a1000000-0000-0000-0000-000000000082',
         0,
         '09:00',
         480,
@@ -760,7 +772,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000073',
         'a1000000-0000-0000-0000-000000000063',
         'a1000000-0000-0000-0000-000000000031',
-        'a1000000-0000-0000-0000-000000000041',
+        'a1000000-0000-0000-0000-000000000083',
         0,
         '09:00',
         240,
@@ -770,7 +782,7 @@ VALUES
         'a1000000-0000-0000-0000-000000000074',
         'a1000000-0000-0000-0000-000000000063',
         'a1000000-0000-0000-0000-000000000031',
-        'a1000000-0000-0000-0000-000000000041',
+        'a1000000-0000-0000-0000-000000000083',
         1,
         '13:00',
         240,
@@ -779,7 +791,7 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET
     roster_day_id = EXCLUDED.roster_day_id,
     staff_id = EXCLUDED.staff_id,
-    slot_name_id = EXCLUDED.slot_name_id,
+    roster_week_slot_definition_id = EXCLUDED.roster_week_slot_definition_id,
     row_index = EXCLUDED.row_index,
     start_time = EXCLUDED.start_time,
     duration_minutes = EXCLUDED.duration_minutes,

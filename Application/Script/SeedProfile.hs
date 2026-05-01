@@ -74,6 +74,7 @@ buildProfileSeedPlan options currentWeekOffset =
             , ("shift_type_pay_versions", venueCount options * length shiftTypeTemplates)
             , ("roster_weeks", rosterWeekCount)
             , ("roster_days", rosterDayCount)
+            , ("roster_week_slot_definitions", rosterWeekCount * slotNamesPerGroup)
             , ("roster_slots", rosterSlotCount)
             , ("timesheet_entries", timesheetEntryCount)
             , ("leave_requests", leaveRequestCount)
@@ -112,6 +113,7 @@ writeProfileSeed dir plan = do
     writeCsv dir "staff_shift_preferences.csv" staffShiftPreferenceColumns (staffShiftPreferenceRows plan)
     writeCsv dir "roster_weeks.csv" rosterWeekColumns (rosterWeekRows plan)
     writeCsv dir "roster_days.csv" rosterDayColumns (rosterDayRows plan)
+    writeCsv dir "roster_week_slot_definitions.csv" rosterWeekSlotDefinitionColumns (rosterWeekSlotDefinitionRows plan)
     writeCsv dir "roster_slots.csv" rosterSlotColumns (rosterSlotRows plan)
     writeCsv dir "leave_requests.csv" leaveRequestColumns (leaveRequestRows plan)
     writeCsv dir "timesheet_entries.csv" timesheetEntryColumns (timesheetEntryRows plan)
@@ -297,6 +299,7 @@ tableLoads =
     , ("staff_shift_preferences", staffShiftPreferenceColumns, "staff_shift_preferences.csv")
     , ("roster_weeks", rosterWeekColumns, "roster_weeks.csv")
     , ("roster_days", rosterDayColumns, "roster_days.csv")
+    , ("roster_week_slot_definitions", rosterWeekSlotDefinitionColumns, "roster_week_slot_definitions.csv")
     , ("roster_slots", rosterSlotColumns, "roster_slots.csv")
     , ("leave_requests", leaveRequestColumns, "leave_requests.csv")
     , ("timesheet_entries", timesheetEntryColumns, "timesheet_entries.csv")
@@ -326,11 +329,12 @@ rosterGroupColumns = ["id", "venue_id", "name", "sort_order", "is_active", "is_d
 slotNameColumns = ["id", "venue_id", "roster_group_id", "name", "sort_order", "is_active"]
 staffRosterGroupColumns = ["id", "staff_id", "roster_group_id"]
 
-staffShiftPreferenceColumns, rosterWeekColumns, rosterDayColumns, rosterSlotColumns :: [Text]
+staffShiftPreferenceColumns, rosterWeekColumns, rosterDayColumns, rosterWeekSlotDefinitionColumns, rosterSlotColumns :: [Text]
 staffShiftPreferenceColumns = ["id", "venue_id", "staff_id", "roster_group_id", "weekday_index", "preferred_start_hour", "preferred_end_hour"]
 rosterWeekColumns = ["id", "venue_id", "roster_group_id", "week_offset", "is_live"]
 rosterDayColumns = ["id", "roster_week_id", "day_offset", "is_closed"]
-rosterSlotColumns = ["id", "roster_day_id", "staff_id", "slot_name_id", "slot_sort_order", "row_index", "start_time", "duration_minutes", "note"]
+rosterWeekSlotDefinitionColumns = ["id", "roster_week_id", "name", "sort_order"]
+rosterSlotColumns = ["id", "roster_day_id", "staff_id", "roster_week_slot_definition_id", "slot_sort_order", "row_index", "start_time", "duration_minutes", "note"]
 
 leaveRequestColumns, timesheetEntryColumns, timesheetEntryVersionColumns :: [Text]
 leaveRequestColumns = ["id", "venue_id", "staff_id", "start_date", "end_date", "status", "notes"]
@@ -514,12 +518,21 @@ rosterDayRows plan =
     , dayOffset <- [0 .. 6]
     ]
 
+rosterWeekSlotDefinitionRows :: ProfileSeedPlan -> [[Maybe Text]]
+rosterWeekSlotDefinitionRows plan =
+    [ row [rosterWeekSlotDefinitionId venueIndex groupIndex weekOffset slotIndex, rosterWeekId venueIndex groupIndex weekOffset, slotName, tshow slotIndex]
+    | venueIndex <- venueIndexes plan
+    , (groupIndex, _) <- rosterGroupTemplates
+    , weekOffset <- weekOffsets plan
+    , (slotIndex, slotName) <- slotNameTemplates
+    ]
+
 rosterSlotRows :: ProfileSeedPlan -> [[Maybe Text]]
 rosterSlotRows plan =
     [ [ Just (rosterSlotId venueIndex groupIndex weekOffset dayOffset rowIndex slotIndex)
       , Just (rosterDayId venueIndex groupIndex weekOffset dayOffset)
       , maybeStaffId
-      , Just (slotNameId venueIndex groupIndex slotIndex)
+      , Just (rosterWeekSlotDefinitionId venueIndex groupIndex weekOffset slotIndex)
       , Just (tshow slotIndex)
       , Just (tshow rowIndex)
       , if isJust maybeStaffId then Just (timeFor slotIndex dayOffset) else Nothing
@@ -820,6 +833,10 @@ rosterWeekId venueIndex groupIndex weekOffset = uuidText 17 venueIndex groupInde
 
 rosterDayId :: Int -> Int -> Int -> Int -> Text
 rosterDayId venueIndex groupIndex weekOffset dayOffset = uuidText 18 venueIndex groupIndex ((weekOffset + 10000) * 10 + dayOffset)
+
+rosterWeekSlotDefinitionId :: Int -> Int -> Int -> Int -> Text
+rosterWeekSlotDefinitionId venueIndex groupIndex weekOffset slotIndex =
+    uuidText 28 venueIndex groupIndex (((weekOffset + 10000) * 10) + slotIndex)
 
 rosterSlotId :: Int -> Int -> Int -> Int -> Int -> Int -> Text
 rosterSlotId venueIndex groupIndex weekOffset dayOffset rowIndex slotIndex =

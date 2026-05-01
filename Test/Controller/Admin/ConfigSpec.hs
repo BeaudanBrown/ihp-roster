@@ -3,8 +3,7 @@ module Test.Controller.Admin.ConfigSpec where
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
-import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
-                                        fetchActiveRosterGroupSlotNames)
+import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Config
@@ -252,16 +251,6 @@ tests = beforeAll testContext do
                 rosterGroupResponse `responseStatusShouldBe` status302
                 createdRosterGroup <- query @RosterGroup |> filterWhere (#name, "Back of House") |> fetchOne
 
-                slotConfigVersionBefore <- currentLiveUpdateVersion RosterGroupConfigScope { venueId = unpackId venue.id, rosterGroupId = unpackId createdRosterGroup.id }
-                slotResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams CreateSlotNameAction
-                        [ ("name", "Swing")
-                        , ("rosterGroupId", idToParam createdRosterGroup.id)
-                        ]
-                slotResponse `responseStatusShouldBe` status302
-                slotConfigVersionAfter <- currentLiveUpdateVersion RosterGroupConfigScope { venueId = unpackId venue.id, rosterGroupId = unpackId createdRosterGroup.id }
-                slotConfigVersionAfter `shouldBe` slotConfigVersionBefore + 1
-
                 shiftTypeResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
                         [ ("name", "Supervisor")
@@ -277,7 +266,6 @@ tests = beforeAll testContext do
                         ]
                 inviteResponse `responseStatusShouldBe` status302
 
-                createdSlotName <- query @SlotName |> filterWhere (#name, "Swing") |> fetchOne
                 createdShiftType <- query @ShiftType |> filterWhere (#name, "Supervisor") |> fetchOne
                 createdInvitation <- query @VenueInvitation |> filterWhere (#email, "new-worker@example.com") |> fetchOne
                 let inviteExpiryDeltaSeconds = diffUTCTime (fromMaybe inviteNow createdInvitation.expiresAt) inviteNow
@@ -285,10 +273,6 @@ tests = beforeAll testContext do
                 createdRosterGroup.venueId `shouldBe` unpackId venue.id
                 createdRosterGroup.sortOrder `shouldBe` 1
                 createdRosterGroup.isActive `shouldBe` True
-                createdSlotName.name `shouldBe` "Swing"
-                createdSlotName.rosterGroupId `shouldBe` unpackId createdRosterGroup.id
-                createdSlotName.isActive `shouldBe` True
-                createdSlotName.sortOrder `shouldBe` 3
                 createdShiftType.name `shouldBe` "Supervisor"
                 createdShiftType.overrideAwardLevelId `shouldBe` Nothing
                 createdShiftType.isActive `shouldBe` True
@@ -357,11 +341,7 @@ tests = beforeAll testContext do
                 level <- createPayLevelRecord venue "Level 1"
                 shiftType <- createShiftTypeRecord venue level "Kitchen"
                 overrideLevel <- createPayLevelRecord venue "Level 2"
-                slotName <- fetchSlotNameRecord venue "Early"
-                middleSlotName <- fetchSlotNameRecord venue "Mid"
-                lastSlotName <- fetchSlotNameRecord venue "Late"
                 rosterGroup <- createVenueRosterGroupWithDefaults venue "Back of House" 5 True
-                slotConfigVersionBefore <- currentLiveUpdateVersion RosterGroupConfigScope { venueId = unpackId venue.id, rosterGroupId = slotName.rosterGroupId }
 
                 moveGroupUpResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (MoveRosterGroupUpAction rosterGroup.id)
@@ -382,26 +362,7 @@ tests = beforeAll testContext do
                         ]
                 shiftTypeResponse `responseStatusShouldBe` status302
 
-                slotResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (UpdateSlotNameAction slotName.id)
-                        [ ("name", "Early Updated")
-                        ]
-                slotResponse `responseStatusShouldBe` status302
-
-                moveDownResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction (MoveSlotNameDownAction slotName.id)
-                moveDownResponse `responseStatusShouldBe` status302
-
-                moveUpResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction (MoveSlotNameUpAction lastSlotName.id)
-                moveUpResponse `responseStatusShouldBe` status302
-
-                deleteSlotResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction (DeleteSlotNameAction middleSlotName.id)
-                deleteSlotResponse `responseStatusShouldBe` status302
-
                 updatedShiftType <- fetch shiftType.id
-                updatedSlotName <- fetch slotName.id
                 updatedRosterGroup <- fetch rosterGroup.id
                 defaultRosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
 
@@ -412,14 +373,6 @@ tests = beforeAll testContext do
                 updatedShiftType.name `shouldBe` "Kitchen Updated"
                 updatedShiftType.overrideAwardLevelId `shouldBe` Just overrideLevel.id
                 updatedShiftType.isActive `shouldBe` False
-                updatedSlotName.name `shouldBe` "Early Updated"
-                updatedSlotName.isActive `shouldBe` True
-                updatedSlotName.sortOrder `shouldBe` 2
-                (fmap (get #isActive) (fetch middleSlotName.id)) `shouldReturn` False
-                (fmap (get #sortOrder) (fetch lastSlotName.id)) `shouldReturn` 1
-                (fmap (map (.name)) (fetchActiveRosterGroupSlotNames (Id updatedSlotName.rosterGroupId :: Id RosterGroup))) `shouldReturn` ["Late", "Early Updated"]
-                slotConfigVersionAfter <- currentLiveUpdateVersion RosterGroupConfigScope { venueId = unpackId venue.id, rosterGroupId = updatedSlotName.rosterGroupId }
-                slotConfigVersionAfter `shouldBe` slotConfigVersionBefore + 4
 
         it "updates the roster week start before venue history exists" $ withContext do
             withCleanDb do
@@ -486,13 +439,6 @@ tests = beforeAll testContext do
                 shiftTypeResponse `responseStatusShouldBe` status302
                 (query @ShiftTypePayVersion |> orderByDesc #createdAt |> fetch >>= pure . map (.payrollLabel)) `shouldReturn` ["Supervisor"]
 
-                createdRosterGroup <- query @RosterGroup |> filterWhere (#name, "Back of House") |> fetchOne
-                slotResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams CreateSlotNameAction
-                        [ ("name", "Swing")
-                        , ("rosterGroupId", idToParam createdRosterGroup.id)
-                        ]
-                slotResponse `responseStatusShouldBe` status302
                 (query @ShiftTypePayVersion |> orderByDesc #createdAt |> fetch >>= pure . map (.payrollLabel)) `shouldReturn` ["Supervisor"]
 
                 versions <- query @ShiftTypePayVersion |> orderByDesc #createdAt |> fetch

@@ -49,6 +49,7 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe ReportDefinitionShiftTypeFilter)
         let _ = (Nothing :: Maybe RosterGroup)
         let _ = (Nothing :: Maybe SlotName)
+        let _ = (Nothing :: Maybe RosterWeekSlotDefinition)
         let _ = (Nothing :: Maybe DayName)
         let _ = (Nothing :: Maybe AuditEvent)
         let _ = (Nothing :: Maybe ExportJob)
@@ -271,7 +272,7 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((day_offset >= 0) AND (day_offset <= 6))"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((ideal_shifts_per_week >= 0) AND (ideal_shifts_per_week <= 7))"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (end_date > start_date)"
-        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, slot_name_id) WHERE deleted_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_groups_one_active_default ON roster_groups (venue_id) WHERE is_default = TRUE AND is_active = TRUE AND archived_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_preferences (staff_id, roster_group_id, weekday_index) WHERE deleted_at IS NULL;"
@@ -520,7 +521,7 @@ tests = describe "Schema" do
                 , "late_to_early_min_start_gap_minutes"
                 , "staff_timesheet_edit_window_days", "week_offset"
                 , "is_live", "roster_week_id", "day_offset", "roster_day_id"
-                , "staff_id", "slot_name_id", "row_index", "start_time"
+                , "staff_id", "roster_week_slot_definition_id", "row_index", "start_time"
                 , "duration_minutes", "specific_date", "is_available", "note"
                 , "start_date", "end_date", "status", "notes", "worked_on"
                 , "end_time", "had_break", "break_start_time", "break_end_time"
