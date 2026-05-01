@@ -90,6 +90,7 @@ data LiveFragmentKey
     | AdminXeroFragment
     | AdminXeroStaffMappingsFragment
     | AdminXeroPayItemsFragment
+    | AdminXeroTimesheetsFragment
     | ProfileLeaveRequestsContentFragment
     | SupportAwardRatesSectionFragment
     | SupportPublicHolidaysSectionFragment
@@ -308,6 +309,8 @@ instance Aeson.ToJSON LiveFragmentKey where
         Aeson.object ["kind" Aeson..= ("admin_xero_staff_mappings" :: Text)]
     toJSON AdminXeroPayItemsFragment =
         Aeson.object ["kind" Aeson..= ("admin_xero_pay_items" :: Text)]
+    toJSON AdminXeroTimesheetsFragment =
+        Aeson.object ["kind" Aeson..= ("admin_xero_timesheets" :: Text)]
     toJSON ProfileLeaveRequestsContentFragment =
         Aeson.object ["kind" Aeson..= ("profile_leave_requests_content" :: Text)]
     toJSON SupportAwardRatesSectionFragment =
@@ -338,6 +341,7 @@ instance Aeson.FromJSON LiveFragmentKey where
             "admin_xero" -> pure AdminXeroFragment
             "admin_xero_staff_mappings" -> pure AdminXeroStaffMappingsFragment
             "admin_xero_pay_items" -> pure AdminXeroPayItemsFragment
+            "admin_xero_timesheets" -> pure AdminXeroTimesheetsFragment
             "profile_leave_requests_content" -> pure ProfileLeaveRequestsContentFragment
             "support_award_rates_section" -> pure SupportAwardRatesSectionFragment
             "support_public_holidays_section" -> pure SupportPublicHolidaysSectionFragment

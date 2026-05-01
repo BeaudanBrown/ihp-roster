@@ -89,7 +89,9 @@ respondWithXeroTimesheetSuccess ::
     IO ()
 respondWithXeroTimesheetSuccess message =
     if isHtmxRequest
-        then respondWithXeroSectionFragmentAndToast (Just (xeroSuccessToast message))
+        then do
+            broadcastAdminXeroTimesheetsInvalidation (unpackId currentVenueId)
+            respondWithXeroTimesheetMutation (Just (xeroSuccessToast message))
         else do
             setSuccessMessage message
             redirectTo XeroAction
@@ -100,7 +102,9 @@ respondWithXeroTimesheetError ::
     IO ()
 respondWithXeroTimesheetError message =
     if isHtmxRequest
-        then respondWithXeroSectionFragmentAndToast (Just (xeroErrorToast message))
+        then do
+            broadcastAdminXeroTimesheetsInvalidation (unpackId currentVenueId)
+            respondWithXeroTimesheetMutation (Just (xeroErrorToast message))
         else do
             setErrorMessage message
             redirectTo XeroAction

@@ -7,8 +7,10 @@ module Web.View.Admin.Xero
     , renderXeroPayItemsFragment
     , renderXeroStaffMappingsFragment
     , renderXeroStaffMappingsOob
+    , renderXeroTimesheetsFragment
     , xeroPayItemsFragmentRef
     , xeroStaffMappingsFragmentRef
+    , xeroTimesheetsFragmentRef
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -65,6 +67,7 @@ adminXeroLiveSurface =
                 "admin-xero-fragment"
                 (pathTo ShowAdminXeroFragmentAction)
             , xeroPayItemsFragmentRef
+            , xeroTimesheetsFragmentRef
             ])
             { decorateRequestsWithin = ["#admin-xero-fragment"] }
         )
@@ -138,6 +141,10 @@ renderXeroPayItemsFragment :: [XeroEarningsRate] -> [XeroPayItemRequirement] -> 
 renderXeroPayItemsFragment =
     renderXeroPayItemsData
 
+renderXeroTimesheetsFragment :: XeroTimesheetPanelData -> Html
+renderXeroTimesheetsFragment =
+    renderXeroTimesheetPanel
+
 xeroPayItemsFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
 xeroPayItemsFragmentRef =
     mkLiveFragmentRef
@@ -151,6 +158,13 @@ xeroStaffMappingsFragmentRef =
         AdminXeroStaffMappingsFragment
         "xero-staff-mappings-data"
         (pathTo ShowAdminXeroStaffMappingsFragmentAction)
+
+xeroTimesheetsFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
+xeroTimesheetsFragmentRef =
+    mkLiveFragmentRef
+        AdminXeroTimesheetsFragment
+        "xero-timesheets-data"
+        (pathTo ShowAdminXeroTimesheetsFragmentAction)
 
 renderXeroAccordionItem :: Text -> Text -> Bool -> Html -> Html
 renderXeroAccordionItem sectionId title isOpen content =

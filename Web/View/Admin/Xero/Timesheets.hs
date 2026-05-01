@@ -11,7 +11,7 @@ import Web.View.Prelude
 
 renderXeroTimesheetPanel :: XeroTimesheetPanelData -> Html
 renderXeroTimesheetPanel panel = [hsx|
-    <div class="d-flex flex-column gap-3">
+    <div id="xero-timesheets-data" class="d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
                 <h3 class="h6 mb-1">Draft timesheet submission</h3>
@@ -22,6 +22,7 @@ renderXeroTimesheetPanel panel = [hsx|
                 {renderSubmitButton panel}
             </div>
         </div>
+        {renderTimesheetSubmissionIndicator}
         {renderPeriodNotice panel}
         {maybe mempty renderReadiness panel.xeroTimesheetReadiness}
         {maybe renderEmptyLatestRun renderLatestRun panel.xeroTimesheetLatestRun}
@@ -35,8 +36,8 @@ renderPreviewButton panel = [hsx|
                 class="btn btn-sm btn-outline-primary"
                 disabled={not (canPreview panel)}
                 hx-post={pathTo PreviewXeroDraftTimesheetsAction}
-                hx-target="#admin-xero-fragment"
-                hx-swap="outerHTML">
+                hx-swap="none"
+                hx-indicator="#xero-timesheet-submission-indicator">
             Preview draft timesheets
         </button>
     </form>
@@ -49,11 +50,19 @@ renderSubmitButton panel = [hsx|
                 class="btn btn-sm btn-primary"
                 disabled={not (canPreview panel)}
                 hx-post={pathTo SubmitXeroDraftTimesheetsAction}
-                hx-target="#admin-xero-fragment"
-                hx-swap="outerHTML">
+                hx-swap="none"
+                hx-indicator="#xero-timesheet-submission-indicator">
             Submit drafts to Xero
         </button>
     </form>
+|]
+
+renderTimesheetSubmissionIndicator :: Html
+renderTimesheetSubmissionIndicator = [hsx|
+    <div id="xero-timesheet-submission-indicator" class="htmx-indicator d-flex align-items-center gap-2 small text-primary" role="status" aria-live="polite">
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        <span>Working on Xero draft timesheets...</span>
+    </div>
 |]
 
 canPreview :: XeroTimesheetPanelData -> Bool

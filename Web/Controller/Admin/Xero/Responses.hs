@@ -1,6 +1,7 @@
 module Web.Controller.Admin.Xero.Responses
     ( broadcastAdminXeroInvalidation
     , broadcastAdminXeroPayItemsInvalidation
+    , broadcastAdminXeroTimesheetsInvalidation
     , currentUserCanManageXeroIntegration
     , fetchCurrentVenueXeroAdminSectionData
     , renderCurrentVenueXeroSectionFragmentOob
@@ -16,6 +17,8 @@ module Web.Controller.Admin.Xero.Responses
     , respondWithXeroStaffMappingControlsAndToast
     , respondWithXeroStaffMappingToastOnly
     , respondWithXeroStaffMappingsFragment
+    , respondWithXeroTimesheetMutation
+    , respondWithXeroTimesheetsFragment
     , xeroPayItemsFragmentRef
     , xeroErrorToast
     , xeroSuccessToast
@@ -65,6 +68,16 @@ broadcastAdminXeroPayItemsInvalidation venueId =
         AdminXeroScope { venueId }
         liveUpdateSourceClientId
         [xeroPayItemsFragmentRef]
+
+broadcastAdminXeroTimesheetsInvalidation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    UUID.UUID ->
+    IO ()
+broadcastAdminXeroTimesheetsInvalidation venueId =
+    broadcastLiveInvalidation
+        AdminXeroScope { venueId }
+        liveUpdateSourceClientId
+        [xeroTimesheetsFragmentRef]
 
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -129,6 +142,15 @@ respondWithXeroPayItemsFragmentAndToast maybeToast = do
             , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
             ]
 
+respondWithXeroTimesheetsFragment ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+respondWithXeroTimesheetsFragment = do
+    xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
+    fragmentHtml <- profileActionSpan "admin.xero.timesheets.fragment.render" do
+        pure (renderXeroTimesheetsFragment xeroSectionData.xeroTimesheetPanelData)
+    respondHtmlProfiled fragmentHtml
+
 respondWithXeroStaffMappingControlsAndToast ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
@@ -146,6 +168,15 @@ respondWithXeroStaffMappingToastOnly ::
     Maybe ToastOverlayConfig ->
     IO ()
 respondWithXeroStaffMappingToastOnly maybeToast =
+    respondHtmlProfiled $
+        maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
+
+respondWithXeroTimesheetMutation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroTimesheetMutation maybeToast = do
+    setHeader ("HX-Trigger", cs (Aeson.encode (liveFragmentsRefreshTriggerPayload [xeroTimesheetsFragmentRef])))
     respondHtmlProfiled $
         maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
 
