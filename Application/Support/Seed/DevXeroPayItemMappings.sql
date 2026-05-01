@@ -2,6 +2,126 @@
 -- This file intentionally avoids token/tenant data and only links deterministic
 -- local requirement keys to synced Xero earnings-rate names when they exist.
 
+WITH xero_matched_staff(first_name, last_name, employee_suffix) AS (
+    VALUES
+        ('Alice', 'Front', 'alice-front'),
+        ('Bob', 'Both', 'bob-both'),
+        ('James', 'Lebron', 'james-lebron'),
+        ('Oliver', 'Grey', 'oliver-grey'),
+        ('Odette', 'Garrison', 'odette-garrison'),
+        ('Sally', 'Martin', 'sally-martin')
+),
+matched_staff AS (
+    SELECT
+        connection.venue_id,
+        connection.id AS xero_connection_id,
+        staff.id AS staff_id,
+        staff.first_name,
+        staff.last_name,
+        users.email AS staff_email,
+        'dev-xero-employee-' || xero_matched_staff.employee_suffix AS xero_employee_id
+    FROM xero_connections connection
+    JOIN staff
+        ON staff.venue_id = connection.venue_id
+    JOIN xero_matched_staff
+        ON xero_matched_staff.first_name = staff.first_name
+        AND xero_matched_staff.last_name = staff.last_name
+    LEFT JOIN users
+        ON users.id = staff.user_id
+    WHERE connection.connection_status = 'active'
+)
+INSERT INTO xero_employees (
+    venue_id,
+    xero_connection_id,
+    xero_employee_id,
+    display_name,
+    email,
+    status,
+    raw_payload,
+    synced_at
+)
+SELECT
+    venue_id,
+    xero_connection_id,
+    xero_employee_id,
+    first_name || ' ' || last_name,
+    staff_email,
+    'ACTIVE',
+    jsonb_build_object('source', 'seed-dev', 'staffId', staff_id),
+    NOW()
+FROM matched_staff
+ON CONFLICT (xero_connection_id, xero_employee_id)
+DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    email = EXCLUDED.email,
+    status = EXCLUDED.status,
+    raw_payload = EXCLUDED.raw_payload,
+    synced_at = EXCLUDED.synced_at,
+    updated_at = NOW();
+
+WITH xero_matched_staff(first_name, last_name, employee_suffix) AS (
+    VALUES
+        ('Alice', 'Front', 'alice-front'),
+        ('Bob', 'Both', 'bob-both'),
+        ('James', 'Lebron', 'james-lebron'),
+        ('Oliver', 'Grey', 'oliver-grey'),
+        ('Odette', 'Garrison', 'odette-garrison'),
+        ('Sally', 'Martin', 'sally-martin')
+),
+matched_staff AS (
+    SELECT
+        connection.venue_id,
+        connection.id AS xero_connection_id,
+        staff.id AS staff_id,
+        staff.first_name,
+        staff.last_name,
+        users.email AS staff_email,
+        connection.connected_by_user_id,
+        'dev-xero-employee-' || xero_matched_staff.employee_suffix AS xero_employee_id
+    FROM xero_connections connection
+    JOIN staff
+        ON staff.venue_id = connection.venue_id
+    JOIN xero_matched_staff
+        ON xero_matched_staff.first_name = staff.first_name
+        AND xero_matched_staff.last_name = staff.last_name
+    LEFT JOIN users
+        ON users.id = staff.user_id
+    WHERE connection.connection_status = 'active'
+)
+INSERT INTO xero_staff_mappings (
+    venue_id,
+    staff_id,
+    xero_connection_id,
+    xero_employee_id,
+    xero_employee_name,
+    xero_employee_email,
+    mapping_status,
+    last_verified_at,
+    created_by_user_id,
+    updated_by_user_id
+)
+SELECT
+    venue_id,
+    staff_id,
+    xero_connection_id,
+    xero_employee_id,
+    first_name || ' ' || last_name,
+    staff_email,
+    'verified',
+    NOW(),
+    connected_by_user_id,
+    connected_by_user_id
+FROM matched_staff
+ON CONFLICT (staff_id, xero_connection_id)
+DO UPDATE SET
+    xero_employee_id = EXCLUDED.xero_employee_id,
+    xero_employee_name = EXCLUDED.xero_employee_name,
+    xero_employee_email = EXCLUDED.xero_employee_email,
+    mapping_status = EXCLUDED.mapping_status,
+    last_verified_at = EXCLUDED.last_verified_at,
+    updated_by_user_id = EXCLUDED.updated_by_user_id,
+    updated_at = NOW();
+
 WITH desired_mappings(requirement_key, display_name, penalty_kind) AS (
     VALUES
         ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:ordinary', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Ordinary', NULL),

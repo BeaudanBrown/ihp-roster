@@ -15,8 +15,7 @@ import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, dayOfWeek, diffDays, fromGregorian,
-                           toGregorian)
+import Data.Time.Calendar (Day, addDays, dayOfWeek, diffDays)
 import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
@@ -116,17 +115,20 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     let allBackCandidates = managerStaffs <> backOnlyStaff <> crossGroupStaff
 
     let weekOffset = weekOffsetFor fixtureWeekStart
-    frontWeek <- createRosterWeekRecordForRosterGroup venue frontGroup weekOffset True
-    backWeek <- createRosterWeekRecordForRosterGroup venue backGroup weekOffset False
-
-    frontDays <- createRosterDayRecords frontWeek [0 .. 6]
-    backDays <- createRosterDayRecords backWeek [0 .. 6]
-    seedRosterGroup scenario.scenarioSeed scenario.rosterFillPercent fixtureWeekStart frontGroup frontDays frontSlots allFrontCandidates
-    seedRosterGroup (scenario.scenarioSeed + 97) (max 40 (scenario.rosterFillPercent - 8)) fixtureWeekStart backGroup backDays backSlots allBackCandidates
+    seedRosterWindow
+        scenario
+        fixtureWeekStart
+        venue
+        frontGroup
+        backGroup
+        frontSlots
+        backSlots
+        allFrontCandidates
+        allBackCandidates
 
     let allOperationalStaff = managerStaffs <> [workerStaff] <> seededStaff <> trialStaffs
 
-    seedLeaveRequests leaveMonthAnchor venue scenario allOperationalStaff
+    seedLeaveRequests fixtureWeekStart leaveMonthAnchor venue scenario allOperationalStaff
 
     let approvedAt = UTCTime (dayAtOffset fixtureWeekStart 6) (secondsToDiffTime 3600)
     seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift allOperationalStaff approvedAt
@@ -404,6 +406,42 @@ seedRosterGroup seedValue fillPercent fixtureWeekStart rosterGroup rosterDays sl
         seedRows [] [0 .. rowCount - 1]
     ensureAssignedShiftPreferenceCoverage fixtureWeekStart rosterGroup rosterDays
 
+seedRosterWindow ::
+    (?modelContext :: ModelContext) =>
+    SeedScenario ->
+    Day ->
+    Venue ->
+    RosterGroup ->
+    RosterGroup ->
+    [SlotName] ->
+    [SlotName] ->
+    [Staff] ->
+    [Staff] ->
+    IO ()
+seedRosterWindow scenario currentWeekStart venue frontGroup backGroup frontSlots backSlots frontCandidates backCandidates =
+    forM_ devSeedWeekStarts \(weekIndex, weekStart) -> do
+        let weekOffset = weekOffsetFor weekStart
+        frontWeek <- createRosterWeekRecordForRosterGroup venue frontGroup weekOffset (weekIndex == 0)
+        backWeek <- createRosterWeekRecordForRosterGroup venue backGroup weekOffset False
+        frontDays <- createRosterDayRecords frontWeek [0 .. 6]
+        backDays <- createRosterDayRecords backWeek [0 .. 6]
+        let weekSeed = scenario.scenarioSeed + (weekIndex * 1009)
+        seedRosterGroup weekSeed (rosterFillForWeek scenario.rosterFillPercent weekIndex) weekStart frontGroup frontDays frontSlots frontCandidates
+        seedRosterGroup (weekSeed + 97) (max 40 (rosterFillForWeek scenario.rosterFillPercent weekIndex - 8)) weekStart backGroup backDays backSlots backCandidates
+    where
+        devSeedWeekStarts =
+            [ (-1, addDays (-7) currentWeekStart)
+            , (0, currentWeekStart)
+            , (1, addDays 7 currentWeekStart)
+            ]
+
+rosterFillForWeek :: Int -> Int -> Int
+rosterFillForWeek fillPercent weekIndex =
+    clampRosterFill (fillPercent - abs weekIndex * 6)
+
+clampRosterFill :: Int -> Int
+clampRosterFill = max 35 . min 100
+
 buildRowAssignments ::
     Int ->
     Int ->
@@ -609,10 +647,10 @@ rotateList offset values =
     where
         clampedOffset = offset `mod` length values
 
-seedLeaveRequests :: (?modelContext :: ModelContext) => Day -> Venue -> SeedScenario -> [Staff] -> IO ()
-seedLeaveRequests leaveMonthAnchor venue scenario staffPool = do
+seedLeaveRequests :: (?modelContext :: ModelContext) => Day -> Day -> Venue -> SeedScenario -> [Staff] -> IO ()
+seedLeaveRequests fixtureWeekStart _leaveMonthAnchor venue scenario staffPool = do
     let approvedCount = max 0 (scenario.leaveRequestCount - scenario.pendingLeaveCount - scenario.deniedLeaveCount)
-        leaveDates = spreadLeaveDatesAcrossMonth leaveMonthAnchor scenario.leaveRequestCount
+        leaveDates = spreadLeaveDatesAcrossSeedWindow fixtureWeekStart scenario.leaveRequestCount
     createLeaveBatch venue staffPool leaveDates 0 approvedCount "approved"
     createLeaveBatch venue staffPool leaveDates approvedCount scenario.pendingLeaveCount "pending"
     createLeaveBatch venue staffPool leaveDates (approvedCount + scenario.pendingLeaveCount) scenario.deniedLeaveCount "denied"
@@ -623,36 +661,22 @@ createLeaveBatch venue staffPool leaveDates startIndex count status =
         _ <- createLeaveRequestRecordWithNotes venue staff startDate endDate status (Just (leaveNoteFor status index))
         pure ()
 
-spreadLeaveDatesAcrossMonth :: Day -> Int -> [(Day, Day)]
-spreadLeaveDatesAcrossMonth anchorDay count
+spreadLeaveDatesAcrossSeedWindow :: Day -> Int -> [(Day, Day)]
+spreadLeaveDatesAcrossSeedWindow fixtureWeekStart count
     | count <= 0 = []
     | otherwise = map leaveWindowForIndex [0 .. count - 1]
     where
-        monthStart = firstDayOfMonth anchorDay
-        monthEnd = lastDayOfMonth anchorDay
-        monthSpanDays = max 0 (diffDays monthEnd monthStart)
+        windowStart = addDays (-7) fixtureWeekStart
+        windowEnd = addDays 12 fixtureWeekStart
+        windowSpanDays = max 0 (diffDays windowEnd windowStart)
         divisor = max 1 (count - 1)
 
         leaveWindowForIndex index =
-            let startOffset = (toInteger index * monthSpanDays) `div` toInteger divisor
+            let startOffset = (toInteger index * windowSpanDays) `div` toInteger divisor
                 durationDays = toInteger (1 + (index `mod` 2))
-                startDate = addDays startOffset monthStart
+                startDate = addDays startOffset windowStart
                 endDate = addDays durationDays startDate
              in (startDate, endDate)
-
-firstDayOfMonth :: Day -> Day
-firstDayOfMonth day =
-    let (year, month, _) = toGregorian day
-     in fromGregorian year month 1
-
-lastDayOfMonth :: Day -> Day
-lastDayOfMonth day =
-    let (year, month, _) = toGregorian day
-        nextMonthStart =
-            if month == 12
-                then fromGregorian (year + 1) 1 1
-                else fromGregorian year (month + 1) 1
-     in addDays (-1) nextMonthStart
 
 leaveNoteFor :: Text -> Int -> Text
 leaveNoteFor status index =
@@ -681,7 +705,8 @@ seedTimesheets ::
     UTCTime ->
     IO ()
 seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift staffPool approvedAt = do
-    forM_ (zip [0 ..] (take scenario.approvedTimesheets (cycle staffPool))) \(index, staff) -> do
+    let approvedStaffPool = concat (replicate 3 (seededXeroMatchedStaffPool staffPool)) <> staffPool
+    forM_ (zip [0 ..] (take scenario.approvedTimesheets (cycle approvedStaffPool))) \(index, staff) -> do
         let shiftTypeId =
                 if index `mod` 4 == 0
                     then unpackId (get #id kitchenShift)
@@ -689,7 +714,7 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
         let (hadBreak, breakStartTime, breakEndTime, breakMinutes) =
                 seededBreakFields scenario.scenarioSeed index
         entry <-
-            createTimesheetEntryRecord venue staff (dayAtOffset fixtureWeekStart (toInteger (index `mod` 7)))
+            createTimesheetEntryRecord venue staff (seededTimesheetWorkedOn fixtureWeekStart index)
                 >>= updateRecord
                     . set #shiftTypeId shiftTypeId
                     . set #startTime (TimeOfDay (6 + ((index * 2) `mod` 8)) 0 0)
@@ -713,7 +738,7 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
         let (hadBreak, breakStartTime, breakEndTime, breakMinutes) =
                 seededBreakFields scenario.scenarioSeed globalIndex
         _ <-
-            createTimesheetEntryRecord venue staff (dayAtOffset fixtureWeekStart (toInteger ((index + 2) `mod` 7)))
+            createTimesheetEntryRecord venue staff (seededTimesheetWorkedOn fixtureWeekStart (globalIndex + 2))
                 >>= updateRecord
                     . set #shiftTypeId (unpackId (get #id floorShift))
                     . set #startTime (TimeOfDay (9 + (index `mod` 3)) 0 0)
@@ -723,6 +748,32 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
                     . set #breakEndTime breakEndTime
                     . set #breakMinutes breakMinutes
         pure ()
+
+seededTimesheetWorkedOn :: Day -> Int -> Day
+seededTimesheetWorkedOn fixtureWeekStart index =
+    addDays (toInteger weekStartOffset + toInteger (index `mod` 7)) fixtureWeekStart
+    where
+        weekStartOffset =
+            case index `mod` 3 of
+                0 -> -7
+                1 -> 0
+                _ -> 7
+
+seededXeroMatchedStaffPool :: [Staff] -> [Staff]
+seededXeroMatchedStaffPool staffPool =
+    filter seededStaffHasXeroEmployeeMatch staffPool
+
+seededStaffHasXeroEmployeeMatch :: Staff -> Bool
+seededStaffHasXeroEmployeeMatch staff =
+    (staff.firstName, staff.lastName)
+        `elem`
+            [ ("Alice", "Front")
+            , ("Bob", "Both")
+            , ("James", "Lebron")
+            , ("Oliver", "Grey")
+            , ("Odette", "Garrison")
+            , ("Sally", "Martin")
+            ]
 
 seededBreakFields :: Int -> Int -> (Bool, Maybe TimeOfDay, Maybe TimeOfDay, Int)
 seededBreakFields seedValue index

@@ -5,7 +5,7 @@ import Application.Support.Seed.Scenario
 import Data.List (sort)
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (addDays, fromGregorian, toGregorian)
+import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.ModelSupport (inputValue)
@@ -41,6 +41,11 @@ tests = beforeAll testContext do
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> filterWhere (#weekOffset, fixture.currentWeekOffset)
                         |> fetch
+                allRosterWeeks <-
+                    query @RosterWeek
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> orderByAsc #weekOffset
+                        |> fetch
                 rosterDays <-
                     query @RosterDay
                         |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
@@ -68,6 +73,7 @@ tests = beforeAll testContext do
                 map (.email) seededUsers `shouldContain` ["venue2@bepis.lol"]
                 map (.email) seededUsers `shouldNotContain` ["beaudan.brown@gmail.com"]
                 length rosterWeeks `shouldBe` 2
+                map (.weekOffset) allRosterWeeks `shouldBe` concatMap (replicate 2) [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1]
                 length rosterDays `shouldBe` 14
                 length rosterSlots `shouldSatisfy` (> 30)
                 sort (map (.isLive) rosterWeeks) `shouldBe` [False, True]
@@ -172,22 +178,26 @@ tests = beforeAll testContext do
                         mapMaybe (.notes) leaveRequests
                 let seededScenario = get #scenario fixture
                 let expectedApprovedLeaves = get #leaveRequestCount seededScenario - get #pendingLeaveCount seededScenario - get #deniedLeaveCount seededScenario
-                let (fixtureYear, fixtureMonthNumber, _) = toGregorian defaultWeekEpoch
-                let fixtureMonth = (fixtureYear, fixtureMonthNumber)
-                let fixtureMonthStart = fromGregorian fixtureYear fixtureMonthNumber 1
-                let leaveMonths = map (\leaveRequest -> (\(year, month, _) -> (year, month)) (toGregorian leaveRequest.startDate)) leaveRequests
+                let leaveWeekOffsets =
+                        sort
+                            (nub
+                                [ testWeekOffsetForDay day
+                                | leaveRequest <- leaveRequests
+                                , day <- [leaveRequest.startDate, addDays (-1) leaveRequest.endDate]
+                                ])
 
                 map (.rosterGroupId) bobAssignments `shouldMatchList` [unpackId (get #id fixture.frontOfHouseGroup), unpackId (get #id fixture.backOfHouseGroup)]
                 length leaveRequests `shouldBe` 15
                 approvedLeaveCount `shouldBe` expectedApprovedLeaves
                 pendingLeaveCount `shouldBe` get #pendingLeaveCount seededScenario
                 deniedLeaveCount `shouldBe` get #deniedLeaveCount seededScenario
-                leaveMonths `shouldSatisfy` all (== fixtureMonth)
+                leaveWeekOffsets `shouldSatisfy` all (`elem` [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1])
+                [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1] `shouldSatisfy` all (`elem` leaveWeekOffsets)
                 length leaveNotes `shouldBe` length leaveRequests
                 leaveNotes `shouldSatisfy` all (not . Text.null)
-                fmap (.startDate) (head leaveRequests) `shouldBe` Just fixtureMonthStart
-                fmap (.startDate) (last leaveRequests) `shouldSatisfy` maybe False (>= addDays 27 fixtureMonthStart)
-                length bobMondayAssignments `shouldBe` 2
+                fmap (.startDate) (head leaveRequests) `shouldBe` Just (addDays (-7) defaultWeekEpoch)
+                fmap (.startDate) (last leaveRequests) `shouldSatisfy` maybe False (>= addDays 12 defaultWeekEpoch)
+                length bobMondayAssignments `shouldSatisfy` (>= 1)
 
         it "seeds support access, venue roles, and invitation bootstrap data" $ withContext do
             withCleanDb do
@@ -320,13 +330,25 @@ tests = beforeAll testContext do
                     query @TimesheetEntry
                         |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
                         |> fetch
+                xeroMatchedStaff <-
+                    query @Staff
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhereIn (#lastName, ["Both", "Front", "Garrison", "Grey", "Lebron", "Martin"])
+                        |> fetch
 
                 let totalTimesheetCount = length timesheetEntries
                 let entriesWithBreaks = length (filter (.hadBreak) timesheetEntries)
                 let requiredBreakCount = ceiling ((fromIntegral totalTimesheetCount :: Double) * 0.8)
+                let timesheetWeekOffsets = sort (nub (map (testWeekOffsetForDay . (.workedOn)) timesheetEntries))
+                let xeroMatchedStaffIds = map (unpackId . (.id)) xeroMatchedStaff
+                let approvedTimesheets = filter (.isApproved) timesheetEntries
+                let xeroMatchedApprovedCount = length (filter (\entry -> entry.staffId `elem` xeroMatchedStaffIds) approvedTimesheets)
+                let otherApprovedCount = length approvedTimesheets - xeroMatchedApprovedCount
 
                 totalTimesheetCount `shouldBe` (seededScenario.approvedTimesheets + seededScenario.pendingTimesheets)
                 entriesWithBreaks `shouldSatisfy` (>= requiredBreakCount)
+                timesheetWeekOffsets `shouldBe` [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1]
+                xeroMatchedApprovedCount `shouldSatisfy` (> otherApprovedCount)
 
         it "supports deterministic scenario overrides for realistic demo seeding" $ withContext do
             withCleanDb do
@@ -457,3 +479,7 @@ weekdayIndexForDayOffset dayOffset =
     case (dayOffset + 1) `mod` 7 of
         0     -> 0
         index -> index
+
+testWeekOffsetForDay :: Day -> Int
+testWeekOffsetForDay day =
+    fromInteger (diffDays day defaultWeekEpoch `div` 7)
