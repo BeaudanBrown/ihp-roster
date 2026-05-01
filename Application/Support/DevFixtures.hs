@@ -708,7 +708,6 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
             kitchenShift
             staffPool
             approvedAt
-            scenario.approvedTimesheets
     let remainingApprovedCount = max 0 (scenario.approvedTimesheets - seededXeroCaseCount)
     let approvedStaffPool = concat (replicate 3 (seededXeroMatchedStaffPool staffPool)) <> staffPool
     forM_ (zip [0 ..] (take remainingApprovedCount (cycle approvedStaffPool))) \(index, staff) -> do
@@ -739,7 +738,8 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
             |> set #approvedByUserId (Just (unpackId admin.id))
             |> updateRecord
         pure ()
-    forM_ (zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle staffPool)))) \(index, staff) -> do
+    let pendingStaffPool = nonXeroMatchedStaffPool staffPool <> staffPool
+    forM_ (zip [0 ..] (take scenario.pendingTimesheets (drop scenario.approvedTimesheets (cycle pendingStaffPool)))) \(index, staff) -> do
         let globalIndex = scenario.approvedTimesheets + index
         let (hadBreak, breakStartTime, breakEndTime, breakMinutes) =
                 seededBreakFields scenario.scenarioSeed globalIndex
@@ -781,11 +781,10 @@ seedXeroPayCalendarTimesheets ::
     ShiftType ->
     [Staff] ->
     UTCTime ->
-    Int ->
     IO Int
-seedXeroPayCalendarTimesheets venue admin floorShift kitchenShift staffPool approvedAt approvedLimit = do
+seedXeroPayCalendarTimesheets venue admin floorShift kitchenShift staffPool approvedAt = do
     entries <-
-        forM (take (max 0 approvedLimit) seededXeroPayCalendarCases) \seedCase ->
+        forM seededXeroPayCalendarCases \seedCase ->
             case findStaffByName seedCase.caseFirstName seedCase.caseLastName staffPool of
                 Nothing -> pure Nothing
                 Just staff -> do
@@ -851,22 +850,70 @@ findStaffByName firstName lastName =
 
 seededXeroPayCalendarCases :: [SeededXeroTimesheetCase]
 seededXeroPayCalendarCases =
-    [ -- Fortnightly Calendar window shown in the Xero sandbox around the 15 Apr 2026 payment.
-      xeroCase "James" "Lebron" (fromGregorian 2026 4 2) SeededFloorShift (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) (SeededBreak (TimeOfDay 15 30 0) (TimeOfDay 16 0 0) 30)
-    , xeroCase "Oliver" "Grey" (fromGregorian 2026 4 3) SeededFloorShift (TimeOfDay 18 0 0) (TimeOfDay 2 0 0) (SeededBreak (TimeOfDay 22 0 0) (TimeOfDay 22 30 0) 30)
-    , xeroCase "Sally" "Martin" (fromGregorian 2026 4 4) SeededKitchenShift (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) (SeededBreak (TimeOfDay 12 30 0) (TimeOfDay 13 0 0) 30)
-    , xeroCase "James" "Lebron" (fromGregorian 2026 4 5) SeededFloorShift (TimeOfDay 11 0 0) (TimeOfDay 17 0 0) (SeededBreak (TimeOfDay 13 30 0) (TimeOfDay 14 0 0) 30)
-    , xeroCase "Oliver" "Grey" (fromGregorian 2026 4 14) SeededFloorShift (TimeOfDay 22 0 0) (TimeOfDay 2 0 0) (SeededBreak (TimeOfDay 23 30 0) (TimeOfDay 0 0 0) 30)
-    , xeroCase "Sally" "Martin" (fromGregorian 2026 4 15) SeededKitchenShift (TimeOfDay 8 0 0) (TimeOfDay 14 0 0) SeededNoBreak
+    -- Fortnightly Calendar window shown in the Xero sandbox around the 15 Apr 2026 payment.
+    seededXeroCalendarWindowCases
+        (fromGregorian 2026 4 2)
+        (fromGregorian 2026 4 15)
+        [ ("James", "Lebron")
+        , ("Oliver", "Grey")
+        , ("Sally", "Martin")
+        ]
+        <>
+    -- Weekly Calendar window shown in the Xero sandbox around the 22 Apr 2026 payment.
+    seededXeroCalendarWindowCases
+        (fromGregorian 2026 4 16)
+        (fromGregorian 2026 4 22)
+        [ ("Odette", "Garrison")
+        , ("Tracy", "Green")
+        ]
 
-      -- Weekly Calendar window shown in the Xero sandbox around the 22 Apr 2026 payment.
-    , xeroCase "Odette" "Garrison" (fromGregorian 2026 4 16) SeededFloorShift (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) (SeededBreak (TimeOfDay 15 30 0) (TimeOfDay 16 0 0) 30)
-    , xeroCase "Tracy" "Green" (fromGregorian 2026 4 17) SeededFloorShift (TimeOfDay 18 0 0) (TimeOfDay 1 0 0) (SeededBreak (TimeOfDay 21 30 0) (TimeOfDay 22 0 0) 30)
-    , xeroCase "Odette" "Garrison" (fromGregorian 2026 4 18) SeededKitchenShift (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) (SeededBreak (TimeOfDay 12 30 0) (TimeOfDay 13 0 0) 30)
-    , xeroCase "Tracy" "Green" (fromGregorian 2026 4 19) SeededFloorShift (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) (SeededBreak (TimeOfDay 12 30 0) (TimeOfDay 13 0 0) 30)
-    , xeroCase "Odette" "Garrison" (fromGregorian 2026 4 21) SeededFloorShift (TimeOfDay 22 0 0) (TimeOfDay 2 0 0) (SeededBreak (TimeOfDay 23 30 0) (TimeOfDay 0 0 0) 30)
-    , xeroCase "Tracy" "Green" (fromGregorian 2026 4 22) SeededKitchenShift (TimeOfDay 8 0 0) (TimeOfDay 14 0 0) SeededNoBreak
+seededXeroCalendarWindowCases :: Day -> Day -> [(Text, Text)] -> [SeededXeroTimesheetCase]
+seededXeroCalendarWindowCases startDate endDate staffNames =
+    concat
+        [ map (seededXeroCaseForDay staffIndex firstName lastName) (zip [0 ..] (dateRange startDate endDate))
+        | (staffIndex, (firstName, lastName)) <- zip [0 ..] staffNames
+        ]
+
+seededXeroCaseForDay :: Int -> Text -> Text -> (Int, Day) -> SeededXeroTimesheetCase
+seededXeroCaseForDay staffIndex firstName lastName (dayIndex, workedOn) =
+    let template = seededXeroTimesheetTemplates !! ((staffIndex * 3 + dayIndex) `mod` length seededXeroTimesheetTemplates)
+     in xeroCase firstName lastName workedOn template.templateShiftType template.templateStartTime template.templateEndTime template.templateBreak
+
+dateRange :: Day -> Day -> [Day]
+dateRange startDate endDate =
+    takeWhile (<= endDate) (iterate (addDays 1) startDate)
+
+data SeededXeroTimesheetTemplate = SeededXeroTimesheetTemplate
+    { templateShiftType :: !SeededTimesheetShiftType
+    , templateStartTime :: !TimeOfDay
+    , templateEndTime   :: !TimeOfDay
+    , templateBreak     :: !SeededTimesheetBreak
+    }
+
+seededXeroTimesheetTemplates :: [SeededXeroTimesheetTemplate]
+seededXeroTimesheetTemplates =
+    [ xeroTemplate SeededFloorShift (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) (SeededBreak (TimeOfDay 15 30 0) (TimeOfDay 16 0 0) 30)
+    , xeroTemplate SeededFloorShift (TimeOfDay 18 0 0) (TimeOfDay 1 0 0) (SeededBreak (TimeOfDay 21 30 0) (TimeOfDay 22 0 0) 30)
+    , xeroTemplate SeededKitchenShift (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) (SeededBreak (TimeOfDay 12 30 0) (TimeOfDay 13 0 0) 30)
+    , xeroTemplate SeededFloorShift (TimeOfDay 22 0 0) (TimeOfDay 2 0 0) (SeededBreak (TimeOfDay 23 30 0) (TimeOfDay 0 0 0) 30)
+    , xeroTemplate SeededKitchenShift (TimeOfDay 8 0 0) (TimeOfDay 14 0 0) SeededNoBreak
+    , xeroTemplate SeededFloorShift (TimeOfDay 12 0 0) (TimeOfDay 20 0 0) SeededNoBreak
+    , xeroTemplate SeededKitchenShift (TimeOfDay 6 0 0) (TimeOfDay 14 0 0) (SeededBreak (TimeOfDay 10 0 0) (TimeOfDay 10 30 0) 30)
     ]
+
+xeroTemplate ::
+    SeededTimesheetShiftType ->
+    TimeOfDay ->
+    TimeOfDay ->
+    SeededTimesheetBreak ->
+    SeededXeroTimesheetTemplate
+xeroTemplate shiftType startTime endTime timesheetBreak =
+    SeededXeroTimesheetTemplate
+        { templateShiftType = shiftType
+        , templateStartTime = startTime
+        , templateEndTime = endTime
+        , templateBreak = timesheetBreak
+        }
 
 xeroCase ::
     Text ->
@@ -901,6 +948,10 @@ seededTimesheetWorkedOn fixtureWeekStart index =
 seededXeroMatchedStaffPool :: [Staff] -> [Staff]
 seededXeroMatchedStaffPool staffPool =
     filter seededStaffHasXeroEmployeeMatch staffPool
+
+nonXeroMatchedStaffPool :: [Staff] -> [Staff]
+nonXeroMatchedStaffPool staffPool =
+    filter (not . seededStaffHasXeroEmployeeMatch) staffPool
 
 seededStaffHasXeroEmployeeMatch :: Staff -> Bool
 seededStaffHasXeroEmployeeMatch staff =
