@@ -44,14 +44,37 @@
         endLabel.textContent = formatHour(endHour);
     }
 
+    function syncAvailability(container) {
+        const availableInput = container.querySelector('[data-shift-preference-available]');
+        const startInput = container.querySelector('[data-shift-preference-start]');
+        const endInput = container.querySelector('[data-shift-preference-end]');
+        if (!availableInput || !startInput || !endInput) return;
+
+        const isAvailable = availableInput.checked;
+        container.classList.toggle('is-unavailable', !isAvailable);
+        const availabilityButton = availableInput.closest('.shift-preference-availability-button');
+        if (availabilityButton) {
+            availabilityButton.classList.toggle('btn-success', isAvailable);
+            availabilityButton.classList.toggle('btn-outline-success', !isAvailable);
+        }
+        startInput.disabled = !isAvailable;
+        endInput.disabled = !isAvailable;
+    }
+
     function initShiftPreferenceWindows(target) {
         const root = target instanceof HTMLElement ? target : document;
         root.querySelectorAll('[data-shift-preference-window]').forEach(function (container) {
             if (container.dataset.shiftPreferenceWindowReady === 'true') return;
             container.dataset.shiftPreferenceWindowReady = 'true';
 
+            const availableInput = container.querySelector('[data-shift-preference-available]');
             const startInput = container.querySelector('[data-shift-preference-start]');
             const endInput = container.querySelector('[data-shift-preference-end]');
+            if (availableInput) {
+                availableInput.addEventListener('change', function () {
+                    syncAvailability(container);
+                });
+            }
             [startInput, endInput].forEach(function (input) {
                 if (!input) return;
                 input.addEventListener('input', function () {
@@ -60,6 +83,7 @@
             });
 
             syncWindow(container);
+            syncAvailability(container);
         });
     }
 

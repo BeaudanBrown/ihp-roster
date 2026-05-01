@@ -1,6 +1,7 @@
 module Web.View.StaffProfileForm where
 
 import Application.Helper.StaffShiftPreferences
+import qualified Data.Text as Text
 import Web.View.Prelude
 
 renderPersonalProfileFields :: Staff -> Maybe Text -> Html
@@ -69,16 +70,14 @@ renderPersonalProfileFields staff maybeEmail = [hsx|
         </div>
         <div class="col-12 col-lg-6">
             <label for="idealShiftsPerWeek" class="form-label">Ideal Shifts Per Week</label>
-            <input
+            <select
                 id="idealShiftsPerWeek"
                 name="idealShiftsPerWeek"
-                type="number"
-                min="0"
-                max="7"
-                class={inputClass staff "idealShiftsPerWeek"}
-                value={tshow staff.idealShiftsPerWeek}
+                class={selectClass staff "idealShiftsPerWeek"}
                 required="required"
-            />
+            >
+                {forEach [0 :: Int .. 7] (renderIdealShiftsOption staff.idealShiftsPerWeek)}
+            </select>
             {renderStaffFieldError staff "idealShiftsPerWeek"}
         </div>
         <div class="col-12 col-lg-6">
@@ -108,26 +107,34 @@ renderPersonalProfileFields staff maybeEmail = [hsx|
     </div>
 |]
 
+renderIdealShiftsOption :: Int -> Int -> Html
+renderIdealShiftsOption selectedValue optionValue = [hsx|
+    <option value={tshow optionValue} selected={optionValue == selectedValue}>{optionValue}</option>
+|]
+
 renderShiftPreferenceSections :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderShiftPreferenceSections weekdays selectedShiftPreferences =
     if null weekdays
         then [hsx|<p class="app-muted mb-0">Shift preferences will appear once the venue calendar is configured.</p>|]
         else [hsx|
     <section class={appSurfaceClasses "p-3"}>
-        <div class="d-flex justify-content-between align-items-start gap-3 mb-3">
-            <div>
-                <p class="app-muted mb-0 small">Tick available days and choose the preferred shift start window. A day left unticked counts as unavailable for roster highlights.</p>
-            </div>
-        </div>
         {renderShiftPreferenceRows weekdays selectedShiftPreferences}
     </section>
 |]
 
 renderShiftPreferenceRows :: [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderShiftPreferenceRows weekdays selectedShiftPreferences = [hsx|
-    <div class="vstack gap-3">
-        {forEach weekdays (renderShiftPreferenceDayRow selectedShiftPreferences)}
-    </div>
+    <table class="table table-sm align-middle shift-preference-table mb-0">
+        <thead>
+            <tr>
+                <th scope="col">Available</th>
+                <th scope="col">Start time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {forEach weekdays (renderShiftPreferenceDayRow selectedShiftPreferences)}
+        </tbody>
+    </table>
 |]
 
 renderShiftPreferenceDayRow :: [ShiftPreferenceSelection] -> PreferenceWeekday -> Html
@@ -137,25 +144,28 @@ renderShiftPreferenceDayRow selectedShiftPreferences weekday =
         isSelected = isJust selectedPreference
         startHour = maybe defaultPreferenceStartHour (.startHour) selectedPreference
         endHour = maybe defaultPreferenceEndHour (.endHour) selectedPreference
+        weekdayLabel = abbreviateWeekdayLabel weekday.label
      in [hsx|
-        <div class="shift-preference-window"
+        <tr class="shift-preference-window"
              data-shift-preference-window="true"
              data-min-hour={tshow preferenceMinimumHour}
              data-max-hour={tshow preferenceMaximumHour}>
-            <div class="shift-preference-window__inner">
-                <label class="form-check d-flex align-items-center gap-2 mb-0 shift-preference-window__available">
+            <th scope="row" class="shift-preference-table__available">
+                <label class={availabilityButtonClass isSelected}>
                     <input
-                        class="form-check-input mt-0"
+                        class="visually-hidden"
                         type="checkbox"
                         name="shiftPreferenceKeys"
                         value={key}
                         checked={isSelected}
                         data-shift-preference-available="true"
                     />
-                    <span class="form-check-label fw-semibold">{weekday.label}</span>
+                    <span>{weekdayLabel}</span>
+                    <span class="visually-hidden">{weekday.label} available</span>
                 </label>
+            </th>
+            <td class="shift-preference-table__start-time">
                 <div class="shift-preference-window__controls">
-                    <div class="shift-preference-window__caption small app-muted">Preferred start window</div>
                     <div class="shift-preference-range">
                         <div class="shift-preference-range__labels" aria-hidden="true">
                             <span class="shift-preference-range__bubble" data-shift-preference-start-label="true">{formatPreferenceHour startHour}</span>
@@ -174,6 +184,7 @@ renderShiftPreferenceDayRow selectedShiftPreferences weekday =
                             step="1"
                             name={shiftPreferenceStartHourParamName key}
                             value={tshow startHour}
+                            disabled={not isSelected}
                             data-shift-preference-start="true"
                         />
                         <label class="visually-hidden" for={"shiftPreferenceEnd-" <> key}>Latest preferred start</label>
@@ -186,13 +197,28 @@ renderShiftPreferenceDayRow selectedShiftPreferences weekday =
                             step="1"
                             name={shiftPreferenceEndHourParamName key}
                             value={tshow endHour}
+                            disabled={not isSelected}
                             data-shift-preference-end="true"
                         />
                     </div>
                 </div>
-            </div>
-        </div>
+            </td>
+        </tr>
     |]
+
+abbreviateWeekdayLabel :: Text -> Text
+abbreviateWeekdayLabel label = Text.take 3 label
+
+availabilityButtonClass :: Bool -> Text
+availabilityButtonClass isSelected =
+    classes
+        [ ("btn", True)
+        , ("btn-sm", True)
+        , ("timesheet-approval-toggle", True)
+        , ("shift-preference-availability-button", True)
+        , ("btn-success", isSelected)
+        , ("btn-outline-success", not isSelected)
+        ]
 
 findSelectedShiftPreference :: Int -> [ShiftPreferenceSelection] -> Maybe ShiftPreferenceSelection
 findSelectedShiftPreference weekdayIndex =

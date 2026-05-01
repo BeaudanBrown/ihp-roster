@@ -1,20 +1,41 @@
-.shift-preference-window {
+.shift-preference-table {
     --preference-start: 22.222%;
     --preference-end: 66.667%;
-    border: 1px solid var(--app-border);
-    border-radius: var(--app-radius-sm);
-    padding: 1rem;
-    background: var(--app-surface);
+    table-layout: fixed;
+    width: 100%;
 }
 
-.shift-preference-window__inner {
-    display: grid;
-    grid-template-columns: minmax(9rem, 12rem) minmax(0, 1fr);
+.shift-preference-table th {
+    color: var(--app-muted);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.shift-preference-table td,
+.shift-preference-table th {
+    padding: 0.6rem 0.5rem;
+}
+
+.shift-preference-table__available {
+    width: 6.4rem;
+    color: var(--app-text) !important;
+    font-size: var(--text-sm) !important;
+    text-transform: none !important;
+}
+
+.shift-preference-availability-button {
+    display: inline-flex;
     align-items: center;
-    gap: 1rem;
+    justify-content: center;
+    width: 5.1rem;
+    min-height: 2.25rem;
+    margin: 0;
+    cursor: pointer;
+    line-height: 1;
 }
 
-.shift-preference-window__available {
+.shift-preference-table__start-time {
     min-width: 0;
 }
 
@@ -22,15 +43,11 @@
     min-width: 0;
 }
 
-.shift-preference-window__caption {
-    margin-bottom: 0.35rem;
-}
-
 .shift-preference-range {
     position: relative;
     min-width: 0;
-    height: 3.25rem;
-    padding-top: 1.5rem;
+    height: 3rem;
+    padding-top: 1.4rem;
 }
 
 .shift-preference-range__labels {
@@ -66,7 +83,7 @@
     position: absolute;
     left: 0;
     right: 0;
-    top: 2.1rem;
+    top: 2rem;
     height: 0.4rem;
     border-radius: 999px;
     background: var(--app-border);
@@ -87,7 +104,7 @@
     position: absolute;
     left: 0;
     right: 0;
-    top: 1.58rem;
+    top: 1.48rem;
     width: 100%;
     height: 1.45rem;
     margin: 0;
@@ -142,13 +159,31 @@
     box-shadow: 0 0 0 1px var(--bs-primary), 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
 }
 
+.shift-preference-window.is-unavailable .shift-preference-window__controls {
+    opacity: 0.42;
+    filter: grayscale(1);
+}
+
+.shift-preference-window.is-unavailable .shift-preference-range__input::-webkit-slider-thumb {
+    cursor: not-allowed;
+}
+
+.shift-preference-window.is-unavailable .shift-preference-range__input::-moz-range-thumb {
+    cursor: not-allowed;
+}
+
 @media (max-width: 575.98px) {
-    .shift-preference-window {
-        padding: 0.85rem;
+    .shift-preference-table__available {
+        width: 5.7rem;
     }
 
-    .shift-preference-window__inner {
-        grid-template-columns: minmax(0, 1fr);
-        gap: 0.85rem;
+    .shift-preference-availability-button {
+        width: 4.7rem;
+        font-size: var(--text-sm);
+    }
+
+    .shift-preference-range__bubble {
+        padding-inline: 0.25rem;
+        font-size: 0.68rem;
     }
 }
