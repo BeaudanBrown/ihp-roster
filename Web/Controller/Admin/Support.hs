@@ -28,16 +28,6 @@ fetchCurrentVenueShiftTypes =
         |> orderByAsc #createdAt
         |> fetch
 
-fetchActiveCurrentVenueSlotNames :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [SlotName]
-fetchActiveCurrentVenueSlotNames =
-    query @SlotName
-        |> filterWhere (#venueId, unpackId currentVenueId)
-        |> filterWhere (#isActive, True)
-        |> filterWhere (#archivedAt, Nothing)
-        |> orderByAsc #sortOrder
-        |> orderByAsc #createdAt
-        |> fetch
-
 fetchActiveAwardLevels :: (?modelContext :: ModelContext) => IO [AwardLevel]
 fetchActiveAwardLevels =
     query @AwardLevel
@@ -52,15 +42,6 @@ fetchCurrentAwardLevelBaseRates =
         |> filterWhere (#operativeTo, Nothing :: Maybe Day)
         |> orderByAsc #createdAt
         |> fetch
-
-nextSlotNameSortOrder :: (?modelContext :: ModelContext) => Id RosterGroup -> IO Int
-nextSlotNameSortOrder rosterGroupId =
-    query @SlotName
-        |> filterWhere (#rosterGroupId, unpackId rosterGroupId)
-        |> filterWhere (#archivedAt, Nothing)
-        |> orderByDesc #sortOrder
-        |> fetchOneOrNothing
-        <&> maybe 0 ((+ 1) . get #sortOrder)
 
 nextRosterGroupSortOrder :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
 nextRosterGroupSortOrder =
@@ -102,30 +83,6 @@ respondToAdminSectionMutation AdminSectionMutationResponse { .. } =
         maybeSetFlashSuccess =
             maybe (pure ()) setSuccessMessage
 
-respondToSlotNameMutation :: (?context :: ControllerContext, ?request :: Request) => Text -> Id RosterGroup -> IO ()
-respondToSlotNameMutation successMessage rosterGroupId =
-    if isHtmxRequest
-        then renderPlain ""
-        else do
-            setSuccessMessage successMessage
-            redirectToAdminFor (Just rosterGroupId)
-
-respondToSlotNameSectionMutation ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Text ->
-    Id RosterGroup ->
-    IO ()
-respondToSlotNameSectionMutation successMessage rosterGroupId =
-    respondToAdminSectionMutation AdminSectionMutationResponse
-        { adminSectionSuccessMessage =
-            if isHtmxRequest then Nothing else Just successMessage
-        , adminSectionRedirectGroup = Just rosterGroupId
-        , adminSectionRenderFragment = do
-            currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-            slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
-            pure (renderRosterGroupSlotNamesFragment currentRosterGroup slotNames)
-        }
-
 respondToInvitesSectionMutation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Text ->
@@ -165,33 +122,14 @@ respondToRosterGroupsSectionMutation maybeRosterGroupId =
         , adminSectionRedirectGroup = maybeRosterGroupId
         , adminSectionRenderFragment = do
             rosterGroups <- fetchCurrentVenueRosterGroups
-            slotNames <- fetchActiveCurrentVenueSlotNames
             let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-            pure (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)
+            pure (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)
         }
 
 nonEmptySuccessMessage :: Text -> Maybe Text
 nonEmptySuccessMessage message
     | Text.null message = Nothing
     | otherwise = Just message
-
-broadcastSlotNameInvalidation ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    Id RosterGroup ->
-    IO ()
-broadcastSlotNameInvalidation rosterGroupId =
-    broadcastLiveResync
-        (slotNamesScope rosterGroupId)
-        liveUpdateSourceClientId
-
-broadcastAdminSlotNamesInvalidation ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    Id RosterGroup ->
-    IO ()
-broadcastAdminSlotNamesInvalidation rosterGroupId =
-    broadcastLiveResync
-        (adminSlotNamesScope rosterGroupId)
-        liveUpdateSourceClientId
 
 broadcastAdminInvitesInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -220,20 +158,6 @@ broadcastAdminRosterGroupsInvalidation venueId =
         (adminRosterGroupsScope venueId)
         liveUpdateSourceClientId
 
-slotNamesScope :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope
-slotNamesScope rosterGroupId =
-    RosterGroupConfigScope
-        { venueId = unpackId currentVenueId
-        , rosterGroupId = unpackId rosterGroupId
-        }
-
-adminSlotNamesScope :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope
-adminSlotNamesScope rosterGroupId =
-    AdminSlotNamesScope
-        { venueId = unpackId currentVenueId
-        , rosterGroupId = unpackId rosterGroupId
-        }
-
 adminInvitesScope :: Id Venue -> LiveUpdateScope
 adminInvitesScope venueId =
     AdminInvitesScope
@@ -251,25 +175,6 @@ adminRosterGroupsScope venueId =
     AdminRosterGroupsScope
         { venueId = unpackId venueId
         }
-
-reorderActiveSlotNames :: (?modelContext :: ModelContext) => Id RosterGroup -> Id SlotName -> Int -> IO ()
-reorderActiveSlotNames rosterGroupId slotNameId direction = do
-    activeSlotNames <- fetchActiveRosterGroupSlotNames rosterGroupId
-    let currentIndex = List.findIndex (\slotName -> slotName.id == slotNameId) activeSlotNames
-    case currentIndex of
-        Nothing -> pure ()
-        Just index -> do
-            let targetIndex = index + direction
-            if targetIndex < 0 || targetIndex >= length activeSlotNames
-                then pure ()
-                else do
-                    let reordered = moveListItem index targetIndex activeSlotNames
-                    forM_ (zip [0 :: Int ..] reordered) \(sortOrder, slotName) ->
-                        when (slotName.sortOrder /= sortOrder) do
-                            _ <- slotName
-                                |> set #sortOrder sortOrder
-                                |> updateRecord
-                            pure ()
 
 reorderActiveRosterGroups :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO ()
 reorderActiveRosterGroups rosterGroupId direction = do

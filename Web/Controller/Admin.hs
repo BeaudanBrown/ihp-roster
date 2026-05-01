@@ -74,7 +74,6 @@ instance Controller AdminController where
         shiftTypes <- fetchCurrentVenueShiftTypes
         awardLevels <- fetchActiveAwardLevels
         awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
-        slotNames <- fetchActiveCurrentVenueSlotNames
         currentWeekOffset <- currentReportWeekOffset
         reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
         let defaultRangeStart = reportWeekSelection.weekStart
@@ -151,11 +150,6 @@ instance Controller AdminController where
                         setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
                         redirectToAdminFor (paramOrNothing "rosterGroupId")
 
-    action ShowAdminSlotNamesFragmentAction = do
-        currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
-        slotNames <- fetchActiveRosterGroupSlotNames currentRosterGroup.id
-        respondHtml (renderRosterGroupSlotNamesFragment currentRosterGroup slotNames)
-
     action ShowAdminInvitesFragmentAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         invitations <- fetchCurrentVenueInvitations
@@ -171,9 +165,8 @@ instance Controller AdminController where
     action ShowAdminRosterGroupsFragmentAction = do
         syncVenueDefaultRosterGroupToTopActive currentVenueId
         rosterGroups <- fetchCurrentVenueRosterGroups
-        slotNames <- fetchActiveCurrentVenueSlotNames
         let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-        respondHtml (renderRosterGroupsSectionFragment rosterGroups slotNames showInactiveRosterGroups)
+        respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)
 
     action ShowAdminXeroFragmentAction = do
         requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
@@ -379,67 +372,3 @@ instance Controller AdminController where
         setSuccessMessage "Shift type order updated"
         broadcastAdminShiftTypesInvalidation currentVenueId
         redirectToAdminFor (paramOrNothing "rosterGroupId")
-
-    action CreateSlotNameAction = do
-        maybeName <- parseRequiredName "name" "Slot name is required."
-        case maybeName of
-            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
-            Just name -> do
-                rosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
-                _ <- do
-                    nextSortOrder <- nextSlotNameSortOrder rosterGroup.id
-                    newRecord @SlotName
-                        |> set #venueId (unpackId currentVenueId)
-                        |> set #rosterGroupId (unpackId rosterGroup.id)
-                        |> set #name name
-                        |> set #sortOrder nextSortOrder
-                        |> set #isActive True
-                        |> createRecord
-                broadcastAdminSlotNamesInvalidation rosterGroup.id
-                broadcastSlotNameInvalidation rosterGroup.id
-                respondToSlotNameSectionMutation "Slot name added" rosterGroup.id
-
-    action UpdateSlotNameAction { slotNameId } = do
-        slotName <- fetch slotNameId
-        ensureRecordInCurrentVenue slotName.venueId
-        maybeName <- parseRequiredName "name" "Slot name is required."
-        case maybeName of
-            Nothing -> redirectToAdminFor (Just (Id slotName.rosterGroupId :: Id RosterGroup))
-            Just name -> do
-                _ <- slotName
-                    |> set #name name
-                    |> updateRecord
-                broadcastAdminSlotNamesInvalidation (Id slotName.rosterGroupId :: Id RosterGroup)
-                broadcastSlotNameInvalidation (Id slotName.rosterGroupId :: Id RosterGroup)
-                respondToSlotNameMutation "Slot name updated" (Id slotName.rosterGroupId :: Id RosterGroup)
-
-    action MoveSlotNameUpAction { slotNameId } = do
-        slotName <- fetch slotNameId
-        ensureRecordInCurrentVenue slotName.venueId
-        let rosterGroupId = Id slotName.rosterGroupId :: Id RosterGroup
-        withTransaction do
-            reorderActiveSlotNames rosterGroupId slotName.id (-1)
-        broadcastAdminSlotNamesInvalidation rosterGroupId
-        broadcastSlotNameInvalidation rosterGroupId
-        respondToSlotNameSectionMutation "Slot order updated" rosterGroupId
-
-    action MoveSlotNameDownAction { slotNameId } = do
-        slotName <- fetch slotNameId
-        ensureRecordInCurrentVenue slotName.venueId
-        let rosterGroupId = Id slotName.rosterGroupId :: Id RosterGroup
-        withTransaction do
-            reorderActiveSlotNames rosterGroupId slotName.id 1
-        broadcastAdminSlotNamesInvalidation rosterGroupId
-        broadcastSlotNameInvalidation rosterGroupId
-        respondToSlotNameSectionMutation "Slot order updated" rosterGroupId
-
-    action DeleteSlotNameAction { slotNameId } = do
-        slotName <- fetch slotNameId
-        ensureRecordInCurrentVenue slotName.venueId
-        let rosterGroupId = Id slotName.rosterGroupId :: Id RosterGroup
-        _ <- slotName
-            |> set #isActive False
-            |> updateRecord
-        broadcastAdminSlotNamesInvalidation rosterGroupId
-        broadcastSlotNameInvalidation rosterGroupId
-        respondToSlotNameSectionMutation "Slot deleted" rosterGroupId

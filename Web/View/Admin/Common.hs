@@ -127,16 +127,6 @@ renderActiveBadge isActive =
 renderEmptyState :: Text -> Html
 renderEmptyState message = [hsx|<p class="app-muted mb-0">{message}</p>|]
 
-slotNamesForRosterGroup :: Id RosterGroup -> [SlotName] -> [SlotName]
-slotNamesForRosterGroup rosterGroupId =
-    filter (\slotName -> slotName.rosterGroupId == unpackId rosterGroupId)
-
-slotNameFragmentId :: Id RosterGroup -> Text
-slotNameFragmentId rosterGroupId = "admin-slot-names-fragment-" <> tshow rosterGroupId
-
-slotNameTarget :: Id RosterGroup -> Text
-slotNameTarget rosterGroupId = "#" <> slotNameFragmentId rosterGroupId
-
 visibleRosterGroupsForAdmin :: [RosterGroup] -> Bool -> [RosterGroup]
 visibleRosterGroupsForAdmin rosterGroups showInactive =
     activeRows <> if showInactive then inactiveRows else []

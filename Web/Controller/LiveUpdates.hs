@@ -108,10 +108,6 @@ data ScopeAuthorizationRequirement
 scopeAuthorizationRequirement :: LiveUpdateScope -> ScopeAuthorizationRequirement
 scopeAuthorizationRequirement RosterWeekScope { venueId, rosterGroupId } =
     RequireCurrentVenueRosterGroup venueId rosterGroupId
-scopeAuthorizationRequirement RosterGroupConfigScope { venueId, rosterGroupId } =
-    RequireCurrentVenueRosterGroup venueId rosterGroupId
-scopeAuthorizationRequirement AdminSlotNamesScope { venueId, rosterGroupId } =
-    RequireCurrentVenueAdminRosterGroup venueId rosterGroupId
 scopeAuthorizationRequirement AdminInvitesScope { venueId } =
     RequireCurrentVenueAdmin venueId
 scopeAuthorizationRequirement AdminShiftTypesScope { venueId } =
