@@ -850,19 +850,19 @@ findStaffByName firstName lastName =
 
 seededXeroPayCalendarCases :: [SeededXeroTimesheetCase]
 seededXeroPayCalendarCases =
-    -- Fortnightly Calendar window shown in the Xero sandbox around the 15 Apr 2026 payment.
+    -- Fortnightly Calendar current period ending 26 May 2026.
     seededXeroCalendarWindowCases
-        (fromGregorian 2026 4 2)
-        (fromGregorian 2026 4 15)
+        (fromGregorian 2026 5 13)
+        (fromGregorian 2026 5 26)
         [ ("James", "Lebron")
         , ("Oliver", "Grey")
         , ("Sally", "Martin")
         ]
         <>
-    -- Weekly Calendar window shown in the Xero sandbox around the 22 Apr 2026 payment.
+    -- Weekly Calendar current period ending 5 May 2026.
     seededXeroCalendarWindowCases
-        (fromGregorian 2026 4 16)
-        (fromGregorian 2026 4 22)
+        (fromGregorian 2026 4 29)
+        (fromGregorian 2026 5 5)
         [ ("Odette", "Garrison")
         , ("Tracy", "Green")
         ]
