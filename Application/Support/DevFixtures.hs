@@ -15,7 +15,7 @@ import Control.Monad (replicateM, void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Map.Strict as Map
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, dayOfWeek, diffDays)
+import Data.Time.Calendar (Day, addDays, dayOfWeek, diffDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
@@ -700,20 +700,31 @@ seedTimesheets ::
     UTCTime ->
     IO ()
 seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift staffPool approvedAt = do
+    seededXeroCaseCount <-
+        seedXeroPayCalendarTimesheets
+            venue
+            admin
+            floorShift
+            kitchenShift
+            staffPool
+            approvedAt
+            scenario.approvedTimesheets
+    let remainingApprovedCount = max 0 (scenario.approvedTimesheets - seededXeroCaseCount)
     let approvedStaffPool = concat (replicate 3 (seededXeroMatchedStaffPool staffPool)) <> staffPool
-    forM_ (zip [0 ..] (take scenario.approvedTimesheets (cycle approvedStaffPool))) \(index, staff) -> do
+    forM_ (zip [0 ..] (take remainingApprovedCount (cycle approvedStaffPool))) \(index, staff) -> do
+        let globalIndex = index + seededXeroCaseCount
         let shiftTypeId =
-                if index `mod` 4 == 0
+                if globalIndex `mod` 4 == 0
                     then unpackId (get #id kitchenShift)
                     else unpackId (get #id floorShift)
         let (hadBreak, breakStartTime, breakEndTime, breakMinutes) =
-                seededBreakFields scenario.scenarioSeed index
+                seededBreakFields scenario.scenarioSeed globalIndex
         entry <-
-            createTimesheetEntryRecord venue staff (seededTimesheetWorkedOn fixtureWeekStart index)
+            createTimesheetEntryRecord venue staff (seededTimesheetWorkedOn fixtureWeekStart globalIndex)
                 >>= updateRecord
                     . set #shiftTypeId shiftTypeId
-                    . set #startTime (TimeOfDay (6 + ((index * 2) `mod` 8)) 0 0)
-                    . set #endTime (TimeOfDay (12 + ((index * 2) `mod` 8)) 0 0)
+                    . set #startTime (TimeOfDay (6 + ((globalIndex * 2) `mod` 8)) 0 0)
+                    . set #endTime (TimeOfDay (12 + ((globalIndex * 2) `mod` 8)) 0 0)
                     . set #hadBreak hadBreak
                     . set #breakStartTime breakStartTime
                     . set #breakEndTime breakEndTime
@@ -744,6 +755,139 @@ seedTimesheets fixtureWeekStart venue admin scenario floorShift kitchenShift sta
                     . set #breakMinutes breakMinutes
         pure ()
 
+data SeededXeroTimesheetCase = SeededXeroTimesheetCase
+    { caseFirstName :: !Text
+    , caseLastName  :: !Text
+    , caseWorkedOn  :: !Day
+    , caseShiftType :: !SeededTimesheetShiftType
+    , caseStartTime :: !TimeOfDay
+    , caseEndTime   :: !TimeOfDay
+    , caseBreak     :: !SeededTimesheetBreak
+    }
+
+data SeededTimesheetShiftType
+    = SeededFloorShift
+    | SeededKitchenShift
+
+data SeededTimesheetBreak
+    = SeededNoBreak
+    | SeededBreak !TimeOfDay !TimeOfDay !Int
+
+seedXeroPayCalendarTimesheets ::
+    (?modelContext :: ModelContext) =>
+    Venue ->
+    User ->
+    ShiftType ->
+    ShiftType ->
+    [Staff] ->
+    UTCTime ->
+    Int ->
+    IO Int
+seedXeroPayCalendarTimesheets venue admin floorShift kitchenShift staffPool approvedAt approvedLimit = do
+    entries <-
+        forM (take (max 0 approvedLimit) seededXeroPayCalendarCases) \seedCase ->
+            case findStaffByName seedCase.caseFirstName seedCase.caseLastName staffPool of
+                Nothing -> pure Nothing
+                Just staff -> do
+                    Just <$> createApprovedSeededTimesheetCase venue admin floorShift kitchenShift staff approvedAt seedCase
+    pure (length (catMaybes entries))
+
+createApprovedSeededTimesheetCase ::
+    (?modelContext :: ModelContext) =>
+    Venue ->
+    User ->
+    ShiftType ->
+    ShiftType ->
+    Staff ->
+    UTCTime ->
+    SeededXeroTimesheetCase ->
+    IO TimesheetEntry
+createApprovedSeededTimesheetCase venue admin floorShift kitchenShift staff approvedAt seedCase = do
+    entry <-
+        createTimesheetEntryRecord venue staff seedCase.caseWorkedOn
+            >>= updateRecord
+                . set #shiftTypeId (seededCaseShiftTypeId seedCase.caseShiftType floorShift kitchenShift)
+                . set #startTime seedCase.caseStartTime
+                . set #endTime seedCase.caseEndTime
+                . applySeededBreak seedCase.caseBreak
+    approveSeededTimesheetEntry admin approvedAt entry
+
+approveSeededTimesheetEntry ::
+    (?modelContext :: ModelContext) =>
+    User ->
+    UTCTime ->
+    TimesheetEntry ->
+    IO TimesheetEntry
+approveSeededTimesheetEntry admin approvedAt entry = do
+    (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval admin.id entry
+    lockPayVersionsForApproval admin.id approvedAt staffPayVersion shiftTypePayVersion
+    entry
+        |> set #isApproved True
+        |> set #staffPayVersionId (Just (unpackId staffPayVersion.id))
+        |> set #shiftTypePayVersionId (Just (unpackId shiftTypePayVersion.id))
+        |> set #approvedAt (Just approvedAt)
+        |> set #approvedByUserId (Just (unpackId admin.id))
+        |> updateRecord
+
+seededCaseShiftTypeId :: SeededTimesheetShiftType -> ShiftType -> ShiftType -> UUID
+seededCaseShiftTypeId SeededFloorShift floorShift _ = unpackId (get #id floorShift)
+seededCaseShiftTypeId SeededKitchenShift _ kitchenShift = unpackId (get #id kitchenShift)
+
+applySeededBreak :: SeededTimesheetBreak -> TimesheetEntry -> TimesheetEntry
+applySeededBreak SeededNoBreak =
+    set #hadBreak False
+        . set #breakStartTime Nothing
+        . set #breakEndTime Nothing
+        . set #breakMinutes 0
+applySeededBreak (SeededBreak startTime endTime minutes) =
+    set #hadBreak True
+        . set #breakStartTime (Just startTime)
+        . set #breakEndTime (Just endTime)
+        . set #breakMinutes minutes
+
+findStaffByName :: Text -> Text -> [Staff] -> Maybe Staff
+findStaffByName firstName lastName =
+    find (\staff -> staff.firstName == firstName && staff.lastName == lastName)
+
+seededXeroPayCalendarCases :: [SeededXeroTimesheetCase]
+seededXeroPayCalendarCases =
+    [ -- Fortnightly Calendar window shown in the Xero sandbox around the 15 Apr 2026 payment.
+      xeroCase "James" "Lebron" (fromGregorian 2026 4 2) SeededFloorShift (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) (SeededBreak (TimeOfDay 15 30 0) (TimeOfDay 16 0 0) 30)
+    , xeroCase "Oliver" "Grey" (fromGregorian 2026 4 3) SeededFloorShift (TimeOfDay 18 0 0) (TimeOfDay 2 0 0) (SeededBreak (TimeOfDay 22 0 0) (TimeOfDay 22 30 0) 30)
+    , xeroCase "Sally" "Martin" (fromGregorian 2026 4 4) SeededKitchenShift (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) (SeededBreak (TimeOfDay 12 30 0) (TimeOfDay 13 0 0) 30)
+    , xeroCase "James" "Lebron" (fromGregorian 2026 4 5) SeededFloorShift (TimeOfDay 11 0 0) (TimeOfDay 17 0 0) (SeededBreak (TimeOfDay 13 30 0) (TimeOfDay 14 0 0) 30)
+    , xeroCase "Oliver" "Grey" (fromGregorian 2026 4 14) SeededFloorShift (TimeOfDay 22 0 0) (TimeOfDay 2 0 0) (SeededBreak (TimeOfDay 23 30 0) (TimeOfDay 0 0 0) 30)
+    , xeroCase "Sally" "Martin" (fromGregorian 2026 4 15) SeededKitchenShift (TimeOfDay 8 0 0) (TimeOfDay 14 0 0) SeededNoBreak
+
+      -- Weekly Calendar window shown in the Xero sandbox around the 22 Apr 2026 payment.
+    , xeroCase "Odette" "Garrison" (fromGregorian 2026 4 16) SeededFloorShift (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) (SeededBreak (TimeOfDay 15 30 0) (TimeOfDay 16 0 0) 30)
+    , xeroCase "Tracy" "Green" (fromGregorian 2026 4 17) SeededFloorShift (TimeOfDay 18 0 0) (TimeOfDay 1 0 0) (SeededBreak (TimeOfDay 21 30 0) (TimeOfDay 22 0 0) 30)
+    , xeroCase "Odette" "Garrison" (fromGregorian 2026 4 18) SeededKitchenShift (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) (SeededBreak (TimeOfDay 12 30 0) (TimeOfDay 13 0 0) 30)
+    , xeroCase "Tracy" "Green" (fromGregorian 2026 4 19) SeededFloorShift (TimeOfDay 10 0 0) (TimeOfDay 16 0 0) (SeededBreak (TimeOfDay 12 30 0) (TimeOfDay 13 0 0) 30)
+    , xeroCase "Odette" "Garrison" (fromGregorian 2026 4 21) SeededFloorShift (TimeOfDay 22 0 0) (TimeOfDay 2 0 0) (SeededBreak (TimeOfDay 23 30 0) (TimeOfDay 0 0 0) 30)
+    , xeroCase "Tracy" "Green" (fromGregorian 2026 4 22) SeededKitchenShift (TimeOfDay 8 0 0) (TimeOfDay 14 0 0) SeededNoBreak
+    ]
+
+xeroCase ::
+    Text ->
+    Text ->
+    Day ->
+    SeededTimesheetShiftType ->
+    TimeOfDay ->
+    TimeOfDay ->
+    SeededTimesheetBreak ->
+    SeededXeroTimesheetCase
+xeroCase firstName lastName workedOn shiftType startTime endTime timesheetBreak =
+    SeededXeroTimesheetCase
+        { caseFirstName = firstName
+        , caseLastName = lastName
+        , caseWorkedOn = workedOn
+        , caseShiftType = shiftType
+        , caseStartTime = startTime
+        , caseEndTime = endTime
+        , caseBreak = timesheetBreak
+        }
+
 seededTimesheetWorkedOn :: Day -> Int -> Day
 seededTimesheetWorkedOn fixtureWeekStart index =
     addDays (toInteger weekStartOffset + toInteger (index `mod` 7)) fixtureWeekStart
@@ -768,6 +912,7 @@ seededStaffHasXeroEmployeeMatch staff =
             , ("Oliver", "Grey")
             , ("Odette", "Garrison")
             , ("Sally", "Martin")
+            , ("Tracy", "Green")
             ]
 
 seededBreakFields :: Int -> Int -> (Bool, Maybe TimeOfDay, Maybe TimeOfDay, Int)
