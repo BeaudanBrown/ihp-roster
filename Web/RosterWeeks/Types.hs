@@ -35,7 +35,7 @@ data ShowView = ShowView
     , staffMembers       :: [Staff]
     , staffOptionStates  :: Map (UUID, UUID) RosterAssignmentOptionState
     , panelStaff         :: [RosterStaffPanelEntry]
-    , slotNames          :: [SlotName]
+    , slotNames          :: [RosterWeekSlotDefinition]
     , allSlots           :: [RosterSlot]
     , slotConflicts      :: [(Id RosterSlot, [RosterConflict])]
     , renderIndexes      :: RosterRenderIndexes
@@ -49,7 +49,6 @@ data RosterViewCapabilities = RosterViewCapabilities
     , canCopyRosterWeek         :: Bool
     , canExportRosterImage      :: Bool
     , canManageAssignmentFilter :: Bool
-    , canSyncRosterWeekSlots    :: Bool
     , canViewLeaveMetrics       :: Bool
     }
 
@@ -99,7 +98,7 @@ data RosterRenderData = RosterRenderData
     , staffMembers      :: [Staff]
     , staffOptionStates :: Map (UUID, UUID) RosterAssignmentOptionState
     , panelStaff        :: [RosterStaffPanelEntry]
-    , orderedSlotNames  :: [SlotName]
+    , orderedSlotNames  :: [RosterWeekSlotDefinition]
     , allSlots          :: [RosterSlot]
     , slotConflicts     :: [(Id RosterSlot, [RosterConflict])]
     , renderIndexes     :: RosterRenderIndexes
@@ -115,7 +114,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridStaffMembers       :: [Staff]
     , gridStaffOptionStates  :: Map (UUID, UUID) RosterAssignmentOptionState
     , gridPanelStaff         :: [RosterStaffPanelEntry]
-    , gridSlotNames          :: [SlotName]
+    , gridSlotNames          :: [RosterWeekSlotDefinition]
     , gridWeekStartDate      :: Day
     , gridAllSlots           :: [RosterSlot]
     , gridSlotConflicts      :: [(Id RosterSlot, [RosterConflict])]
@@ -125,7 +124,7 @@ data RosterGridRenderModel = RosterGridRenderModel
 
 data RosterDayRenderModel = RosterDayRenderModel
     { dayIsEditable        :: Bool
-    , daySlotNames         :: [SlotName]
+    , daySlotNames         :: [RosterWeekSlotDefinition]
     , dayAssignmentFilters :: RosterAssignmentFilters
     , dayStaffMembers      :: [Staff]
     , dayStaffOptionStates :: Map (UUID, UUID) RosterAssignmentOptionState
@@ -137,7 +136,7 @@ data RosterDayRenderModel = RosterDayRenderModel
 
 data RosterRowRenderModel = RosterRowRenderModel
     { rowIsEditable        :: Bool
-    , rowSlotNames         :: [SlotName]
+    , rowSlotNames         :: [RosterWeekSlotDefinition]
     , rowAssignmentFilters :: RosterAssignmentFilters
     , rowStaffMembers      :: [Staff]
     , rowStaffOptionStates :: Map (UUID, UUID) RosterAssignmentOptionState

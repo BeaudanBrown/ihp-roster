@@ -637,11 +637,26 @@ CREATE TABLE roster_days (
     FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT,
     CHECK ((day_offset >= 0) AND (day_offset <= 6))
 );
+CREATE TABLE roster_week_slot_definitions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    roster_week_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    sort_order INT DEFAULT 0 NOT NULL,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    deleted_by_user_id UUID DEFAULT NULL,
+    delete_reason TEXT DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT,
+    FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
+    CHECK (sort_order >= 0)
+);
 CREATE TABLE roster_slots (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     roster_day_id UUID NOT NULL,
     staff_id UUID,
-    slot_name_id UUID NOT NULL,
+    roster_week_slot_definition_id UUID NOT NULL,
     slot_sort_order INT DEFAULT 0 NOT NULL,
     row_index INT NOT NULL,
     start_time TIME,
@@ -658,7 +673,7 @@ CREATE TABLE roster_slots (
     CHECK (duration_minutes IS NULL OR duration_minutes >= 0),
     FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE SET NULL,
-    FOREIGN KEY (slot_name_id) REFERENCES slot_names (id) ON DELETE RESTRICT,
+    FOREIGN KEY (roster_week_slot_definition_id) REFERENCES roster_week_slot_definitions (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
 CREATE TABLE staff_shift_preferences (
@@ -1146,9 +1161,11 @@ CREATE INDEX idx_slot_names_group_sort ON slot_names (roster_group_id, sort_orde
 CREATE UNIQUE INDEX idx_slot_names_active_name ON slot_names (roster_group_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE INDEX idx_roster_weeks_venue_offset ON roster_weeks (venue_id, week_offset);
+CREATE INDEX idx_roster_week_slot_definitions_week_sort ON roster_week_slot_definitions (roster_week_id, sort_order ASC, created_at ASC) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_roster_week_slot_definitions_active_name ON roster_week_slot_definitions (roster_week_id, name) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_day ON roster_slots (roster_day_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL AND deleted_at IS NULL;
-CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, slot_name_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_pay_versions_staff_effective ON staff_pay_versions (staff_id, effective_from DESC, created_at DESC);
 CREATE UNIQUE INDEX idx_staff_pay_versions_one_open ON staff_pay_versions (staff_id) WHERE effective_to IS NULL;
 CREATE INDEX idx_shift_type_pay_versions_shift_effective ON shift_type_pay_versions (shift_type_id, effective_from DESC, created_at DESC);
@@ -1302,6 +1319,24 @@ BEGIN
             AND rg.venue_id = NEW.venue_id
     ) THEN
         RAISE EXCEPTION 'slot name venue_id must match roster_group_id venue';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION enforce_roster_slot_week_definition_integrity()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM roster_days rd
+        JOIN roster_week_slot_definitions rwsd ON rwsd.id = NEW.roster_week_slot_definition_id
+        WHERE rd.id = NEW.roster_day_id
+            AND rd.roster_week_id = rwsd.roster_week_id
+    ) THEN
+        RAISE EXCEPTION 'roster slot day and slot definition must belong to the same roster week';
     END IF;
 
     RETURN NEW;
@@ -1475,6 +1510,7 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER enforce_roster_week_venue_integrity BEFORE INSERT OR UPDATE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION enforce_roster_week_venue_integrity();
 CREATE TRIGGER enforce_slot_name_venue_integrity BEFORE INSERT OR UPDATE ON slot_names FOR EACH ROW EXECUTE FUNCTION enforce_slot_name_venue_integrity();
+CREATE TRIGGER enforce_roster_slot_week_definition_integrity BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION enforce_roster_slot_week_definition_integrity();
 CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups FOR EACH ROW EXECUTE FUNCTION enforce_staff_roster_group_venue_integrity();
 CREATE TRIGGER enforce_staff_shift_preference_venue_integrity BEFORE INSERT OR UPDATE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION enforce_staff_shift_preference_venue_integrity();
 CREATE TRIGGER enforce_leave_request_venue_integrity BEFORE INSERT OR UPDATE ON leave_requests FOR EACH ROW EXECUTE FUNCTION enforce_leave_request_venue_integrity();

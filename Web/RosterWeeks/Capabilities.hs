@@ -18,6 +18,5 @@ buildRosterViewCapabilities maybeRosterWeek =
             , canCopyRosterWeek = managerAudience
             , canExportRosterImage = managerAudience
             , canManageAssignmentFilter = managerAudience
-            , canSyncRosterWeekSlots = managerAudience && draftWeek
             , canViewLeaveMetrics = managerAudience
             }
