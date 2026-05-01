@@ -530,8 +530,10 @@
     --roster-day-column-width: 18%;
     --roster-grid-header-height: 4.35rem;
     display: grid;
-    grid-template-columns: var(--roster-day-column-width) minmax(0, 1fr);
+    grid-template-columns: minmax(0, var(--roster-day-column-width)) minmax(0, calc(100% - var(--roster-day-column-width)));
     width: 100%;
+    max-width: 100%;
+    contain: inline-size;
     overflow-x: hidden;
     background-color: var(--app-panel-bg);
 }
@@ -569,6 +571,21 @@
 }
 
 .roster-slots-grid {
+    min-width: 0;
+}
+
+.roster-slot-column-toolbar {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+.roster-slot-column-toolbar form {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.roster-slot-column-toolbar .roster-slot-column-name-input {
     min-width: 0;
 }
 
@@ -935,6 +952,19 @@
 
     .roster-grid {
         font-size: var(--roster-text-xs);
+    }
+
+    .roster-slot-column-toolbar {
+        justify-content: flex-start !important;
+    }
+
+    .roster-slot-column-toolbar form {
+        width: 100%;
+    }
+
+    .roster-slot-column-toolbar .roster-slot-column-name-input {
+        flex: 1 1 auto;
+        width: 0;
     }
 
     .roster-day-rail-section .roster-day-label-row {

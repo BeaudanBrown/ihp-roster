@@ -96,7 +96,6 @@ data AdminController
     | SubmitXeroDraftTimesheetsAction
     | RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId :: !(Id XeroTimesheetSubmission) }
     | UpdateVenueConfigAction
-    | ShowAdminSlotNamesFragmentAction
     | ShowAdminInvitesFragmentAction
     | ShowAdminShiftTypesFragmentAction
     | ShowAdminRosterGroupsFragmentAction
@@ -113,11 +112,6 @@ data AdminController
     | UpdateShiftTypeAction { shiftTypeId :: !(Id ShiftType) }
     | MoveShiftTypeUpAction { shiftTypeId :: !(Id ShiftType) }
     | MoveShiftTypeDownAction { shiftTypeId :: !(Id ShiftType) }
-    | CreateSlotNameAction
-    | UpdateSlotNameAction { slotNameId :: !(Id SlotName) }
-    | MoveSlotNameUpAction { slotNameId :: !(Id SlotName) }
-    | MoveSlotNameDownAction { slotNameId :: !(Id SlotName) }
-    | DeleteSlotNameAction { slotNameId :: !(Id SlotName) }
     deriving (Eq, Show, Data)
 
 data SupportController
@@ -153,7 +147,9 @@ data RosterWeeksController
     | CreateRosterWeekAction { weekOffset :: !Int }
     | CopyRosterWeekAction { sourceWeekOffset :: !Int, targetWeekOffset :: !Int }
     | ToggleRosterWeekLiveStatusAction { rosterWeekId :: !(Id RosterWeek) }
-    | SyncRosterWeekSlotStructureAction { rosterWeekId :: !(Id RosterWeek) }
+    | CreateRosterWeekSlotDefinitionAction { rosterWeekId :: !(Id RosterWeek) }
+    | UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition) }
+    | DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition) }
     | ToggleRosterDayClosedAction { rosterDayId :: !(Id RosterDay) }
     | AddRosterRowAction { rosterDayId :: !(Id RosterDay) }
     | RemoveRosterRowAction { rosterDayId :: !(Id RosterDay) }

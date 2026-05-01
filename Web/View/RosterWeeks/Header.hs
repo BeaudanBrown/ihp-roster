@@ -127,7 +127,6 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
             {renderRosterExportMenuSection viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
             {when (shouldShowRosterWeekMenuDivider maybeRosterWeek viewCapabilities) divider}
-            {renderSyncSlotStructureButton maybeRosterWeek viewCapabilities}
         </div>
     </div>
 |]
@@ -155,7 +154,7 @@ renderRosterExportButton format label = [hsx|
 
 shouldShowRosterWeekMenuDivider :: Maybe RosterWeek -> RosterViewCapabilities -> Bool
 shouldShowRosterWeekMenuDivider (Just rosterWeek) viewCapabilities =
-    not rosterWeek.isLive && (viewCapabilities.canManageAssignmentFilter || viewCapabilities.canSyncRosterWeekSlots)
+    not rosterWeek.isLive && viewCapabilities.canManageAssignmentFilter
 shouldShowRosterWeekMenuDivider Nothing _ = False
 
 renderRosterAssignmentFiltersMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Text -> RosterAssignmentFilters -> RosterViewCapabilities -> Html
@@ -213,24 +212,6 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
         <button type="submit" class="btn btn-outline-primary">Copy Previous Week</button>
     </form>
 |]
-
-renderSyncSlotStructureButton :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities -> Html
-renderSyncSlotStructureButton maybeRosterWeek viewCapabilities =
-    case maybeRosterWeek of
-        Just rosterWeek | viewCapabilities.canSyncRosterWeekSlots -> [hsx|
-            <form method="POST"
-                  action={SyncRosterWeekSlotStructureAction rosterWeek.id}
-                  data-disable-javascript-submission="true"
-                  hx-post={SyncRosterWeekSlotStructureAction rosterWeek.id}
-                  hx-target={"#" <> rosterContentFragmentId}
-                  hx-swap="outerHTML"
-                  hx-push-url="false"
-                  hx-sync={"#" <> rosterWeekShellId <> ":replace"}
-                  hx-confirm="Sync this draft week to the current slot template? Existing matching slots keep their data; removed slots are dropped and new slots start empty.">
-                <button type="submit" class="btn btn-outline-secondary w-100 text-start">Sync Slots</button>
-            </form>
-        |]
-        _ -> mempty
 
 renderLiveToggleForm :: RosterWeek -> Html
 renderLiveToggleForm rosterWeek = [hsx|

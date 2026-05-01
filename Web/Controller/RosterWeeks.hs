@@ -15,6 +15,7 @@ import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import Data.List (nub)
 import Data.Maybe (catMaybes, fromMaybe, isJust, mapMaybe)
+import qualified Data.Text as Text
 import Data.Time (getCurrentTime, utctDay)
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
@@ -203,29 +204,79 @@ instance Controller RosterWeeksController where
                 setSuccessMessage successMessage
                 redirectToPath targetPath
 
-    action SyncRosterWeekSlotStructureAction { rosterWeekId } = do
+    action CreateRosterWeekSlotDefinitionAction { rosterWeekId } = do
         ensureManagerRole
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
         ensureRosterWeekIsDraftForEdit rosterWeek
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
+        case normalizeRosterSlotDefinitionName (paramOrDefault @Text "" "name") of
+            Left errorMessage -> respondToRosterSlotDefinitionError rosterWeek errorMessage
+            Right slotName -> do
+                duplicate <- activeRosterWeekSlotDefinitionWithName rosterWeek slotName Nothing
+                case duplicate of
+                    Just _ -> respondToRosterSlotDefinitionError rosterWeek "A column with that name already exists for this week."
+                    Nothing -> do
+                        withTransaction do
+                            _ <- appendRosterWeekSlotDefinition rosterWeek slotName
+                            pure ()
+                        broadcastRosterWeekInvalidation
+                            rosterGroupId
+                            rosterWeek.weekOffset
+                            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+                            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+                            ]
+                        respondToRosterSlotDefinitionSuccess rosterWeek "Roster column added."
 
-        withTransaction do
-            syncRosterWeekSlotStructure rosterWeek
+    action UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = do
+        ensureManagerRole
+        slotDefinition <- fetch rosterWeekSlotDefinitionId
+        rosterWeek <- fetch (Id slotDefinition.rosterWeekId :: Id RosterWeek)
+        ensureRecordInCurrentVenue rosterWeek.venueId
+        ensureRosterWeekIsDraftForEdit rosterWeek
 
-        broadcastRosterWeekInvalidation
-            rosterGroupId
-            rosterWeek.weekOffset
-            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-            ]
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        case normalizeRosterSlotDefinitionName (paramOrDefault @Text "" "name") of
+            Left errorMessage -> respondToRosterSlotDefinitionError rosterWeek errorMessage
+            Right slotName -> do
+                duplicate <- activeRosterWeekSlotDefinitionWithName rosterWeek slotName (Just slotDefinition.id)
+                case duplicate of
+                    Just _ -> respondToRosterSlotDefinitionError rosterWeek "A column with that name already exists for this week."
+                    Nothing -> do
+                        _ <- slotDefinition
+                            |> set #name slotName
+                            |> updateRecord
+                        broadcastRosterWeekInvalidation
+                            rosterGroupId
+                            rosterWeek.weekOffset
+                            [buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset]
+                        respondToRosterSlotDefinitionSuccess rosterWeek "Roster column renamed."
 
-        if isHtmxRequest
-            then respondWithRosterContentUpdate rosterGroupId rosterWeek.weekOffset "Slot structure synced."
+    action DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = do
+        ensureManagerRole
+        slotDefinition <- fetch rosterWeekSlotDefinitionId
+        rosterWeek <- fetch (Id slotDefinition.rosterWeekId :: Id RosterWeek)
+        ensureRecordInCurrentVenue rosterWeek.venueId
+        ensureRosterWeekIsDraftForEdit rosterWeek
+
+        activeDefinitions <- query @RosterWeekSlotDefinition
+            |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+            |> filterWhere (#deletedAt, Nothing)
+            |> fetch
+        if length activeDefinitions <= 1
+            then respondToRosterSlotDefinitionError rosterWeek "Roster weeks need at least one column."
             else do
-                setSuccessMessage "Slot structure synced."
-                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                let rosterGroupId = coerce rosterWeek.rosterGroupId
+                withTransaction do
+                    deleteRosterWeekSlotDefinition slotDefinition
+                broadcastRosterWeekInvalidation
+                    rosterGroupId
+                    rosterWeek.weekOffset
+                    [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+                    , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+                    ]
+                respondToRosterSlotDefinitionSuccess rosterWeek "Roster column removed."
 
     action ToggleRosterDayClosedAction { rosterDayId } = do
         ensureManagerRole
@@ -305,10 +356,10 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             else do
-                forM_ slotTemplate \(slotName, slotSortOrder) -> do
+                forM_ slotTemplate \(slotDefinition, slotSortOrder) -> do
                     newRecord @RosterSlot
                         |> set #rosterDayId (coerce rosterDayId)
-                        |> set #slotNameId (coerce (get #id slotName))
+                        |> set #rosterWeekSlotDefinitionId (coerce (get #id slotDefinition))
                         |> set #slotSortOrder slotSortOrder
                         |> set #rowIndex nextRowIndex
                         |> createRecord
@@ -584,3 +635,44 @@ ensureRosterWeekIsDraftForEdit rosterWeek =
             else do
                 setErrorMessage errorMessage
                 redirectToPath targetPath
+
+normalizeRosterSlotDefinitionName :: Text -> Either Text Text
+normalizeRosterSlotDefinitionName submittedName =
+    let normalized = Text.strip submittedName
+     in if Text.null normalized
+            then Left "Roster column name is required."
+            else
+                if Text.length normalized > 120
+                    then Left "Roster column name must be 120 characters or fewer."
+                    else Right normalized
+
+activeRosterWeekSlotDefinitionWithName :: (?modelContext :: ModelContext) => RosterWeek -> Text -> Maybe (Id RosterWeekSlotDefinition) -> IO (Maybe RosterWeekSlotDefinition)
+activeRosterWeekSlotDefinitionWithName rosterWeek slotName maybeExceptId = do
+    matches <- query @RosterWeekSlotDefinition
+        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        |> filterWhere (#name, slotName)
+        |> filterWhere (#deletedAt, Nothing)
+        |> fetch
+    pure (find (\slotDefinition -> Just slotDefinition.id /= maybeExceptId) matches)
+
+respondToRosterSlotDefinitionError :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> Text -> IO ()
+respondToRosterSlotDefinitionError rosterWeek errorMessage =
+    if isHtmxRequest
+        then respondWithRosterToast errorMessage "app-toast-error"
+        else do
+            setErrorMessage errorMessage
+            redirectToPath (rosterWeekUrl rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId :: Id RosterGroup))
+
+respondToRosterSlotDefinitionSuccess :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> Text -> IO ()
+respondToRosterSlotDefinitionSuccess rosterWeek successMessage =
+    if isHtmxRequest
+        then
+            respondWithActorRosterFragmentRefresh
+                [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+                , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+                ]
+        else do
+            setSuccessMessage successMessage
+            redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+    where
+        rosterGroupId = coerce rosterWeek.rosterGroupId

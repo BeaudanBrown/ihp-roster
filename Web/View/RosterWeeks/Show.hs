@@ -2,7 +2,7 @@ module Web.View.RosterWeeks.Show where
 
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
                                        liveSurfaceConfigJson, mkLiveSurface)
-import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.LiveUpdate (LiveUpdateScope)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Projection (buildDeferredRosterContentFragmentRef,
@@ -47,8 +47,6 @@ renderRosterWeekShell ShowView { .. } =
     <section id={rosterWeekShellId}
              hx-history-elt="true"
              data-live-update-surface={liveSurfaceConfigJson . rosterWeekLiveSurface currentRosterGroup.id weekOffset <$> liveUpdateScope}>
-        <div data-live-update-surface={liveSurfaceConfigJson . rosterGroupConfigLiveSurface currentRosterGroup.id weekOffset <$> liveUpdateScope}
-             hidden="hidden"></div>
         {page}
     </section>
 |]
@@ -62,20 +60,6 @@ rosterWeekLiveSurface rosterGroupId weekOffset scope =
         , buildRosterStaffPanelFragmentRef rosterGroupId weekOffset
         ])
         { decorateRequestsWithin = ["#" <> rosterWeekShellId] }
-
-rosterGroupConfigLiveSurface :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveUpdateScope -> LiveSurfaceConfig
-rosterGroupConfigLiveSurface rosterGroupId weekOffset scope =
-    (mkLiveSurface
-        "roster-group-config"
-        (rosterGroupConfigScopeFrom scope)
-        [ buildDeferredRosterContentFragmentRef rosterGroupId weekOffset
-        ])
-        { decorateRequestsWithin = ["#" <> rosterWeekShellId] }
-
-rosterGroupConfigScopeFrom :: LiveUpdateScope -> LiveUpdateScope
-rosterGroupConfigScopeFrom RosterWeekScope { venueId, rosterGroupId } =
-    RosterGroupConfigScope { venueId, rosterGroupId }
-rosterGroupConfigScopeFrom scope = scope
 
 renderPasskeySetupPrompt :: (?context :: ControllerContext) => Maybe PasskeySetupPromptMode -> Html
 renderPasskeySetupPrompt Nothing = mempty

@@ -58,6 +58,7 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
                 , daySlotConflicts = gridSlotConflicts
                 , dayRenderIndexes = gridRenderIndexes
                 }
+        slotColumnsAreEditable = rosterWeekIsEditable gridRosterWeek
      in [hsx|
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
@@ -72,11 +73,12 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
                         </div>
                     </div>
                     <div class="roster-slots-scroller">
+                        {renderSlotColumnToolbar gridRosterWeek slotColumnsAreEditable}
                         <table class="table table-bordered table-sm mb-0 align-middle roster-grid roster-slots-grid">
                             {renderRosterGridColGroup gridSlotNames}
                             <thead class="text-center text-uppercase fw-bold roster-grid-head">
                                 <tr>
-                                    {forEach gridSlotNames renderSlotHeaderGroup}
+                                    {forEach gridSlotNames (renderSlotHeaderGroup gridRosterWeek slotColumnsAreEditable (length gridSlotNames))}
                                 </tr>
                                 <tr>
                                     {forEach gridSlotNames renderSlotSubHeaders}
@@ -94,14 +96,14 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
     </div>
 |]
 
-renderRosterGridColGroup :: [SlotName] -> Html
+renderRosterGridColGroup :: [RosterWeekSlotDefinition] -> Html
 renderRosterGridColGroup slotNames = [hsx|
     <colgroup>
         {forEach slotNames renderRosterBlockColGroup}
     </colgroup>
 |]
 
-renderRosterBlockColGroup :: SlotName -> Html
+renderRosterBlockColGroup :: RosterWeekSlotDefinition -> Html
 renderRosterBlockColGroup _ =
     mconcat
         [ [hsx|<col style={("width: var(--roster-time-share);" :: Text)} />|]
@@ -113,12 +115,103 @@ rosterWeekIsEditable :: (?context :: ControllerContext) => Maybe RosterWeek -> B
 rosterWeekIsEditable maybeRosterWeek =
     currentUserIsManager && maybe False (not . (.isLive)) maybeRosterWeek
 
-renderSlotHeaderGroup :: SlotName -> Html
-renderSlotHeaderGroup slotName = [hsx|
+renderSlotColumnToolbar :: (?context :: ControllerContext) => Maybe RosterWeek -> Bool -> Html
+renderSlotColumnToolbar (Just rosterWeek) True = [hsx|
+    <div class="d-flex justify-content-end align-items-center gap-2 px-2 py-2 roster-slot-column-toolbar">
+        <form method="POST"
+              action={CreateRosterWeekSlotDefinitionAction rosterWeek.id}
+              class="d-flex align-items-center gap-2 mb-0"
+              data-disable-javascript-submission="true"
+              hx-post={CreateRosterWeekSlotDefinitionAction rosterWeek.id}
+              hx-target={"#" <> rosterContentFragmentId}
+              hx-swap="none"
+              hx-push-url="false"
+              hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+            <input id={newSlotDefinitionInputId rosterWeek.id}
+                   type="text"
+                   name="name"
+                   maxlength="120"
+                   class="form-control form-control-sm roster-slot-column-name-input"
+                   aria-label="New column name"
+                   placeholder="Column name"
+                   required="required" />
+            <button type="submit"
+                    class="btn btn-sm btn-outline-primary"
+                    aria-label="Add roster column"
+                    title="Add roster column">
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+            </button>
+        </form>
+    </div>
+|]
+renderSlotColumnToolbar _ _ = mempty
+
+renderSlotHeaderGroup :: (?context :: ControllerContext) => Maybe RosterWeek -> Bool -> Int -> RosterWeekSlotDefinition -> Html
+renderSlotHeaderGroup _ False _ slotName = [hsx|
+    <th colspan="3" class="py-2 roster-block-header">{slotName.name}</th>
+|]
+renderSlotHeaderGroup (Just _rosterWeek) True slotCount slotName = [hsx|
+    <th colspan="3" class="py-2 roster-block-header">
+        <div class="d-flex align-items-center justify-content-center gap-2 roster-slot-column-header">
+            <form method="POST"
+                  action={UpdateRosterWeekSlotDefinitionAction slotName.id}
+                  class="mb-0 roster-slot-column-name-form"
+                  data-disable-javascript-submission="true"
+                  hx-post={UpdateRosterWeekSlotDefinitionAction slotName.id}
+                  hx-trigger="change delay:250ms"
+                  hx-target={"#" <> rosterContentFragmentId}
+                  hx-swap="none"
+                  hx-push-url="false"
+                  hx-sync={"#" <> rosterWeekShellId <> ":queue last"}>
+                <input id={slotDefinitionInputId slotName.id}
+                       type="text"
+                       name="name"
+                       value={slotName.name}
+                       maxlength="120"
+                       class="form-control form-control-sm text-center roster-slot-column-name-input slot-cell-input"
+                       aria-label="Roster column name"
+                       data-roster-field-key={rosterSlotDefinitionFieldKey slotName.id}
+                       required="required" />
+            </form>
+            <form method="POST"
+                  action={DeleteRosterWeekSlotDefinitionAction slotName.id}
+                  class="mb-0"
+                  data-disable-javascript-submission="true"
+                  hx-delete={DeleteRosterWeekSlotDefinitionAction slotName.id}
+                  hx-target={"#" <> rosterContentFragmentId}
+                  hx-swap="none"
+                  hx-push-url="false"
+                  hx-sync={"#" <> rosterWeekShellId <> ":replace"}
+                  hx-confirm="Remove this roster column from the draft week? Any assignments in the column will be removed.">
+                <input type="hidden" name="_method" value="DELETE" />
+                <button type="submit"
+                        class="btn btn-sm btn-outline-danger roster-slot-column-delete"
+                        aria-label="Remove roster column"
+                        title="Remove roster column"
+                        disabled={slotCount <= 1}>
+                    <i class="bi bi-trash" aria-hidden="true"></i>
+                </button>
+            </form>
+        </div>
+    </th>
+|]
+renderSlotHeaderGroup _ _ _ slotName = [hsx|
     <th colspan="3" class="py-2 roster-block-header">{slotName.name}</th>
 |]
 
-renderSlotSubHeaders :: SlotName -> Html
+newSlotDefinitionInputId :: Id RosterWeek -> Text
+newSlotDefinitionInputId rosterWeekId =
+    "new-roster-slot-definition-" <> tshow rosterWeekId
+
+slotDefinitionInputId :: Id RosterWeekSlotDefinition -> Text
+slotDefinitionInputId slotDefinitionId =
+    "roster-slot-definition-name-" <> tshow slotDefinitionId
+
+rosterSlotDefinitionFieldKey :: Id RosterWeekSlotDefinition -> Text
+rosterSlotDefinitionFieldKey slotDefinitionId =
+    "slot-definition:" <> tshow slotDefinitionId <> ":name"
+
+renderSlotSubHeaders :: RosterWeekSlotDefinition -> Html
 renderSlotSubHeaders _ =
     mconcat
         [ [hsx|<th class="py-1 roster-subhead roster-col-time">Time</th>|]
@@ -337,7 +430,7 @@ renderDeleteLastRowButton rosterDay rowIndex =
         |]
         else [hsx|<span></span>|]
 
-renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, SlotName) -> Html
+renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
 renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates rosterDay rowIndex rowSlots renderIndexes (blockIndex, slotName)
     | rosterDay.isClosed = renderClosedBlockCells blockIndex
     | otherwise =
