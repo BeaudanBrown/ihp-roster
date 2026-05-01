@@ -27,6 +27,10 @@ function inviteRow(page: Page, email: string) {
     return page.locator('#admin-invites-fragment tbody tr').filter({ hasText: email }).first();
 }
 
+async function submitInviteCreateForm(page: Page) {
+    await page.locator('#admin-invites-fragment form').getByRole('button', { name: 'Send' }).click();
+}
+
 test.describe('Admin invites', () => {
     test.setTimeout(E2E_TIMEOUT.slowTest);
 
@@ -41,7 +45,7 @@ test.describe('Admin invites', () => {
         await openInvitesSection(page);
 
         await page.fill('#new-invite-email', inviteeEmail);
-        await page.getByRole('button', { name: 'Queue Invite Email' }).click();
+        await submitInviteCreateForm(page);
 
         const row = inviteRow(page, inviteeEmail);
         await expect(row).toBeVisible();
@@ -70,7 +74,7 @@ test.describe('Admin invites', () => {
         await openInvitesSection(page);
 
         await page.fill('#new-invite-email', inviteeEmail);
-        await page.getByRole('button', { name: 'Queue Invite Email' }).click();
+        await submitInviteCreateForm(page);
 
         const row = inviteRow(page, inviteeEmail);
         await expect(row).toBeVisible();

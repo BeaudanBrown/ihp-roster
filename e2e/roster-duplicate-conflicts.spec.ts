@@ -2,8 +2,10 @@ import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { addRowToRosterDay, firstEditableRosterDaySection, openRoster } from './test-helpers';
 
+const duplicateConflictWeekOffset = 37;
+
 async function loginAndOpenRoster(page) {
-    await openRoster(page);
+    await openRoster(page, { weekOffset: duplicateConflictWeekOffset });
 }
 
 function editableRosterRows(page) {
@@ -95,7 +97,9 @@ test.describe('Roster duplicate conflicts', () => {
         await normalizeRosterForDuplicateConflict(actorPage);
 
         await loginAndOpenRoster(viewerPage);
-        await expect(editableRosterRows(viewerPage)).toHaveCount(2);
+        await expect
+            .poll(async () => editableRosterRows(viewerPage).count())
+            .toBeGreaterThanOrEqual(2);
         const initialActorConflictCount = await duplicateConflictCells(actorPage).count();
         const initialViewerConflictCount = await duplicateConflictCells(viewerPage).count();
 

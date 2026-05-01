@@ -5,17 +5,17 @@ import Web.View.Prelude
 import Web.View.StaffProfileForm
 
 data EditView = EditView
-    { staff                       :: Staff
-    , maybeLinkedUserEmail        :: Maybe Text
-    , rosterGroups                :: [RosterGroup]
-    , awardLevels                 :: [AwardLevel]
-    , awardLevelBaseRates         :: [AwardLevelBaseRate]
-    , selectedRosterGroupIds      :: [Id RosterGroup]
-    , preferenceWeekdays          :: [PreferenceWeekday]
-    , preferenceSections          :: [StaffPreferenceGroupSection]
-    , selectedShiftPreferences    :: [ShiftPreferenceSelection]
-    , weekOffset                  :: Int
-    , maybeRosterGroupId          :: Maybe (Id RosterGroup)
+    { staff                    :: Staff
+    , maybeLinkedUserEmail     :: Maybe Text
+    , rosterGroups             :: [RosterGroup]
+    , awardLevels              :: [AwardLevel]
+    , awardLevelBaseRates      :: [AwardLevelBaseRate]
+    , selectedRosterGroupIds   :: [Id RosterGroup]
+    , preferenceWeekdays       :: [PreferenceWeekday]
+    , preferenceSections       :: [StaffPreferenceGroupSection]
+    , selectedShiftPreferences :: [ShiftPreferenceSelection]
+    , weekOffset               :: Int
+    , maybeRosterGroupId       :: Maybe (Id RosterGroup)
     }
 
 instance View EditView where

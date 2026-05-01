@@ -27,7 +27,7 @@ import Web.View.Admin.Xero.Timesheets
 import Web.View.Prelude
 
 data XeroView = XeroView
-    { xeroSectionData :: XeroAdminSectionData
+    { xeroSectionData            :: XeroAdminSectionData
     , xeroAutoSyncAfterReconnect :: Bool
     }
 

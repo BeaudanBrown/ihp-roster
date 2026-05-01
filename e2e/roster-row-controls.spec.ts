@@ -5,8 +5,8 @@ import {
     firstEditableRosterDaySection,
     openRoster,
     removeRowFromRosterDay,
-    rosterDayAddButton,
-    rosterDayRemoveButton,
+    rosterDayAddButtonForSection,
+    rosterDayRemoveButtonForSection,
 } from './test-helpers';
 
 async function loginAndOpenRoster(page) {
@@ -30,11 +30,11 @@ test.describe('Roster row controls', () => {
             baselineRowCount += 1;
         }
 
-        await expect(rosterDayAddButton(daySection)).toBeVisible();
+        await expect(await rosterDayAddButtonForSection(daySection)).toBeVisible();
         await addRowToRosterDay(daySection);
         await expect(dayRows).toHaveCount(baselineRowCount + 1);
 
-        await expect(rosterDayRemoveButton(daySection)).toBeEnabled();
+        await expect(await rosterDayRemoveButtonForSection(daySection)).toBeEnabled();
         await removeRowFromRosterDay(daySection);
         await expect(dayRows).toHaveCount(baselineRowCount);
     });

@@ -84,7 +84,7 @@ instance Controller StaffController where
         let selectedShiftPreferences =
                 case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
                     Right selections -> selections
-                    Left _ -> []
+                    Left _           -> []
         staff
             |> buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId
             |> ifValid \case

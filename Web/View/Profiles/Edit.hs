@@ -47,15 +47,15 @@ profileDeleteLeaveRequestPath leaveRequestId =
     appendQueryParams (pathTo (DeleteLeaveRequestAction leaveRequestId)) profileLeaveQueryParams
 
 data EditView = EditView
-    { staff                       :: Staff
-    , currentUserEmail            :: Text
-    , preferenceWeekdays          :: [PreferenceWeekday]
-    , preferenceSections          :: [StaffPreferenceGroupSection]
-    , selectedShiftPreferences    :: [ShiftPreferenceSelection]
-    , passkeys                    :: [Passkey]
-    , leaveRequests               :: [LeaveRequest]
-    , leaveRequestForm            :: LeaveRequest
-    , openSection                 :: Text
+    { staff                    :: Staff
+    , currentUserEmail         :: Text
+    , preferenceWeekdays       :: [PreferenceWeekday]
+    , preferenceSections       :: [StaffPreferenceGroupSection]
+    , selectedShiftPreferences :: [ShiftPreferenceSelection]
+    , passkeys                 :: [Passkey]
+    , leaveRequests            :: [LeaveRequest]
+    , leaveRequestForm         :: LeaveRequest
+    , openSection              :: Text
     }
 
 instance View EditView where

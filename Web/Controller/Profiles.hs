@@ -83,7 +83,7 @@ instance Controller ProfilesController where
                             let selectedShiftPreferences =
                                     case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
                                         Right selections -> selections
-                                        Left _ -> []
+                                        Left _           -> []
                             leaveRequests <- fetchCurrentUserLeaveRequests
                             leaveRequestForm <- buildDefaultLeaveRequest
                             if isHtmxRequest
@@ -168,7 +168,7 @@ profilePreferenceViewDataWithSubmitted maybeStaff submittedShiftPreferenceKeys =
             let selectedShiftPreferences =
                     case parseShiftPreferenceSelections preferenceSections preferenceWeekdays submittedShiftPreferenceKeys of
                         Right selections -> selections
-                        Left _ -> []
+                        Left _           -> []
             pure (preferenceWeekdays, preferenceSections, selectedShiftPreferences)
 
 normalizeProfileOpenSection :: Text -> Text

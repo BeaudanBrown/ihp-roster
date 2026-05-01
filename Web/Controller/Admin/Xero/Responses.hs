@@ -21,8 +21,6 @@ module Web.Controller.Admin.Xero.Responses
     , xeroSuccessToast
     ) where
 
-import qualified Data.Aeson as Aeson
-import qualified Data.UUID as UUID
 import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayConfig (..),
@@ -33,6 +31,8 @@ import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel hiding
                                         (fetchCurrentVenueXeroAdminSectionData)
 import qualified Application.Xero.Admin.ReadModel as XeroReadModel
+import qualified Data.Aeson as Aeson
+import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.Admin.Xero

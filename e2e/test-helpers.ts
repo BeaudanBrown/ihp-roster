@@ -439,17 +439,60 @@ export function firstRosterDayRemoveButton(page: Page) {
 }
 
 async function submitRosterDayAction(button: Locator) {
-    await button.evaluate((element) => {
-        if (!(element instanceof HTMLElement)) {
-            throw new Error('Expected roster day action button to be an HTMLElement');
-        }
+    const formAction = await button.locator('xpath=ancestor::form[1]').getAttribute('action');
+    const responsePromise = formAction
+        ? button.page().waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().endsWith(formAction),
+        )
+        : Promise.resolve(null);
 
-        element.click();
-    });
+    await Promise.all([
+        responsePromise,
+        button.evaluate((element) => {
+            if (!(element instanceof HTMLElement)) {
+                throw new Error('Expected roster day action button to be an HTMLElement');
+            }
+
+            element.click();
+        }),
+    ]);
+}
+
+async function rosterDayIdForSection(section: Locator) {
+    const sectionId = await section.getAttribute('id');
+    const prefix = 'roster-day-section-';
+
+    if (!sectionId?.startsWith(prefix)) {
+        throw new Error(`Expected roster day section id to start with ${prefix}, got ${sectionId ?? 'null'}`);
+    }
+
+    return sectionId.slice(prefix.length);
+}
+
+async function rosterDayActionButton(scope: Page | Locator, action: 'add' | 'remove') {
+    const attribute = action === 'add' ? 'data-roster-day-add' : 'data-roster-day-remove';
+
+    if ('page' in scope) {
+        const rosterDayId = await rosterDayIdForSection(scope);
+        return scope
+            .page()
+            .locator(`form[action$="${rosterDayId}"] [${attribute}="true"]`)
+            .first();
+    }
+
+    return scope.locator(`[${attribute}="true"]`).first();
+}
+
+export async function rosterDayAddButtonForSection(section: Locator) {
+    return await rosterDayActionButton(section, 'add');
+}
+
+export async function rosterDayRemoveButtonForSection(section: Locator) {
+    return await rosterDayActionButton(section, 'remove');
 }
 
 export async function addRowToRosterDay(scope: Page | Locator) {
-    await submitRosterDayAction(rosterDayAddButton(scope));
+    await submitRosterDayAction(await rosterDayActionButton(scope, 'add'));
 }
 
 export async function addRowToFirstRosterDay(page: Page) {
@@ -457,7 +500,7 @@ export async function addRowToFirstRosterDay(page: Page) {
 }
 
 export async function removeRowFromRosterDay(scope: Page | Locator) {
-    await submitRosterDayAction(rosterDayRemoveButton(scope));
+    await submitRosterDayAction(await rosterDayActionButton(scope, 'remove'));
 }
 
 export async function removeRowFromFirstRosterDay(page: Page) {
