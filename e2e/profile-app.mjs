@@ -7,6 +7,7 @@ import { chromium } from 'playwright';
 const DEFAULT_BASE_URL = process.env.PROFILE_BASE_URL || process.env.E2E_BASE_URL || 'http://127.0.0.1:8000';
 const DEFAULT_OUTPUT_DIR = process.env.PROFILE_OUTPUT_DIR || 'output/profile/manual';
 const DEFAULT_MANIFEST = process.env.PROFILE_SEED_MANIFEST || 'build/profile-seed/latest/manifest.json';
+const DEFAULT_SCENARIO_CATALOG = process.env.PROFILE_SCENARIO_CATALOG || 'e2e/profile-scenarios.json';
 const DEFAULT_RUNS = Number(process.env.PROFILE_RUNS || '5');
 const DEFAULT_WARMUP_RUNS = Number(process.env.PROFILE_WARMUP_RUNS || '1');
 const DEFAULT_TIMEOUT_MS = Number(process.env.PROFILE_TIMEOUT_MS || '120000');
@@ -19,7 +20,9 @@ Options:
   --base-url <url>       Running app URL (default: ${DEFAULT_BASE_URL})
   --output-dir <path>    Artifact directory (default: ${DEFAULT_OUTPUT_DIR})
   --manifest <path>      Profile seed manifest (default: ${DEFAULT_MANIFEST})
-  --scenario <name>      full|roster|timesheets|leave|xero (default: full)
+  --scenario <name>      full|roster|timesheets|leave|xero|admin|profile|writes (default: full)
+  --scenario-catalog <path>
+                         Shared scenario catalog (default: ${DEFAULT_SCENARIO_CATALOG})
   --runs <n>             Measured iterations per scenario (default: ${DEFAULT_RUNS})
   --warmup-runs <n>      Warmup iterations per scenario (default: ${DEFAULT_WARMUP_RUNS})
   --email <email>        Override manifest login email
@@ -41,6 +44,7 @@ function parseArgs(argv) {
         baseUrl: DEFAULT_BASE_URL,
         outputDir: DEFAULT_OUTPUT_DIR,
         manifestPath: DEFAULT_MANIFEST,
+        scenarioCatalogPath: DEFAULT_SCENARIO_CATALOG,
         scenario: 'full',
         runs: DEFAULT_RUNS,
         warmupRuns: DEFAULT_WARMUP_RUNS,
@@ -63,6 +67,9 @@ function parseArgs(argv) {
                 break;
             case '--manifest':
                 options.manifestPath = nextValue();
+                break;
+            case '--scenario-catalog':
+                options.scenarioCatalogPath = nextValue();
                 break;
             case '--scenario':
                 options.scenario = nextValue();
@@ -93,7 +100,7 @@ function parseArgs(argv) {
     if (!options.baseUrl) throw new Error('--base-url is required');
     if (!options.outputDir) throw new Error('--output-dir is required');
     if (!options.manifestPath) throw new Error('--manifest is required');
-    if (!['full', 'roster', 'timesheets', 'leave', 'xero'].includes(options.scenario)) {
+    if (!['full', 'roster', 'timesheets', 'leave', 'xero', 'admin', 'profile', 'writes'].includes(options.scenario)) {
         throw new Error(`Unsupported --scenario: ${options.scenario}`);
     }
     if (!Number.isFinite(options.runs) || options.runs < 1) throw new Error('--runs must be a positive number');
@@ -106,6 +113,10 @@ function parseArgs(argv) {
 function readManifest(manifestPath) {
     const resolvedPath = path.resolve(manifestPath);
     return JSON.parse(fs.readFileSync(resolvedPath, 'utf8'));
+}
+
+function readScenarioCatalog(catalogPath) {
+    return JSON.parse(fs.readFileSync(path.resolve(catalogPath), 'utf8'));
 }
 
 function absoluteUrl(baseUrl, target) {
@@ -187,51 +198,32 @@ async function ensurePrivilegedPasskeyReady(page, options) {
     await finishRegistration;
 }
 
-function scenarioDefinitions(manifest) {
+function scenarioDefinitions(manifest, catalog) {
     const routes = manifest.routes || {};
-    return {
-        roster: [
-            visit('roster.current.full', routes.rosterCurrent, '#roster-week-shell'),
-            visit('roster.current.content_fragment', routes.rosterContentFragment, '#roster-content'),
-            visit('roster.current.staff_panel_fragment', routes.rosterStaffPanelFragment, '#roster-staff-panel-fragment'),
-            visit('roster.current.overview_fragment', routes.rosterOverviewFragment, '[data-week-overview-panel="true"]'),
-            visit('roster.historical.full', routes.rosterHistorical, '#roster-week-shell'),
-            visit('roster.future.full', routes.rosterFuture, '#roster-week-shell'),
-        ],
-        timesheets: [
-            visit('timesheets.current.full', routes.timesheetsCurrent || '/Timesheets', '#timesheet-week-shell'),
-            visit('timesheets.current.day_fragment', routes.timesheetDayFragment, '[id^="timesheet-day-section-"]'),
-        ],
-        leave: [
-            visit('leave.manager.full', routes.leaveRequests || '/LeaveRequests', '#leave-requests-shell'),
-            visit('leave.profile.full', routes.profileLeave || '/EditProfile?section=leave', '#profile-content-fragment'),
-        ],
-        xero: [
-            visit('xero.full', routes.xero || '/Xero', '#admin-xero-fragment'),
-            visit('xero.admin.fragment', routes.adminXeroFragment || '/ShowAdminXeroFragment', '#admin-xero-fragment'),
-            xeroAutosave('xero.staff_mapping.autosave'),
-            xeroAutosave('xero.staff_mapping.autosave_bottom'),
-        ],
-    };
+    return Object.fromEntries(Object.entries(catalog.browserScenarios || {}).map(([scenarioName, entries]) => [
+        scenarioName,
+        entries.map((entry) => {
+            if (entry.kind === 'xeroAutosave') return { kind: 'xeroAutosave', name: entry.name };
+            if (entry.kind === 'exportGeneration') return { kind: 'exportGeneration', name: entry.name };
+            return {
+                kind: 'visit',
+                name: entry.name,
+                target: routes[entry.routeKey] || entry.fallbackPath,
+                readySelector: entry.readySelector,
+            };
+        }),
+    ]));
 }
 
-function visit(name, target, readySelector) {
-    return { kind: 'visit', name, target, readySelector };
-}
-
-function xeroAutosave(name) {
-    return { kind: 'xeroAutosave', name };
-}
-
-function selectedScenarios(options, manifest) {
-    const definitions = scenarioDefinitions(manifest);
-    const names = options.scenario === 'full' ? ['roster', 'timesheets', 'leave'] : [options.scenario];
+function selectedScenarios(options, manifest, catalog) {
+    const definitions = scenarioDefinitions(manifest, catalog);
+    const names = options.scenario === 'full' ? ['roster', 'timesheets', 'leave', 'profile'] : [options.scenario];
     return names.flatMap((name) => definitions[name]);
 }
 
 function accountForScenario(options, manifest) {
     if (options.email || options.password) return manifest.accounts?.primaryManager;
-    if (options.scenario === 'xero') return manifest.accounts?.venueAdmin;
+    if (['xero', 'admin', 'writes'].includes(options.scenario)) return manifest.accounts?.venueAdmin;
     return manifest.accounts?.primaryManager;
 }
 
@@ -438,6 +430,36 @@ async function runXeroAutosaveScenario(page, options, manifest, scenario, record
     }
 }
 
+async function runExportGenerationScenario(page, options, manifest, scenario, records, iteration, warmup) {
+    const routes = manifest.routes || {};
+    const range = manifest.exports || {};
+    await gotoReady(page, options.baseUrl, routes.adminExports || routes.admin || '/Admin#exports', '#exports', options.timeoutMs);
+    await page.locator('#admin-export-range-start').fill(range.rangeStart || '');
+    await page.locator('#admin-export-range-end').fill(range.rangeEnd || '');
+
+    const startedAt = performance.now();
+    const exportResponse = await Promise.all([
+        page.waitForResponse((response) =>
+            response.request().method() === 'POST'
+            && new URL(response.url()).pathname.includes('CreateExportJob')
+        ),
+        page.locator('#admin-export-generation-form button[name="exportType"]').first().click(),
+    ]).then(([response]) => response);
+    const wallMs = performance.now() - startedAt;
+    const serverTimingHeader = exportResponse.headers()['server-timing'];
+
+    records.push({
+        scenario: scenario.name,
+        iteration,
+        warmup,
+        url: absoluteUrl(options.baseUrl, '/CreateExportJob'),
+        method: 'POST',
+        status: exportResponse.status(),
+        serverTiming: serverTimingHeader ? parseServerTiming(serverTimingHeader) : [],
+        wallMs: round(wallMs),
+    });
+}
+
 async function submitXeroMappingSelection(page, select, value) {
     const saveResponsePromise = page.waitForResponse((response) =>
         response.request().method() === 'POST'
@@ -457,7 +479,8 @@ async function main() {
         options.baseUrl = options.baseUrl.replace('127.0.0.1', 'localhost');
     }
     const manifest = readManifest(options.manifestPath);
-    const scenarios = selectedScenarios(options, manifest);
+    const scenarioCatalog = readScenarioCatalog(options.scenarioCatalogPath);
+    const scenarios = selectedScenarios(options, manifest, scenarioCatalog);
     const account = accountForScenario(options, manifest);
     if (!account) throw new Error(`Profile seed manifest is missing a login account for scenario: ${options.scenario}`);
 
@@ -493,7 +516,7 @@ async function main() {
 
     try {
         await login(page, options, account);
-        if (options.scenario === 'xero') {
+        if (['xero', 'admin', 'writes'].includes(options.scenario)) {
             await ensurePrivilegedPasskeyReady(page, options);
         }
         for (const scenario of scenarios) {
@@ -505,6 +528,8 @@ async function main() {
                 activeWarmup = index < options.warmupRuns;
                 if (scenario.kind === 'xeroAutosave') {
                     await runXeroAutosaveScenario(page, options, manifest, scenario, records, activeIteration, activeWarmup);
+                } else if (scenario.kind === 'exportGeneration') {
+                    await runExportGenerationScenario(page, options, manifest, scenario, records, activeIteration, activeWarmup);
                 } else {
                     const wallMs = await gotoReady(page, options.baseUrl, scenario.target, scenario.readySelector, options.timeoutMs);
                     const lastRecord = [...records].reverse().find((record) =>

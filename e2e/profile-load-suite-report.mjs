@@ -35,6 +35,9 @@ function renderMarkdown(suiteDir, profiles) {
     const seed = profiles[0]?.metadata?.seed || {};
     const totalRequests = profiles.reduce((sum, item) => sum + (item.summary.requestCount || 0), 0);
     const totalFailures = profiles.reduce((sum, item) => sum + (item.summary.failedCount || 0), 0);
+    const totalDroppedIterations = profiles.reduce((sum, item) => sum + (item.summary.droppedIterations || 0), 0);
+    const totalFailedChecks = profiles.reduce((sum, item) => sum + (item.summary.failedChecks || 0), 0);
+    const totalChecks = profiles.reduce((sum, item) => sum + (item.summary.checkCount || 0), 0);
     const slowestHttp = profiles.flatMap((item) =>
         (item.summary.http || []).map((row) => ({ scenario: item.scenario, ...row }))
     ).sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0));
@@ -63,9 +66,11 @@ function renderMarkdown(suiteDir, profiles) {
         '',
         `Total requests: ${totalRequests}`,
         `Failed 5xx/transport-ish requests: ${totalFailures}`,
+        `Dropped iterations: ${totalDroppedIterations}`,
+        `Failed checks: ${totalFailedChecks}/${totalChecks}`,
         '',
-        '| Scenario | Rate | Duration | Requests | Req/sec | Failures | Slowest HTTP P95 | Slowest App P95 | Slowest Span P95 |',
-        '| --- | ---: | --- | ---: | ---: | ---: | --- | --- | --- |',
+        '| Scenario | Rate | Duration | Requests | Req/sec | Failures | Dropped | VU Sat. | Slowest HTTP P95 | Slowest App P95 | Slowest Span P95 |',
+        '| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |',
         ...profiles.map((item) => {
             const http = topItem(item.summary.http, 'p95Ms');
             const app = topItem(item.summary.appTotals, 'p95Ms');
@@ -77,6 +82,8 @@ function renderMarkdown(suiteDir, profiles) {
                 item.summary.requestCount || 0,
                 item.summary.requestsPerSecond || 0,
                 item.summary.failedCount || 0,
+                item.summary.droppedIterations || 0,
+                `${round((item.summary.vuSaturation || 0) * 100)}%`,
                 http ? `\`${http.route}\` ${http.p95Ms}ms` : '',
                 app ? `\`${app.route}\` ${app.p95Ms}ms` : '',
                 span ? `\`${span.span}\` ${span.p95Ms}ms` : '',

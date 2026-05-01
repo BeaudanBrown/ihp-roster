@@ -974,7 +974,7 @@ EOF
                         '';
 
                         # Run deterministic k6 request-volume profiling against an isolated profile DB/server.
-                        # Usage: profile-load [--seed|--reuse-db] [--db=app_profile_load_name] [--scenario=roster-hot|roster-wide|fragments|mixed-app] [--rate=N] [--duration=30s] [--vus=N]
+                        # Usage: profile-load [--seed|--reuse-db] [--db=app_profile_load_name] [--scenario=roster-hot|roster-wide|fragments|mixed-app|admin|profile] [--rate=N] [--duration=30s] [--vus=N]
                         profile-load.exec = ''
                             set -euo pipefail
 
@@ -1003,7 +1003,7 @@ Options:
   --db=app_profile_*             Profile database name
   --output-dir=path              Artifact directory
   --seed-arg=arg                 Forward an option to seed-profile
-  --scenario=name                roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|mixed-app
+  --scenario=name                roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app
   --rate=N                       Target iterations per second (default: 10)
   --duration=30s                 k6 scenario duration (default: 30s)
   --vus=N                        Preallocated k6 virtual users (default: 10)
@@ -1084,11 +1084,11 @@ EOF
                             esac
 
                             case "$PROFILE_LOAD_SCENARIO" in
-                                roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|mixed-app)
+                                roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app)
                                     ;;
                                 *)
                                     echo "Unsupported load profiling scenario: $PROFILE_LOAD_SCENARIO" >&2
-                                    echo "Use roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, or mixed-app." >&2
+                                    echo "Use roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, or mixed-app." >&2
                                     exit 1
                                     ;;
                             esac
@@ -1269,7 +1269,7 @@ Options:
   --max-vus=N                    Override all scenario maximum VUs
 
 Default scenarios:
-  roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, mixed-app
+  roster-hot, roster-wide, roster-overview, roster-projections, fragments, timesheets, leave, admin, profile, mixed-app
 EOF
                                         exit 0
                                         ;;
@@ -1338,7 +1338,7 @@ EOF
 
                             supported_scenario() {
                                 case "$1" in
-                                    roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|mixed-app)
+                                    roster-hot|roster-wide|roster-overview|roster-projections|fragments|timesheets|leave|admin|profile|mixed-app)
                                         return 0
                                         ;;
                                     *)
@@ -1371,6 +1371,8 @@ EOF
                                     fragments
                                     timesheets
                                     leave
+                                    admin
+                                    profile
                                     mixed-app
                                 )
                             fi

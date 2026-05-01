@@ -195,8 +195,11 @@ renderProfileSeedManifest plan =
         , "    \"timesheetsCurrent\": " <> jsonString (timesheetWeekPath plan.currentWeekOffset) <> ","
         , "    \"timesheetDayFragment\": " <> jsonString (timesheetDayFragmentPath plan.currentWeekOffset 0) <> ","
         , "    \"leaveRequests\": \"/LeaveRequests\","
+        , "    \"editProfile\": \"/EditProfile\","
+        , "    \"profileSecurity\": \"/EditProfile?section=security\","
         , "    \"profileLeave\": \"/EditProfile?section=leave\","
         , "    \"admin\": \"/Admin\","
+        , "    \"adminExports\": \"/Admin#exports\","
         , "    \"xero\": \"/Xero\","
         , "    \"adminXeroFragment\": \"/ShowAdminXeroFragment\""
         , "  },"
@@ -206,10 +209,16 @@ renderProfileSeedManifest plan =
         , "    \"targetStaffLabel\": " <> jsonString ("Xero employee for " <> staffDisplayName 1 (xeroProfileTargetStaffIndex plan.options)) <> ","
         , "    \"targetEmployeeId\": " <> jsonString (xeroEmployeeRemoteId (xeroProfileTargetStaffIndex plan.options)) <> ","
         , "    \"targetEmployeeLabel\": " <> jsonString (xeroEmployeeDisplayName (xeroProfileTargetStaffIndex plan.options) <> " - " <> xeroEmployeeEmail (xeroProfileTargetStaffIndex plan.options))
+        , "  },"
+        , "  \"exports\": {"
+        , "    \"rangeStart\": " <> jsonString (dateText currentWeekStart) <> ","
+        , "    \"rangeEnd\": " <> jsonString (dateText currentWeekEnd)
         , "  }"
         , "}"
         ]
     where
+        currentWeekStart = weekStartForOffset plan.currentWeekOffset
+        currentWeekEnd = addDays 6 currentWeekStart
         historicalWeekOffset =
             plan.currentWeekOffset - min 52 (max 0 (plan.options.weeksHistory - 1))
         futureWeekOffset =
@@ -533,7 +542,7 @@ leaveRequestRows plan =
         , venueId venueIndex
         , staffId venueIndex staffIndex
         , dateText startDate
-        , dateText (addDays (toInteger (leaveIndex `mod` 3)) startDate)
+        , dateText (addDays (toInteger (1 + leaveIndex `mod` 3)) startDate)
         , leaveStatus leaveIndex
         , "Synthetic profiling leave"
         ]

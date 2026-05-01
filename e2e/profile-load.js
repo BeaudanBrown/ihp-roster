@@ -5,6 +5,7 @@ import exec from 'k6/execution';
 
 const baseUrl = (__ENV.PROFILE_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 const manifest = JSON.parse(open(__ENV.PROFILE_MANIFEST || '../build/profile-seed/latest/manifest.json'));
+const scenarioCatalog = JSON.parse(open(__ENV.PROFILE_SCENARIO_CATALOG || './profile-scenarios.json'));
 const scenarioName = __ENV.PROFILE_LOAD_SCENARIO || 'roster-hot';
 const duration = __ENV.PROFILE_LOAD_DURATION || '30s';
 const rate = Number(__ENV.PROFILE_LOAD_RATE || '10');
@@ -107,64 +108,28 @@ function selectRoute() {
 
 function scenarioRoutes(name) {
     const routes = manifest.routes || {};
-    const rosterHot = [
-        route('roster.current.full', routes.rosterCurrent),
-        route('roster.current.content_fragment', routes.rosterContentFragment),
-        route('roster.current.overview_fragment', routes.rosterOverviewFragment),
-    ];
-    const rosterWide = [
-        route('roster.current.full', routes.rosterCurrent),
-        route('roster.historical.full', routes.rosterHistorical),
-        route('roster.future.full', routes.rosterFuture),
-        route('roster.current.content_fragment', routes.rosterContentFragment),
-        route('roster.current.staff_panel_fragment', routes.rosterStaffPanelFragment),
-        route('roster.current.overview_fragment', routes.rosterOverviewFragment),
-    ];
-    const rosterOverview = [
-        route('roster.current.overview_fragment', routes.rosterOverviewFragment),
-        route('roster.current.overview_fragment', routes.rosterOverviewFragment),
-        route('roster.historical.full', routes.rosterHistorical),
-        route('roster.future.full', routes.rosterFuture),
-    ];
-    const rosterProjections = [
-        route('roster.current.full', routes.rosterCurrent),
-        route('roster.current.content_fragment', routes.rosterContentFragment),
-        route('roster.current.staff_panel_fragment', routes.rosterStaffPanelFragment),
-    ];
-    const fragments = [
-        route('roster.current.content_fragment', routes.rosterContentFragment),
-        route('roster.current.staff_panel_fragment', routes.rosterStaffPanelFragment),
-        route('roster.current.overview_fragment', routes.rosterOverviewFragment),
-        route('timesheets.current.day_fragment', routes.timesheetDayFragment),
-    ];
-    const timesheets = [
-        route('timesheets.current.full', routes.timesheetsCurrent || '/Timesheets'),
-        route('timesheets.current.day_fragment', routes.timesheetDayFragment),
-    ];
-    const leave = [
-        route('leave.manager.full', routes.leaveRequests || '/LeaveRequests'),
-        route('leave.profile.full', routes.profileLeave || '/EditProfile?section=leave'),
-    ];
-    const mixedApp = [
-        ...rosterWide,
-        ...timesheets,
-        ...leave,
-    ];
-
-    const scenarios = {
-        'roster-hot': rosterHot,
-        'roster-wide': rosterWide,
-        'roster-overview': rosterOverview,
-        'roster-projections': rosterProjections,
-        fragments,
-        timesheets,
-        leave,
-        'mixed-app': mixedApp,
-    };
-
-    const selected = scenarios[name];
+    const selected = expandScenario(name, new Set());
     if (!selected) fail(`Unsupported PROFILE_LOAD_SCENARIO: ${name}`);
-    return selected.filter((item) => item.path);
+    return selected.map((item) => route(item.name, routes[item.routeKey] || item.fallbackPath)).filter((item) => item.path);
+}
+
+function expandScenario(name, seen) {
+    if (seen.has(name)) fail(`Recursive PROFILE_LOAD_SCENARIO include: ${name}`);
+    const entries = scenarioCatalog.loadScenarios?.[name];
+    if (!entries) return null;
+    seen.add(name);
+    const expanded = [];
+    for (const entry of entries) {
+        if (entry.include) {
+            const included = expandScenario(entry.include, seen);
+            if (!included) fail(`Unsupported PROFILE_LOAD_SCENARIO include: ${entry.include}`);
+            expanded.push(...included);
+        } else {
+            expanded.push(entry);
+        }
+    }
+    seen.delete(name);
+    return expanded;
 }
 
 function route(name, path) {

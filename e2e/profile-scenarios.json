@@ -1,0 +1,92 @@
+{
+  "browserScenarios": {
+    "roster": [
+      { "kind": "visit", "name": "roster.current.full", "routeKey": "rosterCurrent", "readySelector": "#roster-week-shell" },
+      { "kind": "visit", "name": "roster.current.content_fragment", "routeKey": "rosterContentFragment", "readySelector": "#roster-content" },
+      { "kind": "visit", "name": "roster.current.staff_panel_fragment", "routeKey": "rosterStaffPanelFragment", "readySelector": "#roster-staff-panel-fragment" },
+      { "kind": "visit", "name": "roster.current.overview_fragment", "routeKey": "rosterOverviewFragment", "readySelector": "[data-week-overview-panel=\"true\"]" },
+      { "kind": "visit", "name": "roster.historical.full", "routeKey": "rosterHistorical", "readySelector": "#roster-week-shell" },
+      { "kind": "visit", "name": "roster.future.full", "routeKey": "rosterFuture", "readySelector": "#roster-week-shell" }
+    ],
+    "timesheets": [
+      { "kind": "visit", "name": "timesheets.current.full", "routeKey": "timesheetsCurrent", "fallbackPath": "/Timesheets", "readySelector": "#timesheet-week-shell" },
+      { "kind": "visit", "name": "timesheets.current.day_fragment", "routeKey": "timesheetDayFragment", "readySelector": "[id^=\"timesheet-day-section-\"]" }
+    ],
+    "leave": [
+      { "kind": "visit", "name": "leave.manager.full", "routeKey": "leaveRequests", "fallbackPath": "/LeaveRequests", "readySelector": "#leave-requests-shell" },
+      { "kind": "visit", "name": "leave.profile.full", "routeKey": "profileLeave", "fallbackPath": "/EditProfile?section=leave", "readySelector": "#profile-content-fragment" }
+    ],
+    "xero": [
+      { "kind": "visit", "name": "xero.full", "routeKey": "xero", "fallbackPath": "/Xero", "readySelector": "#admin-xero-fragment" },
+      { "kind": "visit", "name": "xero.admin.fragment", "routeKey": "adminXeroFragment", "fallbackPath": "/ShowAdminXeroFragment", "readySelector": "#admin-xero-fragment" },
+      { "kind": "xeroAutosave", "name": "xero.staff_mapping.autosave" },
+      { "kind": "xeroAutosave", "name": "xero.staff_mapping.autosave_bottom" }
+    ],
+    "admin": [
+      { "kind": "visit", "name": "admin.full", "routeKey": "admin", "fallbackPath": "/Admin", "readySelector": "#admin-config-sections" },
+      { "kind": "visit", "name": "admin.exports.section", "routeKey": "adminExports", "fallbackPath": "/Admin#exports", "readySelector": "#exports" }
+    ],
+    "profile": [
+      { "kind": "visit", "name": "profile.full", "routeKey": "editProfile", "fallbackPath": "/EditProfile", "readySelector": "#profile-content-fragment" },
+      { "kind": "visit", "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security", "readySelector": "#profile-content-fragment" }
+    ],
+    "writes": [
+      { "kind": "exportGeneration", "name": "exports.generate.approved_timesheets" }
+    ]
+  },
+  "loadScenarios": {
+    "roster-hot": [
+      { "name": "roster.current.full", "routeKey": "rosterCurrent" },
+      { "name": "roster.current.content_fragment", "routeKey": "rosterContentFragment" },
+      { "name": "roster.current.overview_fragment", "routeKey": "rosterOverviewFragment" }
+    ],
+    "roster-wide": [
+      { "name": "roster.current.full", "routeKey": "rosterCurrent" },
+      { "name": "roster.historical.full", "routeKey": "rosterHistorical" },
+      { "name": "roster.future.full", "routeKey": "rosterFuture" },
+      { "name": "roster.current.content_fragment", "routeKey": "rosterContentFragment" },
+      { "name": "roster.current.staff_panel_fragment", "routeKey": "rosterStaffPanelFragment" },
+      { "name": "roster.current.overview_fragment", "routeKey": "rosterOverviewFragment" }
+    ],
+    "roster-overview": [
+      { "name": "roster.current.overview_fragment", "routeKey": "rosterOverviewFragment" },
+      { "name": "roster.current.overview_fragment", "routeKey": "rosterOverviewFragment" },
+      { "name": "roster.historical.full", "routeKey": "rosterHistorical" },
+      { "name": "roster.future.full", "routeKey": "rosterFuture" }
+    ],
+    "roster-projections": [
+      { "name": "roster.current.full", "routeKey": "rosterCurrent" },
+      { "name": "roster.current.content_fragment", "routeKey": "rosterContentFragment" },
+      { "name": "roster.current.staff_panel_fragment", "routeKey": "rosterStaffPanelFragment" }
+    ],
+    "fragments": [
+      { "name": "roster.current.content_fragment", "routeKey": "rosterContentFragment" },
+      { "name": "roster.current.staff_panel_fragment", "routeKey": "rosterStaffPanelFragment" },
+      { "name": "roster.current.overview_fragment", "routeKey": "rosterOverviewFragment" },
+      { "name": "timesheets.current.day_fragment", "routeKey": "timesheetDayFragment" }
+    ],
+    "timesheets": [
+      { "name": "timesheets.current.full", "routeKey": "timesheetsCurrent", "fallbackPath": "/Timesheets" },
+      { "name": "timesheets.current.day_fragment", "routeKey": "timesheetDayFragment" }
+    ],
+    "leave": [
+      { "name": "leave.manager.full", "routeKey": "leaveRequests", "fallbackPath": "/LeaveRequests" },
+      { "name": "leave.profile.full", "routeKey": "profileLeave", "fallbackPath": "/EditProfile?section=leave" }
+    ],
+    "admin": [
+      { "name": "admin.full", "routeKey": "admin", "fallbackPath": "/Admin" },
+      { "name": "admin.exports.section", "routeKey": "adminExports", "fallbackPath": "/Admin#exports" }
+    ],
+    "profile": [
+      { "name": "profile.full", "routeKey": "editProfile", "fallbackPath": "/EditProfile" },
+      { "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security" }
+    ],
+    "mixed-app": [
+      { "include": "roster-wide" },
+      { "include": "timesheets" },
+      { "include": "leave" },
+      { "include": "admin" },
+      { "include": "profile" }
+    ]
+  }
+}

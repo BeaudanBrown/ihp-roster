@@ -48,6 +48,12 @@ function parseMetrics(filePath) {
     const spanGroups = new Map();
     let requestCount = 0;
     let failedCount = 0;
+    let droppedIterations = 0;
+    let completedIterations = 0;
+    let checkCount = 0;
+    let failedChecks = 0;
+    let maxObservedVus = 0;
+    let maxObservedVusLimit = 0;
     let firstTime = null;
     let lastTime = null;
 
@@ -100,6 +106,17 @@ function parseMetrics(filePath) {
                 samples: [],
             }));
             group.samples.push(value);
+        } else if (event.metric === 'dropped_iterations') {
+            droppedIterations += value;
+        } else if (event.metric === 'iterations') {
+            completedIterations += value;
+        } else if (event.metric === 'checks') {
+            checkCount += 1;
+            if (value === 0) failedChecks += 1;
+        } else if (event.metric === 'vus') {
+            maxObservedVus = Math.max(maxObservedVus, value);
+        } else if (event.metric === 'vus_max') {
+            maxObservedVusLimit = Math.max(maxObservedVusLimit, value);
         }
     }
 
@@ -131,6 +148,14 @@ function parseMetrics(filePath) {
         requestCount,
         failedCount,
         failureRate: requestCount === 0 ? 0 : failedCount / requestCount,
+        droppedIterations,
+        completedIterations,
+        checkCount,
+        failedChecks,
+        checkFailureRate: checkCount === 0 ? 0 : failedChecks / checkCount,
+        maxObservedVus,
+        maxObservedVusLimit,
+        vuSaturation: maxObservedVusLimit === 0 ? 0 : round(maxObservedVus / maxObservedVusLimit),
         elapsedSeconds: round(elapsedSeconds),
         requestsPerSecond: elapsedSeconds === 0 ? 0 : round(requestCount / elapsedSeconds),
         http,
@@ -161,6 +186,10 @@ function renderMarkdown(summary, metadata) {
         '',
         `Requests: ${summary.requestCount}`,
         `Failed 5xx/transport-ish requests: ${summary.failedCount} (${round(summary.failureRate * 100)}%)`,
+        `Completed iterations: ${summary.completedIterations}`,
+        `Dropped iterations: ${summary.droppedIterations}`,
+        `Failed checks: ${summary.failedChecks}/${summary.checkCount} (${round(summary.checkFailureRate * 100)}%)`,
+        `Max observed VUs: ${summary.maxObservedVus}/${summary.maxObservedVusLimit || '?'} (${round(summary.vuSaturation * 100)}%)`,
         `Observed throughput: ${summary.requestsPerSecond} req/sec over ${summary.elapsedSeconds}s`,
         '',
         '## Slowest HTTP Routes',
