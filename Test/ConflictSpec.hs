@@ -75,9 +75,8 @@ tests = describe "Conflict Engine" do
             { id = def
             , venueId = def
             , staffId = "00000000-0000-0000-0000-0000000000aa"
-            , rosterGroupId = "00000000-0000-0000-0000-0000000000ff"
             , weekdayIndex = 1
-            , preferredStartHour = 0
+            , preferredStartHour = 5
             , preferredEndHour = 23
             , deletedAt = Nothing
             , deletedByUserId = Nothing
@@ -91,9 +90,8 @@ tests = describe "Conflict Engine" do
             { id = def
             , venueId = def
             , staffId = staffUuid
-            , rosterGroupId = "00000000-0000-0000-0000-0000000000ff"
             , weekdayIndex = weekdayIndex
-            , preferredStartHour = 0
+            , preferredStartHour = 5
             , preferredEndHour = 23
             , deletedAt = Nothing
             , deletedByUserId = Nothing
@@ -139,7 +137,7 @@ tests = describe "Conflict Engine" do
         length conflicts `shouldBe` 1
         map conflictType conflicts `shouldBe` [IdealShiftThresholdExceeded]
 
-    it "warns when no preferred shifts exist for the day in the roster group" do
+    it "warns when no preferred shifts exist for the day" do
         let assignedSlot =
                 (mockSlot :: RosterSlot)
                     { staffId = Just "00000000-0000-0000-0000-0000000000aa"

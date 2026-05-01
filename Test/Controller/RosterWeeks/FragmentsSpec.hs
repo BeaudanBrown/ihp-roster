@@ -141,7 +141,6 @@ tests = beforeAll testContext do
                     newRecord @StaffShiftPreference
                         |> set #venueId (unpackId venue.id)
                         |> set #staffId (unpackId unavailableStaff.id)
-                        |> set #rosterGroupId slotName.rosterGroupId
                         |> set #weekdayIndex 2
                         |> set #preferredStartHour 9
                         |> set #preferredEndHour 17
@@ -158,14 +157,13 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "selected=\"selected\">Selected</option>"
                 response `responseBodyShouldNotContain` ">Unavailable</option>"
 
-        it "does not count shift preferences from another roster group as availability" $ withContext do
+        it "counts global shift preferences across roster groups" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-cross-group-preference@example.com" "staff" True
                 staffUser <- createUserRecord "roster-cross-group-preference@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 _ <- createVenueMembershipRecord venue staffUser "worker"
-                defaultSlotName <- fetchSlotNameRecord venue "Early"
                 frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
                 frontSlotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
                 staffMember <- createStaffRecord venue (Just staffUser) "CrossGroup" "Preference"
@@ -174,7 +172,6 @@ tests = beforeAll testContext do
                     newRecord @StaffShiftPreference
                         |> set #venueId (unpackId venue.id)
                         |> set #staffId (unpackId staffMember.id)
-                        |> set #rosterGroupId defaultSlotName.rosterGroupId
                         |> set #weekdayIndex 1
                         |> set #preferredStartHour 9
                         |> set #preferredEndHour 17
@@ -188,7 +185,7 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekRowFragmentAction 0 mondayRosterDay.id 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldNotContain` ">CrossGroup Preference</option>"
+                response `responseBodyShouldContain` ">CrossGroup Preference</option>"
 
         it "only hides staff for approved leave overlapping the roster week" $ withContext do
             withCleanDb do

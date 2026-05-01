@@ -177,10 +177,8 @@ tests = beforeAll testContext do
                 user <- createUserRecord "profile-preferences@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
-                rosterGroup <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
-                _ <- createStaffRosterGroupRecord staff rosterGroup
                 let preferenceKey =
-                        encodeShiftPreferenceKey rosterGroup.id 1
+                        encodeShiftPreferenceKey 1
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams UpdateProfileAction
@@ -199,7 +197,6 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status302
 
                 preferences <- query @StaffShiftPreference |> filterWhere (#staffId, unpackId staff.id) |> fetch
-                map (.rosterGroupId) preferences `shouldBe` [unpackId rosterGroup.id]
                 map (.weekdayIndex) preferences `shouldBe` [1]
                 map (.preferredStartHour) preferences `shouldBe` [12]
                 map (.preferredEndHour) preferences `shouldBe` [20]

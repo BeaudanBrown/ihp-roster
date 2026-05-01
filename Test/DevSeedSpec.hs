@@ -446,26 +446,22 @@ tests = beforeAll testContext do
                         |> fetch
                 let assignedSlotsWithStaff = filter (isJust . (.staffId)) assignedSlots
 
-                let rosterGroupByWeekId = Map.fromList (map (\week -> (unpackId week.id, week.rosterGroupId)) rosterWeeks)
                 let rosterDayContextById =
                         Map.fromList
-                            (mapMaybe
-                                (\rosterDay -> do
-                                    rosterGroupId <- Map.lookup rosterDay.rosterWeekId rosterGroupByWeekId
-                                    pure (unpackId rosterDay.id, (rosterDay.dayOffset, rosterGroupId))
-                                )
+                            (map
+                                (\rosterDay -> (unpackId rosterDay.id, rosterDay.dayOffset))
                                 rosterDays
                             )
                 let preferenceKeys =
                         map
-                            (\preference -> (preference.staffId, preference.rosterGroupId, preference.weekdayIndex))
+                            (\preference -> (preference.staffId, preference.weekdayIndex))
                             shiftPreferences
                 let assignedPreferenceKeys =
                         mapMaybe
                             (\slot -> do
                                 staffId <- slot.staffId
-                                (dayOffset, rosterGroupId) <- Map.lookup slot.rosterDayId rosterDayContextById
-                                pure (staffId, rosterGroupId, weekdayIndexForDayOffset dayOffset)
+                                dayOffset <- Map.lookup slot.rosterDayId rosterDayContextById
+                                pure (staffId, weekdayIndexForDayOffset dayOffset)
                             )
                             assignedSlotsWithStaff
                 let matchedAssignedCount = length (filter (`elem` preferenceKeys) assignedPreferenceKeys)

@@ -100,7 +100,7 @@ tests = beforeAll testContext do
                     |> fetch
                 sort (map (.rosterGroupId) assignments) `shouldBe` sort [unpackId frontOfHouse.id, unpackId backOfHouse.id]
 
-        it "rejects malformed roster group and shift preference ids without throwing" $ withContext do
+        it "rejects malformed roster group ids and shift preference keys without throwing" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "staff-malformed-manager@example.com" "staff" True
