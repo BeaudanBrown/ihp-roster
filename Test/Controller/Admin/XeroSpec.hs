@@ -313,9 +313,14 @@ tests = beforeAll testContext do
                     callAction XeroAction
                 pageResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
                 pageResponse `responseBodyShouldContain` "admin_xero"
+                pageResponse `responseBodyShouldContain` "admin_xero_timesheets"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-indicator=\"#xero-reference-sync-indicator\""
                 pageResponse `responseBodyShouldContain` "id=\"xero-reference-sync-indicator\""
+                pageResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
+                pageResponse `responseBodyShouldContain` "id=\"xero-timesheet-submission-indicator\""
+                pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
+                pageResponse `responseBodyShouldContain` "hx-indicator=\"#xero-timesheet-submission-indicator\""
                 pageResponse `responseBodyShouldNotContain` "Tenant ID"
                 pageResponse `responseBodyShouldNotContain` "Connected</dt>"
                 pageResponse `responseBodyShouldNotContain` "Last sync:"
@@ -985,6 +990,10 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Draft timesheets"
                 response `responseBodyShouldContain` "Preview draft timesheets"
                 response `responseBodyShouldContain` "Submit drafts to Xero"
+                response `responseBodyShouldContain` "id=\"xero-timesheets-data\""
+                response `responseBodyShouldContain` "id=\"xero-timesheet-submission-indicator\""
+                response `responseBodyShouldContain` "hx-swap=\"none\""
+                response `responseBodyShouldContain` "hx-indicator=\"#xero-timesheet-submission-indicator\""
                 response `responseBodyShouldContain` "Selected Xero payroll period"
 
         it "blocks non-owner venue roles from Xero draft-timesheet page and actions" $ withContext do
@@ -1021,14 +1030,22 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Prepared Xero draft-timesheet preview."
-                response `responseBodyShouldContain` "employee-a"
-                response `responseBodyShouldContain` "employee-b"
-                response `responseBodyShouldNotContain` "Historical runs"
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_timesheets")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowAdminXeroTimesheetsFragment")
                 run <- query @XeroSubmissionRun |> fetchOne
                 run.status `shouldBe` "previewed"
                 run.previewPayloadJson `shouldSatisfy` Preview.jsonContainsKey "timesheets"
                 run.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"
                 run.xeroDuplicateCheckJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
+                fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroTimesheetsFragmentAction
+                fragmentResponse `responseStatusShouldBe` status200
+                fragmentResponse `responseBodyShouldContain` "employee-a"
+                fragmentResponse `responseBodyShouldContain` "employee-b"
+                fragmentResponse `responseBodyShouldNotContain` "Historical runs"
 
         it "submits Xero draft timesheets through the existing service and renders latest submission status" $ withContext do
             withCleanDb do
@@ -1048,12 +1065,21 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Submitted Xero draft timesheets."
-                response `responseBodyShouldContain` "Submission status"
-                response `responseBodyShouldContain` "submitted"
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_timesheets")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "/ShowAdminXeroTimesheetsFragment")
                 run <- query @XeroSubmissionRun |> fetchOne
                 run.status `shouldBe` "submitted"
                 submission <- query @XeroTimesheetSubmission |> fetchOne
                 submission.status `shouldBe` "submitted"
+                fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroTimesheetsFragmentAction
+                fragmentResponse `responseStatusShouldBe` status200
+                fragmentResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
+                fragmentResponse `responseBodyShouldContain` "Submission status"
+                fragmentResponse `responseBodyShouldContain` "submitted"
 
         it "renders readiness issues before Xero draft-timesheet submission" $ withContext do
             withCleanDb do
@@ -1098,10 +1124,19 @@ tests = beforeAll testContext do
                                 callAction SubmitXeroDraftTimesheetsAction
 
                 failedResponse `responseStatusShouldBe` status200
-                failedResponse `responseBodyShouldContain` "Xero validation failed: units are invalid"
-                failedResponse `responseBodyShouldContain` "Retry"
+                failedResponse `responseBodyShouldContain` "Xero draft-timesheet submission did not complete successfully."
+                failedResponse `responseBodyShouldNotContain` "Retry"
+                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders failedResponse)
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "app-live-fragments-refresh")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "admin_xero_timesheets")
+                triggerHeader `shouldSatisfy` maybe False (Text.isInfixOf "xero-timesheets-data")
                 submission <- query @XeroTimesheetSubmission |> fetchOne
                 submission.status `shouldBe` "failed"
+                fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroTimesheetsFragmentAction
+                fragmentResponse `responseStatusShouldBe` status200
+                fragmentResponse `responseBodyShouldContain` "Xero validation failed: units are invalid"
+                fragmentResponse `responseBodyShouldContain` "Retry"
 
         it "records Xero payroll reference sync failures without storing stale rows" $ withContext do
             withCleanDb do

@@ -41,6 +41,9 @@ tests = describe "LiveUpdate runtime types" do
                 , AdminShiftTypesFragment
                 , AdminRosterGroupsFragment
                 , AdminXeroFragment
+                , AdminXeroStaffMappingsFragment
+                , AdminXeroPayItemsFragment
+                , AdminXeroTimesheetsFragment
                 , ProfileLeaveRequestsContentFragment
                 , SupportAwardRatesSectionFragment
                 , SupportPublicHolidaysSectionFragment
