@@ -1,6 +1,6 @@
 ---
 id: ir-vukw
-status: open
+status: closed
 deps: [ir-k86z, ir-0t21]
 links: []
 created: 2026-04-30T23:32:22Z
@@ -22,3 +22,9 @@ Add deterministic scenarios for roster slot update/filter mutation, timesheet cr
 
 profile-app or a companion runner exercises representative write flows and records request/app/span metrics; load profiling has safe write scenarios or explicit non-load mutation profiling; profile seed contains stable fixture targets for mutations; reports separate read and write scenario results.
 
+
+## Notes
+
+**2026-04-30T23:58:59Z**
+
+Added deterministic profile-app writes scenario for export generation against isolated profile DBs; existing Xero autosave mutation scenario retained.

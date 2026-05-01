@@ -1,6 +1,6 @@
 ---
 id: ir-pu6u
-status: open
+status: closed
 deps: [ir-96d8, ir-hm3w]
 links: []
 created: 2026-04-30T23:32:41Z
@@ -22,3 +22,9 @@ Document default-off behavior, allowed environments, sampling/detail modes, expe
 
 specs/12-performance-profiling.md and AGENTS guidance explain safe production defaults, sampling/detail controls, span/scenario conventions, and operator commands; future endpoint work has a clear profiling checklist.
 
+
+## Notes
+
+**2026-04-30T23:59:05Z**
+
+Updated specs/12-performance-profiling.md and AGENTS.md with default-off production policy, middleware header behavior, shared scenario catalog, write scenario, and before/after comparison workflow.

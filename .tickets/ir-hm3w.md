@@ -1,6 +1,6 @@
 ---
 id: ir-hm3w
-status: open
+status: closed
 deps: [ir-9sqg]
 links: []
 created: 2026-04-30T23:32:04Z
@@ -22,3 +22,9 @@ Cache the profiling-enabled flag or make span helpers check for an active profil
 
 With IHP_ROSTER_PROFILING unset, profileActionSpan avoids monotonic clock reads and cache-stat snapshots; production defaults emit no profiling headers; any production-enabled mode has documented sampling/detail controls; focused tests cover enabled and disabled behavior.
 
+
+## Notes
+
+**2026-04-30T23:58:59Z**
+
+Disabled profiling now has no response headers and span helpers avoid monotonic clock reads when no RequestProfile is active. Production policy documented as default-off/isolated diagnostics only.

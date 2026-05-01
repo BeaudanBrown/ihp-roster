@@ -1,6 +1,6 @@
 ---
 id: ir-k86z
-status: open
+status: closed
 deps: [ir-kayo]
 links: []
 created: 2026-04-30T23:32:16Z
@@ -22,3 +22,9 @@ Define a shared scenario manifest consumed by profile-app and profile-load. Cove
 
 Playwright and k6 scenario lists are generated from the same manifest or validated against it; full scenario coverage includes the major authenticated surfaces; docs list what is covered and intentionally excluded; existing profile commands keep their current names.
 
+
+## Notes
+
+**2026-04-30T23:58:59Z**
+
+Added shared e2e/profile-scenarios.json consumed by profile-app and profile-load; expanded read coverage to profile/admin in addition to roster/timesheets/leave/Xero.

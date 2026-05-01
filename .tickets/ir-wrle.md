@@ -1,6 +1,6 @@
 ---
 id: ir-wrle
-status: open
+status: closed
 deps: [ir-k86z, ir-0t21]
 links: []
 created: 2026-04-30T23:32:33Z
@@ -22,3 +22,9 @@ Extend profile-load-report and suite reporting to parse dropped_iterations, iter
 
 load-profile.json/md include dropped iterations and VU saturation; profile-load-suite comparison output ranks improvements/regressions; budgets can fail a run on configured p95/p99/failure/dropped-iteration thresholds; docs describe a before/after workflow.
 
+
+## Notes
+
+**2026-04-30T23:59:05Z**
+
+Load reports and suite summaries now include dropped iterations, completed iterations, check failures, observed VUs, and VU saturation. profile-compare now handles load-profile and load-suite JSON pressure deltas.

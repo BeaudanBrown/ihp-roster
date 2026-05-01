@@ -1,6 +1,6 @@
 ---
 id: ir-sryt
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-04-29T04:41:29Z
@@ -16,7 +16,7 @@ Repo-local feature migrated from coordinator-b64. Adds shared request/span timin
 ## Design
 
 coordinator_ref: coordinator-b64
-status: backlog
+status: closed
 source: coordinator standalone feature
 
 ## Acceptance Criteria
@@ -29,3 +29,7 @@ Roster, timesheet, leave, live-update, and projection-cache hot paths expose eno
 **2026-04-30T23:34:34Z**
 
 Profiling refactor plan added at plans/69-profiling-system-refactor.md. New child tickets cover middleware finalization, disabled-path overhead, richer metrics, shared scenarios, write/job coverage, comparison budgets, and production/operator docs.
+
+**2026-04-30T23:59:14Z**
+
+Profiling refactor child tickets closed. Middleware finalization, cheap disabled path, cache/live/load metrics, shared scenarios, write scenario, comparison reporting, docs, and focused profile verification are in place.

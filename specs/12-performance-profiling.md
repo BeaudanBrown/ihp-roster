@@ -16,7 +16,7 @@ Profiling is enabled only when the profiling server sets:
 IHP_ROSTER_PROFILING=1
 ```
 
-When enabled, profiled controllers emit `Server-Timing` and `X-Request-Id` response headers. The app does not keep an unbounded in-memory profile store; the runners collect timings from response headers.
+When enabled, response middleware emits `Server-Timing` and `X-Request-Id` headers for normal app responses, including HTML, JSON, redirects, and downloads. Controllers should not add render wrappers just to emit profiling headers. The app does not keep an unbounded in-memory profile store; the runners collect timings from response headers.
 
 Manual spans are added with helpers from `Application.Helper.Profiling`, for example:
 
@@ -26,6 +26,10 @@ profileActionSpan "roster.build_month_overview" do
 ```
 
 Use span names that identify the app area and operation. The emitted `Server-Timing` token sanitizes dots to underscores, so `roster.build_month_overview` appears as `roster_build_month_overview` in reports.
+
+When `IHP_ROSTER_PROFILING` is unset, profiling is default-off. Span helpers first check for an active request profile and avoid monotonic clock reads or cache-stat snapshots when no profile exists. Production deployments must leave profiling disabled unless an operator intentionally starts an isolated profiling run or enables it briefly for a controlled diagnostic window.
+
+`Server-Timing` exposes internal span names. Do not enable profiling headers for ordinary public traffic. Prefer the isolated `profile-app`, `profile-load`, and `profile-load-suite` commands, which set `IHP_ROSTER_PROFILING=1` only for dedicated profile servers backed by `app_profile*` databases.
 
 ## Profile Seed Database
 
@@ -69,10 +73,15 @@ Scenarios:
 - `timesheets`
 - `leave`
 - `xero`
+- `admin`
+- `profile`
+- `writes`
 
 This is the right tool when checking browser navigation, HTMX follow-up requests, and route-level app spans for realistic user journeys.
 
 Use `xero` when checking the Xero staff mapping autosave path. It loads the admin Xero section, changes a staff mapping select, captures the `SaveXeroStaffMapping` `Server-Timing` header, and records scroll delta in `profile.json`.
+
+Use `writes` for deterministic mutation profiling. It currently exercises export generation against the isolated profile database and records the POST timing separately from read-only journeys.
 
 ## Request Volume Profiling
 
@@ -102,7 +111,11 @@ Available scenarios:
 - `fragments`: HTMX-style roster/timesheet fragments.
 - `timesheets`: timesheet full page and day fragment.
 - `leave`: manager leave and profile leave pages.
-- `mixed-app`: broad read-only mix across roster, timesheets, and leave.
+- `admin`: admin landing and exports section.
+- `profile`: profile and security sections.
+- `mixed-app`: broad read-only mix across roster, timesheets, leave, admin, and profile.
+
+The shared scenario catalog lives at `e2e/profile-scenarios.json`; update it when adding or retiring profile coverage so Playwright and k6 stay aligned.
 
 `profile-load` uses k6's constant-arrival-rate model. `--rate=10 --duration=30s` means it tries to start 10 iterations per second for 30 seconds. Dropped iterations mean the test could not keep the requested arrival schedule; they are useful regression signal even when requests still pass.
 
@@ -148,6 +161,7 @@ Useful fields:
 - App total p95/p99 by route: server-side request work.
 - Span p95/p99: specific code paths worth optimizing.
 - Dropped iterations: arrival-rate pressure, often useful as regression signal.
+- VU saturation: whether k6 had to use most of the configured virtual-user ceiling.
 - Status counts and failed checks: correctness under load.
 
 Current baseline from the first full suite run showed:
@@ -167,4 +181,13 @@ bash ./bin/in-env profile-load-suite
 bash ./bin/in-env profile-load-suite
 ```
 
-Compare the two `suite-summary.md` files manually for now. The next planned progression is a dedicated suite comparison command that ranks p95/p99 deltas and status changes.
+Compare the two suite artifacts with:
+
+```bash
+bash ./bin/in-env profile-compare \
+  output/profile-load-suite/<before>/suite-summary.json \
+  output/profile-load-suite/<after>/suite-summary.json \
+  output/profile-load-suite/<after>/comparison.md
+```
+
+The comparison report ranks request/span latency deltas plus dropped-iteration and VU-saturation changes.
