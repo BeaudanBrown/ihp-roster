@@ -11,7 +11,7 @@ instance View NewView where
         renderPageDialogModal
             (pathTo LeaveRequestsAction)
             DialogOverlayConfig
-                { dialogOverlayTitle = "New Leave Request"
+                { dialogOverlayTitle = "Add Unavailable Time"
                 , dialogOverlayBody = renderLeaveRequestForm PageOverlayForm leaveRequest
                 , dialogOverlayStartButtons = []
                 , dialogOverlayButtons = defaultOverlayButtons leaveRequestFormId
@@ -24,7 +24,7 @@ leaveRequestFormId = "leave-request-form"
 renderNewLeaveRequestDialog :: LeaveRequest -> Html
 renderNewLeaveRequestDialog leaveRequest =
     renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "New Leave Request"
+        { dialogOverlayTitle = "Add Unavailable Time"
         , dialogOverlayBody = renderLeaveRequestForm HtmxOverlayForm leaveRequest
         , dialogOverlayStartButtons = []
         , dialogOverlayButtons = defaultOverlayButtons leaveRequestFormId

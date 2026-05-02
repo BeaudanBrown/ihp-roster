@@ -83,9 +83,9 @@ instance Controller LeaveRequestsController where
                                 pure createdLeaveRequest
                             broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
                             if isHtmxRequest
-                                then respondWithLeaveMutationSuccess responseContext "Leave request submitted" True
+                                then respondWithLeaveMutationSuccess responseContext "Unavailable period submitted" True
                                 else do
-                                    setSuccessMessage "Leave request submitted"
+                                    setSuccessMessage "Unavailable period submitted"
                                     redirectToPath (leaveFallbackPath responseContext)
 
     action ApproveLeaveRequestAction { leaveRequestId } = do
@@ -125,9 +125,9 @@ instance Controller LeaveRequestsController where
             invalidateAffectedRosterWeeksForLeave savedLeaveRequest
         broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
         if isHtmxRequest
-            then respondWithLeaveRequestsContent "Leave request approved" False
+            then respondWithLeaveRequestsContent "Unavailable period approved" False
             else do
-                setSuccessMessage "Leave request approved"
+                setSuccessMessage "Unavailable period approved"
                 redirectTo LeaveRequestsAction
 
     action DenyLeaveRequestAction { leaveRequestId } = do
@@ -167,9 +167,9 @@ instance Controller LeaveRequestsController where
             invalidateAffectedRosterWeeksForLeave savedLeaveRequest
         broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
         if isHtmxRequest
-            then respondWithLeaveRequestsContent "Leave request denied" False
+            then respondWithLeaveRequestsContent "Unavailable period denied" False
             else do
-                setSuccessMessage "Leave request denied"
+                setSuccessMessage "Unavailable period denied"
                 redirectTo LeaveRequestsAction
 
     action DeleteLeaveRequestAction { leaveRequestId } = do
@@ -180,7 +180,7 @@ instance Controller LeaveRequestsController where
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
         ensureLeaveDeleteAllowed leaveRequest
         unless (leaveRequestCanBeDeleted leaveRequest) do
-            setErrorMessage "Reviewed leave requests cannot be deleted."
+            setErrorMessage "Reviewed unavailable periods cannot be deleted."
             redirectToPath (leaveFallbackPath responseContext)
         now <- getCurrentTime
         withTransaction do
@@ -211,9 +211,9 @@ instance Controller LeaveRequestsController where
                 )
         broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
         if isHtmxRequest
-            then respondWithLeaveMutationSuccess responseContext "Leave request cancelled" False
+            then respondWithLeaveMutationSuccess responseContext "Unavailable period cancelled" False
             else do
-                setSuccessMessage "Leave request cancelled"
+                setSuccessMessage "Unavailable period cancelled"
                 redirectToPath (leaveFallbackPath responseContext)
 
 respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> Bool -> IO ()

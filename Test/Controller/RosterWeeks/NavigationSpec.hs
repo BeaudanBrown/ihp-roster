@@ -210,7 +210,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "conflict-critical"
-                response `responseBodyShouldNotContain` "Staff member is on approved leave."
+                response `responseBodyShouldNotContain` "Staff member has an approved unavailable period."
 
         it "manager roster pages render reusable week controls in the header" $ withContext do
             withCleanDb do
@@ -242,4 +242,3 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "action=\"/ShowRosterWeek?weekOffset=3\""
                 response `responseBodyShouldContain` "type=\"hidden\" name=\"weekOffset\" value=\"3\""
                 response `responseBodyShouldContain` "name=\"rosterGroupId\""
-

@@ -54,7 +54,7 @@ async function createProfileLeaveRequest(page: Page, note: string, startDate: st
     await setFlatpickrDate(page, '#startDate', startDate);
     await setFlatpickrDate(page, '#endDate', endDate);
     await page.fill('#notes', note);
-    await page.getByRole('button', { name: 'Submit Leave Request' }).click();
+    await page.getByRole('button', { name: 'Add unavailable time' }).click();
     await expect(page.locator('#profile-leave-request-form-fragment')).toBeVisible();
     await expect(page.locator('#profile-leave-requests-list-fragment')).toContainText(note);
 }
@@ -166,15 +166,15 @@ test.describe('Live fragment multi-view coverage', () => {
 
         await expect(leaveRow).toContainText('Pending');
         await expect(viewerPage.locator('#roster-content')).toBeVisible();
-        await expect(viewerTargetStaffCell).not.toHaveAttribute('title', /approved leave/i);
+        await expect(viewerTargetStaffCell).not.toHaveAttribute('title', /approved unavailable period/i);
 
         await leaveRow.getByRole('button', { name: 'Approve' }).click();
 
         await expect(leaveRow).toContainText('Approved');
         await expect
             .poll(async () => await viewerTargetStaffCell.getAttribute('title'), { timeout: E2E_TIMEOUT.liveUpdate })
-            .toMatch(/approved leave/i);
-        await expect(viewerTargetStaffCell).toHaveAttribute('data-conflict-message', /approved leave/i);
+            .toMatch(/approved unavailable period/i);
+        await expect(viewerTargetStaffCell).toHaveAttribute('data-conflict-message', /approved unavailable period/i);
 
         await actorContext.close();
         await requesterContext.close();

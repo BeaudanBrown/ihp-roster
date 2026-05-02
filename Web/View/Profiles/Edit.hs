@@ -96,7 +96,7 @@ renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedS
             }
             {renderAccordionSection
                 "profile-leave"
-                "Leave Requests"
+                "Availability"
                 (openSection == "leave")
                 (renderProfileLeaveRequestsContentFragment leaveRequestForm leaveRequests)
             }
@@ -187,7 +187,7 @@ renderProfileLeaveRequestFormFragment leaveRequest = [hsx|
             <input type="hidden" name="section" value="leave"/>
             {renderLeaveRequestFormFields leaveRequest}
             <div class="d-grid mt-4 app-form-width">
-                <button type="submit" class="btn btn-primary">Submit Leave Request</button>
+                <button type="submit" class="btn btn-primary">Add unavailable time</button>
             </div>
         </form>
     </div>
@@ -196,7 +196,7 @@ renderProfileLeaveRequestFormFragment leaveRequest = [hsx|
 renderProfileLeaveRequestsListFragment :: [LeaveRequest] -> Html
 renderProfileLeaveRequestsListFragment leaveRequests = [hsx|
     <div id={profileLeaveRequestsListFragmentId}>
-        <h5 class="mb-3">Submitted Requests</h5>
+        <h5 class="mb-3">Unavailable periods</h5>
         {renderProfileLeaveRequestsList leaveRequests}
     </div>
 |]
@@ -204,7 +204,7 @@ renderProfileLeaveRequestsListFragment leaveRequests = [hsx|
 renderProfileLeaveRequestsListFragmentOob :: [LeaveRequest] -> Html
 renderProfileLeaveRequestsListFragmentOob leaveRequests = [hsx|
     <div id={profileLeaveRequestsListFragmentId} hx-swap-oob="outerHTML">
-        <h5 class="mb-3">Submitted Requests</h5>
+        <h5 class="mb-3">Unavailable periods</h5>
         {renderProfileLeaveRequestsList leaveRequests}
     </div>
 |]
@@ -221,7 +221,7 @@ renderProfileLeaveRequestsList leaveRequests
             , appPanelCustomHeader = mempty
             , appPanelClass = "app-form-width"
             , appPanelBodyClass = ""
-            , appPanelBody = [hsx|<p class="app-muted mb-0">No leave requests submitted yet.</p>|]
+            , appPanelBody = [hsx|<p class="app-muted mb-0">No unavailable periods submitted yet.</p>|]
             }
     | otherwise = [hsx|
         <div class="leave-request-list">

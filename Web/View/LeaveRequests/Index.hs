@@ -42,7 +42,7 @@ renderLeaveRequestsShell IndexView { .. } =
                 , appPanelBody = renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId today
                 }
         page = renderAppPage (AppPageConfig
-            { appPageTitle = "Leave Requests"
+            { appPageTitle = "Availability"
             , appPageDescription = Nothing
             , appPageActions = if currentUserIsSupportAdmin then mempty else renderNewLeaveRequestAction
             , appPageWidthClass = ""
@@ -64,7 +64,7 @@ renderNewLeaveRequestAction = [hsx|
        hx-target={"#" <> dialogOverlayMountId}
        hx-swap="innerHTML"
        hx-push-url="false">
-        New Request
+        Add unavailable time
     </a>
 |]
 
@@ -89,7 +89,7 @@ renderLeaveRequestsContentFragmentWithSwap maybeSwapOob leaveRequests staffMembe
 |]
 
 renderEmptyState :: Html
-renderEmptyState = [hsx|<p class="app-muted mb-0">No leave requests yet.</p>|]
+renderEmptyState = [hsx|<p class="app-muted mb-0">No unavailable periods yet.</p>|]
 
 renderLeaveRequestsTable :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Html
 renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId = [hsx|

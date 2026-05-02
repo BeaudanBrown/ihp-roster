@@ -260,7 +260,7 @@ export async function openProfileSecuritySection(page: Page) {
 export async function openProfileLeaveSection(page: Page) {
     await gotoWhenReady(page, '/EditProfile?section=leave', '#profile-content-fragment');
 
-    const leaveSectionToggle = page.getByRole('button', { name: 'Leave Requests' });
+    const leaveSectionToggle = page.getByRole('button', { name: 'Availability' });
     if ((await leaveSectionToggle.getAttribute('aria-expanded')) !== 'true') {
         await leaveSectionToggle.click();
     }
@@ -320,8 +320,8 @@ export async function openAdminWithFreshPasskey(page: Page) {
 
 export async function openNewLeaveRequestDialog(page: Page) {
     const trigger = page
-        .getByRole('link', { name: 'New Request', exact: true })
-        .or(page.getByRole('button', { name: 'New Request', exact: true }));
+        .getByRole('link', { name: 'Add unavailable time', exact: true })
+        .or(page.getByRole('button', { name: 'Add unavailable time', exact: true }));
     await expect(trigger).toBeVisible();
     await trigger.click();
     await expect(page.locator('#leave-request-form')).toBeVisible();

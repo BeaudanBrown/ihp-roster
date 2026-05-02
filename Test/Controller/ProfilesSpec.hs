@@ -98,7 +98,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-post=\"/UpdateProfile\""
                 response `responseBodyShouldContain` "hx-target=\"#profile-content-fragment\""
                 response `responseBodyShouldContain` "Profile Details"
-                response `responseBodyShouldContain` "Leave Requests"
+                response `responseBodyShouldContain` "Availability"
                 response `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
                 response `responseBodyShouldContain` "data-live-update-surface=\""
                 response `responseBodyShouldContain` "profile_leave_requests_content"
@@ -172,7 +172,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
                 response `responseBodyShouldNotContain` "href=\"/LeaveRequests\""
 
-        it "shows the dedicated leave header link for managers" $ withContext do
+        it "shows the dedicated availability header link for managers" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-manager-header@example.com" "staff" True
@@ -184,7 +184,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "href=\"/LeaveRequests\""
-                response `responseBodyShouldContain` "<span>leave</span>"
+                response `responseBodyShouldContain` "<span>availability</span>"
 
         it "saves submitted shift preferences from the profile form" $ withContext do
             withCleanDb do

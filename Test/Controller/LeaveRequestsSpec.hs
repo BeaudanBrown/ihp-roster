@@ -160,7 +160,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Pending (1)"
                 response `responseBodyShouldContain` "Approve"
-                response `responseBodyShouldNotContain` "New Request"
+                response `responseBodyShouldNotContain` "Add unavailable time"
 
         it "denies super-admin self-service leave creation" $ withContext do
             withCleanDb do
@@ -300,7 +300,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Approved (0)"
                 response `responseBodyShouldContain` "Denied (0)"
                 response `responseBodyShouldContain` "Archive (0)"
-                response `responseBodyShouldNotContain` "No leave requests yet."
+                response `responseBodyShouldNotContain` "No unavailable periods yet."
                 response `responseBodyShouldNotContain` "No requests in this section."
 
         it "scopes leave fragment refetches to the current viewer visibility" $ withContext do
@@ -375,8 +375,8 @@ tests = beforeAll testContext do
                 let bodyText = cs (LByteString.unpack body)
                 bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
                 bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\" hx-swap-oob=\"outerHTML\""
-                bodyText `shouldContain` "Leave request submitted"
-                bodyText `shouldContain` "Submitted Requests"
+                bodyText `shouldContain` "Unavailable period submitted"
+                bodyText `shouldContain` "Unavailable periods"
                 bodyText `shouldNotContain` "id=\"profile-content-fragment\""
                 bodyText `shouldNotContain` "id=\"profile-leave-requests-content\""
 

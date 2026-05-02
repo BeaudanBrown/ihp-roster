@@ -72,7 +72,7 @@ renderWeekOverviewPanelFragment weekOffset rosterGroupId currentWeekStartDate to
         initialOverviewDay = find (\daySummary -> overviewDate daySummary == initialDate) weekOverviewDays
         leaveLegend =
             if viewCapabilities.canViewLeaveMetrics
-                then [hsx|<span><span class="roster-week-overview-legend-dot"></span> Leave requests</span>|]
+                then [hsx|<span><span class="roster-week-overview-legend-dot"></span> Unavailable periods</span>|]
                 else mempty
      in
         [hsx|
@@ -194,7 +194,7 @@ renderWeekOverviewDetailsCard weekOffset rosterGroupId weekStartDate initialDate
                 then [hsx|
                     <div class="roster-week-overview-metric">
                         <span class="roster-week-overview-metric-value" data-week-overview-leave-value="true">{maybe "0" (tshow . leaveRequestCount) initialOverviewDay}</span>
-                        <span class="roster-week-overview-metric-label">leave requests</span>
+                        <span class="roster-week-overview-metric-label">unavailable periods</span>
                     </div>
                 |]
                 else mempty
@@ -244,12 +244,12 @@ weekOverviewMetricSummary :: RosterWeekOverviewDay -> Bool -> Text
 weekOverviewMetricSummary daySummary includeLeaveMetrics
     | overviewIsClosed daySummary = "This day is closed for rostering."
     | not includeLeaveMetrics && overviewAssignedShiftCount daySummary == 0 = "No assigned shifts loaded for this date yet."
-    | leaveRequestCount daySummary == 0 && overviewAssignedShiftCount daySummary == 0 = "No leave requests or assigned shifts loaded for this date yet."
+    | leaveRequestCount daySummary == 0 && overviewAssignedShiftCount daySummary == 0 = "No unavailable periods or assigned shifts loaded for this date yet."
     | not includeLeaveMetrics =
         tshow (overviewAssignedShiftCount daySummary) <> " shifts assigned, "
             <> formatMinutesAsHours (scheduledMinutes daySummary) <> " rostered."
     | otherwise =
-        tshow (leaveRequestCount daySummary) <> " leave requests, "
+        tshow (leaveRequestCount daySummary) <> " unavailable periods, "
             <> tshow (overviewAssignedShiftCount daySummary) <> " shifts assigned, "
             <> formatMinutesAsHours (scheduledMinutes daySummary) <> " rostered."
 

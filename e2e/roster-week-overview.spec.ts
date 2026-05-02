@@ -108,7 +108,7 @@ test.describe('Roster week overview', () => {
         await page.getByRole('button', { name: 'Open roster week overview' }).click();
         const overviewMenu = page.locator('.roster-week-overview-menu.show');
         await expect(overviewMenu).toBeVisible();
-        await expect(overviewMenu.getByText('leave requests')).toHaveCount(0);
+        await expect(overviewMenu.getByText('unavailable periods')).toHaveCount(0);
         await expect(overviewMenu.locator('[data-week-overview-leave-value="true"]')).toHaveCount(0);
     });
 });

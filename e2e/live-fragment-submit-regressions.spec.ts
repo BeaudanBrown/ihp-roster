@@ -27,7 +27,7 @@ test.describe('HTMX submit regressions', () => {
         await setFlatpickrDate(page, '#startDate', '2026-03-23');
         await setFlatpickrDate(page, '#endDate', '2026-03-24');
         await page.fill('#notes', note);
-        await page.getByRole('button', { name: 'Submit Leave Request' }).click();
+        await page.getByRole('button', { name: 'Add unavailable time' }).click();
 
         const submitResponse = await submitResponsePromise;
         const submitResponseText = await submitResponse.text();
@@ -42,7 +42,7 @@ test.describe('HTMX submit regressions', () => {
         expect(submitResponseText).not.toContain('id="profile-leave-requests-content"');
     });
 
-    test('leave request modal date fields get flatpickr after HTMX swap', async ({ page }) => {
+    test('unavailable-period modal date fields get flatpickr after HTMX swap', async ({ page }) => {
         await login(page);
         await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
 
@@ -58,7 +58,7 @@ test.describe('HTMX submit regressions', () => {
         }).toBe(true);
     });
 
-    test('leave request submit creates one request', async ({ page }) => {
+    test('unavailable-period submit creates one request', async ({ page }) => {
         const note = 'single-submit-leave-check';
 
         await login(page);

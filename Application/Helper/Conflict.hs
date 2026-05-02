@@ -102,7 +102,7 @@ checkLeaveConflict ctx =
         then Just RosterConflict
             { conflictType = LeaveConflict
             , severity = getConflictSeverity LeaveConflict
-            , message = "Staff member is on approved leave."
+            , message = "Staff member has an approved unavailable period."
             }
         else Nothing
 

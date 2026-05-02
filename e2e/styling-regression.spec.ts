@@ -270,7 +270,7 @@ test.describe('Styling regression contracts', () => {
         await expectStylesheetServed(page, '/css/bootstrap-bridge.css');
         await expectStylesheetServed(page, '/css/overlays.css');
 
-        await page.getByRole('link', { name: 'New Request' }).click();
+        await page.getByRole('link', { name: 'Add unavailable time' }).click();
         await expect(page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]')).toBeVisible();
 
         const modalMetrics = await page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]').evaluate((dialog) => {

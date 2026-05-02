@@ -83,7 +83,7 @@ renderDesktopNavLinks = [hsx|
     {renderDesktopNavLink "roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWeek"]}
     {renderWhenAudience StaffProfileAudience (renderDesktopNavLink "profile" "bi-person" (pathTo EditProfileAction) ["/EditProfile"])}
     {renderDesktopNavLink "timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWeek"]}
-    {renderWhenAudience ManagerAudience (renderDesktopNavLink "leave" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
+    {renderWhenAudience ManagerAudience (renderDesktopNavLink "availability" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
     {renderWhenAudience XeroAudience (renderDesktopNavLink "xero" "bi-receipt" (pathTo XeroAction) ["/Xero"])}
     {renderWhenAudience AdminAudience (renderDesktopNavLink "admin" "bi-sliders" (pathTo AdminAction) ["/Admin"])}
     {renderWhenAudience SupportAudience (renderDesktopNavLink "support" "bi-life-preserver" (pathTo SupportAction) ["/Support"])}
@@ -95,7 +95,7 @@ renderMobileNavLinks = [hsx|
     {renderMobileNavLink "Roster" "bi-calendar-week" (pathTo RosterWeeksAction) ["/RosterWeeks", "/ShowRosterWeek"]}
     {renderWhenAudience StaffProfileAudience (renderMobileNavLink "Profile" "bi-person" (pathTo EditProfileAction) ["/EditProfile"])}
     {renderMobileNavLink "Timesheets" "bi-clock-history" (pathTo TimesheetsAction) ["/Timesheets", "/ShowTimesheetWeek"]}
-    {renderWhenAudience ManagerAudience (renderMobileNavLink "Leave" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
+    {renderWhenAudience ManagerAudience (renderMobileNavLink "Availability" "bi-calendar-check" (pathTo LeaveRequestsAction) ["/LeaveRequests"])}
     {renderWhenAudience XeroAudience (renderMobileNavLink "Xero" "bi-receipt" (pathTo XeroAction) ["/Xero"])}
     {renderWhenAudience AdminAudience (renderMobileNavLink "Admin" "bi-sliders" (pathTo AdminAction) ["/Admin"])}
     {renderWhenAudience SupportAudience (renderMobileNavLink "Support" "bi-life-preserver" (pathTo SupportAction) ["/Support"])}

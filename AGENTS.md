@@ -24,7 +24,7 @@
 
 ## App Navigation Conventions
 - Global authenticated navigation lives in `Web/View/Layout.hs` and is rendered on every authenticated page
-- Header button order is: `roster`, `profile`, `timesheets`, `leave`, `xero`, `admin`, `support`, `logout`
+- Header button order is: `roster`, `profile`, `timesheets`, `availability`, `xero`, `admin`, `support`, `logout`
 - `xero` is visible to venue owners and super admins in the header; `admin` is role-gated (admin-only visibility); `timesheets` and `admin` may route to placeholder pages until fully implemented
 - `support` is founder-only and should be rendered only for `currentUserIsSupportAdmin`
 - Auth pages (sign in/sign up/welcome) should not show the authenticated header
