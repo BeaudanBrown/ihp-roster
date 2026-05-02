@@ -33,3 +33,7 @@ Pilot-critical roster/payroll/compliance requirements are represented by child t
 **2026-05-02T03:04:35Z**
 
 2026-05-02: Follow-up pass completed lower-risk UI/schema work: roster layout preferences are now user-visible and persisted; roster end-time/shift-type opt-in is wired through admin setting, roster edit UI, publish validation, and tests; screenshots reviewed for roster, admin settings, and timesheets. Payroll-heavy follow-ups remain in ir-7xks and ir-ptny; RSA remains in ir-2rko.
+
+**2026-05-02T08:10:30Z**
+
+2026-05-02: Completed the lower-risk Rooks payroll foundations for auto-created pending timesheets (ir-7xks) and admin-only predicted roster wages (ir-ptny). Added a concrete RSA document tracking plan to ir-2rko; RSA implementation remains deferred and excludes TFN, bank, super, and broader onboarding data.
