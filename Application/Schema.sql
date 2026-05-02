@@ -318,6 +318,7 @@ CREATE TABLE venue_config (
     roster_week_starts_on INT NOT NULL,
     week_offset_epoch DATE NOT NULL,
     late_to_early_min_start_gap_minutes INT DEFAULT 0 NOT NULL,
+    roster_end_times_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     staff_timesheet_edit_window_days INT DEFAULT 7 NOT NULL,
     public_holiday_jurisdiction TEXT DEFAULT 'VIC' NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
@@ -670,6 +671,8 @@ CREATE TABLE roster_slots (
     slot_sort_order INT DEFAULT 0 NOT NULL,
     row_index INT NOT NULL,
     start_time TIME,
+    end_time TIME,
+    shift_type_id UUID,
     duration_minutes INT,
     note TEXT,
     deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -683,6 +686,7 @@ CREATE TABLE roster_slots (
     CHECK (duration_minutes IS NULL OR duration_minutes >= 0),
     FOREIGN KEY (roster_day_id) REFERENCES roster_days (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE SET NULL,
+    FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE SET NULL,
     FOREIGN KEY (roster_week_slot_definition_id) REFERENCES roster_week_slot_definitions (id) ON DELETE RESTRICT,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT
 );
@@ -1177,6 +1181,7 @@ CREATE INDEX idx_roster_week_slot_definitions_week_sort ON roster_week_slot_defi
 CREATE UNIQUE INDEX idx_roster_week_slot_definitions_active_name ON roster_week_slot_definitions (roster_week_id, name) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_day ON roster_slots (roster_day_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_roster_slots_staff ON roster_slots (staff_id) WHERE staff_id IS NOT NULL AND deleted_at IS NULL;
+CREATE INDEX idx_roster_slots_shift_type ON roster_slots (shift_type_id) WHERE shift_type_id IS NOT NULL AND deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_pay_versions_staff_effective ON staff_pay_versions (staff_id, effective_from DESC, created_at DESC);
 CREATE UNIQUE INDEX idx_staff_pay_versions_one_open ON staff_pay_versions (staff_id) WHERE effective_to IS NULL;
@@ -1348,6 +1353,19 @@ BEGIN
             AND rd.roster_week_id = rwsd.roster_week_id
     ) THEN
         RAISE EXCEPTION 'roster slot day and slot definition must belong to the same roster week';
+    END IF;
+
+    IF NEW.shift_type_id IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1
+            FROM roster_days rd
+            JOIN roster_weeks rw ON rw.id = rd.roster_week_id
+            JOIN shift_types st ON st.id = NEW.shift_type_id
+            WHERE rd.id = NEW.roster_day_id
+                AND st.venue_id = rw.venue_id
+        )
+    THEN
+        RAISE EXCEPTION 'roster slot shift_type_id must stay within roster week venue';
     END IF;
 
     RETURN NEW;
