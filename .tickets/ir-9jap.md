@@ -25,3 +25,7 @@ Pilot-critical roster/payroll/compliance requirements are represented by child t
 **2026-05-02T01:45:54Z**
 
 2026-05-02: Lower-risk pilot pass landed four chunks: availability language rename (2eb2670), user preference table foundation (6694632), timesheet staff filter/clickable cards/comments (e02c847), and roster end-time/shift-type schema foundation (f302f6d). Google Form onboarding and sensitive onboarding data remain out of scope. RSA remains open as pilot-critical follow-up.
+
+**2026-05-02T03:04:35Z**
+
+2026-05-02: Follow-up pass completed lower-risk UI/schema work: roster layout preferences are now user-visible and persisted; roster end-time/shift-type opt-in is wired through admin setting, roster edit UI, publish validation, and tests; screenshots reviewed for roster, admin settings, and timesheets. Payroll-heavy follow-ups remain in ir-7xks and ir-ptny; RSA remains in ir-2rko.

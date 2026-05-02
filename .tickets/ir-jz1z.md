@@ -1,6 +1,6 @@
 ---
 id: ir-jz1z
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-02T01:12:33Z
@@ -26,3 +26,7 @@ User preference storage is typed with explicit columns; roster layout preference
 **2026-05-02T01:45:45Z**
 
 2026-05-02: Foundation landed in commit 6694632: added typed user_preferences table with roster_layout_mode enum/default and schema coverage. Remaining work: expose a UI/API to save roster layout preference and make desktop roster rendering read the stored preference.
+
+**2026-05-02T03:04:03Z**
+
+2026-05-02: Completed roster layout preference UI/API/rendering. Added roster header layout selector, persisted per-user day_rows/day_columns preference via typed user_preferences, included preference in roster projection cache key, rendered day-column roster layout, and covered persistence/rendering with RosterWeeksController tests. Visual check: output/playwright/roster-day-columns-end-times.png.

@@ -1,6 +1,6 @@
 ---
 id: ir-rob3
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-02T01:12:01Z
@@ -26,3 +26,7 @@ Venue can opt into roster end times; staffed draft slots can remain incomplete; 
 **2026-05-02T01:45:50Z**
 
 2026-05-02: Foundation landed in commit f302f6d: added venue_config.roster_end_times_enabled, nullable roster_slots.end_time and roster_slots.shift_type_id, shift-type FK/index, and trigger coverage to keep roster slot shift types in the roster week venue. Existing roster UI/workflows remain unchanged. Remaining work: admin opt-in UI, inline roster end-time/shift-type editing, live-week validation that blocks publishing incomplete staffed slots, overnight duration semantics, and replacing note/flag-as-shift-type UX.
+
+**2026-05-02T03:04:19Z**
+
+2026-05-02: Completed opt-in roster end-time and shift-type UI slice. Added admin venue setting, inline start/end/shift-type editing when enabled, overnight duration calculation, copy/replace preservation, publish blocking for incomplete staffed slots, day-column visual support, and focused Admin/Roster controller tests. Visual checks: output/playwright/roster-day-columns-end-times.png and output/playwright/admin-venue-settings.png. Remaining payroll-dependent children cover auto-timesheets and predicted wage totals.
