@@ -13,21 +13,22 @@ import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
 import Data.List (nub)
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day)
+import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.Timesheets.Projection
 import Web.View.Timesheets.Index
 
-respondWithTimesheetDaySectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Int -> Bool -> Bool -> IO ()
-respondWithTimesheetDaySectionFragment weekOffset dayOffset showApproved showAllStaff = do
-    maybeHtml <- renderTimesheetProjectionFragment (TimesheetProjectionRequest weekOffset showApproved showAllStaff) (TimesheetProjectionDaySection dayOffset)
+respondWithTimesheetDaySectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Int -> Bool -> Bool -> Maybe UUID.UUID -> IO ()
+respondWithTimesheetDaySectionFragment weekOffset dayOffset showApproved showAllStaff staffFilterId = do
+    maybeHtml <- renderTimesheetProjectionFragment (TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId) (TimesheetProjectionDaySection dayOffset)
     when (isNothing maybeHtml) do
         TextIO.putStrLn ("timesheet_projection_miss: weekOffset=" <> tshow weekOffset <> " dayOffset=" <> tshow dayOffset)
     respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
-respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Bool -> Bool -> Text -> Bool -> Bool -> IO ()
-respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllStaff successMessage closeDialog renderMainFragmentOob = do
-    projection <- fetchTimesheetWeekProjectionCached (TimesheetProjectionRequest weekOffset showApproved showAllStaff)
+respondWithTimesheetDaySectionUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Bool -> Bool -> Maybe UUID.UUID -> Text -> Bool -> Bool -> IO ()
+respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllStaff staffFilterId successMessage closeDialog renderMainFragmentOob = do
+    projection <- fetchTimesheetWeekProjectionCached (TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId)
     let weekStartDate = projection.timesheetWeekStartDate
     let dayOffset = timesheetDayOffset weekStartDate workedOn
     let mainFragment =
@@ -42,9 +43,9 @@ respondWithTimesheetDaySectionUpdate weekOffset workedOn showApproved showAllSta
             , renderToastOob ToastBottomCenter (successToast successMessage)
             ]
 
-respondWithTimesheetDateMoveUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Day -> Bool -> Bool -> Text -> IO ()
-respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn newWorkedOn showApproved showAllStaff successMessage = do
-    projection <- fetchTimesheetWeekProjectionCached (TimesheetProjectionRequest weekOffset showApproved showAllStaff)
+respondWithTimesheetDateMoveUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> Day -> Bool -> Bool -> Maybe UUID.UUID -> Text -> IO ()
+respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn newWorkedOn showApproved showAllStaff staffFilterId successMessage = do
+    projection <- fetchTimesheetWeekProjectionCached (TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId)
     let weekStartDate = projection.timesheetWeekStartDate
     let weekEndDate = projection.timesheetWeekEndDate
     let daysInVisibleWeek = filter (\day -> day >= weekStartDate && day <= weekEndDate) (nub [oldWorkedOn, newWorkedOn])
@@ -64,9 +65,9 @@ renderTimesheetDaySectionFromProjection renderOob projection dayOffset =
     let renderer = if renderOob then renderDaySectionOob else renderDaySection
      in renderer (timesheetDayRenderModelFromProjection projection dayOffset)
 
-renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Bool -> Bool -> IO ()
-renderTimesheetWeekPage weekOffset showApproved showAllStaff =
-    respondWithTimesheetWeekView . timesheetIndexView =<< fetchTimesheetWeekProjectionCached (TimesheetProjectionRequest weekOffset showApproved showAllStaff)
+renderTimesheetWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Bool -> Bool -> Maybe UUID.UUID -> IO ()
+renderTimesheetWeekPage weekOffset showApproved showAllStaff staffFilterId =
+    respondWithTimesheetWeekView . timesheetIndexView =<< fetchTimesheetWeekProjectionCached (TimesheetProjectionRequest weekOffset showApproved showAllStaff staffFilterId)
 
 respondWithTimesheetWeekView :: (?context :: ControllerContext, ?request :: Request, ?respond :: Respond) => IndexView -> IO ()
 respondWithTimesheetWeekView indexView =

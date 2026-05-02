@@ -5,6 +5,7 @@ module Web.Timesheets.Validation
     , ensureTimesheetEntryNotPayrollLocked
     , ensureTimesheetVisibility
     , resetApprovalOnEdit
+    , timesheetCoreChanged
     , timesheetEntryHasPayrollProvenance
     ) where
 
@@ -21,16 +22,17 @@ ensureTimesheetEntryNotPayrollLocked ::
     Int ->
     Bool ->
     Bool ->
+    Maybe UUID.UUID ->
     IO ()
-ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff = do
+ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff staffFilterId = do
     locked <- timesheetEntryHasPayrollProvenance timesheetEntry
     when locked do
         let message = "This approved timesheet entry is locked because it has been exported or submitted to Xero."
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff message True True
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff staffFilterId message True True
             else do
                 setErrorMessage message
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
+                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff staffFilterId)
 
 timesheetEntryHasPayrollProvenance :: (?modelContext :: ModelContext) => TimesheetEntry -> IO Bool
 timesheetEntryHasPayrollProvenance timesheetEntry = do
@@ -84,21 +86,63 @@ resetApprovalOnEdit wasApproved entry
             |> set #approvedByUserId Nothing
     | otherwise = entry
 
-buildTimesheetEntry :: (?context :: ControllerContext, ?request :: Request) => TimesheetEntry -> TimesheetEntry
-buildTimesheetEntry entry =
-    entry
-        |> requireParam #staffId "staffId" "Please choose a staff member"
-        |> requireParam #workedOn "workedOn" "Please choose a day"
-        |> requireParam #shiftTypeId "shiftTypeId" "Please choose a shift type"
-        |> fill @'["staffId", "workedOn"]
-        |> fill @'["shiftTypeId"]
-        |> parseAndSetStartTime
-        |> parseAndSetEndTime
-        |> set #hadBreak hadBreak
-        |> applyBreakFields
-        |> validateTimingConstraints
+timesheetCoreChanged :: TimesheetEntry -> TimesheetEntry -> Bool
+timesheetCoreChanged previous next =
+    previous.staffId /= next.staffId
+        || previous.shiftTypeId /= next.shiftTypeId
+        || previous.workedOn /= next.workedOn
+        || previous.startTime /= next.startTime
+        || previous.endTime /= next.endTime
+        || previous.hadBreak /= next.hadBreak
+        || previous.breakStartTime /= next.breakStartTime
+        || previous.breakEndTime /= next.breakEndTime
+        || previous.breakMinutes /= next.breakMinutes
+
+buildTimesheetEntry :: (?context :: ControllerContext, ?request :: Request) => Maybe UUID.UUID -> TimesheetEntry -> TimesheetEntry
+buildTimesheetEntry currentViewerStaffId entry =
+    let builtEntry =
+            entry
+                |> requireParam #staffId "staffId" "Please choose a staff member"
+                |> requireParam #workedOn "workedOn" "Please choose a day"
+                |> requireParam #shiftTypeId "shiftTypeId" "Please choose a shift type"
+                |> fill @'["staffId", "workedOn"]
+                |> fill @'["shiftTypeId"]
+                |> parseAndSetStartTime
+                |> parseAndSetEndTime
+                |> set #hadBreak hadBreak
+                |> applyBreakFields
+                |> validateTimingConstraints
+     in builtEntry
+            |> applyCommentFields entry
     where
         hadBreak = isJust (paramOrNothing @Text "hadBreak")
+        normalizedTextParam paramName =
+            let value = Text.strip (paramOrDefault "" paramName)
+             in if Text.null value then Nothing else Just value
+
+        applyCommentFields originalEntry record =
+            let ownsEntry = currentViewerStaffId == Just record.staffId
+                staffComment =
+                    if ownsEntry
+                        then normalizedTextParam "staffComment"
+                        else originalEntry.staffComment
+                managerNote =
+                    if hasRole ManagerRole'
+                        then normalizedTextParam "managerNote"
+                        else originalEntry.managerNote
+             in record
+                    |> set #staffComment staffComment
+                    |> set #managerNote managerNote
+                    |> validateOptionalTextLength #staffComment "Staff comment cannot exceed 1000 characters"
+                    |> validateOptionalTextLength #managerNote "Manager note cannot exceed 1000 characters"
+
+        validateOptionalTextLength field message record =
+            record
+                |> validateField field
+                    (\case
+                        Just value | Text.length value > 1000 -> Failure message
+                        _ -> Success
+                    )
 
         parseAndSetStartTime record =
             case parseTimeParam (paramOrDefault "" "startTime") of

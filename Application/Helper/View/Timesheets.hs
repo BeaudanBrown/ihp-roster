@@ -10,6 +10,8 @@ module Application.Helper.View.Timesheets
     , renderTimesheetEntryModalWithStartButtons
     , renderTimesheetForm
     , renderTimesheetFormFields
+    , renderTimesheetManagerNoteField
+    , renderTimesheetStaffCommentField
     , renderTimesheetStaffOption
     , timesheetModalTitle
     ) where
@@ -33,8 +35,8 @@ timesheetModalTitle day =
         <> formatDayMonthDisplay day
 
 -- | Shared timesheet entry form used by New and Edit views.
-renderTimesheetForm :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Text -> Text -> OverlayFormMode -> Html
-renderTimesheetForm entry staffMembers shiftTypes weekOffset showApproved showAllStaff actionUrl formId formMode =
+renderTimesheetForm :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Text -> Text -> OverlayFormMode -> Html
+renderTimesheetForm entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId actionUrl formId formMode =
     case formMode of
         HtmxOverlayForm -> [hsx|
             <form id={formId}
@@ -46,7 +48,7 @@ renderTimesheetForm entry staffMembers shiftTypes weekOffset showApproved showAl
                   hx-target={"#" <> dialogOverlayMountId}
                   hx-swap="innerHTML"
                   hx-push-url="false">
-                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff}
+                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId}
             </form>
         |]
         PageOverlayForm -> [hsx|
@@ -54,15 +56,16 @@ renderTimesheetForm entry staffMembers shiftTypes weekOffset showApproved showAl
                   method="POST"
                   action={actionUrl}
                   class="mt-3">
-                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff}
+                {renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId}
             </form>
         |]
 
-renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Html
-renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff = [hsx|
+renderTimesheetFormFields :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Html
+renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId = [hsx|
     <input type="hidden" name="weekOffset" value={tshow weekOffset} />
     <input type="hidden" name="showApproved" value={if showApproved then ("true" :: Text) else "false"} />
     <input type="hidden" name="showAllStaff" value={if showAllStaff then ("true" :: Text) else "false"} />
+    <input type="hidden" name="staffFilterId" value={maybe "" tshow selectedStaffFilterId} />
     {renderStaffField entry staffMembers}
     {renderShiftTypeField entry shiftTypes}
     <input type="hidden" name="workedOn" value={dateValueIso} />
@@ -111,6 +114,8 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved 
         </div>
     </div>
     {renderFieldError entry "breakMinutes"}
+    {renderTimesheetStaffCommentField entry currentViewerStaffId}
+    {renderTimesheetManagerNoteField entry}
 |]
     where
         startTimeValue = timeOfDayToStorageValue entry.startTime
@@ -118,6 +123,42 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved 
         breakStartTimeValue = optionalTimeOfDayToStorageValue entry.breakStartTime
         breakEndTimeValue = optionalTimeOfDayToStorageValue entry.breakEndTime
         dateValueIso = tshow entry.workedOn :: Text
+
+renderTimesheetStaffCommentField :: (?context :: ControllerContext) => TimesheetEntry -> Maybe UUID -> Html
+renderTimesheetStaffCommentField entry currentViewerStaffId
+    | currentViewerStaffId == Just entry.staffId = [hsx|
+        <div class="mb-3">
+            <label for="staffComment" class="form-label">Staff comment</label>
+            <textarea id="staffComment"
+                      name="staffComment"
+                      class={classes [("form-control", True), ("is-invalid", hasErrorFor entry "staffComment")]}
+                      rows="3"
+                      maxlength="1000">{fromMaybe "" entry.staffComment}</textarea>
+            {renderFieldError entry "staffComment"}
+        </div>
+    |]
+    | currentUserIsManager && isJust entry.staffComment = [hsx|
+        <div class="mb-3">
+            <label class="form-label">Staff comment</label>
+            <div class="form-control-plaintext border rounded px-3 py-2">{fromMaybe "" entry.staffComment}</div>
+        </div>
+    |]
+    | otherwise = mempty
+
+renderTimesheetManagerNoteField :: (?context :: ControllerContext) => TimesheetEntry -> Html
+renderTimesheetManagerNoteField entry
+    | currentUserIsManager = [hsx|
+        <div class="mb-3">
+            <label for="managerNote" class="form-label">Manager note</label>
+            <textarea id="managerNote"
+                      name="managerNote"
+                      class={classes [("form-control", True), ("is-invalid", hasErrorFor entry "managerNote")]}
+                      rows="3"
+                      maxlength="1000">{fromMaybe "" entry.managerNote}</textarea>
+            {renderFieldError entry "managerNote"}
+        </div>
+    |]
+    | otherwise = mempty
 
 renderStaffField :: (?context :: ControllerContext) => TimesheetEntry -> [Staff] -> Html
 renderStaffField entry staffMembers =

@@ -55,6 +55,7 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     , timesheetWeekEndDate          :: Day
     , timesheetShowApproved         :: Bool
     , timesheetShowAllStaff         :: Bool
+    , timesheetStaffFilterId        :: Maybe UUID.UUID
     , timesheetCurrentViewerStaffId :: Maybe UUID.UUID
     }
 
@@ -62,6 +63,7 @@ data TimesheetProjectionRequest = TimesheetProjectionRequest
     { projectionWeekOffset   :: !Int
     , projectionShowApproved :: !Bool
     , projectionShowAllStaff :: !Bool
+    , projectionStaffFilterId :: !(Maybe UUID.UUID)
     }
     deriving (Eq, Show)
 
@@ -70,12 +72,19 @@ data TimesheetProjectionFragment
     | TimesheetProjectionDaySection !Int
     deriving (Eq, Show)
 
-fetchTimesheetDataForWeek :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Day -> Day -> Bool -> Bool -> IO ([TimesheetEntry], [Staff], Maybe UUID.UUID)
-fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff = do
+fetchTimesheetDataForWeek :: (?modelContext :: ModelContext, ?context :: ControllerContext) => Day -> Day -> Bool -> Bool -> Maybe UUID.UUID -> IO ([TimesheetEntry], [Staff], Maybe UUID.UUID, Maybe UUID.UUID)
+fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff requestedStaffFilterId = do
     staffMembers <- query @Staff |> filterWhere (#venueId, unpackId currentVenueId) |> orderByAsc #lastName |> fetch
 
     let weekDays = [weekStartDate .. weekEndDate]
     maybeCurrentViewerStaff <- fetchCurrentUserStaff
+    let validStaffFilterId =
+            if hasRole ManagerRole'
+                then requestedStaffFilterId >>= \staffFilterId ->
+                    if any (\staff -> unpackId (get #id staff) == staffFilterId) staffMembers
+                        then Just staffFilterId
+                        else Nothing
+                else Nothing
 
     let applyApprovedFilter queryBuilder =
             if showApproved
@@ -90,17 +99,24 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff = 
                             |> filterWhere (#venueId, unpackId currentVenueId)
                             |> filterWhereIn (#workedOn, weekDays)
                             |> filterWhere (#deletedAt, Nothing)
-                case (showAllStaff, maybeCurrentViewerStaff) of
-                    (False, Just staff) ->
+                case (validStaffFilterId, showAllStaff, maybeCurrentViewerStaff) of
+                    (Just staffFilterId, _, _) ->
+                        applyApprovedFilter
+                            (baseQuery |> filterWhere (#staffId, staffFilterId))
+                            |> orderByAsc #workedOn
+                            |> orderByAsc #isApproved
+                            |> orderByAsc #startTime
+                            |> fetch
+                    (Nothing, False, Just staff) ->
                         applyApprovedFilter
                             (baseQuery |> filterWhere (#staffId, unpackId (get #id staff)))
                             |> orderByAsc #workedOn
                             |> orderByAsc #isApproved
                             |> orderByAsc #startTime
                             |> fetch
-                    (False, Nothing) ->
+                    (Nothing, False, Nothing) ->
                         pure []
-                    (True, _) ->
+                    (Nothing, True, _) ->
                         applyApprovedFilter baseQuery
                             |> orderByAsc #workedOn
                             |> orderByAsc #isApproved
@@ -122,7 +138,7 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff = 
                                 |> orderByAsc #startTime
                                 |> fetch
 
-    pure (entries, staffMembers, unpackId . get #id <$> maybeCurrentViewerStaff)
+    pure (entries, staffMembers, validStaffFilterId, unpackId . get #id <$> maybeCurrentViewerStaff)
 
 fetchStaffForForm :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffForForm =
@@ -139,12 +155,12 @@ fetchShiftTypesForForm =
         |> fetch
 
 fetchTimesheetWeekProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext) => TimesheetProjectionRequest -> IO TimesheetWeekProjection
-fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset = weekOffset, projectionShowApproved = showApproved, projectionShowAllStaff = showAllStaff } = do
+fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset = weekOffset, projectionShowApproved = showApproved, projectionShowAllStaff = showAllStaff, projectionStaffFilterId = staffFilterId } = do
     venueConfig <- fetchVenueConfig
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let weekEndDate = addDays 6 weekStartDate
 
-    (entries, staffMembers, currentViewerStaffId) <- profileActionSpan "timesheets.fetch_week_data" (fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff)
+    (entries, staffMembers, validStaffFilterId, currentViewerStaffId) <- profileActionSpan "timesheets.fetch_week_data" (fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff staffFilterId)
     shiftTypes <- profileActionSpan "timesheets.fetch_shift_types" fetchShiftTypesForForm
     today <- utctDay <$> getCurrentTime
     let editWindowDays = venueConfig.staffTimesheetEditWindowDays
@@ -161,6 +177,7 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
             , timesheetWeekEndDate = weekEndDate
             , timesheetShowApproved = showApproved
             , timesheetShowAllStaff = showAllStaff
+            , timesheetStaffFilterId = validStaffFilterId
             , timesheetCurrentViewerStaffId = currentViewerStaffId
             }
 
@@ -192,6 +209,7 @@ timesheetProjectionDefinition =
                 , tshow requestKey.projectionWeekOffset
                 , if requestKey.projectionShowApproved then "true" else "false"
                 , if requestKey.projectionShowAllStaff then "true" else "false"
+                , maybe "all" tshow requestKey.projectionStaffFilterId
                 ])
         (pure (tshow currentUser.id))
         (\requestKey -> currentLiveUpdateVersion (buildTimesheetWeekScope currentVenueId requestKey.projectionWeekOffset))
@@ -234,11 +252,12 @@ timesheetDayRenderModelFromProjection projection dayOffset =
         , dayWeekStartDate = projection.timesheetWeekStartDate
         , dayShowApproved = projection.timesheetShowApproved
         , dayShowAllStaff = projection.timesheetShowAllStaff
+        , dayStaffFilterId = projection.timesheetStaffFilterId
         , dayOffset
         }
 
 timesheetIndexView :: (?context :: ControllerContext) => TimesheetWeekProjection -> IndexView
-timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetShowApproved, timesheetShowAllStaff, timesheetCurrentViewerStaffId } =
+timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMembers, timesheetShiftTypes, timesheetToday, timesheetEditWindowDays, timesheetWeekOffset, timesheetWeekStartDate, timesheetWeekEndDate, timesheetShowApproved, timesheetShowAllStaff, timesheetStaffFilterId, timesheetCurrentViewerStaffId } =
     IndexView
         { entries = timesheetEntries
         , staffMembers = timesheetStaffMembers
@@ -250,8 +269,9 @@ timesheetIndexView TimesheetWeekProjection { timesheetEntries, timesheetStaffMem
         , weekEndDate = timesheetWeekEndDate
         , showApproved = timesheetShowApproved
         , showAllStaff = timesheetShowAllStaff
+        , selectedStaffFilterId = timesheetStaffFilterId
         , currentViewerStaffId = timesheetCurrentViewerStaffId
-        , liveUpdateSurface = Just (mkDefinedLiveSurface timesheetLiveSurfaceDefinition (TimesheetProjectionRequest timesheetWeekOffset timesheetShowApproved timesheetShowAllStaff))
+        , liveUpdateSurface = Just (mkDefinedLiveSurface timesheetLiveSurfaceDefinition (TimesheetProjectionRequest timesheetWeekOffset timesheetShowApproved timesheetShowAllStaff timesheetStaffFilterId))
         }
 
 weekOffsetFromParamOrCurrent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Int
@@ -290,6 +310,7 @@ buildTimesheetDaySectionFragmentRef requestKey dayOffset =
             (pathTo ShowTimesheetDaySectionFragmentAction { weekOffset = requestKey.projectionWeekOffset, dayOffset })
             [ ("showApproved", if requestKey.projectionShowApproved then "true" else "false")
             , ("showAllStaff", if requestKey.projectionShowAllStaff then "true" else "false")
+            , ("staffFilterId", maybe "" tshow requestKey.projectionStaffFilterId)
             ]
         )
 
@@ -298,7 +319,7 @@ buildTimesheetWeekPageFragmentRef requestKey =
     mkLiveFragmentRef
         (TimesheetDaySectionFragment { dayOffset = 0 })
         timesheetWeekShellId
-        (timesheetWeekUrl requestKey.projectionWeekOffset requestKey.projectionShowApproved requestKey.projectionShowAllStaff)
+        (timesheetWeekUrl requestKey.projectionWeekOffset requestKey.projectionShowApproved requestKey.projectionShowAllStaff requestKey.projectionStaffFilterId)
 
 broadcastTimesheetDayInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> IO ()
 broadcastTimesheetDayInvalidation weekOffset workedOn = do
@@ -309,7 +330,7 @@ broadcastTimesheetDayInvalidation weekOffset workedOn = do
         broadcastLiveInvalidation
             (buildTimesheetWeekScope currentVenueId weekOffset)
             liveUpdateSourceClientId
-            [buildTimesheetDaySectionFragmentRef (TimesheetProjectionRequest weekOffset True True) dayOffset]
+            [buildTimesheetDaySectionFragmentRef (TimesheetProjectionRequest weekOffset True True Nothing) dayOffset]
 
 broadcastTimesheetEntryMoveInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> Day -> IO ()
 broadcastTimesheetEntryMoveInvalidation oldWorkedOn newWorkedOn = do
@@ -325,10 +346,11 @@ broadcastTimesheetEntryMoveInvalidation oldWorkedOn newWorkedOn = do
             broadcastLiveInvalidation
                 (buildTimesheetWeekScope currentVenueId targetWeekOffset)
                 liveUpdateSourceClientId
-                [buildTimesheetDaySectionFragmentRef (TimesheetProjectionRequest targetWeekOffset True True) dayOffset]
+                [buildTimesheetDaySectionFragmentRef (TimesheetProjectionRequest targetWeekOffset True True Nothing) dayOffset]
 
-timesheetViewFiltersFromRequest :: (?request :: Request) => (Bool, Bool)
+timesheetViewFiltersFromRequest :: (?request :: Request) => (Bool, Bool, Maybe UUID.UUID)
 timesheetViewFiltersFromRequest =
     ( paramOrDefault @Bool False "showApproved"
     , paramOrDefault @Bool True "showAllStaff"
+    , parseUUIDText =<< paramOrNothing @Text "staffFilterId"
     )

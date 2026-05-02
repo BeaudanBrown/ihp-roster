@@ -10,30 +10,32 @@ data EditView = EditView
     , weekOffset     :: Int
     , showApproved   :: Bool
     , showAllStaff   :: Bool
+    , selectedStaffFilterId :: Maybe UUID
+    , currentViewerStaffId  :: Maybe UUID
     }
 
 instance View EditView where
     html EditView { .. } =
         renderTimesheetEntryModalWithStartButtons
             (timesheetModalTitle timesheetEntry.workedOn)
-            (timesheetWeekUrl weekOffset showApproved showAllStaff)
+            (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
             editTimesheetFormId
-            (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
-            (deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff)
+            (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId PageOverlayForm)
+            (deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId)
 
 editTimesheetFormId :: Text
 editTimesheetFormId = "timesheet-entry-edit-form"
 
-renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Html
-renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff =
+renderEditTimesheetDialog :: TimesheetEntry -> [Staff] -> [ShiftType] -> Int -> Bool -> Bool -> Maybe UUID -> Maybe UUID -> Html
+renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId =
     renderTimesheetEntryDialogWithStartButtons
         (timesheetModalTitle timesheetEntry.workedOn)
         editTimesheetFormId
-        (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
-        (deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff)
+        (renderTimesheetForm timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId (pathTo (UpdateTimesheetEntryAction (get #id timesheetEntry))) editTimesheetFormId HtmxOverlayForm)
+        (deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId)
 
-deleteButtonsFor :: TimesheetEntry -> Int -> Bool -> Bool -> [OverlayButton]
-deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff =
+deleteButtonsFor :: TimesheetEntry -> Int -> Bool -> Bool -> Maybe UUID -> [OverlayButton]
+deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId =
     [ OverlayButton
         { overlayButtonLabel = "Delete"
         , overlayButtonClass = "btn btn-outline-danger"
@@ -44,10 +46,11 @@ deleteButtonsFor timesheetEntry weekOffset showApproved showAllStaff =
                 [ ("weekOffset", tshow weekOffset)
                 , ("showApproved", boolParam showApproved)
                 , ("showAllStaff", boolParam showAllStaff)
+                , ("staffFilterId", maybe "" tshow selectedStaffFilterId)
                 ]
                 ("#" <> dialogOverlayMountId)
                 (Just "Delete this timesheet entry? This cannot be undone.")
         }
     ]
     where
-        deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) [("weekOffset", tshow weekOffset)]
+        deleteUrl = appendQueryParams (pathTo (DeleteTimesheetEntryAction (get #id timesheetEntry))) [("weekOffset", tshow weekOffset), ("staffFilterId", maybe "" tshow selectedStaffFilterId)]

@@ -1011,6 +1011,8 @@ CREATE TABLE timesheet_entries (
     break_minutes INT DEFAULT 0 NOT NULL,
     staff_pay_version_id UUID,
     shift_type_pay_version_id UUID,
+    staff_comment TEXT DEFAULT NULL,
+    manager_note TEXT DEFAULT NULL,
     is_approved BOOLEAN DEFAULT FALSE NOT NULL,
     approved_at TIMESTAMP WITH TIME ZONE,
     approved_by_user_id UUID,
@@ -1028,6 +1030,8 @@ CREATE TABLE timesheet_entries (
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (break_minutes >= 0),
     CHECK (((had_break = FALSE) AND break_start_time IS NULL AND break_end_time IS NULL AND break_minutes = 0) OR ((had_break = TRUE) AND break_start_time IS NOT NULL AND break_end_time IS NOT NULL AND break_minutes > 0)),
+    CHECK (staff_comment IS NULL OR char_length(staff_comment) <= 1000),
+    CHECK (manager_note IS NULL OR char_length(manager_note) <= 1000),
     CHECK (((is_approved = FALSE) AND approved_at IS NULL AND approved_by_user_id IS NULL AND staff_pay_version_id IS NULL AND shift_type_pay_version_id IS NULL) OR ((is_approved = TRUE) AND approved_at IS NOT NULL AND approved_by_user_id IS NOT NULL AND staff_pay_version_id IS NOT NULL AND shift_type_pay_version_id IS NOT NULL))
 );
 CREATE TABLE timesheet_entry_versions (

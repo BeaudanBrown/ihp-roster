@@ -22,39 +22,40 @@ instance Controller TimesheetsController where
 
     action TimesheetsAction = do
         currentOffset <- currentTimesheetWeekOffset
-        let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         if isHtmxRequest
             then do
-                setHtmxPushUrl (timesheetWeekUrl currentOffset showApproved showAllStaff)
-                renderTimesheetWeekPage currentOffset showApproved showAllStaff
-            else redirectToPath (timesheetWeekUrl currentOffset showApproved showAllStaff)
+                setHtmxPushUrl (timesheetWeekUrl currentOffset showApproved showAllStaff selectedStaffFilterId)
+                renderTimesheetWeekPage currentOffset showApproved showAllStaff selectedStaffFilterId
+            else redirectToPath (timesheetWeekUrl currentOffset showApproved showAllStaff selectedStaffFilterId)
 
     action ShowTimesheetWeekAction { weekOffset } = do
-        let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
-        renderTimesheetWeekPage weekOffset showApproved showAllStaff
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        renderTimesheetWeekPage weekOffset showApproved showAllStaff selectedStaffFilterId
 
     action ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = do
-        let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
-        respondWithTimesheetDaySectionFragment weekOffset dayOffset showApproved showAllStaff
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        respondWithTimesheetDaySectionFragment weekOffset dayOffset showApproved showAllStaff selectedStaffFilterId
 
     action NewTimesheetEntryAction = do
         weekOffset <- weekOffsetFromParamOrCurrent
-        let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         staffMembers <- fetchStaffForForm
         shiftTypes <- fetchShiftTypesForForm
         currentUserStaff <- fetchCurrentUserStaff
+        let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
         let maybeWorkedOn = paramOrNothing @Day "workedOn"
 
         case (staffMembers, shiftTypes, maybeWorkedOn) of
             ([], _, _) -> do
                 setErrorMessage "No staff record found. Contact an administrator."
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
+                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
             (_, [], _) -> do
                 setErrorMessage "Add at least one shift type before creating a timesheet entry."
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
+                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
             (_, _, Nothing) -> do
                 setErrorMessage "Please choose a day before creating a timesheet entry."
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
+                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
             (_, defaultShiftType : _, Just workedOn) -> do
                 let timesheetEntry =
                         newRecord @TimesheetEntry
@@ -69,24 +70,26 @@ instance Controller TimesheetsController where
                             |> set #breakEndTime Nothing
                             |> set #breakMinutes 0
                 if isHtmxRequest
-                    then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff)
+                    then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId)
                     else render NewView { .. }
 
     action CreateTimesheetEntryAction = do
         weekOffset <- weekOffsetFromParamOrCurrent
-        let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         staffMembers <- fetchStaffForForm
         shiftTypes <- fetchShiftTypesForForm
+        currentUserStaff <- fetchCurrentUserStaff
+        let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
         let timesheetEntryRecord =
                 newRecord @TimesheetEntry
                     |> set #venueId (unpackId currentVenueId)
-                    |> buildTimesheetEntry
+                    |> buildTimesheetEntry currentViewerStaffId
 
         timesheetEntryRecord
             |> ifValid \case
                 Left timesheetEntry -> do
                     if isHtmxRequest
-                        then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff)
+                        then respondHtml (renderNewTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId)
                         else render NewView { .. }
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
@@ -97,10 +100,10 @@ instance Controller TimesheetsController where
                         pure createdEntry
                     broadcastTimesheetDayInvalidation weekOffset createdEntry.workedOn
                     if isHtmxRequest
-                        then respondWithTimesheetDaySectionUpdate weekOffset createdEntry.workedOn showApproved showAllStaff "Timesheet entry created" True True
+                        then respondWithTimesheetDaySectionUpdate weekOffset createdEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry created" True True
                         else do
                             setSuccessMessage "Timesheet entry created"
-                            redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
+                            redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
     action EditTimesheetEntryAction { timesheetEntryId } = do
         timesheetEntry <- fetch timesheetEntryId
@@ -109,11 +112,13 @@ instance Controller TimesheetsController where
         ensureEditWindowOrManager timesheetEntry.workedOn
 
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
-        let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         staffMembers <- fetchStaffForForm
         shiftTypes <- fetchShiftTypesForForm
+        currentUserStaff <- fetchCurrentUserStaff
+        let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
         if isHtmxRequest
-            then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff)
+            then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId)
             else render EditView { .. }
 
     action UpdateTimesheetEntryAction { timesheetEntryId } = do
@@ -123,32 +128,35 @@ instance Controller TimesheetsController where
         ensureEditWindowOrManager existingEntry.workedOn
 
         weekOffset <- weekOffsetFromParamOrEntry existingEntry.workedOn
-        let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         staffMembers <- fetchStaffForForm
         shiftTypes <- fetchShiftTypesForForm
-        when existingEntry.isApproved do
-            ensureTimesheetEntryNotPayrollLocked existingEntry weekOffset showApproved showAllStaff
+        currentUserStaff <- fetchCurrentUserStaff
+        let currentViewerStaffId = unpackId . get #id <$> currentUserStaff
 
         let wasApproved = existingEntry.isApproved
         existingEntry
-            |> buildTimesheetEntry
+            |> buildTimesheetEntry currentViewerStaffId
             |> ifValid \case
                 Left timesheetEntry -> do
                     if isHtmxRequest
-                        then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff)
+                        then respondHtml (renderEditTimesheetDialog timesheetEntry staffMembers shiftTypes weekOffset showApproved showAllStaff selectedStaffFilterId currentViewerStaffId)
                         else render EditView { .. }
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
                     ensureShiftTypeAllowed timesheetEntry.shiftTypeId
+                    let coreChanged = timesheetCoreChanged existingEntry timesheetEntry
+                    when (wasApproved && coreChanged) do
+                        ensureTimesheetEntryNotPayrollLocked existingEntry weekOffset showApproved showAllStaff selectedStaffFilterId
                     let oldWorkedOn = existingEntry.workedOn
                     let successMessage =
-                            if wasApproved
+                            if wasApproved && coreChanged
                                 then "Timesheet entry updated (approval reset)"
                                 else "Timesheet entry updated"
-                    let updateAction = unsafeEnumFromText @EntryVersionActionEnum (if wasApproved then "approval_reset" else "updated")
+                    let updateAction = unsafeEnumFromText @EntryVersionActionEnum (if wasApproved && coreChanged then "approval_reset" else "updated")
                     updatedEntry <- withTransaction do
                         updatedEntry <- timesheetEntry
-                            |> resetApprovalOnEdit wasApproved
+                            |> resetApprovalOnEdit (wasApproved && coreChanged)
                             |> updateRecord
                         void $
                             recordCurrentUserTimesheetEntryVersion
@@ -158,7 +166,7 @@ instance Controller TimesheetsController where
                                     [ "previous" Aeson..= timesheetEntrySnapshot existingEntry
                                     ]
                                 )
-                        when wasApproved do
+                        when (wasApproved && coreChanged) do
                             void $ recordCurrentUserAuditEvent
                                 "timesheet_approval_reset"
                                 "timesheet_entries"
@@ -173,10 +181,10 @@ instance Controller TimesheetsController where
                         pure updatedEntry
                     broadcastTimesheetEntryMoveInvalidation oldWorkedOn updatedEntry.workedOn
                     if isHtmxRequest
-                        then respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn updatedEntry.workedOn showApproved showAllStaff successMessage
+                        then respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn updatedEntry.workedOn showApproved showAllStaff selectedStaffFilterId successMessage
                         else do
                             setSuccessMessage successMessage
-                            redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
+                            redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
     action DeleteTimesheetEntryAction { timesheetEntryId } = do
         timesheetEntry <- fetch timesheetEntryId
@@ -185,8 +193,8 @@ instance Controller TimesheetsController where
         ensureEditWindowOrManager timesheetEntry.workedOn
 
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
-        let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
-        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId
         now <- getCurrentTime
         withTransaction do
             softDeletedEntry <- timesheetEntry
@@ -212,10 +220,10 @@ instance Controller TimesheetsController where
                 )
         broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff "Timesheet entry removed" True True
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry removed" True True
             else setSuccessMessage "Timesheet entry removed"
         unless isHtmxRequest do
-            redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
+            redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
     action ApproveTimesheetEntryAction { timesheetEntryId } = do
         ensureManagerRole
@@ -223,7 +231,7 @@ instance Controller TimesheetsController where
         ensureRecordInCurrentVenue timesheetEntry.venueId
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
-        let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
 
         now <- getCurrentTime
         (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval currentUser.id timesheetEntry
@@ -258,10 +266,10 @@ instance Controller TimesheetsController where
                 )
         broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff "Timesheet entry approved" False False
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry approved" False False
             else do
                 setSuccessMessage "Timesheet entry approved"
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
+                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
     action UnapproveTimesheetEntryAction { timesheetEntryId } = do
         ensureManagerRole
@@ -269,8 +277,8 @@ instance Controller TimesheetsController where
         ensureRecordInCurrentVenue timesheetEntry.venueId
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
-        let (showApproved, showAllStaff) = timesheetViewFiltersFromRequest
-        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId
 
         withTransaction do
             updatedEntry <- timesheetEntry
@@ -302,7 +310,7 @@ instance Controller TimesheetsController where
                 )
         broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff "Timesheet entry unapproved" False False
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry unapproved" False False
             else do
                 setSuccessMessage "Timesheet entry unapproved"
-                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff)
+                redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)

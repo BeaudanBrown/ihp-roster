@@ -6,6 +6,7 @@ import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Config
 import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (getCurrentTime, utctDay)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -249,8 +250,32 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Hide approved"
                 response `responseBodyShouldContain` "Show all staff"
                 response `responseBodyShouldContain` "No entries for this day."
-                response `responseBodyShouldNotContain` "Ava Hours"
+                response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Ava Hours"
                 response `responseBodyShouldNotContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""
+
+        it "filters manager timesheet views to a selected staff member" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Staff Filter Venue"
+                manager <- createUserRecord "timesheet-staff-filter-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                workerA <- createStaffRecord venue Nothing "Ava" "Filter"
+                workerB <- createStaffRecord venue Nothing "Bea" "Filter"
+                entryA <- createTimesheetEntryRecord venue workerA (fromGregorian 2025 1 7)
+                _ <- createTimesheetEntryRecord venue workerB (fromGregorian 2025 1 7)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [ ("showApproved", "true")
+                        , ("showAllStaff", "true")
+                        , ("staffFilterId", idToParam workerA.id)
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "name=\"staffFilterId\""
+                response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Filter"
+                response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Bea Filter"
+                response `responseBodyShouldContain` "timesheet-entry-card-link"
+                response `responseBodyShouldContain` cs (pathTo (EditTimesheetEntryAction entryA.id))
 
         it "renders a shape bar for valid after-midnight timesheet entries" $ withContext do
             withCleanDb do
@@ -296,6 +321,72 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "name=\"weekOffset\" value=\"2\""
                 response `responseBodyShouldNotContain` "action=\"/ShowTimesheetWeek?weekOffset=2&amp;showApproved=true"
                 response `responseBodyShouldNotContain` "hx-get=\"/ShowTimesheetWeek?weekOffset=2&amp;showApproved=true"
+
+        it "keeps comment-only edits from resetting approved timesheets" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Comments Venue"
+                manager <- createUserRecord "timesheet-comments-manager@example.com" "staff" True
+                workerUser <- createUserRecord "timesheet-comments-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                staff <- createStaffRecord venue (Just workerUser) "Cora" "Comment"
+                today <- utctDay <$> getCurrentTime
+                entry <- createApprovedTimesheetEntryRecord venue staff manager today
+
+                workerResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams (UpdateTimesheetEntryAction entry.id)
+                        [ ("staffId", idToParam staff.id)
+                        , ("shiftTypeId", cs (tshow entry.shiftTypeId))
+                        , ("workedOn", cs (tshow today))
+                        , ("startTime", "09:00")
+                        , ("endTime", "17:00")
+                        , ("staffComment", "Rooks staff note")
+                        , ("managerNote", "worker should not set this")
+                        ]
+
+                workerResponse `responseStatusShouldBe` status302
+                staffCommentedEntry <- fetch entry.id
+                staffCommentedEntry.isApproved `shouldBe` True
+                staffCommentedEntry.approvedByUserId `shouldBe` Just (unpackId manager.id)
+                staffCommentedEntry.staffComment `shouldBe` Just "Rooks staff note"
+                staffCommentedEntry.managerNote `shouldBe` Nothing
+
+                managerEditResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (EditTimesheetEntryAction entry.id)
+                managerEditResponse `responseStatusShouldBe` status200
+                managerEditResponse `responseBodyShouldContain` "Staff comment"
+                managerEditResponse `responseBodyShouldContain` "Rooks staff note"
+                managerEditResponse `responseBodyShouldContain` "Manager note"
+
+                workerEditResponse <- withUserAndCurrentVenue workerUser venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (EditTimesheetEntryAction entry.id)
+                workerEditResponse `responseStatusShouldBe` status200
+                workerEditResponse `responseBodyShouldContain` "Staff comment"
+                workerEditResponse `responseBodyShouldNotContain` "Manager note"
+
+                managerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (UpdateTimesheetEntryAction entry.id)
+                        [ ("staffId", idToParam staff.id)
+                        , ("shiftTypeId", cs (tshow entry.shiftTypeId))
+                        , ("workedOn", cs (tshow today))
+                        , ("startTime", "09:00")
+                        , ("endTime", "17:00")
+                        , ("staffComment", "manager should not overwrite")
+                        , ("managerNote", "Manager visible note")
+                        ]
+
+                managerResponse `responseStatusShouldBe` status302
+                managerCommentedEntry <- fetch entry.id
+                managerCommentedEntry.isApproved `shouldBe` True
+                managerCommentedEntry.staffComment `shouldBe` Just "Rooks staff note"
+                managerCommentedEntry.managerNote `shouldBe` Just "Manager visible note"
+
+                versions <- query @TimesheetEntryVersion |> orderByAsc #createdAt |> fetch
+                map (inputValue . (.versionAction)) versions `shouldBe` ["updated", "updated"]
+                resetAuditExists <- query @AuditEvent |> filterWhere (#eventType, "timesheet_approval_reset") |> fetchExists
+                resetAuditExists `shouldBe` False
 
         it "creating timesheets via HTMX updates the actor fragment and bumps the week scope version" $ withContext do
             withCleanDb do
