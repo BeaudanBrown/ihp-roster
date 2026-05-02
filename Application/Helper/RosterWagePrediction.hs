@@ -63,7 +63,7 @@ fetchRosterWagePrediction ::
     [RosterSlot] ->
     IO RosterWagePrediction
 fetchRosterWagePrediction venueConfig rosterWeek rosterDays rosterSlots = do
-    predictedShifts <- fmap catMaybes $
+    predictedShifts <- catMaybes <$>
         forM rosterSlots \slot ->
             case Map.lookup slot.rosterDayId rosterDaysById of
                 Nothing -> pure Nothing
@@ -126,7 +126,7 @@ predictShiftAmount venueConfig staff shiftType workedOn startTime endTime = do
             awardLevel <- fetch awardLevelId
             baseRate <- fetchBaseRate awardLevel staff.employmentBasis workedOn
             segmentAmounts <- forM (payWindowsForShift startTime endTime) \window -> do
-                segmentDate <- pure (segmentDateForWindow workedOn window)
+                let segmentDate = segmentDateForWindow workedOn window
                 penaltyKind <- resolveWindowPenaltyKind venueConfig segmentDate window
                 hourlyRate <- segmentHourlyRate awardLevel staff.employmentBasis workedOn segmentDate baseRate penaltyKind
                 pure (roundMoney (fromIntegral (paidMinutesInWindow startTime endTime window) / 60 * hourlyRate))
