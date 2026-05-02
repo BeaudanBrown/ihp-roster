@@ -37,6 +37,7 @@ import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
+import Application.Helper.RosterWagePrediction
 import Application.Helper.SurfaceProjection
 import Application.Helper.UserPreferences
 import Data.Coerce (coerce)
@@ -132,7 +133,7 @@ renderRosterContentFromProjection :: (?context :: ControllerContext, ?request ::
 renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
     case rosterData of
         Nothing -> [hsx|<div id="roster-content"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } ->
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } ->
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
              in renderRosterContentFragment
                     RosterGridRenderModel
@@ -154,6 +155,7 @@ renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
                         , gridViewCapabilities = viewCapabilities
                         , gridRosterLayoutMode = rosterLayoutMode
                         , gridRosterEndTimesEnabled = rosterEndTimesEnabled
+                        , gridRosterWagePrediction = rosterWagePrediction
                         }
 
 renderRosterStaffPanelFromProjection :: (?context :: ControllerContext, ?request :: Request) => Maybe RosterRenderData -> Blaze.Html
@@ -210,7 +212,11 @@ fetchRosterRenderData rosterGroupId weekOffset = do
                     then pure []
                     else profileActionSpan "roster.build_slot_conflicts" (buildSlotConflicts rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays visibleSlots staffMembers)
             let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
-            pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled })
+            rosterWagePrediction <-
+                if hasRole VenueAdminRole
+                    then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePrediction venueConfig rosterWeek rosterDays visibleSlots)
+                    else pure Nothing
+            pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterWagePrediction })
 
 fetchVisibleRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterRenderData rosterGroupId weekOffset = do
@@ -238,6 +244,7 @@ fetchVisibleRosterRenderData rosterGroupId weekOffset = do
                         , renderIndexes
                         , rosterLayoutMode
                         , rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled
+                        , rosterWagePrediction = Nothing
                         }
         Just _  -> fetchRosterRenderData rosterGroupId weekOffset
 

@@ -145,6 +145,16 @@ instance Controller AdminController where
                         then "Roster end times and shift types enabled."
                         else "Roster end times and shift types disabled."
                 redirectToAdminFor (paramOrNothing "rosterGroupId")
+            "autoTimesheetCreationEnabled" -> do
+                let autoTimesheetCreationEnabled = isJust (paramOrNothing @Text "autoTimesheetCreationEnabled")
+                _ <- venueConfig
+                    |> set #autoTimesheetCreationEnabled autoTimesheetCreationEnabled
+                    |> updateRecord
+                setSuccessMessage $
+                    if autoTimesheetCreationEnabled
+                        then "Auto-created pending timesheets enabled."
+                        else "Auto-created pending timesheets disabled."
+                redirectToAdminFor (paramOrNothing "rosterGroupId")
             _ -> do
                 requestedRosterWeekStartsOn <- parseRosterWeekStartsOn
                 case requestedRosterWeekStartsOn of

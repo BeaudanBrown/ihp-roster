@@ -39,7 +39,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
         Nothing -> do
             TextIO.putStrLn ("roster_projection_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
             respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } ->
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } ->
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
              in respondHtmlProfiled $
                     renderRosterContentFragmentOob
@@ -62,6 +62,7 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridViewCapabilities = viewCapabilities
                             , gridRosterLayoutMode = rosterLayoutMode
                             , gridRosterEndTimesEnabled = rosterEndTimesEnabled
+                            , gridRosterWagePrediction = rosterWagePrediction
                             }
 
 respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
@@ -81,7 +82,7 @@ respondWithRosterContentToast rosterGroupId weekOffset toast = do
         mconcat
             [ case rosterData of
                 Nothing -> [hsx|<div id="roster-content"></div>|]
-                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } ->
+                Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } ->
                     let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
                      in renderRosterContentFragment
                             RosterGridRenderModel
@@ -103,6 +104,7 @@ respondWithRosterContentToast rosterGroupId weekOffset toast = do
                                 , gridViewCapabilities = viewCapabilities
                                 , gridRosterLayoutMode = rosterLayoutMode
                                 , gridRosterEndTimesEnabled = rosterEndTimesEnabled
+                                , gridRosterWagePrediction = rosterWagePrediction
                                 }
             , renderToastOob ToastBottomCenter toast
             ]

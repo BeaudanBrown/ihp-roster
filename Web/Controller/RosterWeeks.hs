@@ -12,6 +12,10 @@ import Application.Helper.LiveUpdate (LiveFragmentRef, LiveUpdateScope (..),
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.UserPreferences
+import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
+                                errorToast, renderToastOob)
+import Application.RosterTimesheets.Automation (enqueueRosterTimesheetCreationJobsForWeek,
+                                                rosterSlotHasGeneratedTimesheet)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import Data.List (nub)
@@ -194,9 +198,13 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             Nothing -> do
-                rosterWeek
+                updatedRosterWeek <- rosterWeek
                     |> set #isLive nextLiveStatus
                     |> updateRecord
+                queuedTimesheetJobs <-
+                    if nextLiveStatus
+                        then enqueueRosterTimesheetCreationJobsForWeek (Just currentUser.id) updatedRosterWeek
+                        else pure []
 
                 broadcastRosterWeekInvalidation
                     rosterGroupId
@@ -204,7 +212,10 @@ instance Controller RosterWeeksController where
                     [buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset]
                 let successMessage =
                         if nextLiveStatus
-                            then "Roster week is now live."
+                            then
+                                if null queuedTimesheetJobs
+                                    then "Roster week is now live."
+                                    else "Roster week is now live. Pending timesheet jobs queued for " <> tshow (length queuedTimesheetJobs) <> " shifts."
                             else "Roster week moved back to draft."
                 let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
                 if isHtmxRequest
@@ -502,6 +513,7 @@ instance Controller RosterWeeksController where
         let maybeEndTimeParam = paramOrNothing @Text "endTime"
         let maybeShiftTypeParam = paramOrNothing @Text "shiftTypeId"
         let maybeFlagParam = paramOrNothing @Text "note"
+        sourceTimesheetExists <- rosterSlotHasGeneratedTimesheet rosterSlot
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         case normalizeOptionalSlotFlag maybeFlagParam of
@@ -538,6 +550,8 @@ instance Controller RosterWeeksController where
                                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
                     else do
                         _ <- updatedSlot |> updateRecord
+                        let shouldWarnSourceTimesheetUnchanged =
+                                sourceTimesheetExists && rosterSlotTimesheetSourceChanged rosterSlot updatedSlot
 
                         relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, updatedSlot.staffId])
                         let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
@@ -549,7 +563,12 @@ instance Controller RosterWeeksController where
                             rosterGroupId
                             rosterWeek.weekOffset
                             actorFragments
-                        respondWithActorRosterFragmentRefresh actorFragments
+                        respondWithActorRosterFragmentRefreshWithToast
+                            actorFragments
+                            ( if shouldWarnSourceTimesheetUnchanged
+                                then Just "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly."
+                                else Nothing
+                            )
 
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
 resolveRequestedRosterGroup =
@@ -568,9 +587,14 @@ respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
     respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
 
 respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?request :: Request) => [LiveFragmentRef] -> IO ()
-respondWithActorRosterFragmentRefresh fragments = do
+respondWithActorRosterFragmentRefresh fragments =
+    respondWithActorRosterFragmentRefreshWithToast fragments Nothing
+
+respondWithActorRosterFragmentRefreshWithToast :: (?context :: ControllerContext, ?request :: Request) => [LiveFragmentRef] -> Maybe Text -> IO ()
+respondWithActorRosterFragmentRefreshWithToast fragments maybeWarningMessage = do
     setHeader ("HX-Trigger", cs (Aeson.encode payload))
-    respondHtmlProfiled [hsx||]
+    respondHtmlProfiled $
+        maybe mempty (renderToastOob ToastBottomCenter . errorToast) maybeWarningMessage
     where
         payload =
             liveFragmentsRefreshTriggerPayload fragments
@@ -600,7 +624,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
     passkeySetupPrompt <- passkeySetupPromptFromSession
 
     case rosterDataOrNothing of
-        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } ->
+        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } ->
             let visibleRosterWeek =
                     if rosterWeek.isLive || hasRole ManagerRole'
                         then Just rosterWeek
@@ -627,6 +651,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
                         , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
                         , rosterLayoutMode
                         , rosterEndTimesEnabled
+                        , rosterWagePrediction
                         , passkeySetupPrompt
                         }
         Nothing ->
@@ -703,6 +728,13 @@ rosterSlotBlocksPublish slot =
              || isNothing slot.shiftTypeId
              || maybe True (<= 0) slot.durationMinutes
            )
+
+rosterSlotTimesheetSourceChanged :: RosterSlot -> RosterSlot -> Bool
+rosterSlotTimesheetSourceChanged previous next =
+    previous.staffId /= next.staffId
+        || previous.startTime /= next.startTime
+        || previous.endTime /= next.endTime
+        || previous.shiftTypeId /= next.shiftTypeId
 
 applyRosterSlotDuration :: RosterSlot -> RosterSlot
 applyRosterSlotDuration slot =

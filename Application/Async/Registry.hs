@@ -5,6 +5,7 @@ module Application.Async.Registry
 import Application.FwcMapd.Job
 import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
+import Application.RosterTimesheets.Automation
 import Application.Xero.Keepalive
 import qualified Data.Text as Text
 import Generated.Types
@@ -19,6 +20,7 @@ dispatchAppJob appJob =
     case appJob.jobKind of
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob
+        kind | kind == rosterTimesheetCreationJobKind -> performRosterTimesheetCreationJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
         kind | kind == venueInvitationDeliveryJobKind -> performVenueInvitationDeliveryJob appJob
         kind | kind == venueOnboardingInvitationDeliveryJobKind -> performVenueOnboardingInvitationDeliveryJob appJob

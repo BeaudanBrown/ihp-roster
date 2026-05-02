@@ -9,6 +9,7 @@ module Web.View.RosterWeeks.Grid
     , rowsForDay
     ) where
 
+import Application.Helper.RosterWagePrediction
 import Application.Helper.UserPreferences (rosterLayoutModeValue)
 import Application.Helper.View (staffDisplayName)
 import Data.Coerce (coerce)
@@ -46,7 +47,7 @@ renderRosterContent =
     renderRosterGrid
 
 renderRosterGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridPanelStaff, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled } =
+renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridPanelStaff, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction } =
     let dayModel =
             RosterDayRenderModel
                 { dayIsEditable = rosterWeekIsEditable gridRosterWeek
@@ -73,6 +74,7 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
         <div class={classes [("col-12", True), ("col-xl-8", currentUserIsManager), ("col-xxl-9", currentUserIsManager), ("mx-auto", not currentUserIsManager), ("roster-layout-main", currentUserIsManager)]}>
             <div class="app-panel overflow-hidden mb-5 mb-xl-0">
                 {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode}
+                {renderWagePredictionPanel gridRosterWagePrediction}
                 <div class="roster-grid-frame"
                      data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
                      data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
@@ -85,6 +87,49 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
         {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) gridPanelStaff)}
     </div>
 |]
+
+renderWagePredictionPanel :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Html
+renderWagePredictionPanel Nothing = mempty
+renderWagePredictionPanel (Just prediction)
+    | not currentUserIsAdmin = mempty
+    | otherwise = [hsx|
+        <section class="roster-wage-prediction" aria-label="Predicted roster wages">
+            <div class="roster-wage-prediction-summary">
+                <div>
+                    <div class="small text-uppercase fw-semibold app-muted">Predicted wages</div>
+                    <div class="roster-wage-prediction-total">{formatMoneyAmount prediction.predictionWeekTotal}</div>
+                </div>
+                <div class="small app-muted roster-wage-prediction-note">
+                    Admin estimate only. Uses rostered start/end, shift type, current pay rules, and a {tshow prediction.predictionBreakMinutes}-minute unpaid break for shifts over 6 hours.
+                </div>
+            </div>
+            <div class="roster-wage-prediction-days">
+                {forEach prediction.predictionDays renderWagePredictionDay}
+            </div>
+            {renderWagePredictionIncompleteNotice prediction}
+        </section>
+    |]
+
+renderWagePredictionDay :: RosterWagePredictionDay -> Html
+renderWagePredictionDay dayPrediction = [hsx|
+    <div class="roster-wage-prediction-day">
+        <span class="roster-wage-prediction-day-label">{formatDayShort dayPrediction.predictionDayDate}</span>
+        <span class="roster-wage-prediction-day-total">{formatMoneyAmount dayPrediction.predictionDayTotal}</span>
+    </div>
+|]
+
+renderWagePredictionIncompleteNotice :: RosterWagePrediction -> Html
+renderWagePredictionIncompleteNotice prediction
+    | prediction.predictionIncompleteShiftCount <= 0 = mempty
+    | otherwise = [hsx|
+        <div class="small text-warning-emphasis roster-wage-prediction-warning">
+            {tshow prediction.predictionIncompleteShiftCount} staffed shifts are missing start time, end time, or shift type and are excluded.
+        </div>
+    |]
+
+formatDayShort :: Day -> Text
+formatDayShort day =
+    Text.pack (formatTime defaultTimeLocale "%a" day)
 
 renderRosterGridColGroup :: Bool -> [RosterWeekSlotDefinition] -> Html
 renderRosterGridColGroup endTimesEnabled slotNames = [hsx|

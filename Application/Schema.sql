@@ -319,6 +319,7 @@ CREATE TABLE venue_config (
     week_offset_epoch DATE NOT NULL,
     late_to_early_min_start_gap_minutes INT DEFAULT 0 NOT NULL,
     roster_end_times_enabled BOOLEAN DEFAULT FALSE NOT NULL,
+    auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL,
     staff_timesheet_edit_window_days INT DEFAULT 7 NOT NULL,
     public_holiday_jurisdiction TEXT DEFAULT 'VIC' NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
@@ -1015,6 +1016,7 @@ CREATE TABLE timesheet_entries (
     break_minutes INT DEFAULT 0 NOT NULL,
     staff_pay_version_id UUID,
     shift_type_pay_version_id UUID,
+    source_roster_slot_id UUID DEFAULT NULL,
     staff_comment TEXT DEFAULT NULL,
     manager_note TEXT DEFAULT NULL,
     is_approved BOOLEAN DEFAULT FALSE NOT NULL,
@@ -1030,6 +1032,7 @@ CREATE TABLE timesheet_entries (
     FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_pay_version_id) REFERENCES staff_pay_versions (id) ON DELETE RESTRICT,
     FOREIGN KEY (shift_type_pay_version_id) REFERENCES shift_type_pay_versions (id) ON DELETE RESTRICT,
+    FOREIGN KEY (source_roster_slot_id) REFERENCES roster_slots (id) ON DELETE RESTRICT,
     FOREIGN KEY (approved_by_user_id) REFERENCES users (id) ON DELETE SET NULL,
     FOREIGN KEY (deleted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (break_minutes >= 0),
@@ -1207,6 +1210,7 @@ CREATE INDEX idx_timesheet_entries_venue_staff ON timesheet_entries (venue_id, s
 CREATE INDEX idx_timesheet_entries_venue_worked_on ON timesheet_entries (venue_id, worked_on) WHERE deleted_at IS NULL;
 CREATE INDEX idx_timesheet_entries_staff_pay_version ON timesheet_entries (staff_pay_version_id);
 CREATE INDEX idx_timesheet_entries_shift_type_pay_version ON timesheet_entries (shift_type_pay_version_id);
+CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL;
 CREATE INDEX idx_timesheet_entry_versions_entry_created_at ON timesheet_entry_versions (timesheet_entry_id, created_at DESC);
 CREATE INDEX idx_leave_requests_venue_staff ON leave_requests (venue_id, staff_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_leave_requests_venue_start_date ON leave_requests (venue_id, start_date) WHERE deleted_at IS NULL;
@@ -1468,6 +1472,19 @@ BEGIN
         )
     THEN
         RAISE EXCEPTION 'timesheet entry shift_type_pay_version_id must match entry shift type and venue';
+    END IF;
+
+    IF NEW.source_roster_slot_id IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1
+            FROM roster_slots rs
+            JOIN roster_days rd ON rd.id = rs.roster_day_id
+            JOIN roster_weeks rw ON rw.id = rd.roster_week_id
+            WHERE rs.id = NEW.source_roster_slot_id
+                AND rw.venue_id = NEW.venue_id
+        )
+    THEN
+        RAISE EXCEPTION 'timesheet entry source_roster_slot_id must stay within entry venue';
     END IF;
 
     RETURN NEW;

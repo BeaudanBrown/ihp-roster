@@ -35,6 +35,7 @@ import qualified Test.PaySpec
 import qualified Test.ProfilingSpec
 import qualified Test.PublicHolidaySyncSpec
 import qualified Test.RosterGridSpec
+import qualified Test.RosterTimesheetsAutomationSpec
 import qualified Test.SchemaSpec
 import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
@@ -139,6 +140,7 @@ allSuites =
     , TestSuite "Profiling" Test.ProfilingSpec.tests
     , TestSuite "PublicHolidaySync" Test.PublicHolidaySyncSpec.tests
     , TestSuite "FwcMapdSync" Test.FwcMapdSyncSpec.tests
+    , TestSuite "RosterTimesheetsAutomation" Test.RosterTimesheetsAutomationSpec.tests
     , TestSuite "VenueAccess" Test.Controller.VenueAccessSpec.tests
     , TestSuite "PayrollExportParity" Test.Controller.PayrollExportParitySpec.tests
     , TestSuite "StaffController" Test.Controller.StaffSpec.tests

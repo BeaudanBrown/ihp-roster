@@ -322,6 +322,44 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` ">Alpha<"
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 
+        it "shows predicted roster wages to admins only" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                admin <- createUserRecord "roster-admin-wage-prediction@example.com" "staff" True
+                manager <- createUserRecord "roster-manager-wage-prediction@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                _ <- updateRecord (staffMember |> set #employmentBasis Permanent)
+                level <- createPayLevelRecordWithRates venue "Level 1" 20 5 10 1 1.5 2
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                _ <- updateRecord
+                    ( slot
+                        |> set #startTime (Just (timeOfDay 9 0))
+                        |> set #endTime (Just (timeOfDay 17 0))
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> set #durationMinutes (Just 480)
+                    )
+
+                adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                adminResponse `responseStatusShouldBe` status200
+                adminResponse `responseBodyShouldContain` "Predicted wages"
+                adminResponse `responseBodyShouldContain` "$150.00"
+                adminResponse `responseBodyShouldContain` "Admin estimate only"
+
+                managerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                managerResponse `responseStatusShouldBe` status200
+                managerResponse `responseBodyShouldNotContain` "Predicted wages"
+                managerResponse `responseBodyShouldNotContain` "roster-wage-prediction"
+
         it "manager can toggle a draft week live" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

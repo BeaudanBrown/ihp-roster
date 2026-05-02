@@ -83,6 +83,7 @@ tests = describe "Schema" do
                 , get #weekOffsetEpoch venueConfig
                 , get #lateToEarlyMinStartGapMinutes venueConfig
                 , get #rosterEndTimesEnabled venueConfig
+                , get #autoTimesheetCreationEnabled venueConfig
                 )
         True `shouldBe` True
 
@@ -94,6 +95,7 @@ tests = describe "Schema" do
         let _rosterSlotEndTime = get #endTime (newRecord @RosterSlot)
         let _rosterSlotShiftTypeId = get #shiftTypeId (newRecord @RosterSlot)
         let _timesheetVenueId = get #venueId (newRecord @TimesheetEntry)
+        let _timesheetSourceRosterSlotId = get #sourceRosterSlotId (newRecord @TimesheetEntry)
         let _timesheetStaffPayVersionId = get #staffPayVersionId (newRecord @TimesheetEntry)
         let _timesheetShiftTypePayVersionId = get #shiftTypePayVersionId (newRecord @TimesheetEntry)
         let _leaveVenueId = get #venueId (newRecord @LeaveRequest)
@@ -277,9 +279,13 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (end_date > start_date)"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_end_times_enabled BOOLEAN DEFAULT FALSE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "shift_type_id UUID"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (shift_type_id) REFERENCES shift_types (id) ON DELETE SET NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_roster_slots_shift_type ON roster_slots (shift_type_id) WHERE shift_type_id IS NOT NULL AND deleted_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "source_roster_slot_id UUID DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (source_roster_slot_id) REFERENCES roster_slots (id) ON DELETE RESTRICT"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_groups_one_active_default ON roster_groups (venue_id) WHERE is_default = TRUE AND is_active = TRUE AND archived_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_preferences (staff_id, weekday_index) WHERE deleted_at IS NULL;"
@@ -300,6 +306,10 @@ tests = describe "Schema" do
         rosterFoundationMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS roster_end_times_enabled BOOLEAN DEFAULT FALSE NOT NULL"
         rosterFoundationMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS end_time TIME DEFAULT NULL"
         rosterFoundationMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS shift_type_id UUID DEFAULT NULL"
+        automationMigrationSqlText <- TextIO.readFile "Application/Migration/1777600700.sql"
+        automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS auto_timesheet_creation_enabled BOOLEAN DEFAULT FALSE NOT NULL"
+        automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS source_roster_slot_id UUID DEFAULT NULL"
+        automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX IF NOT EXISTS idx_timesheet_entries_source_roster_slot"
 
     it "enforces database-level tenant integrity for cross-venue relationships" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"
@@ -311,11 +321,14 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_report_definition_filter_venue_integrity BEFORE INSERT OR UPDATE ON report_definition_shift_type_filters"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_xero_staff_mappings_venue_integrity BEFORE INSERT OR UPDATE ON xero_staff_mappings"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift_type_id must stay within roster week venue"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source_roster_slot_id must stay within entry venue"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "DROP TRIGGER IF EXISTS enforce_roster_week_venue_integrity ON roster_weeks;"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE OR REPLACE FUNCTION enforce_timesheet_entry_venue_integrity()"
         rosterFoundationMigrationSqlText <- TextIO.readFile "Application/Migration/1777600600.sql"
         rosterFoundationMigrationSqlText `shouldSatisfy` Text.isInfixOf "DROP TRIGGER IF EXISTS enforce_roster_slot_week_definition_integrity ON roster_slots;"
         rosterFoundationMigrationSqlText `shouldSatisfy` Text.isInfixOf "roster slot shift_type_id must stay within roster week venue"
+        automationMigrationSqlText <- TextIO.readFile "Application/Migration/1777600700.sql"
+        automationMigrationSqlText `shouldSatisfy` Text.isInfixOf "timesheet entry source_roster_slot_id must stay within entry venue"
 
     it "stores passkeys as user-owned credential records" do
         schemaSqlText <- TextIO.readFile "Application/Schema.sql"

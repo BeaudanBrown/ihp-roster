@@ -81,6 +81,7 @@ timesheetEntrySnapshot entry =
         , "breakStartTime" Aeson..= entry.breakStartTime
         , "breakEndTime" Aeson..= entry.breakEndTime
         , "breakMinutes" Aeson..= entry.breakMinutes
+        , "sourceRosterSlotId" Aeson..= entry.sourceRosterSlotId
         , "staffComment" Aeson..= entry.staffComment
         , "managerNote" Aeson..= entry.managerNote
         , "isApproved" Aeson..= entry.isApproved

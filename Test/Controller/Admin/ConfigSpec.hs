@@ -410,6 +410,25 @@ tests = beforeAll testContext do
                 venueConfig.rosterEndTimesEnabled `shouldBe` True
                 venueConfig.rosterWeekStartsOn `shouldBe` originalConfig.rosterWeekStartsOn
 
+        it "toggles auto-created pending timesheets without changing the roster week start" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-auto-timesheets@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [ ("configField", "autoTimesheetCreationEnabled")
+                        , ("autoTimesheetCreationEnabled", "true")
+                        ]
+
+                response `responseStatusShouldBe` status302
+
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                venueConfig.autoTimesheetCreationEnabled `shouldBe` True
+                venueConfig.rosterWeekStartsOn `shouldBe` originalConfig.rosterWeekStartsOn
+
         it "rejects updates to config rows outside the current venue" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"

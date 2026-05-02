@@ -16,6 +16,7 @@ module Web.RosterWeeks.Types
 
 import Application.Helper.Conflict (RosterConflict)
 import Application.Helper.LiveUpdate (LiveUpdateScope)
+import Application.Helper.RosterWagePrediction (RosterWagePrediction)
 import Data.Map.Strict (Map)
 import Data.Time.Calendar (Day)
 import Data.UUID (UUID)
@@ -43,6 +44,7 @@ data ShowView = ShowView
     , viewCapabilities      :: RosterViewCapabilities
     , rosterLayoutMode      :: RosterLayoutModeEnum
     , rosterEndTimesEnabled :: Bool
+    , rosterWagePrediction  :: Maybe RosterWagePrediction
     , shiftTypes            :: [ShiftType]
     , passkeySetupPrompt    :: Maybe PasskeySetupPromptMode
     }
@@ -109,7 +111,8 @@ data RosterRenderData = RosterRenderData
     , renderIndexes         :: RosterRenderIndexes
     , rosterLayoutMode      :: RosterLayoutModeEnum
     , rosterEndTimesEnabled :: Bool
-    }
+    , rosterWagePrediction  :: Maybe RosterWagePrediction
+}
 
 data RosterGridRenderModel = RosterGridRenderModel
     { gridRosterWeek            :: Maybe RosterWeek
@@ -130,6 +133,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridViewCapabilities      :: RosterViewCapabilities
     , gridRosterLayoutMode      :: RosterLayoutModeEnum
     , gridRosterEndTimesEnabled :: Bool
+    , gridRosterWagePrediction  :: Maybe RosterWagePrediction
     }
 
 data RosterDayRenderModel = RosterDayRenderModel

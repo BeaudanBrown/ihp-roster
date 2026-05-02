@@ -17,6 +17,7 @@ renderVenueSettingsSection venueConfig =
         [hsx|
             <div class="admin-settings-grid">
                 {renderRosterEndTimesForm venueConfig}
+                {renderAutoTimesheetCreationForm venueConfig}
                 {renderRosterWeekStartForm venueConfig}
             </div>
         |]
@@ -42,6 +43,32 @@ renderRosterEndTimesForm venueConfig = [hsx|
                    onchange="this.form.requestSubmit()" />
             <label class="form-check-label small" for="venue-roster-end-times-enabled">
                 {if venueConfig.rosterEndTimesEnabled then ("Enabled" :: Text) else "Disabled"}
+            </label>
+        </div>
+    </form>
+|]
+
+renderAutoTimesheetCreationForm :: VenueConfig -> Html
+renderAutoTimesheetCreationForm venueConfig = [hsx|
+    <form method="POST"
+          action={UpdateVenueConfigAction}
+          class="admin-setting-row">
+        <input type="hidden" name="configField" value="autoTimesheetCreationEnabled" />
+        <div class="admin-setting-row-copy">
+            <div class="fw-semibold">Auto-create pending timesheets</div>
+            <p class="small app-muted mb-0">When a live rostered shift ends, create a pending timesheet after a 2-hour grace period.</p>
+        </div>
+        <div class="form-check form-switch mb-0 admin-setting-row-control">
+            <input class="form-check-input"
+                   type="checkbox"
+                   role="switch"
+                   id="venue-auto-timesheet-creation-enabled"
+                   name="autoTimesheetCreationEnabled"
+                   value="true"
+                   checked={venueConfig.autoTimesheetCreationEnabled}
+                   onchange="this.form.requestSubmit()" />
+            <label class="form-check-label small" for="venue-auto-timesheet-creation-enabled">
+                {if venueConfig.autoTimesheetCreationEnabled then ("Enabled" :: Text) else "Disabled"}
             </label>
         </div>
     </form>

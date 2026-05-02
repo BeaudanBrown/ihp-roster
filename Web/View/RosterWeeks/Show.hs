@@ -43,6 +43,7 @@ renderRosterWeekShell ShowView { .. } =
                         , gridViewCapabilities = viewCapabilities
                         , gridRosterLayoutMode = rosterLayoutMode
                         , gridRosterEndTimesEnabled = rosterEndTimesEnabled
+                        , gridRosterWagePrediction = rosterWagePrediction
                         }
                     ]
             })

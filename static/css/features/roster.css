@@ -533,6 +533,70 @@
     --roster-shift-type-share: calc(var(--roster-block-share) * (0.95 / 6));
 }
 
+.roster-wage-prediction {
+    display: grid;
+    gap: 0.8rem;
+    padding: 0.9rem 1rem;
+    border-top: 1px solid var(--app-border);
+    border-bottom: 1px solid var(--app-border);
+    background: var(--app-surface-muted);
+}
+
+.roster-wage-prediction-summary {
+    display: grid;
+    grid-template-columns: minmax(9rem, max-content) minmax(0, 1fr);
+    gap: 0.9rem;
+    align-items: center;
+}
+
+.roster-wage-prediction-total {
+    color: var(--app-text);
+    font-size: 1.45rem;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.roster-wage-prediction-note {
+    max-width: 42rem;
+    line-height: 1.35;
+}
+
+.roster-wage-prediction-days {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 0.45rem;
+}
+
+.roster-wage-prediction-day {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.45rem;
+    padding: 0.5rem 0.6rem;
+    border: 1px solid var(--app-border-subtle);
+    border-radius: var(--app-radius-sm);
+    background: var(--app-white-alpha-03);
+}
+
+.roster-wage-prediction-day-label {
+    color: var(--app-muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.roster-wage-prediction-day-total {
+    color: var(--app-text);
+    font-size: 0.82rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.roster-wage-prediction-warning {
+    padding-top: 0.1rem;
+}
+
 .roster-grid-frame {
     --roster-day-column-width: 18%;
     --roster-grid-header-height: 4.35rem;
@@ -1402,6 +1466,22 @@
     color: var(--app-text);
     font-size: var(--roster-text-sm);
     font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 991.98px) {
+    .roster-wage-prediction-summary {
+        grid-template-columns: 1fr;
+    }
+
+    .roster-wage-prediction-days {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 575.98px) {
+    .roster-wage-prediction-days {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media print {
