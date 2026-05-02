@@ -17,7 +17,7 @@ Build a deterministic readiness validator for the selected venue/pay period befo
 ## Design
 
 Follow the readiness validator section in
-`plans/63-xero-timesheet-submission.md`.
+`docs/archive/plans/63-xero-timesheet-submission.md`.
 
 The validator should produce structured blockers with stable codes, severity,
 human message, affected local/Xero ids where available, and an action hint. It

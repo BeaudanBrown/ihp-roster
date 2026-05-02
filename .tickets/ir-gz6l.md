@@ -16,7 +16,7 @@ Docs and older plans still say managers may generate exports, but the current im
 
 ## Design
 
-Update Application/AGENTS.md and plans/46-payroll-export-e2e-hardening.md/current planning notes to reflect admin-only export generation. Preserve manager export wording only as historical/superseded context.
+Update Application/AGENTS.md and docs/archive/plans/46-payroll-export-e2e-hardening.md/current planning notes to reflect admin-only export generation. Preserve manager export wording only as historical/superseded context.
 
 ## Acceptance Criteria
 

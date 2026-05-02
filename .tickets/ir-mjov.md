@@ -11,11 +11,11 @@ tags: [area:xero, source:plans-58]
 ---
 # Xero connection foundation maintenance
 
-Repo-local epic migrated from plans/58-xero-connection-foundation.md. Maintains the OAuth connection, token refresh, tenant sync, and admin connection management foundation used by payroll integration.
+Repo-local epic migrated from docs/archive/plans/58-xero-connection-foundation.md. Maintains the OAuth connection, token refresh, tenant sync, and admin connection management foundation used by payroll integration.
 
 ## Design
 
-source_plan: plans/58-xero-connection-foundation.md
+source_plan: docs/archive/plans/58-xero-connection-foundation.md
 status: mostly-implemented; keep as maintenance/reference epic
 
 ## Acceptance Criteria

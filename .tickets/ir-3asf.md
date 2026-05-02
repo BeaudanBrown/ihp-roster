@@ -12,7 +12,7 @@ tags: [area:live-fragments, source:plans-62]
 ---
 # Generalize projection-backed live fragments
 
-Phases 5-7 from plans/62-live-fragment-system-refactor.md: tie projection fragment enums to live fragment refs, add standard render helpers/cache hooks, optimize mounted-fragment fanout/batching, and adopt live fragments only for stale-DOM surfaces with real product need.
+Phases 5-7 from docs/archive/plans/62-live-fragment-system-refactor.md: tie projection fragment enums to live fragment refs, add standard render helpers/cache hooks, optimize mounted-fragment fanout/batching, and adopt live fragments only for stale-DOM surfaces with real product need.
 
 ## Acceptance Criteria
 

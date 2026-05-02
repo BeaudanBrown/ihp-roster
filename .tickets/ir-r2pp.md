@@ -12,7 +12,7 @@ tags: [area:docs, area:xero, area:authz, source:2026-04-30-audit]
 ---
 # Annotate Xero owner-only access as superseding older venue-admin plan text
 
-plans/58-xero-connection-foundation.md still says venue admins can open/manage Xero, while current code and tests restrict Xero management to venue owners and super admins.
+docs/archive/plans/58-xero-connection-foundation.md still says venue admins can open/manage Xero, while current code and tests restrict Xero management to venue owners and super admins.
 
 ## Design
 

@@ -11,11 +11,12 @@ tags: [area:maintenance, source:plans-59]
 ---
 # Code smell remediation backlog
 
-Repo-local epic migrated from plans/59-code-smell-remediation.md. Tracks prioritized cleanup around durable jobs, admin/Xero boundaries, support helper ownership, live-update focus protection, CDN assets, observability, CSS split, duplicates, and lint.
+Repo-local epic migrated from `docs/archive/plans/59-code-smell-remediation.md`. Current maintenance routing lives in `docs/workstreams/maintenance.md`. Tracks prioritized cleanup around durable jobs, admin/Xero boundaries, support helper ownership, live-update focus protection, CDN assets, observability, CSS split, duplicates, and lint.
 
 ## Design
 
-source_plan: plans/59-code-smell-remediation.md
+source_plan: docs/archive/plans/59-code-smell-remediation.md
+workstream: docs/workstreams/maintenance.md
 status: backlog
 notes: remeasure findings before assignment because the tree has moved since the original scan
 
@@ -31,7 +32,8 @@ notes: remeasure findings before assignment because the tree has moved since the
     ergonomics live in `ir-esmn`; optional OOB fragment rendering lives in
     `ir-2vyr`.
   - `ir-9f7z` covers the app JavaScript runtime split and live-fragment client
-    cleanup; keep work aligned with `plans/62-live-fragment-system-refactor.md`.
+    cleanup; keep work aligned with `Application/Helper/LiveUpdate.SPEC.md` and
+    `docs/workstreams/maintenance.md`.
   - `ir-caf4` and `ir-u4mc` remain the schema/data-integrity lanes; the
     non-behavioral schema map is tracked separately in `ir-15fg` and linked to
     them.

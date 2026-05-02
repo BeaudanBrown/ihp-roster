@@ -16,7 +16,7 @@ Replace pay_config_snapshots JSONB as the operational reproducibility mechanism 
 
 ## Design
 
-Use plans/68-append-only-pay-config-versioning.md as the implementation plan. Historical payroll must be reproduced from immutable relational version ids, not copied JSON snapshots. pay_config_snapshots/pay_config_snapshot_id should be removed after migration.
+Implementation is complete; use `docs/workstreams/pay-config-versioning.md` as the transition record and living subsystem docs for current behavior. `docs/archive/plans/68-append-only-pay-config-versioning.md` is historical design context. Historical payroll must be reproduced from immutable relational version ids, not copied JSON snapshots.
 
 ## Acceptance Criteria
 

@@ -16,7 +16,7 @@ Track the read-only component-boundary review findings around controller decompo
 
 ## Design
 
-Source report: 2026-04-30 component boundary overview. Use plans/67-component-boundary-cleanup.md as the execution reference once created. Keep ir-6vvh as the parent maintenance backlog and avoid starting broad style churn before the structural boundaries settle.
+Source report: 2026-04-30 component boundary overview. Use docs/archive/plans/67-component-boundary-cleanup.md as the execution reference once created. Keep ir-6vvh as the parent maintenance backlog and avoid starting broad style churn before the structural boundaries settle.
 
 ## Acceptance Criteria
 

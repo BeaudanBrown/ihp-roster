@@ -16,7 +16,7 @@ Approved timesheet pay and exported payroll output must resolve rates, pay level
 
 ## Design
 
-Close the gap identified in specs/06-pay-engine.md and plans/60-v1-schema-hardening.md. Update calculate_timesheet_pay / calculate_timesheet_pay_range and export helpers so pay_config_snapshot_id drives historical resolution whenever present. Keep draft/unapproved calculations on current config. Coordinate with ir-caf4 and ir-lz0x.
+Close the gap identified in specs/06-pay-engine.md and docs/archive/plans/60-v1-schema-hardening.md. Update calculate_timesheet_pay / calculate_timesheet_pay_range and export helpers so pay_config_snapshot_id drives historical resolution whenever present. Keep draft/unapproved calculations on current config. Coordinate with ir-caf4 and ir-lz0x.
 
 ## Acceptance Criteria
 

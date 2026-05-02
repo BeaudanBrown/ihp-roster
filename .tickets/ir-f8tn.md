@@ -16,8 +16,8 @@ Some maintenance tickets/plans still describe work that appears already implemen
 
 ## Design
 
-Review ir-nn8p, ir-59ps, plans/59-code-smell-remediation.md, and current code. Close tickets that are genuinely complete or add notes if residual work remains. Prefer explicit completion notes over leaving old forkIO/Application.Support findings as live guidance.
+Review ir-nn8p, ir-59ps, docs/archive/plans/59-code-smell-remediation.md, and current code. Close tickets that are genuinely complete or add notes if residual work remains. Prefer explicit completion notes over leaving old forkIO/Application.Support findings as live guidance.
 
 ## Acceptance Criteria
 
-tk ready no longer surfaces completed invitation-delivery/bootstrap-helper work as open implementation tasks; plans/59 has current-status notes for findings that have since landed.
+tk ready no longer surfaces completed invitation-delivery/bootstrap-helper work as open implementation tasks; `docs/archive/plans/59-code-smell-remediation.md` has current-status notes for findings that have since landed.

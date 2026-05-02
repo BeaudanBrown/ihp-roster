@@ -17,9 +17,9 @@ Repo-local backlog feature migrated from coordinator-hap. Adds ordinary user swi
 
 coordinator_ref: coordinator-hap
 status: backlog
+workstream: docs/workstreams/backlog.md
 blocked_by: support-access product separation and real multi-membership UX decision
 
 ## Acceptance Criteria
 
 Ordinary users can switch only among venues where they hold real memberships, using currentVenueId safely and separately from founder support access.
-

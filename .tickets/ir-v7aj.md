@@ -12,7 +12,7 @@ tags: [area:live-fragments, source:plans-62]
 ---
 # Fix live-fragment correctness regressions from plan 62
 
-Phase 1 from plans/62-live-fragment-system-refactor.md: fix admin_xero scope handling, timesheet date-move invalidation, slot-name roster config fanout, profile roster fanout, and focused regression coverage.
+Phase 1 from docs/archive/plans/62-live-fragment-system-refactor.md: fix admin_xero scope handling, timesheet date-move invalidation, slot-name roster config fanout, profile roster fanout, and focused regression coverage.
 
 ## Acceptance Criteria
 

@@ -1,11 +1,18 @@
 # IHP Application Specifications
 
-This folder contains the canonical specification set for this project:
+This folder contains product, domain, compliance, and acceptance specifications
+that span more than one code subsystem.
+
+Implemented subsystem behavior belongs in local `SPEC.md` files beside code.
+Future feature-stream design belongs in `docs/workstreams/`. Historical plans
+live in `docs/archive/plans/`.
+
+Technical baseline:
 
 - IHP (Haskell MVC)
 - PostgreSQL
 - HSX views
-- Bootstrap 5.2.1
+- Bootstrap 5.3.8
 
 ## Canonical decisions
 
@@ -28,7 +35,7 @@ This folder contains the canonical specification set for this project:
 15. Pay and configuration behavior must remain **historically reproducible** for past periods and exports.
 16. Venue admin bulk config save creates a new **immutable pay/config snapshot version**.
 
-## Document map
+## Document Map
 
 - `01-product-scope.md`
 - `02-domain-model.md`
@@ -41,3 +48,15 @@ This folder contains the canonical specification set for this project:
 - `09-testing-and-acceptance.md`
 - `10-au-saas-security-privacy-compliance/`
 - `11-first-client-document-pack/`
+- `12-performance-profiling.md`
+
+## Local Living Specs
+
+High-churn subsystem contracts live near their code:
+
+- `Web/RosterWeeks/SPEC.md`
+- `Web/Timesheets/SPEC.md`
+- `Web/LeaveRequests/SPEC.md`
+- `Application/Helper/Export/SPEC.md`
+- `Application/Xero/SPEC.md`
+- `Application/Helper/LiveUpdate.SPEC.md`

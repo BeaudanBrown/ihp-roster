@@ -16,7 +16,7 @@ Define and expose structured readiness blockers for Xero payroll submission: blo
 
 ## Design
 
-Use `plans/63-xero-timesheet-submission.md` as the blocker catalog. The first
+Use `docs/archive/plans/63-xero-timesheet-submission.md` as the blocker catalog. The first
 shape can live in a helper module rather than a controller. It should support
 both blocker and warning severities and identify affected local/Xero objects when
 known.

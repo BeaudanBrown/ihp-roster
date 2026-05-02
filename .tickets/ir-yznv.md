@@ -12,7 +12,7 @@ tags: [area:live-fragments, source:plans-62]
 ---
 # Generalize live-fragment client runtime behavior
 
-Phase 3 from plans/62-live-fragment-system-refactor.md: merge same-scope surfaces, introduce app-live-fragments-refresh, make focus-protection flushing policy-driven, add reconnect backoff, and emit useful debug/performance events.
+Phase 3 from docs/archive/plans/62-live-fragment-system-refactor.md: merge same-scope surfaces, introduce app-live-fragments-refresh, make focus-protection flushing policy-driven, add reconnect backoff, and emit useful debug/performance events.
 
 ## Acceptance Criteria
 

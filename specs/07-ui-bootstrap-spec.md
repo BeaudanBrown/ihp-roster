@@ -2,7 +2,7 @@
 
 ## Framework baseline
 
-- Use Bootstrap 5.2.1 utility/component patterns.
+- Use Bootstrap 5.3.8 utility/component patterns.
 - Use HSX server-rendered views.
 - Add custom CSS only where Bootstrap primitives are insufficient.
 

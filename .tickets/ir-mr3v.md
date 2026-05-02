@@ -16,7 +16,7 @@ Add a local strict mock harness for Xero HTTP integration tests after the OpenAP
 
 ## Design
 
-Follow `plans/64-xero-openapi-contract-and-probes.md`.
+Follow `docs/archive/plans/64-xero-openapi-contract-and-probes.md`.
 
 Use the vendored OpenAPI spec to define expected method/path/header/body envelopes for local WAI/Warp test handlers or another lightweight Hspec harness. The mock should reject unexpected paths, missing required headers, and wrong body container shapes. Fixtures may use redacted Demo Company responses or OpenAPI examples, but the mock must remain a verifier of local request rendering rather than a hand-written model of Xero business behavior.
 

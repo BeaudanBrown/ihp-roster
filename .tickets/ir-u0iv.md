@@ -12,7 +12,7 @@ tags: [area:xero, area:payroll, source:plans-57, planning]
 ---
 # Document Xero Payroll AU timesheet API contract
 
-Capture the current official Xero Payroll AU API contract for pay item and timesheet endpoints in plans/57 and a focused implementation plan so future agents can implement without rediscovering endpoint shape. Include scopes, payloads, response envelopes, idempotency, duplicate detection, and known Xero semantic-error behavior.
+Capture the current official Xero Payroll AU API contract for pay item and timesheet endpoints in docs/archive/plans/57 and a focused implementation plan so future agents can implement without rediscovering endpoint shape. Include scopes, payloads, response envelopes, idempotency, duplicate detection, and known Xero semantic-error behavior.
 
 
 ## Notes

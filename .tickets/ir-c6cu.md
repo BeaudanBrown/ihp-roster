@@ -16,7 +16,7 @@ Introduce consistent trimming, blank-to-Nothing handling, and max-length limits 
 
 ## Design
 
-Start with high-value fields: staff/profile names and phone fields, leave notes, passkey names, venue names, roster group names, slot names, shift type names, invite emails, and export filenames/content disposition data. Coordinate schema changes with plans/60-v1-schema-hardening.md and existing ir-caf4 children.
+Start with high-value fields: staff/profile names and phone fields, leave notes, passkey names, venue names, roster group names, slot names, shift type names, invite emails, and export filenames/content disposition data. Coordinate schema changes with docs/archive/plans/60-v1-schema-hardening.md and existing ir-caf4 children.
 
 ## Acceptance Criteria
 

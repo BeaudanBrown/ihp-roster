@@ -16,7 +16,7 @@ Extend Application.Helper.Xero with typed Payroll AU timesheet read/create/updat
 
 ## Design
 
-Follow `plans/63-xero-timesheet-submission.md`.
+Follow `docs/archive/plans/63-xero-timesheet-submission.md`.
 
 Add typed refs for Xero timesheets and lines while preserving raw JSON on each
 record. Parse Xero dates from ISO `YYYY-MM-DD` and Microsoft JSON `/Date(...)`

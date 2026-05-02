@@ -17,7 +17,7 @@ Add dedicated Xero submission tables instead of using export_jobs for external s
 ## Design
 
 Follow the local submission state section in
-`plans/63-xero-timesheet-submission.md`.
+`docs/archive/plans/63-xero-timesheet-submission.md`.
 
 Expected tables:
 

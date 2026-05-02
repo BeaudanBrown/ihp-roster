@@ -12,7 +12,7 @@ tags: [area:live-fragments, source:plans-62]
 ---
 # Migrate live-update protocol to server scope keys
 
-Phase 2 from plans/62-live-fragment-system-refactor.md: include authoritative server scopeKey in websocket subscribed and invalidated messages, update JavaScript to trust that key, and keep client rebuilding only as a migration fallback.
+Phase 2 from docs/archive/plans/62-live-fragment-system-refactor.md: include authoritative server scopeKey in websocket subscribed and invalidated messages, update JavaScript to trust that key, and keep client rebuilding only as a migration fallback.
 
 ## Acceptance Criteria
 

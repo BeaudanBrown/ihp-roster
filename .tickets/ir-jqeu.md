@@ -12,7 +12,7 @@ tags: [area:live-fragments, source:plans-62]
 ---
 # Design server-side live surface definitions
 
-Phase 4 from plans/62-live-fragment-system-refactor.md: define a richer server-side surface definition API that owns scope construction, auth requirements, default fragments, fragment construction, projection hooks, and active-scope fanout helpers.
+Phase 4 from docs/archive/plans/62-live-fragment-system-refactor.md: define a richer server-side surface definition API that owns scope construction, auth requirements, default fragments, fragment construction, projection hooks, and active-scope fanout helpers.
 
 ## Acceptance Criteria
 

@@ -15,7 +15,7 @@ Coordinate the input-handling security review follow-up from 2026-04-30. Scope c
 
 ## Design
 
-Use `plans/66-input-handling-and-injection-hardening.md` as the coordination plan. Use IHP form/validation helpers and QueryBuilder as the baseline. Do not introduce ad hoc raw SQL in controllers. Treat HTML required attributes, hidden fields, and select options as client hints only; every user-controllable boundary needs server-side validation or authorization.
+Use `docs/archive/plans/66-input-handling-and-injection-hardening.md` as the coordination plan. Use IHP form/validation helpers and QueryBuilder as the baseline. Do not introduce ad hoc raw SQL in controllers. Treat HTML required attributes, hidden fields, and select options as client hints only; every user-controllable boundary needs server-side validation or authorization.
 
 ## Acceptance Criteria
 

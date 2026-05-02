@@ -11,11 +11,11 @@ tags: [area:view, area:maintenance, source:plans-61]
 ---
 # View helper split
 
-Repo-local epic migrated from plans/61-view-helper-split.md. Reduces Application.Helper.View to a compatibility re-export wrapper and moves mixed helper implementations into focused modules.
+Repo-local epic migrated from docs/archive/plans/61-view-helper-split.md. Reduces Application.Helper.View to a compatibility re-export wrapper and moves mixed helper implementations into focused modules.
 
 ## Design
 
-source_plan: plans/61-view-helper-split.md
+source_plan: docs/archive/plans/61-view-helper-split.md
 status: closed
 
 2026-04-30 consolidation note:

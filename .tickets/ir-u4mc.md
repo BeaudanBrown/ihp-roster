@@ -11,14 +11,14 @@ tags: [area:data-retention, area:schema, source:plans-55]
 ---
 # Record retention and soft deletion guardrails
 
-Repo-local epic migrated from plans/55-record-retention-soft-deletion.md. Makes protected business records soft-deleted/deactivated and blocks unsafe hard deletes before paid venue data is treated as production.
+Repo-local epic migrated from `docs/archive/plans/55-record-retention-soft-deletion.md`. Current future-work routing lives in `docs/workstreams/record-retention.md`. Makes protected business records soft-deleted/deactivated and blocks unsafe hard deletes before paid venue data is treated as production.
 
 ## Design
 
-source_plan: plans/55-record-retention-soft-deletion.md
+source_plan: docs/archive/plans/55-record-retention-soft-deletion.md
+workstream: docs/workstreams/record-retention.md
 status: planned
 
 ## Acceptance Criteria
 
 Protected records use the chosen retention pattern, destructive controller paths are migrated, DB guardrails exist, and export/Xero readiness respects retained history.
-

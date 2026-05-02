@@ -15,6 +15,10 @@ tags: [area:pilot, area:release, venue:rooks]
 
 Capture the product decisions from the first Rooks trial meeting. Target first roster/pay week starts 2026-06-08 with Xero submission on 2026-06-15. Scope covers roster scheduling contract, wage prediction, roster-to-timesheet automation, timesheet UX, Xero custom pay item overrides, availability language, RSA compliance, and user preferences. Google Form onboarding is intentionally deferred while legal/product shape is investigated.
 
+Workstream: `docs/workstreams/rooks-pilot.md`
+
+Archived source: `docs/archive/plans/70-rooks-pilot-requirements.md`
+
 ## Acceptance Criteria
 
 Pilot-critical roster/payroll/compliance requirements are represented by child tickets with clear acceptance criteria and dependencies.

@@ -16,8 +16,8 @@ Transform approved snapshot-pinned IHP timesheets into Xero draft timesheets wit
 
 ## Design
 
-source_plan: plans/57-xero-payroll-integration.md
-detailed_plan: plans/63-xero-timesheet-submission.md
+source_plan: docs/archive/plans/57-xero-payroll-integration.md
+detailed_plan: docs/archive/plans/63-xero-timesheet-submission.md
 
 The draft-timesheet lane is split into API client, persistence, readiness,
 preview, submission, and later correction/update slices. Implement the readiness

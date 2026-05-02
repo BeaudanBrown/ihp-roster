@@ -21,6 +21,7 @@ status: active
 base_branch: roster
 work_branch: roster
 repo_tracker: .tickets
+workstream: docs/workstreams/backlog.md
 settled_direction:
   - cache typed normalized snapshots in app-process memory, not rendered HTML
   - key by surface, viewer context, scope, and live-update version
@@ -32,4 +33,3 @@ settled_direction:
 ## Acceptance Criteria
 
 A reusable projection helper exists, roster week rendering uses it, current-week warming is observable, at least one second-adopter path is planned or migrated, and cache behavior is covered.
-

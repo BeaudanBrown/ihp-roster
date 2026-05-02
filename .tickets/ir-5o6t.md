@@ -18,6 +18,7 @@ Repo-local feature migrated from coordinator-az6. Visiting any week should mater
 coordinator_ref: coordinator-az6
 status: in_progress
 source: coordinator standalone feature
+workstream: docs/workstreams/backlog.md
 
 ## Acceptance Criteria
 

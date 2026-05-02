@@ -16,7 +16,7 @@ Follow-up work from the 2026-04-30 styling refactor audit. The split CSS/token f
 
 ## Design
 
-Scope this parent to the first four incomplete points from the audit: style-audit/asset bookkeeping, semantic status badge migration, generic action menu naming, and shared surface helper migration. Do not include venue theming or visual regression expansion here; those remain later phases of plans/54-styling-system-refactor.md.
+Scope this parent to the first four incomplete points from the audit: style-audit/asset bookkeeping, semantic status badge migration, generic action menu naming, and shared surface helper migration. Do not include venue theming or visual regression expansion here; those remain later phases of docs/archive/plans/54-styling-system-refactor.md.
 
 ## Acceptance Criteria
 

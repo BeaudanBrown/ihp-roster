@@ -17,7 +17,8 @@ application helpers.
 - `Web/View/` - HSX views and layout shell.
 - `Test/` - Hspec coverage.
 - `e2e/` - Playwright coverage.
-- `plans/` and `specs/` - product and implementation planning.
+- `docs/` - documentation system, workstreams, ADRs, and archived plans.
+- `specs/` - product, domain, compliance, and acceptance specs.
 
 ## Local Workflow
 
@@ -61,7 +62,10 @@ Runtime assets are local and loaded through `assetPath` from
 - IHP-provided Flatpickr and Morphdom assets
 - App CSS entrypoint: `static/app.css`
 - App JS entrypoints: `static/app-bootstrap.js`, `static/app-date-pickers.js`,
-  `static/app-passkeys.js`, `static/app-live-updates.js`, and `static/app.js`
+  `static/app-dialog-overlays.js`, `static/app-live-updates.js`,
+  `static/app-passkeys.js`, `static/app-preferences.js`,
+  `static/app-roster.js`, `static/app-time-picker.js`,
+  `static/app-timesheets.js`, `static/app-toasts.js`, and `static/app.js`
 
 Feature CSS is split under `static/css/`; update the narrowest matching file
 instead of growing `static/app.css`.
@@ -83,3 +87,12 @@ under `Config/nix/`.
 Generated screenshots, profiles, reports, local databases, Nix build outputs, and
 dev shell state are ignored. Keep durable visual references in documentation
 assets, not under `output/`.
+
+## Documentation
+
+Start with `docs/README.md` for the documentation operating model.
+
+- Implemented subsystem behavior belongs in local `SPEC.md` files beside code.
+- Future feature streams belong in `docs/workstreams/` and must link to `tk`.
+- Durable decisions belong in `docs/adr/`.
+- Historical numbered plans live in `docs/archive/plans/`.

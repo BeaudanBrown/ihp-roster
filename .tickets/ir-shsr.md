@@ -22,7 +22,7 @@ connection, sync, staff mappings, pay item account code, and payroll calendar,
 but it must also account for verified local bucket mappings and active managed
 pay item requirements.
 
-Relevant detailed plan: `plans/63-xero-timesheet-submission.md`.
+Relevant detailed plan: `docs/archive/plans/63-xero-timesheet-submission.md`.
 
 ## Acceptance Criteria
 

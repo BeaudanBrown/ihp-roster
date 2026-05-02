@@ -16,10 +16,10 @@ Repo-local backlog epic for public holiday modeling and recurring refresh work c
 ## Design
 
 coordinator_refs: [coordinator-aj2, coordinator-ktt]
-source_plan: plans/60-v1-schema-hardening.md#public-holiday-regional-semantics
+source_plan: docs/archive/plans/60-v1-schema-hardening.md#public-holiday-regional-semantics
+workstream: docs/workstreams/backlog.md
 status: backlog
 
 ## Acceptance Criteria
 
 Regional holiday applicability is modeled and constrained, recurring refreshes are scheduled, and current/next-year missing-data warnings are visible.
-

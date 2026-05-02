@@ -1,0 +1,60 @@
+# Maintenance And Boundary Cleanup
+
+Status: active
+
+Tickets:
+
+- `ir-m8hc` - spec and agent doc alignment
+- `ir-6vvh` - code smell remediation backlog
+- `ir-18tm` - component boundary cleanup (closed context)
+- `ir-9f7z` - app JavaScript runtime refactor (closed context)
+- `ir-2usx` - view helper split
+- `ir-sryt` - profiling instrumentation
+- `ir-5rhn` - input handling and injection hardening
+
+Living docs to update:
+
+- root `AGENTS.md`
+- nearest local `AGENTS.md` files
+- `Application/Helper/LiveUpdate.SPEC.md`
+- `Application/Helper/View/AGENTS.md`
+- `static/AGENTS.md`
+- `specs/12-performance-profiling.md`
+
+Archived context:
+
+- `docs/archive/plans/54-styling-system-refactor.md`
+- `docs/archive/plans/56-declarative-live-fragments.md`
+- `docs/archive/plans/59-code-smell-remediation.md`
+- `docs/archive/plans/61-view-helper-split.md`
+- `docs/archive/plans/62-live-fragment-system-refactor.md`
+- `docs/archive/plans/65-spec-agent-doc-alignment.md`
+- `docs/archive/plans/66-input-handling-and-injection-hardening.md`
+- `docs/archive/plans/67-component-boundary-cleanup.md`
+- `docs/archive/plans/69-profiling-system-refactor.md`
+
+## Goal
+
+Keep high-churn parts of the app navigable without broad style churn.
+
+## Current State
+
+Several maintenance plans have already produced good subsystem patterns:
+roster feature modules, split export helpers, split FWC MAPD modules, focused
+view helper modules, and declarative live surfaces. Remaining work should keep
+those patterns local and documented beside the code.
+
+## Intended Contract
+
+- Root instructions stay short.
+- Feature-specific rules live in nearest local `AGENTS.md` files.
+- Large controllers/services are split along stable behavior boundaries.
+- Live-update protocol ownership stays centralized in shared Haskell helpers and
+  `static/app-live-updates.js`.
+- Input handling, URL construction, and CSV rendering use shared helpers.
+
+## Exit Criteria
+
+- Active maintenance tickets reference living docs instead of numbered plans.
+- New agents can find the relevant local instructions without reading archived
+  audits end to end.

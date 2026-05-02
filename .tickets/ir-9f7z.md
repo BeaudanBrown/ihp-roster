@@ -18,9 +18,9 @@ Repo-local implementation epic migrated from coordinator-36f and related live-fr
 coordinator_epic: coordinator-36f
 project_id: ihp-roster
 source_plans:
-  - plans/56-declarative-live-fragments.md
-  - plans/62-live-fragment-system-refactor.md
-  - plans/59-code-smell-remediation.md
+  - docs/archive/plans/56-declarative-live-fragments.md
+  - docs/archive/plans/62-live-fragment-system-refactor.md
+  - docs/archive/plans/59-code-smell-remediation.md
 status: closed
 base_branch: roster
 work_branch: roster

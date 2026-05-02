@@ -17,9 +17,9 @@ Repo-local backlog feature migrated from coordinator-lo7. Supports future export
 
 coordinator_ref: coordinator-lo7
 status: backlog
+workstream: docs/workstreams/backlog.md
 blocked_by: roster groups and export product decision
 
 ## Acceptance Criteria
 
 Payroll export definitions can target explicit roster/staff groups without making legacy filtered variants current default requirements.
-

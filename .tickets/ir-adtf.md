@@ -12,5 +12,4 @@ tags: [area:xero, area:payroll, source:plans-57]
 ---
 # Remeasure current Xero connection and sync foundation
 
-Compare current code against plans/57 and 58 before assigning more implementation slices.
-
+Compare current code against `docs/workstreams/xero-payroll.md` and the archived Xero context before assigning more implementation slices.

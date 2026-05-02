@@ -28,7 +28,7 @@ Roster, timesheet, leave, live-update, and projection-cache hot paths expose eno
 
 **2026-04-30T23:34:34Z**
 
-Profiling refactor plan added at plans/69-profiling-system-refactor.md. New child tickets cover middleware finalization, disabled-path overhead, richer metrics, shared scenarios, write/job coverage, comparison budgets, and production/operator docs.
+Profiling refactor plan added at docs/archive/plans/69-profiling-system-refactor.md. New child tickets cover middleware finalization, disabled-path overhead, richer metrics, shared scenarios, write/job coverage, comparison budgets, and production/operator docs.
 
 **2026-04-30T23:59:14Z**
 
