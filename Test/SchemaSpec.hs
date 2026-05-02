@@ -55,6 +55,7 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe ExportJob)
         let _ = (Nothing :: Maybe VenueMembershipRoleEvent)
         let _ = (Nothing :: Maybe Passkey)
+        let _ = (Nothing :: Maybe UserPreference)
         let _ = (Nothing :: Maybe AppJob)
         let _ = (Nothing :: Maybe XeroSubmissionRun)
         let _ = (Nothing :: Maybe XeroTimesheetSubmission)
@@ -302,6 +303,20 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "public_key BYTEA NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_passkeys_user_id ON passkeys (user_id);"
+
+    it "stores typed per-user roster layout preferences" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1777600400.sql"
+        let preferences = newRecord @UserPreference
+        inputValue (get #rosterLayoutMode preferences) `shouldBe` "day_rows"
+        map inputValue (allEnumValues @RosterLayoutModeEnum) `shouldBe` ["day_rows", "day_columns"]
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE user_preferences"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "roster_layout_mode roster_layout_mode_enum DEFAULT 'day_rows' NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "UNIQUE(user_id)"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE user_preferences"
 
     describe "Leave request helpers" do
         it "validates leave date ranges as unavailable-from to available-again" do

@@ -39,6 +39,7 @@ CREATE TYPE entry_version_action_enum AS ENUM ('created', 'updated', 'approved',
 CREATE TYPE venue_membership_role_event_type_enum AS ENUM ('assigned', 'changed');
 CREATE TYPE staff_employment_basis_enum AS ENUM ('permanent', 'casual');
 CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_after_midnight', 'saturday_penalty', 'sunday_penalty', 'public_holiday_penalty', 'delayed_meal_break_weekday', 'delayed_meal_break_saturday', 'delayed_meal_break_sunday', 'delayed_meal_break_public_holiday');
+CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');
 
 -- schema-nav: identity-and-access
 CREATE TABLE venues (
@@ -101,6 +102,15 @@ CREATE TABLE passkeys (
     UNIQUE(credential_id),
     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
     CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120))
+);
+CREATE TABLE user_preferences (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    user_id UUID NOT NULL,
+    roster_layout_mode roster_layout_mode_enum DEFAULT 'day_rows' NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    UNIQUE(user_id),
+    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 );
 CREATE TABLE venue_memberships (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
