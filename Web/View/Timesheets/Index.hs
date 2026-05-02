@@ -15,19 +15,19 @@ import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
 import Web.View.Prelude
 
 data IndexView = IndexView
-    { entries              :: [TimesheetEntry]
-    , staffMembers         :: [Staff]
-    , shiftTypes           :: [ShiftType]
-    , today                :: Day
-    , editWindowDays       :: Int
-    , weekOffset           :: Int
-    , weekStartDate        :: Day
-    , weekEndDate          :: Day
-    , showApproved         :: Bool
-    , showAllStaff         :: Bool
+    { entries               :: [TimesheetEntry]
+    , staffMembers          :: [Staff]
+    , shiftTypes            :: [ShiftType]
+    , today                 :: Day
+    , editWindowDays        :: Int
+    , weekOffset            :: Int
+    , weekStartDate         :: Day
+    , weekEndDate           :: Day
+    , showApproved          :: Bool
+    , showAllStaff          :: Bool
     , selectedStaffFilterId :: Maybe UUID
-    , currentViewerStaffId :: Maybe UUID
-    , liveUpdateSurface    :: Maybe LiveSurfaceConfig
+    , currentViewerStaffId  :: Maybe UUID
+    , liveUpdateSurface     :: Maybe LiveSurfaceConfig
     }
 
 data TimesheetDayRenderModel = TimesheetDayRenderModel

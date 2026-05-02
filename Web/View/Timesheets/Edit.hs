@@ -4,12 +4,12 @@ import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.View.Prelude
 
 data EditView = EditView
-    { timesheetEntry :: TimesheetEntry
-    , staffMembers   :: [Staff]
-    , shiftTypes     :: [ShiftType]
-    , weekOffset     :: Int
-    , showApproved   :: Bool
-    , showAllStaff   :: Bool
+    { timesheetEntry        :: TimesheetEntry
+    , staffMembers          :: [Staff]
+    , shiftTypes            :: [ShiftType]
+    , weekOffset            :: Int
+    , showApproved          :: Bool
+    , showAllStaff          :: Bool
     , selectedStaffFilterId :: Maybe UUID
     , currentViewerStaffId  :: Maybe UUID
     }

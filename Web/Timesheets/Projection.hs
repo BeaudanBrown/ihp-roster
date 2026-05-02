@@ -60,9 +60,9 @@ data TimesheetWeekProjection = TimesheetWeekProjection
     }
 
 data TimesheetProjectionRequest = TimesheetProjectionRequest
-    { projectionWeekOffset   :: !Int
-    , projectionShowApproved :: !Bool
-    , projectionShowAllStaff :: !Bool
+    { projectionWeekOffset    :: !Int
+    , projectionShowApproved  :: !Bool
+    , projectionShowAllStaff  :: !Bool
     , projectionStaffFilterId :: !(Maybe UUID.UUID)
     }
     deriving (Eq, Show)

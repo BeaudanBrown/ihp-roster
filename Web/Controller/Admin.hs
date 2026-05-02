@@ -72,6 +72,7 @@ instance Controller AdminController where
         rosterGroups <- fetchCurrentVenueRosterGroups
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         shiftTypes <- fetchCurrentVenueShiftTypes
+        venueConfig <- fetchVenueConfig
         awardLevels <- fetchActiveAwardLevels
         awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
         currentWeekOffset <- currentReportWeekOffset
@@ -132,23 +133,36 @@ instance Controller AdminController where
 
     action UpdateVenueConfigAction = do
         venueConfig <- fetchVenueConfig
-        requestedRosterWeekStartsOn <- parseRosterWeekStartsOn
-        case requestedRosterWeekStartsOn of
-            Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
-            Just rosterWeekStartsOn -> do
-                isLocked <- isVenueRosterWeekStartLocked
-                if isLocked
-                    then do
-                        setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll version data exists."
-                        redirectToAdminFor (paramOrNothing "rosterGroupId")
-                    else do
-                        _ <- withTransaction do
-                            venueConfig
-                                |> set #rosterWeekStartsOn rosterWeekStartsOn
-                                |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
-                                |> updateRecord
-                        setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
-                        redirectToAdminFor (paramOrNothing "rosterGroupId")
+        let configField = paramOrDefault @Text "rosterWeekStartsOn" "configField"
+        case configField of
+            "rosterEndTimesEnabled" -> do
+                let rosterEndTimesEnabled = isJust (paramOrNothing @Text "rosterEndTimesEnabled")
+                _ <- venueConfig
+                    |> set #rosterEndTimesEnabled rosterEndTimesEnabled
+                    |> updateRecord
+                setSuccessMessage $
+                    if rosterEndTimesEnabled
+                        then "Roster end times and shift types enabled."
+                        else "Roster end times and shift types disabled."
+                redirectToAdminFor (paramOrNothing "rosterGroupId")
+            _ -> do
+                requestedRosterWeekStartsOn <- parseRosterWeekStartsOn
+                case requestedRosterWeekStartsOn of
+                    Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
+                    Just rosterWeekStartsOn -> do
+                        isLocked <- isVenueRosterWeekStartLocked
+                        if isLocked
+                            then do
+                                setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll version data exists."
+                                redirectToAdminFor (paramOrNothing "rosterGroupId")
+                            else do
+                                _ <- withTransaction do
+                                    venueConfig
+                                        |> set #rosterWeekStartsOn rosterWeekStartsOn
+                                        |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
+                                        |> updateRecord
+                                setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
+                                redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action ShowAdminInvitesFragmentAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")

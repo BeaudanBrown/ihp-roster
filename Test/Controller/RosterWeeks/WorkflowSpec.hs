@@ -12,6 +12,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.ModelSupport (inputValue)
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.HTTP.Types.Status
@@ -338,6 +339,79 @@ tests = beforeAll testContext do
                 publishedWeek <- fetch rosterWeek.id
                 publishedWeek.isLive `shouldBe` True
 
+        it "blocks publishing staffed shifts missing end times or shift types when enabled" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-publish-required-fields@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled True)
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)))
+
+                blockedResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            [("isLive", "on")]
+
+                blockedResponse `responseStatusShouldBe` status200
+                blockedResponse `responseBodyShouldContain` "Roster week cannot go live until every staffed shift has a start time, end time, and shift type."
+                blockedWeek <- fetch rosterWeek.id
+                blockedWeek.isLive `shouldBe` False
+
+                _ <- updateRecord
+                    ( slot
+                        |> set #endTime (Just (timeOfDay 17 0))
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> set #durationMinutes (Just 480)
+                    )
+
+                publishedResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            [("isLive", "on")]
+
+                publishedResponse `responseStatusShouldBe` status200
+                publishedWeek <- fetch rosterWeek.id
+                publishedWeek.isLive `shouldBe` True
+
+        it "manager slot edits can save end time and shift type with overnight duration" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-slot-end-type@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Late"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterSlotAction slot.id)
+                            [ ("startTime", "22:00")
+                            , ("endTime", "02:00")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
+
+                response `responseStatusShouldBe` status200
+                updatedSlot <- fetch slot.id
+                updatedSlot.startTime `shouldBe` Just (timeOfDay 22 0)
+                updatedSlot.endTime `shouldBe` Just (timeOfDay 2 0)
+                updatedSlot.shiftTypeId `shouldBe` Just (unpackId shiftType.id)
+                updatedSlot.durationMinutes `shouldBe` Just 240
+
         it "manager can toggle a live week back to draft" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -370,6 +444,39 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 0)
                 response `responseBodyShouldContain` ">Alpha</option>"
+
+        it "persists roster layout preference and renders day columns" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-layout-pref@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterLayoutPreferenceAction 0)
+                            [("rosterLayoutMode", "day_columns")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
+                response `responseBodyShouldContain` "roster-day-columns"
+
+                preferences <- query @UserPreference
+                    |> filterWhere (#userId, unpackId manager.id)
+                    |> fetchOne
+                inputValue preferences.rosterLayoutMode `shouldBe` ("day_columns" :: Text)
+
+                showResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                showResponse `responseStatusShouldBe` status200
+                showResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
+                showResponse `responseBodyShouldContain` "roster-day-columns"
 
         it "manager can fetch the roster content fragment for the current venue" $ withContext do
             withCleanDb do

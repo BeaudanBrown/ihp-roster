@@ -24,24 +24,27 @@ import IHP.Prelude
 import Web.Types (PasskeySetupPromptMode)
 
 data ShowView = ShowView
-    { rosterWeek         :: Maybe RosterWeek
-    , rosterDays         :: [RosterDay]
-    , weekOffset         :: Int
-    , rosterGroups       :: [RosterGroup]
-    , currentRosterGroup :: RosterGroup
-    , weekStartDate      :: Day
-    , weekEndDate        :: Day
-    , assignmentFilters  :: RosterAssignmentFilters
-    , staffMembers       :: [Staff]
-    , staffOptionStates  :: Map (UUID, UUID) RosterAssignmentOptionState
-    , panelStaff         :: [RosterStaffPanelEntry]
-    , slotNames          :: [RosterWeekSlotDefinition]
-    , allSlots           :: [RosterSlot]
-    , slotConflicts      :: [(Id RosterSlot, [RosterConflict])]
-    , renderIndexes      :: RosterRenderIndexes
-    , liveUpdateScope    :: Maybe LiveUpdateScope
-    , viewCapabilities   :: RosterViewCapabilities
-    , passkeySetupPrompt :: Maybe PasskeySetupPromptMode
+    { rosterWeek            :: Maybe RosterWeek
+    , rosterDays            :: [RosterDay]
+    , weekOffset            :: Int
+    , rosterGroups          :: [RosterGroup]
+    , currentRosterGroup    :: RosterGroup
+    , weekStartDate         :: Day
+    , weekEndDate           :: Day
+    , assignmentFilters     :: RosterAssignmentFilters
+    , staffMembers          :: [Staff]
+    , staffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
+    , panelStaff            :: [RosterStaffPanelEntry]
+    , slotNames             :: [RosterWeekSlotDefinition]
+    , allSlots              :: [RosterSlot]
+    , slotConflicts         :: [(Id RosterSlot, [RosterConflict])]
+    , renderIndexes         :: RosterRenderIndexes
+    , liveUpdateScope       :: Maybe LiveUpdateScope
+    , viewCapabilities      :: RosterViewCapabilities
+    , rosterLayoutMode      :: RosterLayoutModeEnum
+    , rosterEndTimesEnabled :: Bool
+    , shiftTypes            :: [ShiftType]
+    , passkeySetupPrompt    :: Maybe PasskeySetupPromptMode
     }
 
 data RosterViewCapabilities = RosterViewCapabilities
@@ -92,60 +95,72 @@ data RosterAssignmentOptionState = RosterAssignmentOptionState
     }
 
 data RosterRenderData = RosterRenderData
-    { rosterWeek        :: RosterWeek
-    , rosterDays        :: [RosterDay]
-    , weekStartDate     :: Day
-    , assignmentFilters :: RosterAssignmentFilters
-    , staffMembers      :: [Staff]
-    , staffOptionStates :: Map (UUID, UUID) RosterAssignmentOptionState
-    , panelStaff        :: [RosterStaffPanelEntry]
-    , orderedSlotNames  :: [RosterWeekSlotDefinition]
-    , allSlots          :: [RosterSlot]
-    , slotConflicts     :: [(Id RosterSlot, [RosterConflict])]
-    , renderIndexes     :: RosterRenderIndexes
+    { rosterWeek            :: RosterWeek
+    , rosterDays            :: [RosterDay]
+    , weekStartDate         :: Day
+    , assignmentFilters     :: RosterAssignmentFilters
+    , staffMembers          :: [Staff]
+    , staffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
+    , panelStaff            :: [RosterStaffPanelEntry]
+    , orderedSlotNames      :: [RosterWeekSlotDefinition]
+    , shiftTypes            :: [ShiftType]
+    , allSlots              :: [RosterSlot]
+    , slotConflicts         :: [(Id RosterSlot, [RosterConflict])]
+    , renderIndexes         :: RosterRenderIndexes
+    , rosterLayoutMode      :: RosterLayoutModeEnum
+    , rosterEndTimesEnabled :: Bool
     }
 
 data RosterGridRenderModel = RosterGridRenderModel
-    { gridRosterWeek         :: Maybe RosterWeek
-    , gridRosterDays         :: [RosterDay]
-    , gridWeekOffset         :: Int
-    , gridRosterGroups       :: [RosterGroup]
-    , gridCurrentRosterGroup :: RosterGroup
-    , gridAssignmentFilters  :: RosterAssignmentFilters
-    , gridStaffMembers       :: [Staff]
-    , gridStaffOptionStates  :: Map (UUID, UUID) RosterAssignmentOptionState
-    , gridPanelStaff         :: [RosterStaffPanelEntry]
-    , gridSlotNames          :: [RosterWeekSlotDefinition]
-    , gridWeekStartDate      :: Day
-    , gridAllSlots           :: [RosterSlot]
-    , gridSlotConflicts      :: [(Id RosterSlot, [RosterConflict])]
-    , gridRenderIndexes      :: RosterRenderIndexes
-    , gridViewCapabilities   :: RosterViewCapabilities
+    { gridRosterWeek            :: Maybe RosterWeek
+    , gridRosterDays            :: [RosterDay]
+    , gridWeekOffset            :: Int
+    , gridRosterGroups          :: [RosterGroup]
+    , gridCurrentRosterGroup    :: RosterGroup
+    , gridAssignmentFilters     :: RosterAssignmentFilters
+    , gridStaffMembers          :: [Staff]
+    , gridStaffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
+    , gridPanelStaff            :: [RosterStaffPanelEntry]
+    , gridSlotNames             :: [RosterWeekSlotDefinition]
+    , gridShiftTypes            :: [ShiftType]
+    , gridWeekStartDate         :: Day
+    , gridAllSlots              :: [RosterSlot]
+    , gridSlotConflicts         :: [(Id RosterSlot, [RosterConflict])]
+    , gridRenderIndexes         :: RosterRenderIndexes
+    , gridViewCapabilities      :: RosterViewCapabilities
+    , gridRosterLayoutMode      :: RosterLayoutModeEnum
+    , gridRosterEndTimesEnabled :: Bool
     }
 
 data RosterDayRenderModel = RosterDayRenderModel
-    { dayIsEditable        :: Bool
-    , daySlotNames         :: [RosterWeekSlotDefinition]
-    , dayAssignmentFilters :: RosterAssignmentFilters
-    , dayStaffMembers      :: [Staff]
-    , dayStaffOptionStates :: Map (UUID, UUID) RosterAssignmentOptionState
-    , dayWeekStartDate     :: Day
-    , dayAllSlots          :: [RosterSlot]
-    , daySlotConflicts     :: [(Id RosterSlot, [RosterConflict])]
-    , dayRenderIndexes     :: RosterRenderIndexes
+    { dayIsEditable            :: Bool
+    , daySlotNames             :: [RosterWeekSlotDefinition]
+    , dayAssignmentFilters     :: RosterAssignmentFilters
+    , dayStaffMembers          :: [Staff]
+    , dayStaffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
+    , dayShiftTypes            :: [ShiftType]
+    , dayWeekStartDate         :: Day
+    , dayAllSlots              :: [RosterSlot]
+    , daySlotConflicts         :: [(Id RosterSlot, [RosterConflict])]
+    , dayRenderIndexes         :: RosterRenderIndexes
+    , dayRosterLayoutMode      :: RosterLayoutModeEnum
+    , dayRosterEndTimesEnabled :: Bool
     }
 
 data RosterRowRenderModel = RosterRowRenderModel
-    { rowIsEditable        :: Bool
-    , rowSlotNames         :: [RosterWeekSlotDefinition]
-    , rowAssignmentFilters :: RosterAssignmentFilters
-    , rowStaffMembers      :: [Staff]
-    , rowStaffOptionStates :: Map (UUID, UUID) RosterAssignmentOptionState
-    , rowDate              :: Day
-    , rowRosterDay         :: RosterDay
-    , rowCount             :: Int
-    , rowLastRowIndex      :: Int
-    , rowRenderIndexes     :: RosterRenderIndexes
+    { rowIsEditable            :: Bool
+    , rowSlotNames             :: [RosterWeekSlotDefinition]
+    , rowAssignmentFilters     :: RosterAssignmentFilters
+    , rowStaffMembers          :: [Staff]
+    , rowStaffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
+    , rowShiftTypes            :: [ShiftType]
+    , rowDate                  :: Day
+    , rowRosterDay             :: RosterDay
+    , rowCount                 :: Int
+    , rowLastRowIndex          :: Int
+    , rowRenderIndexes         :: RosterRenderIndexes
+    , rowRosterLayoutMode      :: RosterLayoutModeEnum
+    , rowRosterEndTimesEnabled :: Bool
     }
 
 data RosterProjectionScope = RosterProjectionScope

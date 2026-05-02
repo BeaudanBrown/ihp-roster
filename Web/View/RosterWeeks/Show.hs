@@ -35,11 +35,14 @@ renderRosterWeekShell ShowView { .. } =
                         , gridStaffOptionStates = staffOptionStates
                         , gridPanelStaff = panelStaff
                         , gridSlotNames = slotNames
+                        , gridShiftTypes = shiftTypes
                         , gridWeekStartDate = weekStartDate
                         , gridAllSlots = allSlots
                         , gridSlotConflicts = slotConflicts
                         , gridRenderIndexes = renderIndexes
                         , gridViewCapabilities = viewCapabilities
+                        , gridRosterLayoutMode = rosterLayoutMode
+                        , gridRosterEndTimesEnabled = rosterEndTimesEnabled
                         }
                     ]
             })

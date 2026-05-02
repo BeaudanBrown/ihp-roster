@@ -207,7 +207,7 @@ renderShiftPreferenceDayRow selectedShiftPreferences weekday =
     |]
 
 abbreviateWeekdayLabel :: Text -> Text
-abbreviateWeekdayLabel label = Text.take 3 label
+abbreviateWeekdayLabel = Text.take 3
 
 availabilityButtonClass :: Bool -> Text
 availabilityButtonClass isSelected =

@@ -154,6 +154,7 @@ data RosterWeeksController
     | ToggleRosterDayClosedAction { rosterDayId :: !(Id RosterDay) }
     | AddRosterRowAction { rosterDayId :: !(Id RosterDay) }
     | RemoveRosterRowAction { rosterDayId :: !(Id RosterDay) }
+    | UpdateRosterLayoutPreferenceAction { weekOffset :: !Int }
     | UpdateRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
     deriving (Eq, Show, Data)
 

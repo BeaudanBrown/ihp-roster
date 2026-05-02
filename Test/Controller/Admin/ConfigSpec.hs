@@ -391,6 +391,25 @@ tests = beforeAll testContext do
                 venueConfig.rosterWeekStartsOn `shouldBe` 2
                 venueConfig.weekOffsetEpoch `shouldBe` defaultWeekOffsetEpochForStartDay 2
 
+        it "toggles roster end times without changing the roster week start" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue"
+                admin <- createUserRecord "admin-roster-end-times@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                originalConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams UpdateVenueConfigAction
+                        [ ("configField", "rosterEndTimesEnabled")
+                        , ("rosterEndTimesEnabled", "true")
+                        ]
+
+                response `responseStatusShouldBe` status302
+
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                venueConfig.rosterEndTimesEnabled `shouldBe` True
+                venueConfig.rosterWeekStartsOn `shouldBe` originalConfig.rosterWeekStartsOn
+
         it "rejects updates to config rows outside the current venue" $ withContext do
             withCleanDb do
                 venueA <- createVenueWithConfig "Venue A"

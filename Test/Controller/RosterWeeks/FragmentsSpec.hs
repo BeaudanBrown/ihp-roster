@@ -185,7 +185,7 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekRowFragmentAction 0 mondayRosterDay.id 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` ">CrossGroup Preference</option>"
+                response `responseBodyShouldContain` ">CrossGroup</option>"
 
         it "only hides staff for approved leave overlapping the roster week" $ withContext do
             withCleanDb do

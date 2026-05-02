@@ -1,6 +1,7 @@
 module Web.RosterWeeks.Paths
     ( rosterAssignmentFiltersUrl
     , rosterCopyWeekUrl
+    , rosterLayoutPreferenceUrl
     , rosterOverviewFragmentUrl
     , rosterWeekContentFragmentUrl
     , rosterWeekDaySectionFragmentUrl
@@ -58,6 +59,10 @@ rosterWeekRowFragmentUrl weekOffset rosterGroupId rosterDayId rowIndex =
 rosterAssignmentFiltersUrl :: Int -> Id RosterGroup -> Text
 rosterAssignmentFiltersUrl weekOffset rosterGroupId =
     appendQueryParams (pathTo UpdateRosterAssignmentFiltersAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
+
+rosterLayoutPreferenceUrl :: Int -> Id RosterGroup -> Text
+rosterLayoutPreferenceUrl weekOffset rosterGroupId =
+    appendQueryParams (pathTo UpdateRosterLayoutPreferenceAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
 rosterCopyWeekUrl :: Int -> Int -> Id RosterGroup -> Text
 rosterCopyWeekUrl sourceWeekOffset targetWeekOffset rosterGroupId =

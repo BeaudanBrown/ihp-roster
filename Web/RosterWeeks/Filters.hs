@@ -5,6 +5,7 @@ module Web.RosterWeeks.Filters
     , fetchRosterAssignmentFilters
     , normalizeOptionalSlotFlag
     , normalizeOptionalText
+    , parseOptionalShiftTypeId
     , parseOptionalStaffId
     , parseOptionalTime
     , rosterAssignmentFiltersFromParams
@@ -20,6 +21,9 @@ import Web.RosterWeeks.Types
 
 parseOptionalStaffId :: Maybe Text -> Maybe UUID.UUID
 parseOptionalStaffId value = UUID.fromText =<< normalizeOptionalText value
+
+parseOptionalShiftTypeId :: Maybe Text -> Maybe UUID.UUID
+parseOptionalShiftTypeId value = UUID.fromText =<< normalizeOptionalText value
 
 parseOptionalTime :: Maybe Text -> Maybe TimeOfDay
 parseOptionalTime value =

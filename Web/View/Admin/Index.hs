@@ -8,12 +8,14 @@ import Web.View.Admin.Exports
 import Web.View.Admin.Invites
 import Web.View.Admin.RosterGroups
 import Web.View.Admin.ShiftTypes
+import Web.View.Admin.VenueSettings
 import Web.View.Prelude
 
 data IndexView = IndexView
     { rosterGroups             :: [RosterGroup]
     , currentRosterGroup       :: RosterGroup
     , shiftTypes               :: [ShiftType]
+    , venueConfig              :: VenueConfig
     , awardLevels              :: [AwardLevel]
     , awardLevelBaseRates      :: [AwardLevelBaseRate]
     , reportWeekSelection      :: ReportWeekSelection
@@ -39,7 +41,7 @@ instance View IndexView where
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
-                        {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs}
+                        {renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs}
                     |]
                     }
          in renderAppPage (AppPageConfig
@@ -54,10 +56,11 @@ instance View IndexView where
             |]
             })
 
-renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [VenueInvitation] -> ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
-renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs = [hsx|
+renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftType] -> Bool -> VenueConfig -> [AwardLevel] -> [AwardLevelBaseRate] -> [VenueInvitation] -> ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
+renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
+        {renderAccordionItem "venue-settings" "Venue Settings" False (renderVenueSettingsSection venueConfig)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSection reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)}

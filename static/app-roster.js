@@ -280,6 +280,17 @@
                     return;
                 }
 
+                if (cellEl.classList.contains('slot-shift-type-cell')) {
+                    const staticValue = cellEl.querySelector('.slot-cell-static');
+                    const selectEl = cellEl.querySelector('.slot-shift-type-input');
+                    const selectedOption = selectEl instanceof HTMLSelectElement ? selectEl.selectedOptions[0] : null;
+                    const shiftTypeValue =
+                        textOrEmpty(staticValue && staticValue.textContent)
+                        || textOrEmpty(selectedOption && selectedOption.textContent);
+                    replaceCellContents(cellEl, shiftTypeValue);
+                    return;
+                }
+
                 if (cellEl.classList.contains('slot-note-cell')) {
                     const staticValue = cellEl.querySelector('.slot-cell-static');
                     const inputEl = cellEl.querySelector('.slot-note-input');
