@@ -1,24 +1,38 @@
-module Web.View.Passkeys.Management where
+module Web.View.Passkeys.Management
+    ( renderPasskeyManagement
+    , renderPasskeyManagementWithAddButton
+    )
+where
 
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 renderPasskeyManagement :: [Passkey] -> Text -> Html
-renderPasskeyManagement passkeys successRedirect = [hsx|
+renderPasskeyManagement =
+    renderPasskeyManagementWithAddButton True
+
+renderPasskeyManagementWithAddButton :: Bool -> [Passkey] -> Text -> Html
+renderPasskeyManagementWithAddButton canAddPasskey passkeys successRedirect = [hsx|
     <div class="app-form-width">
-        <div class="js-passkey-register"
-             data-begin-url={pathTo BeginPasskeyRegistrationAction}
-             data-finish-url={pathTo FinishPasskeyRegistrationAction}
-             data-status-id="passkey-management-status"
-             data-success-redirect={successRedirect}>
-            <button type="button" class="btn btn-outline-primary js-passkey-register-button">Add passkey</button>
-        </div>
-        <div id="passkey-management-status" class="alert d-none mt-3"></div>
+        {renderPasskeyRegistrationAction canAddPasskey successRedirect}
         <div class="mt-4">
             {renderPasskeyTable passkeys}
         </div>
     </div>
+|]
+
+renderPasskeyRegistrationAction :: Bool -> Text -> Html
+renderPasskeyRegistrationAction False _ = mempty
+renderPasskeyRegistrationAction True successRedirect = [hsx|
+    <div class="js-passkey-register"
+         data-begin-url={pathTo BeginPasskeyRegistrationAction}
+         data-finish-url={pathTo FinishPasskeyRegistrationAction}
+         data-status-id="passkey-management-status"
+         data-success-redirect={successRedirect}>
+        <button type="button" class="btn btn-outline-primary js-passkey-register-button">Add passkey</button>
+    </div>
+    <div id="passkey-management-status" class="alert d-none mt-3"></div>
 |]
 
 renderPasskeyTable :: [Passkey] -> Html

@@ -7,7 +7,7 @@ import Application.Support.LiveUpdates (supportLiveSurface)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
-import Web.View.Passkeys.Management (renderPasskeyManagement)
+import Web.View.Passkeys.Management (renderPasskeyManagementWithAddButton)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -52,7 +52,7 @@ instance View IndexView where
                 simpleAppPanel
                     "Sign-In Methods"
                     Nothing
-                    (renderPasskeyManagement passkeys (pathTo SupportAction))
+                    (renderPasskeyManagementWithAddButton (null passkeys) passkeys (pathTo SupportAction))
             awardRatesPanel =
                 simpleAppPanel
                     "Award Rates"
