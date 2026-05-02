@@ -6,6 +6,7 @@ import Application.FwcMapd.Job
 import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
 import Application.RosterTimesheets.Automation
+import Application.StaffDocuments.Rsa
 import Application.Xero.Keepalive
 import qualified Data.Text as Text
 import Generated.Types
@@ -21,6 +22,7 @@ dispatchAppJob appJob =
         kind | kind == fwcMapdRefreshJobKind -> performFwcMapdRefreshJob appJob
         kind | kind == publicHolidayRefreshJobKind -> performPublicHolidayRefreshJob appJob
         kind | kind == rosterTimesheetCreationJobKind -> performRosterTimesheetCreationJob appJob
+        kind | kind == rsaReminderJobKind -> performRsaReminderJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
         kind | kind == venueInvitationDeliveryJobKind -> performVenueInvitationDeliveryJob appJob
         kind | kind == venueOnboardingInvitationDeliveryJobKind -> performVenueOnboardingInvitationDeliveryJob appJob

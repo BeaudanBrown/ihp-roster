@@ -2,6 +2,7 @@ module Web.View.Staff.Edit where
 
 import Application.Helper.StaffShiftPreferences
 import Web.View.Prelude
+import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm
 
 data EditView = EditView
@@ -13,6 +14,8 @@ data EditView = EditView
     , selectedRosterGroupIds   :: [Id RosterGroup]
     , preferenceWeekdays       :: [PreferenceWeekday]
     , selectedShiftPreferences :: [ShiftPreferenceSelection]
+    , staffRsaDocument         :: Maybe StaffDocument
+    , today                    :: Day
     , weekOffset               :: Int
     , maybeRosterGroupId       :: Maybe (Id RosterGroup)
     }
@@ -22,16 +25,39 @@ instance View EditView where
         renderStaffEditPageModal
             weekOffset
             staffEditFormId
-            (renderForm PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
+            (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
 
-renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId =
+renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> Day -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId =
     renderStaffEditDialog
         staffEditFormId
-        (renderForm HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff)))
+        (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+
+renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> Day -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId =
+    let rsaPanel =
+            renderRsaDocumentPanel
+                RsaPanelConfig
+                    { rsaPanelStaff = staff
+                    , rsaPanelDocument = staffRsaDocument
+                    , rsaPanelToday = today
+                    , rsaPanelReturnContext =
+                        RsaReturnContext
+                            { rsaReturnTo = "staff"
+                            , rsaReturnWeekOffset = Just weekOffset
+                            , rsaReturnRosterGroupId = maybeRosterGroupId
+                            }
+                    , rsaPanelCanReview = currentUserIsManager
+                    }
+     in [hsx|
+        {renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff))}
+        <div class="mt-4">
+            {rsaPanel}
+        </div>
+    |]
 
 renderForm :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
 renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId action =

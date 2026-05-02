@@ -29,6 +29,7 @@ tests :: Spec
 tests = describe "Schema" do
     it "generates core foundation models" do
         let _ = (Nothing :: Maybe Staff)
+        let _ = (Nothing :: Maybe StaffDocument)
         let _ = (Nothing :: Maybe RosterWeek)
         let _ = (Nothing :: Maybe RosterDay)
         let _ = (Nothing :: Maybe RosterSlot)
@@ -89,6 +90,7 @@ tests = describe "Schema" do
 
     it "venue-owned tables expose venue_id field" do
         let _staffVenueId = get #venueId (newRecord @Staff)
+        let _staffDocumentVenueId = get #venueId (newRecord @StaffDocument)
         let _rosterGroupVenueId = get #venueId (newRecord @RosterGroup)
         let _rosterWeekVenueId = get #venueId (newRecord @RosterWeek)
         let _rosterWeekRosterGroupId = get #rosterGroupId (newRecord @RosterWeek)
@@ -352,6 +354,28 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE user_preferences"
+
+    it "stores RSA staff document metadata without onboarding-sensitive fields" do
+        schemaSqlText <- TextIO.readFile "Application/Schema.sql"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1777600800.sql"
+        let staffDocument = newRecord @StaffDocument
+        inputValue staffDocument.documentType `shouldBe` "rsa_statement_of_attainment"
+        inputValue staffDocument.status `shouldBe` "pending_review"
+        map inputValue (allEnumValues @StaffDocumentStatusEnum) `shouldBe` ["pending_review", "verified", "rejected", "expired"]
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TYPE staff_document_type_enum AS ENUM ('rsa_statement_of_attainment');"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE staff_documents"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "expiry_date DATE NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "file_contents TEXT NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "expiry_reminder_sent_at TIMESTAMP WITH TIME ZONE DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "expired_reminder_sent_at TIMESTAMP WITH TIME ZONE DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_staff_documents_rsa_expiry"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_staff_documents BEFORE DELETE ON staff_documents"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_staff_document_venue_integrity BEFORE INSERT OR UPDATE ON staff_documents"
+        Text.toLower schemaSqlText `shouldNotSatisfy` Text.isInfixOf "tfn"
+        Text.toLower schemaSqlText `shouldNotSatisfy` Text.isInfixOf "bank_account"
+        Text.toLower schemaSqlText `shouldNotSatisfy` Text.isInfixOf "superannuation"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE IF NOT EXISTS staff_documents"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "staff document venue_id must match staff_id venue"
 
     describe "Leave request helpers" do
         it "validates leave date ranges as unavailable-from to available-again" do

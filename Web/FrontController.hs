@@ -23,6 +23,7 @@ import Web.Controller.Profiles
 import Web.Controller.RosterWeeks
 import Web.Controller.Sessions
 import Web.Controller.Staff
+import Web.Controller.StaffDocuments
 import Web.Controller.Static
 import Web.Controller.Support
 import Web.Controller.Timesheets
@@ -39,6 +40,7 @@ instance FrontController WebApplication where
         , parseRoute @TimesheetsController
         , parseRoute @LeaveRequestsController
         , parseRoute @ExportsController
+        , parseRoute @StaffDocumentsController
         , parseRoute @AdminController
         , parseRoute @SupportController
         , parseRoute @StaffController

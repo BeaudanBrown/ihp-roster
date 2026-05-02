@@ -350,6 +350,26 @@ in
         description = "Randomized delay applied to the Xero keepalive timer.";
       };
     };
+
+    rsa.reminders = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Whether to run the RSA expiry reminder sweep on a systemd timer.";
+      };
+
+      onCalendar = mkOption {
+        type = types.str;
+        default = "daily";
+        description = "systemd OnCalendar expression for the RSA reminder sweep.";
+      };
+
+      randomizedDelaySec = mkOption {
+        type = types.str;
+        default = "30m";
+        description = "Randomized delay applied to the RSA reminder timer.";
+      };
+    };
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -515,6 +535,36 @@ in
           OnCalendar = cfg.xero.keepalive.onCalendar;
           Persistent = true;
           RandomizedDelaySec = cfg.xero.keepalive.randomizedDelaySec;
+        };
+      };
+      systemd.services.rsa-reminder-sweep = mkIf cfg.rsa.reminders.enable {
+        description = "Enqueue RSA expiry reminder jobs for ihp-roster";
+        after = [ schemaReadyService ];
+        requires = [ schemaReadyService ];
+        serviceConfig = {
+          Type = "oneshot";
+          EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
+          ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/RsaReminderSweep";
+        }
+        // serviceUserConfig;
+        environment = {
+          DATABASE_URL =
+            if cfg.databaseUrl != null then
+              cfg.databaseUrl
+            else
+              "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+          IHP_TELEMETRY_DISABLED = "1";
+          APP_BASE_URL = cfg.baseUrl;
+        }
+        // mailEnv
+        // cfg.additionalEnvVars;
+      };
+      systemd.timers.rsa-reminder-sweep = mkIf cfg.rsa.reminders.enable {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = cfg.rsa.reminders.onCalendar;
+          Persistent = true;
+          RandomizedDelaySec = cfg.rsa.reminders.randomizedDelaySec;
         };
       };
     }

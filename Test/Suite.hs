@@ -21,6 +21,7 @@ import qualified Test.Controller.PayrollExportParitySpec
 import qualified Test.Controller.ProfilesSpec
 import qualified Test.Controller.RosterWeeksSpec
 import qualified Test.Controller.SessionsSpec
+import qualified Test.Controller.StaffDocumentsSpec
 import qualified Test.Controller.StaffSpec
 import qualified Test.Controller.StaticSpec
 import qualified Test.Controller.TimesheetsSpec
@@ -37,6 +38,7 @@ import qualified Test.PublicHolidaySyncSpec
 import qualified Test.RosterGridSpec
 import qualified Test.RosterTimesheetsAutomationSpec
 import qualified Test.SchemaSpec
+import qualified Test.StaffDocumentsRsaSpec
 import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
@@ -144,6 +146,8 @@ allSuites =
     , TestSuite "VenueAccess" Test.Controller.VenueAccessSpec.tests
     , TestSuite "PayrollExportParity" Test.Controller.PayrollExportParitySpec.tests
     , TestSuite "StaffController" Test.Controller.StaffSpec.tests
+    , TestSuite "StaffDocumentsController" Test.Controller.StaffDocumentsSpec.tests
+    , TestSuite "StaffDocumentsRSA" Test.StaffDocumentsRsaSpec.tests
     , TestSuite "VenueInvitation" Test.VenueInvitationSpec.tests
     , TestSuite "VenueOnboardingInvitation" Test.VenueOnboardingInvitationSpec.tests
     , TestSuite "DevSeed" Test.DevSeedSpec.tests

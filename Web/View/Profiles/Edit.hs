@@ -15,6 +15,7 @@ import Web.View.LeaveRequests.Index (renderStatusBadge)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Passkeys.Management (renderPasskeyManagement)
 import Web.View.Prelude
+import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm
 
 profileContentFragmentId :: Text
@@ -54,6 +55,8 @@ data EditView = EditView
     , passkeys                 :: [Passkey]
     , leaveRequests            :: [LeaveRequest]
     , leaveRequestForm         :: LeaveRequest
+    , staffRsaDocument         :: Maybe StaffDocument
+    , today                    :: Day
     , openSection              :: Text
     }
 
@@ -74,12 +77,12 @@ instance View EditView where
                     , appPanelCustomHeader = mempty
                     , appPanelClass = ""
                     , appPanelBodyClass = ""
-                    , appPanelBody = renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection
+                    , appPanelBody = renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection
                     }
             })
 
-renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Text -> Html
-renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection = [hsx|
+renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Day -> Text -> Html
+renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection = [hsx|
     <div id={profileContentFragmentId}>
         <div class="accordion" id={profileSectionsAccordionId}>
             {renderAccordionSection
@@ -99,6 +102,12 @@ renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedS
                 "Availability"
                 (openSection == "leave")
                 (renderProfileLeaveRequestsContentFragment leaveRequestForm leaveRequests)
+            }
+            {renderAccordionSection
+                "profile-rsa"
+                "RSA"
+                (openSection == "rsa")
+                (renderProfileRsaSection staff staffRsaDocument today)
             }
         </div>
     </div>
@@ -137,6 +146,34 @@ renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPrefere
         </div>
     </form>
 |]
+
+renderProfileRsaSection :: Staff -> Maybe StaffDocument -> Day -> Html
+renderProfileRsaSection staff staffRsaDocument today =
+    if isNew staff
+        then renderAppPanel AppPanelConfig
+            { appPanelTitle = Nothing
+            , appPanelDescription = Nothing
+            , appPanelHasActions = False
+            , appPanelActions = mempty
+            , appPanelHasCustomHeader = False
+            , appPanelCustomHeader = mempty
+            , appPanelClass = ""
+            , appPanelBodyClass = ""
+            , appPanelBody = [hsx|<p class="app-muted mb-0">Save your profile details before uploading RSA.</p>|]
+            }
+        else renderRsaDocumentPanel
+            RsaPanelConfig
+                { rsaPanelStaff = staff
+                , rsaPanelDocument = staffRsaDocument
+                , rsaPanelToday = today
+                , rsaPanelReturnContext =
+                    RsaReturnContext
+                        { rsaReturnTo = "profile"
+                        , rsaReturnWeekOffset = Nothing
+                        , rsaReturnRosterGroupId = Nothing
+                        }
+                , rsaPanelCanReview = currentUserIsManager
+                }
 
 renderProfileLeaveRequestsContentFragment :: LeaveRequest -> [LeaveRequest] -> Html
 renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests = [hsx|

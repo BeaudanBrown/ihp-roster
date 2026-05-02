@@ -7,6 +7,8 @@
 -- - schema-nav: identity-and-access - venues, users, email verification,
 --   passkeys, memberships, invitations, and onboarding.
 -- - schema-nav: staff-profiles - venue staff profile and employment defaults.
+-- - schema-nav: staff-documents - private venue-scoped staff compliance
+--   documents such as RSA evidence.
 -- - schema-nav: venue-config - shift types and venue-level defaults.
 -- - schema-nav: reporting-config - report definitions and shift-type filters.
 -- - schema-nav: roster-group-config - roster groups, staff group assignments,
@@ -38,6 +40,8 @@ CREATE TYPE leave_request_event_type_enum AS ENUM ('created', 'approved', 'denie
 CREATE TYPE entry_version_action_enum AS ENUM ('created', 'updated', 'approved', 'unapproved', 'approval_reset', 'deleted');
 CREATE TYPE venue_membership_role_event_type_enum AS ENUM ('assigned', 'changed');
 CREATE TYPE staff_employment_basis_enum AS ENUM ('permanent', 'casual');
+CREATE TYPE staff_document_type_enum AS ENUM ('rsa_statement_of_attainment');
+CREATE TYPE staff_document_status_enum AS ENUM ('pending_review', 'verified', 'rejected', 'expired');
 CREATE TYPE award_penalty_kind_enum AS ENUM ('evening_after_7pm', 'late_night_after_midnight', 'saturday_penalty', 'sunday_penalty', 'public_holiday_penalty', 'delayed_meal_break_weekday', 'delayed_meal_break_saturday', 'delayed_meal_break_sunday', 'delayed_meal_break_public_holiday');
 CREATE TYPE roster_layout_mode_enum AS ENUM ('day_rows', 'day_columns');
 
@@ -195,6 +199,45 @@ CREATE TABLE staff (
     CHECK ((char_length(btrim(emergency_contact_name)) > 0) AND (char_length(emergency_contact_name) <= 120)),
     CHECK ((char_length(btrim(emergency_contact_phone)) > 0) AND (char_length(emergency_contact_phone) <= 80)),
     CHECK ((ideal_shifts_per_week >= 0) AND (ideal_shifts_per_week <= 7))
+);
+
+-- schema-nav: staff-documents
+CREATE TABLE staff_documents (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    staff_id UUID NOT NULL,
+    document_type staff_document_type_enum DEFAULT 'rsa_statement_of_attainment' NOT NULL,
+    status staff_document_status_enum DEFAULT 'pending_review' NOT NULL,
+    issue_date DATE DEFAULT NULL,
+    expiry_date DATE NOT NULL,
+    issuing_authority TEXT DEFAULT NULL,
+    document_number TEXT DEFAULT NULL,
+    file_name TEXT NOT NULL,
+    content_type TEXT NOT NULL,
+    file_encoding TEXT DEFAULT 'base64' NOT NULL,
+    file_contents TEXT NOT NULL,
+    uploaded_by_user_id UUID NOT NULL,
+    reviewed_by_user_id UUID DEFAULT NULL,
+    reviewed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    rejection_reason TEXT DEFAULT NULL,
+    expiry_reminder_sent_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    expired_reminder_sent_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
+    FOREIGN KEY (uploaded_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (reviewed_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (issue_date IS NULL OR issue_date <= expiry_date),
+    CHECK ((char_length(btrim(file_name)) > 0) AND (char_length(file_name) <= 255)),
+    CHECK ((char_length(btrim(content_type)) > 0) AND (char_length(content_type) <= 120)),
+    CHECK (file_encoding = 'base64'),
+    CHECK (char_length(file_contents) > 0),
+    CHECK (issuing_authority IS NULL OR ((char_length(btrim(issuing_authority)) > 0) AND (char_length(issuing_authority) <= 160))),
+    CHECK (document_number IS NULL OR ((char_length(btrim(document_number)) > 0) AND (char_length(document_number) <= 80))),
+    CHECK (rejection_reason IS NULL OR ((char_length(btrim(rejection_reason)) > 0) AND (char_length(rejection_reason) <= 500))),
+    CHECK (((status = 'rejected') AND rejection_reason IS NOT NULL) OR (status <> 'rejected')),
+    CHECK ((reviewed_at IS NULL AND reviewed_by_user_id IS NULL) OR (reviewed_at IS NOT NULL AND reviewed_by_user_id IS NOT NULL))
 );
 
 -- schema-nav: venue-config
@@ -1168,6 +1211,8 @@ CREATE INDEX idx_venue_onboarding_invitations_email_status ON venue_onboarding_i
 CREATE INDEX idx_staff_venue ON staff (venue_id);
 CREATE INDEX idx_staff_default_award_level ON staff (default_award_level_id) WHERE default_award_level_id IS NOT NULL;
 CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL AND is_active = TRUE AND archived_at IS NULL;
+CREATE INDEX idx_staff_documents_venue_staff_type_created ON staff_documents (venue_id, staff_id, document_type, created_at DESC);
+CREATE INDEX idx_staff_documents_rsa_expiry ON staff_documents (venue_id, expiry_date) WHERE document_type = 'rsa_statement_of_attainment' AND status <> 'rejected';
 CREATE INDEX idx_report_definitions_venue_sort ON report_definitions (venue_id, sort_order ASC, created_at ASC);
 CREATE UNIQUE INDEX idx_report_definitions_active_slug ON report_definitions (venue_id, slug) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE INDEX idx_report_definition_shift_type_filters_definition ON report_definition_shift_type_filters (report_definition_id);
@@ -1274,6 +1319,7 @@ CREATE TRIGGER prevent_hard_delete_venues BEFORE DELETE ON venues FOR EACH ROW E
 CREATE TRIGGER prevent_hard_delete_users BEFORE DELETE ON users FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_venue_memberships BEFORE DELETE ON venue_memberships FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_staff BEFORE DELETE ON staff FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_staff_documents BEFORE DELETE ON staff_documents FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_staff_roster_groups BEFORE DELETE ON staff_roster_groups FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_roster_groups BEFORE DELETE ON roster_groups FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_slot_names BEFORE DELETE ON slot_names FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -1405,6 +1451,23 @@ BEGIN
             AND s.venue_id = NEW.venue_id
     ) THEN
         RAISE EXCEPTION 'staff shift preference staff must stay within its venue';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION enforce_staff_document_venue_integrity()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM staff s
+        WHERE s.id = NEW.staff_id
+            AND s.venue_id = NEW.venue_id
+    ) THEN
+        RAISE EXCEPTION 'staff document venue_id must match staff_id venue';
     END IF;
 
     RETURN NEW;
@@ -1557,6 +1620,7 @@ CREATE TRIGGER enforce_slot_name_venue_integrity BEFORE INSERT OR UPDATE ON slot
 CREATE TRIGGER enforce_roster_slot_week_definition_integrity BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION enforce_roster_slot_week_definition_integrity();
 CREATE TRIGGER enforce_staff_roster_group_venue_integrity BEFORE INSERT OR UPDATE ON staff_roster_groups FOR EACH ROW EXECUTE FUNCTION enforce_staff_roster_group_venue_integrity();
 CREATE TRIGGER enforce_staff_shift_preference_venue_integrity BEFORE INSERT OR UPDATE ON staff_shift_preferences FOR EACH ROW EXECUTE FUNCTION enforce_staff_shift_preference_venue_integrity();
+CREATE TRIGGER enforce_staff_document_venue_integrity BEFORE INSERT OR UPDATE ON staff_documents FOR EACH ROW EXECUTE FUNCTION enforce_staff_document_venue_integrity();
 CREATE TRIGGER enforce_leave_request_venue_integrity BEFORE INSERT OR UPDATE ON leave_requests FOR EACH ROW EXECUTE FUNCTION enforce_leave_request_venue_integrity();
 CREATE TRIGGER enforce_timesheet_entry_venue_integrity BEFORE INSERT OR UPDATE ON timesheet_entries FOR EACH ROW EXECUTE FUNCTION enforce_timesheet_entry_venue_integrity();
 CREATE TRIGGER enforce_report_definition_filter_venue_integrity BEFORE INSERT OR UPDATE ON report_definition_shift_type_filters FOR EACH ROW EXECUTE FUNCTION enforce_report_definition_filter_venue_integrity();

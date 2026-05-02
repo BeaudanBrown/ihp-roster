@@ -9,8 +9,10 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
                                 renderToastOob, successToast)
+import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
+import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
@@ -27,11 +29,13 @@ instance Controller ProfilesController where
         maybeExistingStaff <- fetchCurrentUserStaff
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
         let currentUserEmail = currentUser.email
-        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
+        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "profile" "section")
         (preferenceWeekdays, selectedShiftPreferences) <- profilePreferenceViewData maybeExistingStaff
         passkeys <- fetchCurrentUserPasskeys
         leaveRequests <- fetchCurrentUserLeaveRequests
         leaveRequestForm <- buildDefaultLeaveRequest
+        staffRsaDocument <- maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff
+        today <- utctDay <$> getCurrentTime
         render EditView { .. }
 
     action ShowProfileLeaveRequestsContentFragmentAction = do
@@ -44,8 +48,10 @@ instance Controller ProfilesController where
         let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
         let currentUserEmail = currentUser.email
-        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "section" "profile")
+        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "profile" "section")
         passkeys <- fetchCurrentUserPasskeys
+        staffRsaDocument <- maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff
+        today <- utctDay <$> getCurrentTime
         (preferenceWeekdays, selectedShiftPreferences) <-
             profilePreferenceViewDataWithSubmitted maybeExistingStaff submittedShiftPreferenceKeys
         leaveRequests <- fetchCurrentUserLeaveRequests
@@ -69,7 +75,7 @@ instance Controller ProfilesController where
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection)
+                        then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection)
                         else render EditView { .. }
                 Right staff -> do
                     staff <- upsertCurrentUserStaff staff
@@ -85,8 +91,9 @@ instance Controller ProfilesController where
                                         Left _           -> []
                             leaveRequests <- fetchCurrentUserLeaveRequests
                             leaveRequestForm <- buildDefaultLeaveRequest
+                            staffRsaDocument <- latestRsaDocumentForStaff staff
                             if isHtmxRequest
-                                then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm openSection)
+                                then respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection)
                                 else render EditView { .. }
                         Right submittedSelections -> do
                             replaceStaffShiftPreferences staff submittedSelections
@@ -105,7 +112,7 @@ instance Controller ProfilesController where
                                     then
                                         respondHtml $
                                             mconcat
-                                                [ renderProfileContentFragment staff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm openSection
+                                                [ renderProfileContentFragment staff currentUserEmail preferenceWeekdays submittedSelections passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection
                                                 , renderToastOob ToastBottomCenter (successToast "Profile updated")
                                                 ]
                                     else do
@@ -167,6 +174,7 @@ profilePreferenceViewDataWithSubmitted _maybeStaff submittedShiftPreferenceKeys 
 normalizeProfileOpenSection :: Text -> Text
 normalizeProfileOpenSection section
     | section == "leave" = "leave"
+    | section == "rsa" = "rsa"
     | section == "security" = "security"
     | otherwise = "profile"
 

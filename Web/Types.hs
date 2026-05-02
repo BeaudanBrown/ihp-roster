@@ -79,6 +79,12 @@ data ExportsController
     | DownloadExportJobAction { exportJobId :: !(Id ExportJob) }
     deriving (Eq, Show, Data)
 
+data StaffDocumentsController
+    = CreateStaffDocumentAction
+    | DownloadStaffDocumentAction { staffDocumentId :: !(Id StaffDocument) }
+    | ReviewStaffDocumentAction { staffDocumentId :: !(Id StaffDocument) }
+    deriving (Eq, Show, Data)
+
 data AdminController
     = AdminAction
     | XeroAction
