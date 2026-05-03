@@ -21,9 +21,9 @@ const rosterDiagnosticSelectors = {
     rosterShell: '#roster-week-shell',
     rosterContent: '#roster-content',
     rosterTableContainer: '.roster-slots-scroller',
-    rosterGrid: 'table.roster-grid',
+    rosterGrid: '.roster-grid',
     staffPanel: '.roster-staff-panel',
-    firstEditableRow: 'tr[data-roster-row]:has(select[name="staffId"])',
+    firstEditableRow: '[data-roster-row]:has(select[name="staffId"])',
     dialogMount: '#dialog-overlay-mount',
     picker: '[data-time-picker-menu], .flatpickr-calendar.open',
 };
@@ -93,7 +93,7 @@ export async function attachRosterMobileDiagnostics(page: Page, testInfo: TestIn
         });
     }
 
-    const firstEditableRow = page.locator('tr[data-roster-row]:has(select[name="staffId"])').first();
+    const firstEditableRow = page.locator('[data-roster-row]:has(select[name="staffId"])').first();
     if (await firstEditableRow.isVisible().catch(() => false)) {
         await firstEditableRow.scrollIntoViewIfNeeded();
         await testInfo.attach(`${name}-first-editable-row.png`, {

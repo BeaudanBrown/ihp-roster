@@ -14,13 +14,13 @@ const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-
 test.describe('Roster mobile baseline', () => {
     test.beforeEach(async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, e2eRosterPath, 'table.roster-grid');
+        await gotoWhenReady(page, e2eRosterPath, '.roster-grid');
         await expect(page.locator('#roster-week-shell')).toBeVisible();
         await expect(page.locator('#roster-content')).toBeVisible();
-        await expect(page.locator('table.roster-grid')).toBeVisible();
+        await expect(page.locator('.roster-grid')).toBeVisible();
     });
 
-    test('keeps the roster shell within the viewport and contains any table overflow locally', async ({ page }) => {
+    test('keeps the roster shell within the viewport and contains any grid overflow locally', async ({ page }) => {
         await expectNoHorizontalViewportOverflow(page);
         await expectContainerToManageHorizontalOverflow(page, '.roster-slots-scroller');
 
@@ -30,15 +30,17 @@ test.describe('Roster mobile baseline', () => {
             }
 
             const scroller = frame.querySelector('.roster-slots-scroller');
-            const table = frame.querySelector('table.roster-grid');
+            const grid = frame.querySelector('.roster-grid');
             const dayRail = frame.querySelector('.roster-day-rail');
             const daySection = frame.querySelector('.roster-day-rail-section');
+            const firstGridSection = frame.querySelector('.roster-grid-day-section');
 
             if (
                 !(scroller instanceof HTMLElement)
-                || !(table instanceof HTMLElement)
+                || !(grid instanceof HTMLElement)
                 || !(dayRail instanceof HTMLElement)
                 || !(daySection instanceof HTMLElement)
+                || !(firstGridSection instanceof HTMLElement)
             ) {
                 return null;
             }
@@ -53,16 +55,18 @@ test.describe('Roster mobile baseline', () => {
                 scrollerClientWidth: scroller.clientWidth,
                 scrollerScrollWidth: scroller.scrollWidth,
                 overflowX: getComputedStyle(scroller).overflowX,
-                tableMinWidth: getComputedStyle(table).minWidth,
+                gridMinWidth: getComputedStyle(grid).minWidth,
                 dayRailPosition: getComputedStyle(dayRail).position,
                 daySectionPosition: getComputedStyle(daySection).position,
+                firstDayRailHeight: Math.round(daySection.getBoundingClientRect().height),
+                firstGridSectionHeight: Math.round(firstGridSection.getBoundingClientRect().height),
                 railLeftBefore: Math.round(railBefore.left),
                 railLeftAfter: Math.round(railAfter.left),
                 railRightAfter: Math.round(railAfter.right),
                 scrollerLeftBefore: Math.round(scrollerBefore.left),
                 scrollerLeftAfter: Math.round(scrollerAfter.left),
-                columnWidths: Array.from(table.querySelectorAll('col')).map((col) =>
-                    Math.round(Number.parseFloat(getComputedStyle(col).width))
+                cellWidths: Array.from(grid.querySelectorAll('.day-row:first-child > [role="gridcell"]')).map((cell) =>
+                    Math.round(cell.getBoundingClientRect().width)
                 ),
             };
         });
@@ -70,14 +74,15 @@ test.describe('Roster mobile baseline', () => {
         expect(rosterTableMetrics).not.toBeNull();
         expect(rosterTableMetrics?.overflowX).toBe('auto');
         expect(rosterTableMetrics?.scrollerScrollWidth).toBeGreaterThan(rosterTableMetrics?.scrollerClientWidth ?? 0);
-        expect(rosterTableMetrics?.tableMinWidth).not.toBe('0px');
+        expect(rosterTableMetrics?.gridMinWidth).not.toBe('0px');
         expect(rosterTableMetrics?.dayRailPosition).toBe('static');
         expect(rosterTableMetrics?.daySectionPosition).toBe('static');
+        expect(rosterTableMetrics?.firstDayRailHeight).toBe(rosterTableMetrics?.firstGridSectionHeight);
         expect(rosterTableMetrics?.railLeftAfter).toBe(rosterTableMetrics?.railLeftBefore);
         expect(rosterTableMetrics?.scrollerLeftAfter).toBe(rosterTableMetrics?.scrollerLeftBefore);
         expect(rosterTableMetrics?.scrollerLeftAfter).toBeGreaterThanOrEqual((rosterTableMetrics?.railRightAfter ?? 0) - 1);
-        expect(rosterTableMetrics?.columnWidths[1]).toBeGreaterThan(rosterTableMetrics?.columnWidths[2] ?? 0);
-        expect(rosterTableMetrics?.columnWidths[1]).toBeGreaterThan(rosterTableMetrics?.columnWidths[0] ?? 0);
+        expect(rosterTableMetrics?.cellWidths.length).toBeGreaterThanOrEqual(3);
+        expect(rosterTableMetrics?.cellWidths[1]).toBeGreaterThan(rosterTableMetrics?.cellWidths[0] ?? 0);
 
         const metrics = await page.evaluate(() => {
             const side = document.querySelector('.roster-layout-side');
@@ -118,7 +123,7 @@ test.describe('Roster mobile baseline', () => {
 
     test('uses compact closed-day controls without add or remove actions', async ({ page }) => {
         const firstDayRailSection = page.locator('.roster-day-rail-section').first();
-        const firstSlotDaySection = page.locator('tbody[data-roster-day-section="true"]').first();
+        const firstSlotDaySection = page.locator('[data-roster-day-section="true"]').first();
         const closeButton = firstDayRailSection.locator('[data-roster-day-closed-toggle="true"]');
 
         await expect(closeButton).toBeVisible();
@@ -133,7 +138,7 @@ test.describe('Roster mobile baseline', () => {
         await expect(reopenButton.locator('.bi-lock-fill')).toBeVisible();
         await expect(firstDayRailSection.locator('[data-roster-day-add="true"]')).toHaveCount(0);
         await expect(firstDayRailSection.locator('[data-roster-day-remove="true"]')).toHaveCount(0);
-        await expect(firstSlotDaySection.locator('tr[data-roster-row]')).toHaveCount(2);
+        await expect(firstSlotDaySection.locator('[data-roster-row]')).toHaveCount(2);
 
         await reopenButton.click();
         await expect(firstDayRailSection.locator('[data-roster-day-add="true"]')).toBeVisible();

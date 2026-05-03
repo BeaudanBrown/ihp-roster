@@ -9,7 +9,7 @@ async function loginAndOpenRoster(page) {
 }
 
 function editableRosterRows(page) {
-    return page.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
+    return page.locator('[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
 }
 
 async function ensureTwoEditableRosterRows(page) {
@@ -113,10 +113,10 @@ test.describe('Roster duplicate conflicts', () => {
             .poll(async () => duplicateConflictCells(viewerPage).count(), { timeout: E2E_TIMEOUT.liveUpdate })
             .toBeGreaterThan(initialViewerConflictCount);
 
-        const viewerGridState = await viewerPage.locator('table.roster-grid').evaluate((table) => {
-            const bodyRows = Array.from(table.querySelectorAll('tbody > tr[data-roster-row]'));
-            const outsideRows = Array.from(document.querySelectorAll('tr[data-roster-row]')).filter(
-                (row) => !row.closest('tbody'),
+        const viewerGridState = await viewerPage.locator('.roster-grid').evaluate((grid) => {
+            const bodyRows = Array.from(grid.querySelectorAll('[data-roster-row]'));
+            const outsideRows = Array.from(document.querySelectorAll('[data-roster-row]')).filter(
+                (row) => !row.closest('.roster-grid-day-section'),
             );
             return {
                 bodyRowCount: bodyRows.length,
@@ -124,7 +124,7 @@ test.describe('Roster duplicate conflicts', () => {
                 editableBodyRowCount: bodyRows.filter((row) => row.querySelector('select[name="staffId"]')).length,
                 firstRowCellCount: bodyRows[0]?.children.length ?? 0,
                 secondRowCellCount: bodyRows[1]?.children.length ?? 0,
-                selectCount: table.querySelectorAll('select[name="staffId"]').length,
+                selectCount: grid.querySelectorAll('select[name="staffId"]').length,
             };
         });
 

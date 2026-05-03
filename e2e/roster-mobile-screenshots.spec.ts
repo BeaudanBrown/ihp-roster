@@ -7,13 +7,13 @@ const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-
 test.describe('Roster mobile screenshots', () => {
     test('captures the main roster mobile states for visual review', async ({ page }, testInfo) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, e2eRosterPath, 'table.roster-grid');
+        await gotoWhenReady(page, e2eRosterPath, '.roster-grid');
         await expect(page.locator('#roster-week-shell')).toBeVisible();
         await expectRosterMobileLayoutStable(page);
         await attachRosterMobileDiagnostics(page, testInfo, 'initial');
 
         await addRowToFirstRosterDay(page);
-        await expect(page.locator('tr[data-roster-row]:has(select[name="staffId"])').first()).toBeVisible();
+        await expect(page.locator('[data-roster-row]:has(select[name="staffId"])').first()).toBeVisible();
         await expectRosterMobileLayoutStable(page);
         await attachRosterMobileDiagnostics(page, testInfo, 'after-add-row');
 

@@ -156,10 +156,10 @@ test.describe('Mobile experience smoke', () => {
 
     test('roster creator remains usable on a narrow viewport without leaking page-level overflow', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await expect(page.locator('table.roster-grid')).toBeVisible();
+        await expect(page.locator('.roster-grid')).toBeVisible();
 
-        const firstDaySection = page.locator('tbody[data-roster-day-section]').first();
-        const dayRows = firstDaySection.locator('tr[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
+        const firstDaySection = page.locator('[data-roster-day-section]').first();
+        const dayRows = firstDaySection.locator('[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') });
         const initialRowCount = await dayRows.count();
 
         await expectContainerToManageHorizontalOverflow(page, '.roster-slots-scroller');

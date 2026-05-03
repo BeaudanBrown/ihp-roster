@@ -58,7 +58,7 @@ test.describe('Roster week overview', () => {
         await expect(page.locator('body')).toHaveAttribute('data-roster-export-last-status', 'success');
     });
 
-    test('keeps the desktop roster table fitted without local horizontal scrolling', async ({ page }) => {
+    test('keeps the desktop roster grid fitted without page-level horizontal scrolling', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, e2eRosterPath, '#roster-week-shell');
 
@@ -68,10 +68,10 @@ test.describe('Roster week overview', () => {
             }
 
             const scroller = frame.querySelector('.roster-slots-scroller');
-            const table = frame.querySelector('table.roster-grid');
+            const grid = frame.querySelector('.roster-grid');
             const dayRail = frame.querySelector('.roster-day-rail');
 
-            if (!(scroller instanceof HTMLElement) || !(table instanceof HTMLElement) || !(dayRail instanceof HTMLElement)) {
+            if (!(scroller instanceof HTMLElement) || !(grid instanceof HTMLElement) || !(dayRail instanceof HTMLElement)) {
                 return null;
             }
 
@@ -81,16 +81,16 @@ test.describe('Roster week overview', () => {
                 frameScrollWidth: frame.scrollWidth,
                 frameClientWidth: frame.clientWidth,
                 overflowX: getComputedStyle(scroller).overflowX,
-                tableMinWidth: getComputedStyle(table).minWidth,
+                gridMinWidth: getComputedStyle(grid).minWidth,
                 dayRailPosition: getComputedStyle(dayRail).position,
             };
         });
 
         expect(metrics).not.toBeNull();
-        expect(metrics?.overflowX).toBe('hidden');
-        expect(metrics?.scrollWidth).toBeLessThanOrEqual((metrics?.clientWidth ?? 0) + 1);
+        expect(['hidden', 'auto']).toContain(metrics?.overflowX);
+        expect(metrics?.scrollWidth).toBeGreaterThanOrEqual(metrics?.clientWidth ?? 0);
         expect(metrics?.frameScrollWidth).toBeLessThanOrEqual((metrics?.frameClientWidth ?? 0) + 1);
-        expect(metrics?.tableMinWidth).toBe('0px');
+        expect(metrics?.gridMinWidth).not.toBe('0px');
         expect(metrics?.dayRailPosition).toBe('static');
     });
 

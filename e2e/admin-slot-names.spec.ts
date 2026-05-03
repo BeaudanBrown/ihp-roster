@@ -21,13 +21,13 @@ test.describe('Roster week columns', () => {
 
         await loginAs(editorPage, 'e2e-test@example.com', 'test-password-123');
         await loginAs(viewerPage, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(editorPage, e2eRosterPath, 'table.roster-grid');
-        await gotoWhenReady(viewerPage, e2eRosterPath, 'table.roster-grid');
+        await gotoWhenReady(editorPage, e2eRosterPath, '.roster-grid');
+        await gotoWhenReady(viewerPage, e2eRosterPath, '.roster-grid');
         await expect(editorPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 
-        const editorGrid = editorPage.locator('table.roster-grid');
-        const viewerGrid = viewerPage.locator('table.roster-grid');
+        const editorGrid = editorPage.locator('.roster-grid');
+        const viewerGrid = viewerPage.locator('.roster-grid');
         const initialEditorStaffSelects = await editorGrid.locator('select[name="staffId"]').count();
         const initialViewerStaffSelects = await viewerGrid.locator('select[name="staffId"]').count();
 
@@ -67,7 +67,7 @@ test.describe('Roster week columns', () => {
             return response.request().method() === 'DELETE' && response.url().includes('/DeleteRosterWeekSlotDefinition');
         });
         await editorPage
-            .locator('th.roster-block-header')
+            .locator('.roster-block-header')
             .filter({ has: columnInput(editorPage, renamedColumnName) })
             .getByRole('button', { name: 'Remove roster column' })
             .click();

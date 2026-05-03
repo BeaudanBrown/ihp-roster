@@ -131,28 +131,6 @@ formatDayShort :: Day -> Text
 formatDayShort day =
     Text.pack (formatTime defaultTimeLocale "%a" day)
 
-renderRosterGridColGroup :: Bool -> [RosterWeekSlotDefinition] -> Html
-renderRosterGridColGroup endTimesEnabled slotNames = [hsx|
-    <colgroup>
-        {forEach slotNames (renderRosterBlockColGroup endTimesEnabled)}
-    </colgroup>
-|]
-
-renderRosterBlockColGroup :: Bool -> RosterWeekSlotDefinition -> Html
-renderRosterBlockColGroup True _ =
-    mconcat
-        [ [hsx|<col style={("width: var(--roster-time-share);" :: Text)} />|]
-        , [hsx|<col style={("width: var(--roster-time-share);" :: Text)} />|]
-        , [hsx|<col style={("width: var(--roster-staff-share);" :: Text)} />|]
-        , [hsx|<col style={("width: var(--roster-shift-type-share);" :: Text)} />|]
-        ]
-renderRosterBlockColGroup False _ =
-    mconcat
-        [ [hsx|<col style={("width: var(--roster-time-share);" :: Text)} />|]
-        , [hsx|<col style={("width: var(--roster-staff-share);" :: Text)} />|]
-        , [hsx|<col style={("width: var(--roster-note-share);" :: Text)} />|]
-        ]
-
 renderRosterDayRowsGrid :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWeek -> [RosterWeekSlotDefinition] -> RosterDayRenderModel -> [RosterDay] -> Html
 renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays = [hsx|
     <div class="roster-day-rail" aria-label="Roster days">
@@ -165,20 +143,17 @@ renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek s
         </div>
     </div>
     <div class="roster-slots-scroller">
-        <table class="table table-bordered table-sm mb-0 align-middle roster-grid roster-slots-grid">
-            {renderRosterGridColGroup endTimesEnabled slotNames}
-            <thead class="text-center text-uppercase fw-bold roster-grid-head">
-                <tr>
+        <div class="roster-grid roster-slots-grid" role="grid" aria-label="Roster slots">
+            <div class="roster-grid-head" role="rowgroup">
+                <div class="roster-grid-header-row roster-grid-header-row-blocks" role="row">
                     {forEach (zip [0 :: Int ..] slotNames) (renderSlotHeaderGroup endTimesEnabled maybeRosterWeek slotColumnsAreEditable (length slotNames))}
-                </tr>
-                <tr>
+                </div>
+                <div class="roster-grid-header-row roster-grid-header-row-subheads" role="row">
                     {forEach slotNames (renderSlotSubHeaders endTimesEnabled)}
-                </tr>
-            </thead>
-            <tbody>
-                {forEach rosterDays (renderRosterDay dayModel)}
-            </tbody>
-        </table>
+                </div>
+            </div>
+            {forEach rosterDays (renderRosterDay dayModel)}
+        </div>
     </div>
 |]
 
@@ -200,10 +175,14 @@ renderRosterColumnEditDoneButton False = mempty
 
 renderSlotHeaderGroup :: (?context :: ControllerContext) => Bool -> Maybe RosterWeek -> Bool -> Int -> (Int, RosterWeekSlotDefinition) -> Html
 renderSlotHeaderGroup endTimesEnabled _ False _ (_, slotName) = [hsx|
-    <th colspan={tshow (slotColumnCount endTimesEnabled)} class="py-2 roster-block-header">{slotName.name}</th>
+    <div role="columnheader"
+         class="roster-block-header"
+         style={slotHeaderGridColumnStyle endTimesEnabled}>{slotName.name}</div>
 |]
 renderSlotHeaderGroup endTimesEnabled (Just rosterWeek) True slotCount (slotIndex, slotName) = [hsx|
-    <th colspan={tshow (slotColumnCount endTimesEnabled)} class="py-2 roster-block-header">
+    <div role="columnheader"
+         class="roster-block-header"
+         style={slotHeaderGridColumnStyle endTimesEnabled}>
         <div class="d-flex align-items-center justify-content-center gap-2 roster-slot-column-header">
             <span class="roster-slot-column-name-static">{slotName.name}</span>
             <form method="POST"
@@ -246,15 +225,21 @@ renderSlotHeaderGroup endTimesEnabled (Just rosterWeek) True slotCount (slotInde
             </form>
             {renderSlotAddButton rosterWeek (slotIndex == slotCount - 1)}
         </div>
-    </th>
+    </div>
 |]
 renderSlotHeaderGroup endTimesEnabled _ _ _ (_, slotName) = [hsx|
-    <th colspan={tshow (slotColumnCount endTimesEnabled)} class="py-2 roster-block-header">{slotName.name}</th>
+    <div role="columnheader"
+         class="roster-block-header"
+         style={slotHeaderGridColumnStyle endTimesEnabled}>{slotName.name}</div>
 |]
 
 slotColumnCount :: Bool -> Int
 slotColumnCount True  = 4
 slotColumnCount False = 3
+
+slotHeaderGridColumnStyle :: Bool -> Text
+slotHeaderGridColumnStyle endTimesEnabled =
+    "grid-column: span " <> tshow (slotColumnCount endTimesEnabled) <> ";"
 
 renderSlotAddButton :: (?context :: ControllerContext) => RosterWeek -> Bool -> Html
 renderSlotAddButton rosterWeek True = [hsx|
@@ -288,16 +273,16 @@ rosterSlotDefinitionFieldKey slotDefinitionId =
 renderSlotSubHeaders :: Bool -> RosterWeekSlotDefinition -> Html
 renderSlotSubHeaders True _ =
     mconcat
-        [ [hsx|<th class="py-1 roster-subhead roster-col-time">Start</th>|]
-        , [hsx|<th class="py-1 roster-subhead roster-col-time">End</th>|]
-        , [hsx|<th class="py-1 roster-subhead roster-col-staff">Staff</th>|]
-        , [hsx|<th class="py-1 roster-subhead roster-col-shift-type roster-block-end">Type</th>|]
+        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time">Start</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-time">End</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff">Staff</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-shift-type roster-block-end">Type</div>|]
         ]
 renderSlotSubHeaders False _ =
     mconcat
-        [ [hsx|<th class="py-1 roster-subhead roster-col-time">Time</th>|]
-        , [hsx|<th class="py-1 roster-subhead roster-col-staff">Staff</th>|]
-        , [hsx|<th class="py-1 roster-subhead roster-col-code roster-block-end">Flag</th>|]
+        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time">Time</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff">Staff</div>|]
+        , [hsx|<div role="columnheader" class="roster-subhead roster-col-code roster-block-end">Flag</div>|]
         ]
 
 renderRosterDay :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
@@ -317,11 +302,14 @@ renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderMode
     | rosterLayoutModeValue dayRosterLayoutMode == "day_columns" =
         renderRosterDayColumnWithSwap maybeSwapOob dayModel rosterDay
 renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayWeekStartDate, dayAllSlots, dayRenderIndexes } rosterDay = [hsx|
-    <tbody id={rosterDaySectionDomId rosterDay.id}
-           data-roster-day-section="true"
-           hx-swap-oob={maybeSwapOob}>
+    <div id={rosterDaySectionDomId rosterDay.id}
+         class="roster-grid-day-section"
+         role="rowgroup"
+         data-roster-day-section="true"
+         hx-swap-oob={maybeSwapOob}
+         style={"--roster-day-row-count:" <> tshow (length dayRows) <> ";"}>
         {renderDayRows dayModel (Calendar.addDays (toInteger (get #dayOffset rosterDay)) dayWeekStartDate) rosterDay dayRows}
-    </tbody>
+    </div>
 |]
     where
         dayRows = Map.findWithDefault (rowsForDay rosterDay daySlots) (coerce (get #id rosterDay)) dayRenderIndexes.rosterDayRowsByDayId
@@ -467,12 +455,13 @@ renderRowWithAttrs rowModel@RosterRowRenderModel { rowRosterLayoutMode } rowData
     | rosterLayoutModeValue rowRosterLayoutMode == "day_columns" =
         renderDayColumnRow rowModel rowData maybeSwapOob
 renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowStaffOptionStates, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
-    <tr id={rosterRowDomIdText rowRosterDay.id rowIndex}
-        data-roster-row="true"
-        hx-swap-oob={maybeSwapOob}
-        class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True), ("day-alt-dark", odd (get #dayOffset rowRosterDay)), ("day-alt-light", even (get #dayOffset rowRosterDay))]}>
+    <div id={rosterRowDomIdText rowRosterDay.id rowIndex}
+         role="row"
+         data-roster-row="true"
+         hx-swap-oob={maybeSwapOob}
+         class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True), ("day-alt-dark", odd (get #dayOffset rowRosterDay)), ("day-alt-light", even (get #dayOffset rowRosterDay))]}>
         {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowStaffOptionStates rowShiftTypes rowRosterEndTimesEnabled rowRosterDay rowIndex rowSlots rowRenderIndexes)}
-    </tr>
+    </div>
 |]
 
 renderPrimaryDayLabel :: Day -> Html
@@ -593,38 +582,40 @@ renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates shi
                 currentShiftTypeLabel = fromMaybe "" (renderShiftTypeLabelForSlot shiftTypes slot.shiftTypeId)
              in if endTimesEnabled
                 then [hsx|
-                <td class={classes [("slot-time-cell", True), ("slot-start-time-cell", True), ("roster-block-start", blockIndex > 0)]}>
+                <div role="gridcell" class={classes [("slot-time-cell", True), ("slot-start-time-cell", True), ("roster-block-start", blockIndex > 0)]}>
                     {if isEditable then renderEditableTimeCell "startTime" "Select roster slot start time" "Start" slot.id currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
-                </td>
+                </div>
 
-                <td class="slot-time-cell slot-end-time-cell">
+                <div role="gridcell" class="slot-time-cell slot-end-time-cell">
                     {if isEditable then renderEditableTimeCell "endTime" "Select roster slot end time" "End" slot.id currentEndTime else renderReadOnlyCell (renderTimePickerDisplayLabel "End" currentEndTime)}
-                </td>
+                </div>
 
-                <td class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}
-                    title={renderConflictMessage currentPrimaryConflict}
-                    data-conflict-message={renderConflictMessage currentPrimaryConflict}>
+                <div role="gridcell"
+                     class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}
+                     title={renderConflictMessage currentPrimaryConflict}
+                     data-conflict-message={renderConflictMessage currentPrimaryConflict}>
                     {if isEditable then renderEditableStaffCell assignmentFilters slot.id slot.staffId staffMembers staffOptionStates currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
-                </td>
+                </div>
 
-                <td class="slot-shift-type-cell roster-block-end">
+                <div role="gridcell" class="slot-shift-type-cell roster-block-end">
                     {if isEditable then renderEditableShiftTypeCell slot.id slot.shiftTypeId shiftTypes else renderReadOnlyCell currentShiftTypeLabel}
-                </td>
+                </div>
             |]
                 else [hsx|
-                <td class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}>
+                <div role="gridcell" class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}>
                     {if isEditable then renderEditableTimeCell "startTime" "Select roster slot time" "Time" slot.id currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Time" currentStartTime)}
-                </td>
+                </div>
 
-                <td class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}
-                    title={renderConflictMessage currentPrimaryConflict}
-                    data-conflict-message={renderConflictMessage currentPrimaryConflict}>
+                <div role="gridcell"
+                     class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}
+                     title={renderConflictMessage currentPrimaryConflict}
+                     data-conflict-message={renderConflictMessage currentPrimaryConflict}>
                     {if isEditable then renderEditableStaffCell assignmentFilters slot.id slot.staffId staffMembers staffOptionStates currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
-                </td>
+                </div>
 
-                <td class="slot-note-cell roster-block-end">
+                <div role="gridcell" class="slot-note-cell roster-block-end">
                     {if isEditable then renderEditableNoteCell slot.id currentNote else renderReadOnlyCell currentNote}
-                </td>
+                </div>
             |]
         Nothing ->
             renderEmptyBlockCells endTimesEnabled blockIndex
@@ -678,31 +669,31 @@ renderDayColumnSlotCard isEditable assignmentFilters staffMembers staffOptionSta
 renderEmptyBlockCells :: Bool -> Int -> Html
 renderEmptyBlockCells True blockIndex =
     mconcat
-        [ [hsx|<td class={classes [("slot-empty-cell", True), ("roster-block-start", blockIndex > 0)]}></td>|]
-        , [hsx|<td class="slot-empty-cell"></td>|]
-        , [hsx|<td class="slot-empty-cell"></td>|]
-        , [hsx|<td class="slot-empty-cell roster-block-end"></td>|]
+        [ [hsx|<div role="gridcell" class={classes [("slot-empty-cell", True), ("roster-block-start", blockIndex > 0)]}></div>|]
+        , [hsx|<div role="gridcell" class="slot-empty-cell"></div>|]
+        , [hsx|<div role="gridcell" class="slot-empty-cell"></div>|]
+        , [hsx|<div role="gridcell" class="slot-empty-cell roster-block-end"></div>|]
         ]
 renderEmptyBlockCells False blockIndex =
     mconcat
-        [ [hsx|<td class={classes [("slot-empty-cell", True), ("roster-block-start", blockIndex > 0)]}></td>|]
-        , [hsx|<td class="slot-empty-cell"></td>|]
-        , [hsx|<td class="slot-empty-cell roster-block-end"></td>|]
+        [ [hsx|<div role="gridcell" class={classes [("slot-empty-cell", True), ("roster-block-start", blockIndex > 0)]}></div>|]
+        , [hsx|<div role="gridcell" class="slot-empty-cell"></div>|]
+        , [hsx|<div role="gridcell" class="slot-empty-cell roster-block-end"></div>|]
         ]
 
 renderClosedBlockCells :: Bool -> Int -> Html
 renderClosedBlockCells True blockIndex =
     mconcat
-        [ [hsx|<td class={classes [("slot-closed-cell", True), ("roster-block-start", blockIndex > 0)]}></td>|]
-        , [hsx|<td class="slot-closed-cell"></td>|]
-        , [hsx|<td class="slot-closed-cell"></td>|]
-        , [hsx|<td class="slot-closed-cell roster-block-end"></td>|]
+        [ [hsx|<div role="gridcell" class={classes [("slot-closed-cell", True), ("roster-block-start", blockIndex > 0)]}></div>|]
+        , [hsx|<div role="gridcell" class="slot-closed-cell"></div>|]
+        , [hsx|<div role="gridcell" class="slot-closed-cell"></div>|]
+        , [hsx|<div role="gridcell" class="slot-closed-cell roster-block-end"></div>|]
         ]
 renderClosedBlockCells False blockIndex =
     mconcat
-        [ [hsx|<td class={classes [("slot-closed-cell", True), ("roster-block-start", blockIndex > 0)]}></td>|]
-        , [hsx|<td class="slot-closed-cell"></td>|]
-        , [hsx|<td class="slot-closed-cell roster-block-end"></td>|]
+        [ [hsx|<div role="gridcell" class={classes [("slot-closed-cell", True), ("roster-block-start", blockIndex > 0)]}></div>|]
+        , [hsx|<div role="gridcell" class="slot-closed-cell"></div>|]
+        , [hsx|<div role="gridcell" class="slot-closed-cell roster-block-end"></div>|]
         ]
 
 renderStaffOption :: [Staff] -> Maybe UUID -> Maybe RosterAssignmentOptionState -> Staff -> Html

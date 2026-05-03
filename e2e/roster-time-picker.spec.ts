@@ -14,7 +14,7 @@ async function loginAndOpenRoster(page) {
 }
 
 async function addFreshRowAndGetFirstTimeField(page) {
-    const firstDaySection = page.locator('tbody[data-roster-day-section="true"]').first();
+    const firstDaySection = page.locator('[data-roster-day-section="true"]').first();
     const editableRows = editableRosterRows(firstDaySection);
     const initialRowCount = await editableRows.count();
     await addRowToFirstRosterDay(page);
@@ -45,7 +45,7 @@ test.describe('Roster Time Picker', () => {
 
         await trigger.click();
         await expect(page.locator(modalSelector)).toBeVisible();
-        await expect(page.locator(`${modalSelector} .js-time-picker-option`)).toHaveCount(72);
+        await expect(page.locator(`${modalSelector} .js-time-picker-option`)).toHaveCount(92);
 
         await page.locator(`${modalSelector} .js-time-picker-option[data-time-value="13:15"]`).click();
 

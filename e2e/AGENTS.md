@@ -21,11 +21,11 @@ bash ./bin/in-env e2e --ui
 bash ./bin/in-env screenshot http://localhost:8000/Dashboard dash.png
 
 # Take a screenshot of a protected page with reusable login flow
-bash ./bin/in-env screenshot-page /RosterWeeks roster.png --selector 'table.roster-grid'
+bash ./bin/in-env screenshot-page /RosterWeeks roster.png --selector '.roster-grid'
 
 # Same flow, but tolerant of cold IHP boot/compile time
 bash ./bin/in-env screenshot-page /RosterWeeks roster.png \
-  --selector 'table.roster-grid' \
+  --selector '.roster-grid' \
   --navigation-timeout-ms 120000 \
   --selector-timeout-ms 120000
 
@@ -250,9 +250,9 @@ Use the normal `roster-mobile.spec.ts` assertions as the regression gate. Use th
 Use `screenshot-page` when a page requires login/profile completion before rendering:
 
 ```bash
-bash ./bin/in-env screenshot-page /RosterWeeks test-results/roster.png --selector 'table.roster-grid'
+bash ./bin/in-env screenshot-page /RosterWeeks test-results/roster.png --selector '.roster-grid'
 bash ./bin/in-env screenshot-page /RosterWeeks output/playwright/roster-pixel.png --device "Pixel 7" --selector '#roster-week-shell'
-bash ./bin/in-env screenshot-page /RosterWeeks output/playwright/roster-table.png --viewport 390x844 --clip-selector '.table-responsive' --selector 'table.roster-grid'
+bash ./bin/in-env screenshot-page /RosterWeeks output/playwright/roster-grid.png --viewport 390x844 --clip-selector '.roster-slots-scroller' --selector '.roster-grid'
 ```
 
 For the normal dev app, `screenshot-page` now defaults to the seeded dev manager login `dev-manager@example.com` / `password123`, so run `bash ./bin/in-env seed-dev app` first unless you pass explicit credentials. This is separate from the isolated `app_e2e` test accounts such as `e2e-test@example.com` / `test-password-123`.

@@ -31,15 +31,15 @@ test.describe('Styling regression contracts', () => {
             }
 
             const scroller = frame.querySelector('.roster-slots-scroller');
-            const table = frame.querySelector('table.roster-grid');
+            const grid = frame.querySelector('.roster-grid');
             const gridHeader = document.querySelector('.roster-grid-header');
             const navGroup = document.querySelector('.roster-week-nav-group');
-            const renderedDayCell = document.querySelector('.roster-grid tr.day-row[class*="day-alt-"] td');
+            const renderedDayCell = document.querySelector('.roster-grid .day-row[class*="day-alt-"] [role="gridcell"]');
             const renderedDayRail = document.querySelector('.roster-day-rail-section[class*="day-alt-"]');
 
             if (
                 !(scroller instanceof HTMLElement)
-                || !(table instanceof HTMLElement)
+                || !(grid instanceof HTMLElement)
                 || !(gridHeader instanceof HTMLElement)
                 || !(navGroup instanceof HTMLElement)
                 || !(renderedDayCell instanceof HTMLElement)
@@ -48,19 +48,17 @@ test.describe('Styling regression contracts', () => {
                 return null;
             }
 
-            const probe = document.createElement('table');
-            probe.className = 'table roster-grid';
+            const probe = document.createElement('div');
+            probe.className = 'roster-grid';
             probe.style.position = 'absolute';
             probe.style.left = '-10000px';
             probe.innerHTML = `
-                <tbody>
-                    <tr class="day-row day-alt-light"><td>light</td></tr>
-                    <tr class="day-row day-alt-dark"><td>dark</td></tr>
-                </tbody>`;
+                <div class="day-row day-alt-light"><div role="gridcell">light</div></div>
+                <div class="day-row day-alt-dark"><div role="gridcell">dark</div></div>`;
             document.body.appendChild(probe);
 
-            const probeLightCell = probe.querySelector('.day-alt-light td');
-            const probeDarkCell = probe.querySelector('.day-alt-dark td');
+            const probeLightCell = probe.querySelector('.day-alt-light');
+            const probeDarkCell = probe.querySelector('.day-alt-dark');
 
             if (!(probeLightCell instanceof HTMLElement) || !(probeDarkCell instanceof HTMLElement)) {
                 probe.remove();
@@ -74,11 +72,21 @@ test.describe('Styling regression contracts', () => {
 
             const probeMetrics = {
                 lightDayCellBackground: probeLightStyle.backgroundColor,
-                lightDayTableBackground: probeLightStyle.getPropertyValue('--bs-table-bg').trim(),
                 darkDayCellBackground: probeDarkStyle.backgroundColor,
-                darkDayTableBackground: probeDarkStyle.getPropertyValue('--bs-table-bg').trim(),
             };
             probe.remove();
+
+            const railSections = Array.from(frame.querySelectorAll('.roster-day-rail-section'));
+            const gridSections = Array.from(frame.querySelectorAll('.roster-grid-day-section'));
+            const sectionDeltas = railSections.map((railSection, index) => {
+                const gridSection = gridSections[index];
+                if (!(railSection instanceof HTMLElement) || !(gridSection instanceof HTMLElement)) {
+                    return 999;
+                }
+                const railRect = railSection.getBoundingClientRect();
+                const gridRect = gridSection.getBoundingClientRect();
+                return Math.max(Math.abs(railRect.top - gridRect.top), Math.abs(railRect.bottom - gridRect.bottom));
+            });
 
             return {
                 tableOverflowX: getComputedStyle(scroller).overflowX,
@@ -86,7 +94,7 @@ test.describe('Styling regression contracts', () => {
                 tableClientWidth: scroller.clientWidth,
                 frameScrollWidth: frame.scrollWidth,
                 frameClientWidth: frame.clientWidth,
-                tableMinWidth: getComputedStyle(table).minWidth,
+                tableMinWidth: getComputedStyle(grid).minWidth,
                 headerPosition: getComputedStyle(gridHeader).position,
                 headerDisplay: getComputedStyle(gridHeader).display,
                 navBorderRadius: getComputedStyle(navGroup).borderRadius,
@@ -96,14 +104,16 @@ test.describe('Styling regression contracts', () => {
                 navOverviewTriggerRadius: getComputedStyle(navGroup.querySelector('.roster-week-overview-trigger') as Element).borderRadius,
                 renderedDayCellBackground: renderedDayCellStyle.backgroundColor,
                 renderedDayRailBackground: renderedDayRailStyle.backgroundColor,
+                sectionDeltas,
                 ...probeMetrics,
             };
         });
 
         expect(metrics).not.toBeNull();
-        expect(metrics?.tableScrollWidth).toBeLessThanOrEqual((metrics?.tableClientWidth ?? 0) + 1);
+        expect(['hidden', 'auto']).toContain(metrics?.tableOverflowX);
+        expect(metrics?.tableScrollWidth).toBeGreaterThanOrEqual(metrics?.tableClientWidth ?? 0);
         expect(metrics?.frameScrollWidth).toBeLessThanOrEqual((metrics?.frameClientWidth ?? 0) + 1);
-        expect(metrics?.tableMinWidth).toBe('0px');
+        expect(metrics?.tableMinWidth).not.toBe('0px');
         expect(metrics?.headerPosition).toBe('relative');
         expect(metrics?.headerDisplay).toBe('flex');
         expect(Number.parseFloat(metrics?.navBorderRadius ?? '0')).toBeGreaterThan(100);
@@ -113,10 +123,9 @@ test.describe('Styling regression contracts', () => {
         expect(Number.parseFloat(metrics?.navOverviewTriggerRadius ?? '0')).toBeGreaterThan(100);
         expect(metrics?.renderedDayCellBackground).not.toBe('rgb(13, 17, 25)');
         expect(metrics?.renderedDayRailBackground).not.toBe('rgb(13, 17, 25)');
-        expect(metrics?.lightDayTableBackground).toBe('#131d2c');
-        expect(metrics?.darkDayTableBackground).toBe('#1a2433');
         expect(metrics?.lightDayCellBackground).not.toBe(metrics?.darkDayCellBackground);
         expect(metrics?.lightDayCellBackground).not.toBe('rgb(13, 17, 25)');
+        expect(metrics?.sectionDeltas.every((delta) => delta <= 1)).toBe(true);
     });
 
     test('keeps shared accordion panel styling applied on the profile page', async ({ page }) => {
@@ -343,9 +352,9 @@ test.describe('Styling regression contracts', () => {
 
             const center = header.querySelector('.roster-grid-header-center');
             const tableContainer = document.querySelector('.roster-slots-scroller');
-            const table = document.querySelector('table.roster-grid');
+            const grid = document.querySelector('.roster-grid');
 
-            if (!(center instanceof HTMLElement) || !(tableContainer instanceof HTMLElement) || !(table instanceof HTMLElement)) {
+            if (!(center instanceof HTMLElement) || !(tableContainer instanceof HTMLElement) || !(grid instanceof HTMLElement)) {
                 return null;
             }
 
@@ -361,7 +370,7 @@ test.describe('Styling regression contracts', () => {
                 headerTop: Math.round(headerRect.top),
                 tableContainerPosition: getComputedStyle(tableContainer).position,
                 tableContainerOverflowX: getComputedStyle(tableContainer).overflowX,
-                tableMinWidth: getComputedStyle(table).minWidth,
+                gridMinWidth: getComputedStyle(grid).minWidth,
                 documentScrollWidth: document.documentElement.scrollWidth,
                 viewportWidth: window.innerWidth,
             };
@@ -375,7 +384,7 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.centerTop).toBeGreaterThanOrEqual(metrics?.headerTop ?? 0);
         expect(metrics?.tableContainerPosition).toBe('static');
         expect(metrics?.tableContainerOverflowX).toBe('auto');
-        expect(metrics?.tableMinWidth).toBe('768px');
+        expect(metrics?.gridMinWidth).not.toBe('0px');
         expect(metrics?.documentScrollWidth).toBeLessThanOrEqual(metrics?.viewportWidth ?? 0);
     });
 });

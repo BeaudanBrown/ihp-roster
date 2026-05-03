@@ -278,7 +278,7 @@
         const activeSelector = policy && policy.activeSelector ? policy.activeSelector : '.slot-note-input:focus';
         const fieldKeyAttr = policy && policy.fieldKeyAttr ? policy.fieldKeyAttr : 'data-roster-field-key';
         const fieldNameFallback = !policy || policy.fieldNameFallback !== false;
-        const containerSelector = policy && policy.containerSelector ? policy.containerSelector : 'tr[data-roster-row]';
+        const containerSelector = policy && policy.containerSelector ? policy.containerSelector : '[data-roster-row]';
 
         function findActiveInput(target) {
             if (!(target instanceof HTMLElement)) return null;

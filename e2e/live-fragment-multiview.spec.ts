@@ -24,7 +24,7 @@ async function loginWorker(page) {
 
 async function loginAndOpenRoster(page) {
     await loginManager(page);
-    await gotoWhenReady(page, e2eRosterPath, 'table.roster-grid');
+    await gotoWhenReady(page, e2eRosterPath, '.roster-grid');
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 }
 

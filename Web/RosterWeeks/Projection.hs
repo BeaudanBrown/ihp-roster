@@ -103,8 +103,8 @@ focusedFieldProtection :: LiveFragmentProtection
 focusedFieldProtection =
     FocusedFieldProtection
         FocusedFieldProtectionConfig
-            { activeSelector = ".slot-cell-input:focus, .slot-time-trigger:focus"
+            { activeSelector = ".slot-note-input:focus"
             , fieldKeyAttr = "data-roster-field-key"
             , fieldNameFallback = True
-            , containerSelector = Just "tr[data-roster-row]"
+            , containerSelector = Just "[data-roster-row]"
             }

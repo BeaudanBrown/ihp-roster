@@ -234,20 +234,20 @@
     }
 
     function normalizeExportTable(tableEl) {
-        if (!(tableEl instanceof HTMLTableElement)) return tableEl;
+        if (!(tableEl instanceof HTMLElement)) return tableEl;
 
-        tableEl.classList.add('roster-export-table');
+        tableEl.classList.add('roster-export-grid');
 
         const theadEl = tableEl.querySelector('thead');
         if (theadEl) {
             theadEl.remove();
         }
 
-        tableEl.querySelectorAll('tr.day-row').forEach(function (rowEl) {
-            if (!(rowEl instanceof HTMLTableRowElement)) return;
+        tableEl.querySelectorAll('.day-row').forEach(function (rowEl) {
+            if (!(rowEl instanceof HTMLElement)) return;
 
-            Array.from(rowEl.cells).forEach(function (cellEl, cellIndex) {
-                if (!(cellEl instanceof HTMLTableCellElement)) return;
+            Array.from(rowEl.querySelectorAll('[role="gridcell"], td')).forEach(function (cellEl, cellIndex) {
+                if (!(cellEl instanceof HTMLElement)) return;
 
                 if (cellIndex === 0 && cellEl.classList.contains('day-label')) {
                     normalizeDayLabelCell(cellEl);
@@ -368,7 +368,7 @@
     }
 
     function buildTableSvgMarkup(surfaceEl, tableEl) {
-        if (!(surfaceEl instanceof HTMLElement) || !(tableEl instanceof HTMLTableElement)) {
+        if (!(surfaceEl instanceof HTMLElement) || !(tableEl instanceof HTMLElement)) {
             throw new Error('Failed to measure roster export surface.');
         }
 
@@ -390,8 +390,8 @@
             `<rect x="0" y="0" width="${width}" height="${height}" fill="url(#rosterExportBg)" />`,
         ];
 
-        tableEl.querySelectorAll('tbody tr').forEach(function (rowEl) {
-            if (!(rowEl instanceof HTMLTableRowElement)) return;
+        tableEl.querySelectorAll('.day-row, tbody tr').forEach(function (rowEl) {
+            if (!(rowEl instanceof HTMLElement)) return;
 
             const rowRect = rowEl.getBoundingClientRect();
             const rowStyle = window.getComputedStyle(rowEl);
@@ -404,8 +404,8 @@
             }
         });
 
-        tableEl.querySelectorAll('tbody td').forEach(function (cellEl) {
-            if (!(cellEl instanceof HTMLTableCellElement)) return;
+        tableEl.querySelectorAll('[role="gridcell"], tbody td').forEach(function (cellEl) {
+            if (!(cellEl instanceof HTMLElement)) return;
 
             const cellRect = cellEl.getBoundingClientRect();
             const cellStyle = window.getComputedStyle(cellEl);
@@ -471,7 +471,7 @@
 
     async function buildRosterExportBlob(formatConfig) {
         const rosterTable = document.querySelector('#roster-content .roster-grid');
-        if (!(rosterTable instanceof HTMLTableElement)) {
+        if (!(rosterTable instanceof HTMLElement)) {
             throw new Error('Could not find the current roster grid.');
         }
 

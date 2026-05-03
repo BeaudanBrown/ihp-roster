@@ -19,7 +19,7 @@ async function openRosterWeekOffset(page, weekOffset) {
 
 async function expectAutoCreatedDraftWeek(page) {
     await expect(page.locator('#roster-content')).toBeVisible();
-    await expect(page.locator('tr[data-roster-row]')).toHaveCount(28);
+    await expect(page.locator('[data-roster-row]')).toHaveCount(28);
     await expect(page.locator('.form-check-input[type="checkbox"]').first()).not.toBeChecked();
     await expect(page.getByRole('button', { name: 'Create Draft Roster' })).toHaveCount(0);
 }
@@ -35,6 +35,21 @@ async function alternateStaffId(select) {
     return {
         initialStaffId: currentStaffId,
         nextStaffId: currentStaffId.length > 0 ? '' : firstStaffId,
+    };
+}
+
+function staffSelects(page) {
+    return page.locator('[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') }).locator('select[name="staffId"]');
+}
+
+async function pairedStaffSelects(actorPage, viewerPage) {
+    const viewerStaffSelect = staffSelects(viewerPage).first();
+    const fieldKey = await viewerStaffSelect.getAttribute('data-roster-field-key');
+    expect(fieldKey).toBeTruthy();
+
+    return {
+        actorStaffSelect: actorPage.locator(`select[name="staffId"][data-roster-field-key="${fieldKey}"]`).first(),
+        viewerStaffSelect,
     };
 }
 
@@ -56,8 +71,7 @@ test.describe('Roster live fragments', () => {
         await loginAndOpenRoster(actorPage);
         await loginAndOpenRoster(viewerPage);
 
-        const assignmentSelect = actorPage.locator('tr[data-roster-row]').filter({ has: actorPage.locator('select[name="staffId"]') }).first().locator('select[name="staffId"]').first();
-        const viewerAssignmentSelect = viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }).first().locator('select[name="staffId"]').first();
+        const { actorStaffSelect: assignmentSelect, viewerStaffSelect: viewerAssignmentSelect } = await pairedStaffSelects(actorPage, viewerPage);
         const { initialStaffId, nextStaffId } = await alternateStaffId(viewerAssignmentSelect);
 
         await expect(assignmentSelect).toHaveValue(initialStaffId);
@@ -110,10 +124,9 @@ test.describe('Roster live fragments', () => {
         await loginAndOpenRoster(actorPage);
         await loginAndOpenRoster(viewerPage);
 
-        const viewerRow = viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }).first();
-        const viewerStaffSelect = viewerRow.locator('select[name="staffId"]').first();
+        const { actorStaffSelect, viewerStaffSelect } = await pairedStaffSelects(actorPage, viewerPage);
+        const viewerRow = viewerStaffSelect.locator('xpath=ancestor::*[@data-roster-row][1]');
         const viewerNoteInput = viewerRow.locator('input[name="note"]').first();
-        const actorStaffSelect = actorPage.locator('tr[data-roster-row]').filter({ has: actorPage.locator('select[name="staffId"]') }).first().locator('select[name="staffId"]').first();
         const preservedNote = 'vk';
         const { initialStaffId, nextStaffId } = await alternateStaffId(viewerStaffSelect);
 
@@ -145,9 +158,7 @@ test.describe('Roster live fragments', () => {
         await loginAndOpenRoster(actorPage);
         await loginAndOpenRoster(viewerPage);
 
-        const viewerRow = viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }).first();
-        const viewerStaffSelect = viewerRow.locator('select[name="staffId"]').first();
-        const actorStaffSelect = actorPage.locator('tr[data-roster-row]').filter({ has: actorPage.locator('select[name="staffId"]') }).first().locator('select[name="staffId"]').first();
+        const { actorStaffSelect, viewerStaffSelect } = await pairedStaffSelects(actorPage, viewerPage);
         const { nextStaffId } = await alternateStaffId(viewerStaffSelect);
 
         await viewerStaffSelect.focus();
@@ -171,10 +182,9 @@ test.describe('Roster live fragments', () => {
         await loginAndOpenRoster(actorPage);
         await loginAndOpenRoster(viewerPage);
 
-        const viewerRow = viewerPage.locator('tr[data-roster-row]').filter({ has: viewerPage.locator('select[name="staffId"]') }).first();
-        const viewerStaffSelect = viewerRow.locator('select[name="staffId"]').first();
+        const { actorStaffSelect, viewerStaffSelect } = await pairedStaffSelects(actorPage, viewerPage);
+        const viewerRow = viewerStaffSelect.locator('xpath=ancestor::*[@data-roster-row][1]');
         const viewerNoteInput = viewerRow.locator('input[name="note"]').first();
-        const actorStaffSelect = actorPage.locator('tr[data-roster-row]').filter({ has: actorPage.locator('select[name="staffId"]') }).first().locator('select[name="staffId"]').first();
         const { nextStaffId } = await alternateStaffId(viewerStaffSelect);
 
         await viewerContext.setOffline(true);

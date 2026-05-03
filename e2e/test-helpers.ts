@@ -356,12 +356,12 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
             weekOffset: String(weekOffset),
             rosterGroupId,
         }).toString()}`,
-        'table.roster-grid',
+        '.roster-grid',
     );
     await expect(page.locator('#roster-content')).toBeVisible();
 
     for (let step = 0; step <= maxWeekAdvances; step += 1) {
-        await expect(page.locator('table.roster-grid')).toBeVisible();
+        await expect(page.locator('.roster-grid')).toBeVisible();
 
         if (!ensureEditable) {
             return;
@@ -395,7 +395,7 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
 }
 
 export function rosterDaySections(scope: Page | Locator) {
-    return scope.locator('tbody[data-roster-day-section]');
+    return scope.locator('[data-roster-day-section]');
 }
 
 export function firstRosterDaySection(scope: Page | Locator) {
@@ -403,7 +403,7 @@ export function firstRosterDaySection(scope: Page | Locator) {
 }
 
 export function editableRosterDaySections(scope: Page | Locator) {
-    return scope.locator('tbody[data-roster-day-section]:has(select[name="staffId"])');
+    return scope.locator('[data-roster-day-section]:has(select[name="staffId"])');
 }
 
 export function firstEditableRosterDaySection(scope: Page | Locator) {
@@ -411,7 +411,7 @@ export function firstEditableRosterDaySection(scope: Page | Locator) {
 }
 
 export function removableRosterDaySections(scope: Page | Locator) {
-    return scope.locator('tbody[data-roster-day-section]:has(button[data-roster-day-remove="true"]:not([disabled]))');
+    return scope.locator('[data-roster-day-section]:has(button[data-roster-day-remove="true"]:not([disabled]))');
 }
 
 export function firstRemovableRosterDaySection(scope: Page | Locator) {
@@ -419,7 +419,7 @@ export function firstRemovableRosterDaySection(scope: Page | Locator) {
 }
 
 export function editableRosterRows(scope: Page | Locator) {
-    return scope.locator('tr[data-roster-row]:has(select[name="staffId"])');
+    return scope.locator('[data-roster-row]:has(select[name="staffId"])');
 }
 
 export function rosterDayAddButton(scope: Page | Locator) {
