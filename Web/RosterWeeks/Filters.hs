@@ -3,7 +3,6 @@ module Web.RosterWeeks.Filters
     , defaultRosterAssignmentFilters
     , encodeRosterAssignmentFilters
     , fetchRosterAssignmentFilters
-    , normalizeOptionalSlotFlag
     , normalizeOptionalText
     , parseOptionalShiftTypeId
     , parseOptionalStaffId
@@ -37,13 +36,6 @@ normalizeOptionalText = \case
     Just value ->
         let trimmed = Text.strip value
          in if Text.null trimmed then Nothing else Just trimmed
-
-normalizeOptionalSlotFlag :: Maybe Text -> Either Text (Maybe Text)
-normalizeOptionalSlotFlag value =
-    case Text.toUpper <$> normalizeOptionalText value of
-        Just normalized | Text.length normalized > 2 ->
-            Left "Flags can only be 1 or 2 characters."
-        normalized -> Right normalized
 
 rosterAssignmentFiltersSessionKey :: ByteString
 rosterAssignmentFiltersSessionKey = "rosterAssignmentFilters"

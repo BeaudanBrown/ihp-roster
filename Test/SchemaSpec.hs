@@ -596,7 +596,7 @@ tests = describe "Schema" do
                 , "staff_timesheet_edit_window_days", "week_offset"
                 , "is_live", "roster_week_id", "day_offset", "roster_day_id"
                 , "staff_id", "roster_week_slot_definition_id", "row_index", "start_time"
-                , "duration_minutes", "specific_date", "is_available", "note"
+                , "duration_minutes", "specific_date", "is_available"
                 , "start_date", "end_date", "status", "notes", "worked_on"
                 , "end_time", "had_break", "break_start_time", "break_end_time"
                 , "break_minutes", "is_approved", "approved_at", "approved_by_user_id"

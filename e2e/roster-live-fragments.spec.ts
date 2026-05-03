@@ -42,6 +42,16 @@ function staffSelects(page) {
     return page.locator('[data-roster-row]').filter({ has: page.locator('select[name="staffId"]') }).locator('select[name="staffId"]');
 }
 
+async function assignedStaffSelectCount(page) {
+    return page.locator('select[name="staffId"]').evaluateAll((selects) =>
+        selects.filter((select) => select instanceof HTMLSelectElement && select.value.length > 0).length,
+    );
+}
+
+async function expectAssignedStaffSelectCount(page, count) {
+    await expect.poll(() => assignedStaffSelectCount(page), { timeout: E2E_TIMEOUT.liveUpdate }).toBe(count);
+}
+
 async function pairedStaffSelects(actorPage, viewerPage) {
     const viewerStaffSelect = staffSelects(viewerPage).first();
     const fieldKey = await viewerStaffSelect.getAttribute('data-roster-field-key');
@@ -101,49 +111,12 @@ test.describe('Roster live fragments', () => {
 
         await expectAutoCreatedDraftWeek(actorPage);
         await expectAutoCreatedDraftWeek(viewerPage);
-        await expect(viewerPage.locator('input[name="note"][value="A1"]')).toHaveCount(0);
-        await expect(viewerPage.locator('input[name="note"][value="A2"]')).toHaveCount(0);
+        await expectAssignedStaffSelectCount(viewerPage, 0);
 
         await copyPreviousWeek(actorPage);
 
-        await expect(actorPage.locator('input[name="note"][value="A1"]')).toBeVisible();
-        await expect(actorPage.locator('input[name="note"][value="A2"]')).toBeVisible();
-        await expect(viewerPage.locator('input[name="note"][value="A1"]')).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
-        await expect(viewerPage.locator('input[name="note"][value="A2"]')).toBeVisible({ timeout: E2E_TIMEOUT.liveUpdate });
-
-        await actorContext.close();
-        await viewerContext.close();
-    });
-
-    test('defers roster content live updates while the viewer is editing a note field and replays them after blur', async ({ browser }) => {
-        const actorContext = await browser.newContext();
-        const viewerContext = await browser.newContext();
-        const actorPage = await actorContext.newPage();
-        const viewerPage = await viewerContext.newPage();
-
-        await loginAndOpenRoster(actorPage);
-        await loginAndOpenRoster(viewerPage);
-
-        const { actorStaffSelect, viewerStaffSelect } = await pairedStaffSelects(actorPage, viewerPage);
-        const viewerRow = viewerStaffSelect.locator('xpath=ancestor::*[@data-roster-row][1]');
-        const viewerNoteInput = viewerRow.locator('input[name="note"]').first();
-        const preservedNote = 'vk';
-        const { initialStaffId, nextStaffId } = await alternateStaffId(viewerStaffSelect);
-
-        await viewerNoteInput.click();
-        await viewerNoteInput.fill(preservedNote);
-        await expect(viewerNoteInput).toBeFocused();
-
-        await actorStaffSelect.selectOption(nextStaffId);
-
-        await expect(actorStaffSelect).toHaveValue(nextStaffId);
-        await expect(viewerStaffSelect).toHaveValue(initialStaffId);
-        await expect(viewerNoteInput).toHaveValue(preservedNote);
-
-        await viewerNoteInput.blur();
-
-        await expect(viewerStaffSelect).toHaveValue(nextStaffId);
-        await expect(viewerNoteInput).toHaveValue(preservedNote);
+        await expectAssignedStaffSelectCount(actorPage, 2);
+        await expectAssignedStaffSelectCount(viewerPage, 2);
 
         await actorContext.close();
         await viewerContext.close();
@@ -183,14 +156,9 @@ test.describe('Roster live fragments', () => {
         await loginAndOpenRoster(viewerPage);
 
         const { actorStaffSelect, viewerStaffSelect } = await pairedStaffSelects(actorPage, viewerPage);
-        const viewerRow = viewerStaffSelect.locator('xpath=ancestor::*[@data-roster-row][1]');
-        const viewerNoteInput = viewerRow.locator('input[name="note"]').first();
         const { nextStaffId } = await alternateStaffId(viewerStaffSelect);
 
         await viewerContext.setOffline(true);
-        await viewerNoteInput.click();
-        await viewerNoteInput.fill('viewer reconnect edit');
-        await expect(viewerNoteInput).toBeFocused();
 
         await actorStaffSelect.selectOption(nextStaffId);
         await expect(actorStaffSelect).toHaveValue(nextStaffId);

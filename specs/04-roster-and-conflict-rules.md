@@ -29,8 +29,8 @@ Roster assignment UI must support filter toggles:
 - Weekly roster should be representable in a print-friendly sheet format:
   - Day/date left column.
   - Repeating rows per day.
-  - Three chronological blocks (`Early`, `Mid`, `Late`) with `start_time`, `staff`, and short `note` code.
-- `note` is intended for short operational flags (e.g. `M`, `DEL`, `SUP`, `D`, `*AS`) and should stay concise.
+  - Three chronological blocks (`Early`, `Mid`, `Late`) with `start_time`, `staff`, and optional shift type.
+- Shift types are explicit roster-slot assignments, not free-text note/flag codes.
 - The roster page also provides a Manager, Venue Admin and Venue Owner staff side panel:
   - default visible
   - populated with active linked staff only

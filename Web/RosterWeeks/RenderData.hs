@@ -331,7 +331,6 @@ maskRosterSlots rosterWeek slots =
                 |> set #endTime Nothing
                 |> set #shiftTypeId Nothing
                 |> set #durationMinutes Nothing
-                |> set #note Nothing
 
 renderRequestedRow :: (?context :: ControllerContext, ?request :: Request) => Calendar.Day -> [RosterWeekSlotDefinition] -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState -> [ShiftType] -> RosterRenderIndexes -> RosterLayoutModeEnum -> Bool -> (UUID.UUID, Int) -> Maybe Blaze.Html
 renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled (rosterDayUuid, targetRowIndex) = do

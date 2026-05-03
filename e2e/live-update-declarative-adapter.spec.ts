@@ -598,12 +598,8 @@ test.describe('Declarative live-update adapter', () => {
             expect.arrayContaining([
                 expect.objectContaining({
                     targetId: 'roster-content',
-                    deferUntilBlur: true,
-                    protectionPolicy: expect.objectContaining({
-                        kind: 'focused_field',
-                        activeSelector: '.slot-note-input:focus',
-                        fieldKeyAttr: 'data-roster-field-key',
-                    }),
+                    deferUntilBlur: false,
+                    protectionPolicy: null,
                 }),
                 expect.objectContaining({
                     targetId: 'roster-staff-panel-fragment',

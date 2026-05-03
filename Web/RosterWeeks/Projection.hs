@@ -1,7 +1,6 @@
 module Web.RosterWeeks.Projection
     ( buildActorRosterRowFragmentRefs
     , buildAssignmentRefreshFragmentRefs
-    , buildDeferredRosterContentFragmentRef
     , buildRosterContentFragmentRef
     , buildRosterDaySectionFragmentRef
     , buildRosterProjectionScope
@@ -9,7 +8,6 @@ module Web.RosterWeeks.Projection
     , buildRosterRowFragmentRefs
     , buildRosterStaffPanelFragmentRef
     , buildRosterWeekScope
-    , disableFragmentBlurDeferral
     ) where
 
 import Application.Helper.LiveUpdate
@@ -45,13 +43,6 @@ buildRosterContentFragmentRef rosterGroupId weekOffset =
         rosterContentFragmentId
         (rosterWeekContentFragmentUrl weekOffset rosterGroupId)
 
-buildDeferredRosterContentFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
-buildDeferredRosterContentFragmentRef rosterGroupId weekOffset =
-    (buildRosterContentFragmentRef rosterGroupId weekOffset)
-        { deferUntilBlur = True
-        , protectionPolicy = focusedFieldProtection
-        }
-
 buildRosterStaffPanelFragmentRef :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveFragmentRef
 buildRosterStaffPanelFragmentRef rosterGroupId weekOffset =
     mkLiveFragmentRef
@@ -65,8 +56,8 @@ buildRosterDaySectionFragmentRef rosterGroupId weekOffset rosterDayId =
         { fragmentKey = RosterDaySectionFragment { rosterDayId }
         , targetId = rosterDaySectionDomId (coerce rosterDayId)
         , url = rosterWeekDaySectionFragmentUrl weekOffset rosterGroupId (coerce rosterDayId)
-        , deferUntilBlur = True
-        , protectionPolicy = focusedFieldProtection
+        , deferUntilBlur = False
+        , protectionPolicy = NoProtection
         }
 
 buildRosterRowFragmentRefs :: (?context :: ControllerContext) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> [LiveFragmentRef]
@@ -74,15 +65,12 @@ buildRosterRowFragmentRefs rosterGroupId weekOffset =
     map (uncurry (buildRosterRowFragmentRef rosterGroupId weekOffset)) . nub
 
 buildActorRosterRowFragmentRefs :: (?context :: ControllerContext) => Maybe Text -> Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> [LiveFragmentRef]
-buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId weekOffset rowKeys =
-    let refs = buildRosterRowFragmentRefs rosterGroupId weekOffset rowKeys
-     in if isJust maybeStaffParam
-            then map disableFragmentBlurDeferral refs
-            else refs
+buildActorRosterRowFragmentRefs _ rosterGroupId weekOffset rowKeys =
+    buildRosterRowFragmentRefs rosterGroupId weekOffset rowKeys
 
 buildAssignmentRefreshFragmentRefs :: (?context :: ControllerContext) => Maybe Text -> Id RosterGroup -> Int -> [LiveFragmentRef]
 buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId weekOffset =
-    [ buildDeferredRosterContentFragmentRef rosterGroupId weekOffset
+    [ buildRosterContentFragmentRef rosterGroupId weekOffset
     | isJust maybeStaffParam
     ]
 
@@ -92,19 +80,6 @@ buildRosterRowFragmentRef rosterGroupId weekOffset rosterDayId rowIndex =
         { fragmentKey = RosterRowFragment { rosterDayId, rowIndex }
         , targetId = rosterRowDomIdText (coerce rosterDayId) rowIndex
         , url = rosterWeekRowFragmentUrl weekOffset rosterGroupId (coerce rosterDayId) rowIndex
-        , deferUntilBlur = True
-        , protectionPolicy = focusedFieldProtection
+        , deferUntilBlur = False
+        , protectionPolicy = NoProtection
         }
-
-disableFragmentBlurDeferral :: LiveFragmentRef -> LiveFragmentRef
-disableFragmentBlurDeferral fragment = fragment { deferUntilBlur = False, protectionPolicy = NoProtection }
-
-focusedFieldProtection :: LiveFragmentProtection
-focusedFieldProtection =
-    FocusedFieldProtection
-        FocusedFieldProtectionConfig
-            { activeSelector = ".slot-note-input:focus"
-            , fieldKeyAttr = "data-roster-field-key"
-            , fieldNameFallback = True
-            , containerSelector = Just "[data-roster-row]"
-            }

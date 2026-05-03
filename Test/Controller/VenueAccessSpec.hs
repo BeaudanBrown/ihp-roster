@@ -109,7 +109,7 @@ tests = beforeAll testContext do
                 foreignSlot <- createRosterSlotRecord foreignDay foreignSlotName Nothing 0
 
                 response <- withUser manager do
-                    callActionWithParams (UpdateRosterSlotAction foreignSlot.id) [("note", "Denied")]
+                    callActionWithParams (UpdateRosterSlotAction foreignSlot.id) [("startTime", "09:00")]
 
                 response `responseStatusShouldBe` status403
 

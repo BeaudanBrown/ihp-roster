@@ -68,7 +68,6 @@ tests = beforeAll testContext do
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekRowFragment"
                 fromJust triggerHeader `shouldContain` ("\"targetId\":\"" <> contentTarget <> "\"")
                 fromJust triggerHeader `shouldContain` ("\"targetId\":\"" <> updatedRowTarget <> "\"")
-                fromJust triggerHeader `shouldContain` "\"deferUntilBlur\":true"
                 fromJust triggerHeader `shouldContain` "\"deferUntilBlur\":false"
 
         it "does not include rows from other weeks when refreshing related assignment rows" $ withContext do
@@ -246,10 +245,10 @@ tests = beforeAll testContext do
                 let bodyText = cs body :: String
                 bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow firstSlot.id) <> ":startTime\"")
                 bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow firstSlot.id) <> ":staffId\"")
-                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow firstSlot.id) <> ":note\"")
+                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow firstSlot.id) <> ":shiftTypeId\"")
                 bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow secondSlot.id) <> ":startTime\"")
                 bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow secondSlot.id) <> ":staffId\"")
-                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow secondSlot.id) <> ":note\"")
+                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow secondSlot.id) <> ":shiftTypeId\"")
 
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do
@@ -319,42 +318,6 @@ tests = beforeAll testContext do
                 unchangedSlot <- fetch slot.id
                 unchangedSlot.staffId `shouldBe` Just (unpackId alpha.id)
 
-        it "rejects overlong slot flags via HTMX and leaves the saved value unchanged" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Venue A"
-                manager <- createUserRecord "roster-manager-flag-htmx@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterWeek <- createRosterWeekRecord venue 0 False
-                rosterDay <- createRosterDayRecord rosterWeek 0
-                slot <- createRosterSlotRecord rosterDay slotName Nothing 0 >>= updateRecord . set #note (Just "OP")
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterSlotAction slot.id) [("note", "LONG")]
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Flags can only be 1 or 2 characters."
-                unchangedSlot <- fetch slot.id
-                unchangedSlot.note `shouldBe` Just "OP"
-
-        it "normalizes slot flags to uppercase when saved" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Venue A"
-                manager <- createUserRecord "roster-manager-flag-uppercase@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                slotName <- fetchSlotNameRecord venue "Early"
-                rosterWeek <- createRosterWeekRecord venue 0 False
-                rosterDay <- createRosterDayRecord rosterWeek 0
-                slot <- createRosterSlotRecord rosterDay slotName Nothing 0
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction slot.id) [("note", "pm")]
-
-                response `responseStatusShouldBe` status200
-                updatedSlot <- fetch slot.id
-                updatedSlot.note `shouldBe` Just "PM"
-
         it "creates a sparse roster slot when editing a synthetic empty cell" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -372,7 +335,7 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (CreateRosterSlotAction rosterDay.id slotDefinition.id 2)
-                            [("note", "pm")]
+                            [("startTime", "09:00")]
 
                 response `responseStatusShouldBe` status200
                 createdSlot <- query @RosterSlot
@@ -381,7 +344,7 @@ tests = beforeAll testContext do
                     |> filterWhere (#rowIndex, 2)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
-                createdSlot.note `shouldBe` Just "PM"
+                createdSlot.startTime `shouldBe` Just (timeOfDay 9 0)
                 updatedDay <- fetch rosterDay.id
                 updatedDay.rowCount `shouldBe` 4
 
@@ -402,7 +365,7 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (CreateRosterSlotAction rosterDay.id slotDefinition.id 5)
-                            [("note", "pm")]
+                            [("startTime", "09:00")]
 
                 response `responseStatusShouldBe` status200
                 updatedDay <- fetch rosterDay.id
@@ -416,11 +379,11 @@ tests = beforeAll testContext do
                 slotName <- fetchSlotNameRecord venue "Early"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
-                slot <- createRosterSlotRecord rosterDay slotName Nothing 0 >>= updateRecord . set #note (Just "PM")
+                slot <- createRosterSlotRecord rosterDay slotName Nothing 0 >>= updateRecord . set #startTime (Just (timeOfDay 9 0))
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterSlotAction slot.id) [("note", "")]
+                        callActionWithParams (UpdateRosterSlotAction slot.id) [("startTime", "")]
 
                 response `responseStatusShouldBe` status200
                 clearedSlot <- fetch slot.id

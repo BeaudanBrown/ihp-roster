@@ -30,7 +30,6 @@ import IHP.Prelude
 data DevRosterSlotSeed = DevRosterSlotSeed
     { slotStaff     :: !(Maybe Staff)
     , slotStartTime :: !(Maybe TimeOfDay)
-    , slotNote      :: !(Maybe Text)
     }
 
 data DevSeedFixture = DevSeedFixture
@@ -490,7 +489,6 @@ forceAssignmentForRow seedValue dayIndex rowIndex slotNames staffPool usedStaffI
           , seededRosterSlot
                 (Just staff)
                 (slotStartTimeFor slotIndex dayIndex)
-                (slotNoteFor seedValue dayIndex rowIndex slotIndex)
           )
         , unpackId (get #id staff)
         )
@@ -506,7 +504,6 @@ seedAssignment seedValue fillPercent dayIndex rowIndex slotIndex slotName staffP
                   , seededRosterSlot
                         (Just staff)
                         (slotStartTimeFor slotIndex dayIndex)
-                        (slotNoteFor seedValue dayIndex rowIndex slotIndex)
                   )
                 , unpackId (get #id staff)
                 )
@@ -1029,16 +1026,14 @@ createRosterRow rosterDay slotNames rowIndex assignments = do
                     |> set #staffId (fmap (unpackId . get #id) slotSeed.slotStaff)
                     |> set #rowIndex rowIndex
                     |> set #startTime slotSeed.slotStartTime
-                    |> set #note slotSeed.slotNote
                     |> set #createdAt now
                     |> set #updatedAt now
 
-seededRosterSlot :: Maybe Staff -> TimeOfDay -> Text -> DevRosterSlotSeed
-seededRosterSlot maybeStaff startTime note =
+seededRosterSlot :: Maybe Staff -> TimeOfDay -> DevRosterSlotSeed
+seededRosterSlot maybeStaff startTime =
     DevRosterSlotSeed
         { slotStaff = maybeStaff
         , slotStartTime = Just startTime
-        , slotNote = Just note
         }
 
 slotStartTimeFor :: Int -> Int -> TimeOfDay
@@ -1047,10 +1042,6 @@ slotStartTimeFor slotIndex dayIndex =
         0 -> TimeOfDay (6 + (dayIndex `mod` 2)) 30 0
         1 -> TimeOfDay (11 + (dayIndex `mod` 2)) 0 0
         _ -> TimeOfDay (16 + (dayIndex `mod` 2)) 30 0
-
-slotNoteFor :: Int -> Int -> Int -> Int -> Text
-slotNoteFor seedValue dayIndex rowIndex slotIndex =
-    noteBank !! deterministicIndex seedValue [dayIndex, rowIndex, slotIndex, 77] (length noteBank)
 
 deterministicPercent :: Int -> [Int] -> Int
 deterministicPercent seedValue keys = deterministicIndex seedValue keys 100
@@ -1117,9 +1108,6 @@ generatedStaffCatalog =
         , ("Seth", "Grill", Nothing)
         , ("Talia", "Barista", Just "T")
         ]
-
-noteBank :: [Text]
-noteBank = ["OP", "LU", "CL", "EX", "TR", "EV", "ST", "FN", "WK", "BR", "PK", "CV"]
 
 data StaffAssignmentBucket
     = FrontOnly

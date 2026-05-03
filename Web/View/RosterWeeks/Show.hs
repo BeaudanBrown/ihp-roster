@@ -5,7 +5,7 @@ import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
 import Application.Helper.LiveUpdate (LiveUpdateScope)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.Projection (buildDeferredRosterContentFragmentRef,
+import Web.RosterWeeks.Projection (buildRosterContentFragmentRef,
                                    buildRosterStaffPanelFragmentRef)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
@@ -60,7 +60,7 @@ rosterWeekLiveSurface rosterGroupId weekOffset scope =
     (mkLiveSurface
         "roster"
         scope
-        [ buildDeferredRosterContentFragmentRef rosterGroupId weekOffset
+        [ buildRosterContentFragmentRef rosterGroupId weekOffset
         , buildRosterStaffPanelFragmentRef rosterGroupId weekOffset
         ])
         { decorateRequestsWithin = ["#" <> rosterWeekShellId] }

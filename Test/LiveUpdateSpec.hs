@@ -177,15 +177,8 @@ tests = describe "LiveUpdate runtime types" do
                         { fragmentKey = RosterContentFragment
                         , targetId = "roster-content"
                         , url = "/ShowRosterWeekContentFragment?weekOffset=0"
-                        , deferUntilBlur = True
-                        , protectionPolicy =
-                            FocusedFieldProtection
-                                FocusedFieldProtectionConfig
-                                    { activeSelector = ".slot-note-input:focus"
-                                    , fieldKeyAttr = "data-roster-field-key"
-                                    , fieldNameFallback = True
-                                    , containerSelector = Just "tr[data-roster-row]"
-                                    }
+                        , deferUntilBlur = False
+                        , protectionPolicy = NoProtection
                         }
                     ]
                 ]

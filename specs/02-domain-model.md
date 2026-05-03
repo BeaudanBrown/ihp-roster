@@ -49,7 +49,7 @@
 - `roster_slots`
   - `roster_day_id`
   - `row_index` (int, groups Early/Mid/Late slots onto a single visual row)
-  - Slot metadata: `start_time` (optional until manager fills it; end times are captured in timesheets) and `note` (short free-text codes like "M", "DEL").
+  - Slot metadata: `start_time`, optional `end_time`, optional `duration_minutes`, and optional `shift_type_id`.
   - Underlying backend categorizations: `slot_name_id`.
   - Assigned `staff_id`.
 

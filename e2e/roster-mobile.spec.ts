@@ -147,13 +147,13 @@ test.describe('Roster mobile baseline', () => {
     test('keeps editable roster cells reachable without requiring the staff sidebar first', async ({ page }) => {
         const firstTimeField = page.locator('[data-time-picker-field]').first();
         const firstStaffSelect = page.locator('.slot-staff-input').first();
-        const firstNoteField = page.locator('.slot-note-input').first();
+        const firstShiftTypeSelect = page.locator('.slot-shift-type-input').first();
 
         await expect(firstTimeField).toBeVisible();
         await expect(firstStaffSelect).toBeVisible();
-        await expect(firstNoteField).toBeVisible();
+        await expect(firstShiftTypeSelect).toBeVisible();
 
-        for (const field of [firstTimeField, firstStaffSelect, firstNoteField]) {
+        for (const field of [firstTimeField, firstStaffSelect, firstShiftTypeSelect]) {
             await field.scrollIntoViewIfNeeded();
 
             const reachable = await field.evaluate((element) => {

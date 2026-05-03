@@ -746,7 +746,7 @@ ON CONFLICT (id) DO UPDATE SET
     deleted_at = NULL,
     updated_at = NOW();
 
-INSERT INTO roster_slots (id, roster_day_id, staff_id, roster_week_slot_definition_id, row_index, start_time, duration_minutes, note)
+INSERT INTO roster_slots (id, roster_day_id, staff_id, roster_week_slot_definition_id, row_index, start_time, duration_minutes, shift_type_id)
 VALUES
     (
         'a1000000-0000-0000-0000-000000000071',
@@ -756,7 +756,7 @@ VALUES
         0,
         '09:00',
         480,
-        'AC'
+        'a1000000-0000-0000-0000-000000000133'
     ),
     (
         'a1000000-0000-0000-0000-000000000072',
@@ -766,7 +766,7 @@ VALUES
         0,
         '09:00',
         480,
-        'BC'
+        'a1000000-0000-0000-0000-000000000141'
     ),
     (
         'a1000000-0000-0000-0000-000000000073',
@@ -776,7 +776,7 @@ VALUES
         0,
         '09:00',
         240,
-        'A1'
+        'a1000000-0000-0000-0000-000000000133'
     ),
     (
         'a1000000-0000-0000-0000-000000000074',
@@ -786,7 +786,7 @@ VALUES
         1,
         '13:00',
         240,
-        'A2'
+        'a1000000-0000-0000-0000-000000000133'
     )
 ON CONFLICT (id) DO UPDATE SET
     roster_day_id = EXCLUDED.roster_day_id,
@@ -795,7 +795,7 @@ ON CONFLICT (id) DO UPDATE SET
     row_index = EXCLUDED.row_index,
     start_time = EXCLUDED.start_time,
     duration_minutes = EXCLUDED.duration_minutes,
-    note = EXCLUDED.note;
+    shift_type_id = EXCLUDED.shift_type_id;
 
 INSERT INTO leave_requests (id, venue_id, staff_id, start_date, end_date, status, notes)
 VALUES

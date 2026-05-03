@@ -35,7 +35,6 @@ tests = describe "Conflict Engine" do
             , endTime = Nothing
             , shiftTypeId = Nothing
             , durationMinutes = Nothing
-            , note = Nothing
             , deletedAt = Nothing
             , deletedByUserId = Nothing
             , deleteReason = Nothing

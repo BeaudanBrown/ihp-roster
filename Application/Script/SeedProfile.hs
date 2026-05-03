@@ -334,7 +334,7 @@ staffShiftPreferenceColumns = ["id", "venue_id", "staff_id", "weekday_index", "p
 rosterWeekColumns = ["id", "venue_id", "roster_group_id", "week_offset", "is_live"]
 rosterDayColumns = ["id", "roster_week_id", "day_offset", "is_closed"]
 rosterWeekSlotDefinitionColumns = ["id", "roster_week_id", "name", "sort_order"]
-rosterSlotColumns = ["id", "roster_day_id", "staff_id", "roster_week_slot_definition_id", "slot_sort_order", "row_index", "start_time", "duration_minutes", "note"]
+rosterSlotColumns = ["id", "roster_day_id", "staff_id", "roster_week_slot_definition_id", "slot_sort_order", "row_index", "start_time", "duration_minutes"]
 
 leaveRequestColumns, timesheetEntryColumns, timesheetEntryVersionColumns :: [Text]
 leaveRequestColumns = ["id", "venue_id", "staff_id", "start_date", "end_date", "status", "notes"]
@@ -536,7 +536,6 @@ rosterSlotRows plan =
       , Just (tshow rowIndex)
       , if isJust maybeStaffId then Just (timeFor slotIndex dayOffset) else Nothing
       , if isJust maybeStaffId then Just "360" else Nothing
-      , if deterministicIndex plan [venueIndex, groupIndex, weekOffset, dayOffset, rowIndex, slotIndex, 22] 9 == 0 then Just "OP" else Nothing
       ]
     | venueIndex <- venueIndexes plan
     , (groupIndex, _) <- rosterGroupTemplates

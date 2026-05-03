@@ -52,8 +52,8 @@ lands.
 - Passive viewers receive websocket invalidations with structural fragment refs.
 - Fragment GET routes must enforce the same venue/visibility rules as the full
   page.
-- Focused roster note inputs use live-fragment protection so remote updates do
-  not clobber active editing.
+- Roster live fragments refresh immediately; discrete autosaved controls should
+  commit on change instead of relying on blur-deferred protection.
 
 ## Extension Rules
 

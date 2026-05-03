@@ -64,8 +64,8 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Live fragment refetch endpoints should return plain server-rendered fragments for the target DOM node; reserve `hx-swap-oob` variants for the actor path.
 - For viewer-side row refetches, do not return `hx-swap-oob` row wrappers from the fragment GET action; return the plain `<tr>` fragment and let JS replace the target row directly.
 - Mark row fragments as blur-deferred on the client when remote updates should not overwrite focused `.slot-cell-input` controls.
-- If a blur-deferred row contains repeated field names across slot columns (`staffId`, `note`, `startTime`), render a stable per-control key such as `data-roster-field-key` from the slot id. Client-side restore logic must target that key instead of the first matching `[name=...]` in the row.
-- Keep blur deferral narrow. On the roster grid it should protect the delayed flag input (`.slot-note-input`), not discrete controls like staff selects or committed time-picker changes.
+- If a blur-deferred row contains repeated field names across slot columns (`staffId`, `shiftTypeId`, `startTime`), render a stable per-control key such as `data-roster-field-key` from the slot id. Client-side restore logic must target that key instead of the first matching `[name=...]` in the row.
+- Do not add blur deferral for discrete roster controls like staff selects, shift-type selects, or committed time-picker changes. Reintroduce narrow protection only if a delayed free-text control returns.
 
 ## Shared Live Shell Pattern
 - Treat the page shell or stable section shell as the subscription owner. Render declarative surface metadata on that owner so the shared client can subscribe/unsubscribe as HTMX navigation swaps shells in and out.

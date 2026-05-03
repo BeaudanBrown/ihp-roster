@@ -16,7 +16,7 @@ import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
-import Web.RosterWeeks.Projection (buildDeferredRosterContentFragmentRef)
+import Web.RosterWeeks.Projection (buildRosterContentFragmentRef)
 import Web.View.Profiles.Edit
 
 instance Controller ProfilesController where
@@ -250,5 +250,5 @@ buildProfileRosterInvalidations =
     map \(rosterGroupId, weekOffset, _rowKeys) ->
         ( rosterGroupId
         , weekOffset
-        , [buildDeferredRosterContentFragmentRef rosterGroupId weekOffset]
+        , [buildRosterContentFragmentRef rosterGroupId weekOffset]
         )

@@ -245,8 +245,8 @@ copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek = do
         \    ORDER BY source_definitions.sort_order, source_definitions.created_at \
         \    RETURNING id, name, sort_order \
         \) \
-        \INSERT INTO roster_slots (roster_day_id, staff_id, roster_week_slot_definition_id, slot_sort_order, row_index, start_time, end_time, shift_type_id, duration_minutes, note) \
-        \SELECT target_days.id, source_slots.staff_id, inserted_definitions.id, inserted_definitions.sort_order, source_slots.row_index, source_slots.start_time, source_slots.end_time, source_slots.shift_type_id, source_slots.duration_minutes, source_slots.note \
+        \INSERT INTO roster_slots (roster_day_id, staff_id, roster_week_slot_definition_id, slot_sort_order, row_index, start_time, end_time, shift_type_id, duration_minutes) \
+        \SELECT target_days.id, source_slots.staff_id, inserted_definitions.id, inserted_definitions.sort_order, source_slots.row_index, source_slots.start_time, source_slots.end_time, source_slots.shift_type_id, source_slots.duration_minutes \
         \FROM roster_days source_days \
         \JOIN roster_slots source_slots ON source_slots.roster_day_id = source_days.id \
         \JOIN roster_week_slot_definitions source_definitions ON source_definitions.id = source_slots.roster_week_slot_definition_id \
@@ -260,8 +260,7 @@ copyRosterWeekSlotDefinitionsAndSlots sourceWeek targetWeek = do
         \    OR source_slots.start_time IS NOT NULL \
         \    OR source_slots.end_time IS NOT NULL \
         \    OR source_slots.shift_type_id IS NOT NULL \
-        \    OR source_slots.duration_minutes IS NOT NULL \
-        \    OR source_slots.note IS NOT NULL) \
+        \    OR source_slots.duration_minutes IS NOT NULL) \
         \ORDER BY source_days.day_offset, source_slots.row_index, inserted_definitions.sort_order, source_slots.created_at"
         (unpackId targetWeek.id, unpackId sourceWeek.id, unpackId targetWeek.id, unpackId sourceWeek.id)
 
@@ -292,7 +291,6 @@ rosterSlotHasData slot =
         || isJust slot.endTime
         || isJust slot.shiftTypeId
         || isJust slot.durationMinutes
-        || maybe False (not . Text.null . Text.strip) slot.note
 
 previewRemoveRosterRowPacking :: (?modelContext :: ModelContext) => RosterDay -> [RosterWeekSlotDefinition] -> IO RemoveRosterRowPackingPreview
 previewRemoveRosterRowPacking rosterDay activeDefinitions = do

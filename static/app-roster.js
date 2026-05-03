@@ -281,16 +281,6 @@
                     return;
                 }
 
-                if (cellEl.classList.contains('slot-note-cell')) {
-                    const staticValue = cellEl.querySelector('.slot-cell-static');
-                    const inputEl = cellEl.querySelector('.slot-note-input');
-                    const noteValue =
-                        textOrEmpty(staticValue && staticValue.textContent)
-                        || textOrEmpty(inputEl instanceof HTMLInputElement ? inputEl.value : '');
-                    replaceCellContents(cellEl, noteValue);
-                    return;
-                }
-
                 replaceCellContents(cellEl, cellEl.textContent || '');
             });
         });

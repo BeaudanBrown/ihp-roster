@@ -275,10 +275,10 @@
     }
 
     function focusedFieldProtection(policy) {
-        const activeSelector = policy && policy.activeSelector ? policy.activeSelector : '.slot-note-input:focus';
-        const fieldKeyAttr = policy && policy.fieldKeyAttr ? policy.fieldKeyAttr : 'data-roster-field-key';
+        const activeSelector = policy && policy.activeSelector ? policy.activeSelector : 'input:focus, select:focus, textarea:focus';
+        const fieldKeyAttr = policy && policy.fieldKeyAttr ? policy.fieldKeyAttr : 'data-live-field-key';
         const fieldNameFallback = !policy || policy.fieldNameFallback !== false;
-        const containerSelector = policy && policy.containerSelector ? policy.containerSelector : '[data-roster-row]';
+        const containerSelector = policy && policy.containerSelector ? policy.containerSelector : null;
 
         function findActiveInput(target) {
             if (!(target instanceof HTMLElement)) return null;
