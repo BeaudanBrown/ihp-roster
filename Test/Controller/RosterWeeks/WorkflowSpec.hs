@@ -204,6 +204,85 @@ tests = beforeAll testContext do
                     |> fetch
                 map (.rowIndex) slotsForDay `shouldMatchList` [0, 1]
 
+        it "removing a populated row compacts holes before appending preserved shifts at the bottom" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-remove-row-pack-hole@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                early <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                row0 <- createRosterSlotRecord rosterDay early Nothing 0
+                row1 <- createRosterSlotRecord rosterDay early Nothing 1
+                row2 <- createRosterSlotRecord rosterDay early Nothing 2
+                row3 <- createRosterSlotRecord rosterDay early Nothing 3
+                _ <- updateRecord (row0 |> set #note (Just "T0"))
+                _ <- updateRecord (row2 |> set #note (Just "B2"))
+                _ <- updateRecord (row3 |> set #note (Just "D3"))
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (RemoveRosterRowAction rosterDay.id)
+                response `responseStatusShouldBe` status200
+
+                activeDataSlots <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                let packedDataSlots = sortOn (.rowIndex) (filter (\slot -> slot.note `elem` map Just ["T0", "B2", "D3"]) activeDataSlots)
+                map (.id) packedDataSlots `shouldBe` [row0.id, row2.id, row3.id]
+                map (.rowIndex) packedDataSlots `shouldBe` [0, 1, 2]
+                map (.note) packedDataSlots `shouldBe` [Just "T0", Just "B2", Just "D3"]
+                deletedHole <- fetch row1.id
+                deletedHole.deletedAt `shouldSatisfy` isJust
+
+        it "asks for confirmation before deleting overflow shifts and preserves deleted-row shifts left to right" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-remove-row-overflow@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                early <- fetchSlotNameRecord venue "Early"
+                late <- fetchSlotNameRecord venue "Late"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                early0 <- createRosterSlotRecord rosterDay early Nothing 0
+                early1 <- createRosterSlotRecord rosterDay early Nothing 1
+                early2 <- createRosterSlotRecord rosterDay early Nothing 2
+                late0 <- createRosterSlotRecord rosterDay late Nothing 0
+                late1 <- createRosterSlotRecord rosterDay late Nothing 1
+                late2 <- createRosterSlotRecord rosterDay late Nothing 2
+                _ <- updateRecord (early0 |> set #note (Just "E0"))
+                _ <- updateRecord (early1 |> set #note (Just "E1"))
+                _ <- updateRecord (late0 |> set #note (Just "L0"))
+                _ <- updateRecord (early2 |> set #note (Just "PF"))
+                _ <- updateRecord (late2 |> set #note (Just "DR"))
+
+                previewResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (RemoveRosterRowAction rosterDay.id)
+                previewResponse `responseStatusShouldBe` status200
+                previewResponse `responseBodyShouldContain` "1 shift cannot be packed into another column and will be deleted."
+                previewResponse `responseBodyShouldContain` "confirmDeletePopulatedRow"
+
+                unchangedEarly <- fetch early2.id
+                unchangedLate <- fetch late2.id
+                unchangedEarly.deletedAt `shouldBe` Nothing
+                unchangedLate.deletedAt `shouldBe` Nothing
+
+                confirmResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (RemoveRosterRowAction rosterDay.id)
+                            [("confirmDeletePopulatedRow", "true")]
+                confirmResponse `responseStatusShouldBe` status200
+
+                preservedFirst <- fetch early2.id
+                deletedRightmost <- fetch late2.id
+                preservedFirst.deletedAt `shouldBe` Nothing
+                preservedFirst.rosterWeekSlotDefinitionId `shouldBe` late1.rosterWeekSlotDefinitionId
+                preservedFirst.rowIndex `shouldBe` 1
+                deletedRightmost.deletedAt `shouldSatisfy` isJust
+
         it "manager can add and delete draft week roster spacing columns via HTMX" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

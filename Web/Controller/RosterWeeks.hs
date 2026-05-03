@@ -12,8 +12,11 @@ import Application.Helper.LiveUpdate (LiveFragmentRef, LiveUpdateScope (..),
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.UserPreferences
-import Application.Helper.View (ToastOverlayPosition (ToastBottomCenter),
-                                errorToast, renderToastOob)
+import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
+                                OverlayButtonAction (..),
+                                ToastOverlayPosition (ToastBottomCenter),
+                                dialogOverlayMountId, errorToast,
+                                renderDialogOverlay, renderToastOob)
 import Application.RosterTimesheets.Automation (enqueueRosterTimesheetCreationJobsForWeek,
                                                 rosterSlotHasGeneratedTimesheet)
 import qualified Data.Aeson as Aeson
@@ -454,8 +457,7 @@ instance Controller RosterWeeksController where
 
         let rowIndices = existingSlots |> map (.rowIndex) |> nub |> sort
         let rowCount = length rowIndices
-        let maybeLastRowIndex =
-                rowIndices |> last
+        let confirmDeletePopulatedRow = paramOrDefault @Text "false" "confirmDeletePopulatedRow" == "true"
 
         when (rowCount <= minimumOpenRosterRows) do
             let rosterGroupId = coerce rosterWeek.rosterGroupId
@@ -466,41 +468,30 @@ instance Controller RosterWeeksController where
                     setErrorMessage errorMessage
                     redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-        slotsToDelete <-
-            case maybeLastRowIndex of
-                Nothing -> pure []
-                Just lastRowIndex ->
-                    query @RosterSlot
-                        |> filterWhere (#rosterDayId, coerce rosterDayId)
-                        |> filterWhere (#rowIndex, lastRowIndex)
-                        |> filterWhere (#deletedAt, Nothing)
-                        |> fetch
-
-        now <- getCurrentTime
-        forM_ slotsToDelete \slot -> do
-            _ <- slot
-                |> set #deletedAt (Just now)
-                |> set #deletedByUserId (Just (unpackId currentUser.id))
-                |> set #deleteReason (Just "roster_row_removed")
-                |> updateRecord
-            pure ()
-
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        broadcastRosterWeekInvalidation
-            rosterGroupId
-            rosterWeek.weekOffset
-            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-            ]
-        if isHtmxRequest
-            then
-                respondWithActorRosterFragmentRefresh
+        activeDefinitions <- fetchRosterWeekOrderedSlotNames rosterWeek
+        preview <- previewRemoveRosterRowPacking rosterDay activeDefinitions
+        if preview.removeRosterRowOverflowCount > 0 && not confirmDeletePopulatedRow
+            then respondWithRemoveRosterRowConfirmation rosterDay preview
+            else do
+                withTransaction do
+                    removeRosterRowWithPacking rosterDay activeDefinitions
+
+                broadcastRosterWeekInvalidation
+                    rosterGroupId
+                    rosterWeek.weekOffset
                     [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
                     , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
                     ]
-            else do
-                setSuccessMessage "Roster row removed."
-                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                if isHtmxRequest
+                    then
+                        respondWithActorRosterFragmentRefresh
+                            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+                            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+                            ]
+                    else do
+                        setSuccessMessage "Roster row removed."
+                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
     action UpdateRosterLayoutPreferenceAction { weekOffset } = do
         rosterGroup <- resolveRequestedRosterGroup
@@ -607,6 +598,62 @@ resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId = do
     ensureRecordInCurrentVenue rosterWeek.venueId
     accessDeniedUnless (rosterWeek.weekOffset == weekOffset)
     pure (coerce rosterWeek.rosterGroupId)
+
+respondWithRemoveRosterRowConfirmation :: (?context :: ControllerContext, ?request :: Request) => RosterDay -> RemoveRosterRowPackingPreview -> IO ()
+respondWithRemoveRosterRowConfirmation rosterDay preview =
+    if isHtmxRequest
+        then respondHtmlProfiled [hsx|
+            <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
+                {confirmationDialog}
+                <form id={confirmFormId}
+                      method="POST"
+                      action={RemoveRosterRowAction rosterDay.id}
+                      data-disable-javascript-submission="true"
+                      hx-post={RemoveRosterRowAction rosterDay.id}
+                      hx-target={"#" <> dialogOverlayMountId}
+                      hx-swap="innerHTML"
+                      hx-push-url="false"
+                      hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+                    <input type="hidden" name="confirmDeletePopulatedRow" value="true" />
+                </form>
+            </div>
+        |]
+        else do
+            setErrorMessage (overflowCopy <> " cannot be packed into another column and would be deleted. Confirm from the roster screen before deleting this row.")
+            redirectToPath (pathTo RosterWeeksAction)
+    where
+        confirmFormId = "confirm-remove-roster-row-form" :: Text
+        overflowCount = preview.removeRosterRowOverflowCount
+        overflowCopy =
+            if overflowCount == 1
+                then "1 shift"
+                else tshow overflowCount <> " shifts"
+        confirmationDialog =
+            renderDialogOverlay DialogOverlayConfig
+                { dialogOverlayTitle = "Delete roster row?"
+                , dialogOverlayBody = [hsx|
+                    <p class="mb-2">
+                        {overflowCopy} cannot be packed into another column and will be deleted.
+                    </p>
+                    <p class="mb-0 app-muted">
+                        Shifts that fit will be moved into the bottom of the remaining columns from left to right.
+                    </p>
+                |]
+                , dialogOverlayStartButtons = []
+                , dialogOverlayButtons =
+                    [ OverlayButton
+                        { overlayButtonLabel = "Cancel"
+                        , overlayButtonClass = "btn btn-outline-secondary"
+                        , overlayButtonAction = OverlayCloseAction
+                        }
+                    , OverlayButton
+                        { overlayButtonLabel = "Delete row"
+                        , overlayButtonClass = "btn btn-danger"
+                        , overlayButtonAction = OverlaySubmitFormAction confirmFormId
+                        }
+                    ]
+                , dialogOverlayDialogClass = ""
+                }
 
 respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> IO ()
 respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
