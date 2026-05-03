@@ -774,3 +774,136 @@
         initRosterStaffPanelSortingWithin((event.detail && event.detail.target) || document);
     });
 })();
+
+(function enableRosterStaffShiftHighlight() {
+    if (typeof window === 'undefined') return;
+
+    const rosterStaffRowSelector = '.roster-staff-panel-entry[data-roster-staff-id]';
+    const rowHighlightClass = 'is-roster-staff-highlighted';
+    const slotHighlightClass = 'is-roster-staff-slot-highlighted';
+    const slotHighlightStartClass = 'is-roster-staff-slot-highlighted-start';
+    const slotHighlightEndClass = 'is-roster-staff-slot-highlighted-end';
+    const highlightClasses = [
+        rowHighlightClass,
+        slotHighlightClass,
+        slotHighlightStartClass,
+        slotHighlightEndClass,
+    ];
+    let activeRosterStaffId = '';
+
+    function clearRosterStaffHighlights() {
+        const selector = highlightClasses.map((className) => `.${className}`).join(', ');
+
+        document.querySelectorAll(selector).forEach(function (element) {
+            element.classList.remove(...highlightClasses);
+        });
+    }
+
+    function highlightSlotElements(elements) {
+        const slotElementsById = new Map();
+
+        elements.forEach(function (element) {
+            const slotId = element.dataset.rosterSlotId || '';
+            if (!slotId) return;
+
+            const slotElements = slotElementsById.get(slotId) || [];
+            slotElements.push(element);
+            slotElementsById.set(slotId, slotElements);
+        });
+
+        slotElementsById.forEach(function (slotElements) {
+            slotElements.forEach(function (element, index) {
+                element.classList.add(slotHighlightClass);
+                if (index === 0) element.classList.add(slotHighlightStartClass);
+                if (index === slotElements.length - 1) element.classList.add(slotHighlightEndClass);
+            });
+        });
+    }
+
+    function staffElements(selector, staffId) {
+        return Array.from(document.querySelectorAll(selector)).filter(function (element) {
+            return element instanceof HTMLElement && element.dataset.rosterStaffId === staffId;
+        });
+    }
+
+    function staffRowFromEvent(event) {
+        if (!(event.target instanceof Element)) return null;
+
+        const row = event.target.closest(rosterStaffRowSelector);
+        return row instanceof HTMLElement ? row : null;
+    }
+
+    function movedWithinRow(event, row) {
+        return event.relatedTarget instanceof Node && row.contains(event.relatedTarget);
+    }
+
+    function highlightRosterStaff(staffId) {
+        clearRosterStaffHighlights();
+
+        if (!staffId) return;
+
+        staffElements(rosterStaffRowSelector, staffId).forEach(function (element) {
+            element.classList.add(rowHighlightClass);
+        });
+
+        highlightSlotElements(staffElements('.roster-grid [role="gridcell"][data-roster-staff-id][data-roster-slot-id]', staffId));
+        highlightSlotElements(staffElements('.roster-shift-card[data-roster-staff-id][data-roster-slot-id]', staffId));
+    }
+
+    function activateRosterStaff(row) {
+        const staffId = row.dataset.rosterStaffId || '';
+        if (!staffId) return;
+
+        activeRosterStaffId = staffId;
+        highlightRosterStaff(staffId);
+    }
+
+    function deactivateRosterStaff(row) {
+        const staffId = row.dataset.rosterStaffId || '';
+        if (!staffId || staffId !== activeRosterStaffId) {
+            return;
+        }
+
+        activeRosterStaffId = '';
+        clearRosterStaffHighlights();
+    }
+
+    function handleStaffRowEnter(event) {
+        const row = staffRowFromEvent(event);
+        if (!row || movedWithinRow(event, row)) return;
+
+        activateRosterStaff(row);
+    }
+
+    function handleStaffRowLeave(event) {
+        const row = staffRowFromEvent(event);
+        if (!row || movedWithinRow(event, row)) return;
+
+        deactivateRosterStaff(row);
+    }
+
+    document.addEventListener('mouseover', handleStaffRowEnter);
+    document.addEventListener('mouseout', handleStaffRowLeave);
+    document.addEventListener('focusin', function (event) {
+        const row = staffRowFromEvent(event);
+        if (!row) return;
+
+        activateRosterStaff(row);
+    });
+
+    document.addEventListener('focusout', function (event) {
+        const row = staffRowFromEvent(event);
+        if (!row || movedWithinRow(event, row)) return;
+
+        deactivateRosterStaff(row);
+    });
+
+    document.addEventListener('app:page-ready', function () {
+        if (activeRosterStaffId) {
+            highlightRosterStaff(activeRosterStaffId);
+            return;
+        }
+
+        clearRosterStaffHighlights();
+    });
+})();

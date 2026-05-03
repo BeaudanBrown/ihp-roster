@@ -628,38 +628,57 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
     in
     if endTimesEnabled
         then [hsx|
-            <div role="gridcell" class={classes [("slot-time-cell", True), ("slot-start-time-cell", True), ("roster-block-start", blockIndex > 0)]}>
+            <div role="gridcell"
+                 class={classes [("slot-time-cell", True), ("slot-start-time-cell", True), ("roster-block-start", blockIndex > 0)]}
+                 data-roster-staff-id={maybe "" tshow slot.staffId}
+                 data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableTimeCell "startTime" "Select roster slot start time" "Start" (ExistingRosterSlotTarget slot.id) currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
             </div>
 
-            <div role="gridcell" class="slot-time-cell slot-end-time-cell">
+            <div role="gridcell"
+                 class="slot-time-cell slot-end-time-cell"
+                 data-roster-staff-id={maybe "" tshow slot.staffId}
+                 data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableTimeCell "endTime" "Select roster slot end time" "End" (ExistingRosterSlotTarget slot.id) currentEndTime else renderReadOnlyCell (renderTimePickerDisplayLabel "End" currentEndTime)}
             </div>
 
             <div role="gridcell"
                  class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}
                  title={renderConflictMessage currentPrimaryConflict}
-                 data-conflict-message={renderConflictMessage currentPrimaryConflict}>
+                 data-conflict-message={renderConflictMessage currentPrimaryConflict}
+                 data-roster-staff-id={maybe "" tshow slot.staffId}
+                 data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableStaffCell assignmentFilters (ExistingRosterSlotTarget slot.id) slot.staffId staffMembers staffOptionStates currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
             </div>
 
-            <div role="gridcell" class="slot-shift-type-cell roster-block-end">
+            <div role="gridcell"
+                 class="slot-shift-type-cell roster-block-end"
+                 data-roster-staff-id={maybe "" tshow slot.staffId}
+                 data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableShiftTypeCell (ExistingRosterSlotTarget slot.id) slot.shiftTypeId shiftTypes else renderReadOnlyCell currentShiftTypeLabel}
             </div>
         |]
         else [hsx|
-            <div role="gridcell" class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}>
+            <div role="gridcell"
+                 class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}
+                 data-roster-staff-id={maybe "" tshow slot.staffId}
+                 data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableTimeCell "startTime" "Select roster slot time" "Time" (ExistingRosterSlotTarget slot.id) currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Time" currentStartTime)}
             </div>
 
             <div role="gridcell"
                  class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}
                  title={renderConflictMessage currentPrimaryConflict}
-                 data-conflict-message={renderConflictMessage currentPrimaryConflict}>
+                 data-conflict-message={renderConflictMessage currentPrimaryConflict}
+                 data-roster-staff-id={maybe "" tshow slot.staffId}
+                 data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableStaffCell assignmentFilters (ExistingRosterSlotTarget slot.id) slot.staffId staffMembers staffOptionStates currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
             </div>
 
-            <div role="gridcell" class="slot-shift-type-cell roster-block-end">
+            <div role="gridcell"
+                 class="slot-shift-type-cell roster-block-end"
+                 data-roster-staff-id={maybe "" tshow slot.staffId}
+                 data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableShiftTypeCell (ExistingRosterSlotTarget slot.id) slot.shiftTypeId shiftTypes else renderReadOnlyCell currentShiftTypeLabel}
             </div>
         |]
@@ -701,6 +720,9 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
         currentEndTime = optionalTimeOfDayToStorageValue endTime
         currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel staffId renderIndexes)
         currentShiftTypeLabel = fromMaybe "" (renderShiftTypeLabelForSlot shiftTypes shiftTypeId)
+        rosterSlotDataId = case target of
+            ExistingRosterSlotTarget slotId -> tshow slotId
+            NewRosterSlotTarget {} -> ""
         endTimeField =
             if endTimesEnabled
                 then [hsx|
@@ -716,6 +738,8 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
             | otherwise = renderReadOnlyCell currentShiftTypeLabel
      in [hsx|
         <article class={classes [("roster-shift-card", True), ("roster-shift-card-create", not (targetHasExistingSlot target))]}
+                 data-roster-slot-id={rosterSlotDataId}
+                 data-roster-staff-id={maybe "" tshow staffId}
                  title={renderConflictMessage currentPrimaryConflict}
                  data-conflict-message={renderConflictMessage currentPrimaryConflict}>
             <div class={classes [("roster-shift-card-fields", True), ("has-end-times", endTimesEnabled)]}>

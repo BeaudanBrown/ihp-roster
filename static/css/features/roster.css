@@ -412,6 +412,10 @@
     background: var(--app-white-alpha-015);
 }
 
+.roster-staff-panel-entry.is-roster-staff-highlighted {
+    background: color-mix(in srgb, var(--app-accent) 18%, transparent);
+}
+
 .roster-staff-panel-entry th,
 .roster-staff-panel-entry td {
     padding: 0.45rem 0;
@@ -904,6 +908,39 @@
 .roster-grid .slot-time-cell {
     min-width: 0;
     padding: 0 !important;
+}
+
+.roster-shift-card.is-roster-staff-slot-highlighted,
+.roster-shift-card.is-roster-staff-slot-highlighted-start,
+.roster-shift-card.is-roster-staff-slot-highlighted-end {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 48%, transparent);
+}
+
+.roster-grid [role="gridcell"].is-roster-staff-slot-highlighted {
+    position: relative;
+}
+
+.roster-grid [role="gridcell"].is-roster-staff-slot-highlighted::after {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    z-index: 3;
+    top: -1px;
+    right: 0;
+    bottom: -1px;
+    left: 0;
+    border-top: 3px solid color-mix(in srgb, var(--app-accent) 48%, transparent);
+    border-bottom: 3px solid color-mix(in srgb, var(--app-accent) 48%, transparent);
+}
+
+.roster-grid [role="gridcell"].is-roster-staff-slot-highlighted-start::after {
+    left: -1px;
+    border-left: 3px solid color-mix(in srgb, var(--app-accent) 48%, transparent);
+}
+
+.roster-grid [role="gridcell"].is-roster-staff-slot-highlighted-end::after {
+    right: -1px;
+    border-right: 3px solid color-mix(in srgb, var(--app-accent) 48%, transparent);
 }
 
 .roster-grid .slot-staff-cell {

@@ -81,11 +81,13 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
         staffRoleLabel = humanizeStaffRole entry.userRole
      in
         [hsx|
-            <tr class="roster-staff-panel-entry"
+        <tr class="roster-staff-panel-entry"
+                data-roster-staff-id={tshow entry.staff.id}
                 data-roster-staff-name={staffDisplayLabel}
                 data-roster-staff-role={staffRoleLabel}
                 data-roster-staff-assigned={tshow entry.assignedShiftCount}
-                data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}>
+                data-roster-staff-ideal={tshow entry.staff.idealShiftsPerWeek}
+                tabindex="0">
                 <th scope="row" class="roster-staff-cell roster-staff-name">
                     <div class="roster-staff-name-primary">{staffDisplayLabel}</div>
                 </th>
