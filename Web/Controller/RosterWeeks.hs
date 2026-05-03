@@ -388,14 +388,6 @@ instance Controller RosterWeeksController where
                     setErrorMessage errorMessage
                     redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-        -- Find the current max row index for this day
-        existingSlots <-
-            query @RosterSlot
-                |> filterWhere (#rosterDayId, coerce rosterDayId)
-                |> filterWhere (#deletedAt, Nothing)
-                |> fetch
-        let nextRowIndex = if null existingSlots then 0 else maximum (map (.rowIndex) existingSlots) + 1
-
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         slotTemplate <- fetchRosterWeekSlotTemplate rosterWeek
 
@@ -408,13 +400,9 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             else do
-                forM_ slotTemplate \(slotDefinition, slotSortOrder) -> do
-                    newRecord @RosterSlot
-                        |> set #rosterDayId (coerce rosterDayId)
-                        |> set #rosterWeekSlotDefinitionId (coerce (get #id slotDefinition))
-                        |> set #slotSortOrder slotSortOrder
-                        |> set #rowIndex nextRowIndex
-                        |> createRecord
+                _ <- rosterDay
+                    |> set #rowCount (rosterDay.rowCount + 1)
+                    |> updateRecord
 
                 broadcastRosterWeekInvalidation
                     rosterGroupId
@@ -450,13 +438,7 @@ instance Controller RosterWeeksController where
                     setErrorMessage errorMessage
                     redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
-        existingSlots <- query @RosterSlot
-            |> filterWhere (#rosterDayId, coerce rosterDayId)
-            |> filterWhere (#deletedAt, Nothing)
-            |> fetch
-
-        let rowIndices = existingSlots |> map (.rowIndex) |> nub |> sort
-        let rowCount = length rowIndices
+        let rowCount = rosterDay.rowCount
         let confirmDeletePopulatedRow = paramOrDefault @Text "false" "confirmDeletePopulatedRow" == "true"
 
         when (rowCount <= minimumOpenRosterRows) do
@@ -512,6 +494,119 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster layout preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
+    action CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = do
+        ensureManagerRole
+
+        rosterDay <- fetch rosterDayId
+        let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
+        rosterWeek <- fetch rosterWeekId
+        ensureRecordInCurrentVenue rosterWeek.venueId
+        ensureRosterWeekIsDraftForEdit rosterWeek
+        accessDeniedUnless (not rosterDay.isClosed)
+        accessDeniedUnless (rowIndex >= 0)
+
+        slotDefinition <- fetch rosterWeekSlotDefinitionId
+        accessDeniedUnless (slotDefinition.rosterWeekId == unpackId rosterWeek.id)
+        accessDeniedUnless (isNothing slotDefinition.deletedAt)
+
+        let maybeStaffParam = paramOrNothing @Text "staffId"
+        let maybeStartTimeParam = paramOrNothing @Text "startTime"
+        let maybeEndTimeParam = paramOrNothing @Text "endTime"
+        let maybeShiftTypeParam = paramOrNothing @Text "shiftTypeId"
+        let maybeFlagParam = paramOrNothing @Text "note"
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        case normalizeOptionalSlotFlag maybeFlagParam of
+            Left errorMessage ->
+                if isHtmxRequest
+                    then respondWithRosterToast errorMessage "app-toast-error"
+                    else do
+                        setErrorMessage errorMessage
+                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+            Right normalizedFlag -> do
+                existingSlot <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> filterWhere (#rosterWeekSlotDefinitionId, unpackId slotDefinition.id)
+                    |> filterWhere (#rowIndex, rowIndex)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOneOrNothing
+                let baseSlot =
+                        fromMaybe
+                            ( newRecord @RosterSlot
+                            |> set #rosterDayId (unpackId rosterDay.id)
+                            |> set #rosterWeekSlotDefinitionId (unpackId slotDefinition.id)
+                            |> set #slotSortOrder slotDefinition.sortOrder
+                            |> set #rowIndex rowIndex
+                            )
+                            existingSlot
+                let newSlot =
+                        baseSlot
+                            |> applyOptionalField #staffId (parseOptionalStaffId maybeStaffParam) maybeStaffParam
+                            |> applyOptionalField #startTime (parseOptionalTime maybeStartTimeParam) maybeStartTimeParam
+                            |> applyOptionalField #endTime (parseOptionalTime maybeEndTimeParam) maybeEndTimeParam
+                            |> applyOptionalField #shiftTypeId (parseOptionalShiftTypeId maybeShiftTypeParam) maybeShiftTypeParam
+                            |> applyOptionalField #note normalizedFlag maybeFlagParam
+                            |> applyRosterSlotDuration
+
+                ensureOptionalStaffInCurrentVenue newSlot.staffId
+                ensureOptionalShiftTypeInCurrentVenue newSlot.shiftTypeId
+                isEligibleForAssignment <-
+                    case newSlot.staffId of
+                        Nothing -> pure True
+                        Just staffId -> staffIsEligibleForRosterGroup (Id staffId) rosterGroupId
+
+                if not isEligibleForAssignment
+                    then do
+                        let errorMessage = "That staff member is not applicable to this roster group."
+                        if isHtmxRequest
+                            then respondWithRosterToast errorMessage "app-toast-error"
+                            else do
+                                setErrorMessage errorMessage
+                                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                    else do
+                        when (rowIndex >= rosterDay.rowCount) do
+                            _ <- rosterDay
+                                |> set #rowCount (rowIndex + 1)
+                                |> updateRecord
+                            pure ()
+                        createdSlot <-
+                            case (existingSlot, rosterSlotHasData newSlot) of
+                                (Just _, True) ->
+                                    Just <$> updateRecord newSlot
+                                (Just _, False) -> do
+                                    now <- getCurrentTime
+                                    _ <- newSlot
+                                        |> set #deletedAt (Just now)
+                                        |> set #deletedByUserId (Just (unpackId currentUser.id))
+                                        |> set #deleteReason (Just "roster_slot_cleared")
+                                        |> updateRecord
+                                    pure Nothing
+                                (Nothing, True) ->
+                                    Just <$> createRecord newSlot
+                                (Nothing, False) ->
+                                    pure Nothing
+                        layoutMode <- fetchCurrentRosterLayoutMode
+                        let actorFragments =
+                                case rosterLayoutModeValue layoutMode of
+                                    "day_columns" ->
+                                        [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+                                        , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+                                        ]
+                                    _ ->
+                                        maybe
+                                            [buildRosterRowFragmentRef rosterGroupId rosterWeek.weekOffset (unpackId rosterDay.id) rowIndex]
+                                            (\slot ->
+                                                buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset [(slot.rosterDayId, slot.rowIndex)]
+                                                    <> buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset
+                                                    <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset]
+                                            )
+                                            createdSlot
+                        broadcastRosterWeekInvalidation rosterGroupId rosterWeek.weekOffset actorFragments
+                        if isHtmxRequest
+                            then respondWithActorRosterFragmentRefresh actorFragments
+                            else do
+                                setSuccessMessage "Roster slot updated."
+                                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+
     action UpdateRosterSlotAction { rosterSlotId } = do
         ensureManagerRole
 
@@ -566,16 +661,34 @@ instance Controller RosterWeeksController where
                                 setErrorMessage errorMessage
                                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
                     else do
-                        _ <- updatedSlot |> updateRecord
+                        if rosterSlotHasData updatedSlot
+                            then do
+                                _ <- updatedSlot |> updateRecord
+                                pure ()
+                            else do
+                                now <- getCurrentTime
+                                _ <- updatedSlot
+                                    |> set #deletedAt (Just now)
+                                    |> set #deletedByUserId (Just (unpackId currentUser.id))
+                                    |> set #deleteReason (Just "roster_slot_cleared")
+                                    |> updateRecord
+                                pure ()
                         let shouldWarnSourceTimesheetUnchanged =
                                 sourceTimesheetExists && rosterSlotTimesheetSourceChanged rosterSlot updatedSlot
 
                         relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, updatedSlot.staffId])
                         let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
+                        layoutMode <- fetchCurrentRosterLayoutMode
                         let actorFragments =
-                                buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset impactedRowKeys
-                                    <> buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset
-                                    <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset]
+                                case rosterLayoutModeValue layoutMode of
+                                    "day_columns" ->
+                                        [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+                                        , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+                                        ]
+                                    _ ->
+                                        buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset impactedRowKeys
+                                            <> buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset
+                                            <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset]
                         broadcastRosterWeekInvalidation
                             rosterGroupId
                             rosterWeek.weekOffset

@@ -355,6 +355,77 @@ tests = beforeAll testContext do
                 updatedSlot <- fetch slot.id
                 updatedSlot.note `shouldBe` Just "PM"
 
+        it "creates a sparse roster slot when editing a synthetic empty cell" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-create-sparse-slot@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotDefinition <- newRecord @RosterWeekSlotDefinition
+                    |> set #rosterWeekId (unpackId rosterWeek.id)
+                    |> set #name "Early"
+                    |> set #sortOrder 0
+                    |> createRecord
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 2)
+                            [("note", "pm")]
+
+                response `responseStatusShouldBe` status200
+                createdSlot <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> filterWhere (#rosterWeekSlotDefinitionId, unpackId slotDefinition.id)
+                    |> filterWhere (#rowIndex, 2)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOne
+                createdSlot.note `shouldBe` Just "PM"
+                updatedDay <- fetch rosterDay.id
+                updatedDay.rowCount `shouldBe` 4
+
+        it "extends day row count when creating a sparse slot beyond the current rows" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-create-sparse-slot-new-row@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotDefinition <- newRecord @RosterWeekSlotDefinition
+                    |> set #rosterWeekId (unpackId rosterWeek.id)
+                    |> set #name "Early"
+                    |> set #sortOrder 0
+                    |> createRecord
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (CreateRosterSlotAction rosterDay.id slotDefinition.id 5)
+                            [("note", "pm")]
+
+                response `responseStatusShouldBe` status200
+                updatedDay <- fetch rosterDay.id
+                updatedDay.rowCount `shouldBe` 6
+
+        it "soft-deletes a roster slot when its final data field is cleared" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-clear-sparse-slot@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName Nothing 0 >>= updateRecord . set #note (Just "PM")
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateRosterSlotAction slot.id) [("note", "")]
+
+                response `responseStatusShouldBe` status200
+                clearedSlot <- fetch slot.id
+                clearedSlot.deletedAt `shouldSatisfy` isJust
+
         it "rejects assigning staff who are not applicable to the slot's roster group via HTMX" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

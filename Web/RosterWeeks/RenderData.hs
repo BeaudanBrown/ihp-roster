@@ -206,7 +206,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
             shiftTypes <- profileActionSpan "roster.fetch_shift_types" fetchCurrentVenueRosterShiftTypes
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots)
             staffOptionStates <- profileActionSpan "roster.build_staff_option_states" (buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate rosterDays visibleSlots staffMembers)
-            orderedSlotNames <- profileActionSpan "roster.fetch_ordered_slot_names" (fetchRosterWeekOrderedSlotNamesFromSlots allSlots)
+            orderedSlotNames <- profileActionSpan "roster.fetch_ordered_slot_names" (fetchRosterWeekOrderedSlotNames rosterWeek)
             slotConflicts <-
                 if rosterWeek.isLive
                     then pure []

@@ -24,7 +24,14 @@ lands.
 - Roster weeks are venue-scoped and may be roster-group-scoped as the group
   model lands.
 - Roster days group slots by day offset.
-- Slot rows use `row_index` to align early/mid/late-style visual rows.
+- Roster days store their visible open-day row count independently of slots.
+- Roster slots are sparse positioned data records. Blank editable cells are
+  rendered from the day row count and active slot definitions; active blank
+  slots should not be stored.
+- Slot rows use `row_index` to align early/mid/late-style visual rows in the
+  default table layout.
+- Day-column layout renders actual slots compactly in column-major order and
+  ignores holes in the default table layout.
 - Slot names and shift types are venue configuration, not free-form authority.
 - End-time and explicit shift-type pilot behavior is tracked through
   `docs/workstreams/rooks-pilot.md` until the full contract is settled here.

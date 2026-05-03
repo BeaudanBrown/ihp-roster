@@ -18,6 +18,7 @@ tests = describe "Conflict Engine" do
             , rosterWeekId = def
             , dayOffset = 0
             , isClosed = False
+            , rowCount = 4
             , createdAt = def
             , updatedAt = def
             , meta = def

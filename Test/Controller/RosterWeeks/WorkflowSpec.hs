@@ -159,16 +159,9 @@ tests = beforeAll testContext do
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
                     |> orderByAsc #rowIndex
                     |> fetch
-                slotDefinitions <- query @RosterWeekSlotDefinition
-                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-                    |> filterWhere (#deletedAt, Nothing)
-                    |> orderByAsc #sortOrder
-                    |> fetch
-                let slotCount = length slotNames
-                let slotDefinitionIds = map (unpackId . (.id)) slotDefinitions
-                length slotsForDay `shouldBe` (5 * slotCount)
-                map (.rowIndex) slotsForDay `shouldBe` concatMap (replicate slotCount) [0, 1, 2, 3, 4]
-                map (.rosterWeekSlotDefinitionId) slotsForDay `shouldMatchList` concat (replicate 5 slotDefinitionIds)
+                slotsForDay `shouldBe` []
+                updatedDay <- fetch rosterDay.id
+                updatedDay.rowCount `shouldBe` 5
 
         it "manager can remove the last roster row via a day-section refresh" $ withContext do
             withCleanDb do
@@ -178,13 +171,11 @@ tests = beforeAll testContext do
                 slotName <- fetchSlotNameRecord venue "Early"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
-                _ <- createRosterSlotRecord rosterDay slotName Nothing 0
-                _ <- createRosterSlotRecord rosterDay slotName Nothing 1
-                _ <- createRosterSlotRecord rosterDay slotName Nothing 2
+                rosterDayWithRows <- updateRecord (rosterDay |> set #rowCount 3)
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (RemoveRosterRowAction rosterDay.id)
+                        callAction (RemoveRosterRowAction rosterDayWithRows.id)
 
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
@@ -199,10 +190,12 @@ tests = beforeAll testContext do
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
 
                 slotsForDay <- query @RosterSlot
-                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> filterWhere (#rosterDayId, unpackId rosterDayWithRows.id)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetch
-                map (.rowIndex) slotsForDay `shouldMatchList` [0, 1]
+                slotsForDay `shouldBe` []
+                updatedDay <- fetch rosterDayWithRows.id
+                updatedDay.rowCount `shouldBe` 2
 
         it "removing a populated row compacts holes before appending preserved shifts at the bottom" $ withContext do
             withCleanDb do
@@ -245,12 +238,13 @@ tests = beforeAll testContext do
                 late <- fetchSlotNameRecord venue "Late"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
-                early0 <- createRosterSlotRecord rosterDay early Nothing 0
-                early1 <- createRosterSlotRecord rosterDay early Nothing 1
-                early2 <- createRosterSlotRecord rosterDay early Nothing 2
-                late0 <- createRosterSlotRecord rosterDay late Nothing 0
-                late1 <- createRosterSlotRecord rosterDay late Nothing 1
-                late2 <- createRosterSlotRecord rosterDay late Nothing 2
+                rosterDayWithRows <- updateRecord (rosterDay |> set #rowCount 3)
+                early0 <- createRosterSlotRecord rosterDayWithRows early Nothing 0
+                early1 <- createRosterSlotRecord rosterDayWithRows early Nothing 1
+                early2 <- createRosterSlotRecord rosterDayWithRows early Nothing 2
+                late0 <- createRosterSlotRecord rosterDayWithRows late Nothing 0
+                late1 <- createRosterSlotRecord rosterDayWithRows late Nothing 1
+                late2 <- createRosterSlotRecord rosterDayWithRows late Nothing 2
                 _ <- updateRecord (early0 |> set #note (Just "E0"))
                 _ <- updateRecord (early1 |> set #note (Just "E1"))
                 _ <- updateRecord (late0 |> set #note (Just "L0"))
@@ -259,7 +253,7 @@ tests = beforeAll testContext do
 
                 previewResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (RemoveRosterRowAction rosterDay.id)
+                        callAction (RemoveRosterRowAction rosterDayWithRows.id)
                 previewResponse `responseStatusShouldBe` status200
                 previewResponse `responseBodyShouldContain` "1 shift cannot be packed into another column and will be deleted."
                 previewResponse `responseBodyShouldContain` "confirmDeletePopulatedRow"
@@ -272,7 +266,7 @@ tests = beforeAll testContext do
                 confirmResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
-                            (RemoveRosterRowAction rosterDay.id)
+                            (RemoveRosterRowAction rosterDayWithRows.id)
                             [("confirmDeletePopulatedRow", "true")]
                 confirmResponse `responseStatusShouldBe` status200
 
@@ -311,7 +305,7 @@ tests = beforeAll testContext do
                         |> filterWhere (#rosterWeekSlotDefinitionId, unpackId newColumn.id)
                         |> filterWhere (#deletedAt, Nothing)
                         |> fetch
-                map (.rowIndex) createdSlots `shouldBe` [0]
+                createdSlots `shouldBe` []
 
                 deleteResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do

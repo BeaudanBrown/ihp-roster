@@ -395,6 +395,9 @@ seedRosterGroup ::
 seedRosterGroup seedValue fillPercent fixtureWeekStart rosterGroup rosterDays slotNames staffPool = do
     forM_ (zip [0 :: Int ..] rosterDays) \(dayIndex, rosterDay) -> do
         let rowCount = 2
+        _ <- rosterDay
+            |> set #rowCount rowCount
+            |> updateRecord
         let seedRows _ [] = pure ()
             seedRows usedStaffIds (rowIndex:remainingRowIndexes) = do
                 let (assignments, nextUsedStaffIds) =
@@ -1008,14 +1011,17 @@ createRosterRow ::
     IO ()
 createRosterRow rosterDay slotNames rowIndex assignments = do
     slotDefinitions <- forM slotNames (ensureRosterWeekSlotDefinitionForSlotName rosterDay)
-    rosterSlotIds <- map Id <$> freshUUIDs (length slotDefinitions)
+    let assignedSlotDefinitions =
+            [ (slotDefinition, slotSeed)
+            | slotDefinition <- slotDefinitions
+            , Just slotSeed <- [lookup (get #name slotDefinition) assignments]
+            ]
+    rosterSlotIds <- map Id <$> freshUUIDs (length assignedSlotDefinitions)
     now <- getCurrentTime
-    void (createMany (zipWith (rosterSlotRecord now rosterDay rowIndex) rosterSlotIds slotDefinitions))
+    void (createMany (zipWith (rosterSlotRecord now rosterDay rowIndex) rosterSlotIds assignedSlotDefinitions))
     where
-        emptySeed = DevRosterSlotSeed { slotStaff = Nothing, slotStartTime = Nothing, slotNote = Nothing }
-        rosterSlotRecord now rosterDay rowIndex rosterSlotId slotDefinition =
-            let slotSeed = fromMaybe emptySeed (lookup (get #name slotDefinition) assignments)
-             in newRecord @RosterSlot
+        rosterSlotRecord now rosterDay rowIndex rosterSlotId (slotDefinition, slotSeed) =
+            newRecord @RosterSlot
                     |> set #id rosterSlotId
                     |> set #rosterDayId (unpackId (get #id rosterDay))
                     |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))

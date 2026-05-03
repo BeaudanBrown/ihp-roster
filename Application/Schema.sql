@@ -686,11 +686,13 @@ CREATE TABLE roster_days (
     roster_week_id UUID NOT NULL,
     day_offset INT NOT NULL,
     is_closed BOOLEAN DEFAULT FALSE NOT NULL,
+    row_count INT DEFAULT 4 NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(roster_week_id, day_offset),
     FOREIGN KEY (roster_week_id) REFERENCES roster_weeks (id) ON DELETE RESTRICT,
-    CHECK ((day_offset >= 0) AND (day_offset <= 6))
+    CHECK ((day_offset >= 0) AND (day_offset <= 6)),
+    CHECK (row_count >= 0)
 );
 CREATE TABLE roster_week_slot_definitions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,

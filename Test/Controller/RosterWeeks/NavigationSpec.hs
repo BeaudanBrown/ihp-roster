@@ -82,6 +82,10 @@ tests = beforeAll testContext do
             response <- callAction (UpdateRosterSlotAction "22222222-2222-2222-2222-222222222222")
             response `responseStatusShouldBe` status302
 
+        it "redirects unauthenticated users from CreateRosterSlotAction" $ withContext do
+            response <- callAction (CreateRosterSlotAction "11111111-1111-1111-1111-111111111111" "22222222-2222-2222-2222-222222222222" 0)
+            response `responseStatusShouldBe` status302
+
         it "redirects venue members without a completed staff profile to edit profile" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -117,10 +121,11 @@ tests = beforeAll testContext do
                     |> filterWhere (#rosterWeekId, unpackId createdWeek.id)
                     |> fetch
                 length createdDays `shouldBe` 7
+                map (.rowCount) createdDays `shouldBe` replicate 7 4
                 createdSlots <- query @RosterSlot
                     |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) createdDays)
                     |> fetch
-                length createdSlots `shouldBe` (7 * 4 * length slotNames)
+                length createdSlots `shouldBe` 0
 
         it "staff cannot see draft weeks but still gets the roster shell" $ withContext do
             withCleanDb do
