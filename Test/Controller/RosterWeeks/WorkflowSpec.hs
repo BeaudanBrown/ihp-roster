@@ -5,6 +5,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
+import Data.List (sortOn)
 import Data.Maybe (fromJust)
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -203,7 +204,7 @@ tests = beforeAll testContext do
                     |> fetch
                 map (.rowIndex) slotsForDay `shouldMatchList` [0, 1]
 
-        it "manager can add rename and delete draft week roster columns via HTMX" $ withContext do
+        it "manager can add and delete draft week roster spacing columns via HTMX" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-slot-columns@example.com" "staff" True
@@ -217,41 +218,126 @@ tests = beforeAll testContext do
                 createResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (CreateRosterWeekSlotDefinitionAction rosterWeek.id)
-                            [("name", "Graveyard")]
+                            []
                 createResponse `responseStatusShouldBe` status200
 
-                graveyard <- query @RosterWeekSlotDefinition
+                newColumn <- query @RosterWeekSlotDefinition
                     |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-                    |> filterWhere (#name, "Graveyard")
+                    |> filterWhere (#name, "New column")
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
                 createdSlots <-
                     query @RosterSlot
                         |> filterWhere (#rosterDayId, unpackId rosterDay.id)
-                        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId graveyard.id)
+                        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId newColumn.id)
                         |> filterWhere (#deletedAt, Nothing)
                         |> fetch
                 map (.rowIndex) createdSlots `shouldBe` [0]
 
-                renameResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterWeekSlotDefinitionAction graveyard.id)
-                            [("name", "Late Night")]
-                renameResponse `responseStatusShouldBe` status200
-                renamed <- fetch graveyard.id
-                renamed.name `shouldBe` "Late Night"
-
                 deleteResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callAction (DeleteRosterWeekSlotDefinitionAction graveyard.id)
+                        callAction (DeleteRosterWeekSlotDefinitionAction newColumn.id)
                 deleteResponse `responseStatusShouldBe` status200
-                deleted <- fetch graveyard.id
+                deleted <- fetch newColumn.id
                 deleted.deletedAt `shouldSatisfy` isJust
                 deletedSlots <-
                     query @RosterSlot
-                        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId graveyard.id)
+                        |> filterWhere (#rosterWeekSlotDefinitionId, unpackId newColumn.id)
                         |> fetch
                 deletedSlots `shouldSatisfy` all (isJust . (.deletedAt))
+
+        it "manager can manually sort draft week shifts top-to-bottom then across columns" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-sort-columns@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                early <- fetchSlotNameRecord venue "Early"
+                late <- fetchSlotNameRecord venue "Late"
+                alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
+                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
+                charlie <- createStaffRecord venue Nothing "Charlie" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                charlieSlot <- createRosterSlotRecord rosterDay early (Just charlie) 0
+                alphaSlot <- createRosterSlotRecord rosterDay late (Just alpha) 0
+                bravoSlot <- createRosterSlotRecord rosterDay early (Just bravo) 1
+                _ <- updateRecord (charlieSlot |> set #startTime (Just (timeOfDay 11 0)))
+                _ <- updateRecord (alphaSlot |> set #startTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (bravoSlot |> set #startTime (Just (timeOfDay 9 0)))
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (SortRosterWeekAction rosterWeek.id)
+                response `responseStatusShouldBe` status200
+
+                sortedAlphaSlot <- fetch alphaSlot.id
+                sortedBravoSlot <- fetch bravoSlot.id
+                sortedCharlieSlot <- fetch charlieSlot.id
+                earlyDefinition <- query @RosterWeekSlotDefinition
+                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                    |> filterWhere (#name, "Early")
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOne
+                lateDefinition <- query @RosterWeekSlotDefinition
+                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                    |> filterWhere (#name, "Late")
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOne
+
+                sortedAlphaSlot.id `shouldBe` alphaSlot.id
+                sortedAlphaSlot.rosterWeekSlotDefinitionId `shouldBe` unpackId earlyDefinition.id
+                sortedAlphaSlot.rowIndex `shouldBe` 0
+                sortedBravoSlot.id `shouldBe` bravoSlot.id
+                sortedBravoSlot.rosterWeekSlotDefinitionId `shouldBe` unpackId earlyDefinition.id
+                sortedBravoSlot.rowIndex `shouldBe` 1
+                sortedCharlieSlot.id `shouldBe` charlieSlot.id
+                sortedCharlieSlot.rosterWeekSlotDefinitionId `shouldBe` unpackId lateDefinition.id
+                sortedCharlieSlot.rowIndex `shouldBe` 0
+
+        it "deleting a populated roster column reallocates shifts into remaining columns and adds rows" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-delete-packed-column@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                early <- fetchSlotNameRecord venue "Early"
+                late <- fetchSlotNameRecord venue "Late"
+                alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
+                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
+                charlie <- createStaffRecord venue Nothing "Charlie" "Crew"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                bravoSlot <- createRosterSlotRecord rosterDay early (Just bravo) 0
+                charlieSlot <- createRosterSlotRecord rosterDay late (Just charlie) 0
+                alphaSlot <- createRosterSlotRecord rosterDay late (Just alpha) 1
+                _ <- updateRecord (bravoSlot |> set #startTime (Just (timeOfDay 10 0)) |> set #note (Just "BR"))
+                _ <- updateRecord (charlieSlot |> set #startTime (Just (timeOfDay 11 0)) |> set #note (Just "CH"))
+                _ <- updateRecord (alphaSlot |> set #startTime (Just (timeOfDay 9 0)) |> set #note (Just "AL"))
+                earlyDefinition <- query @RosterWeekSlotDefinition
+                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                    |> filterWhere (#name, "Early")
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOne
+                lateDefinition <- query @RosterWeekSlotDefinition
+                    |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+                    |> filterWhere (#name, "Late")
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetchOne
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (DeleteRosterWeekSlotDefinitionAction lateDefinition.id)
+                response `responseStatusShouldBe` status200
+
+                deletedLateDefinition <- fetch lateDefinition.id
+                deletedLateDefinition.deletedAt `shouldSatisfy` isJust
+                packedSlots <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                let packedDataSlots = sortOn (.rowIndex) (filter (\slot -> slot.rosterWeekSlotDefinitionId == unpackId earlyDefinition.id && isJust slot.staffId) packedSlots)
+                map (.id) packedDataSlots `shouldBe` [alphaSlot.id, bravoSlot.id, charlieSlot.id]
+                map (.rowIndex) packedDataSlots `shouldBe` [0, 1, 2]
+                map (.note) packedDataSlots `shouldBe` [Just "AL", Just "BR", Just "CH"]
 
         it "manager can toggle a draft week live via HTMX without redirecting" $ withContext do
             withCleanDb do
