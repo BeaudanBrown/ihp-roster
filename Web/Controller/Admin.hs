@@ -146,8 +146,8 @@ instance Controller AdminController where
                     |> updateRecord
                 setSuccessMessage $
                     if rosterEndTimesEnabled
-                        then "Roster end times and shift types enabled."
-                        else "Roster end times and shift types disabled."
+                        then "Roster end times enabled."
+                        else "Roster end times disabled."
                 redirectToAdminFor (paramOrNothing "rosterGroupId")
             "autoTimesheetCreationEnabled" -> do
                 let autoTimesheetCreationEnabled = isJust (paramOrNothing @Text "autoTimesheetCreationEnabled")

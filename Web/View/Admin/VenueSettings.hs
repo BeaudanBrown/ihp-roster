@@ -29,8 +29,8 @@ renderRosterEndTimesForm venueConfig = [hsx|
           class="admin-setting-row">
         <input type="hidden" name="configField" value="rosterEndTimesEnabled" />
         <div class="admin-setting-row-copy">
-            <div class="fw-semibold">Roster end times and shift types</div>
-            <p class="small app-muted mb-0">Require staffed shifts to have start time, end time, and shift type before going live.</p>
+            <div class="fw-semibold">Roster end times</div>
+            <p class="small app-muted mb-0">Require staffed shifts to have start and end times before going live.</p>
         </div>
         <div class="form-check form-switch mb-0 admin-setting-row-control">
             <input class="form-check-input"
