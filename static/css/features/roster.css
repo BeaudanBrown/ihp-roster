@@ -1047,13 +1047,14 @@
     display: block;
     overflow-x: auto;
     padding: 0.9rem;
+    --roster-day-column-width: 30%;
 }
 
 .roster-day-columns {
     display: grid;
-    grid-template-columns: repeat(var(--roster-day-count), minmax(12.5rem, 1fr));
+    grid-template-columns: repeat(var(--roster-day-count), minmax(19.4rem, 1fr));
     gap: 0.75rem;
-    min-width: min(88rem, calc(var(--roster-day-count) * 13rem));
+    min-width: min(88rem, calc(var(--roster-day-count) * 20rem));
 }
 
 .roster-day-column {
@@ -1242,8 +1243,12 @@
         min-width: 48rem;
     }
 
-    .roster-grid-frame {
+    .roster-grid-frame:not([data-roster-layout="day_columns"]) {
         --roster-day-column-width: 9.75rem;
+    }
+
+    .roster-grid-frame[data-roster-layout="day_columns"] {
+        --roster-day-column-width: 15rem;
     }
 
     .roster-slots-scroller {
