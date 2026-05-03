@@ -660,21 +660,6 @@
     min-width: max(100%, calc(var(--roster-slot-count) * 20.2rem));
 }
 
-.roster-slot-column-toolbar {
-    min-width: 0;
-    max-width: 100%;
-    overflow-x: hidden;
-}
-
-.roster-slot-column-toolbar form {
-    min-width: 0;
-    max-width: 100%;
-}
-
-.roster-slot-column-toolbar .roster-slot-column-name-input {
-    min-width: 0;
-}
-
 .roster-grid [role="columnheader"],
 .roster-grid [role="gridcell"] {
     min-width: 0;
@@ -722,7 +707,6 @@
 }
 
 .roster-column-edit-done,
-.roster-slot-column-name-form,
 .roster-slot-column-delete,
 .roster-slot-column-add-form {
     display: none;
@@ -751,26 +735,9 @@
     position: relative;
 }
 
-.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-name-static {
-    display: none;
-}
-
-.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-name-form,
 .roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-delete,
 .roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-add-form {
     display: inline-flex;
-}
-
-.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-name-form {
-    min-width: 0;
-    flex: 1 1 auto;
-    max-width: 11rem;
-}
-
-.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-name-input {
-    border-color: var(--app-accent);
-    background-color: var(--app-surface);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 35%, transparent);
 }
 
 .roster-grid .roster-subhead {
@@ -1127,16 +1094,6 @@
     overflow: hidden;
 }
 
-.roster-shift-card-title {
-    padding: 0.42rem 0.55rem;
-    border-bottom: 1px solid var(--app-border-alpha-70);
-    color: var(--app-muted);
-    font-size: var(--roster-text-xs);
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-}
-
 .roster-shift-card-fields {
     display: grid;
     grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.45fr) minmax(0, 0.75fr);
@@ -1282,19 +1239,6 @@
 
     .roster-grid {
         font-size: var(--roster-text-xs);
-    }
-
-    .roster-slot-column-toolbar {
-        justify-content: flex-start !important;
-    }
-
-    .roster-slot-column-toolbar form {
-        width: 100%;
-    }
-
-    .roster-slot-column-toolbar .roster-slot-column-name-input {
-        flex: 1 1 auto;
-        width: 0;
     }
 
     .roster-day-rail-section .roster-day-label-row {

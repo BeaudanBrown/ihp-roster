@@ -128,7 +128,7 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
             </div>
             <div class="dropdown-divider my-1"></div>
             {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode}
-            {renderRosterColumnEditMenuSection viewCapabilities}
+            {renderRosterColumnEditMenuSection maybeRosterWeek viewCapabilities}
             {renderRosterExportMenuSection viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
             {when (shouldShowRosterWeekMenuDivider maybeRosterWeek viewCapabilities) divider}
@@ -169,22 +169,43 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 
-renderRosterColumnEditMenuSection :: RosterViewCapabilities -> Html
-renderRosterColumnEditMenuSection viewCapabilities
+renderRosterColumnEditMenuSection :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities -> Html
+renderRosterColumnEditMenuSection maybeRosterWeek viewCapabilities
     | not viewCapabilities.canManageRosterColumns = mempty
     | otherwise = [hsx|
         <div class="px-1 py-1">
             <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Roster columns</div>
-            <div class="form-check form-switch mb-0 px-1">
+            <div class="form-check form-switch px-1 mb-2">
                 <input type="checkbox"
                        id="roster-column-edit-toggle"
                        class="form-check-input ms-0 me-2"
                        data-roster-column-edit-toggle="true" />
                 <label class="form-check-label small" for="roster-column-edit-toggle">Edit roster columns</label>
             </div>
+            {renderRosterSortForm maybeRosterWeek}
         </div>
         <div class="dropdown-divider my-1"></div>
 |]
+
+renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
+renderRosterSortForm (Just rosterWeek)
+    | not rosterWeek.isLive = [hsx|
+        <form method="POST"
+              action={SortRosterWeekAction rosterWeek.id}
+              class="mb-0"
+              data-disable-javascript-submission="true"
+              hx-post={SortRosterWeekAction rosterWeek.id}
+              hx-target={"#" <> rosterContentFragmentId}
+              hx-swap="none"
+              hx-push-url="false"
+              hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+            <button type="submit" class="btn btn-outline-secondary btn-sm w-100 text-start">
+                <i class="bi bi-sort-down me-1" aria-hidden="true"></i>
+                Sort shifts
+            </button>
+        </form>
+    |]
+renderRosterSortForm _ = mempty
 
 renderRosterExportMenuSection :: RosterViewCapabilities -> Html
 renderRosterExportMenuSection viewCapabilities

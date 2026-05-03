@@ -174,37 +174,18 @@ renderRosterColumnEditDoneButton True = [hsx|
 renderRosterColumnEditDoneButton False = mempty
 
 renderSlotHeaderGroup :: (?context :: ControllerContext) => Bool -> Maybe RosterWeek -> Bool -> Int -> (Int, RosterWeekSlotDefinition) -> Html
-renderSlotHeaderGroup endTimesEnabled _ False _ (_, slotName) = [hsx|
+renderSlotHeaderGroup endTimesEnabled _ False _ (slotIndex, _) = [hsx|
     <div role="columnheader"
          class="roster-block-header"
-         style={slotHeaderGridColumnStyle endTimesEnabled}>{slotName.name}</div>
+         aria-label={"Roster column " <> tshow (slotIndex + 1)}
+         style={slotHeaderGridColumnStyle endTimesEnabled}></div>
 |]
 renderSlotHeaderGroup endTimesEnabled (Just rosterWeek) True slotCount (slotIndex, slotName) = [hsx|
     <div role="columnheader"
          class="roster-block-header"
+         aria-label={"Roster column " <> tshow (slotIndex + 1)}
          style={slotHeaderGridColumnStyle endTimesEnabled}>
         <div class="d-flex align-items-center justify-content-center gap-2 roster-slot-column-header">
-            <span class="roster-slot-column-name-static">{slotName.name}</span>
-            <form method="POST"
-                  action={UpdateRosterWeekSlotDefinitionAction slotName.id}
-                  class="mb-0 roster-slot-column-name-form"
-                  data-disable-javascript-submission="true"
-                  hx-post={UpdateRosterWeekSlotDefinitionAction slotName.id}
-                  hx-trigger="change delay:250ms"
-                  hx-target={"#" <> rosterContentFragmentId}
-                  hx-swap="none"
-                  hx-push-url="false"
-                  hx-sync={"#" <> rosterWeekShellId <> ":queue last"}>
-                <input id={slotDefinitionInputId slotName.id}
-                       type="text"
-                       name="name"
-                       value={slotName.name}
-                       maxlength="120"
-                       class="form-control form-control-sm text-center roster-slot-column-name-input"
-                       aria-label="Roster column name"
-                       data-roster-field-key={rosterSlotDefinitionFieldKey slotName.id}
-                       required="required" />
-            </form>
             <form method="POST"
                   action={DeleteRosterWeekSlotDefinitionAction slotName.id}
                   class="mb-0"
@@ -227,10 +208,11 @@ renderSlotHeaderGroup endTimesEnabled (Just rosterWeek) True slotCount (slotInde
         </div>
     </div>
 |]
-renderSlotHeaderGroup endTimesEnabled _ _ _ (_, slotName) = [hsx|
+renderSlotHeaderGroup endTimesEnabled _ _ _ (slotIndex, _) = [hsx|
     <div role="columnheader"
          class="roster-block-header"
-         style={slotHeaderGridColumnStyle endTimesEnabled}>{slotName.name}</div>
+         aria-label={"Roster column " <> tshow (slotIndex + 1)}
+         style={slotHeaderGridColumnStyle endTimesEnabled}></div>
 |]
 
 slotColumnCount :: Bool -> Int
@@ -261,14 +243,6 @@ renderSlotAddButton rosterWeek True = [hsx|
     </form>
 |]
 renderSlotAddButton _ False = mempty
-
-slotDefinitionInputId :: Id RosterWeekSlotDefinition -> Text
-slotDefinitionInputId slotDefinitionId =
-    "roster-slot-definition-name-" <> tshow slotDefinitionId
-
-rosterSlotDefinitionFieldKey :: Id RosterWeekSlotDefinition -> Text
-rosterSlotDefinitionFieldKey slotDefinitionId =
-    "slot-definition:" <> tshow slotDefinitionId <> ":name"
 
 renderSlotSubHeaders :: Bool -> RosterWeekSlotDefinition -> Html
 renderSlotSubHeaders True _ =
@@ -649,7 +623,6 @@ renderDayColumnSlotCard isEditable assignmentFilters staffMembers staffOptionSta
                     <article class={classes [("roster-shift-card", True), (renderConflictClass currentPrimaryConflict, True)]}
                              title={renderConflictMessage currentPrimaryConflict}
                              data-conflict-message={renderConflictMessage currentPrimaryConflict}>
-                        <div class="roster-shift-card-title">{slotName.name}</div>
                         <div class={classes [("roster-shift-card-fields", True), ("has-end-times", endTimesEnabled)]}>
                             <div class="roster-shift-card-field roster-shift-card-time">
                                 {if isEditable then renderEditableTimeCell "startTime" "Select roster slot start time" "Start" slot.id currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}

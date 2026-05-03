@@ -301,6 +301,32 @@ instance Controller RosterWeeksController where
                     ]
                 respondToRosterSlotDefinitionSuccess rosterWeek "Roster column removed."
 
+    action SortRosterWeekAction { rosterWeekId } = do
+        ensureManagerRole
+        rosterWeek <- fetch rosterWeekId
+        ensureRecordInCurrentVenue rosterWeek.venueId
+        ensureRosterWeekIsDraftForEdit rosterWeek
+
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        withTransaction do
+            repackRosterWeekDays rosterWeek
+
+        broadcastRosterWeekInvalidation
+            rosterGroupId
+            rosterWeek.weekOffset
+            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+            ]
+        if isHtmxRequest
+            then
+                respondWithActorRosterFragmentRefresh
+                    [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
+                    , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
+                    ]
+            else do
+                setSuccessMessage "Roster sorted."
+                redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+
     action ToggleRosterDayClosedAction { rosterDayId } = do
         ensureManagerRole
 
