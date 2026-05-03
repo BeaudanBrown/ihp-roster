@@ -710,7 +710,7 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
             | isEditable = renderEditableNoteCell target currentNote
             | otherwise = renderReadOnlyCell currentNote
      in [hsx|
-        <article class={classes [("roster-shift-card", True), ("roster-shift-card-empty", not (targetHasExistingSlot target)), (renderConflictClass currentPrimaryConflict, True)]}
+        <article class={classes [("roster-shift-card", True), ("roster-shift-card-create", not (targetHasExistingSlot target))]}
                  title={renderConflictMessage currentPrimaryConflict}
                  data-conflict-message={renderConflictMessage currentPrimaryConflict}>
             <div class={classes [("roster-shift-card-fields", True), ("has-end-times", endTimesEnabled)]}>
@@ -718,7 +718,7 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
                     {if isEditable then renderEditableTimeCell "startTime" "Select roster slot start time" "Start" target currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
                 </div>
                 {endTimeField}
-                <div class="roster-shift-card-field roster-shift-card-staff">
+                <div class={classes [("roster-shift-card-field roster-shift-card-staff", True), (renderConflictClass currentPrimaryConflict, True)]}>
                     {if isEditable then renderEditableStaffCell assignmentFilters target staffId staffMembers staffOptionStates currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
                 </div>
                 <div class="roster-shift-card-field roster-shift-card-code">
