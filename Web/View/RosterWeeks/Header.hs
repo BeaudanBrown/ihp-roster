@@ -128,7 +128,7 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
             </div>
             <div class="dropdown-divider my-1"></div>
             {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode}
-            {renderRosterColumnEditMenuSection maybeRosterWeek viewCapabilities}
+            {renderRosterColumnMenuSection maybeRosterWeek viewCapabilities}
             {renderRosterExportMenuSection viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
             {when (shouldShowRosterWeekMenuDivider maybeRosterWeek viewCapabilities) divider}
@@ -169,23 +169,21 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 
-renderRosterColumnEditMenuSection :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities -> Html
-renderRosterColumnEditMenuSection maybeRosterWeek viewCapabilities
+renderRosterColumnMenuSection :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities -> Html
+renderRosterColumnMenuSection maybeRosterWeek viewCapabilities
     | not viewCapabilities.canManageRosterColumns = mempty
+    | not (shouldShowRosterSortForm maybeRosterWeek) = mempty
     | otherwise = [hsx|
         <div class="px-1 py-1">
             <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Roster columns</div>
-            <div class="form-check form-switch px-1 mb-2">
-                <input type="checkbox"
-                       id="roster-column-edit-toggle"
-                       class="form-check-input ms-0 me-2"
-                       data-roster-column-edit-toggle="true" />
-                <label class="form-check-label small" for="roster-column-edit-toggle">Edit roster columns</label>
-            </div>
             {renderRosterSortForm maybeRosterWeek}
         </div>
         <div class="dropdown-divider my-1"></div>
 |]
+
+shouldShowRosterSortForm :: Maybe RosterWeek -> Bool
+shouldShowRosterSortForm (Just rosterWeek) = not rosterWeek.isLive
+shouldShowRosterSortForm Nothing = False
 
 renderRosterSortForm :: (?context :: ControllerContext) => Maybe RosterWeek -> Html
 renderRosterSortForm (Just rosterWeek)

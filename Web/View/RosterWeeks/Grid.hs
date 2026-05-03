@@ -136,6 +136,7 @@ renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek s
     <div class="roster-day-rail" aria-label="Roster days">
         <div class="roster-day-rail-head">
             <span class="roster-day-rail-head-label">Day</span>
+            {renderRosterColumnEditStartButton slotColumnsAreEditable}
             {renderRosterColumnEditDoneButton slotColumnsAreEditable}
         </div>
         <div class="roster-day-rail-body">
@@ -160,6 +161,19 @@ renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek s
 rosterWeekIsEditable :: (?context :: ControllerContext) => Maybe RosterWeek -> Bool
 rosterWeekIsEditable maybeRosterWeek =
     currentUserIsManager && maybe False (not . (.isLive)) maybeRosterWeek
+
+renderRosterColumnEditStartButton :: Bool -> Html
+renderRosterColumnEditStartButton True = [hsx|
+    <button type="button"
+            class="btn btn-sm btn-outline-secondary roster-column-edit-start"
+            data-roster-column-edit-start="true"
+            aria-label="Edit roster columns"
+            aria-pressed="false"
+            title="Edit roster columns">
+        <i class="bi bi-pencil" aria-hidden="true"></i>
+    </button>
+|]
+renderRosterColumnEditStartButton False = mempty
 
 renderRosterColumnEditDoneButton :: Bool -> Html
 renderRosterColumnEditDoneButton True = [hsx|

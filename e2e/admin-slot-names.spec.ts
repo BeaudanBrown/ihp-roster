@@ -29,9 +29,12 @@ test.describe('Roster week columns', () => {
 
         await expect(editorPage.locator('.roster-slot-column-name-input')).toHaveCount(0);
         await expect(editorPage.getByRole('button', { name: 'Add roster column' })).not.toBeVisible();
-        await editorPage.getByRole('button', { name: 'Roster actions' }).click();
-        await editorPage.getByLabel('Edit roster columns').check();
+        await expect(editorGrid.locator('.roster-grid-header-row-subheads')).toBeVisible();
+        await expect(editorGrid.locator('.roster-grid-header-row-blocks')).toBeHidden();
+        await editorPage.getByRole('button', { name: 'Edit roster columns' }).click();
         await expect(editorPage.getByRole('button', { name: 'Finish editing roster columns' })).toBeVisible();
+        await expect(editorGrid.locator('.roster-grid-header-row-subheads')).toBeHidden();
+        await expect(editorGrid.locator('.roster-grid-header-row-blocks')).toBeVisible();
 
         const createResponsePromise = editorPage.waitForResponse((response) => {
             return response.request().method() === 'POST' && response.url().includes('/CreateRosterWeekSlotDefinition');

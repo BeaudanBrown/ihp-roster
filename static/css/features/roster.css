@@ -607,7 +607,7 @@
 
 .roster-grid-frame {
     --roster-day-column-width: 18%;
-    --roster-grid-header-height: 4.35rem;
+    --roster-grid-header-height: 3rem;
     --roster-grid-row-height: calc(var(--roster-row-height) + 0.65rem);
     display: grid;
     grid-template-columns: minmax(0, var(--roster-day-column-width)) minmax(0, calc(100% - var(--roster-day-column-width)));
@@ -627,10 +627,13 @@
 }
 
 .roster-day-rail-head {
+    height: var(--roster-grid-header-height);
     min-height: var(--roster-grid-header-height);
+    box-sizing: border-box;
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 0.35rem;
     padding: 0.5rem;
     border-top: 1px solid var(--app-border);
     border-bottom: 1px solid var(--app-border-strong);
@@ -687,12 +690,18 @@
     border-bottom: 1px solid var(--app-border-strong);
 }
 
+.roster-grid .roster-grid-header-row-blocks {
+    display: none;
+}
+
 .roster-grid .roster-grid-header-row-blocks [role="columnheader"] {
-    height: 2.45rem;
+    height: var(--roster-grid-header-height);
+    min-height: var(--roster-grid-header-height);
 }
 
 .roster-grid .roster-grid-header-row-subheads [role="columnheader"] {
-    height: 1.9rem;
+    height: var(--roster-grid-header-height);
+    min-height: var(--roster-grid-header-height);
 }
 
 .roster-grid .roster-block-header {
@@ -706,6 +715,7 @@
     border-left: 2px solid var(--app-border-strong);
 }
 
+.roster-column-edit-start,
 .roster-column-edit-done,
 .roster-slot-column-delete,
 .roster-slot-column-add-form {
@@ -716,14 +726,20 @@
     background-color: color-mix(in srgb, var(--app-success) 16%, var(--roster-subhead));
 }
 
-.roster-grid-frame[data-roster-column-editing="true"] .roster-day-rail-head-label {
-    display: none;
-}
-
+.roster-grid-frame[data-roster-column-editor="available"] .roster-column-edit-start,
 .roster-grid-frame[data-roster-column-editing="true"] .roster-column-edit-done {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-column-edit-start,
+.roster-grid-frame[data-roster-column-editing="true"] .roster-grid-header-row-subheads {
+    display: none;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-grid-header-row-blocks {
+    display: grid;
 }
 
 .roster-grid-frame[data-roster-column-editing="true"] .roster-grid .roster-block-header {

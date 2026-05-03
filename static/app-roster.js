@@ -95,9 +95,9 @@
             frameEl.dataset.rosterColumnEditing = enabled ? 'true' : 'false';
         });
 
-        document.querySelectorAll('[data-roster-column-edit-toggle]').forEach(function (toggleEl) {
-            if (toggleEl instanceof HTMLInputElement) {
-                toggleEl.checked = enabled;
+        document.querySelectorAll('[data-roster-column-edit-start]').forEach(function (buttonEl) {
+            if (buttonEl instanceof HTMLElement) {
+                buttonEl.setAttribute('aria-pressed', enabled ? 'true' : 'false');
             }
         });
     }
@@ -105,16 +105,6 @@
     function setColumnEditMode(enabled) {
         columnEditEnabled = Boolean(enabled);
         syncColumnEditMode();
-    }
-
-    function closeContainingDropdown(element) {
-        const dropdownEl = element instanceof HTMLElement ? element.closest('.dropdown') : null;
-        const triggerEl = dropdownEl ? dropdownEl.querySelector('[data-bs-toggle="dropdown"]') : null;
-        if (!(triggerEl instanceof HTMLElement)) return;
-
-        if (window.bootstrap && window.bootstrap.Dropdown) {
-            window.bootstrap.Dropdown.getOrCreateInstance(triggerEl).hide();
-        }
     }
 
     function finishColumnEditing() {
@@ -130,12 +120,12 @@
         setColumnEditMode(false);
     }
 
-    document.addEventListener('change', function (event) {
-        const toggleEl = event.target.closest('[data-roster-column-edit-toggle]');
-        if (!(toggleEl instanceof HTMLInputElement)) return;
+    document.addEventListener('click', function (event) {
+        const startButton = event.target.closest('[data-roster-column-edit-start]');
+        if (!(startButton instanceof HTMLElement)) return;
 
-        setColumnEditMode(toggleEl.checked);
-        closeContainingDropdown(toggleEl);
+        event.preventDefault();
+        setColumnEditMode(true);
     });
 
     document.addEventListener('click', function (event) {
