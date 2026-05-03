@@ -357,7 +357,7 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
                  class={classes [("roster-day-column", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
             <header class="roster-day-column-header">
                 <div class="roster-day-heading">{renderPrimaryDayLabel date}</div>
-                {renderDayRowControls dayIsEditable rosterDay lastRowIndex}
+                {renderDayColumnHeaderControls dayIsEditable rosterDay}
             </header>
             <div class="roster-day-column-body">
                 {forEach compactSlots (renderDayColumnRosterSlotCard dayModel)}
@@ -504,6 +504,19 @@ renderDayRowControls isEditable rosterDay lastRowIndex
                 {renderToggleClosedButton rosterDay}
                 {when (not rosterDay.isClosed) (renderDeleteLastRowButton rosterDay lastRowIndex)}
                 {when (not rosterDay.isClosed) (renderAddRowButton rosterDay)}
+            </span>
+        |]
+    | rosterDay.isClosed =
+        [hsx|<span class="roster-day-closed-label">CLOSED</span>|]
+    | otherwise =
+        [hsx|<span class="roster-day-actions-placeholder"></span>|]
+
+renderDayColumnHeaderControls :: (?context :: ControllerContext) => Bool -> RosterDay -> Html
+renderDayColumnHeaderControls isEditable rosterDay
+    | isEditable =
+        [hsx|
+            <span class="roster-day-actions">
+                {renderToggleClosedButton rosterDay}
             </span>
         |]
     | rosterDay.isClosed =
