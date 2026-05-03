@@ -6,6 +6,7 @@ module Web.View.RosterWeeks.Grid
     , renderRosterDaySectionFragmentOob
     , renderRowFragment
     , renderRowOob
+    , compactDayColumnSlots
     , rowsForDay
     ) where
 
@@ -15,7 +16,7 @@ import Application.Helper.View (staffDisplayName)
 import Data.Coerce (coerce)
 import Data.List (find, sortOn)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import qualified Data.Time.Calendar as Calendar
@@ -376,7 +377,9 @@ compactDayColumnSlots slotNames daySlots =
             | (slotIndex, slotName) <- zip [0 :: Int ..] slotNames
             ]
     slotOrder slot =
-        ( Map.findWithDefault (length slotNames) slot.rosterWeekSlotDefinitionId definitionOrderById
+        ( isNothing slot.startTime
+        , slot.startTime
+        , Map.findWithDefault (length slotNames) slot.rosterWeekSlotDefinitionId definitionOrderById
         , slot.rowIndex
         , slot.createdAt
         , slot.id
@@ -730,7 +733,7 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
 
 targetHasExistingSlot :: RosterSlotCellTarget -> Bool
 targetHasExistingSlot ExistingRosterSlotTarget {} = True
-targetHasExistingSlot NewRosterSlotTarget {} = False
+targetHasExistingSlot NewRosterSlotTarget {}      = False
 
 renderEmptyBlockCells :: Bool -> Int -> Html
 renderEmptyBlockCells True blockIndex =
