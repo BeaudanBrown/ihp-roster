@@ -789,7 +789,8 @@
         slotHighlightStartClass,
         slotHighlightEndClass,
     ];
-    let activeRosterStaffId = '';
+    let hoverRosterStaffId = '';
+    let pinnedRosterStaffId = '';
 
     function clearRosterStaffHighlights() {
         const selector = highlightClasses.map((className) => `.${className}`).join(', ');
@@ -837,10 +838,23 @@
         return event.relatedTarget instanceof Node && row.contains(event.relatedTarget);
     }
 
+    function syncLocateButtons() {
+        document.querySelectorAll('[data-roster-staff-highlight-toggle="true"]').forEach(function (button) {
+            if (!(button instanceof HTMLElement)) return;
+
+            const row = button.closest(rosterStaffRowSelector);
+            const isPressed = Boolean(row && row.dataset.rosterStaffId === pinnedRosterStaffId);
+            button.setAttribute('aria-pressed', isPressed ? 'true' : 'false');
+        });
+    }
+
     function highlightRosterStaff(staffId) {
         clearRosterStaffHighlights();
 
-        if (!staffId) return;
+        if (!staffId) {
+            syncLocateButtons();
+            return;
+        }
 
         staffElements(rosterStaffRowSelector, staffId).forEach(function (element) {
             element.classList.add(rowHighlightClass);
@@ -848,24 +862,43 @@
 
         highlightSlotElements(staffElements('.roster-grid [role="gridcell"][data-roster-staff-id][data-roster-slot-id]', staffId));
         highlightSlotElements(staffElements('.roster-shift-card[data-roster-staff-id][data-roster-slot-id]', staffId));
+        syncLocateButtons();
+    }
+
+    function refreshRosterStaffHighlight() {
+        highlightRosterStaff(pinnedRosterStaffId || hoverRosterStaffId);
     }
 
     function activateRosterStaff(row) {
         const staffId = row.dataset.rosterStaffId || '';
         if (!staffId) return;
 
-        activeRosterStaffId = staffId;
-        highlightRosterStaff(staffId);
+        hoverRosterStaffId = staffId;
+        refreshRosterStaffHighlight();
     }
 
     function deactivateRosterStaff(row) {
         const staffId = row.dataset.rosterStaffId || '';
-        if (!staffId || staffId !== activeRosterStaffId) {
+        if (!staffId || staffId !== hoverRosterStaffId) {
             return;
         }
 
-        activeRosterStaffId = '';
-        clearRosterStaffHighlights();
+        hoverRosterStaffId = '';
+        refreshRosterStaffHighlight();
+    }
+
+    function togglePinnedRosterStaff(row) {
+        const staffId = row.dataset.rosterStaffId || '';
+        if (!staffId) return;
+
+        if (pinnedRosterStaffId === staffId) {
+            pinnedRosterStaffId = '';
+            hoverRosterStaffId = '';
+        } else {
+            pinnedRosterStaffId = staffId;
+        }
+
+        refreshRosterStaffHighlight();
     }
 
     function handleStaffRowEnter(event) {
@@ -898,12 +931,31 @@
         deactivateRosterStaff(row);
     });
 
+    document.addEventListener('click', function (event) {
+        const toggleButton = event.target.closest('[data-roster-staff-highlight-toggle="true"]');
+        if (!(toggleButton instanceof HTMLElement)) return;
+
+        const row = toggleButton.closest(rosterStaffRowSelector);
+        if (!(row instanceof HTMLElement)) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        togglePinnedRosterStaff(row);
+    }, true);
+
+    document.addEventListener('keydown', function (event) {
+        const row = staffRowFromEvent(event);
+        if (!row || event.target !== row || (event.key !== 'Enter' && event.key !== ' ')) return;
+
+        event.preventDefault();
+        row.click();
+    });
+
     document.addEventListener('app:page-ready', function () {
-        if (activeRosterStaffId) {
-            highlightRosterStaff(activeRosterStaffId);
-            return;
+        if (pinnedRosterStaffId && !staffElements(rosterStaffRowSelector, pinnedRosterStaffId).length) {
+            pinnedRosterStaffId = '';
         }
 
-        clearRosterStaffHighlights();
+        refreshRosterStaffHighlight();
     });
 })();

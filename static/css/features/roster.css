@@ -410,6 +410,7 @@
 
 .roster-staff-panel-entry {
     background: var(--app-white-alpha-015);
+    cursor: pointer;
 }
 
 .roster-staff-panel-entry.is-roster-staff-highlighted {
@@ -422,6 +423,11 @@
     border-top: 1px solid var(--app-roster-border-weak);
     border-bottom: 1px solid var(--app-row-border);
     vertical-align: middle;
+}
+
+.roster-staff-panel-entry:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -2px;
 }
 
 .roster-staff-cell {
@@ -466,14 +472,27 @@
 }
 
 .roster-staff-action {
+    display: none;
     text-align: right;
 }
 
-.roster-staff-edit-button {
-    min-width: 2.5rem;
-    padding: 0.18rem 0.45rem;
-    font-size: 0.68rem;
-    line-height: 1.15;
+.roster-staff-action-head {
+    display: none;
+}
+
+.roster-staff-locate-button {
+    display: inline-grid;
+    width: 2rem;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0;
+    place-items: center;
+}
+
+.roster-staff-locate-button[aria-pressed="true"] {
+    background: var(--app-accent);
+    border-color: var(--app-accent);
+    color: var(--app-white);
 }
 
 @media (min-width: 1200px) {
@@ -1370,6 +1389,11 @@
     .roster-staff-panel-entry td {
         padding-top: 0.38rem;
         padding-bottom: 0.38rem;
+    }
+
+    .roster-staff-action,
+    .roster-staff-action-head {
+        display: table-cell;
     }
 
     .roster-staff-role {
