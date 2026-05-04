@@ -192,10 +192,16 @@ tests = beforeAll testContext do
                         { venueId = unpackId venue.id
                         , weekOffset = 0
                         }
+                profileAuthorized <- withAuthenticatedControllerContext user venue.id do
+                    isAuthorizedScope ProfileScope
+                        { venueId = unpackId venue.id
+                        , userId = unpackId user.id
+                        }
 
                 rosterAuthorized `shouldBe` True
                 leaveAuthorized `shouldBe` True
                 timesheetAuthorized `shouldBe` True
+                profileAuthorized `shouldBe` True
 
         it "does not let users subscribe to live scopes for another venue" $ withContext do
             withCleanDb do
@@ -224,11 +230,33 @@ tests = beforeAll testContext do
                         { venueId = unpackId venueB.id
                         , weekOffset = 0
                         }
+                profileAuthorized <- withAuthenticatedControllerContext admin venueA.id do
+                    isAuthorizedScope ProfileScope
+                        { venueId = unpackId venueB.id
+                        , userId = unpackId admin.id
+                        }
 
                 rosterAuthorized `shouldBe` False
                 adminXeroAuthorized `shouldBe` False
                 leaveAuthorized `shouldBe` False
                 timesheetAuthorized `shouldBe` False
+                profileAuthorized `shouldBe` False
+
+        it "does not let users subscribe to another user's profile live scope" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "worker-profile-live-scope@example.com" "staff" True
+                otherUser <- createUserRecord "other-profile-live-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createVenueMembershipRecord venue otherUser "worker"
+
+                authorized <- withAuthenticatedControllerContext user venue.id do
+                    isAuthorizedScope ProfileScope
+                        { venueId = unpackId venue.id
+                        , userId = unpackId otherUser.id
+                        }
+
+                authorized `shouldBe` False
 
         it "does not let users combine their venue id with another venue's roster group in live scopes" $ withContext do
             withCleanDb do

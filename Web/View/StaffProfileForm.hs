@@ -2,6 +2,7 @@ module Web.View.StaffProfileForm where
 
 import Application.Helper.StaffShiftPreferences
 import qualified Data.Text as Text
+import Numeric (showFFloat)
 import Web.View.Prelude
 
 renderPersonalProfileFields :: Staff -> Maybe Text -> Html
@@ -127,8 +128,8 @@ renderShiftPreferenceRows weekdays selectedShiftPreferences = [hsx|
     <table class="table table-sm align-middle shift-preference-table mb-0">
         <thead>
             <tr>
-                <th scope="col">Available</th>
-                <th scope="col">Start time</th>
+                <th scope="col" class="shift-preference-table__available">Available</th>
+                <th scope="col" class="shift-preference-table__start-time">Start time</th>
             </tr>
         </thead>
         <tbody>
@@ -146,7 +147,8 @@ renderShiftPreferenceDayRow selectedShiftPreferences weekday =
         endHour = maybe defaultPreferenceEndHour (.endHour) selectedPreference
         weekdayLabel = abbreviateWeekdayLabel weekday.label
      in [hsx|
-        <tr class="shift-preference-window"
+        <tr class={shiftPreferenceWindowClass isSelected}
+             style={shiftPreferenceWindowStyle startHour endHour}
              data-shift-preference-window="true"
              data-min-hour={tshow preferenceMinimumHour}
              data-max-hour={tshow preferenceMaximumHour}>
@@ -208,6 +210,29 @@ renderShiftPreferenceDayRow selectedShiftPreferences weekday =
 
 abbreviateWeekdayLabel :: Text -> Text
 abbreviateWeekdayLabel = Text.take 3
+
+shiftPreferenceWindowClass :: Bool -> Text
+shiftPreferenceWindowClass isSelected =
+    classes
+        [ ("shift-preference-window", True)
+        , ("is-unavailable", not isSelected)
+        ]
+
+shiftPreferenceWindowStyle :: Int -> Int -> Text
+shiftPreferenceWindowStyle startHour endHour =
+    "--preference-start: "
+        <> preferenceHourPercent startHour
+        <> "; --preference-end: "
+        <> preferenceHourPercent endHour
+        <> ";"
+
+preferenceHourPercent :: Int -> Text
+preferenceHourPercent hour =
+    cs (showFFloat (Just 3) percent "%")
+    where
+        spanHours = max 1 (preferenceMaximumHour - preferenceMinimumHour)
+        boundedHour = max preferenceMinimumHour (min preferenceMaximumHour hour)
+        percent = (fromIntegral (boundedHour - preferenceMinimumHour) / fromIntegral spanHours) * (100 :: Double)
 
 availabilityButtonClass :: Bool -> Text
 availabilityButtonClass isSelected =

@@ -48,6 +48,10 @@ tests = beforeAll testContext do
             response <- callAction ShowProfileLeaveRequestsContentFragmentAction
             response `responseStatusShouldBe` status302
 
+        it "redirects unauthenticated users away from profile content fragments" $ withContext do
+            response <- callAction ShowProfileContentFragmentAction
+            response `responseStatusShouldBe` status302
+
         it "denies super-admin access to staff profile setup" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Support Profile Venue"
@@ -88,7 +92,15 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Profile Venue"
                 user <- createUserRecord "profile-native-submit@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
-                _ <- createStaffRecord venue (Just user) "Taylor" "Smith"
+                staff <- createStaffRecord venue (Just user) "Taylor" "Smith"
+                _ <-
+                    newRecord @StaffShiftPreference
+                        |> set #venueId (unpackId venue.id)
+                        |> set #staffId (unpackId staff.id)
+                        |> set #weekdayIndex 2
+                        |> set #preferredStartHour 6
+                        |> set #preferredEndHour 17
+                        |> createRecord
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callAction EditProfileAction
@@ -97,8 +109,14 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
                 response `responseBodyShouldContain` "hx-post=\"/UpdateProfile\""
                 response `responseBodyShouldContain` "hx-target=\"#profile-content-fragment\""
+                response `responseBodyShouldContain` "hx-swap=\"outerHTML show:none\""
                 response `responseBodyShouldContain` "Profile Details"
                 response `responseBodyShouldContain` "Availability"
+                response `responseBodyShouldContain` "id=\"profile-live-surface\""
+                response `responseBodyShouldContain` "profile_content"
+                response `responseBodyShouldContain` "ShowProfileContentFragment"
+                response `responseBodyShouldContain` "profile-details-form"
+                response `responseBodyShouldContain` "profile:"
                 response `responseBodyShouldContain` "id=\"profile-leave-requests-content\""
                 response `responseBodyShouldContain` "data-live-update-surface=\""
                 response `responseBodyShouldContain` "profile_leave_requests_content"
@@ -117,6 +135,10 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "<option value=\"7\""
                 response `responseBodyShouldContain` "Available"
                 response `responseBodyShouldContain` "Start time"
+                response `responseBodyShouldContain` "<th scope=\"col\" class=\"shift-preference-table__available\">Available</th>"
+                response `responseBodyShouldContain` "<th scope=\"col\" class=\"shift-preference-table__start-time\">Start time</th>"
+                response `responseBodyShouldContain` "style=\"--preference-start: 5.556%; --preference-end: 66.667%;\""
+                response `responseBodyShouldContain` "class=\"shift-preference-window is-unavailable\""
                 response `responseBodyShouldContain` ">Mon<"
                 response `responseBodyShouldContain` "shift-preference-availability-button"
                 response `responseBodyShouldContain` "timesheet-approval-toggle"
@@ -134,6 +156,14 @@ tests = beforeAll testContext do
                 fragmentResponse `responseBodyShouldContain` "data-live-update-surface=\""
                 fragmentResponse `responseBodyShouldContain` "profile_leave_requests_content"
                 fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
+
+                profileFragmentResponse <- withUserAndCurrentVenue user venue.id do
+                    callAction ShowProfileContentFragmentAction
+                profileFragmentResponse `responseStatusShouldBe` status200
+                profileFragmentResponse `responseBodyShouldContain` "id=\"profile-content-fragment\""
+                profileFragmentResponse `responseBodyShouldContain` "id=\"profile-details-form\""
+                profileFragmentResponse `responseBodyShouldNotContain` "id=\"profile-live-surface\""
+                profileFragmentResponse `responseBodyShouldNotContain` "id=\"app\""
 
         it "renders an empty profile onboarding form for a user with membership but no staff row yet" $ withContext do
             withCleanDb do
@@ -307,9 +337,10 @@ tests = beforeAll testContext do
                 user <- createUserRecord "profile-htmx@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 _ <- createStaffRecord venue (Just user) "Taylor" "Smith"
+                profileVersionBefore <- currentLiveUpdateVersion ProfileScope { venueId = unpackId venue.id, userId = unpackId user.id }
 
                 response <- withUserAndCurrentVenue user venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
+                    withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-htmx-client")] do
                         callActionWithParams UpdateProfileAction
                             [ ("firstName", "Taylor")
                             , ("lastName", "Smith")
@@ -324,6 +355,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "id=\"profile-content-fragment\""
                 response `responseBodyShouldContain` "Profile updated"
                 response `responseBodyShouldContain` "hx-swap-oob=\"innerHTML\""
+                profileVersionAfter <- currentLiveUpdateVersion ProfileScope { venueId = unpackId venue.id, userId = unpackId user.id }
+                profileVersionAfter `shouldBe` profileVersionBefore + 1
 
         it "selects profile roster invalidation targets from active roster week scopes" $ withContext do
             withCleanDb do
@@ -362,6 +395,7 @@ tests = beforeAll testContext do
 
                 frontVersionBefore <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId frontGroup.id, weekOffset = 0 }
                 backVersionBefore <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId backGroup.id, weekOffset = 0 }
+                profileVersionBefore <- currentLiveUpdateVersion ProfileScope { venueId = unpackId venue.id, userId = unpackId user.id }
 
                 response <- withUserAndCurrentVenue user venue.id do
                     withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "profile-update-client")] do
@@ -378,6 +412,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 frontVersionAfter <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId frontGroup.id, weekOffset = 0 }
                 backVersionAfter <- currentLiveUpdateVersion RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = unpackId backGroup.id, weekOffset = 0 }
+                profileVersionAfter <- currentLiveUpdateVersion ProfileScope { venueId = unpackId venue.id, userId = unpackId user.id }
 
                 frontVersionAfter `shouldBe` frontVersionBefore
                 backVersionAfter `shouldBe` backVersionBefore
+                profileVersionAfter `shouldBe` profileVersionBefore + 1

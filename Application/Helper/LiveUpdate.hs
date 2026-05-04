@@ -67,6 +67,10 @@ data LiveUpdateScope
         { venueId    :: !UUID.UUID
         , weekOffset :: !Int
         }
+    | ProfileScope
+        { venueId :: !UUID.UUID
+        , userId  :: !UUID.UUID
+        }
     | SupportPlatformScope
     deriving (Eq, Ord, Show)
 
@@ -91,6 +95,7 @@ data LiveFragmentKey
     | AdminXeroStaffMappingsFragment
     | AdminXeroPayItemsFragment
     | AdminXeroTimesheetsFragment
+    | ProfileContentFragment
     | ProfileLeaveRequestsContentFragment
     | SupportAwardRatesSectionFragment
     | SupportPublicHolidaysSectionFragment
@@ -181,6 +186,8 @@ liveUpdateScopeKey LeaveRequestsScope { venueId } =
     Text.intercalate ":" ["leave_requests", UUID.toText venueId]
 liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset } =
     Text.intercalate ":" ["timesheet_week", UUID.toText venueId, tshow weekOffset]
+liveUpdateScopeKey ProfileScope { venueId, userId } =
+    Text.intercalate ":" ["profile", UUID.toText venueId, UUID.toText userId]
 liveUpdateScopeKey SupportPlatformScope =
     "support_platform"
 
@@ -238,6 +245,12 @@ instance Aeson.ToJSON LiveUpdateScope where
             , "venueId" Aeson..= UUID.toText venueId
             , "weekOffset" Aeson..= weekOffset
             ]
+    toJSON ProfileScope { venueId, userId } =
+        Aeson.object
+            [ "kind" Aeson..= ("profile" :: Text)
+            , "venueId" Aeson..= UUID.toText venueId
+            , "userId" Aeson..= UUID.toText userId
+            ]
     toJSON SupportPlatformScope =
         Aeson.object
             [ "kind" Aeson..= ("support_platform" :: Text)
@@ -271,6 +284,10 @@ instance Aeson.FromJSON LiveUpdateScope where
                 TimesheetWeekScope
                     <$> (parseUuid =<< object Aeson..: "venueId")
                     <*> object Aeson..: "weekOffset"
+            "profile" ->
+                ProfileScope
+                    <$> (parseUuid =<< object Aeson..: "venueId")
+                    <*> (parseUuid =<< object Aeson..: "userId")
             "support_platform" -> pure SupportPlatformScope
             _ -> fail ("Unknown live update scope kind: " <> cs kind)
 
@@ -311,6 +328,8 @@ instance Aeson.ToJSON LiveFragmentKey where
         Aeson.object ["kind" Aeson..= ("admin_xero_pay_items" :: Text)]
     toJSON AdminXeroTimesheetsFragment =
         Aeson.object ["kind" Aeson..= ("admin_xero_timesheets" :: Text)]
+    toJSON ProfileContentFragment =
+        Aeson.object ["kind" Aeson..= ("profile_content" :: Text)]
     toJSON ProfileLeaveRequestsContentFragment =
         Aeson.object ["kind" Aeson..= ("profile_leave_requests_content" :: Text)]
     toJSON SupportAwardRatesSectionFragment =
@@ -342,6 +361,7 @@ instance Aeson.FromJSON LiveFragmentKey where
             "admin_xero_staff_mappings" -> pure AdminXeroStaffMappingsFragment
             "admin_xero_pay_items" -> pure AdminXeroPayItemsFragment
             "admin_xero_timesheets" -> pure AdminXeroTimesheetsFragment
+            "profile_content" -> pure ProfileContentFragment
             "profile_leave_requests_content" -> pure ProfileLeaveRequestsContentFragment
             "support_award_rates_section" -> pure SupportAwardRatesSectionFragment
             "support_public_holidays_section" -> pure SupportPublicHolidaysSectionFragment

@@ -1,6 +1,9 @@
 module Web.Controller.Profiles where
 
-import Application.Helper.LiveUpdate (LiveFragmentRef, activeRosterWeekScopes)
+import Application.Helper.LiveUpdate (LiveFragmentRef, LiveUpdateScope (..),
+                                      activeRosterWeekScopes,
+                                      broadcastLiveInvalidation,
+                                      liveUpdateSourceClientId)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
@@ -42,6 +45,19 @@ instance Controller ProfilesController where
         leaveRequests <- fetchCurrentUserLeaveRequests
         leaveRequestForm <- buildDefaultLeaveRequest
         respondHtml (renderProfileLeaveRequestsContentFragment leaveRequestForm leaveRequests)
+
+    action ShowProfileContentFragmentAction = do
+        maybeExistingStaff <- fetchCurrentUserStaff
+        let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
+        let currentUserEmail = currentUser.email
+        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "profile" "section")
+        (preferenceWeekdays, selectedShiftPreferences) <- profilePreferenceViewData maybeExistingStaff
+        passkeys <- fetchCurrentUserPasskeys
+        leaveRequests <- fetchCurrentUserLeaveRequests
+        leaveRequestForm <- buildDefaultLeaveRequest
+        staffRsaDocument <- maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff
+        today <- utctDay <$> getCurrentTime
+        respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection)
 
     action UpdateProfileAction = do
         maybeExistingStaff <- fetchCurrentUserStaff
@@ -106,6 +122,7 @@ instance Controller ProfilesController where
                             currentUser
                                 |> set #isProfileCompleted isProfileCompleted
                                 |> updateRecord
+                            broadcastProfileContentInvalidation openSection
                             if not wasProfileCompleted && isProfileCompleted
                                 then redirectTo RosterWeeksAction
                                 else if isHtmxRequest
@@ -252,3 +269,10 @@ buildProfileRosterInvalidations =
         , weekOffset
         , [buildRosterContentFragmentRef rosterGroupId weekOffset]
         )
+
+broadcastProfileContentInvalidation :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+broadcastProfileContentInvalidation openSection =
+    broadcastLiveInvalidation
+        ProfileScope { venueId = unpackId currentVenueId, userId = unpackId currentUser.id }
+        liveUpdateSourceClientId
+        [profileContentFragmentRef openSection]

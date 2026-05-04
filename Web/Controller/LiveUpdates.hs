@@ -100,6 +100,7 @@ isAuthorizedScope =
 
 data ScopeAuthorizationRequirement
     = RequireCurrentVenue UUID.UUID
+    | RequireCurrentVenueUser UUID.UUID UUID.UUID
     | RequireCurrentVenueRosterGroup UUID.UUID UUID.UUID
     | RequireCurrentVenueAdmin UUID.UUID
     | RequireCurrentVenueAdminRosterGroup UUID.UUID UUID.UUID
@@ -120,6 +121,8 @@ scopeAuthorizationRequirement LeaveRequestsScope { venueId } =
     RequireCurrentVenue venueId
 scopeAuthorizationRequirement TimesheetWeekScope { venueId } =
     RequireCurrentVenue venueId
+scopeAuthorizationRequirement ProfileScope { venueId, userId } =
+    RequireCurrentVenueUser venueId userId
 scopeAuthorizationRequirement SupportPlatformScope =
     RequireSupportSuperAdmin
 
@@ -129,6 +132,8 @@ authorizeScopeRequirement ::
     IO Bool
 authorizeScopeRequirement (RequireCurrentVenue venueId) =
     pure (currentVenueMatches venueId)
+authorizeScopeRequirement (RequireCurrentVenueUser venueId userId) =
+    pure (currentVenueMatches venueId && userId == unpackId authenticatedCurrentUser.id)
 authorizeScopeRequirement (RequireCurrentVenueRosterGroup venueId rosterGroupId) =
     if currentVenueMatches venueId
         then isAuthorizedCurrentVenueRosterGroupScope rosterGroupId

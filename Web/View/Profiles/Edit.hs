@@ -21,6 +21,12 @@ import Web.View.StaffProfileForm
 profileContentFragmentId :: Text
 profileContentFragmentId = "profile-content-fragment"
 
+profileLiveSurfaceId :: Text
+profileLiveSurfaceId = "profile-live-surface"
+
+profileDetailsFormId :: Text
+profileDetailsFormId = "profile-details-form"
+
 profileSectionsAccordionId :: Text
 profileSectionsAccordionId = "profile-sections"
 
@@ -77,9 +83,20 @@ instance View EditView where
                     , appPanelCustomHeader = mempty
                     , appPanelClass = ""
                     , appPanelBodyClass = ""
-                    , appPanelBody = renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection
+                    , appPanelBody =
+                        renderProfileLiveSurface
+                            openSection
+                            (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection)
                     }
             })
+
+renderProfileLiveSurface :: Text -> Html -> Html
+renderProfileLiveSurface openSection body = [hsx|
+    <div id={profileLiveSurfaceId}
+         data-live-update-surface={liveSurfaceConfigJson <$> profileLiveSurface openSection}>
+        {body}
+    </div>
+|]
 
 renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Day -> Text -> Html
 renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection = [hsx|
@@ -113,6 +130,28 @@ renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedS
     </div>
 |]
 
+profileLiveSurface :: (?context :: ControllerContext) => Text -> Maybe LiveSurfaceConfig
+profileLiveSurface openSection =
+    if currentUser.isProfileCompleted
+        then
+            fmap
+                (\venue ->
+                    (mkLiveSurface
+                        "profile"
+                        ProfileScope { venueId = unpackId venue.id, userId = unpackId currentUser.id }
+                        [profileContentFragmentRef openSection])
+                        { decorateRequestsWithin = ["#" <> profileDetailsFormId] }
+                )
+                currentVenueOrNothing
+        else Nothing
+
+profileContentFragmentRef :: (?context :: ControllerContext) => Text -> LiveFragmentRef
+profileContentFragmentRef openSection =
+    mkLiveFragmentRef
+        ProfileContentFragment
+        profileContentFragmentId
+        (appendQueryParams (pathTo ShowProfileContentFragmentAction) [("section", openSection)])
+
 renderAccordionSection :: Text -> Text -> Bool -> Html -> Html
 renderAccordionSection sectionId title isOpen body =
     renderAppAccordionItem AppAccordionItemConfig
@@ -128,12 +167,13 @@ renderAccordionSection sectionId title isOpen body =
 
 renderProfileForm :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Html
 renderProfileForm staff currentUserEmail preferenceWeekdays selectedShiftPreferences = [hsx|
-    <form method="POST"
+    <form id={profileDetailsFormId}
+          method="POST"
           action={UpdateProfileAction}
           data-disable-javascript-submission="true"
           hx-post={UpdateProfileAction}
           hx-target={"#" <> profileContentFragmentId}
-          hx-swap="outerHTML"
+          hx-swap="outerHTML show:none"
           hx-push-url="false">
         <input type="hidden" name="section" value="profile"/>
         {renderPersonalProfileFields staff (Just currentUserEmail)}

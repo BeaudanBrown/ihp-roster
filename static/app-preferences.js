@@ -90,6 +90,9 @@
     document.addEventListener('app:page-ready', function (event) {
         initShiftPreferenceWindows(event.detail && event.detail.target);
     });
+    document.addEventListener('htmx:load', function (event) {
+        initShiftPreferenceWindows(event.detail && event.detail.elt);
+    });
 
     if (document.readyState !== 'loading') {
         initShiftPreferenceWindows(document.body);

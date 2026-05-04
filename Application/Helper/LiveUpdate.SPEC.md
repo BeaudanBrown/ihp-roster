@@ -10,6 +10,9 @@ This file describes the shared live-fragment architecture implemented by
 - Actor-local mutations return HTMX fragments or OOB swaps.
 - Passive viewers receive websocket invalidation messages and refetch
   authorized fragments over HTTP.
+- Server-mutating UI that can leave another mounted copy stale should use this
+  live-fragment path by default: keep the actor response immediate with HTMX,
+  then broadcast structural invalidations for other tabs/viewers.
 - A browser tab should use one websocket connection with many scope
   subscriptions.
 - A scope is an authorized logical data slice, not a page.

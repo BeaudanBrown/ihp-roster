@@ -122,6 +122,36 @@ test.describe('Live fragment multi-view coverage', () => {
         await workerContext.close();
     });
 
+    test('profile save updates another open profile tab live while actor gets an immediate fragment', async ({ browser }) => {
+        const actorContext = await browser.newContext();
+        const viewerContext = await browser.newContext();
+        const actorPage = await actorContext.newPage();
+        const viewerPage = await viewerContext.newPage();
+        const preferredName = `Live ${Date.now()}`;
+
+        await loginWorker(actorPage);
+        await loginWorker(viewerPage);
+
+        await gotoWhenReady(actorPage, '/EditProfile', '#profile-live-surface');
+        await gotoWhenReady(viewerPage, '/EditProfile', '#profile-live-surface');
+
+        await expect(actorPage.locator('#profile-live-surface')).toHaveAttribute('data-live-update-surface', /profile_content/);
+        await expect(viewerPage.locator('#preferredName')).not.toHaveValue(preferredName);
+
+        await actorPage.fill('#preferredName', preferredName);
+        await Promise.all([
+            actorPage.waitForResponse((response) => response.url().includes('/UpdateProfile') && response.request().method() === 'POST'),
+            actorPage.locator('#profile-details-form button[type="submit"]').click(),
+        ]);
+
+        await expect(actorPage.locator('#profile-content-fragment')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+        await expect(actorPage.locator('#preferredName')).toHaveValue(preferredName);
+        await expect(viewerPage.locator('#preferredName')).toHaveValue(preferredName, { timeout: E2E_TIMEOUT.liveUpdate });
+
+        await actorContext.close();
+        await viewerContext.close();
+    });
+
     test('leave approval updates an open roster viewer with the new conflict state', async ({ browser }) => {
         const actorContext = await browser.newContext();
         const requesterContext = await browser.newContext();

@@ -1,5 +1,6 @@
 import { test, expect, Page } from '@playwright/test';
 import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
+import { E2E_TIMEOUT } from './timeouts';
 
 async function expectLocalStylesheet(page: Page, path: string) {
     const link = page.locator(`link[rel="stylesheet"][href*="${path}"]`);
@@ -186,6 +187,69 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.bodyBorderTop).toBe('1px');
         expect(metrics?.bodyBorderRadius).toBe('0px 0px 13.4px 13.4px');
         expect(metrics?.bodyBackground).not.toBe('rgba(0, 0, 0, 0)');
+    });
+
+    test('keeps profile shift preference sliders aligned after HTMX save', async ({ page }) => {
+        await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/EditProfile', '#profile-content-fragment');
+
+        const firstPreferenceRow = page.locator('[data-shift-preference-window]').first();
+        await expect(firstPreferenceRow).toBeVisible();
+
+        await page.evaluate(() => window.scrollTo(0, 240));
+        const beforeScrollY = await page.evaluate(() => window.scrollY);
+
+        const saveButton = page.locator('#profile-details-collapse form button[type="submit"]');
+        await Promise.all([
+            page.waitForResponse((response) => response.url().includes('/UpdateProfile') && response.request().method() === 'POST'),
+            saveButton.click(),
+        ]);
+        await expect(page.locator('#profile-content-fragment')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+
+        const metrics = await page.locator('[data-shift-preference-window]').evaluateAll((rows) => {
+            const formatHour = (hour: number) => {
+                if (hour === 0) return '12 AM';
+                if (hour < 12) return `${hour} AM`;
+                if (hour === 12) return '12 PM';
+                return `${hour - 12} PM`;
+            };
+
+            return rows.map((row) => {
+                if (!(row instanceof HTMLElement)) throw new Error('Expected shift preference row');
+
+                const startInput = row.querySelector('[data-shift-preference-start]');
+                const startLabel = row.querySelector('[data-shift-preference-start-label]');
+                const fill = row.querySelector('[data-shift-preference-fill]');
+
+                if (!(startInput instanceof HTMLInputElement) || !(startLabel instanceof HTMLElement) || !(fill instanceof HTMLElement)) {
+                    return null;
+                }
+
+                const minHour = Number.parseInt(row.dataset.minHour || startInput.min || '5', 10);
+                const maxHour = Number.parseInt(row.dataset.maxHour || startInput.max || '23', 10);
+                const startHour = Number.parseInt(startInput.value, 10);
+                const expectedStartPercent = ((startHour - minHour) / Math.max(1, maxHour - minHour)) * 100;
+
+                return {
+                    startValue: startInput.value,
+                    expectedStartLabel: formatHour(startHour),
+                    startLabel: startLabel.textContent?.trim(),
+                    startCss: row.style.getPropertyValue('--preference-start'),
+                    fillLeft: getComputedStyle(fill).left,
+                    expectedStartPercent,
+                };
+            });
+        });
+        const scrollY = await page.evaluate(() => window.scrollY);
+
+        expect(metrics.every(Boolean)).toBe(true);
+        for (const rowMetrics of metrics) {
+            expect(rowMetrics?.startLabel).toBe(rowMetrics?.expectedStartLabel);
+            expect(rowMetrics?.startCss).not.toBe('');
+            expect(Number.parseFloat(rowMetrics?.startCss ?? '')).toBeCloseTo(rowMetrics?.expectedStartPercent ?? 0, 1);
+            expect(rowMetrics?.fillLeft).not.toBe('0px');
+        }
+        expect(scrollY).toBeGreaterThan(Math.max(0, beforeScrollY - 120));
     });
 
     test('flattens nested app panels inside accordion bodies', async ({ page }) => {
