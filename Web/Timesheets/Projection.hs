@@ -104,14 +104,12 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff re
                         applyApprovedFilter
                             (baseQuery |> filterWhere (#staffId, staffFilterId))
                             |> orderByAsc #workedOn
-                            |> orderByAsc #isApproved
                             |> orderByAsc #startTime
                             |> fetch
                     (Nothing, False, Just staff) ->
                         applyApprovedFilter
                             (baseQuery |> filterWhere (#staffId, unpackId (get #id staff)))
                             |> orderByAsc #workedOn
-                            |> orderByAsc #isApproved
                             |> orderByAsc #startTime
                             |> fetch
                     (Nothing, False, Nothing) ->
@@ -119,7 +117,6 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff re
                     (Nothing, True, _) ->
                         applyApprovedFilter baseQuery
                             |> orderByAsc #workedOn
-                            |> orderByAsc #isApproved
                             |> orderByAsc #startTime
                             |> fetch
             else do
@@ -134,7 +131,6 @@ fetchTimesheetDataForWeek weekStartDate weekEndDate showApproved showAllStaff re
                                     |> filterWhere (#deletedAt, Nothing)
                                 )
                                 |> orderByAsc #workedOn
-                                |> orderByAsc #isApproved
                                 |> orderByAsc #startTime
                                 |> fetch
 
