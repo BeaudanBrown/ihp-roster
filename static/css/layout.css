@@ -44,7 +44,7 @@ a:not(.btn):hover {
 }
 
 .app-content {
-    max-width: 1680px;
+    max-width: min(98vw, 140rem);
 }
 
 .app-page {
@@ -101,6 +101,7 @@ a:not(.btn):hover {
 }
 
 .app-header-navbar {
+    max-width: min(98vw, 140rem);
     min-height: 3.75rem;
     padding-right: calc(var(--bs-gutter-x) * 0.5);
     padding-left: calc(var(--bs-gutter-x) * 0.5);
