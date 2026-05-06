@@ -5,7 +5,7 @@ import { loginAs, loginAsPrivilegedUserWithFreshPasskey, verifyCurrentUserPasske
 test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Authenticated header navigation', () => {
-    test('venue admin header links navigate across roster, profile, timesheets, availability, and admin', async ({ page }) => {
+    test('venue admin header links navigate across roster, profile, timesheets, unavailability, and admin', async ({ page }) => {
         await loginAsPrivilegedUserWithFreshPasskey(page);
         await expect(page.locator('#roster-week-shell')).toBeVisible();
 
@@ -23,7 +23,7 @@ test.describe('Authenticated header navigation', () => {
         await expect(page).toHaveURL(/(Timesheets|ShowTimesheetWeek)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#timesheet-week-shell')).toBeVisible();
 
-        await page.getByRole('link', { name: 'availability' }).click();
+        await page.getByRole('link', { name: 'unavailability' }).click();
         await expect(page).toHaveURL(/LeaveRequests/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#leave-requests-content')).toBeVisible();
 
@@ -40,21 +40,21 @@ test.describe('Authenticated header navigation', () => {
         await expect(page.locator('#roster-week-shell')).toBeVisible();
     });
 
-    test('worker header hides the availability link and uses profile as the availability entrypoint', async ({ page }) => {
+    test('worker header hides the unavailability link and uses profile as the unavailability entrypoint', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await expect(page.locator('#roster-week-shell')).toBeVisible();
 
         await expect(page.getByRole('link', { name: 'roster' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'profile' })).toBeVisible();
         await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
-        await expect(page.getByRole('link', { name: 'availability' })).toHaveCount(0);
+        await expect(page.getByRole('link', { name: 'unavailability' })).toHaveCount(0);
         await expect(page.getByRole('link', { name: 'admin' })).toHaveCount(0);
 
         await page.getByRole('link', { name: 'profile' }).click();
         await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#profile-content-fragment')).toBeVisible();
 
-        const leaveSectionToggle = page.getByRole('button', { name: 'Availability' });
+        const leaveSectionToggle = page.getByRole('button', { name: 'Unavailability' });
         if ((await leaveSectionToggle.getAttribute('aria-expanded')) !== 'true') {
             await leaveSectionToggle.click();
         }

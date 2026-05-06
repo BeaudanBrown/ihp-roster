@@ -42,7 +42,7 @@ renderLeaveRequestsShell IndexView { .. } =
                 , appPanelBody = renderLeaveRequestsContentFragment leaveRequests staffMembers currentViewerStaffId today
                 }
         page = renderAppPage (AppPageConfig
-            { appPageTitle = "Availability"
+            { appPageTitle = "Unavailability"
             , appPageDescription = Nothing
             , appPageActions = if currentUserIsSupportAdmin then mempty else renderNewLeaveRequestAction
             , appPageWidthClass = ""

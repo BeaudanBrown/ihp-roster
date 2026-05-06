@@ -32,7 +32,7 @@ This file describes implemented leave/availability behavior.
 
 ## Extension Rules
 
-- Keep staff-facing copy aligned with Availability / Unavailable period / Add
+- Keep staff-facing copy aligned with Unavailability / Unavailable period / Add
   unavailable time unless a product decision reverts the language.
 - Do not introduce sensitive medical/reason data in free-text notes without a
   dedicated product/compliance spec.

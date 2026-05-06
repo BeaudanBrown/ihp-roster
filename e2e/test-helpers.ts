@@ -260,7 +260,7 @@ export async function openProfileSecuritySection(page: Page) {
 export async function openProfileLeaveSection(page: Page) {
     await gotoWhenReady(page, '/EditProfile?section=leave', '#profile-content-fragment');
 
-    const leaveSectionToggle = page.getByRole('button', { name: 'Availability' });
+    const leaveSectionToggle = page.getByRole('button', { name: 'Unavailability' });
     if ((await leaveSectionToggle.getAttribute('aria-expanded')) !== 'true') {
         await leaveSectionToggle.click();
     }

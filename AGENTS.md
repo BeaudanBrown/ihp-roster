@@ -117,7 +117,7 @@ the linked repo-local `ir-*` ticket for implementation details.
 ## Navigation And UI
 
 - Global authenticated navigation lives in `Web/View/Layout.hs`.
-- Header order is `roster`, `profile`, `timesheets`, `availability`, `xero`,
+- Header order is `roster`, `profile`, `timesheets`, `unavailability`, `xero`,
   `admin`, `support`, `logout`.
 - `xero` is owner/super-admin only. `admin` is admin-gated. `support` is
   founder-only.

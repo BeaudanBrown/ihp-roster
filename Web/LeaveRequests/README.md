@@ -4,7 +4,7 @@
 
 `Web/LeaveRequests/` owns leave/availability projections and profile
 self-service integration. User-facing language is moving toward
-availability/unavailable periods for the pilot, while the backing model remains
+unavailability/unavailable periods for the pilot, while the backing model remains
 leave/unavailability history until renamed by a future migration.
 
 ## Entry Points

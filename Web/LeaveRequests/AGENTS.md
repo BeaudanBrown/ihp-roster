@@ -1,7 +1,7 @@
 # Leave And Availability Agent Notes
 
 Read this before editing leave request controllers, profile leave fragments, or
-availability views.
+unavailability views.
 
 ## Local Rules
 
@@ -9,7 +9,7 @@ availability views.
 - Preserve exclusive `end_date` semantics.
 - Keep projection/read-model work out of the controller when practical.
 - Keep profile-specific integration in `ProfileSelfService.hs`.
-- Use availability language in user-facing copy unless working directly on
+- Use unavailability language in user-facing copy unless working directly on
   backend schema names.
 
 ## Gotchas

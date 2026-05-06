@@ -110,7 +110,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 
 ## Global Header Pattern
 - Authenticated navigation is centralized in `Web/View/Layout.hs` (`renderAppHeader`) so every signed-in page gets the same header.
-- Keep nav button labels/order consistent: `roster`, `profile`, `timesheets`, `availability`, `xero`, `admin`, `support`, `logout`.
+- Keep nav button labels/order consistent: `roster`, `profile`, `timesheets`, `unavailability`, `xero`, `admin`, `support`, `logout`.
 - Keep `xero` link visibility owner/super-admin only via the shared Xero audience logic.
 - Keep `admin` link visibility role-gated (admin only) via `currentUserIsAdmin`.
 - Keep `support` link visibility founder-only via `currentUserIsSupportAdmin`; do not expose it to ordinary venue admins.
@@ -122,7 +122,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Treat responsiveness as product-specific, not one-size-fits-all:
   - roster creation must remain usable on phone
   - live roster viewing is critical on both phone and desktop
-  - availability should move toward mobile-first
+  - unavailability should move toward mobile-first
   - admin can remain desktop-primary
 - Keep page-level horizontal overflow off the viewport. If a surface needs extra width, a local wrapper such as `.table-responsive` must own that overflow instead of letting `body` scroll sideways.
 - Prefer one-column stacking on smaller screens over squeezed side-by-side controls.

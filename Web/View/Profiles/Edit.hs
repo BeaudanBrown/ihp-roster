@@ -116,7 +116,7 @@ renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedS
             }
             {renderAccordionSection
                 "profile-leave"
-                "Availability"
+                "Unavailability"
                 (openSection == "leave")
                 (renderProfileLeaveRequestsContentFragment leaveRequestForm leaveRequests)
             }
