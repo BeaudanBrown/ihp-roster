@@ -1009,7 +1009,7 @@
 }
 
 .roster-grid .slot-empty-cell {
-    background-color: var(--roster-empty);
+    background-color: inherit;
 }
 
 .roster-grid .slot-closed-cell {
@@ -1557,6 +1557,14 @@
 .roster-day-rail-section.day-alt-light,
 .roster-grid .day-row.day-alt-light {
     background-color: var(--roster-day-b);
+}
+
+.roster-grid .day-row.day-alt-dark .slot-closed-cell {
+    background-color: color-mix(in srgb, var(--roster-empty) 58%, var(--roster-day-a));
+}
+
+.roster-grid .day-row.day-alt-light .slot-closed-cell {
+    background-color: color-mix(in srgb, var(--roster-empty) 68%, var(--roster-day-b));
 }
 
 .roster-grid .day-row + .day-row > [role="gridcell"] {

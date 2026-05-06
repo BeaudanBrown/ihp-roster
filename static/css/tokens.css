@@ -100,9 +100,9 @@
     --app-warning-border-soft: rgba(240, 199, 114, 0.45);
     --app-warning-tint: rgba(240, 197, 114, 0.14);
     --app-warning-mark: rgba(240, 199, 114, 0.4);
-    --app-warning-conflict-bg: rgba(240, 197, 114, 0.26);
+    --app-warning-conflict-bg: #524a34;
     --app-warning-conflict-text: #ffe7b2;
-    --app-info-conflict-bg: rgba(109, 151, 222, 0.22);
+    --app-info-conflict-bg: #2d384c;
     --app-info-conflict-text: #d6e5ff;
     --app-info-export-glow: rgba(109, 151, 222, 0.16);
     --app-timesheet-card-start: rgba(44, 56, 77, 0.86);
@@ -136,8 +136,8 @@
 
     --roster-header: #2c3a4f;
     --roster-subhead: #243041;
-    --roster-day-a: #1a2433;
-    --roster-day-b: #131d2c;
+    --roster-day-a: #202c3d;
+    --roster-day-b: #111827;
     --roster-empty: #101825;
     --roster-danger: #5e1e23;
     --roster-warning: #4a3a1c;

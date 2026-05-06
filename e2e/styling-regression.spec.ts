@@ -54,14 +54,21 @@ test.describe('Styling regression contracts', () => {
             probe.style.position = 'absolute';
             probe.style.left = '-10000px';
             probe.innerHTML = `
-                <div class="day-row day-alt-light"><div role="gridcell">light</div></div>
-                <div class="day-row day-alt-dark"><div role="gridcell">dark</div></div>`;
+                <div class="day-row day-alt-light"><div role="gridcell">light</div><div role="gridcell" class="slot-empty-cell">empty</div></div>
+                <div class="day-row day-alt-dark"><div role="gridcell">dark</div><div role="gridcell" class="slot-empty-cell">empty</div></div>`;
             document.body.appendChild(probe);
 
             const probeLightCell = probe.querySelector('.day-alt-light');
             const probeDarkCell = probe.querySelector('.day-alt-dark');
+            const probeLightEmptyCell = probe.querySelector('.day-alt-light .slot-empty-cell');
+            const probeDarkEmptyCell = probe.querySelector('.day-alt-dark .slot-empty-cell');
 
-            if (!(probeLightCell instanceof HTMLElement) || !(probeDarkCell instanceof HTMLElement)) {
+            if (
+                !(probeLightCell instanceof HTMLElement)
+                || !(probeDarkCell instanceof HTMLElement)
+                || !(probeLightEmptyCell instanceof HTMLElement)
+                || !(probeDarkEmptyCell instanceof HTMLElement)
+            ) {
                 probe.remove();
                 return null;
             }
@@ -70,10 +77,14 @@ test.describe('Styling regression contracts', () => {
             const renderedDayRailStyle = getComputedStyle(renderedDayRail);
             const probeLightStyle = getComputedStyle(probeLightCell);
             const probeDarkStyle = getComputedStyle(probeDarkCell);
+            const probeLightEmptyStyle = getComputedStyle(probeLightEmptyCell);
+            const probeDarkEmptyStyle = getComputedStyle(probeDarkEmptyCell);
 
             const probeMetrics = {
                 lightDayCellBackground: probeLightStyle.backgroundColor,
                 darkDayCellBackground: probeDarkStyle.backgroundColor,
+                lightEmptyCellBackground: probeLightEmptyStyle.backgroundColor,
+                darkEmptyCellBackground: probeDarkEmptyStyle.backgroundColor,
             };
             probe.remove();
 
@@ -126,6 +137,8 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.renderedDayRailBackground).not.toBe('rgb(13, 17, 25)');
         expect(metrics?.lightDayCellBackground).not.toBe(metrics?.darkDayCellBackground);
         expect(metrics?.lightDayCellBackground).not.toBe('rgb(13, 17, 25)');
+        expect(metrics?.lightEmptyCellBackground).toBe(metrics?.lightDayCellBackground);
+        expect(metrics?.darkEmptyCellBackground).toBe(metrics?.darkDayCellBackground);
         expect(metrics?.sectionDeltas.every((delta) => delta <= 1)).toBe(true);
     });
 

@@ -17,7 +17,7 @@ test.describe('Roster Staff Modal', () => {
         const originalName = (await nameLabel.textContent())?.trim() || 'E2E Manager';
         const updatedName = 'Roster Modal Spec';
 
-        await staffEntry.getByRole('button', { name: 'Edit' }).click();
+        await staffEntry.click();
 
         await expect(page).toHaveURL(initialUrl);
         await expect(modalMount.locator('[data-dialog-overlay="true"]')).toBeVisible();

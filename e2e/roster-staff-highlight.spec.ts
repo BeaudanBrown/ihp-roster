@@ -56,6 +56,15 @@ async function hoverStaffRow(page: Page, staffId: string) {
     await expect(staffRow).toHaveClass(/is-roster-staff-highlighted/);
 }
 
+async function toggleLocateShifts(page: Page, staffId: string) {
+    const staffRow = page.locator(`.roster-staff-panel-entry[data-roster-staff-id="${staffId}"]`).first();
+    await expect(staffRow).toBeVisible();
+
+    const locateButton = staffRow.getByRole('button', { name: /Locate shifts for/ });
+    await locateButton.click();
+    await expect(locateButton).toHaveAttribute('aria-pressed', 'true');
+}
+
 async function gridSlotMetrics(page: Page, staffId: string): Promise<GridSlotMetrics> {
     return await page.evaluate((targetStaffId) => {
         const staffCells = Array.from(
@@ -127,5 +136,26 @@ test.describe('Roster staff shift highlight', () => {
                 await highlightedCards.first().evaluate((card) => getComputedStyle(card).boxShadow),
             )
             .not.toBe('none');
+    });
+
+    test('toggles a persistent staff highlight from the locate shifts button', async ({ page }) => {
+        await openRoster(page, { email: 'e2e-test@example.com' });
+        await chooseRosterLayout(page, 'day_rows');
+
+        const staffId = await firstStaffOptionValue(page);
+        expect(staffId).not.toBe('');
+        await assignFirstSlotToStaff(page, staffId);
+
+        await toggleLocateShifts(page, staffId);
+
+        const highlightedCells = page.locator(`.roster-grid [role="gridcell"][data-roster-staff-id="${staffId}"].is-roster-staff-slot-highlighted`);
+        await expect(highlightedCells.first()).toBeVisible();
+
+        await page.locator('.roster-grid').hover();
+        await expect(highlightedCells.first()).toBeVisible();
+
+        const staffRow = page.locator(`.roster-staff-panel-entry[data-roster-staff-id="${staffId}"]`).first();
+        await staffRow.getByRole('button', { name: /Locate shifts for/ }).click();
+        await expect(highlightedCells).toHaveCount(0);
     });
 });
