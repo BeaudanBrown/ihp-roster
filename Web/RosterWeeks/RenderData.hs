@@ -88,9 +88,22 @@ rosterProjectionDefinition =
             filters <- fetchRosterAssignmentFilters
             layoutMode <- fetchCurrentRosterLayoutMode
             pure (tshow currentUser.id <> ":" <> encodeRosterAssignmentFilters filters <> ":" <> rosterLayoutModeValue layoutMode)
-        (\scope -> currentLiveUpdateVersion (buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset))
+        rosterProjectionVersion
         (\scope -> fetchVisibleRosterRenderData scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
         renderRosterProjectionFragment
+
+rosterProjectionVersion :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterProjectionScope -> IO Int
+rosterProjectionVersion scope = do
+    rosterVersion <- currentLiveUpdateVersion (buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
+    if hasRole ManagerRole' || currentUserIsSuperAdmin
+        then pure rosterVersion
+        else do
+            venueConfig <- fetchVenueConfig
+            operationalDay <- currentOperationalDayForVenue venueConfig
+            let timesheetWeekOffset = venueWeekOffsetForDay venueConfig operationalDay
+            timesheetVersion <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId currentVenueId, weekOffset = timesheetWeekOffset }
+            leaveVersion <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId currentVenueId }
+            pure (rosterVersion + timesheetVersion + leaveVersion + fromInteger (Calendar.toModifiedJulianDay operationalDay))
 
 fetchVisibleRosterRenderDataCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterRenderDataCached rosterGroupId weekOffset =
@@ -133,7 +146,7 @@ renderRosterContentFromProjection :: (?context :: ControllerContext, ?request ::
 renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
     case rosterData of
         Nothing -> [hsx|<div id="roster-content"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } ->
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } ->
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
              in renderRosterContentFragment
                     RosterGridRenderModel
@@ -146,6 +159,7 @@ renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
                         , gridStaffMembers = staffMembers
                         , gridStaffOptionStates = staffOptionStates
                         , gridPanelStaff = panelStaff
+                        , gridStaffSelfServicePanel = staffSelfServicePanel
                         , gridSlotNames = orderedSlotNames
                         , gridShiftTypes = shiftTypes
                         , gridWeekStartDate = weekStartDate
@@ -205,6 +219,7 @@ fetchRosterRenderData rosterGroupId weekOffset = do
             let staffMembers = nubBy (\left right -> left.id == right.id) (eligibleStaffMembers <> assignedStaffMembers)
             shiftTypes <- profileActionSpan "roster.fetch_shift_types" fetchCurrentVenueRosterShiftTypes
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots)
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig)
             staffOptionStates <- profileActionSpan "roster.build_staff_option_states" (buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate rosterDays visibleSlots staffMembers)
             orderedSlotNames <- profileActionSpan "roster.fetch_ordered_slot_names" (fetchRosterWeekOrderedSlotNames rosterWeek)
             slotConflicts <-
@@ -216,7 +231,45 @@ fetchRosterRenderData rosterGroupId weekOffset = do
                 if hasRole VenueAdminRole
                     then Just <$> profileActionSpan "roster.predict_wages" (fetchRosterWagePrediction venueConfig rosterWeek rosterDays visibleSlots)
                     else pure Nothing
-            pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterWagePrediction })
+            pure (Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled = venueConfig.rosterEndTimesEnabled, rosterWagePrediction })
+
+fetchRosterStaffSelfServicePanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => VenueConfig -> IO (Maybe RosterStaffSelfServicePanel)
+fetchRosterStaffSelfServicePanel venueConfig
+    | hasRole ManagerRole' = pure Nothing
+    | currentUserIsSuperAdmin = pure Nothing
+    | otherwise = do
+        maybeStaff <- fetchCurrentUserStaff
+        case maybeStaff of
+            Nothing -> pure Nothing
+            Just staff -> do
+                operationalDay <- currentOperationalDayForVenue venueConfig
+                let timesheetWeekOffset = venueWeekOffsetForDay venueConfig operationalDay
+                let timesheetWeekStartDate = venueWeekStartDate venueConfig timesheetWeekOffset
+                quickToolsTimesheetEntries <-
+                    query @TimesheetEntry
+                        |> filterWhere (#venueId, unpackId currentVenueId)
+                        |> filterWhere (#staffId, unpackId staff.id)
+                        |> filterWhere (#workedOn, operationalDay)
+                        |> filterWhere (#deletedAt, Nothing)
+                        |> orderByAsc #startTime
+                        |> fetch
+                quickToolsShiftTypes <- fetchCurrentVenueRosterShiftTypes
+                let quickToolsLeaveRequest =
+                        newRecord @LeaveRequest
+                            |> set #startDate operationalDay
+                            |> set #endDate (Calendar.addDays 1 operationalDay)
+                pure $
+                    Just
+                        RosterStaffSelfServicePanel
+                            { quickToolsLeaveRequest
+                            , quickToolsTimesheetEntries
+                            , quickToolsStaffMembers = [staff]
+                            , quickToolsShiftTypes
+                            , quickToolsOperationalDay = operationalDay
+                            , quickToolsTimesheetWeekOffset = timesheetWeekOffset
+                            , quickToolsTimesheetWeekStartDate = timesheetWeekStartDate
+                            , quickToolsTimesheetEditWindowDays = venueConfig.staffTimesheetEditWindowDays
+                            }
 
 fetchVisibleRosterRenderData :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterRenderData rosterGroupId weekOffset = do
@@ -226,6 +279,7 @@ fetchVisibleRosterRenderData rosterGroupId weekOffset = do
             (backingRosterWeek, rosterDays, weekStartDate, orderedSlotNames, shiftTypes, maskedSlots) <- fetchHiddenRosterRenderData rosterGroupId weekOffset
             rosterLayoutMode <- fetchCurrentRosterLayoutMode
             venueConfig <- fetchVenueConfig
+            staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig)
             let renderIndexes = buildRosterRenderIndexes rosterDays (filterVisibleRosterSlots rosterDays maskedSlots) [] []
             pure $
                 Just
@@ -237,6 +291,7 @@ fetchVisibleRosterRenderData rosterGroupId weekOffset = do
                         , staffMembers = []
                         , staffOptionStates = Map.empty
                         , panelStaff = []
+                        , staffSelfServicePanel
                         , orderedSlotNames
                         , shiftTypes
                         , allSlots = maskedSlots

@@ -9,12 +9,14 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.Text.IO as TextIO
+import qualified Data.Time.Calendar as Calendar
 import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
 import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.Projection
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
+import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment)
 
 instance Controller LeaveRequestsController where
     beforeAction = do
@@ -233,15 +235,18 @@ respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
 data LeaveResponseContext
     = LeavePageResponseContext
     | LeaveProfileResponseContext
+    | LeaveRosterResponseContext
     deriving (Eq, Show)
 
 parseLeaveResponseContext :: Text -> LeaveResponseContext
 parseLeaveResponseContext responseContext
     | responseContext == "profile" = LeaveProfileResponseContext
+    | responseContext == "roster" = LeaveRosterResponseContext
     | otherwise = LeavePageResponseContext
 
 effectiveLeaveResponseContext :: (?context :: ControllerContext) => LeaveResponseContext -> LeaveResponseContext
 effectiveLeaveResponseContext requestedContext
+    | requestedContext == LeaveRosterResponseContext = LeaveRosterResponseContext
     | not (hasRole ManagerRole') = LeaveProfileResponseContext
     | otherwise = requestedContext
 
@@ -259,6 +264,7 @@ leaveFallbackPath :: LeaveResponseContext -> Text
 leaveFallbackPath LeavePageResponseContext = pathTo EditProfileAction
 leaveFallbackPath LeaveProfileResponseContext =
     pathTo EditProfileAction <> "?section=leave"
+leaveFallbackPath LeaveRosterResponseContext = pathTo RosterWeeksAction
 
 respondWithLeaveRequestValidationFailure :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> LeaveRequest -> IO ()
 respondWithLeaveRequestValidationFailure responseContext leaveRequest =
@@ -267,6 +273,8 @@ respondWithLeaveRequestValidationFailure responseContext leaveRequest =
             respondHtml (renderNewLeaveRequestDialog leaveRequest)
         LeaveProfileResponseContext ->
             respondHtml (renderProfileLeaveRequestFormFragment leaveRequest)
+        LeaveRosterResponseContext ->
+            respondHtml (renderRosterStaffSelfServiceLeaveFormFragment leaveRequest)
 
 respondWithLeaveMutationSuccess :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> Bool -> IO ()
 respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmentOob =
@@ -282,12 +290,20 @@ respondWithLeaveMutationSuccess responseContext successMessage renderMainFragmen
                     , renderProfileLeaveRequestsListFragmentOob leaveRequests
                     , renderToastOob ToastBottomCenter (successToast successMessage)
                     ]
+        LeaveRosterResponseContext -> do
+            leaveRequest <- buildDefaultRosterLeaveRequest
+            respondHtmlProfiled $
+                mconcat
+                    [ renderRosterStaffSelfServiceLeaveFormFragment leaveRequest
+                    , renderToastOob ToastBottomCenter (successToast successMessage)
+                    ]
 
 ensureLeaveProfileAccess :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LeaveResponseContext -> IO ()
 ensureLeaveProfileAccess responseContext =
     case responseContext of
         LeavePageResponseContext    -> ensureProfileCompleted
         LeaveProfileResponseContext -> pure ()
+        LeaveRosterResponseContext  -> ensureProfileCompleted
 
 respondWithLeaveContextError :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => LeaveResponseContext -> Text -> IO ()
 respondWithLeaveContextError responseContext errorMessage =
@@ -302,6 +318,13 @@ respondWithLeaveContextError responseContext errorMessage =
                     [ renderProfileLeaveRequestFormFragment leaveRequest
                     , renderToastOob ToastBottomCenter (errorToast errorMessage)
                     ]
+        LeaveRosterResponseContext -> do
+            leaveRequest <- buildDefaultRosterLeaveRequest
+            respondHtmlProfiled $
+                mconcat
+                    [ renderRosterStaffSelfServiceLeaveFormFragment leaveRequest
+                    , renderToastOob ToastBottomCenter (errorToast errorMessage)
+                    ]
 
 ensureLeaveDeleteAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LeaveRequest -> IO ()
 ensureLeaveDeleteAllowed leaveRequest =
@@ -311,6 +334,15 @@ ensureLeaveDeleteAllowed leaveRequest =
             maybeStaff <- fetchCurrentUserStaff
             let canDeleteOwn = maybe False (\staff -> coerce (get #id staff) == leaveRequest.staffId) maybeStaff
             accessDeniedUnless canDeleteOwn
+
+buildDefaultRosterLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO LeaveRequest
+buildDefaultRosterLeaveRequest = do
+    venueConfig <- fetchVenueConfig
+    operationalDay <- currentOperationalDayForVenue venueConfig
+    pure $
+        newRecord @LeaveRequest
+            |> set #startDate operationalDay
+            |> set #endDate (Calendar.addDays 1 operationalDay)
 
 buildLeaveRequest :: (?context :: ControllerContext, ?request :: Request) => LeaveRequest -> LeaveRequest
 buildLeaveRequest leaveRequest =

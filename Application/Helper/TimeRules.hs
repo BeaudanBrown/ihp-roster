@@ -1,9 +1,9 @@
 module Application.Helper.TimeRules where
 
-import Data.Time.Calendar (Day, diffDays)
+import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (UTCTime (..), getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import Data.Time.LocalTime (TimeOfDay (..))
+import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -36,6 +36,23 @@ normalizeShiftMinuteOfDay tod =
 isWithinEditWindow :: Day -> Day -> Int -> Bool
 isWithinEditWindow today workedOn windowDays =
     diffDays today workedOn <= fromIntegral windowDays
+
+operationalDayForLocalTime :: LocalTime -> Day
+operationalDayForLocalTime LocalTime { localDay, localTimeOfDay }
+    | localTimeOfDay < TimeOfDay 6 0 0 = addDays (-1) localDay
+    | otherwise = localDay
+
+currentOperationalDayForVenue :: (?modelContext :: ModelContext) => VenueConfig -> IO Day
+currentOperationalDayForVenue venueConfig = do
+    now <- getCurrentTime
+    operationalDayForUtcTime venueConfig now
+
+operationalDayForUtcTime :: (?modelContext :: ModelContext) => VenueConfig -> UTCTime -> IO Day
+operationalDayForUtcTime venueConfig utcTime = do
+    localTime <- sqlQueryScalar
+        "SELECT (?::timestamptz AT TIME ZONE ?)"
+        (utcTime, venueConfig.timezone)
+    pure (operationalDayForLocalTime localTime)
 
 ensureEditWindowOrManager :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Day -> IO ()
 ensureEditWindowOrManager workedOn =

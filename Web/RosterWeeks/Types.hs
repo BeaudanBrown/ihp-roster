@@ -8,6 +8,7 @@ module Web.RosterWeeks.Types
     , RosterRenderData (..)
     , RosterRenderIndexes (..)
     , RosterRowRenderModel (..)
+    , RosterStaffSelfServicePanel (..)
     , RosterStaffPanelEntry (..)
     , RosterViewCapabilities (..)
     , RosterWeekOverviewDay (..)
@@ -36,6 +37,7 @@ data ShowView = ShowView
     , staffMembers          :: [Staff]
     , staffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
     , panelStaff            :: [RosterStaffPanelEntry]
+    , staffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , slotNames             :: [RosterWeekSlotDefinition]
     , allSlots              :: [RosterSlot]
     , slotConflicts         :: [(Id RosterSlot, [RosterConflict])]
@@ -80,6 +82,17 @@ data RosterStaffPanelEntry = RosterStaffPanelEntry
     , userRole           :: Text
     }
 
+data RosterStaffSelfServicePanel = RosterStaffSelfServicePanel
+    { quickToolsLeaveRequest             :: LeaveRequest
+    , quickToolsTimesheetEntries         :: [TimesheetEntry]
+    , quickToolsStaffMembers             :: [Staff]
+    , quickToolsShiftTypes               :: [ShiftType]
+    , quickToolsOperationalDay           :: Day
+    , quickToolsTimesheetWeekOffset      :: Int
+    , quickToolsTimesheetWeekStartDate   :: Day
+    , quickToolsTimesheetEditWindowDays  :: Int
+    }
+
 data RosterAssignmentFilters = RosterAssignmentFilters
     { hideStaffAtIdealShifts        :: Bool
     , hideStaffUnavailable          :: Bool
@@ -104,6 +117,7 @@ data RosterRenderData = RosterRenderData
     , staffMembers          :: [Staff]
     , staffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
     , panelStaff            :: [RosterStaffPanelEntry]
+    , staffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , orderedSlotNames      :: [RosterWeekSlotDefinition]
     , shiftTypes            :: [ShiftType]
     , allSlots              :: [RosterSlot]
@@ -124,6 +138,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridStaffMembers          :: [Staff]
     , gridStaffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
     , gridPanelStaff            :: [RosterStaffPanelEntry]
+    , gridStaffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , gridSlotNames             :: [RosterWeekSlotDefinition]
     , gridShiftTypes            :: [ShiftType]
     , gridWeekStartDate         :: Day

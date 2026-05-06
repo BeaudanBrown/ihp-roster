@@ -302,6 +302,33 @@
     min-height: 0;
 }
 
+.roster-staff-self-service-panel {
+    min-width: 0;
+}
+
+.roster-staff-self-service-stack {
+    display: grid;
+    gap: 1rem;
+    width: 100%;
+}
+
+.roster-quick-tool-panel {
+    min-width: 0;
+}
+
+.roster-quick-tool-panel .app-form-width {
+    max-width: none;
+}
+
+.roster-quick-tool-timesheet .timesheet-day-panel {
+    border: 0;
+    border-radius: 0;
+}
+
+.roster-quick-tool-timesheet .timesheet-day-body {
+    min-height: 8rem;
+}
+
 .roster-staff-panel .app-panel-body {
     display: flex;
     flex-direction: column;
@@ -507,6 +534,12 @@
         flex-direction: column;
         max-height: calc(100svh - 3rem);
         overflow: hidden;
+    }
+
+    .roster-staff-self-service-stack {
+        max-height: calc(100svh - 3rem);
+        overflow-y: auto;
+        padding-right: 0.25rem;
     }
 
     .roster-staff-panel .app-panel-body {

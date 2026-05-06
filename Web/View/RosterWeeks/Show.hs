@@ -34,6 +34,7 @@ renderRosterWeekShell ShowView { .. } =
                         , gridStaffMembers = staffMembers
                         , gridStaffOptionStates = staffOptionStates
                         , gridPanelStaff = panelStaff
+                        , gridStaffSelfServicePanel = staffSelfServicePanel
                         , gridSlotNames = slotNames
                         , gridShiftTypes = shiftTypes
                         , gridWeekStartDate = weekStartDate

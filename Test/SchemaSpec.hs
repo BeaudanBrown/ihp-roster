@@ -14,7 +14,7 @@ import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
-import Data.Time.LocalTime (TimeOfDay (..))
+import Data.Time.LocalTime (LocalTime (..), TimeOfDay (..))
 import Data.UUID (UUID)
 import Generated.Types
 import IHP.ControllerPrelude (Id, newRecord)
@@ -718,6 +718,16 @@ tests = describe "Schema" do
             let today = fromGregorian 2025 6 15
             isWithinEditWindow today (fromGregorian 2025 6 15) 0 `shouldBe` True
             isWithinEditWindow today (fromGregorian 2025 6 14) 0 `shouldBe` False
+
+        it "operationalDayForLocalTime keeps after-midnight shifts on the previous day before 6am" do
+            let day = fromGregorian 2025 6 15
+            operationalDayForLocalTime (LocalTime day (TimeOfDay 0 0 0)) `shouldBe` fromGregorian 2025 6 14
+            operationalDayForLocalTime (LocalTime day (TimeOfDay 5 59 59)) `shouldBe` fromGregorian 2025 6 14
+
+        it "operationalDayForLocalTime rolls over at 6am" do
+            let day = fromGregorian 2025 6 15
+            operationalDayForLocalTime (LocalTime day (TimeOfDay 6 0 0)) `shouldBe` day
+            operationalDayForLocalTime (LocalTime day (TimeOfDay 23 59 59)) `shouldBe` day
 
     describe "Timesheet approval" do
         it "resetApprovalOnEdit clears approval when wasApproved is True" do
