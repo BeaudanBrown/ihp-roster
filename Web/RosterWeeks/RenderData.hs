@@ -262,6 +262,7 @@ fetchRosterStaffSelfServicePanel venueConfig
                     Just
                         RosterStaffSelfServicePanel
                             { quickToolsLeaveRequest
+                            , quickToolsVenueId = currentVenueId
                             , quickToolsTimesheetEntries
                             , quickToolsStaffMembers = [staff]
                             , quickToolsShiftTypes

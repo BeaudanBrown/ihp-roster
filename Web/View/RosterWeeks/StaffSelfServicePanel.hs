@@ -3,11 +3,17 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     , renderRosterStaffSelfServiceLeaveFormFragment
     , rosterStaffSelfServiceLeaveFormFragmentId
     , rosterStaffSelfServicePanelFragmentId
+    , rosterStaffSelfServiceTimesheetLiveSurfaceId
     ) where
 
+import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
+                                       liveSurfaceConfigJson, mkLiveSurface)
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (diffDays)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
+import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
+                                  buildTimesheetDaySectionFragmentRef,
+                                  buildTimesheetWeekScope)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
 import Web.View.Timesheets.Index (TimesheetDayRenderModel (..),
@@ -18,6 +24,9 @@ rosterStaffSelfServicePanelFragmentId = "roster-staff-self-service-panel-fragmen
 
 rosterStaffSelfServiceLeaveFormFragmentId :: Text
 rosterStaffSelfServiceLeaveFormFragmentId = "roster-staff-self-service-leave-form-fragment"
+
+rosterStaffSelfServiceTimesheetLiveSurfaceId :: Text
+rosterStaffSelfServiceTimesheetLiveSurfaceId = "roster-staff-self-service-timesheet-live-surface"
 
 renderRosterStaffSelfServicePanelFragment :: (?context :: ControllerContext) => Maybe RosterStaffSelfServicePanel -> Html
 renderRosterStaffSelfServicePanelFragment Nothing = mempty
@@ -30,7 +39,9 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
             <div class="roster-staff-self-service-stack">
                 <div class="app-panel roster-quick-tool-panel">
                     <div class="app-panel-body p-0">
-                        <div class="roster-quick-tool-timesheet">
+                        <div id={rosterStaffSelfServiceTimesheetLiveSurfaceId}
+                             class="roster-quick-tool-timesheet"
+                             data-live-update-surface={liveSurfaceConfigJson (timesheetLiveSurface panel)}>
                             {renderDaySection (timesheetDayModel panel)}
                         </div>
                     </div>
@@ -79,7 +90,7 @@ rosterCreateLeaveRequestPath =
 
 timesheetDayModel :: RosterStaffSelfServicePanel -> TimesheetDayRenderModel
 timesheetDayModel panel =
-    let operationalDayOffset = fromInteger (diffDays panel.quickToolsOperationalDay panel.quickToolsTimesheetWeekStartDate)
+    let operationalDayOffset = quickToolsTimesheetDayOffset panel
      in
     TimesheetDayRenderModel
         { dayEntries = panel.quickToolsTimesheetEntries
@@ -94,3 +105,29 @@ timesheetDayModel panel =
         , dayStaffFilterId = Nothing
         , dayOffset = operationalDayOffset
         }
+
+timesheetLiveSurface :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> LiveSurfaceConfig
+timesheetLiveSurface panel =
+    let requestKey = timesheetProjectionRequest panel
+        dayOffset = quickToolsTimesheetDayOffset panel
+     in
+    ( mkLiveSurface
+        "timesheets"
+        (buildTimesheetWeekScope panel.quickToolsVenueId panel.quickToolsTimesheetWeekOffset)
+        [buildTimesheetDaySectionFragmentRef requestKey dayOffset]
+    )
+        { decorateRequestsWithin = ["#" <> rosterStaffSelfServiceTimesheetLiveSurfaceId]
+        }
+
+timesheetProjectionRequest :: RosterStaffSelfServicePanel -> TimesheetProjectionRequest
+timesheetProjectionRequest panel =
+    TimesheetProjectionRequest
+        { projectionWeekOffset = panel.quickToolsTimesheetWeekOffset
+        , projectionShowApproved = True
+        , projectionShowAllStaff = False
+        , projectionStaffFilterId = Nothing
+        }
+
+quickToolsTimesheetDayOffset :: RosterStaffSelfServicePanel -> Int
+quickToolsTimesheetDayOffset panel =
+    fromInteger (diffDays panel.quickToolsOperationalDay panel.quickToolsTimesheetWeekStartDate)

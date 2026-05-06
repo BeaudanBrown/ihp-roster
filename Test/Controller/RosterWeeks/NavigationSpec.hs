@@ -5,7 +5,9 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
+import qualified Data.ByteString.Lazy.Char8 as LByteString
 import Data.Maybe (fromJust)
+import qualified Data.Text as Text
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -176,6 +178,29 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "roster_week"
                 response `responseBodyShouldContain` "rosterGroupId"
                 response `responseBodyShouldContain` "weekOffset"
+
+        it "staff roster quick timesheet card subscribes to the operational timesheet day" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                user <- createUserRecord "roster-staff-timesheet-live-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createStaffRecord venue (Just user) "Tess" "Roster"
+                _ <- fetchSlotNameRecord venue "Early"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                _ <- createShiftTypeRecord venue payLevel "Ordinary"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"roster-staff-self-service-timesheet-live-surface\""
+                response `responseBodyShouldContain` "timesheet_week"
+                response `responseBodyShouldContain` "timesheet_day_section"
+                response `responseBodyShouldContain` "#roster-staff-self-service-timesheet-live-surface"
+
+                body <- responseBody response
+                let bodyText = cs (LByteString.unpack body)
+                Text.count "timesheet_day_section" bodyText `shouldBe` 1
 
         it "manager can see draft weeks" $ withContext do
             withCleanDb do

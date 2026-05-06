@@ -61,6 +61,15 @@ async function createProfileLeaveRequest(page: Page, note: string, startDate: st
 
 async function createTimesheet(page: Page, startTime: string, endTime: string) {
     await page.locator('[data-timesheet-day-add="true"]').first().click();
+    await fillAndSaveTimesheetDialog(page, startTime, endTime);
+}
+
+async function createTimesheetForDaySection(page: Page, dayOffset: string, startTime: string, endTime: string) {
+    await page.locator(`#timesheet-day-section-${dayOffset} [data-timesheet-day-add="true"]`).click();
+    await fillAndSaveTimesheetDialog(page, startTime, endTime);
+}
+
+async function fillAndSaveTimesheetDialog(page: Page, startTime: string, endTime: string) {
     await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
     await page.locator('input[name="startTime"]').evaluate((input, value) => {
         (input as HTMLInputElement).value = value as string;
@@ -241,5 +250,37 @@ test.describe('Live fragment multi-view coverage', () => {
 
         await managerContext.close();
         await workerContext.close();
+    });
+
+    test('worker roster quick timesheet card and timesheet page refresh each other live', async ({ browser }) => {
+        const rosterContext = await browser.newContext();
+        const timesheetContext = await browser.newContext();
+        const rosterPage = await rosterContext.newPage();
+        const timesheetPage = await timesheetContext.newPage();
+        const rosterCreatedRange = '1:15 PM - 4:15 PM';
+        const timesheetCreatedRange = '4:30 PM - 7:30 PM';
+
+        await loginWorker(rosterPage);
+        await loginWorker(timesheetPage);
+
+        await gotoWhenReady(rosterPage, e2eRosterPath, '#roster-staff-self-service-timesheet-live-surface');
+        await gotoWhenReady(timesheetPage, '/Timesheets?showApproved=true', '#timesheet-week-shell');
+
+        const rosterDay = rosterPage.locator('#roster-staff-self-service-timesheet-live-surface [data-timesheet-day-offset]').first();
+        const dayOffset = await rosterDay.getAttribute('data-timesheet-day-offset');
+        expect(dayOffset).toBeTruthy();
+
+        await createTimesheetForDaySection(rosterPage, dayOffset!, '13:15', '16:15');
+
+        await expect(rosterPage.locator('#roster-staff-self-service-timesheet-live-surface')).toContainText(rosterCreatedRange);
+        await expect(timesheetPage.locator(`#timesheet-day-section-${dayOffset}`)).toContainText(rosterCreatedRange, { timeout: E2E_TIMEOUT.liveUpdate });
+
+        await createTimesheetForDaySection(timesheetPage, dayOffset!, '16:30', '19:30');
+
+        await expect(timesheetPage.locator(`#timesheet-day-section-${dayOffset}`)).toContainText(timesheetCreatedRange);
+        await expect(rosterPage.locator('#roster-staff-self-service-timesheet-live-surface')).toContainText(timesheetCreatedRange, { timeout: E2E_TIMEOUT.liveUpdate });
+
+        await rosterContext.close();
+        await timesheetContext.close();
     });
 });
