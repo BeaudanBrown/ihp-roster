@@ -228,6 +228,27 @@ tests = beforeAll testContext do
                 workerResponse `responseBodyShouldContain` "Ava Hours"
                 workerResponse `responseBodyShouldNotContain` "Bea Hours"
 
+        it "shows approved entries to staff with a disabled approved button" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Approved Staff Venue"
+                manager <- createUserRecord "timesheet-approved-marker-manager@example.com" "staff" True
+                workerUser <- createUserRecord "timesheet-approved-marker-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                worker <- createStaffRecord venue (Just workerUser) "Ava" "Approved"
+                _ <- createApprovedTimesheetEntryRecord venue worker manager (fromGregorian 2025 1 7)
+
+                response <- withUserAndCurrentVenue workerUser venue.id do
+                    callActionWithParams ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 1 }
+                        [("showApproved", "true")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Ava Approved"
+                response `responseBodyShouldContain` "data-timesheet-entry-approved=\"true\""
+                response `responseBodyShouldContain` ">Approved</button>"
+                response `responseBodyShouldContain` "disabled"
+                response `responseBodyShouldNotContain` "UnapproveTimesheetEntry"
+
         it "applies manager timesheet filters from the week query params" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Filter Venue"

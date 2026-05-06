@@ -359,6 +359,13 @@ renderEditActions canEdit editUrl
 
 renderApprovalAction :: (?context :: ControllerContext) => Int -> TimesheetEntry -> Int -> Bool -> Bool -> Maybe UUID -> Html
 renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff staffFilterId
+    | not currentUserIsManager && entry.isApproved = [hsx|
+        <button type="button"
+                class="btn btn-sm btn-success timesheet-approval-toggle"
+                disabled>
+            Approved
+        </button>
+    |]
     | not currentUserIsManager = mempty
     | entry.isApproved = [hsx|
         <form method="POST"
