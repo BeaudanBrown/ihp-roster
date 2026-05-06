@@ -11,8 +11,9 @@ const duration = __ENV.PROFILE_LOAD_DURATION || '30s';
 const rate = Number(__ENV.PROFILE_LOAD_RATE || '10');
 const vus = Number(__ENV.PROFILE_LOAD_VUS || '10');
 const maxVus = Number(__ENV.PROFILE_LOAD_MAX_VUS || String(Math.max(vus * 2, rate * 2, 10)));
-const email = __ENV.PROFILE_EMAIL || manifest.accounts?.primaryManager?.email;
-const password = __ENV.PROFILE_PASSWORD || manifest.accounts?.primaryManager?.password || 'password123';
+const selectedAccount = accountForScenario(scenarioName);
+const email = __ENV.PROFILE_EMAIL || selectedAccount?.email;
+const password = __ENV.PROFILE_PASSWORD || selectedAccount?.password || 'password123';
 
 const requestAppTotal = new Trend('profile_request_app_total', true);
 const spanDuration = new Trend('profile_span_duration', true);
@@ -53,7 +54,7 @@ export default function () {
     updateSessionCookie(response);
 
     check(response, {
-        [`${route.name} status ok`]: (res) => res.status >= 200 && res.status < 300,
+        [`${route.name} status ok`]: (res) => routeStatusOk(route, res.status),
     });
 
     recordServerTiming(route, response);
@@ -110,7 +111,7 @@ function scenarioRoutes(name) {
     const routes = manifest.routes || {};
     const selected = expandScenario(name, new Set());
     if (!selected) fail(`Unsupported PROFILE_LOAD_SCENARIO: ${name}`);
-    return selected.map((item) => route(item.name, routes[item.routeKey] || item.fallbackPath)).filter((item) => item.path);
+    return selected.map((item) => route(item.name, routes[item.routeKey] || item.fallbackPath, item)).filter((item) => item.path);
 }
 
 function expandScenario(name, seen) {
@@ -132,12 +133,20 @@ function expandScenario(name, seen) {
     return expanded;
 }
 
-function route(name, path) {
+function route(name, path, config = {}) {
     return {
         name,
         path,
+        expectedStatuses: config.expectedStatuses || null,
         headers: isFragmentRoute(name) ? { 'HX-Request': 'true' } : {},
     };
+}
+
+function routeStatusOk(route, status) {
+    if (Array.isArray(route.expectedStatuses) && route.expectedStatuses.length > 0) {
+        return route.expectedStatuses.includes(status);
+    }
+    return status >= 200 && status < 300;
 }
 
 function isFragmentRoute(name) {
@@ -190,6 +199,13 @@ function parseServerTiming(header) {
         }
         return result;
     });
+}
+
+function accountForScenario(name) {
+    if (['admin', 'mixed-app'].includes(name)) {
+        return manifest.accounts?.venueAdmin || manifest.accounts?.primaryManager;
+    }
+    return manifest.accounts?.primaryManager;
 }
 
 function splitHeader(header) {

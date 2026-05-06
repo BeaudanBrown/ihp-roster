@@ -10,11 +10,15 @@
     ],
     "timesheets": [
       { "kind": "visit", "name": "timesheets.current.full", "routeKey": "timesheetsCurrent", "fallbackPath": "/Timesheets", "readySelector": "#timesheet-week-shell" },
+      { "kind": "visit", "name": "timesheets.current.reset", "routeKey": "timesheetsReset", "fallbackPath": "/Timesheets?showApproved=true&showAllStaff=true", "readySelector": "#timesheet-week-shell" },
+      { "kind": "visit", "name": "timesheets.current.staff_filter", "routeKey": "timesheetsStaffFilter", "readySelector": "#timesheet-week-shell" },
       { "kind": "visit", "name": "timesheets.current.day_fragment", "routeKey": "timesheetDayFragment", "readySelector": "[id^=\"timesheet-day-section-\"]" }
     ],
     "leave": [
       { "kind": "visit", "name": "leave.manager.full", "routeKey": "leaveRequests", "fallbackPath": "/LeaveRequests", "readySelector": "#leave-requests-shell" },
-      { "kind": "visit", "name": "leave.profile.full", "routeKey": "profileLeave", "fallbackPath": "/EditProfile?section=leave", "readySelector": "#profile-content-fragment" }
+      { "kind": "visit", "name": "leave.manager.content_fragment", "routeKey": "leaveRequestsFragment", "fallbackPath": "/ShowLeaveRequestsContentFragment", "readySelector": "#leave-requests-content" },
+      { "kind": "visit", "name": "leave.profile.full", "routeKey": "profileLeave", "fallbackPath": "/EditProfile?section=leave", "readySelector": "#profile-content-fragment" },
+      { "kind": "visit", "name": "leave.profile.content_fragment", "routeKey": "profileLeaveRequestsFragment", "fallbackPath": "/ShowProfileLeaveRequestsContentFragment", "readySelector": "#profile-leave-requests-content" }
     ],
     "xero": [
       { "kind": "visit", "name": "xero.full", "routeKey": "xero", "fallbackPath": "/Xero", "readySelector": "#admin-xero-fragment" },
@@ -24,11 +28,16 @@
     ],
     "admin": [
       { "kind": "visit", "name": "admin.full", "routeKey": "admin", "fallbackPath": "/Admin", "readySelector": "#admin-config-sections" },
-      { "kind": "visit", "name": "admin.exports.section", "routeKey": "adminExports", "fallbackPath": "/Admin#exports", "readySelector": "#exports" }
+      { "kind": "visit", "name": "admin.exports.section", "routeKey": "adminExports", "fallbackPath": "/Admin#exports", "readySelector": "#exports" },
+      { "kind": "visit", "name": "admin.invites.fragment", "routeKey": "adminInvitesFragment", "fallbackPath": "/ShowAdminInvitesFragment", "readySelector": "#admin-invites-fragment" },
+      { "kind": "visit", "name": "admin.shift_types.fragment", "routeKey": "adminShiftTypesFragment", "fallbackPath": "/ShowAdminShiftTypesFragment", "readySelector": "#admin-shift-types-fragment" },
+      { "kind": "visit", "name": "admin.roster_groups.fragment", "routeKey": "adminRosterGroupsFragment", "fallbackPath": "/ShowAdminRosterGroupsFragment", "readySelector": "#admin-roster-groups-fragment" }
     ],
     "profile": [
       { "kind": "visit", "name": "profile.full", "routeKey": "editProfile", "fallbackPath": "/EditProfile", "readySelector": "#profile-content-fragment" },
-      { "kind": "visit", "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security", "readySelector": "#profile-content-fragment" }
+      { "kind": "visit", "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security", "readySelector": "#profile-content-fragment" },
+      { "kind": "visit", "name": "profile.rsa", "routeKey": "profileRsa", "fallbackPath": "/EditProfile?section=rsa", "readySelector": "#profile-content-fragment" },
+      { "kind": "visit", "name": "profile.leave.content_fragment", "routeKey": "profileLeaveRequestsFragment", "fallbackPath": "/ShowProfileLeaveRequestsContentFragment", "readySelector": "#profile-leave-requests-content" }
     ],
     "writes": [
       { "kind": "exportGeneration", "name": "exports.generate.approved_timesheets" }
@@ -67,19 +76,28 @@
     ],
     "timesheets": [
       { "name": "timesheets.current.full", "routeKey": "timesheetsCurrent", "fallbackPath": "/Timesheets" },
+      { "name": "timesheets.current.reset", "routeKey": "timesheetsReset", "fallbackPath": "/Timesheets?showApproved=true&showAllStaff=true", "expectedStatuses": [302, 303] },
+      { "name": "timesheets.current.staff_filter", "routeKey": "timesheetsStaffFilter" },
       { "name": "timesheets.current.day_fragment", "routeKey": "timesheetDayFragment" }
     ],
     "leave": [
       { "name": "leave.manager.full", "routeKey": "leaveRequests", "fallbackPath": "/LeaveRequests" },
-      { "name": "leave.profile.full", "routeKey": "profileLeave", "fallbackPath": "/EditProfile?section=leave" }
+      { "name": "leave.manager.content_fragment", "routeKey": "leaveRequestsFragment", "fallbackPath": "/ShowLeaveRequestsContentFragment" },
+      { "name": "leave.profile.full", "routeKey": "profileLeave", "fallbackPath": "/EditProfile?section=leave" },
+      { "name": "leave.profile.content_fragment", "routeKey": "profileLeaveRequestsFragment", "fallbackPath": "/ShowProfileLeaveRequestsContentFragment" }
     ],
     "admin": [
       { "name": "admin.full", "routeKey": "admin", "fallbackPath": "/Admin" },
-      { "name": "admin.exports.section", "routeKey": "adminExports", "fallbackPath": "/Admin#exports" }
+      { "name": "admin.exports.section", "routeKey": "adminExports", "fallbackPath": "/Admin#exports" },
+      { "name": "admin.invites.fragment", "routeKey": "adminInvitesFragment", "fallbackPath": "/ShowAdminInvitesFragment" },
+      { "name": "admin.shift_types.fragment", "routeKey": "adminShiftTypesFragment", "fallbackPath": "/ShowAdminShiftTypesFragment" },
+      { "name": "admin.roster_groups.fragment", "routeKey": "adminRosterGroupsFragment", "fallbackPath": "/ShowAdminRosterGroupsFragment" }
     ],
     "profile": [
       { "name": "profile.full", "routeKey": "editProfile", "fallbackPath": "/EditProfile" },
-      { "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security" }
+      { "name": "profile.security", "routeKey": "profileSecurity", "fallbackPath": "/EditProfile?section=security" },
+      { "name": "profile.rsa", "routeKey": "profileRsa", "fallbackPath": "/EditProfile?section=rsa" },
+      { "name": "profile.leave.content_fragment", "routeKey": "profileLeaveRequestsFragment", "fallbackPath": "/ShowProfileLeaveRequestsContentFragment" }
     ],
     "mixed-app": [
       { "include": "roster-wide" },

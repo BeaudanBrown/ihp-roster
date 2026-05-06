@@ -3,6 +3,7 @@ module Web.Controller.Sessions where
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.EmailVerification (findActiveVerificationTokenByToken,
                                              sendEmailVerification)
+import Application.Helper.Profiling (isRequestProfilingEnabled)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import IHP.AuthSupport.Authentication (verifyPassword)
@@ -73,6 +74,7 @@ instance Controller SessionsController where
                                 query @Passkey
                                     |> filterWhere (#userId, unpackId (get #id user))
                                     |> fetchCount
+                            markProfilingSessionPasskeyVerifiedIfSeeded user passkeyCount
                             setSession passkeySetupPromptSessionKey
                                 if passkeyCount == 0
                                     then ("first-passkey" :: Text)
@@ -169,3 +171,9 @@ defaultLoginRedirectPath user = do
         if user.platformRole == Just (platformRoleToEnum SuperAdminRole) && isNothing maybeVenueContext
             then pathTo SupportAction
             else Sessions.afterLoginRedirectPath @User
+
+markProfilingSessionPasskeyVerifiedIfSeeded :: (?context :: ControllerContext) => User -> Int -> IO ()
+markProfilingSessionPasskeyVerifiedIfSeeded user passkeyCount = do
+    profilingEnabled <- liftIO isRequestProfilingEnabled
+    when (profilingEnabled && passkeyCount > 0) do
+        markUserPasskeyVerified user.id

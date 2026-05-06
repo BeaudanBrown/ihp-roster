@@ -3,6 +3,7 @@ module Application.Helper.Profiling
     , RequestProfileSpan (..)
     , emitRequestProfileResponseHeaders
     , initRequestProfiling
+    , isRequestProfilingEnabled
     , profileActionSpan
     , profileActionSpanWithDetail
     , profilingMiddleware

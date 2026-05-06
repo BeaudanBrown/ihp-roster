@@ -99,6 +99,7 @@ writeProfileSeed :: FilePath -> ProfileSeedPlan -> IO ()
 writeProfileSeed dir plan = do
     writeCsv dir "venues.csv" venueColumns (venueRows plan)
     writeCsv dir "users.csv" userColumns (userRows plan)
+    writeCsv dir "passkeys.csv" passkeyColumns (passkeyRows plan)
     writeCsv dir "venue_config.csv" venueConfigColumns (venueConfigRows plan)
     writeCsv dir "venue_memberships.csv" venueMembershipColumns (venueMembershipRows plan)
     writeCsv dir "staff.csv" staffColumns (staffRows plan)
@@ -195,15 +196,26 @@ renderProfileSeedManifest plan =
         , "    \"rosterStaffPanelFragment\": " <> jsonString (rosterWeekStaffPanelFragmentPath plan.currentWeekOffset 1 1) <> ","
         , "    \"rosterOverviewFragment\": " <> jsonString (rosterWeekOverviewFragmentPath plan.currentWeekOffset 1 1) <> ","
         , "    \"timesheetsCurrent\": " <> jsonString (timesheetWeekPath plan.currentWeekOffset) <> ","
+        , "    \"timesheetsReset\": " <> jsonString (timesheetResetPath plan.currentWeekOffset) <> ","
+        , "    \"timesheetsStaffFilter\": " <> jsonString (timesheetStaffFilterPath plan.currentWeekOffset (staffId 1 1)) <> ","
         , "    \"timesheetDayFragment\": " <> jsonString (timesheetDayFragmentPath plan.currentWeekOffset 0) <> ","
         , "    \"leaveRequests\": \"/LeaveRequests\","
+        , "    \"leaveRequestsFragment\": \"/ShowLeaveRequestsContentFragment\","
         , "    \"editProfile\": \"/EditProfile\","
         , "    \"profileSecurity\": \"/EditProfile?section=security\","
         , "    \"profileLeave\": \"/EditProfile?section=leave\","
+        , "    \"profileRsa\": \"/EditProfile?section=rsa\","
+        , "    \"profileLeaveRequestsFragment\": \"/ShowProfileLeaveRequestsContentFragment\","
         , "    \"admin\": \"/Admin\","
         , "    \"adminExports\": \"/Admin#exports\","
+        , "    \"adminInvitesFragment\": " <> jsonString (adminInvitesFragmentPath 1 1) <> ","
+        , "    \"adminShiftTypesFragment\": \"/ShowAdminShiftTypesFragment\","
+        , "    \"adminRosterGroupsFragment\": \"/ShowAdminRosterGroupsFragment\","
         , "    \"xero\": \"/Xero\","
-        , "    \"adminXeroFragment\": \"/ShowAdminXeroFragment\""
+        , "    \"adminXeroFragment\": \"/ShowAdminXeroFragment\","
+        , "    \"adminXeroStaffMappingsFragment\": \"/ShowAdminXeroStaffMappingsFragment\","
+        , "    \"adminXeroPayItemsFragment\": \"/ShowAdminXeroPayItemsFragment\","
+        , "    \"adminXeroTimesheetsFragment\": \"/ShowAdminXeroTimesheetsFragment\""
         , "  },"
         , "  \"xero\": {"
         , "    \"connectionId\": " <> jsonString (xeroConnectionId 1) <> ","
@@ -266,9 +278,21 @@ timesheetWeekPath :: Int -> Text
 timesheetWeekPath weekOffset =
     "/ShowTimesheetWeek?weekOffset=" <> tshow weekOffset <> "&showApproved=true&showAllStaff=true"
 
+timesheetResetPath :: Int -> Text
+timesheetResetPath _weekOffset =
+    "/Timesheets?showApproved=true&showAllStaff=true"
+
+timesheetStaffFilterPath :: Int -> Text -> Text
+timesheetStaffFilterPath weekOffset staffUuid =
+    timesheetWeekPath weekOffset <> "&staffFilterId=" <> staffUuid
+
 timesheetDayFragmentPath :: Int -> Int -> Text
 timesheetDayFragmentPath weekOffset dayOffset =
     "/ShowTimesheetDaySectionFragment?weekOffset=" <> tshow weekOffset <> "&dayOffset=" <> tshow dayOffset <> "&showApproved=true&showAllStaff=true"
+
+adminInvitesFragmentPath :: Int -> Int -> Text
+adminInvitesFragmentPath venueIndex groupIndex =
+    "/ShowAdminInvitesFragment?rosterGroupId=" <> rosterGroupId venueIndex groupIndex
 
 jsonString :: Text -> Text
 jsonString value =
@@ -285,6 +309,7 @@ tableLoads :: [(Text, [Text], FilePath)]
 tableLoads =
     [ ("venues", venueColumns, "venues.csv")
     , ("users", userColumns, "users.csv")
+    , ("passkeys", passkeyColumns, "passkeys.csv")
     , ("venue_config", venueConfigColumns, "venue_config.csv")
     , ("venue_memberships", venueMembershipColumns, "venue_memberships.csv")
     , ("staff", staffColumns, "staff.csv")
@@ -310,9 +335,10 @@ tableLoads =
     , ("xero_staff_mappings", xeroStaffMappingColumns, "xero_staff_mappings.csv")
     ]
 
-venueColumns, userColumns, venueConfigColumns, venueMembershipColumns, staffColumns :: [Text]
+venueColumns, userColumns, passkeyColumns, venueConfigColumns, venueMembershipColumns, staffColumns :: [Text]
 venueColumns = ["id", "name", "status"]
 userColumns = ["id", "email", "password_hash", "user_role", "platform_role", "is_profile_completed", "email_verified_at", "failed_login_attempts", "locked_at"]
+passkeyColumns = ["id", "user_id", "credential_id", "public_key", "sign_count", "name", "created_at", "last_used_at", "updated_at"]
 venueConfigColumns = ["id", "venue_id", "timezone", "roster_week_starts_on", "week_offset_epoch", "late_to_early_min_start_gap_minutes", "staff_timesheet_edit_window_days"]
 venueMembershipColumns = ["id", "venue_id", "user_id", "venue_role", "is_active"]
 staffColumns = ["id", "venue_id", "user_id", "first_name", "last_name", "preferred_name", "phone", "emergency_contact_name", "emergency_contact_phone", "ideal_shifts_per_week", "is_active"]
@@ -367,6 +393,29 @@ userRows plan =
             ]
         adminUser venueIndex =
             row [adminUserId venueIndex, adminEmail venueIndex, passwordHash, "admin", nullText, "true", timestampText, "0"] <> [Nothing]
+
+passkeyRows :: ProfileSeedPlan -> [[Maybe Text]]
+passkeyRows plan =
+    supportPasskey : map adminPasskey (venueIndexes plan)
+    where
+        supportPasskey =
+            passkeyRow (uuidText 29 0 0 0) supportUserId "Profile support passkey"
+        adminPasskey venueIndex =
+            passkeyRow (uuidText 29 venueIndex 0 0) (adminUserId venueIndex) "Profile admin passkey"
+
+passkeyRow :: Text -> Text -> Text -> [Maybe Text]
+passkeyRow passkeyId userId passkeyName =
+    row
+        [ passkeyId
+        , userId
+        , byteaHex passkeyId
+        , byteaHex (passkeyId <> passkeyId)
+        , "0"
+        , passkeyName
+        , timestampText
+        , nullText
+        , timestampText
+        ]
 
 venueConfigRows :: ProfileSeedPlan -> [[Maybe Text]]
 venueConfigRows plan =
@@ -761,6 +810,15 @@ uuidText namespace a b c =
         thirdGroup = c
         fourthGroup = a + b + c
         fifthGroup = namespace * 100000000 + a * 1000000 + b * 1000 + c
+
+byteaHex :: Text -> Text
+byteaHex value =
+    "\\x" <> Text.take 64 (Text.filter isHexDigit value <> Text.replicate 64 "0")
+    where
+        isHexDigit character =
+            (character >= '0' && character <= '9')
+                || (character >= 'a' && character <= 'f')
+                || (character >= 'A' && character <= 'F')
 
 hex3 :: Int -> String
 hex3 value = padLeft 3 (showHexText value)

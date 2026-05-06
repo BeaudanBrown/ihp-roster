@@ -290,9 +290,11 @@ function summarize(records) {
             spanGroups.set(key, group);
         }
     }
+    const missingServerTiming = summarizeMissingServerTiming(measured);
 
     return {
         requestCount: requests.length,
+        missingServerTiming,
         slowestRequests: requests
             .sort((a, b) => b.totalMs - a.totalMs)
             .slice(0, 20)
@@ -319,6 +321,43 @@ function summarize(records) {
     };
 }
 
+function summarizeMissingServerTiming(records) {
+    const groups = new Map();
+    for (const record of records) {
+        if (record.serverTiming.length > 0) continue;
+        const url = new URL(record.url);
+        if (isStaticProfilingNoise(url.pathname)) continue;
+        const key = `${record.scenario}::${record.method}::${url.pathname}${url.search}`;
+        const group = groups.get(key) || {
+            scenario: record.scenario,
+            method: record.method,
+            path: url.pathname + url.search,
+            count: 0,
+            statuses: new Map(),
+        };
+        group.count += 1;
+        group.statuses.set(record.status, (group.statuses.get(record.status) || 0) + 1);
+        groups.set(key, group);
+    }
+
+    return [...groups.values()]
+        .map((group) => ({
+            scenario: group.scenario,
+            method: group.method,
+            path: group.path,
+            count: group.count,
+            statuses: Object.fromEntries(group.statuses),
+        }))
+        .sort((a, b) => b.count - a.count || a.path.localeCompare(b.path))
+        .slice(0, 30);
+}
+
+function isStaticProfilingNoise(pathname) {
+    return pathname.startsWith('/static/')
+        || pathname.startsWith('/vendor/')
+        || pathname === '/favicon.ico';
+}
+
 function percentile(values, p) {
     if (values.length === 0) return 0;
     const sorted = [...values].sort((a, b) => a - b);
@@ -339,6 +378,18 @@ function renderMarkdown(options, manifest, summary) {
         `Seed scenario: ${manifest.scenario}`,
         `Current week offset: ${manifest.currentWeekOffset}`,
         '',
+        '## Timing Coverage Anomalies',
+        '',
+        ...(summary.missingServerTiming.length === 0
+            ? ['No sampled app responses were missing `Server-Timing`.', '']
+            : [
+                '| Scenario | Method | Count | Statuses | Path |',
+                '| --- | --- | ---: | --- | --- |',
+                ...summary.missingServerTiming.map((request) =>
+                    `| ${request.scenario} | ${request.method} | ${request.count} | \`${JSON.stringify(request.statuses)}\` | \`${request.path}\` |`
+                ),
+                '',
+            ]),
         '## Slowest Requests',
         '',
         '| Scenario | Method | Status | Total ms | Wall ms | Path |',

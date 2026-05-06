@@ -144,6 +144,22 @@ function parseMetrics(filePath) {
         ...summarizeSamples(group.samples),
     })).sort((a, b) => b.p95Ms - a.p95Ms);
 
+    const missingServerTiming = [...httpGroups.values()]
+        .map((group) => {
+            const key = groupKey({ scenario: group.scenario, route: group.route }, ['scenario', 'route']);
+            const appTotalCount = appGroups.get(key)?.samples.length || 0;
+            const missingCount = Math.max(0, group.samples.length - appTotalCount);
+            return {
+                scenario: group.scenario,
+                route: group.route,
+                requestCount: group.samples.length,
+                appTotalCount,
+                missingCount,
+            };
+        })
+        .filter((row) => row.missingCount > 0)
+        .sort((a, b) => b.missingCount - a.missingCount || a.route.localeCompare(b.route));
+
     return {
         requestCount,
         failedCount,
@@ -161,6 +177,7 @@ function parseMetrics(filePath) {
         http,
         appTotals,
         spans,
+        missingServerTiming,
     };
 }
 
@@ -192,6 +209,18 @@ function renderMarkdown(summary, metadata) {
         `Max observed VUs: ${summary.maxObservedVus}/${summary.maxObservedVusLimit || '?'} (${round(summary.vuSaturation * 100)}%)`,
         `Observed throughput: ${summary.requestsPerSecond} req/sec over ${summary.elapsedSeconds}s`,
         '',
+        '## Timing Coverage Anomalies',
+        '',
+        ...(summary.missingServerTiming.length === 0
+            ? ['No sampled routes were missing `Server-Timing` records.', '']
+            : [
+                '| Scenario | Route | Requests | App Total Records | Missing |',
+                '| --- | --- | ---: | ---: | ---: |',
+                ...summary.missingServerTiming.map((row) =>
+                    `| ${row.scenario} | \`${row.route}\` | ${row.requestCount} | ${row.appTotalCount} | ${row.missingCount} |`
+                ),
+                '',
+            ]),
         '## Slowest HTTP Routes',
         '',
         '| Scenario | Route | Count | Median | P95 | P99 | Max | Statuses |',

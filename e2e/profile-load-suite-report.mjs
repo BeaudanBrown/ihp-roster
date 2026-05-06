@@ -38,6 +38,9 @@ function renderMarkdown(suiteDir, profiles) {
     const totalDroppedIterations = profiles.reduce((sum, item) => sum + (item.summary.droppedIterations || 0), 0);
     const totalFailedChecks = profiles.reduce((sum, item) => sum + (item.summary.failedChecks || 0), 0);
     const totalChecks = profiles.reduce((sum, item) => sum + (item.summary.checkCount || 0), 0);
+    const missingServerTiming = profiles.flatMap((item) =>
+        (item.summary.missingServerTiming || []).map((row) => ({ scenario: item.scenario, ...row }))
+    ).sort((a, b) => (b.missingCount || 0) - (a.missingCount || 0));
     const slowestHttp = profiles.flatMap((item) =>
         (item.summary.http || []).map((row) => ({ scenario: item.scenario, ...row }))
     ).sort((a, b) => (b.p95Ms || 0) - (a.p95Ms || 0));
@@ -69,6 +72,18 @@ function renderMarkdown(suiteDir, profiles) {
         `Dropped iterations: ${totalDroppedIterations}`,
         `Failed checks: ${totalFailedChecks}/${totalChecks}`,
         '',
+        '## Timing Coverage Anomalies',
+        '',
+        ...(missingServerTiming.length === 0
+            ? ['No sampled routes were missing `Server-Timing` records.', '']
+            : [
+                '| Scenario | Route | Requests | App Total Records | Missing |',
+                '| --- | --- | ---: | ---: | ---: |',
+                ...missingServerTiming.slice(0, 30).map((row) =>
+                    `| ${row.scenario} | \`${row.route}\` | ${row.requestCount} | ${row.appTotalCount} | ${row.missingCount} |`
+                ),
+                '',
+            ]),
         '| Scenario | Rate | Duration | Requests | Req/sec | Failures | Dropped | VU Sat. | Slowest HTTP P95 | Slowest App P95 | Slowest Span P95 |',
         '| --- | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |',
         ...profiles.map((item) => {
