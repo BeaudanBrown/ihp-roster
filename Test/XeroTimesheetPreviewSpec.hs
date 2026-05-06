@@ -167,7 +167,7 @@ data PreviewFixture = PreviewFixture
 
 createPreviewFixture :: (?modelContext :: ModelContext) => Text -> [EntrySpec] -> IO PreviewFixture
 createPreviewFixture calendarType entrySpecs = do
-    let periodStart = fromGregorian 2026 4 27
+    let periodStart = fromGregorian 2026 5 4
         periodEnd = addDays (if calendarType == "fortnightly" then 13 else 6) periodStart
     venue <- createVenueWithConfig "Xero Preview Venue"
     owner <- createUserRecord "preview-owner@example.com" "admin" True
@@ -180,7 +180,7 @@ createPreviewFixture calendarType entrySpecs = do
     _ <- createPreviewSyncRun venue connection
     _ <- createPreviewPayrollCalendar venue connection calendarType periodStart
     buckets <- currentVenueBuckets venue periodStart
-    createPreviewMappings venue connection staffA staffB buckets
+    createPreviewMappings venue connection periodStart staffA staffB buckets
     pure PreviewFixture
         { venue
         , owner
@@ -259,14 +259,27 @@ createPreviewPayrollCalendar venue connection calendarType periodStart = do
             |> createRecord
     pure calendar
 
-createPreviewMappings :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> Staff -> Staff -> [XeroLocalEarningsBucket] -> IO ()
-createPreviewMappings venue connection staffA staffB buckets = do
+createPreviewMappings :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> Day -> Staff -> Staff -> [XeroLocalEarningsBucket] -> IO ()
+createPreviewMappings venue connection periodStart staffA staffB buckets = do
     createStaffMapping staffA "employee-a"
     createStaffMapping staffB "employee-b"
     createXeroEmployee staffA "employee-a"
     createXeroEmployee staffB "employee-b"
     forM_ buckets \bucket -> do
         let earningsRateId = "earnings-" <> bucket.localBucketKey
+        let earningsRateName = xeroManagedPayItemNamePrefix <> bucket.localBucketLabel
+        _ <-
+            newRecord @XeroEarningsRate
+                |> set #venueId (unpackId venue.id)
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #xeroEarningsRateId earningsRateId
+                |> set #name earningsRateName
+                |> set #earningsType (Just "REGULAR")
+                |> set #rateType Nothing
+                |> set #accountCode (Just "477")
+                |> set #isActive True
+                |> set #rawPayload (Aeson.object ["EarningsRateID" Aeson..= earningsRateId])
+                |> createRecord
         _ <-
             newRecord @XeroEarningsRateMapping
                 |> set #venueId (unpackId venue.id)
@@ -274,22 +287,37 @@ createPreviewMappings venue connection staffA staffB buckets = do
                 |> set #localBucketKey bucket.localBucketKey
                 |> set #localBucketLabel bucket.localBucketLabel
                 |> set #xeroEarningsRateId (Just earningsRateId)
-                |> set #xeroEarningsRateName (Just bucket.localBucketLabel)
+                |> set #xeroEarningsRateName (Just earningsRateName)
                 |> set #mappingStatus ("verified" :: Text)
                 |> createRecord
-        _ <-
-            newRecord @XeroPayItemRequirementRecord
-                |> set #venueId (unpackId venue.id)
-                |> set #xeroConnectionId (unpackId connection.id)
-                |> set #requirementKey bucket.localBucketKey
-                |> set #displayName bucket.localBucketLabel
-                |> set #rateType ("RATEPERUNIT" :: Text)
-                |> set #ratePerUnit (Just 25)
-                |> set #sourceDescription ("preview requirement" :: Text)
-                |> set #requirementStatus ("matched" :: Text)
-                |> set #xeroEarningsRateId (Just earningsRateId)
-                |> createRecord
         pure ()
+    xeroEarningsRates <-
+        query @XeroEarningsRate
+            |> filterWhere (#venueId, unpackId venue.id)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetch
+    awardLevels <- query @AwardLevel |> fetch
+    baseRates <- query @AwardLevelBaseRate |> fetch
+    penaltyRates <- query @AwardLevelPenaltyRate |> fetch
+    timeAllowances <- query @AwardTimePenaltyAllowance |> fetch
+    staffMembers <-
+        query @Staff
+            |> filterWhere (#venueId, unpackId venue.id)
+            |> fetch
+    shiftTypes <-
+        query @ShiftType
+            |> filterWhere (#venueId, unpackId venue.id)
+            |> fetch
+    let requirements =
+            deriveXeroPayItemRequirements
+                periodStart
+                (deriveXeroUsedAwardPayScopes staffMembers shiftTypes)
+                awardLevels
+                baseRates
+                penaltyRates
+                timeAllowances
+                xeroEarningsRates
+    _ <- syncXeroPayItemRequirementRecords connection.id venue.id Nothing requirements
     _ <-
         newRecord @XeroPayItemAccountCodeSelection
             |> set #venueId (unpackId venue.id)

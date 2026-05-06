@@ -177,8 +177,8 @@ sampleTimesheetObject :: Aeson.Value
 sampleTimesheetObject =
     Aeson.object
         [ "EmployeeID" Aeson..= ("employee-id" :: Text)
-        , "StartDate" Aeson..= ("2026-04-27" :: Text)
-        , "EndDate" Aeson..= ("2026-05-03" :: Text)
+        , "StartDate" Aeson..= ("2026-05-04" :: Text)
+        , "EndDate" Aeson..= ("2026-05-10" :: Text)
         , "Status" Aeson..= ("DRAFT" :: Text)
         , "TimesheetLines" Aeson..= [Aeson.object ["EarningsRateID" Aeson..= ("earnings-id" :: Text), "NumberOfUnits" Aeson..= ([2 :: Int, 0, 0, 0, 0, 0, 0] :: [Int])]]
         ]
@@ -532,8 +532,8 @@ calendarsFixture =
                 [ "PayrollCalendarID" Aeson..= ("calendar-id" :: Text)
                 , "Name" Aeson..= ("Weekly" :: Text)
                 , "CalendarType" Aeson..= ("WEEKLY" :: Text)
-                , "StartDate" Aeson..= ("2026-04-27" :: Text)
-                , "PaymentDate" Aeson..= ("2026-05-04" :: Text)
+                , "StartDate" Aeson..= ("2026-05-04" :: Text)
+                , "PaymentDate" Aeson..= ("2026-05-11" :: Text)
                 ]
             ]
         ]
@@ -551,8 +551,8 @@ timesheetObjectFixture =
     Aeson.object
         [ "TimesheetID" Aeson..= ("timesheet-id" :: Text)
         , "EmployeeID" Aeson..= ("employee-id" :: Text)
-        , "StartDate" Aeson..= ("2026-04-27" :: Text)
-        , "EndDate" Aeson..= ("2026-05-03" :: Text)
+        , "StartDate" Aeson..= ("2026-05-04" :: Text)
+        , "EndDate" Aeson..= ("2026-05-10" :: Text)
         , "Status" Aeson..= ("DRAFT" :: Text)
         , "Hours" Aeson..= (2 :: Int)
         , "TimesheetLines" Aeson..=

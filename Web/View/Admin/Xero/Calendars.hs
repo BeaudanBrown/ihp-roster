@@ -37,7 +37,10 @@ renderXeroPayrollCalendarSelection payrollCalendars maybeSelection
         currentSelection =
             case maybeSelection of
                 Just selection | selection.calendarStatus == "verified" -> fromMaybe "" selection.xeroPayrollCalendarId
-                _ -> ""
+                _ ->
+                    case payrollCalendars of
+                        [payrollCalendar] -> payrollCalendar.xeroPayrollCalendarId
+                        _                 -> ""
 
 renderXeroPayrollCalendarOption :: Text -> XeroPayrollCalendar -> Html
 renderXeroPayrollCalendarOption currentSelection payrollCalendar = [hsx|

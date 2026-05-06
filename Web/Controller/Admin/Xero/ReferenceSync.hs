@@ -76,7 +76,8 @@ completeXeroReferenceSync syncRun connection employees earningsRates payrollCale
         mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
         markStaleXeroStaffMappings connection employees
         markStaleXeroEarningsRateMappings connection earningsRates
-        markStaleXeroPayrollCalendarSelection connection payrollCalendars
+        reconcileXeroPayItemAccountCodeSelection connection earningsRates
+        reconcileXeroPayrollCalendarSelection connection payrollCalendars
         _ <- syncRun
             |> set #syncStatus ("succeeded" :: Text)
             |> set #employeesCount (length employees)

@@ -7,6 +7,8 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
+import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
+                                                 validateXeroTimesheetReadiness)
 import Config
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
@@ -342,6 +344,13 @@ tests = beforeAll testContext do
                 earningsRateCount `shouldBe` 1
                 payrollCalendarCount <- query @XeroPayrollCalendar |> fetchCount
                 payrollCalendarCount `shouldBe` 1
+                accountCodeSelection <- query @XeroPayItemAccountCodeSelection |> fetchOne
+                accountCodeSelection.selectionStatus `shouldBe` "verified"
+                accountCodeSelection.accountCode `shouldBe` Just "477"
+                calendarSelection <- query @XeroPayrollCalendarSelection |> fetchOne
+                calendarSelection.calendarStatus `shouldBe` "verified"
+                calendarSelection.xeroPayrollCalendarId `shouldBe` Just "calendar-1"
+                calendarSelection.xeroPayrollCalendarName `shouldBe` Just "Weekly"
                 syncRun <- query @XeroSyncRun |> fetchOne
                 syncRun.syncStatus `shouldBe` "succeeded"
                 syncRun.employeesCount `shouldBe` 1
@@ -350,6 +359,60 @@ tests = beforeAll testContext do
                 updatedConnection <- fetch connection.id
                 updatedConnection.lastSyncAt `shouldSatisfy` isJust
                 decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "new-refresh-token"
+
+        it "does not auto-select Xero setup defaults when sync returns multiple options" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Multiple Defaults Venue"
+                admin <- createUserRecord "xero-multiple-defaults@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                connection <- createSyncableXeroConnection venue admin
+                let tokenResponse = XeroTokenResponse "new-access-token" "new-refresh-token" 1800 (Just requiredXeroScopesText)
+                let employees = []
+                let earningsRates =
+                        [ XeroEarningsRateRef
+                            "earnings-1"
+                            "Ordinary Hours"
+                            (Just "REGULAR")
+                            (Just "RATEPERUNIT")
+                            (Just "477")
+                            True
+                            (Aeson.object ["EarningsRateID" Aeson..= ("earnings-1" :: Text)])
+                        , XeroEarningsRateRef
+                            "earnings-2"
+                            "Saturday Hours"
+                            (Just "REGULAR")
+                            (Just "RATEPERUNIT")
+                            (Just "478")
+                            True
+                            (Aeson.object ["EarningsRateID" Aeson..= ("earnings-2" :: Text)])
+                        ]
+                let payrollCalendars =
+                        [ XeroPayrollCalendarRef
+                            "calendar-1"
+                            "Weekly"
+                            (Just "WEEKLY")
+                            (Just (fromGregorian 2026 4 27))
+                            (Just (fromGregorian 2026 5 1))
+                            (Aeson.object ["PayrollCalendarID" Aeson..= ("calendar-1" :: Text)])
+                        , XeroPayrollCalendarRef
+                            "calendar-2"
+                            "Fortnightly"
+                            (Just "FORTNIGHTLY")
+                            (Just (fromGregorian 2026 4 27))
+                            (Just (fromGregorian 2026 5 8))
+                            (Aeson.object ["PayrollCalendarID" Aeson..= ("calendar-2" :: Text)])
+                        ]
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars) do
+                        withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                            callAction SyncXeroPayrollReferenceDataAction
+
+                response `responseStatusShouldBe` status302
+                accountCodeSelectionCount <- query @XeroPayItemAccountCodeSelection |> fetchCount
+                accountCodeSelectionCount `shouldBe` 0
+                calendarSelectionCount <- query @XeroPayrollCalendarSelection |> fetchCount
+                calendarSelectionCount `shouldBe` 0
 
         it "syncs Xero payroll reference data through the strict localhost Xero mock" $ withContext do
             withCleanDb do
@@ -1023,6 +1086,8 @@ tests = beforeAll testContext do
                         [ Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
                         , Preview.EntrySpec 1 Preview.fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 12 0 0)
                         ]
+                readiness <- validateXeroTimesheetReadiness fixture.request
+                readinessBlockerCodes readiness `shouldBe` []
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do

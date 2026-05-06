@@ -1,6 +1,7 @@
 module Application.Xero.Admin.ReferenceData
     ( markStaleXeroEarningsRateMappings
-    , markStaleXeroPayrollCalendarSelection
+    , reconcileXeroPayItemAccountCodeSelection
+    , reconcileXeroPayrollCalendarSelection
     , markStaleXeroStaffMappings
     , upsertXeroEarningsRate
     , upsertXeroEmployee
@@ -10,6 +11,8 @@ module Application.Xero.Admin.ReferenceData
 import Application.Helper.ControllerContext
 import Application.Helper.Xero
 import Control.Monad (void)
+import qualified Data.List as List
+import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -59,31 +62,129 @@ markStaleXeroEarningsRateMappings connection earningsRates = do
                     |> updateRecord
                     |> void
 
-markStaleXeroPayrollCalendarSelection ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+reconcileXeroPayItemAccountCodeSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    [XeroEarningsRateRef] ->
+    IO ()
+reconcileXeroPayItemAccountCodeSelection connection earningsRates = do
+    let activeAccountCodes =
+            earningsRates
+                |> filter (.xeroEarningsRateIsActive)
+                |> map (.xeroEarningsRateAccountCode)
+                |> catMaybes
+                |> map Text.strip
+                |> filter (not . Text.null)
+                |> List.nub
+                |> List.sort
+    maybeSelection <-
+        query @XeroPayItemAccountCodeSelection
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetchOneOrNothing
+    case (maybeSelection, activeAccountCodes) of
+        (Just selection, _)
+            | selection.selectionStatus == "verified"
+            , maybe False (\accountCode -> Text.strip accountCode `elem` activeAccountCodes) selection.accountCode ->
+                pure ()
+        (_, [accountCode]) ->
+            upsertXeroPayItemAccountCodeSelection connection "verified" (Just accountCode)
+        (Just selection, _)
+            | selection.selectionStatus == "verified" ->
+                selection
+                    |> set #selectionStatus ("stale" :: Text)
+                    |> set #lastVerifiedAt Nothing
+                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+                    |> updateRecord
+                    |> void
+        _ -> pure ()
+
+reconcileXeroPayrollCalendarSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
     [XeroPayrollCalendarRef] ->
     IO ()
-markStaleXeroPayrollCalendarSelection connection payrollCalendars = do
-    let activePayrollCalendarIds = map (.xeroPayrollCalendarId) payrollCalendars
+reconcileXeroPayrollCalendarSelection connection payrollCalendars = do
+    let activePayrollCalendars = List.sortOn (.xeroPayrollCalendarName) payrollCalendars
+        activePayrollCalendarIds = map (.xeroPayrollCalendarId) activePayrollCalendars
     maybeSelection <-
         query @XeroPayrollCalendarSelection
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#calendarStatus, "verified" :: Text)
             |> fetchOneOrNothing
-    case maybeSelection of
-        Just selection ->
-            case selection.xeroPayrollCalendarId of
-                Just payrollCalendarId
-                    | payrollCalendarId `notElem` activePayrollCalendarIds ->
-                        selection
-                            |> set #calendarStatus "stale"
-                            |> set #lastVerifiedAt Nothing
-                            |> updateRecord
-                            |> void
-                _ -> pure ()
-        Nothing -> pure ()
+    case (maybeSelection, activePayrollCalendars) of
+        (Just selection, _)
+            | selection.calendarStatus == "verified"
+            , maybe False (`elem` activePayrollCalendarIds) selection.xeroPayrollCalendarId ->
+                pure ()
+        (_, [payrollCalendar]) ->
+            upsertXeroPayrollCalendarSelection connection "verified" payrollCalendar
+        (Just selection, _)
+            | selection.calendarStatus == "verified" ->
+                selection
+                    |> set #calendarStatus ("stale" :: Text)
+                    |> set #lastVerifiedAt Nothing
+                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+                    |> updateRecord
+                    |> void
+        _ -> pure ()
+
+upsertXeroPayItemAccountCodeSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Text ->
+    Maybe Text ->
+    IO ()
+upsertXeroPayItemAccountCodeSelection connection selectionStatus maybeAccountCode = do
+    now <- getCurrentTime
+    existingSelection <-
+        query @XeroPayItemAccountCodeSelection
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetchOneOrNothing
+    let prepared record =
+            record
+                |> set #venueId (unpackId currentVenueId)
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #accountCode maybeAccountCode
+                |> set #selectionStatus selectionStatus
+                |> set #lastVerifiedAt (if selectionStatus == "verified" then Just now else Nothing)
+                |> set #updatedByUserId (Just (unpackId currentUser.id))
+    case existingSelection of
+        Just existing -> prepared existing |> updateRecord |> void
+        Nothing ->
+            prepared (newRecord @XeroPayItemAccountCodeSelection)
+                |> set #createdByUserId (Just (unpackId currentUser.id))
+                |> createRecord
+                |> void
+
+upsertXeroPayrollCalendarSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroConnection ->
+    Text ->
+    XeroPayrollCalendarRef ->
+    IO ()
+upsertXeroPayrollCalendarSelection connection calendarStatus payrollCalendar = do
+    now <- getCurrentTime
+    existingSelection <-
+        query @XeroPayrollCalendarSelection
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> fetchOneOrNothing
+    let prepared record =
+            record
+                |> set #venueId (unpackId currentVenueId)
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #xeroPayrollCalendarId (Just payrollCalendar.xeroPayrollCalendarId)
+                |> set #xeroPayrollCalendarName (Just payrollCalendar.xeroPayrollCalendarName)
+                |> set #calendarStatus calendarStatus
+                |> set #lastVerifiedAt (if calendarStatus == "verified" then Just now else Nothing)
+                |> set #updatedByUserId (Just (unpackId currentUser.id))
+    case existingSelection of
+        Just existing -> prepared existing |> updateRecord |> void
+        Nothing ->
+            prepared (newRecord @XeroPayrollCalendarSelection)
+                |> set #createdByUserId (Just (unpackId currentUser.id))
+                |> createRecord
+                |> void
 
 upsertXeroEmployee :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEmployeeRef -> IO XeroEmployee
 upsertXeroEmployee connection syncedAt employee = do

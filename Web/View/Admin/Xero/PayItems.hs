@@ -45,7 +45,10 @@ renderXeroPayItemAccountCodeSelection xeroEarningsRates maybeSelection canManage
         currentSelection =
             case selectedAccountCode of
                 Just accountCode | selectedIsObserved -> accountCode
-                _                                     -> ""
+                _ ->
+                    case accountCodeOptions of
+                        [accountCode] -> accountCode
+                        _             -> ""
 
 xeroPayItemAccountCodeOptions :: [XeroEarningsRate] -> [Text]
 xeroPayItemAccountCodeOptions xeroEarningsRates =
