@@ -1,6 +1,6 @@
 ---
 id: ir-n00b
-status: open
+status: closed
 deps: [ir-84gh]
 links: []
 created: 2026-05-08T00:01:02Z

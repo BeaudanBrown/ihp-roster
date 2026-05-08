@@ -40,6 +40,7 @@ import qualified Test.RosterGridSpec
 import qualified Test.RosterTimesheetsAutomationSpec
 import qualified Test.SchemaSpec
 import qualified Test.StaffDocumentsRsaSpec
+import qualified Test.StripeBillingSpec
 import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
@@ -128,6 +129,7 @@ allSuites :: [TestSuite]
 allSuites =
     [ TestSuite "StaticController" Test.Controller.StaticSpec.tests
     , TestSuite "Billing" Test.BillingPersistenceSpec.tests
+    , TestSuite "StripeBilling" Test.StripeBillingSpec.tests
     , TestSuite "AdminController" Test.Controller.AdminSpec.tests
     , TestSuite "ProfilesController" Test.Controller.ProfilesSpec.tests
     , TestSuite "PasskeysController" Test.Controller.PasskeysSpec.tests

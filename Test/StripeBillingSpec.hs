@@ -1,0 +1,232 @@
+module Test.StripeBillingSpec where
+
+import Application.Billing.Stripe
+import Control.Exception (bracket, bracket_)
+import qualified Data.Bifunctor as Bifunctor
+import qualified Data.ByteString.Lazy as LByteString
+import qualified Data.List as List
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
+import IHP.Prelude
+import qualified System.Directory as Directory
+import qualified System.Environment as Environment
+import System.IO (hClose, openTempFile)
+import Test.Hspec
+
+tests :: Spec
+tests =
+    describe "StripeBilling" do
+        describe "configuration" do
+            it "loads file-backed secrets and the default price lookup key" do
+                withTempSecret "sk_test_file" \secretPath ->
+                    withTempSecret "whsec_file" \webhookPath ->
+                        withStripeEnv
+                            [ ("STRIPE_SECRET_KEY_FILE", Just secretPath)
+                            , ("STRIPE_WEBHOOK_SECRET_FILE", Just webhookPath)
+                            , ("STRIPE_SECRET_KEY", Nothing)
+                            , ("STRIPE_WEBHOOK_SECRET", Nothing)
+                            , ("STRIPE_PRICE_LOOKUP_KEY", Nothing)
+                            , ("STRIPE_PRICE_ID", Nothing)
+                            , ("APP_BASE_URL", Just "https://app.example.test")
+                            ]
+                            do
+                                result <- readStripeConfig
+
+                                fmap (.secretKey) result `shouldBe` Right "sk_test_file"
+                                fmap (.webhookSecret) result `shouldBe` Right "whsec_file"
+                                fmap (.priceLookupKey) result `shouldBe` Right (Just defaultPriceLookupKey)
+                                fmap (.priceId) result `shouldBe` Right Nothing
+                                fmap (.appBaseUrl) result `shouldBe` Right "https://app.example.test"
+
+            it "allows direct price id fallback without inventing a lookup key" do
+                withStripeEnv
+                    [ ("STRIPE_SECRET_KEY_FILE", Nothing)
+                    , ("STRIPE_WEBHOOK_SECRET_FILE", Nothing)
+                    , ("STRIPE_SECRET_KEY", Just "sk_test_env")
+                    , ("STRIPE_WEBHOOK_SECRET", Just "whsec_env")
+                    , ("STRIPE_PRICE_LOOKUP_KEY", Nothing)
+                    , ("STRIPE_PRICE_ID", Just "price_direct")
+                    ]
+                    do
+                        result <- readStripeConfig
+
+                        fmap (.priceLookupKey) result `shouldBe` Right Nothing
+                        fmap (.priceId) result `shouldBe` Right (Just "price_direct")
+
+        describe "request construction" do
+            it "builds active lookup-key price requests" do
+                let request = buildListPricesRequest testConfig
+
+                request.stripeRequestMethod `shouldBe` "GET"
+                request.stripeRequestUrl `shouldSatisfy` Text.isPrefixOf "https://api.stripe.com/v1/prices?"
+                request.stripeRequestUrl `shouldSatisfy` Text.isInfixOf "active=true"
+                request.stripeRequestUrl `shouldSatisfy` Text.isInfixOf "lookup_keys%5B%5D=bepis_venue_monthly_aud_100"
+                request.stripeRequestUrl `shouldSatisfy` Text.isInfixOf "expand%5B%5D=data.product"
+                lookup "Authorization" request.stripeRequestHeaders `shouldBe` Just "Bearer sk_test_123"
+
+            it "builds Customer v1 create requests without billing detail fields" do
+                let request = buildCreateCustomerRequest testConfig "venue-123" "Venue Name"
+                let body = formBody request
+
+                request.stripeRequestMethod `shouldBe` "POST"
+                request.stripeRequestUrl `shouldBe` "https://api.stripe.com/v1/customers"
+                lookup "Idempotency-Key" request.stripeRequestHeaders `shouldBe` Just "bepis-billing-customer-venue-123"
+                lookup "name" body `shouldBe` Just "Venue Name"
+                lookup "metadata[venue_id]" body `shouldBe` Just "venue-123"
+                bodyKeys body `shouldNotSatisfy` any (`List.elem` ["address[line1]", "tax_id_data[0][value]", "payment_method"])
+
+            it "builds hosted subscription Checkout requests with tax collection disabled" do
+                let request =
+                        buildCreateCheckoutSessionRequest
+                            testConfig
+                            "venue-123"
+                            "cus_123"
+                            "price_123"
+                            "https://app.example.test/BillingSuccess?session_id={CHECKOUT_SESSION_ID}"
+                            "https://app.example.test/BillingCancel"
+                let body = formBody request
+
+                request.stripeRequestUrl `shouldBe` "https://api.stripe.com/v1/checkout/sessions"
+                lookup "Idempotency-Key" request.stripeRequestHeaders `shouldBe` Just "bepis-billing-checkout-venue-123-price-123"
+                lookup "mode" body `shouldBe` Just "subscription"
+                lookup "customer" body `shouldBe` Just "cus_123"
+                lookup "line_items[0][price]" body `shouldBe` Just "price_123"
+                lookup "line_items[0][quantity]" body `shouldBe` Just "1"
+                lookup "client_reference_id" body `shouldBe` Just "venue-123"
+                lookup "metadata[venue_id]" body `shouldBe` Just "venue-123"
+                lookup "subscription_data[metadata][venue_id]" body `shouldBe` Just "venue-123"
+                lookup "automatic_tax[enabled]" body `shouldBe` Just "false"
+                lookup "tax_id_collection[enabled]" body `shouldBe` Just "false"
+                bodyKeys body `shouldNotSatisfy` List.elem "payment_method_types[0]"
+
+            it "builds Customer Portal and retrieval requests" do
+                let portalRequest = buildCreatePortalSessionRequest testConfig "venue-123" "cus_123" "https://app.example.test/Billing"
+                let portalBody = formBody portalRequest
+
+                portalRequest.stripeRequestUrl `shouldBe` "https://api.stripe.com/v1/billing_portal/sessions"
+                lookup "Idempotency-Key" portalRequest.stripeRequestHeaders `shouldBe` Just "bepis-billing-portal-venue-123"
+                lookup "customer" portalBody `shouldBe` Just "cus_123"
+                lookup "return_url" portalBody `shouldBe` Just "https://app.example.test/Billing"
+
+                (buildRetrieveCheckoutSessionRequest testConfig "cs_test").stripeRequestUrl
+                    `shouldBe` "https://api.stripe.com/v1/checkout/sessions/cs_test"
+                (buildRetrieveSubscriptionRequest testConfig "sub_test").stripeRequestUrl
+                    `shouldBe` "https://api.stripe.com/v1/subscriptions/sub_test"
+                (buildRetrievePriceRequest testConfig "price_test").stripeRequestUrl
+                    `shouldBe` "https://api.stripe.com/v1/prices/price_test"
+
+        describe "price validation" do
+            it "accepts the launch AUD 100 monthly licensed recurring price" do
+                validateVenueMonthlyPrice validPrice `shouldBe` Right validPrice
+
+            it "rejects inactive, wrong amount, and metered prices" do
+                validateVenueMonthlyPrice validPrice { active = False } `shouldBe` Left "Stripe Price is not active"
+                validateVenueMonthlyPrice validPrice { unitAmount = Just 9900 } `shouldBe` Left "Stripe Price unit amount must be AUD 100.00"
+                validateVenueMonthlyPrice validPrice { recurring = Just validRecurring { usageType = Just "metered" } }
+                    `shouldBe` Left "Stripe Price usage type must be licensed"
+
+        describe "webhook signatures" do
+            it "verifies Stripe signatures against the raw body" do
+                let rawBody = "{\"id\":\"evt_test\",\"object\":\"event\"}"
+                let header = "t=1700000000,v1=c25fec335f20601dcb662f0e7c4944646158a9324bb6ed8b7f6ab126449f507a"
+
+                verifyStripeWebhookSignatureAt 1700000010 300 "whsec_test" header rawBody
+                    `shouldBe` Right
+                        StripeWebhookSignature
+                            { signatureTimestamp = 1700000000
+                            , matchedSignature = "c25fec335f20601dcb662f0e7c4944646158a9324bb6ed8b7f6ab126449f507a"
+                            }
+
+            it "rejects mismatched and stale signatures" do
+                let rawBody = "{\"id\":\"evt_test\",\"object\":\"event\"}"
+                let validHeader = "t=1700000000,v1=c25fec335f20601dcb662f0e7c4944646158a9324bb6ed8b7f6ab126449f507a"
+
+                verifyStripeWebhookSignatureAt 1700000010 300 "wrong_secret" validHeader rawBody
+                    `shouldBe` Left "Stripe webhook signature mismatch"
+                verifyStripeWebhookSignatureAt 1700000401 300 "whsec_test" validHeader rawBody
+                    `shouldBe` Left "Stripe webhook timestamp is outside tolerance"
+
+            it "redacts secrets in diagnostic summaries" do
+                redactedStripeConfigSummary testConfig `shouldNotSatisfy` Text.isInfixOf "sk_test_123"
+                redactedStripeConfigSummary testConfig `shouldNotSatisfy` Text.isInfixOf "whsec_test_123"
+                redactedStripeRequestSummary (buildListPricesRequest testConfig) `shouldNotSatisfy` Text.isInfixOf "sk_test_123"
+
+testConfig :: StripeConfig
+testConfig =
+    StripeConfig
+        { secretKey = "sk_test_123"
+        , webhookSecret = "whsec_test_123"
+        , priceLookupKey = Just defaultPriceLookupKey
+        , priceId = Nothing
+        , appBaseUrl = "https://app.example.test"
+        }
+
+validRecurring :: StripeRecurring
+validRecurring =
+    StripeRecurring
+        { interval = "month"
+        , intervalCount = 1
+        , usageType = Just "licensed"
+        }
+
+validPrice :: StripePrice
+validPrice =
+    StripePrice
+        { stripePriceId = "price_valid"
+        , active = True
+        , currency = "aud"
+        , unitAmount = Just 10000
+        , priceType = "recurring"
+        , recurring = Just validRecurring
+        }
+
+formBody :: StripeHttpRequest -> [(LByteString.ByteString, LByteString.ByteString)]
+formBody request =
+    case request.stripeRequestBody of
+        Just (StripeFormBody body) -> map (Bifunctor.bimap cs cs) body
+        Nothing                    -> []
+
+bodyKeys :: [(LByteString.ByteString, LByteString.ByteString)] -> [LByteString.ByteString]
+bodyKeys = map fst
+
+withTempSecret :: Text -> (String -> IO a) -> IO a
+withTempSecret value action =
+    bracket setup cleanup \(path, _) -> action path
+    where
+        setup = do
+            (path, handle) <- openTempFile "/tmp" "stripe-secret"
+            TextIO.hPutStr handle value
+            hClose handle
+            pure (path, handle)
+
+        cleanup (path, _) =
+            Directory.removeFile path
+
+withStripeEnv :: [(String, Maybe String)] -> IO a -> IO a
+withStripeEnv values action =
+    foldr withOne action values
+    where
+        withOne (name, value) inner =
+            withEnv name value inner
+
+withEnv :: String -> Maybe String -> IO a -> IO a
+withEnv name value action =
+    bracket_ setup restore action
+    where
+        setup = do
+            previous <- Environment.lookupEnv name
+            Environment.setEnv ("__PREVIOUS_" <> name) (fromMaybe "" previous)
+            Environment.setEnv ("__HAD_PREVIOUS_" <> name) (if isJust previous then "1" else "0")
+            apply value
+
+        restore = do
+            hadPrevious <- Environment.lookupEnv ("__HAD_PREVIOUS_" <> name)
+            previous <- Environment.lookupEnv ("__PREVIOUS_" <> name)
+            case (hadPrevious, previous) of
+                (Just "1", Just oldValue) -> Environment.setEnv name oldValue
+                _                         -> Environment.unsetEnv name
+            Environment.unsetEnv ("__PREVIOUS_" <> name)
+            Environment.unsetEnv ("__HAD_PREVIOUS_" <> name)
+
+        apply Nothing      = Environment.unsetEnv name
+        apply (Just value) = Environment.setEnv name value
