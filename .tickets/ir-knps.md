@@ -1,6 +1,6 @@
 ---
 id: ir-knps
-status: open
+status: closed
 deps: [ir-bub1, ir-n00b]
 links: []
 created: 2026-05-08T00:01:10Z
