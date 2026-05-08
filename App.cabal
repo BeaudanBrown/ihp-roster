@@ -11,11 +11,11 @@ name:                App
 version:             0.1.0.0
 -- synopsis:
 -- description:
-license:             AllRightsReserved
+license:             Apache-2.0
 license-file:        LICENSE
-author:              Developers
-maintainer:          developers@example.com
--- copyright:
+author:              Bepis PTY LTD
+maintainer:          support@bepis.lol
+copyright:           Copyright 2026 Bepis PTY LTD
 -- category:
 build-type:          Simple
 cabal-version:       >=1.10

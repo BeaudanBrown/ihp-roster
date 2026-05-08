@@ -96,3 +96,10 @@ Start with `docs/README.md` for the documentation operating model.
 - Future feature streams belong in `docs/workstreams/` and must link to `tk`.
 - Durable decisions belong in `docs/adr/`.
 - Historical numbered plans live in `docs/archive/plans/`.
+
+## License
+
+Bepis is licensed under the Apache License 2.0. See [LICENSE](./LICENSE).
+
+Third-party notices are listed in
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
