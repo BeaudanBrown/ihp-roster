@@ -2,8 +2,8 @@ module Web.View.Admin.Xero.Timesheets
     ( renderXeroTimesheetPanel
     ) where
 
+import Application.Helper.View.Overlay (dialogOverlayMountId)
 import Application.Helper.XeroAdminTypes
-import qualified Data.List as List
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
 import Web.View.Admin.Common (formatTimestamp)
@@ -18,8 +18,7 @@ renderXeroTimesheetPanel panel = [hsx|
                 <div class="small app-muted">Create Xero Payroll AU draft timesheets from approved IHP timesheets for the selected payroll calendar period.</div>
             </div>
             <div class="d-flex flex-wrap gap-2 align-items-start">
-                {renderPreviewButton panel}
-                {renderSubmitButton panel}
+                {renderPreparationButton panel}
             </div>
         </div>
         {renderTimesheetSubmissionIndicator}
@@ -29,33 +28,44 @@ renderXeroTimesheetPanel panel = [hsx|
     </div>
 |]
 
-renderPreviewButton :: XeroTimesheetPanelData -> Html
-renderPreviewButton panel = [hsx|
-    <form method="POST" action={PreviewXeroDraftTimesheetsAction}>
+renderPreparationButton :: XeroTimesheetPanelData -> Html
+renderPreparationButton panel = [hsx|
+    <form method="POST"
+          action={OpenXeroTimesheetPreparationAction}
+          class="d-flex flex-column flex-md-row gap-2 align-items-md-center"
+          data-xero-timesheet-preparation-form="true"
+          hx-post={pathTo OpenXeroTimesheetPreparationAction}
+          hx-target={"#" <> dialogOverlayMountId}
+          hx-swap="innerHTML"
+          hx-indicator="#xero-timesheet-submission-indicator">
+        <select name="periodKey"
+                id="xero-timesheet-period-select"
+                class="form-select form-select-sm"
+                aria-label="Xero pay period"
+                disabled={not (canOpenPreparation panel)}>
+            {forEach panel.xeroTimesheetPeriodOptions renderPeriodOption}
+        </select>
         <button type="submit"
-                class="btn btn-sm btn-outline-primary"
-                disabled={not (canPreview panel)}
-                hx-post={pathTo PreviewXeroDraftTimesheetsAction}
-                hx-swap="none"
-                hx-indicator="#xero-timesheet-submission-indicator">
-            Preview draft timesheets
+                class="btn btn-sm btn-primary"
+                disabled={not (canOpenPreparation panel)}>
+            Prepare
         </button>
     </form>
 |]
 
-renderSubmitButton :: XeroTimesheetPanelData -> Html
-renderSubmitButton panel = [hsx|
-    <form method="POST" action={SubmitXeroDraftTimesheetsAction}>
-        <button type="submit"
-                class="btn btn-sm btn-primary"
-                disabled={not (canPreview panel)}
-                hx-post={pathTo SubmitXeroDraftTimesheetsAction}
-                hx-swap="none"
-                hx-indicator="#xero-timesheet-submission-indicator">
-            Submit drafts to Xero
-        </button>
-    </form>
+renderPeriodOption :: XeroTimesheetPeriodOption -> Html
+renderPeriodOption option = [hsx|
+    <option value={option.periodOptionKey}>{periodOptionLabel option}</option>
 |]
+
+periodOptionLabel :: XeroTimesheetPeriodOption -> Text
+periodOptionLabel option =
+    option.periodOptionPayrollCalendarName
+        <> " · "
+        <> formatDateDisplay option.periodOptionStart
+        <> " to "
+        <> formatDateDisplay option.periodOptionEnd
+        <> maybe "" (\status -> " · " <> Text.toUpper status) option.periodOptionXeroPayRunStatus
 
 renderTimesheetSubmissionIndicator :: Html
 renderTimesheetSubmissionIndicator = [hsx|
@@ -65,10 +75,10 @@ renderTimesheetSubmissionIndicator = [hsx|
     </div>
 |]
 
-canPreview :: XeroTimesheetPanelData -> Bool
-canPreview panel =
+canOpenPreparation :: XeroTimesheetPanelData -> Bool
+canOpenPreparation panel =
     panel.xeroTimesheetActionsAllowed
-        && maybe False (.timesheetReadinessReady) panel.xeroTimesheetReadiness
+        && not (null panel.xeroTimesheetPeriodOptions)
 
 renderPeriodNotice :: XeroTimesheetPanelData -> Html
 renderPeriodNotice panel =

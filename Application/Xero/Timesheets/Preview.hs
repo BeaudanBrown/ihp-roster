@@ -170,15 +170,18 @@ fetchPreviewInput request connection = do
             |> filterWhere (#deletedAt, Nothing)
             |> orderBy #workedOn
             |> fetch
+    let includedEntries =
+            approvedEntries
+                |> filter (\entry -> entry.staffId `notElem` request.readinessSkippedStaffIds)
     staffMappings <-
         query @XeroStaffMapping
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhereIn (#staffId, map (.staffId) approvedEntries)
+            |> filterWhereIn (#staffId, map (.staffId) includedEntries)
             |> filterWhere (#mappingStatus, "verified" :: Text)
             |> fetch
     selectedPayrollCalendarEmployeeIds <- fetchSelectedPayrollCalendarEmployeeIds connection
     let entries =
-            approvedEntries
+            includedEntries
                 |> filter \entry ->
                     any (mappingIncludesEntry entry selectedPayrollCalendarEmployeeIds) staffMappings
     staffMembers <-

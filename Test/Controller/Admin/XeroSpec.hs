@@ -321,7 +321,8 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "id=\"xero-reference-sync-indicator\""
                 pageResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
                 pageResponse `responseBodyShouldContain` "id=\"xero-timesheet-submission-indicator\""
-                pageResponse `responseBodyShouldContain` "hx-swap=\"none\""
+                pageResponse `responseBodyShouldContain` "hx-post=\"/OpenXeroTimesheetPreparation\""
+                pageResponse `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
                 pageResponse `responseBodyShouldContain` "hx-indicator=\"#xero-timesheet-submission-indicator\""
                 pageResponse `responseBodyShouldNotContain` "Tenant ID"
                 pageResponse `responseBodyShouldNotContain` "Connected</dt>"
@@ -1051,13 +1052,76 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Draft timesheets"
-                response `responseBodyShouldContain` "Preview draft timesheets"
-                response `responseBodyShouldContain` "Submit drafts to Xero"
+                response `responseBodyShouldContain` "Prepare"
+                response `responseBodyShouldContain` "name=\"periodKey\""
+                response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
                 response `responseBodyShouldContain` "id=\"xero-timesheets-data\""
                 response `responseBodyShouldContain` "id=\"xero-timesheet-submission-indicator\""
-                response `responseBodyShouldContain` "hx-swap=\"none\""
+                response `responseBodyShouldContain` "hx-post=\"/OpenXeroTimesheetPreparation\""
                 response `responseBodyShouldContain` "hx-indicator=\"#xero-timesheet-submission-indicator\""
                 response `responseBodyShouldContain` "Selected Xero payroll period"
+
+        it "opens the guided Xero preparation modal for a selected pay period" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams OpenXeroTimesheetPreparationAction
+                                    [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Prepare Xero draft timesheets"
+                response `responseBodyShouldContain` "Readiness validation"
+                response `responseBodyShouldContain` "Preview"
+                preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
+                preparationRun.status `shouldBe` "ready_for_preview"
+                preparationRun.payPeriodStart `shouldBe` fixture.periodStart
+                preparationRun.payPeriodEnd `shouldBe` fixture.periodEnd
+
+        it "hard-blocks guided Xero preparation when the selected Xero pay run is posted" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+                let postedPayRun =
+                        XeroPayRunRef
+                            { xeroPayRunId = "payrun-posted"
+                            , xeroPayRunCalendarId = "calendar-preview"
+                            , xeroPayRunPeriodStart = fixture.periodStart
+                            , xeroPayRunPeriodEnd = fixture.periodEnd
+                            , xeroPayRunPaymentDate = Nothing
+                            , xeroPayRunStatus = Just "POSTED"
+                            , xeroPayRunRaw = Aeson.object []
+                            }
+                    client =
+                        (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] [])
+                            { fetchPayRuns = \_ _ _ -> pure (Right [postedPayRun])
+                            }
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest client do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams OpenXeroTimesheetPreparationAction
+                                    [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "posted"
+                response `responseBodyShouldContain` "Draft timesheet creation is blocked"
+                preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
+                preparationRun.status `shouldBe` "blocked"
+                preparationRun.xeroPayRunId `shouldBe` Just "payrun-posted"
 
         it "blocks non-owner venue roles from Xero draft-timesheet page and actions" $ withContext do
             withCleanDb do
@@ -1071,12 +1135,18 @@ tests = beforeAll testContext do
                     callAction PreviewXeroDraftTimesheetsAction
                 submitResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
                     callAction SubmitXeroDraftTimesheetsAction
+                openPreparationResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
+                    callActionWithParams OpenXeroTimesheetPreparationAction
+                        [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
 
                 pageResponse `responseStatusShouldBe` status302
                 previewResponse `responseStatusShouldBe` status302
                 submitResponse `responseStatusShouldBe` status302
+                openPreparationResponse `responseStatusShouldBe` status302
                 runCount <- query @XeroSubmissionRun |> fetchCount
                 runCount `shouldBe` 0
+                preparationRunCount <- query @XeroTimesheetPreparationRun |> fetchCount
+                preparationRunCount `shouldBe` 0
 
         it "persists a latest Xero draft-timesheet preview and renders one row per employee" $ withContext do
             withCleanDb do

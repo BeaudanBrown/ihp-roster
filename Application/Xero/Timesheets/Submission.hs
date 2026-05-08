@@ -1,5 +1,7 @@
 module Application.Xero.Timesheets.Submission
-    ( retryXeroDraftTimesheetSubmission
+    ( duplicateCheckSnapshotJson
+    , fetchRemoteTimesheetsForDuplicateCheck
+    , retryXeroDraftTimesheetSubmission
     , submitXeroDraftTimesheets
     , xeroTimesheetSubmissionRequestJson
     )
@@ -86,6 +88,7 @@ retryExistingSubmission submission = do
                                         , readinessPeriodStart = run.payPeriodStart
                                         , readinessPeriodEnd = run.payPeriodEnd
                                         , readinessRemoteTimesheets = remoteTimesheets
+                                        , readinessSkippedStaffIds = []
                                         }
                                 duplicateSnapshot = duplicateCheckSnapshotJson remoteTimesheets
                             readiness <- validateXeroTimesheetReadiness readinessRequest

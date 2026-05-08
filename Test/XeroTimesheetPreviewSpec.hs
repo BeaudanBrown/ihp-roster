@@ -191,6 +191,7 @@ createPreviewFixture calendarType entrySpecs = do
                 , readinessPeriodStart = periodStart
                 , readinessPeriodEnd = periodEnd
                 , readinessRemoteTimesheets = []
+                , readinessSkippedStaffIds = []
                 }
         , periodStart
         , periodEnd

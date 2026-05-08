@@ -119,6 +119,12 @@ data AdminController
     | SaveXeroEarningsRateMappingAction
     | SaveXeroPayItemAccountCodeSelectionAction
     | SaveXeroPayrollCalendarSelectionAction
+    | OpenXeroTimesheetPreparationAction
+    | RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | PreviewXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | SubmitXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | PreviewXeroDraftTimesheetsAction
     | SubmitXeroDraftTimesheetsAction
     | RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId :: !(Id XeroTimesheetSubmission) }

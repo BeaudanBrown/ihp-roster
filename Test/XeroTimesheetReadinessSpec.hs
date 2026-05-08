@@ -262,6 +262,7 @@ createReadinessFixture calendarType periodStart periodEnd = do
                 , readinessPeriodStart = periodStart
                 , readinessPeriodEnd = periodEnd
                 , readinessRemoteTimesheets = []
+                , readinessSkippedStaffIds = []
                 }
         }
 

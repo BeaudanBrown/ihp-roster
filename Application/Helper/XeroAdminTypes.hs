@@ -150,6 +150,37 @@ data XeroTimesheetPeriodOption = XeroTimesheetPeriodOption
     }
     deriving (Eq, Show)
 
+data XeroPreparationStaffRow = XeroPreparationStaffRow
+    { preparationStaffMappingRow    :: XeroStaffMappingRow
+    , preparationStaffDecision      :: Maybe XeroTimesheetPreparationDecision
+    , preparationStaffSkipped       :: Bool
+    , preparationStaffNeedsDecision :: Bool
+    }
+
+data XeroPreparationPayItemRow = XeroPreparationPayItemRow
+    { preparationPayItemRequirement :: XeroPayItemRequirement
+    , preparationPayItemDecision    :: Maybe XeroTimesheetPreparationDecision
+    }
+
+data XeroTimesheetPreparationView = XeroTimesheetPreparationView
+    { preparationRun                         :: XeroTimesheetPreparationRun
+    , preparationConnection                  :: XeroConnection
+    , preparationPeriodOption                :: XeroTimesheetPeriodOption
+    , preparationReadiness                   :: XeroTimesheetReadinessView
+    , preparationStaffRows                   :: [XeroPreparationStaffRow]
+    , preparationEmployees                   :: [XeroEmployee]
+    , preparationPayItemRows                 :: [XeroPreparationPayItemRow]
+    , preparationPayItemAccountCodeOptions   :: [Text]
+    , preparationPayItemAccountCodeSelection :: Maybe XeroPayItemAccountCodeSelection
+    , preparationPendingDecisionCount        :: Int
+    , preparationManualStaffDecisionCount    :: Int
+    , preparationPostedPayRunBlocked         :: Bool
+    , preparationCanPreview                  :: Bool
+    , preparationCanSubmit                   :: Bool
+    , preparationPreviewRows                 :: [XeroTimesheetPreviewRowView]
+    , preparationSubmissionRun               :: Maybe XeroSubmissionRun
+    }
+
 data XeroAdminSectionData = XeroAdminSectionData
     { xeroConnection                  :: Maybe XeroConnection
     , xeroConnectedByUser             :: Maybe User

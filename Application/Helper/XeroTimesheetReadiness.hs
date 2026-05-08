@@ -59,6 +59,7 @@ data XeroTimesheetReadinessRequest = XeroTimesheetReadinessRequest
     , readinessPeriodStart      :: !Day
     , readinessPeriodEnd        :: !Day
     , readinessRemoteTimesheets :: ![XeroTimesheetRef]
+    , readinessSkippedStaffIds  :: ![UUID]
     }
     deriving (Eq, Show)
 
@@ -69,7 +70,8 @@ validateXeroTimesheetReadiness ::
 validateXeroTimesheetReadiness request = do
     maybeConnection <- fetchActiveXeroConnection request.readinessVenueId
     latestSync <- fetchLatestXeroSyncRun request.readinessVenueId
-    entries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
+    periodEntries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
+    let entries = filter (not . staffIsSkipped request . (.staffId)) periodEntries
     let approvedEntries = approvedSubmittableEntries entries
     let includedStaffIds = List.nub (map (.staffId) approvedEntries)
     staffMappings <- maybe (pure []) (fetchVerifiedStaffMappings includedStaffIds) maybeConnection
@@ -490,7 +492,11 @@ duplicateWarnings request entries mappings remoteTimesheets =
 
 matchingRemoteTimesheets :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroTimesheetRef] -> [XeroTimesheetRef]
 matchingRemoteTimesheets request entries mappings remoteTimesheets =
-    let includedStaffIds = List.nub (map (.staffId) (approvedSubmittableEntries entries))
+    let includedStaffIds =
+            approvedSubmittableEntries entries
+                |> filter (not . staffIsSkipped request . (.staffId))
+                |> map (.staffId)
+                |> List.nub
         mappedEmployeeIds =
             mappings
                 |> filter (\mapping -> mapping.staffId `elem` includedStaffIds)
@@ -504,6 +510,10 @@ matchingRemoteTimesheets request entries mappings remoteTimesheets =
 approvedSubmittableEntries :: [TimesheetEntry] -> [TimesheetEntry]
 approvedSubmittableEntries =
     filter \entry -> entry.isApproved && isNothing entry.deletedAt
+
+staffIsSkipped :: XeroTimesheetReadinessRequest -> UUID -> Bool
+staffIsSkipped request staffId =
+    staffId `elem` request.readinessSkippedStaffIds
 
 blocker :: Text -> Text -> XeroReadinessBlocker
 blocker = blockerWith

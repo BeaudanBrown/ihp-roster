@@ -4,6 +4,7 @@ module Application.Xero.Admin.ReadModel
     , attachXeroStaffMappingSuggestions
     , bestXeroEmployeeSuggestion
     , buildXeroReadyChecklist
+    , buildXeroTimesheetRunView
     , currentVenueLocalXeroEarningsBuckets
     , fetchActiveCurrentVenueXeroConnection
     , fetchCurrentVenueXeroAdminSectionData
@@ -26,6 +27,7 @@ module Application.Xero.Admin.ReadModel
     , staffFullNameText
     , xeroEmployeeAvailableForStaff
     , xeroEarningsRateMappingCountsFor
+    , xeroTimesheetReadinessView
     , xeroStaffMappingCountsFor
     ) where
 
@@ -533,6 +535,7 @@ currentVenueXeroTimesheetReadinessRequest (Just connection) (Just selection) =
                     , readinessPeriodStart = periodStart
                     , readinessPeriodEnd = periodEnd
                     , readinessRemoteTimesheets = []
+                    , readinessSkippedStaffIds = []
                     }
 
 fetchCurrentVenueLatestXeroTimesheetRun ::

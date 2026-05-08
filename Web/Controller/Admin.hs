@@ -135,6 +135,30 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero saveXeroPayrollCalendarSelectionAction
 
+    action OpenXeroTimesheetPreparationAction = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero openXeroTimesheetPreparationAction
+
+    action RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (refreshXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
+
+    action ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId } = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (applyXeroTimesheetPreparationStaffDecisionAction xeroTimesheetPreparationRunId)
+
+    action ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId } = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (approveXeroTimesheetPreparationPayItemsAction xeroTimesheetPreparationRunId)
+
+    action PreviewXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (previewXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
+
+    action SubmitXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (submitXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
+
     action PreviewXeroDraftTimesheetsAction = do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero previewXeroDraftTimesheetsAction
