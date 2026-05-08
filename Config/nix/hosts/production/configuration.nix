@@ -43,6 +43,20 @@
     configureNginx = true;
     httpsEnabled = true;
     acmeEmail = "CHANGE-ME@example.com";
+    billing.stripe = {
+      # Enable after provisioning the Dashboard Product/Price, webhook endpoint,
+      # Customer Portal settings, and the two secret files below.
+      enable = false;
+      priceLookupKey = "bepis_venue_monthly_aud_100";
+      priceId = null;
+      secretKeyFile = "/run/secrets/ihp-roster-stripe-secret-key";
+      webhookSecretFile = "/run/secrets/ihp-roster-stripe-webhook-secret";
+      gstRegistered = false;
+      automaticTax = false;
+      taxIdCollection = false;
+      # Rotate keys in Stripe Dashboard, update the secret files out-of-band,
+      # then restart app.service and worker.service. Do not commit real keys.
+    };
     # Leave this empty to generate a secret on first boot.
     # Put a base64-encoded 96-byte secret here for deterministic login sessions.
     sessionSecret = "";

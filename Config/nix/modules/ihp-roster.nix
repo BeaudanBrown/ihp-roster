@@ -19,6 +19,7 @@ let
     ;
 
   cfg = config.services.ihpRoster;
+  stripeCfg = cfg.billing.stripe;
   hasJobRunner = builtins.pathExists ../../../Application/Job;
   hasServiceUser = cfg.serviceUser != null;
   effectiveServiceGroup = if cfg.serviceGroup != null then cfg.serviceGroup else cfg.serviceUser;
@@ -38,6 +39,36 @@ let
 
   mailEnv = optionalAttrs (cfg.mailFrom != null) {
     MAIL_FROM = cfg.mailFrom;
+  };
+
+  boolEnv = value: if value then "true" else "false";
+  stripeEnv = optionalAttrs stripeCfg.enable (
+    {
+      STRIPE_SECRET_KEY_FILE = "%d/stripe-secret-key";
+      STRIPE_WEBHOOK_SECRET_FILE = "%d/stripe-webhook-secret";
+      STRIPE_EXPECTED_CURRENCY = stripeCfg.currency;
+      STRIPE_EXPECTED_AMOUNT_CENTS = toString stripeCfg.amountCents;
+      STRIPE_EXPECTED_INTERVAL = stripeCfg.interval;
+      STRIPE_EXPECTED_INTERVAL_COUNT = toString stripeCfg.intervalCount;
+      STRIPE_GST_REGISTERED = boolEnv stripeCfg.gstRegistered;
+      STRIPE_AUTOMATIC_TAX = boolEnv stripeCfg.automaticTax;
+      STRIPE_TAX_ID_COLLECTION = boolEnv stripeCfg.taxIdCollection;
+    }
+    // optionalAttrs (stripeCfg.priceLookupKey != null) {
+      STRIPE_PRICE_LOOKUP_KEY = stripeCfg.priceLookupKey;
+    }
+    // optionalAttrs (stripeCfg.priceId != null) {
+      STRIPE_PRICE_ID = stripeCfg.priceId;
+    }
+    // optionalAttrs (stripeCfg.paymentMethodTypes != [ ]) {
+      STRIPE_PAYMENT_METHOD_TYPES = lib.concatStringsSep "," stripeCfg.paymentMethodTypes;
+    }
+  );
+  stripeCredentialConfig = optionalAttrs stripeCfg.enable {
+    LoadCredential = [
+      "stripe-secret-key:${toString stripeCfg.secretKeyFile}"
+      "stripe-webhook-secret:${toString stripeCfg.webhookSecretFile}"
+    ];
   };
 in
 {
@@ -331,6 +362,82 @@ in
       };
     };
 
+    billing.stripe = {
+      enable = mkEnableOption "Stripe Billing integration";
+
+      priceLookupKey = mkOption {
+        type = types.nullOr types.str;
+        default = "bepis_venue_monthly_aud_100";
+        description = "Stripe recurring Price lookup key. Set to null only when using priceId fallback.";
+      };
+
+      priceId = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "Direct Stripe Price ID fallback. Prefer priceLookupKey for normal operation.";
+      };
+
+      currency = mkOption {
+        type = types.str;
+        default = "aud";
+        description = "Expected launch Stripe Price currency.";
+      };
+
+      amountCents = mkOption {
+        type = types.int;
+        default = 10000;
+        description = "Expected launch Stripe Price unit amount in cents.";
+      };
+
+      interval = mkOption {
+        type = types.str;
+        default = "month";
+        description = "Expected launch Stripe recurring interval.";
+      };
+
+      intervalCount = mkOption {
+        type = types.int;
+        default = 1;
+        description = "Expected launch Stripe recurring interval count.";
+      };
+
+      secretKeyFile = mkOption {
+        type = types.path;
+        default = "/run/secrets/ihp-roster-stripe-secret-key";
+        description = "Runtime file containing the Stripe secret key. The key itself must not be stored in Nix.";
+      };
+
+      webhookSecretFile = mkOption {
+        type = types.path;
+        default = "/run/secrets/ihp-roster-stripe-webhook-secret";
+        description = "Runtime file containing the Stripe webhook signing secret. The secret itself must not be stored in Nix.";
+      };
+
+      paymentMethodTypes = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = "Optional explicit Stripe Checkout payment method type override. Leave empty to use Dashboard configuration.";
+      };
+
+      gstRegistered = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether the operator is GST registered. Must remain false for launch.";
+      };
+
+      automaticTax = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether Stripe automatic tax is enabled. Must remain false while GST is disabled.";
+      };
+
+      taxIdCollection = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether Checkout collects tax IDs. Must remain false while GST is disabled.";
+      };
+    };
+
     xero.keepalive = {
       enable = mkOption {
         type = types.bool;
@@ -396,6 +503,31 @@ in
             !(cfg.createServiceUser && cfg.serviceGroup != null && cfg.serviceGroup != cfg.serviceUser);
           message = "services.ihpRoster.createServiceUser only creates a same-name group; set serviceGroup to null or serviceUser.";
         }
+        {
+          assertion =
+            !stripeCfg.enable || ((stripeCfg.priceLookupKey != null) != (stripeCfg.priceId != null));
+          message = "services.ihpRoster.billing.stripe requires exactly one of priceLookupKey or priceId when enabled.";
+        }
+        {
+          assertion = !stripeCfg.enable || stripeCfg.currency == "aud";
+          message = "services.ihpRoster.billing.stripe.currency must be aud for launch.";
+        }
+        {
+          assertion = !stripeCfg.enable || stripeCfg.amountCents == 10000;
+          message = "services.ihpRoster.billing.stripe.amountCents must be 10000 for launch.";
+        }
+        {
+          assertion = !stripeCfg.enable || stripeCfg.interval == "month";
+          message = "services.ihpRoster.billing.stripe.interval must be month for launch.";
+        }
+        {
+          assertion = !stripeCfg.enable || stripeCfg.intervalCount == 1;
+          message = "services.ihpRoster.billing.stripe.intervalCount must be 1 for launch.";
+        }
+        {
+          assertion = !stripeCfg.enable || (!stripeCfg.gstRegistered && !stripeCfg.automaticTax && !stripeCfg.taxIdCollection);
+          message = "services.ihpRoster.billing.stripe must keep gstRegistered, automaticTax, and taxIdCollection false for launch.";
+        }
       ];
       services.ihp = {
         enable = true;
@@ -418,6 +550,7 @@ in
           APP_BASE_URL = cfg.baseUrl;
         }
         // mailEnv
+        // stripeEnv
         // cfg.additionalEnvVars;
         appPort = cfg.appPort;
         package = if cfg.package != null then cfg.package else defaultPackage;
@@ -425,10 +558,10 @@ in
         rtsFlags = cfg.rtsFlags;
       };
 
-      systemd.services.app.serviceConfig = serviceUserConfig // {
+      systemd.services.app.serviceConfig = serviceUserConfig // stripeCredentialConfig // {
         EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
       };
-      systemd.services.worker.serviceConfig = serviceUserConfig // {
+      systemd.services.worker.serviceConfig = serviceUserConfig // stripeCredentialConfig // {
         EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
       };
       systemd.services.worker.enable = mkForce hasJobRunner;
