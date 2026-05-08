@@ -197,7 +197,7 @@ stylesheets = [hsx|
 
 scripts :: Html
 scripts = [hsx|
-        {when isDevelopment devScripts}
+        {when (isDevelopment && not isPublicLegalPage) devScripts}
         <script src={assetPath "/vendor/htmx-1.9.12/htmx.min.js"}></script>
         <script src={assetPath "/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js"}></script>
         <script src={assetPath "/vendor/flatpickr.js"}></script>
@@ -219,6 +219,17 @@ devScripts :: Html
 devScripts = [hsx|
         <script id="livereload-script" src={assetPath "/livereload.js"} data-ws={liveReloadWebsocketUrl}></script>
     |]
+
+isPublicLegalPage :: (?context :: ControllerContext, ?request :: Request) => Bool
+isPublicLegalPage =
+    currentRequestPath
+        `elem`
+            [ "/PublicBillingSupport"
+            , "/LegalTerms"
+            , "/LegalPrivacy"
+            , "/LegalRefundsDisputes"
+            , "/LegalCancellation"
+            ]
 
 metaTags :: Html
 metaTags = [hsx|
