@@ -15,6 +15,7 @@ instance AutoRoute LeaveRequestsController
 instance AutoRoute ExportsController
 instance AutoRoute StaffDocumentsController
 instance AutoRoute BillingController
+instance AutoRoute StripeWebhooksController
 instance AutoRoute AdminController
 instance AutoRoute SupportController
 instance AutoRoute StaffController

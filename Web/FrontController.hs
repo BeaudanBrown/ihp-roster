@@ -26,6 +26,7 @@ import Web.Controller.Sessions
 import Web.Controller.Staff
 import Web.Controller.StaffDocuments
 import Web.Controller.Static
+import Web.Controller.StripeWebhooks
 import Web.Controller.Support
 import Web.Controller.Timesheets
 import Web.Controller.Users
@@ -43,6 +44,7 @@ instance FrontController WebApplication where
         , parseRoute @ExportsController
         , parseRoute @StaffDocumentsController
         , parseRoute @BillingController
+        , parseRoute @StripeWebhooksController
         , parseRoute @AdminController
         , parseRoute @SupportController
         , parseRoute @StaffController

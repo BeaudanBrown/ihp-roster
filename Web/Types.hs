@@ -95,6 +95,10 @@ data BillingController
     | UpdateVenueBillingControlAction
     deriving (Eq, Show, Data)
 
+data StripeWebhooksController
+    = StripeWebhookAction
+    deriving (Eq, Show, Data)
+
 data AdminController
     = AdminAction
     | XeroAction

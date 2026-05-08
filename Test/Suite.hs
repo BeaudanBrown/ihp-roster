@@ -13,6 +13,7 @@ import Test.Hspec (Spec)
 import Text.Read (readMaybe)
 
 import qualified Test.BillingPersistenceSpec
+import qualified Test.BillingWebhookSpec
 import qualified Test.ConflictSpec
 import qualified Test.Controller.AdminSpec
 import qualified Test.Controller.BillingSpec
@@ -132,6 +133,7 @@ allSuites =
     [ TestSuite "StaticController" Test.Controller.StaticSpec.tests
     , TestSuite "Billing" Test.BillingPersistenceSpec.tests
     , TestSuite "BillingController" Test.Controller.BillingSpec.tests
+    , TestSuite "BillingWebhook" Test.BillingWebhookSpec.tests
     , TestSuite "StripeBilling" Test.StripeBillingSpec.tests
     , TestSuite "StripeContract" Test.StripeContractSpec.tests
     , TestSuite "AdminController" Test.Controller.AdminSpec.tests

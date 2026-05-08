@@ -2,6 +2,7 @@ module Application.Async.Registry
     ( dispatchAppJob
     ) where
 
+import Application.Billing.Notifications
 import Application.FwcMapd.Job
 import Application.InvitationDelivery.Job
 import Application.PublicHolidays.Job
@@ -24,6 +25,7 @@ dispatchAppJob appJob =
         kind | kind == rosterTimesheetCreationJobKind -> performRosterTimesheetCreationJob appJob
         kind | kind == rsaReminderJobKind -> performRsaReminderJob appJob
         kind | kind == xeroConnectionKeepaliveJobKind -> performXeroConnectionKeepaliveJob appJob
+        kind | kind == billingNotificationJobKind -> performBillingNotificationJob appJob
         kind | kind == venueInvitationDeliveryJobKind -> performVenueInvitationDeliveryJob appJob
         kind | kind == venueOnboardingInvitationDeliveryJobKind -> performVenueOnboardingInvitationDeliveryJob appJob
         _ -> fail ("Unknown app job kind: " <> Text.unpack appJob.jobKind)

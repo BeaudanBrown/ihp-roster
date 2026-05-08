@@ -1,12 +1,16 @@
 module Test.MailSpec where
 
+import Data.Text (isInfixOf)
 import Generated.Types
+import IHP.ControllerPrelude (createRecord, getCurrentTime, newRecord, set,
+                              unpackId, (|>))
 import IHP.Mail
 import IHP.Prelude
 import IHP.Test.Mocking
 import Network.Mail.Mime (Address (..))
 import Test.Hspec
 import Test.Support
+import Web.Mail.Billing.Notification
 import Web.Mail.Users.EmailVerification
 import Web.Mail.Users.VenueInvitation
 import Web.Mail.Users.VenueOnboardingInvitation
@@ -75,3 +79,35 @@ tests = beforeAll testContext do
                 addressName from `shouldBe` Just "Bepis"
                 addressEmail from `shouldBe` "verify@example.com"
                 text mail `shouldBe` "Verify your email to finish setting up your account:\n\nhttps://app.example/VerifyEmail?token=test"
+
+        it "renders billing notifications without Stripe raw payloads" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Mail Venue"
+                user <- createUserRecord "billing-mail@example.com" "staff" True
+                now <- getCurrentTime
+                billingEvent <-
+                    newRecord @BillingEvent
+                        |> set #stripeEventId "evt_billing_mail"
+                        |> set #eventType "invoice.payment_failed"
+                        |> set #venueId (Just (unpackId venue.id))
+                        |> set #status "processed"
+                        |> set #processedAt (Just now)
+                        |> createRecord
+                let mail =
+                        BillingNotificationMail
+                            { recipient = user
+                            , venue = venue
+                            , billingEvent = billingEvent
+                            , notificationKind = "payment_failed"
+                            , billingUrl = "https://app.example/Billing"
+                            , fromAddress = "billing@example.com"
+                            }
+                let ?context = ?mocking
+
+                addressEmail (to mail) `shouldBe` "billing-mail@example.com"
+                let ?mail = mail
+                subject `shouldBe` "Billing needs attention"
+                addressEmail from `shouldBe` "billing@example.com"
+                text mail `shouldSatisfy` isInfixOf "Billing needs attention for Billing Mail Venue."
+                text mail `shouldSatisfy` isInfixOf "Event: invoice.payment_failed"
+                text mail `shouldSatisfy` isInfixOf "https://app.example/Billing"
