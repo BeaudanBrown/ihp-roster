@@ -27,6 +27,7 @@ module Application.Billing.Stripe
     , redactedStripeConfigSummary
     , redactedStripeRequestSummary
     , stripeClientErrorText
+    , stripeClientWithTransport
     , stripeWebhookSignedPayload
     , validateVenueMonthlyPrice
     , verifyStripeWebhookSignature
@@ -203,22 +204,25 @@ data StripeClient = StripeClient
     }
 
 currentStripeClient :: StripeClient
-currentStripeClient =
+currentStripeClient = stripeClientWithTransport sendStripeRawRequest
+
+stripeClientWithTransport :: (StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)) -> StripeClient
+stripeClientWithTransport transport =
     StripeClient
         { listPrices = \config ->
-            fmap prices <$> sendStripeJsonRequest "Stripe price lookup" (buildListPricesRequest config)
+            fmap prices <$> sendStripeJsonRequestWith transport "Stripe price lookup" (buildListPricesRequest config)
         , retrievePrice = \config price ->
-            sendStripeJsonRequest "Stripe price retrieve" (buildRetrievePriceRequest config price)
+            sendStripeJsonRequestWith transport "Stripe price retrieve" (buildRetrievePriceRequest config price)
         , createCustomer = \config venueId venueName ->
-            sendStripeJsonRequest "Stripe customer create" (buildCreateCustomerRequest config venueId venueName)
+            sendStripeJsonRequestWith transport "Stripe customer create" (buildCreateCustomerRequest config venueId venueName)
         , createCheckoutSession = \config venueId customerId price successUrl cancelUrl ->
-            sendStripeJsonRequest "Stripe checkout session create" (buildCreateCheckoutSessionRequest config venueId customerId price successUrl cancelUrl)
+            sendStripeJsonRequestWith transport "Stripe checkout session create" (buildCreateCheckoutSessionRequest config venueId customerId price successUrl cancelUrl)
         , retrieveCheckoutSession = \config sessionId ->
-            sendStripeJsonRequest "Stripe checkout session retrieve" (buildRetrieveCheckoutSessionRequest config sessionId)
+            sendStripeJsonRequestWith transport "Stripe checkout session retrieve" (buildRetrieveCheckoutSessionRequest config sessionId)
         , createPortalSession = \config venueId customerId returnUrl ->
-            sendStripeJsonRequest "Stripe portal session create" (buildCreatePortalSessionRequest config venueId customerId returnUrl)
+            sendStripeJsonRequestWith transport "Stripe portal session create" (buildCreatePortalSessionRequest config venueId customerId returnUrl)
         , retrieveSubscription = \config subscriptionId ->
-            sendStripeJsonRequest "Stripe subscription retrieve" (buildRetrieveSubscriptionRequest config subscriptionId)
+            sendStripeJsonRequestWith transport "Stripe subscription retrieve" (buildRetrieveSubscriptionRequest config subscriptionId)
         }
 
 readStripeConfig :: IO (Either Text StripeConfig)
@@ -416,10 +420,21 @@ validateVenueMonthlyPrice price = do
 
 sendStripeJsonRequest :: Aeson.FromJSON value => Text -> StripeHttpRequest -> IO (Either StripeClientError value)
 sendStripeJsonRequest label stripeRequest =
+    sendStripeJsonRequestWith sendStripeRawRequest label stripeRequest
+
+sendStripeJsonRequestWith :: Aeson.FromJSON value => (StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)) -> Text -> StripeHttpRequest -> IO (Either StripeClientError value)
+sendStripeJsonRequestWith transport _label stripeRequest = do
+    rawResult <- transport stripeRequest
+    pure case rawResult of
+        Left err   -> Left err
+        Right body -> decodeBodyPure body
+
+sendStripeRawRequest :: StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)
+sendStripeRawRequest stripeRequest =
     handleStripeHttpExceptions do
         requestWithHeaders <- toHttpRequest stripeRequest
         response <- httpLBS requestWithHeaders
-        decodeStripeResponse label response
+        decodeStripeRawResponse "Stripe request" response
 
 toHttpRequest :: StripeHttpRequest -> IO Request
 toHttpRequest stripeRequest = do
@@ -441,18 +456,21 @@ handleStripeHttpExceptions action =
     action `Exception.catch` \(err :: Exception.SomeException) ->
         pure (Left (StripeHttpError ("Stripe request failed before receiving a response: " <> cs (displayException err))))
 
-decodeStripeResponse :: Aeson.FromJSON value => Text -> Response LByteString.ByteString -> IO (Either StripeClientError value)
-decodeStripeResponse label response = do
+decodeStripeRawResponse :: Text -> Response LByteString.ByteString -> IO (Either StripeClientError LByteString.ByteString)
+decodeStripeRawResponse label response = do
     let statusCode = getResponseStatusCode response
     let responseBody = getResponseBody response
     let bodyExcerpt = Text.take 500 (TextEncoding.decodeUtf8With lenientDecode (LByteString.toStrict responseBody))
     if statusCode < 200 || statusCode >= 300
         then pure (Left (StripeHttpError (label <> " failed with status " <> tshow statusCode <> responseBodySuffix bodyExcerpt)))
-        else decodeBody responseBody
+        else pure (Right responseBody)
 
 decodeBody :: Aeson.FromJSON value => LByteString.ByteString -> IO (Either StripeClientError value)
-decodeBody body =
-    pure case Aeson.eitherDecode body of
+decodeBody body = pure (decodeBodyPure body)
+
+decodeBodyPure :: Aeson.FromJSON value => LByteString.ByteString -> Either StripeClientError value
+decodeBodyPure body =
+    case Aeson.eitherDecode body of
         Left err    -> Left (StripeJsonError ("Unable to decode Stripe response: " <> cs err))
         Right value -> Right value
 
