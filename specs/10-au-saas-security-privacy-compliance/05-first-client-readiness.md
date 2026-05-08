@@ -40,6 +40,11 @@ The product should not take on its first real client until the following are tru
 - Customer terms explain per-venue subscription fees, Stripe-hosted payment
   processing, the no-GST launch posture, cancellation, and manual service
   restriction for unresolved billing issues.
+- A public Stripe-reviewable Bepis page exists before live payments. It must be
+  accessible without login at `/PublicBillingSupport`, identify the
+  business/product, describe the roster/timesheet/leave/export service, list
+  support contact `support@bepis.lol`, and link to terms, privacy,
+  refund/dispute, and subscription cancellation information.
 
 ## Operational readiness
 
@@ -71,6 +76,9 @@ The product should not take on its first real client until the following are tru
 - The founder-managed support model is documented so customers understand what the service includes and what remains their responsibility.
 - Stripe Customer Portal setup, webhook endpoint setup, and the billing
   sandbox/test-clock checklist have been completed before taking live payments.
+- Stripe Dashboard public business details match the public site, including
+  business/product name, website URL, support email, service description, and
+  customer-facing policy links.
 
 ## If accountant exports are offered before first client
 

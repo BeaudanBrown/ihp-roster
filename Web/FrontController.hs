@@ -34,6 +34,7 @@ import Web.Controller.Users
 instance FrontController WebApplication where
     controllers =
         [ startPage WelcomeAction
+        , parseRoute @StaticController
         , parseRoute @SessionsController
         , parseRoute @AuthController
         , parseRoute @PasskeysController

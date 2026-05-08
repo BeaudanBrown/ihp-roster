@@ -8,6 +8,27 @@ sandbox checks require Dashboard configuration and sandbox credentials.
 
 Create separate test-mode and live-mode Stripe objects.
 
+Public business website:
+
+- Before live account activation, publish a public Bepis page that loads
+  without authentication and does not appear under construction. The app ships
+  this at:
+
+  ```text
+  https://<app-base-url>/PublicBillingSupport
+  ```
+
+- Include the business/product name and a plain description of the service:
+  venue rostering, timesheets, leave/unavailability, payroll-ready exports, and
+  related support for hospitality operators.
+- Include customer support contact details: `support@bepis.lol`.
+- Link to or include customer terms, privacy policy, refund/dispute policy, and
+  subscription cancellation policy.
+- Keep the Stripe Dashboard business description, website URL, support email,
+  statement descriptor, Product/Price naming, and public page copy consistent.
+- Do not block Stripe review access by password protection, region blocking, or
+  a placeholder-only landing page.
+
 Product and Price:
 
 - Create one recurring Product for Bepis venue subscriptions.
@@ -171,6 +192,7 @@ Record the following before enabling billing for the first live venue:
 | Item | Evidence |
 | --- | --- |
 | Stripe live Product/Price ID and lookup key checked | `[link or screenshot reference]` |
+| Public Bepis website satisfies Stripe activation requirements | `[URL/operator/date]` |
 | Customer Portal live-mode settings checked | `[link or screenshot reference]` |
 | Live webhook endpoint and event list checked | `[link or screenshot reference]` |
 | Production secret files provisioned | `[operator/date]` |

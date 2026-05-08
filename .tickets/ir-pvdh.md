@@ -12,12 +12,12 @@ tags: [area:billing, area:testing, docs]
 ---
 # Verify billing integration and launch docs
 
-Complete billing verification, first-client policy updates, and deployment/operator documentation for Stripe subscription payments.
+Complete billing verification, first-client policy updates, public Stripe activation website readiness, and deployment/operator documentation for Stripe subscription payments.
 
 ## Design
 
-Run regen-types, typecheck, focused Hspec, relevant e2e or mocked Stripe redirect tests, Stripe contract/mock tests, webhook fixture tests, and Nix module evaluation. Add an operator-run Stripe CLI and Billing test-clock sandbox checklist. Update subprocessor/privacy/terms/readiness docs to reflect Stripe, no-GST launch posture, payment recovery, cancellation, and support process.
+Run regen-types, typecheck, focused Hspec, relevant e2e or mocked Stripe redirect tests, Stripe contract/mock tests, webhook fixture tests, and Nix module evaluation. Add an operator-run Stripe CLI and Billing test-clock sandbox checklist. Update subprocessor/privacy/terms/readiness docs to reflect Stripe, no-GST launch posture, payment recovery, cancellation, and support process. Add public-site activation readiness covering a login-free Bepis business page with service description, support email `support@bepis.lol`, terms, privacy, refund/dispute, and cancellation information aligned with Stripe Dashboard public business details.
 
 ## Acceptance Criteria
 
-All billing tickets have passing local verification, the workstream exit criteria are satisfied or remaining work is explicitly ticketed, docs explain Stripe secret injection placeholders, Dashboard product/price lookup-key setup, Customer Portal setup, webhook endpoint setup, Stripe CLI/test-clock checks, and the branch has logical commits for each completed slice.
+All billing tickets have passing local verification, the workstream exit criteria are satisfied or remaining work is explicitly ticketed, docs explain Stripe secret injection placeholders, Dashboard product/price lookup-key setup, public website activation requirements, Customer Portal setup, webhook endpoint setup, Stripe CLI/test-clock checks, and the branch has logical commits for each completed slice.

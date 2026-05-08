@@ -11,6 +11,9 @@
 - Agree pricing and billing model.
 - Send customer terms.
 - Confirm business name, ABN and billing contact.
+- Confirm the public Bepis billing/support page at `/PublicBillingSupport` is
+  available to the customer and includes `support@bepis.lol`, terms, privacy,
+  refund/dispute, and cancellation information.
 
 ## Venue setup
 
@@ -32,6 +35,8 @@
 - Provide collection notice wording or instructions for worker notice.
 - Confirm export recipients and whether accountant exports will be enabled.
 - Record any non-standard customer requests involving personal information.
+- Confirm Stripe public business information matches the customer-facing Bepis
+  page before taking live payment.
 
 ## Operational setup
 

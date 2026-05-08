@@ -9,3 +9,6 @@ instance Controller StaticController where
             Nothing -> do
                 setTitle "Bepis"
                 render WelcomeView
+    action PublicBillingSupportAction = do
+        setTitle "Bepis Billing and Support"
+        render PublicBillingSupportView

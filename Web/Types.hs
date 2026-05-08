@@ -12,7 +12,10 @@ data PasskeySetupPromptMode
     | AdditionalDevicePasskeyPrompt
     deriving (Eq, Show)
 
-data StaticController = WelcomeAction deriving (Eq, Show, Data)
+data StaticController
+    = WelcomeAction
+    | PublicBillingSupportAction
+    deriving (Eq, Show, Data)
 
 data SessionsController
     = NewSessionAction

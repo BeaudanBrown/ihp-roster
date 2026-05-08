@@ -35,6 +35,8 @@ External references:
 
 - Stripe Billing quickstart:
   `https://docs.stripe.com/billing/quickstart`
+- Stripe business website activation FAQ:
+  `https://support.stripe.com/questions/business-website-for-account-activation-faq`
 - Stripe Checkout subscriptions:
   `https://docs.stripe.com/payments/checkout/build-subscriptions`
 - Stripe Checkout Session create API:
@@ -98,6 +100,13 @@ enforcement without collecting or storing payment details.
 - Payment state does not automatically disable a venue in the first release.
 - Super admins can manually mark a venue read-only for billing or operational
   reasons. Future work may automatically set that flag from payment state.
+- Before live Stripe activation, the public Bepis site must expose a
+  Stripe-reviewable business page with the business/product name, a clear
+  description of the hosted roster/timesheet/leave/export service, support
+  contact `support@bepis.lol`, and public links or sections for terms, privacy,
+  refund/dispute policy, and subscription cancellation policy. The page must
+  load without authentication at `/PublicBillingSupport` and must not appear
+  under construction.
 
 ## Stripe Quickstart Alignment
 
@@ -152,6 +161,10 @@ IHP and the app's venue model:
 - Configure Customer Portal separately in Stripe sandbox and live mode before
   launch. The portal should allow payment-method updates, invoice history, and
   cancellation according to the product policy.
+- Keep Stripe Dashboard public business information aligned with the public
+  page: business name, website URL, support email, statement descriptor, and
+  product/service description should all clearly refer to Bepis and the
+  venue-scoped subscription service.
 
 ## Payment Method Posture
 
