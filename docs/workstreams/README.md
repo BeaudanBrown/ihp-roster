@@ -33,6 +33,7 @@ for forward-looking design.
 - `record-retention.md` - soft deletion and retention guardrails.
 - `release-readiness.md` - first-client release readiness.
 - `schema-hardening.md` - V1 schema hardening.
+- `subscription-billing.md` - per-venue Stripe Billing subscriptions.
 - `maintenance.md` - cross-cutting refactors and doc/agent cleanup.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.
 
