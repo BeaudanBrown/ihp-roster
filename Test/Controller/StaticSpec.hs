@@ -61,22 +61,30 @@ tests = beforeAll testContext do
             terms <- callAction LegalTermsAction
             terms `responseStatusShouldBe` status200
             terms `responseBodyShouldContain` "Bepis PTY LTD customer terms"
+            terms `responseBodyShouldContain` "Last updated: 8 May 2026"
+            terms `responseBodyShouldContain` "ACN 697 629 208"
+            terms `responseBodyShouldContain` "Fair Work Commission Modern Awards Pay Database"
             terms `responseBodyShouldContain` "support@bepis.lol"
 
             privacy <- callAction LegalPrivacyAction
             privacy `responseStatusShouldBe` status200
             privacy `responseBodyShouldContain` "Bepis PTY LTD privacy policy"
             privacy `responseBodyShouldContain` "Payment method details are handled by Stripe-hosted billing pages"
+            privacy `responseBodyShouldContain` "Xero when a customer enables Xero integrations"
+            privacy `responseBodyShouldContain` "destroy, de-identify, or put it beyond use"
 
             refunds <- callAction LegalRefundsDisputesAction
             refunds `responseStatusShouldBe` status200
             refunds `responseBodyShouldContain` "refund and dispute policy"
+            refunds `responseBodyShouldContain` "within 5 business days"
+            refunds `responseBodyShouldContain` "not automatic for change of mind"
             refunds `responseBodyShouldContain` "physical return processes do not apply"
 
             cancellation <- callAction LegalCancellationAction
             cancellation `responseStatusShouldBe` status200
             cancellation `responseBodyShouldContain` "cancellation policy"
             cancellation `responseBodyShouldContain` "Stripe Customer Portal"
+            cancellation `responseBodyShouldContain` "continues until the end of the current paid subscription period"
 
         it "renders configured legal document files" $ withContext do
             withTempLegalDocument "Injected privacy policy for Bepis PTY LTD.\n\nContact support@bepis.lol." \privacyPath ->
