@@ -19,6 +19,7 @@ instance Controller StaffDocumentsController where
         ensureCurrentVenue
 
     action CreateStaffDocumentAction = do
+        ensureVenueWritable
         maybeStaff <- parseSubmittedStaff
         case maybeStaff of
             Nothing -> do
@@ -71,6 +72,7 @@ instance Controller StaffDocumentsController where
 
     action ReviewStaffDocumentAction { staffDocumentId } = do
         redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to review RSA documents."
+        ensureVenueWritable
         staffDocument <- fetch staffDocumentId
         ensureRecordInCurrentVenue staffDocument.venueId
         case parseReviewStatus (paramOrDefault @Text "" "status") of

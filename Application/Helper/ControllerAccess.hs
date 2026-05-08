@@ -103,6 +103,23 @@ ensureCurrentVenue :: (?context :: ControllerContext, ?request :: Request) => IO
 ensureCurrentVenue =
     redirectPermissionDeniedUnless (isJust currentVenueOrNothing) "You do not have access to that venue."
 
+isCurrentVenueManuallyReadOnly :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Bool
+isCurrentVenueManuallyReadOnly
+    | currentUserIsSuperAdmin = pure False
+    | otherwise = do
+        maybeControl <-
+            query @VenueBillingControl
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> fetchOneOrNothing
+        pure (maybe False (.manualReadOnly) maybeControl)
+
+ensureVenueWritable :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+ensureVenueWritable = do
+    isReadOnly <- isCurrentVenueManuallyReadOnly
+    redirectPermissionDeniedUnless
+        (not isReadOnly)
+        "This venue is temporarily read-only. The venue owner can manage billing to restore write access."
+
 ensureManagerRole :: (?context :: ControllerContext, ?request :: Request) => IO ()
 ensureManagerRole =
     redirectPermissionDeniedUnless (hasRole ManagerRole') "You need manager access to view that page."

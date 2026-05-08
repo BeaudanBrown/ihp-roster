@@ -52,6 +52,7 @@ instance Controller LeaveRequestsController where
 
     action CreateLeaveRequestAction = do
         ensureStaffSelfServiceAccess
+        ensureVenueWritable
         maybeStaff <- fetchCurrentUserStaff
         let responseContext = requestedLeaveResponseContext
         ensureLeaveProfileAccess responseContext
@@ -93,6 +94,7 @@ instance Controller LeaveRequestsController where
     action ApproveLeaveRequestAction { leaveRequestId } = do
         ensureProfileCompleted
         ensureManagerRole
+        ensureVenueWritable
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
@@ -135,6 +137,7 @@ instance Controller LeaveRequestsController where
     action DenyLeaveRequestAction { leaveRequestId } = do
         ensureProfileCompleted
         ensureManagerRole
+        ensureVenueWritable
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
@@ -175,6 +178,7 @@ instance Controller LeaveRequestsController where
                 redirectTo LeaveRequestsAction
 
     action DeleteLeaveRequestAction { leaveRequestId } = do
+        ensureVenueWritable
         leaveRequest <- fetch leaveRequestId
         let responseContext = requestedLeaveResponseContext
         ensureLeaveProfileAccess responseContext

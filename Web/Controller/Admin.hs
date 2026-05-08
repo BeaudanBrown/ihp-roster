@@ -96,46 +96,59 @@ instance Controller AdminController where
         xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
         render XeroView { .. }
 
-    action StartXeroConnectionAction =
+    action StartXeroConnectionAction = do
+        ensureVenueWritable
         startXeroConnectionAction
 
     action XeroOAuthCallbackAction =
         xeroOAuthCallbackAction
 
-    action DisconnectXeroConnectionAction =
+    action DisconnectXeroConnectionAction = do
+        ensureVenueWritable
         disconnectXeroConnectionAction
 
-    action SyncXeroPayrollReferenceDataAction =
+    action SyncXeroPayrollReferenceDataAction = do
+        ensureVenueWritable
         requireCurrentVenueOwnerForXero syncXeroPayrollReferenceDataAction
 
-    action CreateMissingXeroPayItemsAction =
+    action CreateMissingXeroPayItemsAction = do
+        ensureVenueWritable
         requireCurrentVenueOwnerForXero createMissingXeroPayItemsAction
 
-    action SaveXeroStaffMappingAction =
+    action SaveXeroStaffMappingAction = do
+        ensureVenueWritable
         requireCurrentVenueOwnerForXero saveXeroStaffMappingAction
 
-    action SuggestXeroStaffMappingAction { staffId } =
+    action SuggestXeroStaffMappingAction { staffId } = do
+        ensureVenueWritable
         requireCurrentVenueOwnerForXero (suggestXeroStaffMappingAction staffId)
 
-    action SaveXeroEarningsRateMappingAction =
+    action SaveXeroEarningsRateMappingAction = do
+        ensureVenueWritable
         requireCurrentVenueOwnerForXero saveXeroEarningsRateMappingAction
 
-    action SaveXeroPayItemAccountCodeSelectionAction =
+    action SaveXeroPayItemAccountCodeSelectionAction = do
+        ensureVenueWritable
         requireCurrentVenueOwnerForXero saveXeroPayItemAccountCodeSelectionAction
 
-    action SaveXeroPayrollCalendarSelectionAction =
+    action SaveXeroPayrollCalendarSelectionAction = do
+        ensureVenueWritable
         requireCurrentVenueOwnerForXero saveXeroPayrollCalendarSelectionAction
 
-    action PreviewXeroDraftTimesheetsAction =
+    action PreviewXeroDraftTimesheetsAction = do
+        ensureVenueWritable
         requireCurrentVenueOwnerForXero previewXeroDraftTimesheetsAction
 
-    action SubmitXeroDraftTimesheetsAction =
+    action SubmitXeroDraftTimesheetsAction = do
+        ensureVenueWritable
         requireCurrentVenueOwnerForXero submitXeroDraftTimesheetsAction
 
-    action RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId } =
+    action RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId } = do
+        ensureVenueWritable
         requireCurrentVenueOwnerForXero (retryXeroDraftTimesheetSubmissionAction xeroTimesheetSubmissionId)
 
     action UpdateVenueConfigAction = do
+        ensureVenueWritable
         venueConfig <- fetchVenueConfig
         let configField = paramOrDefault @Text "rosterWeekStartsOn" "configField"
         case configField of
@@ -209,6 +222,7 @@ instance Controller AdminController where
         requireCurrentVenueOwnerForXero respondWithXeroTimesheetsFragment
 
     action CreateVenueInvitationAction = do
+        ensureVenueWritable
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         maybeEmail <- parseRequiredEmail "email" "Invite email is required."
         case maybeEmail of
@@ -237,6 +251,7 @@ instance Controller AdminController where
                 respondToInvitesSectionMutation "" currentRosterGroup.id
 
     action RevokeVenueInvitationAction { venueInvitationId } = do
+        ensureVenueWritable
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         invitation <- fetch venueInvitationId
         ensureRecordInCurrentVenue invitation.venueId
@@ -250,6 +265,7 @@ instance Controller AdminController where
                 respondToInvitesSectionMutation "Invitation revoked." currentRosterGroup.id
 
     action CreateRosterGroupAction = do
+        ensureVenueWritable
         venue <- fetch currentVenueId
         maybeName <- parseRequiredName "name" "Roster group name is required."
         case maybeName of
@@ -264,6 +280,7 @@ instance Controller AdminController where
                 respondToRosterGroupsSectionMutation (Just rosterGroup.id)
 
     action UpdateRosterGroupAction { rosterGroupId } = do
+        ensureVenueWritable
         venue <- fetch currentVenueId
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
@@ -298,6 +315,7 @@ instance Controller AdminController where
                         respondToRosterGroupsSectionMutation (Just updatedRosterGroup.id)
 
     action MoveRosterGroupUpAction { rosterGroupId } = do
+        ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
         withTransaction do
@@ -308,6 +326,7 @@ instance Controller AdminController where
         redirectToAdminFor (Just rosterGroup.id)
 
     action MoveRosterGroupDownAction { rosterGroupId } = do
+        ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
         withTransaction do
@@ -318,6 +337,7 @@ instance Controller AdminController where
         redirectToAdminFor (Just rosterGroup.id)
 
     action CreateShiftTypeAction = do
+        ensureVenueWritable
         maybeName <- parseRequiredName "name" "Shift type name is required."
         case maybeName of
             Nothing -> respondToShiftTypesSectionMutation
@@ -348,6 +368,7 @@ instance Controller AdminController where
                         respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
 
     action UpdateShiftTypeAction { shiftTypeId } = do
+        ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
         maybeName <- parseRequiredName "name" "Shift type name is required."
@@ -385,6 +406,7 @@ instance Controller AdminController where
                         respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
 
     action MoveShiftTypeUpAction { shiftTypeId } = do
+        ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
         withTransaction do
@@ -395,6 +417,7 @@ instance Controller AdminController where
         redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action MoveShiftTypeDownAction { shiftTypeId } = do
+        ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
         withTransaction do

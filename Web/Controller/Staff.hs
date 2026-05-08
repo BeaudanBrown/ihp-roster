@@ -65,6 +65,7 @@ instance Controller StaffController where
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
+        ensureVenueWritable
         staff <- fetch staffId
         ensureRecordInCurrentVenue staff.venueId
         let originalStaff = staff

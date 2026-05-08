@@ -20,6 +20,7 @@ instance Controller ExportsController where
         redirectToPath (pathTo AdminAction <> "#exports")
 
     action CreateExportJobAction = do
+        ensureVenueWritable
         let maybeRangeStart = paramOrNothing @Day "rangeStart"
         let maybeRangeEnd = paramOrNothing @Day "rangeEnd"
         let maybeExportType = paramOrNothing @Text "exportType" >>= parseExportJobType

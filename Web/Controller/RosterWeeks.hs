@@ -115,6 +115,7 @@ instance Controller RosterWeeksController where
 
     action CreateRosterWeekAction { weekOffset } = do
         ensureManagerRole
+        ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
         (rosterWeek, wasCreated) <- ensureRosterWeekExists rosterGroup.id weekOffset
 
@@ -139,6 +140,7 @@ instance Controller RosterWeeksController where
 
     action CopyRosterWeekAction { sourceWeekOffset, targetWeekOffset } = do
         ensureManagerRole
+        ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
 
         if sourceWeekOffset == targetWeekOffset
@@ -188,6 +190,7 @@ instance Controller RosterWeeksController where
 
     action ToggleRosterWeekLiveStatusAction { rosterWeekId } = do
         ensureManagerRole
+        ensureVenueWritable
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
         let nextLiveStatus = isJust (paramOrNothing @Text "isLive")
@@ -231,6 +234,7 @@ instance Controller RosterWeeksController where
 
     action CreateRosterWeekSlotDefinitionAction { rosterWeekId } = do
         ensureManagerRole
+        ensureVenueWritable
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
         ensureRosterWeekIsDraftForEdit rosterWeek
@@ -257,6 +261,7 @@ instance Controller RosterWeeksController where
 
     action UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = do
         ensureManagerRole
+        ensureVenueWritable
         slotDefinition <- fetch rosterWeekSlotDefinitionId
         rosterWeek <- fetch (Id slotDefinition.rosterWeekId :: Id RosterWeek)
         ensureRecordInCurrentVenue rosterWeek.venueId
@@ -281,6 +286,7 @@ instance Controller RosterWeeksController where
 
     action DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = do
         ensureManagerRole
+        ensureVenueWritable
         slotDefinition <- fetch rosterWeekSlotDefinitionId
         rosterWeek <- fetch (Id slotDefinition.rosterWeekId :: Id RosterWeek)
         ensureRecordInCurrentVenue rosterWeek.venueId
@@ -306,6 +312,7 @@ instance Controller RosterWeeksController where
 
     action SortRosterWeekAction { rosterWeekId } = do
         ensureManagerRole
+        ensureVenueWritable
         rosterWeek <- fetch rosterWeekId
         ensureRecordInCurrentVenue rosterWeek.venueId
         ensureRosterWeekIsDraftForEdit rosterWeek
@@ -332,6 +339,7 @@ instance Controller RosterWeeksController where
 
     action ToggleRosterDayClosedAction { rosterDayId } = do
         ensureManagerRole
+        ensureVenueWritable
 
         rosterDay <- fetch rosterDayId
         let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
@@ -372,6 +380,7 @@ instance Controller RosterWeeksController where
 
     action AddRosterRowAction { rosterDayId } = do
         ensureManagerRole
+        ensureVenueWritable
 
         rosterDay <- fetch rosterDayId
         let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
@@ -422,6 +431,7 @@ instance Controller RosterWeeksController where
 
     action RemoveRosterRowAction { rosterDayId } = do
         ensureManagerRole
+        ensureVenueWritable
 
         rosterDay <- fetch rosterDayId
         let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
@@ -496,6 +506,7 @@ instance Controller RosterWeeksController where
 
     action CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = do
         ensureManagerRole
+        ensureVenueWritable
 
         rosterDay <- fetch rosterDayId
         let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
@@ -599,6 +610,7 @@ instance Controller RosterWeeksController where
 
     action UpdateRosterSlotAction { rosterSlotId } = do
         ensureManagerRole
+        ensureVenueWritable
 
         rosterSlot <- fetch rosterSlotId
         accessDeniedUnless (isNothing rosterSlot.deletedAt)

@@ -74,6 +74,7 @@ instance Controller TimesheetsController where
                     else render NewView { .. }
 
     action CreateTimesheetEntryAction = do
+        ensureVenueWritable
         weekOffset <- weekOffsetFromParamOrCurrent
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         staffMembers <- fetchStaffForForm
@@ -122,6 +123,7 @@ instance Controller TimesheetsController where
             else render EditView { .. }
 
     action UpdateTimesheetEntryAction { timesheetEntryId } = do
+        ensureVenueWritable
         existingEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue existingEntry.venueId
         ensureTimesheetVisibility existingEntry
@@ -187,6 +189,7 @@ instance Controller TimesheetsController where
                             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
 
     action DeleteTimesheetEntryAction { timesheetEntryId } = do
+        ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
         ensureTimesheetVisibility timesheetEntry
@@ -227,6 +230,7 @@ instance Controller TimesheetsController where
 
     action ApproveTimesheetEntryAction { timesheetEntryId } = do
         ensureManagerRole
+        ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
@@ -273,6 +277,7 @@ instance Controller TimesheetsController where
 
     action UnapproveTimesheetEntryAction { timesheetEntryId } = do
         ensureManagerRole
+        ensureVenueWritable
         timesheetEntry <- fetch timesheetEntryId
         ensureRecordInCurrentVenue timesheetEntry.venueId
         accessDeniedUnless (isNothing timesheetEntry.deletedAt)
