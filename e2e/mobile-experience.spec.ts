@@ -62,7 +62,7 @@ test.describe('Mobile experience smoke', () => {
             await expect(mobileNav).toBeVisible();
             await expect(mobileNav.getByRole('link', { name: 'Roster', exact: true })).toHaveAttribute('aria-current', 'page');
             await expect(mobileNav.getByRole('link', { name: 'Timesheets' })).toBeVisible();
-            await expect(mobileNav.getByRole('link', { name: 'Availability' })).toBeVisible();
+            await expect(mobileNav.getByRole('link', { name: 'Unavailability' })).toBeVisible();
             await expect(mobileNav.getByRole('link', { name: 'Admin' })).toBeVisible();
             await expect(mobileNav.getByRole('button', { name: 'Logout' })).toBeVisible();
 
@@ -98,13 +98,13 @@ test.describe('Mobile experience smoke', () => {
             await expect(mobileNav).toBeHidden();
 
             await openAuthenticatedNavIfCollapsed(page);
-            await page.locator('#app-mobile-nav').getByRole('link', { name: 'Availability' }).click();
+            await page.locator('#app-mobile-nav').getByRole('link', { name: 'Unavailability' }).click();
         } else {
             await expect(page.getByRole('link', { name: 'roster', exact: true })).toHaveAttribute('aria-current', 'page');
             await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
-            await expect(page.getByRole('link', { name: 'availability' })).toBeVisible();
+            await expect(page.getByRole('link', { name: 'unavailability' })).toBeVisible();
             await expect(page.getByRole('link', { name: 'admin' })).toBeVisible();
-            await page.getByRole('link', { name: 'availability' }).click();
+            await page.getByRole('link', { name: 'unavailability' }).click();
         }
         await expect(page).toHaveURL(/LeaveRequests/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#leave-requests-content')).toBeVisible();
@@ -119,7 +119,7 @@ test.describe('Mobile experience smoke', () => {
         await expect(page.locator('#timesheet-week-shell')).toBeVisible();
     });
 
-    test('worker mobile navigation uses profile for availability access and hides the availability header link', async ({ page }) => {
+    test('worker mobile navigation uses profile for unavailability access and hides the unavailability header link', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
 
         const openedDrawer = await openAuthenticatedNavIfCollapsed(page);
@@ -128,7 +128,7 @@ test.describe('Mobile experience smoke', () => {
             await expect(mobileNav.getByRole('link', { name: 'Roster', exact: true })).toBeVisible();
             await expect(mobileNav.getByRole('link', { name: 'Profile' })).toBeVisible();
             await expect(mobileNav.getByRole('link', { name: 'Timesheets' })).toBeVisible();
-            await expect(mobileNav.getByRole('link', { name: 'Availability' })).toHaveCount(0);
+            await expect(mobileNav.getByRole('link', { name: 'Unavailability' })).toHaveCount(0);
             await expect(mobileNav.getByRole('link', { name: 'Admin' })).toHaveCount(0);
 
             await mobileNav.getByRole('link', { name: 'Profile' }).click();
@@ -136,7 +136,7 @@ test.describe('Mobile experience smoke', () => {
             await expect(page.getByRole('link', { name: 'roster', exact: true })).toBeVisible();
             await expect(page.getByRole('link', { name: 'profile' })).toBeVisible();
             await expect(page.getByRole('link', { name: 'timesheets' })).toBeVisible();
-            await expect(page.getByRole('link', { name: 'availability' })).toHaveCount(0);
+            await expect(page.getByRole('link', { name: 'unavailability' })).toHaveCount(0);
             await expect(page.getByRole('link', { name: 'admin' })).toHaveCount(0);
 
             await page.getByRole('link', { name: 'profile' }).click();
@@ -144,7 +144,7 @@ test.describe('Mobile experience smoke', () => {
         await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#profile-content-fragment')).toBeVisible();
 
-        const leaveSectionToggle = page.getByRole('button', { name: 'Availability' });
+        const leaveSectionToggle = page.getByRole('button', { name: 'Unavailability' });
         if ((await leaveSectionToggle.getAttribute('aria-expanded')) !== 'true') {
             await leaveSectionToggle.click();
         }
@@ -171,7 +171,7 @@ test.describe('Mobile experience smoke', () => {
         await expectNoHorizontalViewportOverflow(page);
     });
 
-    test('availability opens a phone-sized workflow dialog that fits the viewport', async ({ page }) => {
+    test('unavailability opens a phone-sized workflow dialog that fits the viewport', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
 
@@ -187,6 +187,7 @@ test.describe('Mobile experience smoke', () => {
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
 
         await expect(page.locator('#timesheet-day-section-0')).toBeVisible();
+        await expectContainerToManageHorizontalOverflow(page, '.timesheet-week-frame');
         await expectNoHorizontalViewportOverflow(page);
 
         const addBar = page.locator('[data-timesheet-day-add="true"]').first();
@@ -207,8 +208,10 @@ test.describe('Mobile experience smoke', () => {
         await expect(pendingEntry).toBeVisible();
         await expect(approvedEntry.getByRole('button', { name: 'Approved' })).toBeVisible();
         await expect(pendingEntry.getByRole('button', { name: 'Approve' })).toBeVisible();
-        await expect(approvedEntry.locator('.timesheet-entry-actions .btn:has-text("Edit")')).toHaveCount(1);
-        await expect(pendingEntry.locator('.timesheet-entry-actions .btn:has-text("Edit")')).toHaveCount(1);
+        await expect(approvedEntry.locator('.timesheet-entry-actions .btn:has-text("Edit")')).toHaveCount(0);
+        await expect(pendingEntry.locator('.timesheet-entry-actions .btn:has-text("Edit")')).toHaveCount(0);
+        await expect(approvedEntry.getByRole('link', { name: /Edit timesheet entry for/ })).toHaveCount(1);
+        await expect(pendingEntry.getByRole('link', { name: /Edit timesheet entry for/ })).toHaveCount(1);
         await expect(page.locator('.timesheet-shape-bar').first()).toBeVisible();
     });
 });

@@ -112,7 +112,7 @@ test.describe('HTMX submit regressions', () => {
         expect(daySectionId).not.toBeNull();
         const updatedDaySection = page.locator(`#${daySectionId}`);
 
-        const editLink = approvedEntry.getByRole('link', { name: 'Edit' });
+        const editLink = approvedEntry.getByRole('link', { name: /Edit timesheet entry for/ });
         const editHref = await editLink.getAttribute('href');
         expect(editHref).not.toBeNull();
         const deletedEntryId = new URL(editHref!, page.url()).searchParams.get('timesheetEntryId');

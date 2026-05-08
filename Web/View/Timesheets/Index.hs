@@ -68,8 +68,10 @@ renderTimesheetWeekShell view@IndexView { .. } =
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
-                        <div class="d-flex flex-column gap-3">
+                        <div class="timesheet-week-frame" data-timesheet-layout="day_columns">
+                            <div class="timesheet-day-columns" style="--timesheet-day-count: 7;">
                             {forEach [0 .. 6] (renderDaySection . timesheetDayRenderModel view)}
+                            </div>
                         </div>
                     |]
                     }
@@ -231,22 +233,25 @@ renderDaySectionOob =
 renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> TimesheetDayRenderModel -> Html
 renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries, dayWeekStartDate, dayWeekOffset, dayShowApproved, dayShowAllStaff, dayStaffFilterId, dayOffset } = [hsx|
     <section id={timesheetDaySectionDomId dayOffset}
-             class="app-panel timesheet-day-panel"
+             class="timesheet-day-panel"
              data-timesheet-day-offset={tshow dayOffset}
              data-live-update-url={daySectionUrl}
              hx-swap-oob={maybeSwapOob}>
-        <div class="app-panel-body">
+        <header class="timesheet-day-header">
             <a href={newEntryUrl}
                class="timesheet-day-add-bar"
                data-timesheet-day-add="true"
                hx-get={newEntryUrl}
                hx-target={"#" <> dialogOverlayMountId}
                hx-swap="innerHTML"
-               hx-push-url="false">
+               hx-push-url="false"
+               aria-label={"Add timesheet entry for " <> weekdayLabel <> " " <> formatDateCompact dayDate}>
                 <span class="timesheet-day-add-plus">+</span>
-                <span class="timesheet-day-add-label">{weekdayLabel} {formatDateCompact dayDate}</span>
+                <span class="timesheet-day-add-label">{weekdayShortLabel} {formatDateCompact dayDate}</span>
             </a>
+        </header>
 
+        <div class="timesheet-day-body">
             {renderDayEntries model dayEntriesForDate}
         </div>
     </section>
@@ -255,6 +260,7 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
         dayDate = addDays (toInteger dayOffset) dayWeekStartDate
         dayEntriesForDate = filter (\entry -> entry.workedOn == dayDate) dayEntries
         weekdayLabel = Text.pack (formatTime defaultTimeLocale "%A" dayDate)
+        weekdayShortLabel = Text.pack (formatTime defaultTimeLocale "%a" dayDate)
         daySectionUrl = timesheetDaySectionFragmentUrl dayWeekOffset dayOffset dayShowApproved dayShowAllStaff dayStaffFilterId
         newEntryUrl = newTimesheetEntryUrl dayWeekOffset dayDate dayShowApproved dayShowAllStaff dayStaffFilterId
 
@@ -290,7 +296,6 @@ renderEntryCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayTod
 
             <div class="timesheet-entry-actions">
                 {renderApprovalAction dayOffset entry dayWeekOffset dayShowApproved dayShowAllStaff dayStaffFilterId}
-                {renderEditActions canEdit editUrl}
             </div>
         </div>
 
@@ -342,20 +347,6 @@ renderComment label maybeComment =
                 <span class="timesheet-entry-comment-text">{comment}</span>
             </div>
         |]
-
-renderEditActions :: Bool -> Text -> Html
-renderEditActions canEdit editUrl
-    | canEdit = [hsx|
-        <a href={editUrl}
-           class="btn btn-sm btn-outline-secondary"
-           hx-get={editUrl}
-           hx-target={"#" <> dialogOverlayMountId}
-           hx-swap="innerHTML"
-           hx-push-url="false">
-            Edit
-        </a>
-    |]
-    | otherwise = mempty
 
 renderApprovalAction :: (?context :: ControllerContext) => Int -> TimesheetEntry -> Int -> Bool -> Bool -> Maybe UUID -> Html
 renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff staffFilterId

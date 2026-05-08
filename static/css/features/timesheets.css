@@ -1,16 +1,56 @@
 /* Timesheet week card, timeline, and approval styles. */
 
-.timesheet-day-panel .app-panel-body {
-    padding: 0.7rem;
+.timesheet-week-frame {
+    display: block;
+    overflow-x: auto;
+    padding: 0.9rem;
+    cursor: grab;
+    scrollbar-color: var(--app-control-border) transparent;
+    scrollbar-width: thin;
+}
+
+.timesheet-week-frame[data-timesheet-day-columns-dragging="true"] {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.timesheet-week-frame[data-timesheet-day-columns-dragging="true"] * {
+    cursor: grabbing !important;
+}
+
+.timesheet-day-columns {
+    display: grid;
+    grid-template-columns: repeat(var(--timesheet-day-count), minmax(17.5rem, 1fr));
+    gap: 0.75rem;
+    min-width: min(88rem, calc(var(--timesheet-day-count) * 18.5rem));
+}
+
+.timesheet-day-panel {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    min-width: 0;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    background: var(--app-surface-muted);
+    background-clip: padding-box;
+    overflow: hidden;
+}
+
+.timesheet-day-header {
+    padding: 0.65rem;
+    border-bottom: 1px solid var(--app-border);
+    background: color-mix(in srgb, var(--app-surface) 88%, var(--app-accent) 12%);
 }
 
 .timesheet-day-add-bar {
+    position: relative;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.45rem;
     width: 100%;
-    margin-bottom: 0.65rem;
+    min-height: 2.75rem;
     padding: 0.55rem 0.8rem;
     border: 1px solid var(--app-success-action-border);
     border-radius: 0.6rem;
@@ -18,7 +58,8 @@
     color: var(--app-success-action-text) !important;
     font-size: var(--text-base);
     font-weight: 700;
-    letter-spacing: 0.01em;
+    line-height: 1.15;
+    text-align: center;
     text-decoration: none;
     box-shadow: inset 0 1px 0 var(--app-white-alpha-08);
 }
@@ -33,23 +74,48 @@
     line-height: 1;
 }
 
+.timesheet-day-add-label {
+    min-width: 0;
+    color: inherit;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.timesheet-day-body {
+    display: grid;
+    gap: 0.6rem;
+    align-content: start;
+    padding: 0.65rem;
+    background: var(--app-surface-muted);
+    min-height: 16rem;
+    height: 100%;
+}
+
 .timesheet-day-empty {
-    padding: 0.2rem 0.15rem 0.05rem;
+    min-height: 4rem;
+    display: flex;
+    align-items: center;
+    padding: 0.15rem;
+    font-size: var(--text-sm);
 }
 
 .timesheet-entry-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.45rem;
+    display: grid;
+    gap: 0.55rem;
+    align-content: start;
 }
 
 .timesheet-entry-card {
     position: relative;
+    align-self: start;
     border: 1px solid var(--app-border);
-    border-radius: 0.7rem;
+    border-radius: 0.65rem;
     background: linear-gradient(180deg, var(--app-timesheet-card-start), var(--app-timesheet-card-end));
-    padding: 0.65rem 0.7rem;
-    min-height: 6.2rem;
+    padding: 0.6rem;
+    min-height: 8.35rem;
+    overflow: hidden;
+    transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease, background 140ms ease;
 }
 
 .timesheet-entry-card-link {
@@ -59,10 +125,34 @@
     border-radius: inherit;
 }
 
+.timesheet-entry-card:has(.timesheet-entry-card-link) {
+    cursor: pointer;
+}
+
+.timesheet-entry-card:has(.timesheet-entry-card-link):hover,
+.timesheet-entry-card:has(.timesheet-entry-card-link):focus-within {
+    border-color: var(--app-accent-border-strong);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--app-timesheet-card-start) 86%, var(--app-accent) 14%),
+        color-mix(in srgb, var(--app-timesheet-card-end) 88%, var(--app-accent) 12%)
+    );
+    box-shadow: 0 0 0 2px var(--app-accent-softer), 0 0.6rem 1.2rem var(--app-shadow-md-raw);
+    transform: translateY(-1px);
+}
+
+.timesheet-entry-card:has(.timesheet-entry-card-link):focus-within {
+    outline: 2px solid var(--app-accent);
+    outline-offset: 2px;
+}
+
 .timesheet-entry-main {
     display: grid;
-    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) auto;
-    gap: 0.75rem;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+        "time actions"
+        "identity actions";
+    gap: 0.45rem 0.55rem;
     align-items: start;
 }
 
@@ -74,8 +164,11 @@
 
 .timesheet-entry-shift-type {
     color: var(--app-timesheet-text);
-    font-size: var(--text-sm);
+    font-size: var(--text-xs);
     line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .timesheet-entry-staff-name {
@@ -83,6 +176,9 @@
     font-size: var(--text-sm);
     font-weight: 700;
     line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .timesheet-entry-time-range {
@@ -90,6 +186,9 @@
     font-size: var(--text-sm);
     font-variant-numeric: tabular-nums;
     line-height: 1.15;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .timesheet-entry-meta {
@@ -106,7 +205,21 @@
     flex-direction: column;
     align-items: stretch;
     gap: 0.28rem;
-    min-width: 5.2rem;
+    min-width: 4.9rem;
+}
+
+.timesheet-entry-identity {
+    grid-area: identity;
+}
+
+.timesheet-entry-time {
+    grid-area: time;
+}
+
+.timesheet-entry-actions {
+    grid-area: actions;
+    position: relative;
+    z-index: 2;
 }
 
 .timesheet-entry-actions .btn,
@@ -118,7 +231,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 0.2rem 0.5rem;
+    padding: 0.18rem 0.45rem;
     min-height: 1.85rem;
     line-height: 1.1;
     text-align: center;
@@ -196,24 +309,21 @@
 }
 
 @media (max-width: 575.98px) {
-    .timesheet-entry-main {
-        grid-template-columns: minmax(0, 1fr) auto;
-        grid-template-areas:
-            "identity actions"
-            "time actions";
-        gap: 0.5rem 0.65rem;
+    .timesheet-week-frame {
+        padding: 0.65rem;
     }
 
-    .timesheet-entry-identity {
-        grid-area: identity;
+    .timesheet-day-columns {
+        grid-template-columns: repeat(var(--timesheet-day-count), minmax(16.5rem, 1fr));
+        min-width: calc(var(--timesheet-day-count) * 16.5rem);
     }
 
-    .timesheet-entry-time {
-        grid-area: time;
+    .timesheet-day-header,
+    .timesheet-day-body {
+        padding: 0.55rem;
     }
 
     .timesheet-entry-actions {
-        grid-area: actions;
         min-width: 4.8rem;
     }
 }
