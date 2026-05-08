@@ -434,9 +434,10 @@ rowsForDay rosterDay slots =
     map (\rowIndex -> (rowIndex, Map.findWithDefault [] rowIndex slotsByRowIndex)) visibleIndices
     where
         slotsByRowIndex = Map.fromListWith (<>) [ (slot.rowIndex, [slot]) | slot <- slots ]
+        highestSlotRowIndex = maximum (0 : map (.rowIndex) slots)
         visibleIndices
             | rosterDay.isClosed = [0 .. closedRosterDayRows - 1]
-            | otherwise = [0 .. max minimumOpenRosterRows rosterDay.rowCount - 1]
+            | otherwise = [0 .. max highestSlotRowIndex (max minimumOpenRosterRows rosterDay.rowCount - 1)]
 
 lastRowIndexForRows :: [(Int, [RosterSlot])] -> Int
 lastRowIndexForRows dayRows = maybe (-1) fst (last dayRows)

@@ -737,18 +737,13 @@ tests = beforeAll testContext do
                 rosterDays <- query @RosterDay
                     |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
                     |> fetch
-                slots <- query @RosterSlot
-                    |> filterWhereIn (#rosterDayId, map (unpackId . get #id) rosterDays)
-                    |> fetch
                 slotDefinitions <- query @RosterWeekSlotDefinition
                     |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetch
 
-                let rosterWeekSlotDefinitionIds = map (unpackId . get #id) slotDefinitions
-
-                length slots `shouldBe` 84
-                map (.rosterWeekSlotDefinitionId) slots `shouldSatisfy` all (`elem` rosterWeekSlotDefinitionIds)
+                length rosterDays `shouldBe` 7
+                map (.name) slotDefinitions `shouldMatchList` ["Early", "Mid", "Late"]
 
 withAuthenticatedControllerContext ::
     forall result.

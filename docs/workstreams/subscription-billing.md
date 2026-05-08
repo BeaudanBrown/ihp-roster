@@ -1,6 +1,6 @@
 # Subscription Billing
 
-Status: active
+Status: implemented
 
 Tickets:
 
@@ -19,6 +19,7 @@ Living docs to update:
 
 - `Application/Billing/README.md`
 - `Application/Billing/SPEC.md`
+- `Application/Billing/RUNBOOK.md`
 - `Application/Billing/AGENTS.md` if reusable billing editing rules emerge
 - `Web/Controller/AGENTS.md` if billing controller access rules introduce new
   reusable controller gotchas

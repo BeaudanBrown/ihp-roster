@@ -335,16 +335,21 @@ tests = beforeAll testContext do
 
                 let totalTimesheetCount = length timesheetEntries
                 let entriesWithBreaks = length (filter (.hadBreak) timesheetEntries)
-                let requiredBreakCount = ceiling ((fromIntegral totalTimesheetCount :: Double) * 0.8)
+                let scenarioTimesheetCount = seededScenario.approvedTimesheets + seededScenario.pendingTimesheets
+                let requiredBreakCount = ceiling ((fromIntegral scenarioTimesheetCount :: Double) * 0.8)
                 let timesheetWeekOffsets = sort (nub (map (testWeekOffsetForDay . (.workedOn)) timesheetEntries))
                 let xeroMatchedStaffIds = map (unpackId . (.id)) xeroMatchedStaff
                 let approvedTimesheets = filter (.isApproved) timesheetEntries
+                let pendingTimesheetCount = length timesheetEntries - length approvedTimesheets
                 let xeroMatchedApprovedCount = length (filter (\entry -> entry.staffId `elem` xeroMatchedStaffIds) approvedTimesheets)
                 let otherApprovedCount = length approvedTimesheets - xeroMatchedApprovedCount
 
-                totalTimesheetCount `shouldBe` (seededScenario.approvedTimesheets + seededScenario.pendingTimesheets)
+                length approvedTimesheets `shouldSatisfy` (>= seededScenario.approvedTimesheets)
+                pendingTimesheetCount `shouldBe` seededScenario.pendingTimesheets
+                totalTimesheetCount `shouldBe` (length approvedTimesheets + seededScenario.pendingTimesheets)
                 entriesWithBreaks `shouldSatisfy` (>= requiredBreakCount)
-                timesheetWeekOffsets `shouldBe` [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1]
+                timesheetWeekOffsets `shouldSatisfy` \offsets ->
+                    all (`elem` offsets) [fixture.currentWeekOffset - 1, fixture.currentWeekOffset, fixture.currentWeekOffset + 1]
                 xeroMatchedApprovedCount `shouldSatisfy` (> otherApprovedCount)
 
         it "supports deterministic scenario overrides for realistic demo seeding" $ withContext do

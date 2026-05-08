@@ -65,8 +65,8 @@ buildRosterRowFragmentRefs rosterGroupId weekOffset =
     map (uncurry (buildRosterRowFragmentRef rosterGroupId weekOffset)) . nub
 
 buildActorRosterRowFragmentRefs :: (?context :: ControllerContext) => Maybe Text -> Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> [LiveFragmentRef]
-buildActorRosterRowFragmentRefs _ rosterGroupId weekOffset rowKeys =
-    buildRosterRowFragmentRefs rosterGroupId weekOffset rowKeys
+buildActorRosterRowFragmentRefs _ =
+    buildRosterRowFragmentRefs
 
 buildAssignmentRefreshFragmentRefs :: (?context :: ControllerContext) => Maybe Text -> Id RosterGroup -> Int -> [LiveFragmentRef]
 buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId weekOffset =

@@ -24,15 +24,15 @@ import Application.Helper.RosterGroups
 import Data.Coerce (coerce)
 import Data.List (nub, sort, sortOn)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (catMaybes, fromMaybe, isJust, isNothing)
+import Data.Maybe (fromMaybe, isJust, isNothing, mapMaybe)
 import qualified Data.Text as Text
 import Data.Time (UTCTime, getCurrentTime, utctDay)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
 import qualified Database.PostgreSQL.Simple as PG
 import IHP.ModelSupport (sqlExecDiscardResult)
-import Web.RosterWeeks.Dom (closedRosterDayRows, minimumOpenRosterRows)
 import Web.Controller.Prelude
+import Web.RosterWeeks.Dom (closedRosterDayRows, minimumOpenRosterRows)
 
 data RemoveRosterRowPackingPreview = RemoveRosterRowPackingPreview
     { removeRosterRowLastRowIndex     :: !Int
@@ -41,9 +41,9 @@ data RemoveRosterRowPackingPreview = RemoveRosterRowPackingPreview
     }
 
 data RosterSlotPlacement = RosterSlotPlacement
-    { rosterSlotPlacementSlot      :: !RosterSlot
+    { rosterSlotPlacementSlot       :: !RosterSlot
     , rosterSlotPlacementDefinition :: !RosterWeekSlotDefinition
-    , rosterSlotPlacementRowIndex  :: !Int
+    , rosterSlotPlacementRowIndex   :: !Int
     }
 
 data RemoveRosterRowPackingPlan = RemoveRosterRowPackingPlan
@@ -153,13 +153,19 @@ createInitialRosterWeekSlotDefinitions rosterWeek = do
             Just sourceWeek -> fetchActiveRosterWeekSlotDefinitions sourceWeek
             Nothing         -> pure []
     if null sourceDefinitions
-        then forM_ (zip [0 :: Int ..] defaultRosterSlotNames) \(sortOrder, slotName) -> do
-            _ <- newRecord @RosterWeekSlotDefinition
-                |> set #rosterWeekId (unpackId rosterWeek.id)
-                |> set #name slotName
-                |> set #sortOrder sortOrder
-                |> createRecord
-            pure ()
+        then do
+            rosterGroupSlotNames <- fetchActiveRosterGroupSlotNames (Id rosterWeek.rosterGroupId)
+            let slotTemplates =
+                    if null rosterGroupSlotNames
+                        then zip defaultRosterSlotNames [0 :: Int ..]
+                        else map (\slotName -> (slotName.name, slotName.sortOrder)) rosterGroupSlotNames
+            forM_ slotTemplates \(slotName, sortOrder) -> do
+                _ <- newRecord @RosterWeekSlotDefinition
+                    |> set #rosterWeekId (unpackId rosterWeek.id)
+                    |> set #name slotName
+                    |> set #sortOrder sortOrder
+                    |> createRecord
+                pure ()
         else forM_ sourceDefinitions \sourceDefinition -> do
             _ <- newRecord @RosterWeekSlotDefinition
                 |> set #rosterWeekId (unpackId rosterWeek.id)
@@ -268,13 +274,11 @@ appendRosterWeekSlotDefinition :: (?modelContext :: ModelContext) => RosterWeek 
 appendRosterWeekSlotDefinition rosterWeek slotName = do
     existingDefinitions <- fetchActiveRosterWeekSlotDefinitions rosterWeek
     let nextSortOrder = maybe 0 ((+ 1) . (.sortOrder)) (last existingDefinitions)
-    slotDefinition <-
-        newRecord @RosterWeekSlotDefinition
-            |> set #rosterWeekId (unpackId rosterWeek.id)
-            |> set #name slotName
-            |> set #sortOrder nextSortOrder
-            |> createRecord
-    pure slotDefinition
+    newRecord @RosterWeekSlotDefinition
+        |> set #rosterWeekId (unpackId rosterWeek.id)
+        |> set #name slotName
+        |> set #sortOrder nextSortOrder
+        |> createRecord
 
 rosterWeekSlotDefinitionHasData :: (?modelContext :: ModelContext) => RosterWeekSlotDefinition -> IO Bool
 rosterWeekSlotDefinitionHasData slotDefinition = do
@@ -311,7 +315,7 @@ removeRosterRowWithPacking rosterDay activeDefinitions = do
     forM_ (removeRosterRowPlanPlacements plan) \placement -> do
         _ <- rosterSlotPlacementSlot placement
             |> set #rosterWeekSlotDefinitionId (unpackId (get #id (rosterSlotPlacementDefinition placement)))
-            |> set #slotSortOrder ((rosterSlotPlacementDefinition placement).sortOrder)
+            |> set #slotSortOrder (rosterSlotPlacementDefinition placement).sortOrder
             |> set #rowIndex (rosterSlotPlacementRowIndex placement)
             |> updateRecord
         pure ()
@@ -403,7 +407,7 @@ softDeleteRemoveRosterRowSlots plan activeSlots = do
 repackRosterWeekDays :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterWeek -> IO ()
 repackRosterWeekDays rosterWeek = do
     activeDefinitions <- fetchActiveRosterWeekSlotDefinitions rosterWeek
-    when (not (null activeDefinitions)) do
+    unless (null activeDefinitions) do
         rosterDays <- query @RosterDay
             |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
             |> orderByAsc #dayOffset
@@ -419,10 +423,9 @@ repackRosterDay activeDefinitions rosterDay = do
                 then closedRosterDayRows
                 else minimumOpenRosterRows
     let requiredRows =
-            maximum
-                [ minimumRows
-                , ceilingDiv (length (filter rosterSlotHasData initialSlots)) (length activeDefinitions)
-                ]
+            max
+                minimumRows
+                (ceilingDiv (length (filter rosterSlotHasData initialSlots)) (length activeDefinitions))
 
     _ <- rosterDay
         |> set #rowCount requiredRows
@@ -461,7 +464,7 @@ fetchActiveSlotsForDay rosterDay =
 
 fetchStaffLabelsById :: (?modelContext :: ModelContext) => [RosterSlot] -> IO (Map.Map UUID Text)
 fetchStaffLabelsById slots = do
-    let staffIds = nub (catMaybes (map (.staffId) slots))
+    let staffIds = nub (mapMaybe (.staffId) slots)
     if null staffIds
         then pure Map.empty
         else do
@@ -487,13 +490,17 @@ slotPackingKey definitionSortOrderById staffById slot =
 
 temporarilyMoveDataSlots :: (?modelContext :: ModelContext) => [RosterSlot] -> [RosterSlot] -> Int -> IO ()
 temporarilyMoveDataSlots activeSlots dataSlots requiredRows = do
-    let maxExistingRowIndex = fromMaybe 0 (last (sort (map (.rowIndex) activeSlots)))
+    let maxExistingRowIndex = fromMaybe 0 (nonEmptyMaximum (map (.rowIndex) activeSlots))
     let temporaryRowStart = maxExistingRowIndex + requiredRows + length dataSlots + 100
     forM_ (zip [0 :: Int ..] dataSlots) \(index, slot) -> do
         _ <- slot
             |> set #rowIndex (temporaryRowStart + index)
             |> updateRecord
         pure ()
+
+nonEmptyMaximum :: Ord a => [a] -> Maybe a
+nonEmptyMaximum []     = Nothing
+nonEmptyMaximum values = Just (maximum values)
 
 softDeleteDisplacedBlankSlots :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => [UUID] -> [(RosterWeekSlotDefinition, Int)] -> [RosterSlot] -> IO ()
 softDeleteDisplacedBlankSlots activeDefinitionIds _ activeSlots = do
