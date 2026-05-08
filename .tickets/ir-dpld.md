@@ -16,9 +16,8 @@ Extend the IHP roster NixOS module so Stripe Billing can be enabled with non-sec
 
 ## Design
 
-Add services.ihpRoster.billing.stripe options for enable, priceId, currency aud, amountCents 10000, interval month, secretKeyFile, webhookSecretFile, paymentMethods, gstRegistered false, automaticTax false. Pass secret file paths or LoadCredential paths to app and worker services; do not place live keys in Nix store strings or production examples.
+Add services.ihpRoster.billing.stripe options for enable, priceLookupKey, optional priceId override, currency aud, amountCents 10000, interval month, intervalCount 1, secretKeyFile, webhookSecretFile, optional paymentMethodTypes override, gstRegistered false, automaticTax false, taxIdCollection false. Pass secret file paths or LoadCredential paths to app and worker services; do not place live keys in Nix store strings or production examples.
 
 ## Acceptance Criteria
 
-Nix eval/module tests or focused inspection show billing env is generated only when enabled, required options assert correctly, live secrets are file-backed, and production docs include placeholders and rotation instructions.
-
+Nix eval/module tests or focused inspection show billing env is generated only when enabled, exactly one of lookup key or direct Price ID is configured, expected Price checks are exported, required options assert correctly, live secrets are file-backed, and production docs include placeholders and rotation instructions.
