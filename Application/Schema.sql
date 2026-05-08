@@ -1238,6 +1238,63 @@ CREATE TABLE xero_submission_runs (
     CHECK (status = 'previewed' OR status = 'blocked' OR status = 'pending' OR status = 'submitted' OR status = 'partially_failed' OR status = 'failed' OR status = 'superseded'),
     CHECK (pay_period_end >= pay_period_start)
 );
+CREATE TABLE xero_timesheet_preparation_runs (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    created_by_user_id UUID NOT NULL,
+    selected_payroll_calendar_id TEXT NOT NULL,
+    selected_payroll_calendar_name TEXT,
+    selected_period_key TEXT NOT NULL,
+    pay_period_start DATE NOT NULL,
+    pay_period_end DATE NOT NULL,
+    payment_date DATE,
+    xero_pay_run_id TEXT,
+    xero_pay_run_status TEXT,
+    status TEXT DEFAULT 'started' NOT NULL,
+    connection_snapshot_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    remote_pay_runs_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    remote_timesheets_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    readiness_snapshot_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    proposed_actions_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    preview_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    xero_submission_run_id UUID DEFAULT NULL,
+    error_summary TEXT DEFAULT NULL,
+    started_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    completed_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_submission_run_id) REFERENCES xero_submission_runs (id) ON DELETE RESTRICT,
+    CHECK (pay_period_end >= pay_period_start),
+    CHECK (status = 'started' OR status = 'preparing' OR status = 'needs_reconnect' OR status = 'needs_approval' OR status = 'blocked' OR status = 'ready_for_preview' OR status = 'previewed' OR status = 'submitted' OR status = 'failed' OR status = 'cancelled')
+);
+CREATE TABLE xero_timesheet_preparation_decisions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    xero_timesheet_preparation_run_id UUID NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    staff_id UUID DEFAULT NULL,
+    decision_kind TEXT NOT NULL,
+    decision_status TEXT DEFAULT 'pending' NOT NULL,
+    xero_employee_id TEXT,
+    xero_employee_name TEXT,
+    local_bucket_key TEXT,
+    payload_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    decided_by_user_id UUID DEFAULT NULL,
+    decided_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (xero_timesheet_preparation_run_id) REFERENCES xero_timesheet_preparation_runs (id) ON DELETE RESTRICT,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
+    FOREIGN KEY (decided_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK (decision_kind = 'staff_auto_match' OR decision_kind = 'staff_manual_mapping' OR decision_kind = 'staff_not_paid' OR decision_kind = 'staff_skip' OR decision_kind = 'pay_item_create' OR decision_kind = 'account_code' OR decision_kind = 'calendar_selection'),
+    CHECK (decision_status = 'pending' OR decision_status = 'applied' OR decision_status = 'dismissed')
+);
 CREATE TABLE xero_timesheet_submissions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     xero_submission_run_id UUID NOT NULL,
@@ -1406,6 +1463,10 @@ CREATE UNIQUE INDEX idx_xero_pay_item_account_code_selections_connection ON xero
 CREATE UNIQUE INDEX idx_xero_pay_item_requirement_records_connection_key ON xero_pay_item_requirement_records (xero_connection_id, requirement_key);
 CREATE INDEX idx_xero_pay_item_requirement_records_venue_status ON xero_pay_item_requirement_records (venue_id, requirement_status);
 CREATE INDEX idx_xero_submission_runs_connection_period ON xero_submission_runs (xero_connection_id, pay_period_start, pay_period_end);
+CREATE INDEX idx_xero_timesheet_preparation_runs_connection_period ON xero_timesheet_preparation_runs (xero_connection_id, pay_period_start, pay_period_end);
+CREATE INDEX idx_xero_timesheet_preparation_runs_venue_created ON xero_timesheet_preparation_runs (venue_id, created_at DESC);
+CREATE INDEX idx_xero_timesheet_preparation_decisions_run_kind_status ON xero_timesheet_preparation_decisions (xero_timesheet_preparation_run_id, decision_kind, decision_status);
+CREATE INDEX idx_xero_timesheet_preparation_decisions_run_staff ON xero_timesheet_preparation_decisions (xero_timesheet_preparation_run_id, staff_id);
 CREATE INDEX idx_xero_timesheet_submissions_run ON xero_timesheet_submissions (xero_submission_run_id);
 CREATE INDEX idx_xero_timesheet_submissions_staff_period ON xero_timesheet_submissions (staff_id, pay_period_start, pay_period_end);
 CREATE UNIQUE INDEX idx_xero_timesheet_submissions_active_remote_period ON xero_timesheet_submissions (xero_connection_id, xero_employee_id, pay_period_start, pay_period_end) WHERE status <> 'superseded';
@@ -1464,6 +1525,8 @@ CREATE TRIGGER prevent_hard_delete_xero_payroll_calendar_selections BEFORE DELET
 CREATE TRIGGER prevent_hard_delete_xero_pay_item_account_code_selections BEFORE DELETE ON xero_pay_item_account_code_selections FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_pay_item_requirement_records BEFORE DELETE ON xero_pay_item_requirement_records FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_submission_runs BEFORE DELETE ON xero_submission_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_timesheet_preparation_runs BEFORE DELETE ON xero_timesheet_preparation_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_timesheet_preparation_decisions BEFORE DELETE ON xero_timesheet_preparation_decisions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_timesheet_submissions BEFORE DELETE ON xero_timesheet_submissions FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_timesheet_submission_entries BEFORE DELETE ON xero_timesheet_submission_entries FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 
@@ -1726,6 +1789,42 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION enforce_xero_preparation_decision_venue_integrity()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM xero_connections xc
+        WHERE xc.id = NEW.xero_connection_id
+            AND xc.venue_id = NEW.venue_id
+    ) THEN
+        RAISE EXCEPTION 'xero child row venue_id must match xero_connection_id venue';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM xero_timesheet_preparation_runs run
+        WHERE run.id = NEW.xero_timesheet_preparation_run_id
+            AND run.venue_id = NEW.venue_id
+            AND run.xero_connection_id = NEW.xero_connection_id
+    ) THEN
+        RAISE EXCEPTION 'xero preparation decision must match preparation run venue and connection';
+    END IF;
+
+    IF NEW.staff_id IS NOT NULL AND NOT EXISTS (
+        SELECT 1
+        FROM staff s
+        WHERE s.id = NEW.staff_id
+            AND s.venue_id = NEW.venue_id
+    ) THEN
+        RAISE EXCEPTION 'xero preparation decision venue_id must match staff_id venue';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE TRIGGER enforce_roster_week_venue_integrity BEFORE INSERT OR UPDATE ON roster_weeks FOR EACH ROW EXECUTE FUNCTION enforce_roster_week_venue_integrity();
 CREATE TRIGGER enforce_slot_name_venue_integrity BEFORE INSERT OR UPDATE ON slot_names FOR EACH ROW EXECUTE FUNCTION enforce_slot_name_venue_integrity();
 CREATE TRIGGER enforce_roster_slot_week_definition_integrity BEFORE INSERT OR UPDATE ON roster_slots FOR EACH ROW EXECUTE FUNCTION enforce_roster_slot_week_definition_integrity();
@@ -1745,6 +1844,8 @@ CREATE TRIGGER enforce_xero_earnings_rate_mappings_venue_integrity BEFORE INSERT
 CREATE TRIGGER enforce_xero_payroll_calendar_selections_venue_integrity BEFORE INSERT OR UPDATE ON xero_payroll_calendar_selections FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_pay_item_account_code_selections_venue_integrity BEFORE INSERT OR UPDATE ON xero_pay_item_account_code_selections FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_pay_item_requirement_records_venue_integrity BEFORE INSERT OR UPDATE ON xero_pay_item_requirement_records FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
+CREATE TRIGGER enforce_xero_timesheet_preparation_runs_venue_integrity BEFORE INSERT OR UPDATE ON xero_timesheet_preparation_runs FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
+CREATE TRIGGER enforce_xero_timesheet_preparation_decisions_venue_integrity BEFORE INSERT OR UPDATE ON xero_timesheet_preparation_decisions FOR EACH ROW EXECUTE FUNCTION enforce_xero_preparation_decision_venue_integrity();
 
 -- schema-nav: pay-sql-functions
 CREATE OR REPLACE FUNCTION resolve_effective_pay_level(p_staff_id UUID, p_shift_type_id UUID, p_day_of_week INT)
