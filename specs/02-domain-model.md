@@ -32,6 +32,26 @@
   - Includes actor, venue, event type, timestamp, target record and before/after metadata.
 - `export_jobs`
   - Venue-scoped record of generated exports, scope, file metadata, requestor and lifecycle.
+- `venue_billing_customers`
+  - Venue-scoped Stripe Customer reference.
+  - One Stripe Customer per venue for launch.
+  - Stores Stripe IDs and timestamps only, not payer payment details.
+- `venue_subscriptions`
+  - Venue-scoped Stripe subscription state mirror.
+  - Stores Stripe subscription/price IDs, status, current period timestamps,
+    cancellation flag and sync timestamps.
+  - Stripe webhooks are authoritative for state changes.
+- `billing_events`
+  - Durable Stripe webhook/API event processing ledger.
+  - Deduplicates by Stripe event ID.
+  - Stores event type, provider object IDs, processing status, timestamps and
+    concise summaries, not full raw sensitive Stripe payloads by default.
+- `venue_billing_controls`
+  - Venue-scoped billing control record.
+  - Holds `billing_required`, manual read-only state, manual reason, setter and
+    timestamps.
+  - Separate from `venues.status`; billing writability and venue lifecycle are
+    different concerns.
 - `record_corrections` or equivalent event/version tables
   - Additive correction history for payroll-adjacent records.
 - `pay_config_versions` / `venue_config_snapshots` or equivalent
@@ -100,6 +120,9 @@ would require a new schema and pay-engine change.
 - Ordinary profile data, payroll-adjacent data, security/audit data and restricted future data must be modelled distinctly.
 - Sensitive categories such as health, banking, TFN, superannuation, biometrics or government identifiers require dedicated tables and a separate spec before introduction.
 - Free-text note fields must be narrowly defined and export-reviewed.
+- Billing integration data is provider metadata, not payment detail storage.
+  The app must not store card details, bank details, ABNs, billing addresses,
+  tax IDs, or full raw Stripe payloads by default.
 
 ## Data integrity requirements
 
@@ -111,3 +134,6 @@ would require a new schema and pay-engine change.
 - Export generation must produce a durable audit trail and versioned output metadata.
 - Pay-relevant configuration must be historically reproducible through immutable snapshot/version records created by venue admin save actions.
 - Approved payroll-adjacent records and exports must reference the pay/config snapshot version used.
+- Subscription status must not automatically change venue writability in v1.
+  Founder super-admin manual read-only controls are the only billing-driven
+  write restriction until an explicit future ticket changes that contract.

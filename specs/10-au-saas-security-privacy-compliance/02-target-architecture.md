@@ -16,6 +16,8 @@ For the first few venues, this should operate as a managed SaaS product with sta
 6. Cross-border exposure is minimised by design.
 7. Privacy review is a standing product process, not a once-off exercise.
 8. Early-stage manual operations are acceptable where they reduce complexity, provided they remain venue-scoped, documented and auditable.
+9. Payment details stay on hosted provider surfaces; the app stores only the
+   minimum billing metadata needed for venue subscription state and audit.
 
 ## Domain model changes to make early
 
@@ -227,6 +229,8 @@ Audit logs should capture:
 - record approvals and corrections
 - support access
 - data sharing or webhook delivery
+- billing Checkout/Portal session creation and Stripe webhook processing
+- founder support changes to manual billing read-only controls
 
 Application logs should not contain:
 
@@ -234,6 +238,8 @@ Application logs should not contain:
 - session tokens
 - raw personal data beyond what is necessary
 - unrestricted payload dumps
+- Stripe secret keys, webhook secrets, payment method details or full raw
+  billing provider payloads
 
 ## Privacy operations architecture
 

@@ -167,8 +167,21 @@ The product should assume the following categories require a separate design tra
 - precise location data
 - emergency contact and dependant information
 - banking and superannuation details
+- payment card details, bank payment mandate details, ABNs, tax IDs and billing
+  addresses
 
 These categories should only be added through a dedicated specification that covers purpose, legal basis, access model, storage, retention, export and incident response.
+
+## Billing and GST launch posture
+
+Stripe-hosted Checkout, Stripe-hosted Customer Portal and Stripe Billing are
+the payment data boundary for launch. The app stores provider IDs, subscription
+status, timestamps and event/audit summaries only.
+
+The operator is not GST registered at launch. Product and customer-facing copy
+must not describe Stripe invoices as tax invoices, collect GST, or collect tax
+IDs by default. Configuration may be structured for later GST registration, but
+GST-enabled behavior needs an explicit implementation and compliance review.
 
 ## Minimum legal and governance posture for the product
 

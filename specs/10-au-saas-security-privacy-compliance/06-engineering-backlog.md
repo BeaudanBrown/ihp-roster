@@ -22,6 +22,7 @@ workstream system. It is not a standalone implementation checklist.
 | Pay/config historical reproducibility | `docs/workstreams/pay-config-versioning.md`, local export/timesheet/Xero specs |
 | Export governance | `Application/Helper/Export/SPEC.md`, `ir-g778` for release acceptance |
 | Xero payroll integration controls | `docs/workstreams/xero-payroll.md`, `Application/Xero/SPEC.md` |
+| Subscription billing controls | `docs/workstreams/subscription-billing.md`, `Application/Billing/SPEC.md` |
 | First-client readiness | `docs/workstreams/release-readiness.md`, `ir-g778`, `ir-yo89` |
 | Rooks pilot compliance gaps | `docs/workstreams/rooks-pilot.md`, especially `ir-2rko` for RSA |
 | Security/session/header hardening | `ir-2ds0`, `docs/workstreams/release-readiness.md` |
@@ -36,6 +37,9 @@ workstream system. It is not a standalone implementation checklist.
 - Export generation and download must be scoped, auditable, and expiry-aware.
 - Sensitive data such as TFN, bank, super, health, biometrics, or government
   identifiers requires a dedicated product/compliance spec before storage.
+- Billing uses hosted Stripe surfaces. The app must not store card details,
+  bank payment details, ABNs, tax IDs, billing addresses or full raw Stripe
+  payloads by default.
 - Bepis must not add sensitive onboarding-data storage as part of the Rooks
   pilot.
 

@@ -96,8 +96,24 @@ Required fields are defined in onboarding spec and enforced server-side.
 These actions require explicit server-side permission checks and audit logging:
 
 - venue role changes
+- billing Checkout and Customer Portal session creation
+- founder support changes to manual venue billing controls
 - export generation and download
 - configuration changes affecting payroll or record visibility
 - timesheet approval and unapproval
 - employment-record correction actions
 - support access to venue data
+
+## Billing access
+
+- Billing management is venue-scoped.
+- Venue owners can start Stripe-hosted Checkout and open Stripe Customer Portal
+  for their current venue.
+- Founder super admins can view and manage billing for a support-mode current
+  venue.
+- Venue admins, managers, workers and future export-only roles do not manage
+  billing unless a future product decision changes the role model.
+- Support-mode billing access must use `currentVenue` with no synthetic venue
+  membership. Ordinary access must resolve authority from `venue_memberships`.
+- Payment state does not automatically grant or remove access in v1. Manual
+  read-only enforcement is a separate founder super-admin control.

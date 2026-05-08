@@ -1,0 +1,44 @@
+# Billing Agent Notes
+
+Read this before editing `Application/Billing/` or billing controllers.
+
+## Local Rules
+
+- Read `SPEC.md` and `docs/workstreams/subscription-billing.md` first.
+- Keep Stripe API, webhook verification, idempotency, and response parsing in
+  application modules. Keep redirects, toasts, params, and permission response
+  choices in controllers.
+- Billing management is restricted to venue owners and founder super admins in
+  support mode. Venue authority comes from `venue_memberships`, not `users`.
+- Support-mode requests have a real `currentVenue`, no
+  `currentVenueMembership`, and `currentUserIsSuperAdmin = True`; keep this
+  path working.
+- Use Stripe-hosted Checkout and Customer Portal redirects only for v1. Do not
+  add Stripe.js, embedded pricing tables, in-app card forms, bank forms, ABN
+  forms, or billing-address collection.
+- Verify webhook signatures from the raw request body before parsing JSON.
+- Deduplicate webhook processing by Stripe event ID.
+- Use idempotency keys for Stripe create requests.
+- Never log Stripe secret keys, webhook secrets, payment method details, or full
+  raw webhook/API payloads.
+
+## Configuration
+
+- Prefer `STRIPE_SECRET_KEY_FILE` and `STRIPE_WEBHOOK_SECRET_FILE` in deployed
+  environments.
+- Production must use file-backed secrets. Dev/test may use direct environment
+  variables when that keeps local tests deterministic.
+- Prefer `STRIPE_PRICE_LOOKUP_KEY`, defaulting operationally to
+  `bepis_venue_monthly_aud_100`.
+- Allow `STRIPE_PRICE_ID` only as a fallback override.
+
+## Verification
+
+Run focused billing tests after billing module changes:
+
+```bash
+bash ./bin/in-env hspec-test --match "Billing"
+```
+
+Before completing the workstream, also run the full project verification listed
+in the root `AGENTS.md`.

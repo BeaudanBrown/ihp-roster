@@ -48,6 +48,23 @@ Use project scripts via the repo environment wrapper:
 - Exported pay outputs include sufficient versioning or metadata to explain the calculation later.
 - Venue admin bulk-save creates a new pay/config snapshot version without erasing prior versions.
 
+## Billing
+
+- Stripe Price lookup validates the configured recurring Price is active,
+  AUD 100/month and fixed quantity before Checkout creation.
+- Stripe create requests use idempotency keys.
+- Stripe-hosted Checkout and Customer Portal request construction is covered by
+  strict local mocks and does not require live credentials in CI.
+- Stripe webhook signatures are verified from the raw request body before JSON
+  parsing.
+- Stripe webhook events are deduplicated by event ID.
+- Subscription lifecycle fixture tests cover created, updated, deleted, failed
+  payment and duplicate event paths.
+- Billing event storage and logs do not retain card details, bank details, tax
+  IDs, billing addresses or full raw Stripe payloads by default.
+- Operator-run sandbox validation with Stripe CLI and Billing test clocks is
+  documented before live launch.
+
 ## Acceptance checklist
 
 Feature is accepted when:
@@ -61,3 +78,5 @@ Feature is accepted when:
 7. Export workflows are scoped, attributable and test-covered.
 8. Past payroll-adjacent outputs remain explainable after future configuration changes.
 9. Typecheck/tests pass and schema/generated types are synchronized.
+10. Billing state is webhook-driven, venue-scoped, and does not require live
+    Stripe credentials in normal CI.

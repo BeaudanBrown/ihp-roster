@@ -60,7 +60,16 @@ The Provider will:
 
 ## 9. Fees and payment
 
-`[Insert pricing model, invoice timing, payment terms and late payment wording]`
+- Fees are charged per customer venue unless a written order states otherwise.
+- Launch subscription pricing is AUD 100 per venue per month.
+- Payments are processed through Stripe-hosted payment and billing pages.
+- The Provider does not collect or store customer card or bank account details
+  in the service.
+- The Provider is not registered for GST at launch. Amounts are not GST
+  inclusive and Stripe invoices should not be treated as tax invoices unless
+  the Provider later confirms GST registration and updated invoicing terms.
+- Late, failed or cancelled payment may result in notices to the Customer and
+  may result in manual service restriction after reasonable operational review.
 
 ## 10. Confidentiality
 
