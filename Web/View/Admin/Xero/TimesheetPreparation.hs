@@ -1,10 +1,12 @@
 module Web.View.Admin.Xero.TimesheetPreparation
     ( renderXeroTimesheetPreparationDialog
     , renderXeroTimesheetPreparationErrorDialog
+    , renderXeroTimesheetPreparationLoadingDialog
     ) where
 
 import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
+import Control.Monad (guard)
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -43,11 +45,40 @@ renderXeroTimesheetPreparationErrorDialog message =
         , dialogOverlayDialogClass = ""
         }
 
+renderXeroTimesheetPreparationLoadingDialog :: Text -> Html
+renderXeroTimesheetPreparationLoadingDialog selectedPeriodKey =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Prepare Xero draft timesheets"
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex align-items-center gap-3" data-xero-timesheet-preparation-loading="true">
+                <div id="xero-timesheet-preparation-modal-loading-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                <div>
+                    <div class="fw-semibold">Preparing Xero draft timesheets...</div>
+                    <div class="small app-muted">Checking the connection, Xero reference data, pay runs, timesheets, mappings, and pay items.</div>
+                </div>
+                <form method="POST"
+                      action={RunXeroTimesheetPreparationAction}
+                      hx-post={pathTo RunXeroTimesheetPreparationAction}
+                      hx-trigger="load"
+                      hx-target={"#" <> dialogOverlayMountId}
+                      hx-swap="innerHTML"
+                      hx-indicator="#xero-timesheet-preparation-modal-loading-indicator">
+                    <input type="hidden" name="periodKey" value={selectedPeriodKey} />
+                </form>
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = []
+        , dialogOverlayDialogClass = ""
+        }
+
 renderPreparationBody :: XeroTimesheetPreparationView -> Html
 renderPreparationBody view = [hsx|
     <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
         {renderRunSummary view}
         {renderConnectionNotice view}
+        {renderSetupActions view}
+        {renderEarningsMappingDecisions view}
         {renderStaffDecisions view}
         {renderPayItemDecisions view}
         {renderReadiness view.preparationReadiness}
@@ -86,6 +117,117 @@ renderConnectionNotice view
             <a href={pathTo StartXeroConnectionAction} class="btn btn-sm btn-warning">Reconnect Xero</a>
         </div>
     |]
+
+renderSetupActions :: XeroTimesheetPreparationView -> Html
+renderSetupActions view = [hsx|
+    <section>
+        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <h6 class="mb-0">Setup</h6>
+            {renderStatusBadge (if setupLooksComplete view then "ready" else "needs_approval")}
+        </div>
+        <div class={appSurfaceClasses "p-3"}>
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-lg-4">
+                    {renderReferenceSyncForm view}
+                </div>
+                <div class="col-12 col-lg-4">
+                    {renderPayrollCalendarForm view}
+                </div>
+                <div class="col-12 col-lg-4">
+                    {renderAccountCodeForm view}
+                </div>
+            </div>
+        </div>
+    </section>
+|]
+
+setupLooksComplete :: XeroTimesheetPreparationView -> Bool
+setupLooksComplete view =
+    view.preparationConnection.connectionStatus == "active"
+        && not (null view.preparationPayrollCalendars)
+        && isJust view.preparationPayrollCalendarSelection
+        && (not (preparationNeedsAccountCode view) || isJust (selectedAccountCode view))
+
+preparationNeedsAccountCode :: XeroTimesheetPreparationView -> Bool
+preparationNeedsAccountCode view =
+    any
+        ((== "proposed") . (.payItemRequirementStatus) . (.preparationPayItemRequirement))
+        view.preparationPayItemRows
+
+renderReferenceSyncForm :: XeroTimesheetPreparationView -> Html
+renderReferenceSyncForm view
+    | view.preparationConnection.connectionStatus /= "active" = [hsx|
+        <div>
+            <label class="form-label small fw-semibold">Reference data</label>
+            <button type="button" class="btn btn-sm btn-outline-secondary w-100" disabled>Sync reference data</button>
+        </div>
+    |]
+    | otherwise = [hsx|
+        <form method="POST"
+              action={SyncXeroTimesheetPreparationReferenceDataAction view.preparationRun.id}
+              hx-post={pathTo (SyncXeroTimesheetPreparationReferenceDataAction view.preparationRun.id)}
+              hx-target={"#" <> dialogOverlayMountId}
+              hx-swap="innerHTML">
+            <label class="form-label small fw-semibold">Reference data</label>
+            <button type="submit" class="btn btn-sm btn-outline-primary w-100">Sync reference data</button>
+        </form>
+    |]
+
+renderPayrollCalendarForm :: XeroTimesheetPreparationView -> Html
+renderPayrollCalendarForm view = [hsx|
+    <form method="POST"
+          action={SaveXeroTimesheetPreparationCalendarAction view.preparationRun.id}
+          hx-post={pathTo (SaveXeroTimesheetPreparationCalendarAction view.preparationRun.id)}
+          hx-target={"#" <> dialogOverlayMountId}
+          hx-swap="innerHTML">
+        <label class="form-label small fw-semibold" for="xero-preparation-payroll-calendar">Payroll calendar</label>
+        <div class="d-flex gap-2">
+            <select id="xero-preparation-payroll-calendar"
+                    name="xeroPayrollCalendarSelection"
+                    class="form-select form-select-sm"
+                    disabled={null view.preparationPayrollCalendars}>
+                <option value="">Choose calendar</option>
+                {forEach view.preparationPayrollCalendars (renderPayrollCalendarOption (selectedPreparationPayrollCalendarId view))}
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-primary" disabled={null view.preparationPayrollCalendars}>Save</button>
+        </div>
+    </form>
+|]
+
+renderPayrollCalendarOption :: Text -> XeroPayrollCalendar -> Html
+renderPayrollCalendarOption currentSelection payrollCalendar = [hsx|
+    <option value={payrollCalendar.xeroPayrollCalendarId} selected={currentSelection == payrollCalendar.xeroPayrollCalendarId}>
+        {payrollCalendar.name}
+    </option>
+|]
+
+selectedPreparationPayrollCalendarId :: XeroTimesheetPreparationView -> Text
+selectedPreparationPayrollCalendarId view =
+    fromMaybe view.preparationRun.selectedPayrollCalendarId do
+        selection <- view.preparationPayrollCalendarSelection
+        guard (selection.calendarStatus == "verified")
+        selection.xeroPayrollCalendarId
+
+renderAccountCodeForm :: XeroTimesheetPreparationView -> Html
+renderAccountCodeForm view = [hsx|
+    <form method="POST"
+          action={SaveXeroTimesheetPreparationAccountCodeAction view.preparationRun.id}
+          hx-post={pathTo (SaveXeroTimesheetPreparationAccountCodeAction view.preparationRun.id)}
+          hx-target={"#" <> dialogOverlayMountId}
+          hx-swap="innerHTML">
+        <label class="form-label small fw-semibold" for="xero-preparation-account-code">Pay item account code</label>
+        <div class="d-flex gap-2">
+            <select id="xero-preparation-account-code"
+                    name="xeroPayItemAccountCodeSelection"
+                    class="form-select form-select-sm"
+                    disabled={null view.preparationPayItemAccountCodeOptions}>
+                <option value="">Choose account code</option>
+                {forEach view.preparationPayItemAccountCodeOptions (renderAccountCodeOption (fromMaybe "" (selectedAccountCode view)))}
+            </select>
+            <button type="submit" class="btn btn-sm btn-outline-primary" disabled={null view.preparationPayItemAccountCodeOptions}>Save</button>
+        </div>
+    </form>
+|]
 
 renderStaffDecisions :: XeroTimesheetPreparationView -> Html
 renderStaffDecisions view
@@ -225,7 +367,7 @@ renderPayItemDecisions view
                       hx-swap="innerHTML">
                     <select name="accountCode" class="form-select form-select-sm" aria-label="Xero account code">
                         <option value="">Choose account code</option>
-                        {forEach view.preparationPayItemAccountCodeOptions renderAccountCodeOption}
+                        {forEach view.preparationPayItemAccountCodeOptions (renderAccountCodeOption (fromMaybe "" (selectedAccountCode view)))}
                     </select>
                     <button type="submit" class="btn btn-sm btn-primary">Approve creation</button>
                 </form>
@@ -239,8 +381,106 @@ renderPayItemDecisions view
                     row.preparationPayItemRequirement.payItemRequirementStatus == "proposed"
         requirementName row = row.preparationPayItemRequirement.payItemRequirementName
 
-renderAccountCodeOption :: Text -> Html
-renderAccountCodeOption accountCode = [hsx|<option value={accountCode}>{accountCode}</option>|]
+renderAccountCodeOption :: Text -> Text -> Html
+renderAccountCodeOption currentSelection accountCode = [hsx|<option value={accountCode} selected={currentSelection == accountCode}>{accountCode}</option>|]
+
+selectedAccountCode :: XeroTimesheetPreparationView -> Maybe Text
+selectedAccountCode view = do
+    selection <- view.preparationPayItemAccountCodeSelection
+    guard (selection.selectionStatus == "verified")
+    Text.strip <$> selection.accountCode
+
+renderEarningsMappingDecisions :: XeroTimesheetPreparationView -> Html
+renderEarningsMappingDecisions view
+    | null rows = mempty
+    | null view.preparationEarningsRates = [hsx|
+        <section>
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <h6 class="mb-0">Earnings-rate mappings</h6>
+                <span class="small app-muted">{tshow (length rows)} to resolve</span>
+            </div>
+            <div class={appSurfaceClasses "p-3 small app-muted"}>Sync reference data before mapping local earnings buckets to Xero earnings rates.</div>
+        </section>
+    |]
+    | otherwise = [hsx|
+        <section>
+            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+                <h6 class="mb-0">Earnings-rate mappings</h6>
+                <span class="small app-muted">{tshow (length rows)} to resolve</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Local bucket</th>
+                            <th>Xero earnings rate</th>
+                            <th class="text-end">Decision</th>
+                        </tr>
+                    </thead>
+                    <tbody>{forEach rows (renderEarningsMappingRow view)}</tbody>
+                </table>
+            </div>
+        </section>
+    |]
+    where
+        rows = filter (earningsBucketNeedsMapping view) view.preparationEarningsBucketRows
+
+renderEarningsMappingRow :: XeroTimesheetPreparationView -> XeroEarningsBucketRow -> Html
+renderEarningsMappingRow view row = [hsx|
+    <tr>
+        <td>{row.earningsBucketRowBucket.localBucketLabel}</td>
+        <td>
+            <form method="POST"
+                  action={SaveXeroTimesheetPreparationEarningsRateAction view.preparationRun.id}
+                  class="d-flex gap-2"
+                  hx-post={pathTo (SaveXeroTimesheetPreparationEarningsRateAction view.preparationRun.id)}
+                  hx-target={"#" <> dialogOverlayMountId}
+                  hx-swap="innerHTML">
+                <input type="hidden" name="localBucketKey" value={row.earningsBucketRowBucket.localBucketKey} />
+                <select name="xeroEarningsRateSelection" class="form-select form-select-sm" aria-label="Xero earnings rate">
+                    <option value="">Choose earnings rate</option>
+                    {forEach view.preparationEarningsRates (renderEarningsRateOption (currentEarningsRateId row))}
+                </select>
+                <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+            </form>
+        </td>
+        <td class="text-end">
+            <span class="small app-muted">Required</span>
+        </td>
+    </tr>
+|]
+
+renderEarningsRateOption :: Text -> XeroEarningsRate -> Html
+renderEarningsRateOption currentSelection earningsRate = [hsx|
+    <option value={earningsRate.xeroEarningsRateId} selected={currentSelection == earningsRate.xeroEarningsRateId}>
+        {earningsRate.name}
+    </option>
+|]
+
+currentEarningsRateId :: XeroEarningsBucketRow -> Text
+currentEarningsRateId row =
+    fromMaybe "" do
+        mapping <- row.earningsBucketRowMapping
+        guard (mapping.mappingStatus == "verified")
+        mapping.xeroEarningsRateId
+
+earningsBucketNeedsMapping :: XeroTimesheetPreparationView -> XeroEarningsBucketRow -> Bool
+earningsBucketNeedsMapping view row =
+    not (bucketHasVerifiedMapping row)
+        && not (bucketHasReadyPayItem view row.earningsBucketRowBucket.localBucketKey)
+
+bucketHasVerifiedMapping :: XeroEarningsBucketRow -> Bool
+bucketHasVerifiedMapping row =
+    maybe False (\mapping -> mapping.mappingStatus == "verified" && isJust mapping.xeroEarningsRateId) row.earningsBucketRowMapping
+
+bucketHasReadyPayItem :: XeroTimesheetPreparationView -> Text -> Bool
+bucketHasReadyPayItem view localBucketKey =
+    any
+        ( \row ->
+            row.preparationPayItemRequirement.payItemRequirementKey == localBucketKey
+                && row.preparationPayItemRequirement.payItemRequirementStatus `elem` ["matched", "created"]
+        )
+        view.preparationPayItemRows
 
 renderReadiness :: XeroTimesheetReadinessView -> Html
 renderReadiness readiness = [hsx|

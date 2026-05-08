@@ -1070,21 +1070,75 @@ tests = beforeAll testContext do
                         |> set #encryptedRefreshToken encryptedRefreshToken
                         |> updateRecord
 
+                loadingResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams OpenXeroTimesheetPreparationAction
+                            [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+
+                loadingResponse `responseStatusShouldBe` status200
+                loadingResponse `responseBodyShouldContain` "Preparing Xero draft timesheets..."
+                loadingResponse `responseBodyShouldContain` "hx-post=\"/RunXeroTimesheetPreparation\""
+                loadingResponse `responseBodyShouldContain` "data-xero-timesheet-preparation-loading=\"true\""
+                initialPreparationRunCount <- query @XeroTimesheetPreparationRun |> fetchCount
+                initialPreparationRunCount `shouldBe` 0
+
                 response <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
-                                callActionWithParams OpenXeroTimesheetPreparationAction
+                                callActionWithParams RunXeroTimesheetPreparationAction
                                     [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Prepare Xero draft timesheets"
+                response `responseBodyShouldContain` "Setup"
+                response `responseBodyShouldContain` "Sync reference data"
                 response `responseBodyShouldContain` "Readiness validation"
                 response `responseBodyShouldContain` "Preview"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
                 preparationRun.status `shouldBe` "ready_for_preview"
                 preparationRun.payPeriodStart `shouldBe` fixture.periodStart
                 preparationRun.payPeriodEnd `shouldBe` fixture.periodEnd
+
+        it "keeps missing Xero payroll calendar selection repair inside the guided preparation modal" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                existingSelection <- query @XeroPayrollCalendarSelection |> fetchOne
+                _ <-
+                    existingSelection
+                        |> set #calendarStatus ("stale" :: Text)
+                        |> updateRecord
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction XeroAction
+
+                pageResponse `responseStatusShouldBe` status200
+                pageResponse `responseBodyShouldContain` "Select and verify a Xero payroll calendar."
+                pageResponse `responseBodyShouldContain` "Preview Calendar"
+                pageResponse `responseBodyShouldContain` "Prepare"
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams RunXeroTimesheetPreparationAction
+                                    [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Setup"
+                response `responseBodyShouldContain` "Payroll calendar"
+                response `responseBodyShouldContain` "name=\"xeroPayrollCalendarSelection\""
+                response `responseBodyShouldContain` "Preview Calendar"
+                calendarSelection <- query @XeroPayrollCalendarSelection |> fetchOne
+                calendarSelection.xeroPayrollCalendarId `shouldBe` Just "calendar-preview"
+                calendarSelection.calendarStatus `shouldBe` "verified"
+                preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
+                preparationRun.status `shouldBe` "ready_for_preview"
 
         it "hard-blocks guided Xero preparation when the selected Xero pay run is posted" $ withContext do
             withCleanDb do
@@ -1113,7 +1167,7 @@ tests = beforeAll testContext do
                     withXeroClientForTest client do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
-                                callActionWithParams OpenXeroTimesheetPreparationAction
+                                callActionWithParams RunXeroTimesheetPreparationAction
                                     [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
 
                 response `responseStatusShouldBe` status200
@@ -1138,11 +1192,15 @@ tests = beforeAll testContext do
                 openPreparationResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
                     callActionWithParams OpenXeroTimesheetPreparationAction
                         [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+                runPreparationResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
+                    callActionWithParams RunXeroTimesheetPreparationAction
+                        [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
 
                 pageResponse `responseStatusShouldBe` status302
                 previewResponse `responseStatusShouldBe` status302
                 submitResponse `responseStatusShouldBe` status302
                 openPreparationResponse `responseStatusShouldBe` status302
+                runPreparationResponse `responseStatusShouldBe` status302
                 runCount <- query @XeroSubmissionRun |> fetchCount
                 runCount `shouldBe` 0
                 preparationRunCount <- query @XeroTimesheetPreparationRun |> fetchCount

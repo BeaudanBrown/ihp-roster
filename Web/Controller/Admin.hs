@@ -139,9 +139,29 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero openXeroTimesheetPreparationAction
 
+    action RunXeroTimesheetPreparationAction = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero runXeroTimesheetPreparationAction
+
     action RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (refreshXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
+
+    action SyncXeroTimesheetPreparationReferenceDataAction { xeroTimesheetPreparationRunId } = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (syncXeroTimesheetPreparationReferenceDataAction xeroTimesheetPreparationRunId)
+
+    action SaveXeroTimesheetPreparationCalendarAction { xeroTimesheetPreparationRunId } = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (saveXeroTimesheetPreparationCalendarAction xeroTimesheetPreparationRunId)
+
+    action SaveXeroTimesheetPreparationAccountCodeAction { xeroTimesheetPreparationRunId } = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (saveXeroTimesheetPreparationAccountCodeAction xeroTimesheetPreparationRunId)
+
+    action SaveXeroTimesheetPreparationEarningsRateAction { xeroTimesheetPreparationRunId } = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (saveXeroTimesheetPreparationEarningsRateAction xeroTimesheetPreparationRunId)
 
     action ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId } = do
         ensureVenueWritable

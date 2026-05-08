@@ -210,10 +210,18 @@ test.describe('Xero timesheet preparation', () => {
         const prepareResponsePromise = page.waitForResponse((response) =>
             response.request().method() === 'POST' && response.url().includes('/OpenXeroTimesheetPreparation')
         );
+        const runResponsePromise = page.waitForResponse((response) =>
+            response.request().method() === 'POST' && response.url().includes('/RunXeroTimesheetPreparation')
+        );
         await form.getByRole('button', { name: 'Prepare' }).click();
         const prepareResponse = await prepareResponsePromise;
         const responseText = await prepareResponse.text();
         expect(prepareResponse.status(), responseText).toBe(200);
+        expect(responseText).toContain('data-xero-timesheet-preparation-loading="true"');
+
+        const runResponse = await runResponsePromise;
+        const runResponseText = await runResponse.text();
+        expect(runResponse.status(), runResponseText).toBe(200);
 
         const dialog = page.locator('[data-dialog-overlay="true"]');
         const preparationDialog = page.locator('[data-xero-timesheet-preparation-dialog="true"]');
@@ -221,6 +229,7 @@ test.describe('Xero timesheet preparation', () => {
         await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(page.getByRole('heading', { name: 'Prepare Xero draft timesheets' })).toBeVisible();
         await expect(preparationDialog).toContainText('E2E Weekly Payroll');
+        await expect(preparationDialog).toContainText('Setup');
         await expect(preparationDialog).toContainText('needs reconnect');
         await expect(preparationDialog).toContainText('Reconnect Xero before continuing this preparation run.');
         await expect(preparationDialog.locator('a[href="/StartXeroConnection"]')).toBeVisible();

@@ -6,8 +6,13 @@ module Web.Controller.Admin.Xero.Timesheets
     , previewXeroTimesheetPreparationAction
     , refreshXeroTimesheetPreparationAction
     , retryXeroDraftTimesheetSubmissionAction
+    , runXeroTimesheetPreparationAction
+    , saveXeroTimesheetPreparationAccountCodeAction
+    , saveXeroTimesheetPreparationCalendarAction
+    , saveXeroTimesheetPreparationEarningsRateAction
     , submitXeroDraftTimesheetsAction
     , submitXeroTimesheetPreparationAction
+    , syncXeroTimesheetPreparationReferenceDataAction
     ) where
 
 import Application.Helper.XeroTimesheetReadiness
@@ -27,6 +32,17 @@ openXeroTimesheetPreparationAction ::
     IO ()
 openXeroTimesheetPreparationAction = do
     let selectedPeriodKey = Text.strip (paramOrDefault @Text "" "periodKey")
+    if isHtmxRequest
+        then respondHtml (renderXeroTimesheetPreparationLoadingDialog selectedPeriodKey)
+        else do
+            result <- startXeroTimesheetPreparation selectedPeriodKey
+            respondWithPreparationDialog False result
+
+runXeroTimesheetPreparationAction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+runXeroTimesheetPreparationAction = do
+    let selectedPeriodKey = Text.strip (paramOrDefault @Text "" "periodKey")
     result <- startXeroTimesheetPreparation selectedPeriodKey
     respondWithPreparationDialog False result
 
@@ -36,6 +52,42 @@ refreshXeroTimesheetPreparationAction ::
     IO ()
 refreshXeroTimesheetPreparationAction runId = do
     result <- refreshXeroTimesheetPreparation runId
+    respondWithPreparationDialog True result
+
+syncXeroTimesheetPreparationReferenceDataAction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    IO ()
+syncXeroTimesheetPreparationReferenceDataAction runId = do
+    result <- syncXeroPreparationReferenceData runId
+    respondWithPreparationDialog True result
+
+saveXeroTimesheetPreparationCalendarAction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    IO ()
+saveXeroTimesheetPreparationCalendarAction runId = do
+    let calendarId = Text.strip (paramOrDefault @Text "" "xeroPayrollCalendarSelection")
+    result <- saveXeroPreparationPayrollCalendar runId calendarId
+    respondWithPreparationDialog True result
+
+saveXeroTimesheetPreparationAccountCodeAction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    IO ()
+saveXeroTimesheetPreparationAccountCodeAction runId = do
+    let accountCode = Text.strip (paramOrDefault @Text "" "xeroPayItemAccountCodeSelection")
+    result <- saveXeroPreparationAccountCode runId accountCode
+    respondWithPreparationDialog True result
+
+saveXeroTimesheetPreparationEarningsRateAction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    IO ()
+saveXeroTimesheetPreparationEarningsRateAction runId = do
+    let localBucketKey = Text.strip (paramOrDefault @Text "" "localBucketKey")
+    let earningsRateId = Text.strip (paramOrDefault @Text "" "xeroEarningsRateSelection")
+    result <- saveXeroPreparationEarningsRateMapping runId localBucketKey earningsRateId
     respondWithPreparationDialog True result
 
 applyXeroTimesheetPreparationStaffDecisionAction ::
@@ -154,7 +206,7 @@ respondWithPreparationDialog ::
 respondWithPreparationDialog shouldBroadcast result =
     if isHtmxRequest
         then do
-            when shouldBroadcast (broadcastAdminXeroTimesheetsInvalidation (unpackId currentVenueId))
+            when shouldBroadcast (broadcastAdminXeroInvalidation currentVenueId)
             respondHtml $
                 case result of
                     Left message -> renderXeroTimesheetPreparationErrorDialog message

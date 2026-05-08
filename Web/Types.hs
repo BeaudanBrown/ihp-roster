@@ -120,7 +120,12 @@ data AdminController
     | SaveXeroPayItemAccountCodeSelectionAction
     | SaveXeroPayrollCalendarSelectionAction
     | OpenXeroTimesheetPreparationAction
+    | RunXeroTimesheetPreparationAction
     | RefreshXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | SyncXeroTimesheetPreparationReferenceDataAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | SaveXeroTimesheetPreparationCalendarAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | SaveXeroTimesheetPreparationAccountCodeAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
+    | SaveXeroTimesheetPreparationEarningsRateAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }
     | PreviewXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId :: !(Id XeroTimesheetPreparationRun) }

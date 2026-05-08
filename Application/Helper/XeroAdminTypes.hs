@@ -167,8 +167,12 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationConnection                  :: XeroConnection
     , preparationPeriodOption                :: XeroTimesheetPeriodOption
     , preparationReadiness                   :: XeroTimesheetReadinessView
+    , preparationPayrollCalendars            :: [XeroPayrollCalendar]
+    , preparationPayrollCalendarSelection    :: Maybe XeroPayrollCalendarSelection
     , preparationStaffRows                   :: [XeroPreparationStaffRow]
     , preparationEmployees                   :: [XeroEmployee]
+    , preparationEarningsBucketRows          :: [XeroEarningsBucketRow]
+    , preparationEarningsRates               :: [XeroEarningsRate]
     , preparationPayItemRows                 :: [XeroPreparationPayItemRow]
     , preparationPayItemAccountCodeOptions   :: [Text]
     , preparationPayItemAccountCodeSelection :: Maybe XeroPayItemAccountCodeSelection
