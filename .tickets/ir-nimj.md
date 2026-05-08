@@ -1,6 +1,6 @@
 ---
 id: ir-nimj
-status: open
+status: closed
 deps: [ir-bub1, ir-knps]
 links: []
 created: 2026-05-08T00:01:17Z
