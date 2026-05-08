@@ -1,6 +1,6 @@
 ---
 id: ir-8rqk
-status: open
+status: closed
 deps: [ir-bub1, ir-n00b, ir-9k70]
 links: []
 created: 2026-05-08T00:01:14Z
