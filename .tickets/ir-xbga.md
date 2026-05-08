@@ -1,6 +1,6 @@
 ---
 id: ir-xbga
-status: open
+status: closed
 deps: []
 links: [ir-g778]
 created: 2026-05-08T00:00:41Z
