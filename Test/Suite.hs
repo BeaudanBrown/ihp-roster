@@ -12,6 +12,7 @@ import System.Environment (lookupEnv)
 import Test.Hspec (Spec)
 import Text.Read (readMaybe)
 
+import qualified Test.BillingPersistenceSpec
 import qualified Test.ConflictSpec
 import qualified Test.Controller.AdminSpec
 import qualified Test.Controller.ExportsSpec
@@ -126,6 +127,7 @@ selectShardSuites total index
 allSuites :: [TestSuite]
 allSuites =
     [ TestSuite "StaticController" Test.Controller.StaticSpec.tests
+    , TestSuite "Billing" Test.BillingPersistenceSpec.tests
     , TestSuite "AdminController" Test.Controller.AdminSpec.tests
     , TestSuite "ProfilesController" Test.Controller.ProfilesSpec.tests
     , TestSuite "PasskeysController" Test.Controller.PasskeysSpec.tests

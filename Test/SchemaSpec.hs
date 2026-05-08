@@ -61,6 +61,10 @@ tests = describe "Schema" do
         let _ = (Nothing :: Maybe XeroSubmissionRun)
         let _ = (Nothing :: Maybe XeroTimesheetSubmission)
         let _ = (Nothing :: Maybe XeroTimesheetSubmissionEntry)
+        let _ = (Nothing :: Maybe VenueBillingCustomer)
+        let _ = (Nothing :: Maybe VenueSubscription)
+        let _ = (Nothing :: Maybe BillingEvent)
+        let _ = (Nothing :: Maybe VenueBillingControl)
         True `shouldBe` True
 
     it "generates venue and venue membership models" do
@@ -110,6 +114,10 @@ tests = describe "Schema" do
         let _slotNameRosterGroupId = get #rosterGroupId (newRecord @SlotName)
         let _dayNameVenueId = get #venueId (newRecord @DayName)
         let _configVenueId = get #venueId (newRecord @VenueConfig)
+        let _billingCustomerVenueId = get #venueId (newRecord @VenueBillingCustomer)
+        let _billingSubscriptionVenueId = get #venueId (newRecord @VenueSubscription)
+        let _billingEventVenueId = get #venueId (newRecord @BillingEvent)
+        let _billingControlVenueId = get #venueId (newRecord @VenueBillingControl)
         True `shouldBe` True
 
     it "venue membership exposes role and active fields" do

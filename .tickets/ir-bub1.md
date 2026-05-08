@@ -1,6 +1,6 @@
 ---
 id: ir-bub1
-status: open
+status: closed
 deps: [ir-84gh]
 links: []
 created: 2026-05-08T00:00:58Z
