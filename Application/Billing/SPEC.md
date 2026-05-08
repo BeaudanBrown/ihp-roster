@@ -158,9 +158,18 @@ Launch controls include:
 - timestamps
 
 Only founder super admins can change manual billing controls. Mutating
-venue-scoped workflows must use a centralized write guard once read-only
-enforcement lands. Owner-facing billing pages remain accessible when a venue is
-read-only so payment problems can still be resolved.
+venue-scoped workflows use the centralized `ensureVenueWritable` guard before
+parsing write parameters or mutating records. Owner-facing billing pages remain
+accessible when a venue is read-only so payment problems can still be resolved.
+
+Read-only mode allows login, profile/security management, read-only venue
+views, billing Checkout, billing Customer Portal, and founder support controls
+needed to inspect or clear the flag.
+
+Read-only mode blocks representative roster, timesheet, unavailability, admin,
+Xero sync/submission, export generation, staff update, and RSA document review
+or upload writes. Session-only view preferences and user security/profile
+changes are not treated as venue writes.
 
 ## Access Rules
 
@@ -196,6 +205,17 @@ bepis_venue_monthly_aud_100
 
 Do not commit real Stripe keys or webhook secrets.
 
+Production NixOS config injects Stripe secrets through systemd credentials and
+exposes non-secret file paths to the app. The operational placeholders are:
+
+- `secretKeyFile = "/run/secrets/ihp-roster-stripe-secret-key"`
+- `webhookSecretFile = "/run/secrets/ihp-roster-stripe-webhook-secret"`
+- `priceLookupKey = "bepis_venue_monthly_aud_100"`
+- `priceId = null`
+
+Exactly one of lookup key or direct Price ID must be configured when Stripe
+billing is enabled.
+
 ## Testing Strategy
 
 Normal CI must not require live Stripe credentials.
@@ -226,3 +246,5 @@ Before live launch, an operator must run and document sandbox checks with Stripe
 CLI and Billing test clocks for Checkout completion, subscription update,
 failed payment, cancellation, duplicate webhook delivery, and Customer Portal
 return behavior.
+
+The operator checklist lives in `RUNBOOK.md`.

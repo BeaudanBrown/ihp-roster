@@ -28,6 +28,7 @@ Depending on the service and your relationship with us, we may collect:
 - worker profile information entered by customers or workers
 - roster, leave, availability and timesheet information
 - support and communications records
+- subscription billing status and Stripe-hosted billing metadata
 - export, audit and activity information
 - technical information such as IP address, device and browser information, and application logs
 
@@ -63,6 +64,7 @@ We may disclose personal information:
 - to the relevant customer business and its authorised users
 - to workers in connection with their own access and records
 - to service providers who help us host, operate, support or secure the platform
+- to Stripe where Stripe-hosted payment or subscription billing services are used
 - to professional advisers
 - where required or authorised by law
 
@@ -86,6 +88,10 @@ These steps may include:
 - secure hosting and backups
 - audit logging
 - restricted production access
+
+Payment method details, such as card or bank account details, are handled by
+Stripe-hosted billing pages. We do not intend to collect or store those payment
+method details in the platform.
 
 ## 9. Retention
 

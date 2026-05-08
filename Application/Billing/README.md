@@ -8,19 +8,29 @@ Bepis subscriptions.
 Billing is per venue. The same payer may pay for more than one venue, so
 customer and subscription records must not be deduplicated by user or email.
 
-## Planned Modules
+## Modules
 
 - `Stripe.hs` - Stripe configuration, request construction, response parsing,
   idempotency keys, hosted Checkout and Portal session calls, and webhook
   signature verification.
-- Web request/response behavior belongs in `Web/Controller/Billing.hs` and
-  `Web/Controller/StripeWebhook.hs`.
-- Super-admin billing controls should live with the support or admin surfaces
-  that already understand founder support-mode venue context.
+- `Webhook.hs` - Stripe webhook event parsing and idempotent local subscription
+  state updates.
+- `Notifications.hs` - sanitized billing problem notifications for venue
+  owners and founder super admins.
+
+Web request/response behavior lives in `Web/Controller/Billing.hs` and
+`Web/Controller/StripeWebhooks.hs`. Super-admin billing controls live on the
+billing surface and use the existing founder support-mode venue context.
+
+## Launch Operations
+
+Use `RUNBOOK.md` for Stripe Dashboard setup, NixOS secret-file placeholders,
+webhook endpoint configuration, and operator-run sandbox/test-clock checks.
 
 ## Related Docs
 
 - `SPEC.md`
+- `RUNBOOK.md`
 - `AGENTS.md`
 - `docs/workstreams/subscription-billing.md`
 - `specs/02-domain-model.md`

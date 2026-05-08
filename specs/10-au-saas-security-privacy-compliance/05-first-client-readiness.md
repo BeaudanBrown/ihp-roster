@@ -22,6 +22,8 @@ The product should not take on its first real client until the following are tru
 - Historical pay/config behavior is reproducible for past periods and exports.
 - Venue admin bulk-save creates versioned pay/config snapshots used by approved records and exports.
 - Export generation is attributable and logged.
+- Subscription billing is venue-scoped and uses hosted payment surfaces rather
+  than in-app card or bank collection.
 - Backup and restore have been tested at least once against realistic data.
 
 ## Legal and policy documents
@@ -35,6 +37,9 @@ The product should not take on its first real client until the following are tru
   - future export and disclosure paths where relevant
 - A subprocessor list exists, including hosting, email and support tooling.
 - A retention schedule exists by data class.
+- Customer terms explain per-venue subscription fees, Stripe-hosted payment
+  processing, the no-GST launch posture, cancellation, and manual service
+  restriction for unresolved billing issues.
 
 ## Operational readiness
 
@@ -52,6 +57,8 @@ The product should not take on its first real client until the following are tru
 - High-risk endpoints are rate limited.
 - Dependency update and vulnerability review process exists.
 - Logs avoid storing passwords, tokens and unnecessary personal data.
+- Billing logs and events avoid storing payment method details, Stripe secrets,
+  webhook secrets, or full raw Stripe payloads.
 - A restore path for backups has been exercised.
 
 ## Customer-facing readiness
@@ -62,6 +69,8 @@ The product should not take on its first real client until the following are tru
 - The product can explain where data is hosted and whether any subprocessors are offshore.
 - There is a clear support contact and incident contact path for customers.
 - The founder-managed support model is documented so customers understand what the service includes and what remains their responsibility.
+- Stripe Customer Portal setup, webhook endpoint setup, and the billing
+  sandbox/test-clock checklist have been completed before taking live payments.
 
 ## If accountant exports are offered before first client
 
