@@ -131,8 +131,24 @@ data XeroTimesheetPanelData = XeroTimesheetPanelData
     { xeroTimesheetActionsAllowed :: Bool
     , xeroTimesheetReadiness      :: Maybe XeroTimesheetReadinessView
     , xeroTimesheetPeriodMessage  :: Maybe Text
+    , xeroTimesheetPeriodOptions  :: [XeroTimesheetPeriodOption]
     , xeroTimesheetLatestRun      :: Maybe XeroTimesheetRunView
     }
+
+data XeroTimesheetPeriodOption = XeroTimesheetPeriodOption
+    { periodOptionKey                    :: Text
+    , periodOptionPayrollCalendarId      :: Text
+    , periodOptionPayrollCalendarName    :: Text
+    , periodOptionStart                  :: Day
+    , periodOptionEnd                    :: Day
+    , periodOptionPaymentDate            :: Maybe Day
+    , periodOptionXeroPayRunId           :: Maybe Text
+    , periodOptionXeroPayRunStatus       :: Maybe Text
+    , periodOptionBlocked                :: Bool
+    , periodOptionBlockReason            :: Maybe Text
+    , periodOptionDerivedFromSyncedXero  :: Bool
+    }
+    deriving (Eq, Show)
 
 data XeroAdminSectionData = XeroAdminSectionData
     { xeroConnection                  :: Maybe XeroConnection

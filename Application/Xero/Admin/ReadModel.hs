@@ -18,6 +18,7 @@ module Application.Xero.Admin.ReadModel
     , fetchCurrentVenueXeroStaffMappingRows
     , fetchCurrentVenueXeroConnection
     , fetchCurrentVenueXeroTimesheetPanelData
+    , fetchCurrentVenueXeroTimesheetPeriodOptions
     , fetchLatestCurrentVenueXeroPayItemSyncRun
     , fetchLatestCurrentVenueXeroSyncRun
     , currentVenueXeroTimesheetReadinessRequest
@@ -40,9 +41,10 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
+import Data.Ord (Down (..))
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day, addDays, diffDays)
 import Generated.Types
 import IHP.ControllerPrelude
 
@@ -409,6 +411,7 @@ fetchCurrentVenueXeroTimesheetPanelData actionsAllowed maybeConnection maybeCale
             Nothing -> pure Nothing
             Just readinessRequest -> Just . xeroTimesheetReadinessView <$> validateXeroTimesheetReadiness readinessRequest
     xeroTimesheetLatestRun <- fetchCurrentVenueLatestXeroTimesheetRun maybeConnection
+    xeroTimesheetPeriodOptions <- fetchCurrentVenueXeroTimesheetPeriodOptions maybeConnection
     pure XeroTimesheetPanelData
         { xeroTimesheetActionsAllowed = actionsAllowed
         , xeroTimesheetReadiness
@@ -418,8 +421,91 @@ fetchCurrentVenueXeroTimesheetPanelData actionsAllowed maybeConnection maybeCale
                 (_, Nothing, _) -> Just "Select and verify a Xero payroll calendar before preparing draft timesheets."
                 (_, _, Nothing) -> Just "The selected Xero payroll calendar period could not be derived."
                 _ -> Nothing
+        , xeroTimesheetPeriodOptions
         , xeroTimesheetLatestRun
         }
+
+fetchCurrentVenueXeroTimesheetPeriodOptions ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    Maybe XeroConnection ->
+    IO [XeroTimesheetPeriodOption]
+fetchCurrentVenueXeroTimesheetPeriodOptions Nothing =
+    pure []
+fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
+    calendars <- fetchCurrentVenueXeroPayrollCalendars (Just connection)
+    payRuns <-
+        query @XeroPayRun
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> orderByDesc #payPeriodStart
+            |> fetch
+    today <- utctDay <$> getCurrentTime
+    let derivedOptions = concatMap (derivedPeriodOptions today payRuns) calendars
+        payRunOnlyOptions = mapMaybe (payRunOnlyPeriodOption calendars) payRuns
+    pure $
+        (derivedOptions <> payRunOnlyOptions)
+            |> List.nubBy samePeriodOption
+            |> List.sortOn (Down . (.periodOptionStart))
+
+derivedPeriodOptions :: Day -> [XeroPayRun] -> XeroPayrollCalendar -> [XeroTimesheetPeriodOption]
+derivedPeriodOptions today payRuns calendar =
+    case deriveXeroPayrollCalendarPeriod calendar today of
+        Nothing -> []
+        Just (currentStart, currentEnd) ->
+            let periodLength = max 1 (diffDays currentEnd currentStart + 1)
+                offsets = [-6 .. 4] :: [Integer]
+             in map (optionForOffset periodLength currentStart currentEnd) offsets
+    where
+        optionForOffset periodLength currentStart currentEnd offset =
+            let periodStart = addDays (offset * periodLength) currentStart
+                periodEnd = addDays (offset * periodLength) currentEnd
+                maybePayRun = findPayRun calendar periodStart periodEnd payRuns
+             in periodOptionFrom calendar periodStart periodEnd maybePayRun True
+
+payRunOnlyPeriodOption :: [XeroPayrollCalendar] -> XeroPayRun -> Maybe XeroTimesheetPeriodOption
+payRunOnlyPeriodOption calendars payRun = do
+    calendar <- List.find (\candidate -> candidate.xeroPayrollCalendarId == payRun.xeroPayrollCalendarId) calendars
+    pure (periodOptionFrom calendar payRun.payPeriodStart payRun.payPeriodEnd (Just payRun) False)
+
+periodOptionFrom :: XeroPayrollCalendar -> Day -> Day -> Maybe XeroPayRun -> Bool -> XeroTimesheetPeriodOption
+periodOptionFrom calendar periodStart periodEnd maybePayRun derivedFromSyncedXero =
+    XeroTimesheetPeriodOption
+        { periodOptionKey = xeroPeriodOptionKey calendar.xeroPayrollCalendarId periodStart periodEnd
+        , periodOptionPayrollCalendarId = calendar.xeroPayrollCalendarId
+        , periodOptionPayrollCalendarName = calendar.name
+        , periodOptionStart = periodStart
+        , periodOptionEnd = periodEnd
+        , periodOptionPaymentDate = (maybePayRun >>= (.paymentDate)) <|> calendar.paymentDate
+        , periodOptionXeroPayRunId = (.xeroPayRunId) <$> maybePayRun
+        , periodOptionXeroPayRunStatus = maybePayRun >>= (.payRunStatus)
+        , periodOptionBlocked = maybe False isPostedPayRun maybePayRun
+        , periodOptionBlockReason =
+            if maybe False isPostedPayRun maybePayRun
+                then Just "This Xero pay run is posted."
+                else Nothing
+        , periodOptionDerivedFromSyncedXero = derivedFromSyncedXero || isJust maybePayRun
+        }
+
+findPayRun :: XeroPayrollCalendar -> Day -> Day -> [XeroPayRun] -> Maybe XeroPayRun
+findPayRun calendar periodStart periodEnd =
+    List.find \payRun ->
+        payRun.xeroPayrollCalendarId == calendar.xeroPayrollCalendarId
+            && payRun.payPeriodStart == periodStart
+            && payRun.payPeriodEnd == periodEnd
+
+samePeriodOption :: XeroTimesheetPeriodOption -> XeroTimesheetPeriodOption -> Bool
+samePeriodOption left right =
+    left.periodOptionPayrollCalendarId == right.periodOptionPayrollCalendarId
+        && left.periodOptionStart == right.periodOptionStart
+        && left.periodOptionEnd == right.periodOptionEnd
+
+xeroPeriodOptionKey :: Text -> Day -> Day -> Text
+xeroPeriodOptionKey calendarId periodStart periodEnd =
+    calendarId <> ":" <> tshow periodStart <> ":" <> tshow periodEnd
+
+isPostedPayRun :: XeroPayRun -> Bool
+isPostedPayRun payRun =
+    maybe False ((== "posted") . Text.toLower . Text.strip) payRun.payRunStatus
 
 currentVenueXeroTimesheetReadinessRequest ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

@@ -52,6 +52,7 @@ tests =
                 [ ("/Employees", buildFetchPayrollEmployeesRequest "access-token" "tenant-id")
                 , ("/PayItems", buildFetchEarningsRatesRequest "access-token" "tenant-id")
                 , ("/PayrollCalendars", buildFetchPayrollCalendarsRequest "access-token" "tenant-id")
+                , ("/PayRuns", buildFetchPayRunsRequest "access-token" "tenant-id" XeroMock.samplePayRunQuery)
                 , ("/Timesheets/{TimesheetID}", buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id")
                 ]
                 \(specPath, request) -> do
@@ -65,7 +66,17 @@ tests =
             assertRequest (buildFetchPayrollEmployeesRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/Employees"
             assertRequest (buildFetchEarningsRatesRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/PayItems"
             assertRequest (buildFetchPayrollCalendarsRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/PayrollCalendars"
+            assertRequest (buildFetchPayRunsRequest "access-token" "tenant-id" XeroMock.samplePayRunQuery) "GET" XeroMock.xeroPayrollServer "/PayRuns"
             assertRequest (buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id") "GET" XeroMock.xeroPayrollServer "/Timesheets/timesheet-id"
+
+        it "constructs PayRuns list query parameters and If-Modified-Since header in documented locations" do
+            XeroMock.assertSpecOperation payrollSpec "/PayRuns" "get"
+            let request = buildFetchPayRunsRequest "access-token" "tenant-id" XeroMock.samplePayRunQuery
+            request.xeroRequestMethod `shouldBe` "GET"
+            request.xeroRequestUrl
+                `shouldBe` "https://api.xero.com/payroll.xro/1.0/PayRuns?where=PayrollCalendarID%3D%3DGuid%28%22calendar-id%22%29&order=PayRunPeriodStartDate%20DESC&page=2"
+            XeroMock.headerValue "If-Modified-Since" request `shouldBe` Just "Thu, 30 Apr 2026 01:02:03 GMT"
+            XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
 
         it "constructs Timesheets list query parameters and If-Modified-Since header in documented locations" do
             XeroMock.assertSpecOperation payrollSpec "/Timesheets" "get"
@@ -132,6 +143,9 @@ tests =
                     calendarsResult <- client.fetchPayrollCalendars "access-token" "tenant-id"
                     fmap (map (.xeroPayrollCalendarId)) calendarsResult `shouldBe` Right ["calendar-id"]
 
+                    payRunsResult <- client.fetchPayRuns "access-token" "tenant-id" XeroMock.samplePayRunQuery
+                    fmap (map (.xeroPayRunId)) payRunsResult `shouldBe` Right ["pay-run-id"]
+
                     payItemResult <- client.createPayItem "access-token" "tenant-id" "idem-pay-items" XeroMock.samplePayItemsBody
                     fmap (map (.xeroEarningsRateId)) payItemResult `shouldBe` Right ["earnings-rate-id"]
 
@@ -184,6 +198,7 @@ expectedBuildRequestExports =
     , "buildExchangeCodeForTokenRequest"
     , "buildFetchConnectedTenantsRequest"
     , "buildFetchEarningsRatesRequest"
+    , "buildFetchPayRunsRequest"
     , "buildFetchPayrollCalendarsRequest"
     , "buildFetchPayrollEmployeesRequest"
     , "buildFetchTimesheetRequest"
@@ -201,6 +216,7 @@ expectedContractCaseNames =
     , "employees list"
     , "pay items list"
     , "payroll calendars list"
+    , "pay runs list"
     , "timesheets list"
     , "timesheet show"
     , "pay item create"

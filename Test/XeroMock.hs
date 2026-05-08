@@ -90,6 +90,10 @@ xeroRequestContractCases identitySpec payrollSpec =
     , (payrollSpec, payrollReadContract "pay items list" "/PayItems" "/PayItems" [], buildFetchEarningsRatesRequest "access-token" "tenant-id")
     , (payrollSpec, payrollReadContract "payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], buildFetchPayrollCalendarsRequest "access-token" "tenant-id")
     , ( payrollSpec
+      , (payrollReadContract "pay runs list" "/PayRuns" "/PayRuns" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }
+      , buildFetchPayRunsRequest "access-token" "tenant-id" samplePayRunQuery
+      )
+    , ( payrollSpec
       , (payrollReadContract "timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }
       , buildFetchTimesheetsRequest "access-token" "tenant-id" sampleTimesheetQuery
       )
@@ -190,6 +194,15 @@ sampleTimesheetQuery =
         , xeroTimesheetWhere = Just "EmployeeID==Guid(\"employee-1\")"
         , xeroTimesheetOrder = Just "StartDate DESC"
         , xeroTimesheetPage = Just 2
+        }
+
+samplePayRunQuery :: XeroPayRunQuery
+samplePayRunQuery =
+    XeroPayRunQuery
+        { xeroPayRunIfModifiedSince = Just (UTCTime (fromGregorian 2026 4 30) (secondsToDiffTime 3723))
+        , xeroPayRunWhere = Just "PayrollCalendarID==Guid(\"calendar-id\")"
+        , xeroPayRunOrder = Just "PayRunPeriodStartDate DESC"
+        , xeroPayRunPage = Just 2
         }
 
 validateXeroRequest :: OpenApiSpec -> XeroEndpointContract -> XeroHttpRequest -> Expectation
@@ -407,6 +420,8 @@ xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef request re
                     | method == methodPost -> pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock pay item create" "/PayItems" "/PayItems" (JsonObjectWithArrayField "EarningsRates"), jsonResponse status200 payItemsFixture))
                 (method, "/payroll.xro/1.0/PayrollCalendars")
                     | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], jsonResponse status200 calendarsFixture))
+                (method, "/payroll.xro/1.0/PayRuns")
+                    | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock pay runs list" "/PayRuns" "/PayRuns" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 payRunsFixture))
                 (method, "/payroll.xro/1.0/Timesheets")
                     | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 timesheetsFixture))
                     | method == methodPost -> do
@@ -534,6 +549,21 @@ calendarsFixture =
                 , "CalendarType" Aeson..= ("WEEKLY" :: Text)
                 , "StartDate" Aeson..= ("2026-05-04" :: Text)
                 , "PaymentDate" Aeson..= ("2026-05-11" :: Text)
+                ]
+            ]
+        ]
+
+payRunsFixture :: Aeson.Value
+payRunsFixture =
+    Aeson.object
+        [ "PayRuns" Aeson..=
+            [ Aeson.object
+                [ "PayRunID" Aeson..= ("pay-run-id" :: Text)
+                , "PayrollCalendarID" Aeson..= ("calendar-id" :: Text)
+                , "PayRunPeriodStartDate" Aeson..= ("2026-05-04" :: Text)
+                , "PayRunPeriodEndDate" Aeson..= ("2026-05-10" :: Text)
+                , "PaymentDate" Aeson..= ("2026-05-11" :: Text)
+                , "PayRunStatus" Aeson..= ("DRAFT" :: Text)
                 ]
             ]
         ]

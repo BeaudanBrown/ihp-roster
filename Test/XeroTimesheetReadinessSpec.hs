@@ -34,6 +34,23 @@ tests = do
             let decoded = Aeson.eitherDecode payload :: Either String XeroTimesheetObjectResponse
             fmap (xeroTimesheetId . unXeroTimesheetObjectResponse) decoded `shouldBe` Right (Just "ts-2")
 
+        it "parses PayRuns envelopes with period status" do
+            let payload = "{\"PayRuns\":[{\"PayRunID\":\"pr-1\",\"PayrollCalendarID\":\"calendar-1\",\"PayRunPeriodStartDate\":\"/Date(1777852800000+0000)/\",\"PayRunPeriodEndDate\":\"/Date(1778371200000+0000)/\",\"PaymentDate\":\"2026-05-11\",\"PayRunStatus\":\"POSTED\"}]}"
+            let decoded = Aeson.eitherDecode payload :: Either String XeroPayRunsResponse
+            fmap (map (.xeroPayRunId) . unXeroPayRunsResponse) decoded `shouldBe` Right ["pr-1"]
+            fmap (map (.xeroPayRunPeriodStart) . unXeroPayRunsResponse) decoded `shouldBe` Right [fromGregorian 2026 5 4]
+            fmap (map (.xeroPayRunStatus) . unXeroPayRunsResponse) decoded `shouldBe` Right [Just "POSTED"]
+
+        it "generates encoded PayRuns query URLs" do
+            xeroPayRunsUrl
+                XeroPayRunQuery
+                    { xeroPayRunIfModifiedSince = Nothing
+                    , xeroPayRunWhere = Just "PayrollCalendarID==Guid(\"calendar-1\")"
+                    , xeroPayRunOrder = Just "PayRunPeriodStartDate DESC"
+                    , xeroPayRunPage = Just 2
+                    }
+                `shouldBe` "https://api.xero.com/payroll.xro/1.0/PayRuns?where=PayrollCalendarID%3D%3DGuid%28%22calendar-1%22%29&order=PayRunPeriodStartDate%20DESC&page=2"
+
         it "generates encoded Timesheets query URLs" do
             xeroTimesheetsUrl
                 XeroTimesheetQuery

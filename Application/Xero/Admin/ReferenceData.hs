@@ -5,6 +5,7 @@ module Application.Xero.Admin.ReferenceData
     , markStaleXeroStaffMappings
     , upsertXeroEarningsRate
     , upsertXeroEmployee
+    , upsertXeroPayRun
     , upsertXeroPayrollCalendar
     ) where
 
@@ -252,3 +253,26 @@ upsertXeroPayrollCalendar connection syncedAt payrollCalendar = do
     case existing of
         Just record -> fillRecord record |> updateRecord
         Nothing     -> fillRecord (newRecord @XeroPayrollCalendar) |> createRecord
+
+upsertXeroPayRun :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroPayRunRef -> IO XeroPayRun
+upsertXeroPayRun connection syncedAt payRun = do
+    existing <-
+        query @XeroPayRun
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#xeroPayRunId, payRun.xeroPayRunId)
+            |> fetchOneOrNothing
+    let fillRecord record =
+            record
+                |> set #venueId (unpackId currentVenueId)
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #xeroPayRunId payRun.xeroPayRunId
+                |> set #xeroPayrollCalendarId payRun.xeroPayRunCalendarId
+                |> set #payPeriodStart payRun.xeroPayRunPeriodStart
+                |> set #payPeriodEnd payRun.xeroPayRunPeriodEnd
+                |> set #paymentDate payRun.xeroPayRunPaymentDate
+                |> set #payRunStatus payRun.xeroPayRunStatus
+                |> set #rawPayload payRun.xeroPayRunRaw
+                |> set #syncedAt syncedAt
+    case existing of
+        Just record -> fillRecord record |> updateRecord
+        Nothing     -> fillRecord (newRecord @XeroPayRun) |> createRecord

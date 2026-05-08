@@ -5,6 +5,9 @@ module Application.Helper.Xero
     , XeroEarningsRateRef (..)
     , XeroHttpRequest (..)
     , XeroEmployeeRef (..)
+    , XeroPayRunQuery (..)
+    , XeroPayRunRef (..)
+    , XeroPayRunsResponse (..)
     , XeroPayrollCalendarRef (..)
     , XeroRequestBody (..)
     , XeroRequestBaseUrls (..)
@@ -22,6 +25,7 @@ module Application.Helper.Xero
     , buildExchangeCodeForTokenRequest
     , buildFetchConnectedTenantsRequest
     , buildFetchEarningsRatesRequest
+    , buildFetchPayRunsRequest
     , buildFetchPayrollCalendarsRequest
     , buildFetchPayrollEmployeesRequest
     , buildFetchTimesheetRequest
@@ -38,6 +42,7 @@ module Application.Helper.Xero
     , withXeroClientForTest
     , withXeroConfigForTest
     , withXeroRequestBaseUrlsForTest
+    , xeroPayRunsUrl
     , xeroTimesheetsUrl
     )
 where
@@ -181,6 +186,29 @@ instance Aeson.FromJSON XeroPayrollCalendarRef where
             <*> pure value
     parseJSON _ = fail "Expected Xero payroll calendar object"
 
+data XeroPayRunRef = XeroPayRunRef
+    { xeroPayRunId          :: !Text
+    , xeroPayRunCalendarId  :: !Text
+    , xeroPayRunPeriodStart :: !Day
+    , xeroPayRunPeriodEnd   :: !Day
+    , xeroPayRunPaymentDate :: !(Maybe Day)
+    , xeroPayRunStatus      :: !(Maybe Text)
+    , xeroPayRunRaw         :: !Aeson.Value
+    }
+    deriving (Eq, Show)
+
+instance Aeson.FromJSON XeroPayRunRef where
+    parseJSON value@(Aeson.Object object) =
+        XeroPayRunRef
+            <$> requiredText object ["PayRunID", "payRunID", "payRunId"]
+            <*> requiredText object ["PayrollCalendarID", "payrollCalendarID", "payrollCalendarId"]
+            <*> requiredDay object ["PayRunPeriodStartDate", "payRunPeriodStartDate", "PeriodStartDate", "periodStartDate"]
+            <*> requiredDay object ["PayRunPeriodEndDate", "payRunPeriodEndDate", "PeriodEndDate", "periodEndDate"]
+            <*> optionalDay object ["PaymentDate", "paymentDate"]
+            <*> optionalText object ["PayRunStatus", "payRunStatus", "Status", "status"]
+            <*> pure value
+    parseJSON _ = fail "Expected Xero pay run object"
+
 data XeroTimesheetLineRef = XeroTimesheetLineRef
     { xeroTimesheetLineEarningsRateId :: !(Maybe Text)
     , xeroTimesheetLineTrackingItemId :: !(Maybe Text)
@@ -231,6 +259,14 @@ data XeroTimesheetQuery = XeroTimesheetQuery
     }
     deriving (Eq, Show)
 
+data XeroPayRunQuery = XeroPayRunQuery
+    { xeroPayRunIfModifiedSince :: !(Maybe UTCTime)
+    , xeroPayRunWhere           :: !(Maybe Text)
+    , xeroPayRunOrder           :: !(Maybe Text)
+    , xeroPayRunPage            :: !(Maybe Int)
+    }
+    deriving (Eq, Show)
+
 data XeroRequestBody
     = XeroJsonBody Aeson.Value
     | XeroFormBody [(ByteString, ByteString)]
@@ -265,6 +301,7 @@ data XeroClient = XeroClient
     , fetchPayrollEmployees :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
     , fetchEarningsRates :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
     , fetchPayrollCalendars :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
+    , fetchPayRuns :: Text -> Text -> XeroPayRunQuery -> IO (Either XeroClientError [XeroPayRunRef])
     , createPayItem :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
     , fetchTimesheets :: Text -> Text -> XeroTimesheetQuery -> IO (Either XeroClientError [XeroTimesheetRef])
     , fetchTimesheet :: Text -> Text -> Text -> IO (Either XeroClientError XeroTimesheetRef)
@@ -276,6 +313,7 @@ requiredXeroScopes :: [Text]
 requiredXeroScopes =
     [ "offline_access"
     , "payroll.employees.read"
+    , "payroll.payruns.read"
     , "payroll.settings"
     , "payroll.timesheets"
     ]
@@ -392,6 +430,7 @@ defaultXeroClient =
         , fetchPayrollEmployees = fetchPayrollEmployeesRequest
         , fetchEarningsRates = fetchEarningsRatesRequest
         , fetchPayrollCalendars = fetchPayrollCalendarsRequest
+        , fetchPayRuns = fetchPayRunsRequest
         , createPayItem = createPayItemRequest
         , fetchTimesheets = fetchTimesheetsRequest
         , fetchTimesheet = fetchTimesheetRequest
@@ -484,6 +523,12 @@ fetchPayrollCalendarsRequest accessToken tenantId = do
     urls <- currentXeroRequestBaseUrls
     fmap unXeroPayrollCalendarsResponse <$>
         sendXeroJsonRequest "Xero payroll calendars request" (buildFetchPayrollCalendarsRequestWith urls accessToken tenantId)
+
+fetchPayRunsRequest :: Text -> Text -> XeroPayRunQuery -> IO (Either XeroClientError [XeroPayRunRef])
+fetchPayRunsRequest accessToken tenantId query = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroPayRunsResponse <$>
+        sendXeroJsonRequest "Xero payroll pay runs request" (buildFetchPayRunsRequestWith urls accessToken tenantId query)
 
 createPayItemRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
 createPayItemRequest accessToken tenantId idempotencyKey body = do
@@ -604,6 +649,14 @@ buildFetchPayrollCalendarsRequest =
 buildFetchPayrollCalendarsRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroHttpRequest
 buildFetchPayrollCalendarsRequestWith urls accessToken tenantId =
     buildXeroPayrollGetRequest accessToken tenantId (urls.xeroPayrollBaseUrl <> "/PayrollCalendars") []
+
+buildFetchPayRunsRequest :: Text -> Text -> XeroPayRunQuery -> XeroHttpRequest
+buildFetchPayRunsRequest =
+    buildFetchPayRunsRequestWith defaultXeroRequestBaseUrls
+
+buildFetchPayRunsRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroPayRunQuery -> XeroHttpRequest
+buildFetchPayRunsRequestWith urls accessToken tenantId query =
+    buildXeroPayrollGetRequest accessToken tenantId (xeroPayRunsUrlWith urls query) (payRunQueryHeaders query)
 
 buildCreatePayItemRequest :: Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
 buildCreatePayItemRequest =
@@ -728,6 +781,26 @@ timesheetQueryHeaders :: XeroTimesheetQuery -> [(HeaderName, ByteString)]
 timesheetQueryHeaders query =
     maybe [] (\time -> [("If-Modified-Since", cs (TimeFormat.formatTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT" time))]) query.xeroTimesheetIfModifiedSince
 
+xeroPayRunsUrl :: XeroPayRunQuery -> String
+xeroPayRunsUrl query =
+    cs (xeroPayRunsUrlWith defaultXeroRequestBaseUrls query)
+
+xeroPayRunsUrlWith :: XeroRequestBaseUrls -> XeroPayRunQuery -> Text
+xeroPayRunsUrlWith urls query =
+    urls.xeroPayrollBaseUrl <> "/PayRuns" <> renderedQuery
+    where
+        params =
+            catMaybes
+                [ ("where",) . TextEncoding.encodeUtf8 <$> query.xeroPayRunWhere
+                , ("order",) . TextEncoding.encodeUtf8 <$> query.xeroPayRunOrder
+                , ("page",) . TextEncoding.encodeUtf8 . tshow <$> query.xeroPayRunPage
+                ]
+        renderedQuery = TextEncoding.decodeUtf8 (URI.renderQuery True (map (Bifunctor.second Just) params))
+
+payRunQueryHeaders :: XeroPayRunQuery -> [(HeaderName, ByteString)]
+payRunQueryHeaders query =
+    maybe [] (\time -> [("If-Modified-Since", cs (TimeFormat.formatTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT" time))]) query.xeroPayRunIfModifiedSince
+
 basicAuthorizationHeader :: XeroConfig -> ByteString
 basicAuthorizationHeader config =
     "Basic " <> Base64.encode (TextEncoding.encodeUtf8 (config.clientId <> ":" <> config.clientSecret))
@@ -811,6 +884,11 @@ newtype XeroPayrollCalendarsResponse = XeroPayrollCalendarsResponse { unXeroPayr
 
 instance Aeson.FromJSON XeroPayrollCalendarsResponse where
     parseJSON = parseXeroListResponse XeroPayrollCalendarsResponse "PayrollCalendars"
+
+newtype XeroPayRunsResponse = XeroPayRunsResponse { unXeroPayRunsResponse :: [XeroPayRunRef] }
+
+instance Aeson.FromJSON XeroPayRunsResponse where
+    parseJSON = parseXeroListResponse XeroPayRunsResponse "PayRuns"
 
 newtype XeroTimesheetsResponse = XeroTimesheetsResponse { unXeroTimesheetsResponse :: [XeroTimesheetRef] }
 
