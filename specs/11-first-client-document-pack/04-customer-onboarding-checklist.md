@@ -14,6 +14,9 @@
 - Confirm the public Bepis billing/support page at `/PublicBillingSupport` is
   available to the customer and includes `support@bepis.lol`, terms, privacy,
   refund/dispute, and cancellation information.
+- Confirm `/LegalTerms`, `/LegalPrivacy`, `/LegalRefundsDisputes`, and
+  `/LegalCancellation` are populated from reviewed deployment configuration and
+  no longer show placeholder legal draft values.
 
 ## Venue setup
 

@@ -15,6 +15,10 @@ data PasskeySetupPromptMode
 data StaticController
     = WelcomeAction
     | PublicBillingSupportAction
+    | LegalTermsAction
+    | LegalPrivacyAction
+    | LegalRefundsDisputesAction
+    | LegalCancellationAction
     deriving (Eq, Show, Data)
 
 data SessionsController

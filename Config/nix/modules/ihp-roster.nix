@@ -19,6 +19,7 @@ let
     ;
 
   cfg = config.services.ihpRoster;
+  legalCfg = cfg.legalDocuments;
   stripeCfg = cfg.billing.stripe;
   hasJobRunner = builtins.pathExists ../../../Application/Job;
   hasServiceUser = cfg.serviceUser != null;
@@ -40,6 +41,31 @@ let
   mailEnv = optionalAttrs (cfg.mailFrom != null) {
     MAIL_FROM = cfg.mailFrom;
   };
+
+  legalTermsFile =
+    if legalCfg.termsText != null then pkgs.writeText "bepis-legal-terms.txt" legalCfg.termsText else legalCfg.termsFile;
+  legalPrivacyFile =
+    if legalCfg.privacyText != null then pkgs.writeText "bepis-legal-privacy.txt" legalCfg.privacyText else legalCfg.privacyFile;
+  legalRefundsDisputesFile =
+    if legalCfg.refundsDisputesText != null then
+      pkgs.writeText "bepis-legal-refunds-disputes.txt" legalCfg.refundsDisputesText
+    else
+      legalCfg.refundsDisputesFile;
+  legalCancellationFile =
+    if legalCfg.cancellationText != null then
+      pkgs.writeText "bepis-legal-cancellation.txt" legalCfg.cancellationText
+    else
+      legalCfg.cancellationFile;
+  legalFileEnv = name: file: optionalAttrs (file != null) { ${name} = toString file; };
+  legalEnv =
+    {
+      BEPIS_LEGAL_BUSINESS_NAME = legalCfg.businessName;
+      BEPIS_LEGAL_SUPPORT_EMAIL = legalCfg.supportEmail;
+    }
+    // legalFileEnv "BEPIS_LEGAL_TERMS_FILE" legalTermsFile
+    // legalFileEnv "BEPIS_LEGAL_PRIVACY_FILE" legalPrivacyFile
+    // legalFileEnv "BEPIS_LEGAL_REFUNDS_DISPUTES_FILE" legalRefundsDisputesFile
+    // legalFileEnv "BEPIS_LEGAL_CANCELLATION_FILE" legalCancellationFile;
 
   boolEnv = value: if value then "true" else "false";
   stripeEnv = optionalAttrs stripeCfg.enable (
@@ -362,6 +388,68 @@ in
       };
     };
 
+    legalDocuments = {
+      businessName = mkOption {
+        type = types.str;
+        default = "Bepis PTY LTD";
+        description = "Public business name shown on legal and Stripe activation pages.";
+      };
+
+      supportEmail = mkOption {
+        type = types.str;
+        default = "support@bepis.lol";
+        description = "Public support email shown on legal and Stripe activation pages.";
+      };
+
+      termsFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Optional file containing the public customer terms body.";
+      };
+
+      termsText = mkOption {
+        type = types.nullOr types.lines;
+        default = null;
+        description = "Optional inline public customer terms body. Mutually exclusive with termsFile.";
+      };
+
+      privacyFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Optional file containing the public privacy policy body.";
+      };
+
+      privacyText = mkOption {
+        type = types.nullOr types.lines;
+        default = null;
+        description = "Optional inline public privacy policy body. Mutually exclusive with privacyFile.";
+      };
+
+      refundsDisputesFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Optional file containing the public refund and dispute policy body.";
+      };
+
+      refundsDisputesText = mkOption {
+        type = types.nullOr types.lines;
+        default = null;
+        description = "Optional inline public refund and dispute policy body. Mutually exclusive with refundsDisputesFile.";
+      };
+
+      cancellationFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Optional file containing the public cancellation policy body.";
+      };
+
+      cancellationText = mkOption {
+        type = types.nullOr types.lines;
+        default = null;
+        description = "Optional inline public cancellation policy body. Mutually exclusive with cancellationFile.";
+      };
+    };
+
     billing.stripe = {
       enable = mkEnableOption "Stripe Billing integration";
 
@@ -504,6 +592,22 @@ in
           message = "services.ihpRoster.createServiceUser only creates a same-name group; set serviceGroup to null or serviceUser.";
         }
         {
+          assertion = !(legalCfg.termsFile != null && legalCfg.termsText != null);
+          message = "services.ihpRoster.legalDocuments.termsFile and termsText are mutually exclusive.";
+        }
+        {
+          assertion = !(legalCfg.privacyFile != null && legalCfg.privacyText != null);
+          message = "services.ihpRoster.legalDocuments.privacyFile and privacyText are mutually exclusive.";
+        }
+        {
+          assertion = !(legalCfg.refundsDisputesFile != null && legalCfg.refundsDisputesText != null);
+          message = "services.ihpRoster.legalDocuments.refundsDisputesFile and refundsDisputesText are mutually exclusive.";
+        }
+        {
+          assertion = !(legalCfg.cancellationFile != null && legalCfg.cancellationText != null);
+          message = "services.ihpRoster.legalDocuments.cancellationFile and cancellationText are mutually exclusive.";
+        }
+        {
           assertion =
             !stripeCfg.enable || ((stripeCfg.priceLookupKey != null) != (stripeCfg.priceId != null));
           message = "services.ihpRoster.billing.stripe requires exactly one of priceLookupKey or priceId when enabled.";
@@ -550,6 +654,7 @@ in
           APP_BASE_URL = cfg.baseUrl;
         }
         // mailEnv
+        // legalEnv
         // stripeEnv
         // cfg.additionalEnvVars;
         appPort = cfg.appPort;

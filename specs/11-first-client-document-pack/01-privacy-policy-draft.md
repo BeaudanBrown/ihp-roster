@@ -3,6 +3,8 @@
 ## Status
 
 Draft for tailoring and legal review before use with paying customers.
+The public app route `/LegalPrivacy` should be populated from reviewed
+deployment configuration before taking live payments.
 
 ## 1. Who we are
 

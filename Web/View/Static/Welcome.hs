@@ -1,9 +1,13 @@
 module Web.View.Static.Welcome where
+import Application.Legal.Documents
+import qualified Data.Text as Text
 import Web.View.Prelude
 
 data WelcomeView = WelcomeView
 
-data PublicBillingSupportView = PublicBillingSupportView
+data PublicBillingSupportView = PublicBillingSupportView { legalPublicConfig :: LegalPublicConfig }
+
+data LegalDocumentView = LegalDocumentView { legalDocument :: LegalDocument }
 
 instance View WelcomeView where
     html WelcomeView = [hsx|
@@ -32,7 +36,7 @@ instance View WelcomeView where
     |]
 
 instance View PublicBillingSupportView where
-    html PublicBillingSupportView = [hsx|
+    html PublicBillingSupportView { .. } = [hsx|
         <div class="app-public-page">
             <section class="app-public-hero">
                 <div>
@@ -41,10 +45,13 @@ instance View PublicBillingSupportView where
                     <p class="app-public-lead">
                         Bepis helps hospitality venues prepare rosters, track timesheets, manage leave and unavailability, and produce payroll-ready exports with founder-managed support.
                     </p>
+                    <p class="app-public-operator">
+                        Operated by {legalPublicConfig.legalBusinessName}.
+                    </p>
                 </div>
                 <div class="app-public-hero-actions">
                     <a href={NewSessionAction} class="btn btn-primary">Sign In</a>
-                    <a href="mailto:support@bepis.lol" class="btn btn-outline-secondary">support@bepis.lol</a>
+                    <a href={supportMailto legalPublicConfig.legalSupportEmail} class="btn btn-outline-secondary">{legalPublicConfig.legalSupportEmail}</a>
                 </div>
             </section>
 
@@ -84,20 +91,20 @@ instance View PublicBillingSupportView where
                 <h2>Terms, Privacy, Refunds, and Cancellation</h2>
                 <div class="app-public-policy-list">
                     <div>
-                        <h3>Customer Terms</h3>
-                        <p>Customers agree venue setup, permitted use, payment responsibility, hosted Stripe payment processing, and service support scope before live use.</p>
+                        <h3><a href={LegalTermsAction}>Customer Terms</a></h3>
+                        <p>Venue setup, permitted use, payment responsibility, hosted Stripe payment processing, and service support scope.</p>
                     </div>
                     <div>
-                        <h3>Privacy</h3>
-                        <p>Bepis stores account, venue, rostering, timesheet, leave, export, support, and minimal Stripe billing metadata needed to operate the service.</p>
+                        <h3><a href={LegalPrivacyAction}>Privacy Policy</a></h3>
+                        <p>How {legalPublicConfig.legalBusinessName} handles account, venue, workforce, export, support, and minimal Stripe billing metadata.</p>
                     </div>
                     <div>
-                        <h3>Refunds and Disputes</h3>
-                        <p>Refund or billing dispute requests should be sent to support@bepis.lol. Bepis will review the venue subscription record, Stripe payment status, service access, and customer agreement before deciding whether a refund or credit applies.</p>
+                        <h3><a href={LegalRefundsDisputesAction}>Refunds and Disputes</a></h3>
+                        <p>How refund requests, billing disputes, and non-applicable physical returns are handled.</p>
                     </div>
                     <div>
-                        <h3>Cancellation</h3>
-                        <p>Venue subscriptions may be cancelled through the Stripe Customer Portal or by contacting support@bepis.lol. Cancellation stops future renewal according to the Stripe subscription state and customer agreement.</p>
+                        <h3><a href={LegalCancellationAction}>Cancellation</a></h3>
+                        <p>How venue subscriptions can be cancelled through the Stripe Customer Portal or support.</p>
                     </div>
                 </div>
             </section>
@@ -105,8 +112,50 @@ instance View PublicBillingSupportView where
             <section class="app-public-section">
                 <h2>Support Contact</h2>
                 <p>
-                    For billing, cancellation, refund, dispute, privacy, or service support questions, contact <a href="mailto:support@bepis.lol">support@bepis.lol</a>.
+                    For billing, cancellation, refund, dispute, privacy, or service support questions, contact <a href={supportMailto legalPublicConfig.legalSupportEmail}>{legalPublicConfig.legalSupportEmail}</a>.
                 </p>
             </section>
         </div>
     |]
+
+supportMailto :: Text -> Text
+supportMailto email =
+    "mailto:" <> email
+
+instance View LegalDocumentView where
+    html LegalDocumentView { .. } = [hsx|
+        <div class="app-public-page">
+            <section class="app-public-section app-legal-document">
+                <div class="app-public-policy-nav">
+                    <a href={PublicBillingSupportAction}>Billing and support</a>
+                    {forEach allLegalDocumentKinds renderPolicyLink}
+                </div>
+                <h1>{legalDocument.legalDocumentTitle}</h1>
+                <div class="app-legal-document-body">
+                    {forEach (legalDocumentParagraphs legalDocument.legalDocumentBody) renderLegalParagraph}
+                </div>
+            </section>
+        </div>
+    |]
+
+renderPolicyLink :: LegalDocumentKind -> Html
+renderPolicyLink kind = [hsx|
+    <a href={legalDocumentAction kind}>{legalDocumentActionLabel kind}</a>
+|]
+
+legalDocumentAction :: LegalDocumentKind -> StaticController
+legalDocumentAction = \case
+    TermsDocument           -> LegalTermsAction
+    PrivacyDocument         -> LegalPrivacyAction
+    RefundsDisputesDocument -> LegalRefundsDisputesAction
+    CancellationDocument    -> LegalCancellationAction
+
+legalDocumentParagraphs :: Text -> [Text]
+legalDocumentParagraphs body =
+    body
+        |> Text.splitOn "\n\n"
+        |> map Text.strip
+        |> filter (/= "")
+
+renderLegalParagraph :: Text -> Html
+renderLegalParagraph paragraph = [hsx|<p>{paragraph}</p>|]

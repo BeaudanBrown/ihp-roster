@@ -43,6 +43,16 @@
     configureNginx = true;
     httpsEnabled = true;
     acmeEmail = "CHANGE-ME@example.com";
+    legalDocuments = {
+      businessName = "Bepis PTY LTD";
+      supportEmail = "support@bepis.lol";
+      # Populate these before live payments, either with file paths managed
+      # outside git or with inline *Text options in a private deployment layer.
+      termsFile = null;
+      privacyFile = null;
+      refundsDisputesFile = null;
+      cancellationFile = null;
+    };
     billing.stripe = {
       # Enable after provisioning the Dashboard Product/Price, webhook endpoint,
       # Customer Portal settings, and the two secret files below.

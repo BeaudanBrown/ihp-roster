@@ -107,6 +107,10 @@ enforcement without collecting or storing payment details.
   refund/dispute policy, and subscription cancellation policy. The page must
   load without authentication at `/PublicBillingSupport` and must not appear
   under construction.
+- Public policy pages are served by the app at `/LegalTerms`, `/LegalPrivacy`,
+  `/LegalRefundsDisputes`, and `/LegalCancellation`. Their bodies can be
+  injected by NixOS module options under `services.ihpRoster.legalDocuments`
+  using either file paths or inline text in a private deployment layer.
 
 ## Stripe Quickstart Alignment
 
@@ -165,6 +169,9 @@ IHP and the app's venue model:
   page: business name, website URL, support email, statement descriptor, and
   product/service description should all clearly refer to Bepis and the
   venue-scoped subscription service.
+- Keep the public legal document configuration aligned with the same business
+  name and support email. For launch this is `Bepis PTY LTD` and
+  `support@bepis.lol`.
 
 ## Payment Method Posture
 

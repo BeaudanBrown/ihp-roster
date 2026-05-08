@@ -45,6 +45,9 @@ The product should not take on its first real client until the following are tru
   business/product, describe the roster/timesheet/leave/export service, list
   support contact `support@bepis.lol`, and link to terms, privacy,
   refund/dispute, and subscription cancellation information.
+- The public legal pages are populated from reviewed deployment configuration,
+  not placeholder drafts, and are available without login at `/LegalTerms`,
+  `/LegalPrivacy`, `/LegalRefundsDisputes`, and `/LegalCancellation`.
 
 ## Operational readiness
 

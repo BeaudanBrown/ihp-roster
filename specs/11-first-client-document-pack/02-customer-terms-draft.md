@@ -3,6 +3,8 @@
 ## Status
 
 Commercial draft for tailoring and legal review before use with paying customers.
+The public app route `/LegalTerms` should be populated from reviewed deployment
+configuration before taking live payments.
 
 ## 1. Parties
 

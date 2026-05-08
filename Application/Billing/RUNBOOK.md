@@ -24,10 +24,45 @@ Public business website:
 - Include customer support contact details: `support@bepis.lol`.
 - Link to or include customer terms, privacy policy, refund/dispute policy, and
   subscription cancellation policy.
+- The app serves those public policies at:
+
+  ```text
+  https://<app-base-url>/LegalTerms
+  https://<app-base-url>/LegalPrivacy
+  https://<app-base-url>/LegalRefundsDisputes
+  https://<app-base-url>/LegalCancellation
+  ```
+
 - Keep the Stripe Dashboard business description, website URL, support email,
   statement descriptor, Product/Price naming, and public page copy consistent.
 - Do not block Stripe review access by password protection, region blocking, or
   a placeholder-only landing page.
+
+Public legal document configuration:
+
+- Set `services.ihpRoster.legalDocuments.businessName = "Bepis PTY LTD";`.
+- Set `services.ihpRoster.legalDocuments.supportEmail = "support@bepis.lol";`.
+- Populate the public policy pages using either file options:
+
+  ```nix
+  services.ihpRoster.legalDocuments = {
+    termsFile = /run/secrets-or-config/bepis-terms.txt;
+    privacyFile = /run/secrets-or-config/bepis-privacy.txt;
+    refundsDisputesFile = /run/secrets-or-config/bepis-refunds-disputes.txt;
+    cancellationFile = /run/secrets-or-config/bepis-cancellation.txt;
+  };
+  ```
+
+  or inline private deployment-layer text options:
+
+  ```nix
+  services.ihpRoster.legalDocuments.privacyText = ''
+    Bepis PTY LTD privacy policy
+    ...
+  '';
+  ```
+
+- Do not use legal drafts with placeholders for live payment activation.
 
 Product and Price:
 
@@ -193,6 +228,7 @@ Record the following before enabling billing for the first live venue:
 | --- | --- |
 | Stripe live Product/Price ID and lookup key checked | `[link or screenshot reference]` |
 | Public Bepis website satisfies Stripe activation requirements | `[URL/operator/date]` |
+| Public terms/privacy/refund/cancellation pages reviewed | `[URL/operator/date]` |
 | Customer Portal live-mode settings checked | `[link or screenshot reference]` |
 | Live webhook endpoint and event list checked | `[link or screenshot reference]` |
 | Production secret files provisioned | `[operator/date]` |
