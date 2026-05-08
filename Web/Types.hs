@@ -86,6 +86,15 @@ data StaffDocumentsController
     | ReviewStaffDocumentAction { staffDocumentId :: !(Id StaffDocument) }
     deriving (Eq, Show, Data)
 
+data BillingController
+    = BillingAction
+    | CreateBillingCheckoutSessionAction
+    | CreateBillingPortalSessionAction
+    | BillingSuccessAction
+    | BillingCancelAction
+    | UpdateVenueBillingControlAction
+    deriving (Eq, Show, Data)
+
 data AdminController
     = AdminAction
     | XeroAction

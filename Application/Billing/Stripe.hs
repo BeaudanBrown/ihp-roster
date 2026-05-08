@@ -32,18 +32,21 @@ module Application.Billing.Stripe
     , validateVenueMonthlyPrice
     , verifyStripeWebhookSignature
     , verifyStripeWebhookSignatureAt
+    , withStripeClientForTest
+    , withStripeConfigForTest
     )
 where
 
 import Control.Applicative ((<|>))
 import qualified Control.Exception as Exception
-import "crypton" Crypto.MAC.HMAC (HMAC, hmac)
 import qualified "crypton" Crypto.Hash as Hash
+import "crypton" Crypto.MAC.HMAC (HMAC, hmac)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteArray as ByteArray
 import qualified Data.ByteString as ByteString
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Char as Char
+import qualified Data.IORef as IORef
 import qualified Data.List as List
 import qualified Data.Text as Text hiding (show)
 import qualified Data.Text.Encoding as TextEncoding
@@ -56,6 +59,7 @@ import Network.HTTP.Types.Header (HeaderName)
 import qualified Network.HTTP.Types.URI as URI
 import System.Environment (lookupEnv)
 import qualified System.IO.Error as IOError
+import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readMaybe)
 
 defaultPriceLookupKey :: Text
@@ -144,9 +148,9 @@ instance Aeson.FromJSON StripeCustomer where
         StripeCustomer <$> object Aeson..: "id"
 
 data StripeCheckoutSession = StripeCheckoutSession
-    { stripeCheckoutSessionId  :: !Text
-    , stripeCheckoutSessionUrl :: !(Maybe Text)
-    , stripeCheckoutCustomerId :: !(Maybe Text)
+    { stripeCheckoutSessionId      :: !Text
+    , stripeCheckoutSessionUrl     :: !(Maybe Text)
+    , stripeCheckoutCustomerId     :: !(Maybe Text)
     , stripeCheckoutSubscriptionId :: !(Maybe Text)
     }
     deriving (Eq, Show)
@@ -172,7 +176,7 @@ instance Aeson.FromJSON StripePortalSession where
             <*> object Aeson..: "url"
 
 data StripeSubscription = StripeSubscription
-    { stripeSubscriptionId :: !Text
+    { stripeSubscriptionId     :: !Text
     , stripeSubscriptionStatus :: !Text
     }
     deriving (Eq, Show)
@@ -203,8 +207,33 @@ data StripeClient = StripeClient
     , retrieveSubscription :: StripeConfig -> Text -> IO (Either StripeClientError StripeSubscription)
     }
 
-currentStripeClient :: StripeClient
-currentStripeClient = stripeClientWithTransport sendStripeRawRequest
+defaultStripeClient :: StripeClient
+defaultStripeClient = stripeClientWithTransport sendStripeRawRequest
+
+stripeClientRef :: IORef.IORef StripeClient
+stripeClientRef = unsafePerformIO (IORef.newIORef defaultStripeClient)
+{-# NOINLINE stripeClientRef #-}
+
+stripeConfigOverrideRef :: IORef.IORef (Maybe (Either Text StripeConfig))
+stripeConfigOverrideRef = unsafePerformIO (IORef.newIORef Nothing)
+{-# NOINLINE stripeConfigOverrideRef #-}
+
+currentStripeClient :: IO StripeClient
+currentStripeClient = IORef.readIORef stripeClientRef
+
+withStripeClientForTest :: StripeClient -> IO a -> IO a
+withStripeClientForTest client action =
+    Exception.bracket
+        (IORef.atomicModifyIORef' stripeClientRef \old -> (client, old))
+        (IORef.writeIORef stripeClientRef)
+        (const action)
+
+withStripeConfigForTest :: Either Text StripeConfig -> IO a -> IO a
+withStripeConfigForTest configResult action =
+    Exception.bracket
+        (IORef.atomicModifyIORef' stripeConfigOverrideRef \old -> (Just configResult, old))
+        (IORef.writeIORef stripeConfigOverrideRef)
+        (const action)
 
 stripeClientWithTransport :: (StripeHttpRequest -> IO (Either StripeClientError LByteString.ByteString)) -> StripeClient
 stripeClientWithTransport transport =
@@ -227,24 +256,27 @@ stripeClientWithTransport transport =
 
 readStripeConfig :: IO (Either Text StripeConfig)
 readStripeConfig = do
-    maybeSecretKey <- readSecret "STRIPE_SECRET_KEY_FILE" "STRIPE_SECRET_KEY"
-    maybeWebhookSecret <- readSecret "STRIPE_WEBHOOK_SECRET_FILE" "STRIPE_WEBHOOK_SECRET"
-    maybeLookupKey <- cleanMaybe <$> lookupEnvText "STRIPE_PRICE_LOOKUP_KEY"
-    maybePriceId <- cleanMaybe <$> lookupEnvText "STRIPE_PRICE_ID"
-    appBaseUrl <- fromMaybe "http://localhost:8000" . cleanMaybe <$> lookupEnvText "APP_BASE_URL"
-    pure case (maybeSecretKey, maybeWebhookSecret) of
-        (Right (Just secretKey), Right (Just webhookSecret)) ->
-            Right
-                StripeConfig
-                    { secretKey
-                    , webhookSecret
-                    , priceLookupKey = maybeLookupKey <|> if isJust maybePriceId then Nothing else Just defaultPriceLookupKey
-                    , priceId = maybePriceId
-                    , appBaseUrl
-                    }
-        (Left err, _) -> Left err
-        (_, Left err) -> Left err
-        _ -> Left "Stripe is not configured. Set STRIPE_SECRET_KEY_FILE and STRIPE_WEBHOOK_SECRET_FILE, or dev/test STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET."
+    IORef.readIORef stripeConfigOverrideRef >>= \case
+        Just configResult -> pure configResult
+        Nothing -> do
+            maybeSecretKey <- readSecret "STRIPE_SECRET_KEY_FILE" "STRIPE_SECRET_KEY"
+            maybeWebhookSecret <- readSecret "STRIPE_WEBHOOK_SECRET_FILE" "STRIPE_WEBHOOK_SECRET"
+            maybeLookupKey <- cleanMaybe <$> lookupEnvText "STRIPE_PRICE_LOOKUP_KEY"
+            maybePriceId <- cleanMaybe <$> lookupEnvText "STRIPE_PRICE_ID"
+            appBaseUrl <- fromMaybe "http://localhost:8000" . cleanMaybe <$> lookupEnvText "APP_BASE_URL"
+            pure case (maybeSecretKey, maybeWebhookSecret) of
+                (Right (Just secretKey), Right (Just webhookSecret)) ->
+                    Right
+                        StripeConfig
+                            { secretKey
+                            , webhookSecret
+                            , priceLookupKey = maybeLookupKey <|> if isJust maybePriceId then Nothing else Just defaultPriceLookupKey
+                            , priceId = maybePriceId
+                            , appBaseUrl
+                            }
+                (Left err, _) -> Left err
+                (_, Left err) -> Left err
+                _ -> Left "Stripe is not configured. Set STRIPE_SECRET_KEY_FILE and STRIPE_WEBHOOK_SECRET_FILE, or dev/test STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET."
 
 readSecret :: String -> String -> IO (Either Text (Maybe Text))
 readSecret fileEnv valueEnv = do

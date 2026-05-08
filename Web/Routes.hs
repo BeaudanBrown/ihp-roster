@@ -14,6 +14,7 @@ instance AutoRoute TimesheetsController
 instance AutoRoute LeaveRequestsController
 instance AutoRoute ExportsController
 instance AutoRoute StaffDocumentsController
+instance AutoRoute BillingController
 instance AutoRoute AdminController
 instance AutoRoute SupportController
 instance AutoRoute StaffController

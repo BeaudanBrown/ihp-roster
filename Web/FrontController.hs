@@ -15,6 +15,7 @@ import Web.View.Layout (defaultLayout)
 -- Controller Imports
 import Web.Controller.Admin
 import Web.Controller.Auth
+import Web.Controller.Billing
 import Web.Controller.Exports
 import Web.Controller.LeaveRequests
 import Web.Controller.LiveUpdates
@@ -41,6 +42,7 @@ instance FrontController WebApplication where
         , parseRoute @LeaveRequestsController
         , parseRoute @ExportsController
         , parseRoute @StaffDocumentsController
+        , parseRoute @BillingController
         , parseRoute @AdminController
         , parseRoute @SupportController
         , parseRoute @StaffController

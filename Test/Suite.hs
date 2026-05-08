@@ -15,6 +15,7 @@ import Text.Read (readMaybe)
 import qualified Test.BillingPersistenceSpec
 import qualified Test.ConflictSpec
 import qualified Test.Controller.AdminSpec
+import qualified Test.Controller.BillingSpec
 import qualified Test.Controller.ExportsSpec
 import qualified Test.Controller.LeaveRequestsSpec
 import qualified Test.Controller.PasskeysSpec
@@ -40,8 +41,8 @@ import qualified Test.RosterGridSpec
 import qualified Test.RosterTimesheetsAutomationSpec
 import qualified Test.SchemaSpec
 import qualified Test.StaffDocumentsRsaSpec
-import qualified Test.StripeContractSpec
 import qualified Test.StripeBillingSpec
+import qualified Test.StripeContractSpec
 import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
@@ -130,6 +131,7 @@ allSuites :: [TestSuite]
 allSuites =
     [ TestSuite "StaticController" Test.Controller.StaticSpec.tests
     , TestSuite "Billing" Test.BillingPersistenceSpec.tests
+    , TestSuite "BillingController" Test.Controller.BillingSpec.tests
     , TestSuite "StripeBilling" Test.StripeBillingSpec.tests
     , TestSuite "StripeContract" Test.StripeContractSpec.tests
     , TestSuite "AdminController" Test.Controller.AdminSpec.tests
