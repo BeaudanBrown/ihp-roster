@@ -7,6 +7,7 @@ Tickets:
 - `ir-176p` - parent epic
 - `ir-mjov` - connection foundation maintenance
 - `ir-adtf`, `ir-shsr`, `ir-lgy7`, `ir-tfed`, `ir-ujwc`, `ir-z87w`
+- `ir-9u78` - guided draft-timesheet preparation modal
 
 Living docs to update:
 
@@ -44,6 +45,46 @@ audit trails, correction behavior, and custom pay item overrides.
 - Xero remains payroll/tax/STP authority; Bepis does not calculate tax.
 - Submission records should be auditable and should prevent silent destructive
   edits to submitted rows.
+
+## Guided Draft-Timesheet Preparation
+
+Draft-timesheet submission should be initiated from the Xero timesheet panel,
+but readiness work should happen inside a workflow modal mounted in the shared
+dialog overlay lane.
+
+The panel should let the user choose a Xero pay period and start preparation.
+The modal then owns connection checks, token refresh/reconnect handoff,
+reference-data sync, payroll-calendar/account-code deduction, staff mapping
+resolution, managed pay-item approval/creation, remote pay-run/timesheet
+checks, readiness validation, preview, and final draft submission.
+
+Staff matching is automated by default, but proposed matches must be shown for
+approval before they persist. The modal must also allow manual Xero employee
+selection with dropdown controls, persistent `not paid through Xero` decisions,
+and run-scoped `skip this time` decisions. Do not keep a separate "match"
+button in the new flow.
+
+Managed pay items that need to be created in Xero must be approved in the same
+modal before creation. If there is exactly one synced payroll calendar or pay
+item account code, the flow may select it automatically, but the event should
+still be visible to the user.
+
+Use Xero Payroll AU pay runs and timesheets to describe period state. Periods
+whose Xero pay run is `POSTED` are hard-blocked. For v1, any existing Xero
+timesheet for the same employee and selected period blocks creation until
+explicit update support is designed and implemented.
+
+Relevant tickets:
+
+- `ir-9u78` - parent feature for the guided modal flow
+- `ir-omzt` - Xero Pay Runs API and selectable payroll periods
+- `ir-9gkd` - preparation-run and approval-decision persistence
+- `ir-mjos` - preparation orchestration service
+- `ir-l0x7` - explicit selected-period preview/submission wiring
+- `ir-8usq` - posted pay-run and existing-timesheet blockers
+- `ir-lhy5` - modal UI and controller flow
+- `ir-zy55` - research draft-timesheet update support
+- `ir-qsgf` - focused Hspec/E2E coverage
 
 ## Exit Criteria
 

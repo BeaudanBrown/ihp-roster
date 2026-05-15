@@ -2,7 +2,7 @@
 id: ir-tfed
 status: open
 deps: [ir-adtf, ir-shsr]
-links: []
+links: [ir-zy55, ir-9u78, ir-shsr, ir-axdb]
 created: 2026-04-29T04:41:30Z
 type: feature
 priority: 1

@@ -2,7 +2,7 @@
 id: ir-axdb
 status: open
 deps: [ir-adtf]
-links: []
+links: [ir-zy55, ir-9u78, ir-shsr, ir-tfed]
 created: 2026-04-29T04:41:30Z
 type: feature
 priority: 1
