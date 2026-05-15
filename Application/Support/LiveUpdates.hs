@@ -11,6 +11,8 @@ import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import IHP.Prelude
 
+data SupportSurface
+
 data SupportLiveFragment
     = SupportAwardRatesLiveFragment
     | SupportPublicHolidaysLiveFragment
@@ -18,14 +20,14 @@ data SupportLiveFragment
 supportLiveUpdateScope :: LiveUpdateScope
 supportLiveUpdateScope = SupportPlatformScope
 
-supportLiveSurfaceDefinition :: LiveSurfaceDefinition () SupportLiveFragment
+supportLiveSurfaceDefinition :: TypedLiveSurfaceDefinition SupportSurface () SupportLiveFragment
 supportLiveSurfaceDefinition =
-    LiveSurfaceDefinition
-        { surfaceFeature = "support"
-        , surfaceScope = const supportLiveUpdateScope
-        , surfaceDefaultFragments = const supportLiveFragmentRefs
-        , surfaceFragmentRef = const supportLiveFragmentRef
-        , surfaceDecorateRequestsWithin =
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "support"
+        , typedSurfaceScope = const (SurfaceScope supportLiveUpdateScope)
+        , typedSurfaceDefaultFragments = const supportLiveFragmentRefs
+        , typedSurfaceFragmentRef = const (SurfaceFragmentRef . supportLiveFragmentRef)
+        , typedSurfaceDecorateRequestsWithin =
             const
                 [ "#support-shell"
                 , "#support-award-rates-section"
@@ -61,4 +63,4 @@ supportPublicHolidaysSectionFragmentRef =
 
 supportLiveSurface :: LiveSurfaceConfig
 supportLiveSurface =
-    mkDefinedLiveSurface supportLiveSurfaceDefinition ()
+    mkTypedDefinedLiveSurface supportLiveSurfaceDefinition ()

@@ -150,6 +150,29 @@ tests = describe "LiveUpdate runtime types" do
         liveSurfaceConfigJson surface
             `shouldBe` "{\"decorateRequestsWithin\":[],\"feature\":\"support\",\"resyncFragments\":[{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_award_rates_section\"},\"protectionPolicy\":null,\"targetId\":\"support-award-rates-section\",\"url\":\"/ShowFwcMapdAwardRatesSection\"},{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_public_holidays_section\"},\"protectionPolicy\":null,\"targetId\":\"support-public-holidays-section\",\"url\":\"/ShowPublicHolidaysSection\"}],\"scope\":{\"kind\":\"support_platform\"},\"scopeKey\":\"support_platform\",\"socketPath\":\"/live-updates\"}"
 
+    it "keeps typed support surface refs at the compatibility boundary" do
+        let typedRefs = typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () supportLiveFragmentRefs
+
+        unSurfaceFragmentRefs typedRefs
+            `shouldBe`
+                [ supportAwardRatesSectionFragmentRef
+                , supportPublicHolidaysSectionFragmentRef
+                ]
+        supportLiveSurface
+            `shouldBe`
+                (mkLiveSurface
+                    "support"
+                    SupportPlatformScope
+                    [ supportAwardRatesSectionFragmentRef
+                    , supportPublicHolidaysSectionFragmentRef
+                    ])
+                    { decorateRequestsWithin =
+                        [ "#support-shell"
+                        , "#support-award-rates-section"
+                        , "#support-public-holidays-section"
+                        ]
+                    }
+
     it "round-trips leave, timesheet, and protected roster surface configs through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"

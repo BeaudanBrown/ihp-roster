@@ -3,6 +3,9 @@ module Application.Helper.LiveSurface
     , LiveSurfaceBroadcastOptions (..)
     , LiveSurfaceDefinition (..)
     , ProjectionLiveSurfaceDefinition (..)
+    , SurfaceFragmentRef (..)
+    , SurfaceScope (..)
+    , TypedLiveSurfaceDefinition (..)
     , broadcastProjectionSurfaceFragments
     , broadcastProjectionSurfaceFragmentsWith
     , broadcastSurfaceFragments
@@ -16,8 +19,13 @@ module Application.Helper.LiveSurface
     , mkDefinedLiveSurface
     , mkLiveSurface
     , mkSurfaceProjectionDefinition
+    , mkTypedDefinedLiveSurface
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
+    , typedLiveSurfaceDefinition
+    , typedLiveSurfaceFragmentRef
+    , typedLiveSurfaceFragmentRefs
+    , unSurfaceFragmentRefs
     , warmLiveSurfaceProjection
     , warmLiveSurfaceProjectionFromStore
     ) where
@@ -43,12 +51,30 @@ data LiveSurfaceConfig = LiveSurfaceConfig
     }
     deriving (Eq, Show)
 
+newtype SurfaceScope surface = SurfaceScope
+    { unSurfaceScope :: LiveUpdateScope
+    }
+    deriving (Eq, Show)
+
+newtype SurfaceFragmentRef surface = SurfaceFragmentRef
+    { unSurfaceFragmentRef :: LiveFragmentRef
+    }
+    deriving (Eq, Show)
+
 data LiveSurfaceDefinition scope fragment = LiveSurfaceDefinition
     { surfaceFeature                :: !Text
     , surfaceScope                  :: scope -> LiveUpdateScope
     , surfaceDefaultFragments       :: scope -> [fragment]
     , surfaceFragmentRef            :: scope -> fragment -> LiveFragmentRef
     , surfaceDecorateRequestsWithin :: scope -> [Text]
+    }
+
+data TypedLiveSurfaceDefinition surface scope fragment = TypedLiveSurfaceDefinition
+    { typedSurfaceFeature                :: !Text
+    , typedSurfaceScope                  :: scope -> SurfaceScope surface
+    , typedSurfaceDefaultFragments       :: scope -> [fragment]
+    , typedSurfaceFragmentRef            :: scope -> fragment -> SurfaceFragmentRef surface
+    , typedSurfaceDecorateRequestsWithin :: scope -> [Text]
     }
 
 data ProjectionLiveSurfaceDefinition scope snapshot fragment = ProjectionLiveSurfaceDefinition
@@ -115,6 +141,33 @@ liveSurfaceFragmentRef definition surfaceKey fragment =
 liveSurfaceFragmentRefs :: LiveSurfaceDefinition scope fragment -> scope -> [fragment] -> [LiveFragmentRef]
 liveSurfaceFragmentRefs definition surfaceKey =
     map (liveSurfaceFragmentRef definition surfaceKey)
+
+typedLiveSurfaceDefinition :: TypedLiveSurfaceDefinition surface scope fragment -> LiveSurfaceDefinition scope fragment
+typedLiveSurfaceDefinition definition =
+    LiveSurfaceDefinition
+        { surfaceFeature = definition.typedSurfaceFeature
+        , surfaceScope = unSurfaceScope . definition.typedSurfaceScope
+        , surfaceDefaultFragments = definition.typedSurfaceDefaultFragments
+        , surfaceFragmentRef = \surfaceKey fragment ->
+            unSurfaceFragmentRef (definition.typedSurfaceFragmentRef surfaceKey fragment)
+        , surfaceDecorateRequestsWithin = definition.typedSurfaceDecorateRequestsWithin
+        }
+
+mkTypedDefinedLiveSurface :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> LiveSurfaceConfig
+mkTypedDefinedLiveSurface definition =
+    mkDefinedLiveSurface (typedLiveSurfaceDefinition definition)
+
+typedLiveSurfaceFragmentRef :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> fragment -> SurfaceFragmentRef surface
+typedLiveSurfaceFragmentRef definition surfaceKey fragment =
+    definition.typedSurfaceFragmentRef surfaceKey fragment
+
+typedLiveSurfaceFragmentRefs :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> [fragment] -> [SurfaceFragmentRef surface]
+typedLiveSurfaceFragmentRefs definition surfaceKey =
+    map (typedLiveSurfaceFragmentRef definition surfaceKey)
+
+unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveFragmentRef]
+unSurfaceFragmentRefs =
+    map unSurfaceFragmentRef
 
 broadcastSurfaceFragments ::
     (?context :: ControllerContext, ?request :: Request) =>
