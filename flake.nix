@@ -1637,7 +1637,9 @@ EOF
                                 )
 
                                 for port in $ports; do
-                                    if curl -fsS "http://127.0.0.1:$port/NewSession" >/dev/null 2>&1; then
+                                    local body
+                                    body="$(curl -fsS "http://127.0.0.1:$port/NewSession" 2>/dev/null || true)"
+                                    if printf '%s' "$body" | grep -q 'id="email"'; then
                                         printf 'http://127.0.0.1:%s\n' "$port"
                                         return 0
                                     fi
