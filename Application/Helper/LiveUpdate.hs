@@ -16,6 +16,7 @@ module Application.Helper.LiveUpdate
     , broadcastLiveInvalidationWithoutContext
     , broadcastLiveResync
     , broadcastLiveResyncWithoutContext
+    , coalesceLiveFragmentRefs
     , currentLiveUpdateVersion
     , liveUpdateSourceClientId
     , liveUpdateScopeKey
@@ -164,10 +165,12 @@ data LiveUpdateMessage
     deriving (Eq, Show)
 
 data LiveUpdateBroadcastResult = LiveUpdateBroadcastResult
-    { broadcastVersion              :: !Int
-    , broadcastSubscriberCount      :: !Int
-    , broadcastFragmentCount        :: !Int
-    , broadcastDroppedSubscriptions :: !Int
+    { broadcastVersion                :: !Int
+    , broadcastSubscriberCount        :: !Int
+    , broadcastFragmentCount          :: !Int
+    , broadcastRefetchFragmentCount   :: !Int
+    , broadcastCoalescedFragmentCount :: !Int
+    , broadcastDroppedSubscriptions   :: !Int
     }
     deriving (Eq, Show)
 
@@ -199,7 +202,7 @@ liveFragmentsRefreshTriggerPayload :: [LiveFragmentRef] -> Aeson.Value
 liveFragmentsRefreshTriggerPayload fragments =
     let detail =
             Aeson.object
-                [ "fragments" Aeson..= fragments
+                [ "fragments" Aeson..= coalesceLiveFragmentRefs fragments
                 ]
      in Aeson.object
             [ "app-live-fragments-refresh" Aeson..= detail
@@ -555,10 +558,11 @@ broadcastLiveInvalidationWithoutContext scope sourceClientId fragments = do
 
 broadcastLiveInvalidationDetailedWithoutContext :: LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments = do
+    let coalescedFragments = coalesceLiveFragmentRefs fragments
     version <- incrementLiveUpdateVersion scope
     subscriptions <- readIORef liveSubscriptionsRef
     let matchingSubscriptions = filter (\subscription -> subscription.subscriptionScope == scope) subscriptions
-    staleIds <- mapMaybeM (sendInvalidation scope version sourceClientId fragments) matchingSubscriptions
+    staleIds <- mapMaybeM (sendInvalidation scope version sourceClientId coalescedFragments) matchingSubscriptions
     unless (null staleIds) do
         atomicModifyIORef' liveSubscriptionsRef \activeSubscriptions ->
             ( filter (\subscription -> subscription.subscriptionId `notElem` staleIds) activeSubscriptions
@@ -569,8 +573,24 @@ broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments =
             { broadcastVersion = version
             , broadcastSubscriberCount = length matchingSubscriptions
             , broadcastFragmentCount = length fragments
+            , broadcastRefetchFragmentCount = length coalescedFragments
+            , broadcastCoalescedFragmentCount = length fragments - length coalescedFragments
             , broadcastDroppedSubscriptions = length staleIds
             }
+
+coalesceLiveFragmentRefs :: [LiveFragmentRef] -> [LiveFragmentRef]
+coalesceLiveFragmentRefs fragments =
+    reverse (fst (foldl' step ([], Set.empty) fragments))
+    where
+        step (kept, seen) fragment =
+            let key = liveFragmentRefMergeKey fragment
+             in if Set.member key seen
+                    then (kept, seen)
+                    else (fragment : kept, Set.insert key seen)
+
+liveFragmentRefMergeKey :: LiveFragmentRef -> (LiveFragmentKey, Text, Text)
+liveFragmentRefMergeKey fragment =
+    (fragment.fragmentKey, fragment.targetId, fragment.url)
 
 broadcastLiveResync :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> IO ()
 broadcastLiveResync scope sourceClientId =
@@ -590,6 +610,8 @@ liveUpdateBroadcastDetail result =
         ","
         [ "subscribers=" <> tshow result.broadcastSubscriberCount
         , "fragments=" <> tshow result.broadcastFragmentCount
+        , "refetch=" <> tshow result.broadcastRefetchFragmentCount
+        , "coalesced=" <> tshow result.broadcastCoalescedFragmentCount
         , "dropped=" <> tshow result.broadcastDroppedSubscriptions
         ]
 

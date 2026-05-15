@@ -136,7 +136,28 @@ tests = describe "LiveUpdate runtime types" do
         result.broadcastVersion `shouldSatisfy` (> 0)
         result.broadcastSubscriberCount `shouldBe` 0
         result.broadcastFragmentCount `shouldBe` 1
+        result.broadcastRefetchFragmentCount `shouldBe` 1
+        result.broadcastCoalescedFragmentCount `shouldBe` 0
         result.broadcastDroppedSubscriptions `shouldBe` 0
+
+    it "coalesces duplicate fragment refs before broadcasting" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let scope = LeaveRequestsScope { venueId }
+        let fragment =
+                LiveFragmentRef
+                    { fragmentKey = LeaveRequestsContentFragment
+                    , targetId = "leave-requests-content"
+                    , url = "/ShowLeaveRequestsContentFragment"
+                    , deferUntilBlur = False
+                    , protectionPolicy = NoProtection
+                    }
+
+        coalesceLiveFragmentRefs [fragment, fragment] `shouldBe` [fragment]
+        result <- broadcastLiveInvalidationDetailedWithoutContext scope Nothing [fragment, fragment]
+
+        result.broadcastFragmentCount `shouldBe` 2
+        result.broadcastRefetchFragmentCount `shouldBe` 1
+        result.broadcastCoalescedFragmentCount `shouldBe` 1
 
     it "encodes support live surface config with stable JSON" do
         let surface =
