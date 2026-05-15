@@ -1,6 +1,8 @@
 module Test.Controller.SupportSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.LiveUpdate (currentLiveUpdateVersion)
+import Application.Support.LiveUpdates (supportLiveUpdateScope)
 import Config
 import IHP.FrameworkConfig
 import IHP.Prelude
@@ -57,3 +59,17 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "support_platform"
                 response `responseBodyShouldContain` "support_award_rates_section"
                 response `responseBodyShouldContain` "support_public_holidays_section"
+
+        it "broadcasts support refresh mutations through typed live helpers" $ withContext do
+            withCleanDb do
+                superAdmin <- createUserRecordWithPlatformRole "support-mutation-super@example.com" "staff" (Just SuperAdminRole) True
+                versionBefore <- currentLiveUpdateVersion supportLiveUpdateScope
+
+                response <- withPasskeyVerifiedUser superAdmin do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction CreatePublicHolidayRefreshJobAction
+                versionAfter <- currentLiveUpdateVersion supportLiveUpdateScope
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"support-public-holidays-section\""
+                versionAfter `shouldBe` versionBefore + 1

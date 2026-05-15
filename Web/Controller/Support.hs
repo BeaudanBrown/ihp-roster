@@ -7,9 +7,9 @@ import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
-import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
-import Application.Helper.LiveUpdate (broadcastLiveInvalidation,
-                                      liveUpdateSourceClientId)
+import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized,
+                                       liveSurfaceMutation,
+                                       performTypedLiveSurfaceMutation)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobDedupeKey,
@@ -89,10 +89,10 @@ instance Controller SupportController where
                 setSuccessMessage "Award rate refresh queued."
             ExistingActiveAppJob _ ->
                 setSuccessMessage "Award rate refresh is already queued or running."
-        broadcastLiveInvalidation
-            supportLiveUpdateScope
-            liveUpdateSourceClientId
-            [supportAwardRatesSectionFragmentRef]
+        void $
+            performTypedLiveSurfaceMutation
+                supportLiveSurfaceDefinition
+                (liveSurfaceMutation () [SupportAwardRatesLiveFragment])
         respondToAwardRatesRefresh
 
     action CreatePublicHolidayRefreshJobAction = do
@@ -114,10 +114,10 @@ instance Controller SupportController where
                 setSuccessMessage "Public holiday refresh queued."
             ExistingActiveAppJob _ ->
                 setSuccessMessage "Public holiday refresh is already queued or running."
-        broadcastLiveInvalidation
-            supportLiveUpdateScope
-            liveUpdateSourceClientId
-            [supportPublicHolidaysSectionFragmentRef]
+        void $
+            performTypedLiveSurfaceMutation
+                supportLiveSurfaceDefinition
+                (liveSurfaceMutation () [SupportPublicHolidaysLiveFragment])
         respondToPublicHolidayRefresh
 
     action SwitchSupportVenueAction = do

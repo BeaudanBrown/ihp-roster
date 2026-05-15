@@ -1,5 +1,6 @@
 module Application.Support.LiveUpdates
-    ( supportAwardRatesSectionFragmentRef
+    ( SupportLiveFragment (..)
+    , supportAwardRatesSectionFragmentRef
     , supportLiveSurface
     , supportLiveSurfaceDefinition
     , supportLiveFragmentRefs

@@ -181,6 +181,18 @@ tests = describe "LiveUpdate runtime types" do
         defaultLiveUpdateScopeAuthorizationRequirement SupportPlatformScope `shouldBe` RequireSupportSuperAdmin
         defaultLiveUpdateScopeAuthorizationRequirement AdminXeroScope { venueId } `shouldBe` RequireCurrentVenueOwner venueId
 
+    it "derives actor and passive refs for typed live mutations" do
+        let mutation =
+                LiveSurfaceMutation
+                    { liveMutationScope = ()
+                    , liveMutationActorFragments = [SupportAwardRatesLiveFragment]
+                    , liveMutationPassiveFragments = [SupportPublicHolidaysLiveFragment]
+                    }
+        let (actorRefs, passiveRefs) = typedLiveSurfaceMutationRefs supportLiveSurfaceDefinition mutation
+
+        unSurfaceFragmentRefs actorRefs `shouldBe` [supportAwardRatesSectionFragmentRef]
+        unSurfaceFragmentRefs passiveRefs `shouldBe` [supportPublicHolidaysSectionFragmentRef]
+
     it "round-trips leave, timesheet, and protected roster surface configs through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"

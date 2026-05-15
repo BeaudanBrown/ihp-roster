@@ -6,6 +6,8 @@ module Application.Helper.LiveSurface
     , LiveSurfaceAuthorization (..)
     , ProjectionLiveSurfaceDefinition (..)
     , SurfaceFragmentRef (..)
+    , LiveSurfaceMutation (..)
+    , LiveSurfaceMutationResult (..)
     , SurfaceScope (..)
     , TypedLiveSurfaceDefinition (..)
     , authorizeLiveScopeRequirement
@@ -19,6 +21,7 @@ module Application.Helper.LiveSurface
     , defaultLiveUpdateScopeAuthorizationRequirement
     , ensureTypedLiveSurfaceAuthorized
     , liveSurfaceAuthorizationByScope
+    , liveSurfaceMutation
     , liveSurfaceProjectionFragmentRef
     , liveSurfaceConfigJson
     , liveSurfaceFragmentRef
@@ -29,11 +32,14 @@ module Application.Helper.LiveSurface
     , mkLiveSurface
     , mkSurfaceProjectionDefinition
     , mkTypedDefinedLiveSurface
+    , performTypedLiveSurfaceMutation
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
+    , setLiveSurfaceActorRefresh
     , typedLiveSurfaceDefinition
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
+    , typedLiveSurfaceMutationRefs
     , unSurfaceFragmentRefs
     , warmLiveSurfaceProjection
     , warmLiveSurfaceProjectionFromStore
@@ -55,7 +61,7 @@ import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.Controller.Context (ControllerContext)
 import IHP.ControllerPrelude (accessDeniedUnless, fetchOneOrNothing,
-                              filterWhere, query)
+                              filterWhere, query, setHeader)
 import IHP.ControllerSupport (Request)
 import IHP.ModelSupport
 import IHP.Prelude
@@ -101,6 +107,18 @@ data TypedLiveSurfaceDefinition surface scope fragment = TypedLiveSurfaceDefinit
     , typedSurfaceFragmentRef            :: scope -> fragment -> SurfaceFragmentRef surface
     , typedSurfaceDecorateRequestsWithin :: scope -> [Text]
     , typedSurfaceAuthorize              :: !(LiveSurfaceAuthorization scope)
+    }
+
+data LiveSurfaceMutation scope fragment = LiveSurfaceMutation
+    { liveMutationScope            :: !scope
+    , liveMutationActorFragments   :: ![fragment]
+    , liveMutationPassiveFragments :: ![fragment]
+    }
+
+data LiveSurfaceMutationResult surface = LiveSurfaceMutationResult
+    { actorSurfaceFragmentRefs   :: ![SurfaceFragmentRef surface]
+    , passiveSurfaceFragmentRefs :: ![SurfaceFragmentRef surface]
+    , liveMutationBroadcast      :: !(Maybe LiveUpdateBroadcastResult)
     }
 
 data LiveScopeAuthorizationRequirement
@@ -204,6 +222,56 @@ typedLiveSurfaceFragmentRefs definition surfaceKey =
 unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveFragmentRef]
 unSurfaceFragmentRefs =
     map unSurfaceFragmentRef
+
+liveSurfaceMutation :: scope -> [fragment] -> LiveSurfaceMutation scope fragment
+liveSurfaceMutation surfaceKey fragments =
+    LiveSurfaceMutation
+        { liveMutationScope = surfaceKey
+        , liveMutationActorFragments = fragments
+        , liveMutationPassiveFragments = fragments
+        }
+
+typedLiveSurfaceMutationRefs ::
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    LiveSurfaceMutation scope fragment ->
+    ([SurfaceFragmentRef surface], [SurfaceFragmentRef surface])
+typedLiveSurfaceMutationRefs definition mutation =
+    ( typedLiveSurfaceFragmentRefs definition mutation.liveMutationScope mutation.liveMutationActorFragments
+    , typedLiveSurfaceFragmentRefs definition mutation.liveMutationScope mutation.liveMutationPassiveFragments
+    )
+
+performTypedLiveSurfaceMutation ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    LiveSurfaceMutation scope fragment ->
+    IO (LiveSurfaceMutationResult surface)
+performTypedLiveSurfaceMutation definition mutation = do
+    let (actorRefs, passiveRefs) = typedLiveSurfaceMutationRefs definition mutation
+    broadcastResult <-
+        if null mutation.liveMutationPassiveFragments
+            then pure Nothing
+            else
+                Just
+                    <$> broadcastLiveInvalidationDetailed
+                        (unSurfaceScope (definition.typedSurfaceScope mutation.liveMutationScope))
+                        liveUpdateSourceClientId
+                        (unSurfaceFragmentRefs passiveRefs)
+    pure
+        LiveSurfaceMutationResult
+            { actorSurfaceFragmentRefs = actorRefs
+            , passiveSurfaceFragmentRefs = passiveRefs
+            , liveMutationBroadcast = broadcastResult
+            }
+
+setLiveSurfaceActorRefresh ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    LiveSurfaceMutationResult surface ->
+    IO ()
+setLiveSurfaceActorRefresh result =
+    setHeader
+        ( "HX-Trigger"
+        , cs (Aeson.encode (liveFragmentsRefreshTriggerPayload (unSurfaceFragmentRefs result.actorSurfaceFragmentRefs)))
+        )
 
 authorizeTypedLiveSurfaceScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
