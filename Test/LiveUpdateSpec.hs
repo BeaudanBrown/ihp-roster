@@ -173,6 +173,14 @@ tests = describe "LiveUpdate runtime types" do
                         ]
                     }
 
+    it "declares live authorization requirements at the surface boundary" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+
+        typedSurfaceScopeFromWire supportLiveSurfaceDefinition SupportPlatformScope `shouldBe` Just ()
+        typedSurfaceScopeFromWire supportLiveSurfaceDefinition (LeaveRequestsScope { venueId }) `shouldBe` Nothing
+        defaultLiveUpdateScopeAuthorizationRequirement SupportPlatformScope `shouldBe` RequireSupportSuperAdmin
+        defaultLiveUpdateScopeAuthorizationRequirement AdminXeroScope { venueId } `shouldBe` RequireCurrentVenueOwner venueId
+
     it "round-trips leave, timesheet, and protected roster surface configs through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"

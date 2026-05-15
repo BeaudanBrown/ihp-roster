@@ -28,6 +28,7 @@ import qualified Test.Controller.SessionsSpec
 import qualified Test.Controller.StaffDocumentsSpec
 import qualified Test.Controller.StaffSpec
 import qualified Test.Controller.StaticSpec
+import qualified Test.Controller.SupportSpec
 import qualified Test.Controller.TimesheetsSpec
 import qualified Test.Controller.UsersSpec
 import qualified Test.Controller.VenueAccessSpec
@@ -146,6 +147,7 @@ allSuites =
     , TestSuite "SessionsController" Test.Controller.SessionsSpec.tests
     , TestSuite "RosterWeeksController" Test.Controller.RosterWeeksSpec.tests
     , TestSuite "LeaveRequestsController" Test.Controller.LeaveRequestsSpec.tests
+    , TestSuite "SupportController" Test.Controller.SupportSpec.tests
     , TestSuite "RosterGrid" Test.RosterGridSpec.tests
     , TestSuite "UsersController" Test.Controller.UsersSpec.tests
     , TestSuite "ExportsController" Test.Controller.ExportsSpec.tests

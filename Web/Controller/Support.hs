@@ -7,6 +7,7 @@ import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
+import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
 import Application.Helper.LiveUpdate (broadcastLiveInvalidation,
                                       liveUpdateSourceClientId)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
@@ -36,10 +37,12 @@ instance Controller SupportController where
         render IndexView { .. }
 
     action ShowFwcMapdAwardRatesSectionAction = do
+        ensureTypedLiveSurfaceAuthorized supportLiveSurfaceDefinition ()
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
 
     action ShowPublicHolidaysSectionAction = do
+        ensureTypedLiveSurfaceAuthorized supportLiveSurfaceDefinition ()
         (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
         respondHtml (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
 

@@ -1,10 +1,11 @@
 module Web.Controller.LiveUpdates where
 
 import Application.Helper.Controller
+import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
+import Application.Support.LiveUpdates (supportLiveSurfaceDefinition)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
-import Data.Coerce (coerce)
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Network.WebSockets as WebSocket
@@ -95,75 +96,8 @@ isAuthorizedScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     LiveUpdateScope ->
     IO Bool
-isAuthorizedScope =
-    authorizeScopeRequirement . scopeAuthorizationRequirement
-
-data ScopeAuthorizationRequirement
-    = RequireCurrentVenue UUID.UUID
-    | RequireCurrentVenueUser UUID.UUID UUID.UUID
-    | RequireCurrentVenueRosterGroup UUID.UUID UUID.UUID
-    | RequireCurrentVenueAdmin UUID.UUID
-    | RequireCurrentVenueAdminRosterGroup UUID.UUID UUID.UUID
-    | RequireSupportSuperAdmin
-
-scopeAuthorizationRequirement :: LiveUpdateScope -> ScopeAuthorizationRequirement
-scopeAuthorizationRequirement RosterWeekScope { venueId, rosterGroupId } =
-    RequireCurrentVenueRosterGroup venueId rosterGroupId
-scopeAuthorizationRequirement AdminInvitesScope { venueId } =
-    RequireCurrentVenueAdmin venueId
-scopeAuthorizationRequirement AdminShiftTypesScope { venueId } =
-    RequireCurrentVenueAdmin venueId
-scopeAuthorizationRequirement AdminRosterGroupsScope { venueId } =
-    RequireCurrentVenueAdmin venueId
-scopeAuthorizationRequirement AdminXeroScope { venueId } =
-    RequireCurrentVenueAdmin venueId
-scopeAuthorizationRequirement LeaveRequestsScope { venueId } =
-    RequireCurrentVenue venueId
-scopeAuthorizationRequirement TimesheetWeekScope { venueId } =
-    RequireCurrentVenue venueId
-scopeAuthorizationRequirement ProfileScope { venueId, userId } =
-    RequireCurrentVenueUser venueId userId
-scopeAuthorizationRequirement SupportPlatformScope =
-    RequireSupportSuperAdmin
-
-authorizeScopeRequirement ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    ScopeAuthorizationRequirement ->
-    IO Bool
-authorizeScopeRequirement (RequireCurrentVenue venueId) =
-    pure (currentVenueMatches venueId)
-authorizeScopeRequirement (RequireCurrentVenueUser venueId userId) =
-    pure (currentVenueMatches venueId && userId == unpackId authenticatedCurrentUser.id)
-authorizeScopeRequirement (RequireCurrentVenueRosterGroup venueId rosterGroupId) =
-    if currentVenueMatches venueId
-        then isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
-        else pure False
-authorizeScopeRequirement (RequireCurrentVenueAdmin venueId) =
-    pure (currentVenueMatches venueId && hasRole VenueAdminRole)
-authorizeScopeRequirement (RequireCurrentVenueAdminRosterGroup venueId rosterGroupId) =
-    if currentVenueMatches venueId
-        then do
-            hasRosterGroupAccess <- isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
-            pure (hasRosterGroupAccess && hasRole VenueAdminRole)
-        else pure False
-authorizeScopeRequirement RequireSupportSuperAdmin =
-    pure currentUserIsSuperAdmin
-
-currentVenueMatches :: (?context :: ControllerContext) => UUID.UUID -> Bool
-currentVenueMatches venueId =
-    maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing
-
-isAuthorizedCurrentVenueRosterGroupScope ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    UUID.UUID ->
-    IO Bool
-isAuthorizedCurrentVenueRosterGroupScope rosterGroupId = do
-    case currentVenueOrNothing of
-        Nothing -> pure False
-        Just venue -> do
-            rosterGroupOrNothing <-
-                query @RosterGroup
-                    |> filterWhere (#id, coerce rosterGroupId)
-                    |> filterWhere (#venueId, unpackId venue.id)
-                    |> fetchOneOrNothing
-            pure (isJust rosterGroupOrNothing)
+isAuthorizedScope scope = do
+    supportAuthorization <- authorizeTypedLiveSurfaceWireScope supportLiveSurfaceDefinition scope
+    case supportAuthorization of
+        Just allowed -> pure allowed
+        Nothing      -> authorizeLiveUpdateScope scope

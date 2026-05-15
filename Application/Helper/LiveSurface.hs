@@ -2,14 +2,23 @@ module Application.Helper.LiveSurface
     ( LiveSurfaceConfig (..)
     , LiveSurfaceBroadcastOptions (..)
     , LiveSurfaceDefinition (..)
+    , LiveScopeAuthorizationRequirement (..)
+    , LiveSurfaceAuthorization (..)
     , ProjectionLiveSurfaceDefinition (..)
     , SurfaceFragmentRef (..)
     , SurfaceScope (..)
     , TypedLiveSurfaceDefinition (..)
+    , authorizeLiveScopeRequirement
+    , authorizeLiveUpdateScope
+    , authorizeTypedLiveSurfaceScope
+    , authorizeTypedLiveSurfaceWireScope
     , broadcastProjectionSurfaceFragments
     , broadcastProjectionSurfaceFragmentsWith
     , broadcastSurfaceFragments
     , defaultLiveSurfaceBroadcastOptions
+    , defaultLiveUpdateScopeAuthorizationRequirement
+    , ensureTypedLiveSurfaceAuthorized
+    , liveSurfaceAuthorizationByScope
     , liveSurfaceProjectionFragmentRef
     , liveSurfaceConfigJson
     , liveSurfaceFragmentRef
@@ -32,12 +41,23 @@ module Application.Helper.LiveSurface
 
 import Application.Helper.LiveUpdate
 import Application.Helper.SurfaceProjection
+import Application.Helper.ControllerAccess (hasRole)
+import Application.Helper.ControllerContext (authenticatedCurrentUser,
+                                             currentUserIsSuperAdmin,
+                                             currentVenueOrNothing)
+import Application.Helper.ControllerSupport (VenueRole (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
+import Data.Coerce (coerce)
 import qualified Data.Dynamic as Dynamic
 import qualified Data.Text.Encoding as Text
+import qualified Data.UUID as UUID
+import Generated.Types
 import IHP.Controller.Context (ControllerContext)
+import IHP.ControllerPrelude (accessDeniedUnless, fetchOneOrNothing,
+                              filterWhere, query)
 import IHP.ControllerSupport (Request)
+import IHP.ModelSupport
 import IHP.Prelude
 import qualified Text.Blaze.Html as Blaze
 
@@ -69,13 +89,29 @@ data LiveSurfaceDefinition scope fragment = LiveSurfaceDefinition
     , surfaceDecorateRequestsWithin :: scope -> [Text]
     }
 
+data LiveSurfaceAuthorization scope = LiveSurfaceAuthorization
+    { authorizeLiveSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => scope -> IO Bool
+    }
+
 data TypedLiveSurfaceDefinition surface scope fragment = TypedLiveSurfaceDefinition
     { typedSurfaceFeature                :: !Text
     , typedSurfaceScope                  :: scope -> SurfaceScope surface
+    , typedSurfaceScopeFromWire          :: LiveUpdateScope -> Maybe scope
     , typedSurfaceDefaultFragments       :: scope -> [fragment]
     , typedSurfaceFragmentRef            :: scope -> fragment -> SurfaceFragmentRef surface
     , typedSurfaceDecorateRequestsWithin :: scope -> [Text]
+    , typedSurfaceAuthorize              :: !(LiveSurfaceAuthorization scope)
     }
+
+data LiveScopeAuthorizationRequirement
+    = RequireCurrentVenue UUID.UUID
+    | RequireCurrentVenueUser UUID.UUID UUID.UUID
+    | RequireCurrentVenueRosterGroup UUID.UUID UUID.UUID
+    | RequireCurrentVenueAdmin UUID.UUID
+    | RequireCurrentVenueOwner UUID.UUID
+    | RequireCurrentVenueAdminRosterGroup UUID.UUID UUID.UUID
+    | RequireSupportSuperAdmin
+    deriving (Eq, Show)
 
 data ProjectionLiveSurfaceDefinition scope snapshot fragment = ProjectionLiveSurfaceDefinition
     { liveSurfaceDefinition       :: !(LiveSurfaceDefinition scope fragment)
@@ -168,6 +204,114 @@ typedLiveSurfaceFragmentRefs definition surfaceKey =
 unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveFragmentRef]
 unSurfaceFragmentRefs =
     map unSurfaceFragmentRef
+
+authorizeTypedLiveSurfaceScope ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    scope ->
+    IO Bool
+authorizeTypedLiveSurfaceScope definition =
+    authorizeLiveSurfaceScope definition.typedSurfaceAuthorize
+
+authorizeTypedLiveSurfaceWireScope ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    LiveUpdateScope ->
+    IO (Maybe Bool)
+authorizeTypedLiveSurfaceWireScope definition wireScope =
+    case definition.typedSurfaceScopeFromWire wireScope of
+        Just surfaceKey
+            | unSurfaceScope (definition.typedSurfaceScope surfaceKey) == wireScope ->
+                Just <$> authorizeTypedLiveSurfaceScope definition surfaceKey
+        _ -> pure Nothing
+
+ensureTypedLiveSurfaceAuthorized ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    scope ->
+    IO ()
+ensureTypedLiveSurfaceAuthorized definition surfaceKey = do
+    authorized <- authorizeTypedLiveSurfaceScope definition surfaceKey
+    accessDeniedUnless authorized
+
+liveSurfaceAuthorizationByScope ::
+    (scope -> SurfaceScope surface) ->
+    LiveSurfaceAuthorization scope
+liveSurfaceAuthorizationByScope surfaceScope =
+    LiveSurfaceAuthorization
+        { authorizeLiveSurfaceScope = authorizeLiveUpdateScope . unSurfaceScope . surfaceScope
+        }
+
+authorizeLiveUpdateScope ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    LiveUpdateScope ->
+    IO Bool
+authorizeLiveUpdateScope =
+    authorizeLiveScopeRequirement . defaultLiveUpdateScopeAuthorizationRequirement
+
+defaultLiveUpdateScopeAuthorizationRequirement :: LiveUpdateScope -> LiveScopeAuthorizationRequirement
+defaultLiveUpdateScopeAuthorizationRequirement RosterWeekScope { venueId, rosterGroupId } =
+    RequireCurrentVenueRosterGroup venueId rosterGroupId
+defaultLiveUpdateScopeAuthorizationRequirement AdminInvitesScope { venueId } =
+    RequireCurrentVenueAdmin venueId
+defaultLiveUpdateScopeAuthorizationRequirement AdminShiftTypesScope { venueId } =
+    RequireCurrentVenueAdmin venueId
+defaultLiveUpdateScopeAuthorizationRequirement AdminRosterGroupsScope { venueId } =
+    RequireCurrentVenueAdmin venueId
+defaultLiveUpdateScopeAuthorizationRequirement AdminXeroScope { venueId } =
+    RequireCurrentVenueOwner venueId
+defaultLiveUpdateScopeAuthorizationRequirement LeaveRequestsScope { venueId } =
+    RequireCurrentVenue venueId
+defaultLiveUpdateScopeAuthorizationRequirement TimesheetWeekScope { venueId } =
+    RequireCurrentVenue venueId
+defaultLiveUpdateScopeAuthorizationRequirement ProfileScope { venueId, userId } =
+    RequireCurrentVenueUser venueId userId
+defaultLiveUpdateScopeAuthorizationRequirement SupportPlatformScope =
+    RequireSupportSuperAdmin
+
+authorizeLiveScopeRequirement ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    LiveScopeAuthorizationRequirement ->
+    IO Bool
+authorizeLiveScopeRequirement (RequireCurrentVenue venueId) =
+    pure (currentVenueMatches venueId)
+authorizeLiveScopeRequirement (RequireCurrentVenueUser venueId userId) =
+    pure (currentVenueMatches venueId && userId == unpackId authenticatedCurrentUser.id)
+authorizeLiveScopeRequirement (RequireCurrentVenueRosterGroup venueId rosterGroupId) =
+    if currentVenueMatches venueId
+        then isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
+        else pure False
+authorizeLiveScopeRequirement (RequireCurrentVenueAdmin venueId) =
+    pure (currentVenueMatches venueId && hasRole VenueAdminRole)
+authorizeLiveScopeRequirement (RequireCurrentVenueOwner venueId) =
+    pure (currentVenueMatches venueId && hasRole VenueOwnerRole)
+authorizeLiveScopeRequirement (RequireCurrentVenueAdminRosterGroup venueId rosterGroupId) =
+    if currentVenueMatches venueId
+        then do
+            hasRosterGroupAccess <- isAuthorizedCurrentVenueRosterGroupScope rosterGroupId
+            pure (hasRosterGroupAccess && hasRole VenueAdminRole)
+        else pure False
+authorizeLiveScopeRequirement RequireSupportSuperAdmin =
+    pure currentUserIsSuperAdmin
+
+currentVenueMatches :: (?context :: ControllerContext) => UUID.UUID -> Bool
+currentVenueMatches venueId =
+    maybe False (\venue -> venueId == unpackId venue.id) currentVenueOrNothing
+
+isAuthorizedCurrentVenueRosterGroupScope ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
+    UUID.UUID ->
+    IO Bool
+isAuthorizedCurrentVenueRosterGroupScope rosterGroupId = do
+    case currentVenueOrNothing of
+        Nothing -> pure False
+        Just venue -> do
+            rosterGroupOrNothing <-
+                query @RosterGroup
+                    |> filterWhere (#id, coerce rosterGroupId)
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> fetchOneOrNothing
+            pure (isJust rosterGroupOrNothing)
 
 broadcastSurfaceFragments ::
     (?context :: ControllerContext, ?request :: Request) =>

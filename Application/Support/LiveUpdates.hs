@@ -25,6 +25,9 @@ supportLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "support"
         , typedSurfaceScope = const (SurfaceScope supportLiveUpdateScope)
+        , typedSurfaceScopeFromWire = \case
+            SupportPlatformScope -> Just ()
+            _ -> Nothing
         , typedSurfaceDefaultFragments = const supportLiveFragmentRefs
         , typedSurfaceFragmentRef = const (SurfaceFragmentRef . supportLiveFragmentRef)
         , typedSurfaceDecorateRequestsWithin =
@@ -33,6 +36,7 @@ supportLiveSurfaceDefinition =
                 , "#support-award-rates-section"
                 , "#support-public-holidays-section"
                 ]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByScope (const (SurfaceScope supportLiveUpdateScope))
         }
 
 supportLiveFragmentRefs :: [SupportLiveFragment]

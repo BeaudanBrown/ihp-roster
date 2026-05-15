@@ -1,6 +1,6 @@
 ---
 id: ir-lxkv
-status: open
+status: closed
 deps: [ir-ix0n]
 links: []
 created: 2026-05-15T02:27:04Z
