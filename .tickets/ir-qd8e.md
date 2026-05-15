@@ -1,6 +1,6 @@
 ---
 id: ir-qd8e
-status: open
+status: in_progress
 deps: [ir-ix0n, ir-lxkv]
 links: []
 created: 2026-05-15T02:27:13Z
@@ -22,3 +22,9 @@ Given a surface fixture, verify config JSON round-trips, default fragment refs a
 
 At least two migrated surfaces use the harness, including one projection-backed surface and one simple surface; the harness catches target-id or authorization drift without requiring Playwright.
 
+
+## Notes
+
+**2026-05-15T02:43:30Z**
+
+Added reusable live surface contract assertions and support coverage. Remaining before close: apply the helper to a migrated projection-backed surface after the leave/timesheet migration.

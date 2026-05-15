@@ -2,7 +2,7 @@ module Test.Controller.SupportSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveUpdate (currentLiveUpdateVersion)
-import Application.Support.LiveUpdates (supportLiveUpdateScope)
+import Application.Support.LiveUpdates
 import Config
 import IHP.FrameworkConfig
 import IHP.Prelude
@@ -10,6 +10,7 @@ import IHP.Test.Mocking
 import Network.HTTP.Types.Status
 import Test.Hspec
 import Test.Support
+import Test.Support.LiveSurfaceContract
 import Web.Controller.Support ()
 import Web.FrontController ()
 import Web.Types
@@ -20,7 +21,7 @@ tests = beforeAll testContext do
         it "redirects unauthenticated users from live support fragments" $ withContext do
             response <- callAction ShowFwcMapdAwardRatesSectionAction
 
-            response `responseStatusShouldBe` status302
+            liveFragmentResponseShouldBeDenied status302 response
 
         it "redirects ordinary users from live support fragments" $ withContext do
             withCleanDb do
@@ -29,7 +30,7 @@ tests = beforeAll testContext do
                 response <- withPasskeyVerifiedUser user do
                     callAction ShowPublicHolidaysSectionAction
 
-                response `responseStatusShouldBe` status302
+                liveFragmentResponseShouldBeDenied status302 response
 
         it "serves live support fragments to super admins through the surface rule" $ withContext do
             withCleanDb do
@@ -40,12 +41,8 @@ tests = beforeAll testContext do
                 publicHolidaysResponse <- withPasskeyVerifiedUser superAdmin do
                     callAction ShowPublicHolidaysSectionAction
 
-                awardRatesResponse `responseStatusShouldBe` status200
-                awardRatesResponse `responseBodyShouldContain` "id=\"support-award-rates-section\""
-                awardRatesResponse `responseBodyShouldNotContain` "id=\"app\""
-                publicHolidaysResponse `responseStatusShouldBe` status200
-                publicHolidaysResponse `responseBodyShouldContain` "id=\"support-public-holidays-section\""
-                publicHolidaysResponse `responseBodyShouldNotContain` "id=\"app\""
+                liveFragmentResponseShouldRenderTarget awardRatesResponse supportAwardRatesSectionFragmentRef
+                liveFragmentResponseShouldRenderTarget publicHolidaysResponse supportPublicHolidaysSectionFragmentRef
 
         it "mounts support live surface metadata for super admins" $ withContext do
             withCleanDb do
@@ -54,11 +51,7 @@ tests = beforeAll testContext do
                 response <- withPasskeyVerifiedUser superAdmin do
                     callAction SupportAction
 
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-live-update-surface=\""
-                response `responseBodyShouldContain` "support_platform"
-                response `responseBodyShouldContain` "support_award_rates_section"
-                response `responseBodyShouldContain` "support_public_holidays_section"
+                responseShouldMountLiveSurface response supportLiveSurface
 
         it "broadcasts support refresh mutations through typed live helpers" $ withContext do
             withCleanDb do
