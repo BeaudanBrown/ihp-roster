@@ -35,6 +35,8 @@ for forward-looking design.
 - `schema-hardening.md` - V1 schema hardening.
 - `subscription-billing.md` - per-venue Stripe Billing subscriptions.
 - `maintenance.md` - cross-cutting refactors and doc/agent cleanup.
+- `live-surface-architecture.md` - typed live-fragment surface ergonomics and
+  robustness.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.
 
 ## Workstream Exit Criteria
