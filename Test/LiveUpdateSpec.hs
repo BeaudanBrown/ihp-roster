@@ -119,6 +119,37 @@ tests = describe "LiveUpdate runtime types" do
         activeLiveUpdateScopeMatches supportScopeLabel `shouldReturn` []
         activeRosterWeekScopes `shouldReturn` []
 
+    it "exercises isolated in-memory live buses without global state leakage" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let scope = LeaveRequestsScope { venueId }
+        let fragment =
+                LiveFragmentRef
+                    { fragmentKey = LeaveRequestsContentFragment
+                    , targetId = "leave-requests-content"
+                    , url = "/ShowLeaveRequestsContentFragment"
+                    , deferUntilBlur = False
+                    , protectionPolicy = NoProtection
+                    }
+        firstBus <- newInMemoryLiveBus
+        secondBus <- newInMemoryLiveBus
+
+        activeLiveUpdateScopesWithBus firstBus `shouldReturn` []
+        activeLiveUpdateScopeMatchesWithBus firstBus supportScopeLabel `shouldReturn` []
+        activeRosterWeekScopesWithBus firstBus `shouldReturn` []
+        currentLiveUpdateVersionWithBus firstBus scope `shouldReturn` 0
+        incrementLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1
+        currentLiveUpdateVersionWithBus firstBus scope `shouldReturn` 1
+        currentLiveUpdateVersionWithBus secondBus scope `shouldReturn` 0
+
+        result <- broadcastLiveInvalidationDetailedWithBus firstBus scope Nothing [fragment, fragment]
+
+        result.broadcastVersion `shouldBe` 2
+        result.broadcastSubscriberCount `shouldBe` 0
+        result.broadcastFragmentCount `shouldBe` 2
+        result.broadcastRefetchFragmentCount `shouldBe` 1
+        result.broadcastCoalescedFragmentCount `shouldBe` 1
+        result.broadcastDroppedSubscriptions `shouldBe` 0
+
     it "reports broadcast fanout counts for profiling hooks" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = LeaveRequestsScope { venueId }

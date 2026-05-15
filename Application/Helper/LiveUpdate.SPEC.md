@@ -44,6 +44,23 @@ A surface owns:
   in the shared runtime.
 - Reconnect/version gaps should trigger configured resync fragments.
 
+## LiveBus Boundary
+
+`Application.Helper.LiveUpdate.LiveBus` is the boundary around live
+subscriptions, scope versions, active-scope discovery, and invalidation
+broadcasts. The default implementation is the single-process in-memory bus.
+
+Callers should use the existing top-level live-update helpers unless a test or a
+future runtime explicitly needs a different bus. Tests that need isolated
+version/subscription state should create a bus with `newInMemoryLiveBus` and use
+the `WithBus` helpers instead of touching global process state.
+
+Future distributed implementations, such as Postgres `LISTEN`/`NOTIFY` or
+Redis pub/sub, must preserve the public `LiveBus` contract: structural
+`LiveFragmentRef` invalidations, monotonically increasing versions per
+`LiveUpdateScope`, and server-side authorization before websocket
+subscription.
+
 ## Extension Rules
 
 - Do not add feature-specific JavaScript adapters for normal subscribe, resync,
