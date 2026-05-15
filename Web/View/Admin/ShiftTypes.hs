@@ -1,10 +1,17 @@
 module Web.View.Admin.ShiftTypes
-    ( renderShiftTypesSectionFragment
+    ( AdminShiftTypesLiveFragment (..)
+    , adminShiftTypesLiveSurfaceDefinition
+    , renderShiftTypesSectionFragment
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson, mkLiveSurface)
+                                       SurfaceFragmentRef (..),
+                                       SurfaceScope (..),
+                                       TypedLiveSurfaceDefinition (..),
+                                       liveSurfaceAuthorizationByScope,
+                                       liveSurfaceConfigJson,
+                                       mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (FocusedFieldProtectionConfig (..),
                                       LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
@@ -26,29 +33,54 @@ renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates 
 renderShiftTypesSectionFragment :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBaseRates = [hsx|
     <div id="admin-shift-types-fragment"
-         data-live-update-surface={liveSurfaceConfigJson <$> adminShiftTypesLiveSurface}>
+         data-live-update-surface={liveSurfaceConfigJson adminShiftTypesLiveSurface}>
         {renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates}
     </div>
 |]
 
-adminShiftTypesLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
+data AdminShiftTypesSurface
+
+data AdminShiftTypesLiveFragment
+    = AdminShiftTypesLiveFragment
+    deriving (Eq, Show)
+
+adminShiftTypesLiveSurface :: (?context :: ControllerContext) => LiveSurfaceConfig
 adminShiftTypesLiveSurface =
-    fmap
-        (\venue ->
-        (mkLiveSurface
-            "admin-shift-types"
-            AdminShiftTypesScope { venueId = unpackId venue.id }
-            [ (mkLiveFragmentRef
-                AdminShiftTypesFragment
-                "admin-shift-types-fragment"
-                (pathTo ShowAdminShiftTypesFragmentAction))
-                { deferUntilBlur = True
-                , protectionPolicy = adminShiftTypesFocusProtection
-                }
-            ])
-            { decorateRequestsWithin = ["#admin-shift-types-fragment"] }
-        )
-        currentVenueOrNothing
+    mkTypedDefinedLiveSurface adminShiftTypesLiveSurfaceDefinition ()
+
+adminShiftTypesLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminShiftTypesSurface () AdminShiftTypesLiveFragment
+adminShiftTypesLiveSurfaceDefinition =
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "admin-shift-types"
+        , typedSurfaceScope = adminShiftTypesSurfaceScope
+        , typedSurfaceScopeFromWire = \scope ->
+            case (currentVenueOrNothing, scope) of
+                (Just _, AdminShiftTypesScope {}) -> Just ()
+                _                                 -> Nothing
+        , typedSurfaceDefaultFragments = const [AdminShiftTypesLiveFragment]
+        , typedSurfaceFragmentRef = const (SurfaceFragmentRef . adminShiftTypesLiveFragmentRef)
+        , typedSurfaceDecorateRequestsWithin = const ["#admin-shift-types-fragment"]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByScope adminShiftTypesSurfaceScope
+        }
+
+adminShiftTypesSurfaceScope :: (?context :: ControllerContext) => () -> SurfaceScope AdminShiftTypesSurface
+adminShiftTypesSurfaceScope () =
+    SurfaceScope AdminShiftTypesScope { venueId = currentVenueScopeId }
+    where
+        currentVenueScopeId =
+            case currentVenueOrNothing of
+                Just venue -> unpackId venue.id
+                Nothing    -> error "Admin shift type live surface requires a current venue"
+
+adminShiftTypesLiveFragmentRef :: (?context :: ControllerContext) => AdminShiftTypesLiveFragment -> LiveFragmentRef
+adminShiftTypesLiveFragmentRef AdminShiftTypesLiveFragment =
+    (mkLiveFragmentRef
+        AdminShiftTypesFragment
+        "admin-shift-types-fragment"
+        (pathTo ShowAdminShiftTypesFragmentAction))
+        { deferUntilBlur = True
+        , protectionPolicy = adminShiftTypesFocusProtection
+        }
 
 adminShiftTypesFocusProtection :: LiveFragmentProtection
 adminShiftTypesFocusProtection =

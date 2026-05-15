@@ -5,7 +5,8 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Web.RosterWeeks.RenderData
-    ( rosterProjectionDefinition
+    ( rosterLiveSurfaceDefinition
+    , rosterProjectionDefinition
     , fetchVisibleRosterRenderDataCached
     , renderVisibleRosterProjectionFragment
     , renderRosterProjectionFragment
@@ -58,29 +59,46 @@ import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
 
-rosterLiveSurfaceDefinition :: (?context :: ControllerContext) => LiveSurfaceDefinition RosterProjectionScope RosterProjectionFragment
+data RosterLiveSurface
+
+rosterLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope RosterProjectionFragment
 rosterLiveSurfaceDefinition =
-    LiveSurfaceDefinition
-        { surfaceFeature = "roster"
-        , surfaceScope = \scope -> buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset
-        , surfaceDefaultFragments = const [RosterProjectionContent, RosterProjectionStaffPanel]
-        , surfaceFragmentRef = \scope fragment ->
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "roster"
+        , typedSurfaceScope = rosterSurfaceScope
+        , typedSurfaceScopeFromWire = rosterSurfaceScopeFromWire
+        , typedSurfaceDefaultFragments = const [RosterProjectionContent, RosterProjectionStaffPanel]
+        , typedSurfaceFragmentRef = \scope fragment ->
             case fragment of
                 RosterProjectionContent ->
-                    buildRosterContentFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset
+                    SurfaceFragmentRef (buildRosterContentFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
                 RosterProjectionStaffPanel ->
-                    buildRosterStaffPanelFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset
+                    SurfaceFragmentRef (buildRosterStaffPanelFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
                 RosterProjectionDaySection rosterDayId ->
-                    buildRosterDaySectionFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset rosterDayId
+                    SurfaceFragmentRef (buildRosterDaySectionFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset rosterDayId)
                 RosterProjectionRow rosterDayId rowIndex ->
-                    buildRosterRowFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset rosterDayId rowIndex
-        , surfaceDecorateRequestsWithin = const ["#roster-week-shell"]
+                    SurfaceFragmentRef (buildRosterRowFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset rosterDayId rowIndex)
+        , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByScope rosterSurfaceScope
         }
+    where
+        rosterSurfaceScope scope =
+            SurfaceScope (buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
+
+        rosterSurfaceScopeFromWire scope =
+            case (currentVenueOrNothing, scope) of
+                (Just _, RosterWeekScope { rosterGroupId, weekOffset }) ->
+                    Just RosterProjectionScope
+                        { rosterProjectionGroupId = coerce rosterGroupId
+                        , rosterProjectionWeekOffset = weekOffset
+                        }
+                _ ->
+                    Nothing
 
 rosterProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition RosterProjectionScope (Maybe RosterRenderData) RosterProjectionFragment
 rosterProjectionDefinition =
     mkSurfaceProjectionDefinition
-        rosterLiveSurfaceDefinition
+        (typedLiveSurfaceDefinition rosterLiveSurfaceDefinition)
         "roster-week"
         defaultSurfaceProjectionCachePolicy
         (\scope -> tshow scope.rosterProjectionGroupId <> ":" <> tshow scope.rosterProjectionWeekOffset)

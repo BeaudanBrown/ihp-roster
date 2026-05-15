@@ -1,6 +1,8 @@
 module Web.Controller.Admin.Support where
 
 import Application.Helper.Export
+import Application.Helper.LiveSurface (broadcastSurfaceFragments,
+                                       typedLiveSurfaceDefinition)
 import Application.Helper.LiveUpdate
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
@@ -144,10 +146,11 @@ broadcastAdminShiftTypesInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id Venue ->
     IO ()
-broadcastAdminShiftTypesInvalidation venueId =
-    broadcastLiveResync
-        (adminShiftTypesScope venueId)
-        liveUpdateSourceClientId
+broadcastAdminShiftTypesInvalidation _venueId =
+    broadcastSurfaceFragments
+        (typedLiveSurfaceDefinition adminShiftTypesLiveSurfaceDefinition)
+        ()
+        [AdminShiftTypesLiveFragment]
 
 broadcastAdminRosterGroupsInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>

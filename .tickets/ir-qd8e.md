@@ -1,6 +1,6 @@
 ---
 id: ir-qd8e
-status: in_progress
+status: closed
 deps: [ir-ix0n, ir-lxkv]
 links: []
 created: 2026-05-15T02:27:13Z
@@ -28,3 +28,7 @@ At least two migrated surfaces use the harness, including one projection-backed 
 **2026-05-15T02:43:30Z**
 
 Added reusable live surface contract assertions and support coverage. Remaining before close: apply the helper to a migrated projection-backed surface after the leave/timesheet migration.
+
+**2026-05-15T03:12:16Z**
+
+Closed after applying the reusable live surface contract helpers to the migrated timesheet projection surface; support remains the simple-surface harness example.

@@ -5,6 +5,7 @@ import Application.Helper.Controller (PlatformRole (..), currentVenueSessionKey,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey,
                                       platformRoleToEnum, unsafeEnumFromText)
+import Application.Helper.ControllerContext (initCurrentVenueContext)
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup,
@@ -31,6 +32,7 @@ import IHP.ControllerPrelude
 import IHP.ControllerSupport (Respond)
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.LoginSupport.Middleware (initAuthentication)
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import IHP.ModelSupport (sqlExecDiscardResult)
 import IHP.Prelude
@@ -58,6 +60,18 @@ withControllerTestContext action =
         controllerContext <- newControllerContext
         let ?context = controllerContext
         action
+
+withCurrentControllerContext ::
+    (?mocking :: MockContext WebApplication, ?request :: Wai.Request, ?modelContext :: ModelContext) =>
+    ((?context :: ControllerContext) => IO a) ->
+    IO a
+withCurrentControllerContext action = do
+    let ?frameworkConfig = config
+    controllerContext <- newControllerContext
+    let ?context = controllerContext
+    initAuthentication @User
+    initCurrentVenueContext
+    action
 
 resetDatabase :: (?modelContext :: ModelContext) => IO ()
 resetDatabase = do

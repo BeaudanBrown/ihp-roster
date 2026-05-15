@@ -1,12 +1,13 @@
 module Web.View.RosterWeeks.Show where
 
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson, mkLiveSurface)
+                                       liveSurfaceConfigJson,
+                                       mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (LiveUpdateScope)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.Projection (buildRosterContentFragmentRef,
-                                   buildRosterStaffPanelFragmentRef)
+import Web.RosterWeeks.Projection (buildRosterProjectionScope)
+import Web.RosterWeeks.RenderData (rosterLiveSurfaceDefinition)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid (renderRosterContentFragment)
@@ -51,20 +52,16 @@ renderRosterWeekShell ShowView { .. } =
      in [hsx|
     <section id={rosterWeekShellId}
              hx-history-elt="true"
-             data-live-update-surface={liveSurfaceConfigJson . rosterWeekLiveSurface currentRosterGroup.id weekOffset <$> liveUpdateScope}>
+             data-live-update-surface={liveSurfaceConfigJson <$> rosterWeekLiveSurface currentRosterGroup.id weekOffset liveUpdateScope}>
         {page}
     </section>
 |]
 
-rosterWeekLiveSurface :: (?context :: ControllerContext) => Id RosterGroup -> Int -> LiveUpdateScope -> LiveSurfaceConfig
-rosterWeekLiveSurface rosterGroupId weekOffset scope =
-    (mkLiveSurface
-        "roster"
-        scope
-        [ buildRosterContentFragmentRef rosterGroupId weekOffset
-        , buildRosterStaffPanelFragmentRef rosterGroupId weekOffset
-        ])
-        { decorateRequestsWithin = ["#" <> rosterWeekShellId] }
+rosterWeekLiveSurface :: (?context :: ControllerContext) => Id RosterGroup -> Int -> Maybe LiveUpdateScope -> Maybe LiveSurfaceConfig
+rosterWeekLiveSurface rosterGroupId weekOffset maybeScope =
+    case maybeScope of
+        Nothing -> Nothing
+        Just _  -> Just (mkTypedDefinedLiveSurface rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset))
 
 renderPasskeySetupPrompt :: (?context :: ControllerContext) => Maybe PasskeySetupPromptMode -> Html
 renderPasskeySetupPrompt Nothing = mempty

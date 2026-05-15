@@ -28,6 +28,9 @@ Read this before editing `static/` assets.
 - Do not add feature-specific adapters for normal live-surface discovery,
   subscription, request decoration, version-gap resync, fragment fetching,
   swapping, or focused-field protection.
+- Treat `data-live-update-surface` JSON as server-owned typed-surface output.
+  Static JS should not infer feature scopes, target ids, or URLs that belong in
+  Haskell surface definitions.
 - Feature scripts may handle genuinely feature-specific UI behavior.
 
 ## UI Rules

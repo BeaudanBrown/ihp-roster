@@ -7,6 +7,7 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
+import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
 import Application.Helper.LiveUpdate (LiveFragmentRef, LiveUpdateScope (..),
                                       liveFragmentsRefreshTriggerPayload)
 import Application.Helper.Profiling
@@ -89,21 +90,25 @@ instance Controller RosterWeeksController where
 
     action ShowRosterWeekContentFragmentAction { weekOffset } = do
         rosterGroup <- resolveRequestedRosterGroup
+        ensureTypedLiveSurfaceAuthorized rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset)
         respondWithRosterContent rosterGroup.id weekOffset
 
     action ShowRosterWeekStaffPanelFragmentAction { weekOffset } = do
         rosterGroup <- resolveRequestedRosterGroup
+        ensureTypedLiveSurfaceAuthorized rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset)
         panelStaff <- fetchVisibleRosterStaffPanelEntries rosterGroup.id weekOffset
         respondHtmlProfiled $
             maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id) panelStaff
 
     action ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
+        ensureTypedLiveSurfaceAuthorized rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset)
         daySectionHtml <- fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId
         respondHtmlProfiled (fromMaybe mempty daySectionHtml)
 
     action ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId, rowIndex } = do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
+        ensureTypedLiveSurfaceAuthorized rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset)
         rowHtml <- fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex
         respondHtmlProfiled (fromMaybe mempty rowHtml)
 

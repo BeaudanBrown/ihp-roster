@@ -24,17 +24,27 @@ This file describes the shared live-fragment architecture implemented by
 ## Surface Declaration
 
 Ordinary live surfaces should be declared in Haskell with
-`Application.Helper.LiveSurface.LiveSurfaceConfig` and rendered on a stable
-owner element as `data-live-update-surface`.
+`Application.Helper.LiveSurface.TypedLiveSurfaceDefinition` and rendered on a
+stable owner element as `data-live-update-surface` via
+`mkTypedDefinedLiveSurface` and `liveSurfaceConfigJson`.
 
 A surface owns:
 
 - feature name
 - websocket path
 - scope and scope key
+- wire-scope conversion
+- authorization rule
 - default resync fragments
+- feature-local fragment enum to structural fragment refs
 - request-decoration selectors
 - optional focused-field protection policies
+
+`LiveSurfaceDefinition` remains the compatibility boundary for projection
+helpers and legacy surfaces. New or migrated surfaces should keep fragment enums
+feature-local and cross the typed-to-wire boundary only through
+`typedLiveSurfaceDefinition`, `typedLiveSurfaceFragmentRef(s)`, or
+`unSurfaceFragmentRefs`.
 
 ## Refetch And Protection
 
@@ -67,6 +77,13 @@ subscription.
   request decoration, refetch, swap, dedupe, or focused-field protection.
 - Add a live surface only when another actor, another tab, or an async job can
   make the mounted DOM stale.
+- Fragment GET actions for typed surfaces should call
+  `ensureTypedLiveSurfaceAuthorized` with the same surface key that produced the
+  fragment ref.
+- Mutating controllers should prefer typed helpers such as
+  `broadcastSurfaceFragments` or `performTypedLiveSurfaceMutation` so actor refs
+  and passive invalidations are declared in surface fragments, not ad hoc wire
+  refs.
 - For broad fanout mutations, intersect candidate scopes with active
   subscriptions before querying cold historical data.
 

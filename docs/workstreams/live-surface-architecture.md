@@ -1,6 +1,6 @@
 # Typed Live Surface Architecture
 
-Status: active
+Status: implemented
 
 Tickets:
 
@@ -40,19 +40,18 @@ of a manual wiring exercise across scope constructors, fragment refs, DOM ids,
 URLs, authorization checks, controller broadcasts, view metadata, tests, and
 JavaScript behavior.
 
-## Current State
+## Implemented State
 
-The implemented architecture is sound: server-rendered HTML remains the source
-of truth, the actor gets an immediate HTMX fragment or out-of-band update, and
-passive viewers receive websocket invalidations that cause authorized HTTP
-fragment refetches.
+Server-rendered HTML remains the source of truth, the actor gets an immediate
+HTMX fragment or out-of-band update, and passive viewers receive websocket
+invalidations that cause authorized HTTP fragment refetches.
 
-The weak points are ergonomics and guarantees. Scopes and fragment keys are
-centralized global types, simple surfaces can still hand-build refs and URLs,
-authorization is easy to duplicate between websocket and HTTP paths, controller
-mutations manually thread actor and passive-viewer update paths, and tests do
-not yet provide a compact reusable proof that a surface config, fragment route,
-target id, and auth rule all agree.
+The typed surface contract is implemented as a compatibility layer over the
+existing JSON protocol. Migrated surfaces declare feature-local fragment enums,
+surface keys, wire-scope conversion, authorization, default resync fragments,
+request decoration, and fragment refs in one typed definition. Support, admin
+shift types, timesheets, and roster have been migrated; remaining legacy
+surfaces can move incrementally without changing the wire protocol.
 
 ## Intended Contract
 
@@ -80,30 +79,28 @@ target id, and auth rule all agree.
 
 ## Implementation Plan
 
-1. Build the typed surface contract as a compatibility layer over the existing
+1. Built the typed surface contract as a compatibility layer over the existing
    protocol (`ir-ix0n`).
-2. Move authorization into the surface contract and make migrated fragment
+2. Moved authorization into the surface contract and made migrated fragment
    endpoints use the same rule as websocket subscriptions (`ir-lxkv`).
-3. Add mutation helpers so controllers declare the changed typed fragments once
+3. Added mutation helpers so controllers declare changed typed fragments once
    and get actor refresh plus passive invalidation consistently (`ir-3wwj`).
-4. Add reusable contract tests for config JSON, fragment routes, target ids,
+4. Added reusable contract tests for config JSON, fragment routes, target ids,
    authorization, and mounted metadata (`ir-qd8e`).
-5. Shrink the JavaScript runtime to the declarative transport responsibilities
-   and reconcile focused-field protection with the existing cleanup ticket
+5. Shrunk the JavaScript runtime to the declarative transport responsibilities
    (`ir-fgtz`, related `ir-f2p4`).
-6. Add coalescing and optional batched refetch for hot surfaces after the typed
-   fragment metadata exists (`ir-nxqx`, related `ir-jooi`).
-7. Extract the LiveBus boundary while preserving the current single-process
+6. Added generic duplicate coalescing, roster row/day/content coalescing, and
+   broadcast refetch/coalesced metrics (`ir-nxqx`, related `ir-jooi`).
+7. Extracted the LiveBus boundary while preserving the current single-process
    implementation (`ir-ukkn`).
-8. Migrate representative simple and projection-backed surfaces, then update
+8. Migrated representative simple and projection-backed surfaces and updated
    local docs with the new add-a-live-fragment workflow (`ir-tqwl`).
 
 ## Exit Criteria
 
 - Adding a live fragment to a migrated feature is isolated to that feature's
   surface definition, fragment route/render function, and mutation call site.
-- At least support/admin, one of leave or timesheets, and roster are migrated or
-  have explicit remaining tickets.
+- Support/admin, timesheets, and roster are migrated.
 - Contract tests cover migrated surfaces without requiring browser automation
   for ordinary target/auth/config drift.
 - Focused Playwright coverage remains only for browser behavior such as

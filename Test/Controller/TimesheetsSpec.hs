@@ -2,6 +2,7 @@ module Test.Controller.TimesheetsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       parseTimeParam)
+import Application.Helper.LiveSurface (mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Config
@@ -18,9 +19,13 @@ import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
+import Test.Support.LiveSurfaceContract
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes
+import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
+                                  buildTimesheetDaySectionFragmentRef,
+                                  timesheetLiveSurfaceDefinition)
 import Web.Types
 
 tests :: Spec
@@ -73,13 +78,43 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue user "worker"
                 _ <- createStaffRecord venue (Just user) "Tess" "Viewer"
 
-                response <- withUserAndCurrentVenue user venue.id do
-                    callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                (response, liveSurface, expectedRefs) <- withUserAndCurrentVenue user venue.id do
+                    withCurrentControllerContext do
+                        let requestKey = TimesheetProjectionRequest 0 False True Nothing
+                        let liveSurface = mkTypedDefinedLiveSurface timesheetLiveSurfaceDefinition requestKey
+                        let expectedRefs = [buildTimesheetDaySectionFragmentRef requestKey dayOffset | dayOffset <- [0 .. 6]]
+                        response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                        pure (response, liveSurface, expectedRefs)
+
+                liveSurfaceConfigShouldRoundTrip liveSurface
+                liveSurfaceConfigShouldExposeRefs liveSurface expectedRefs
+                responseShouldMountLiveSurface response liveSurface
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-live-update-surface=\""
                 response `responseBodyShouldContain` "timesheet_week"
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
+
+        it "denies unauthenticated users through the timesheet surface fragment contract" $ withContext do
+            response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
+
+            liveFragmentResponseShouldBeDenied status302 response
+
+        it "renders the declared timesheet day fragment target for authorized viewers" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Fragment Contract Venue"
+                user <- createUserRecord "timesheet-fragment-contract@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                _ <- createStaffRecord venue (Just user) "Tara" "Target"
+
+                (response, fragmentRef) <- withUserAndCurrentVenue user venue.id do
+                    withCurrentControllerContext do
+                        let requestKey = TimesheetProjectionRequest 0 False True Nothing
+                        let fragmentRef = buildTimesheetDaySectionFragmentRef requestKey 0
+                        callAction ShowTimesheetWeekAction { weekOffset = 0 }
+                        response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
+                        pure (response, fragmentRef)
+
+                liveFragmentResponseShouldRenderTarget response fragmentRef
 
         it "lets super-admin create timesheet entries for venue staff without a staff identity" $ withContext do
             withCleanDb do

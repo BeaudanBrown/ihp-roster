@@ -1,6 +1,7 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
+import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
 import Application.Helper.LiveUpdate
 import Application.Helper.Pay
 import Application.Helper.Profiling
@@ -241,6 +242,7 @@ instance Controller AdminController where
         respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
 
     action ShowAdminShiftTypesFragmentAction = do
+        ensureTypedLiveSurfaceAuthorized adminShiftTypesLiveSurfaceDefinition ()
         shiftTypes <- fetchCurrentVenueShiftTypes
         awardLevels <- fetchActiveAwardLevels
         awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates

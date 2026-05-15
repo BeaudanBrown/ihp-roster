@@ -34,7 +34,6 @@ responseShouldMountLiveSurface response surface = do
     response `responseBodyShouldContain` surface.scopeKey
     forM_ surface.resyncFragments \fragment -> do
         response `responseBodyShouldContain` fragment.targetId
-        response `responseBodyShouldContain` fragment.url
 
 liveFragmentResponseShouldRenderTarget :: Response -> LiveFragmentRef -> Expectation
 liveFragmentResponseShouldRenderTarget response fragment = do

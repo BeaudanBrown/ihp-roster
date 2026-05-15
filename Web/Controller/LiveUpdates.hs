@@ -10,6 +10,9 @@ import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Network.WebSockets as WebSocket
 import Web.Controller.Prelude
+import Web.RosterWeeks.RenderData (rosterLiveSurfaceDefinition)
+import Web.Timesheets.Projection (timesheetLiveSurfaceDefinition)
+import Web.View.Admin.ShiftTypes (adminShiftTypesLiveSurfaceDefinition)
 
 instance WSApp LiveUpdatesWSApp where
     initialState = LiveUpdatesWSApp { subscriptionIds = [] }
@@ -97,7 +100,14 @@ isAuthorizedScope ::
     LiveUpdateScope ->
     IO Bool
 isAuthorizedScope scope = do
-    supportAuthorization <- authorizeTypedLiveSurfaceWireScope supportLiveSurfaceDefinition scope
-    case supportAuthorization of
-        Just allowed -> pure allowed
-        Nothing      -> authorizeLiveUpdateScope scope
+    typedAuthorizations <-
+        catMaybes
+            <$> sequence
+                [ authorizeTypedLiveSurfaceWireScope supportLiveSurfaceDefinition scope
+                , authorizeTypedLiveSurfaceWireScope adminShiftTypesLiveSurfaceDefinition scope
+                , authorizeTypedLiveSurfaceWireScope timesheetLiveSurfaceDefinition scope
+                , authorizeTypedLiveSurfaceWireScope rosterLiveSurfaceDefinition scope
+                ]
+    case typedAuthorizations of
+        allowed : _ -> pure allowed
+        []          -> authorizeLiveUpdateScope scope

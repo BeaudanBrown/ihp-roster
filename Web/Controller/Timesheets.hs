@@ -3,6 +3,7 @@ module Web.Controller.Timesheets where
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval,
                                payVersionManifestForEntry)
+import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Time.Clock (getCurrentTime)
@@ -35,6 +36,7 @@ instance Controller TimesheetsController where
 
     action ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        ensureTypedLiveSurfaceAuthorized timesheetLiveSurfaceDefinition (TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId)
         respondWithTimesheetDaySectionFragment weekOffset dayOffset showApproved showAllStaff selectedStaffFilterId
 
     action NewTimesheetEntryAction = do
