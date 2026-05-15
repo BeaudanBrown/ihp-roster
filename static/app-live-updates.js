@@ -3,7 +3,6 @@
     if (typeof window === 'undefined') return;
 
     const actorFragmentRefreshEventName = 'app-live-fragments-refresh';
-    const legacyActorFragmentRefreshEventName = 'app-roster-fragments-refresh';
     const pendingDeferredFragments = new Map();
     const inFlightFragments = new Map();
     const activeSubscriptions = new Map();
@@ -535,36 +534,31 @@
         }));
     }
 
-    function declarativeSurfaceAdapter() {
-        return {
-            collectSubscriptions: function () {
-                const subscriptions = [];
-                document.querySelectorAll('[data-live-update-surface]').forEach(function (ownerEl) {
-                    const scopeInfo = readDeclarativeSurface(ownerEl);
-                    if (!scopeInfo || !scopeInfo.scopeKey) return;
-                    subscriptions.push({ ...scopeInfo, ownerEl });
-                });
-                return subscriptions;
-            },
-            shouldDecorateRequest: function (event) {
-                const sourceEl = event.detail && event.detail.elt;
-                if (!(sourceEl instanceof HTMLElement)) return false;
-
-                const ownerEl = sourceEl.closest('[data-live-update-surface]');
-                if (!(ownerEl instanceof HTMLElement)) return false;
-
-                const scopeInfo = readDeclarativeSurface(ownerEl);
-                if (!scopeInfo) return false;
-                if (scopeInfo.decorateRequestsWithin.length === 0) return true;
-
-                return scopeInfo.decorateRequestsWithin.some(function (selector) {
-                    return Boolean(selector && sourceEl.closest(selector));
-                });
-            },
-        };
+    function collectDeclarativeSubscriptions() {
+        const subscriptions = [];
+        document.querySelectorAll('[data-live-update-surface]').forEach(function (ownerEl) {
+            const scopeInfo = readDeclarativeSurface(ownerEl);
+            if (!scopeInfo || !scopeInfo.scopeKey) return;
+            subscriptions.push({ ...scopeInfo, ownerEl });
+        });
+        return subscriptions;
     }
 
-    const adapters = [declarativeSurfaceAdapter()];
+    function shouldDecorateDeclarativeRequest(event) {
+        const sourceEl = event.detail && event.detail.elt;
+        if (!(sourceEl instanceof HTMLElement)) return false;
+
+        const ownerEl = sourceEl.closest('[data-live-update-surface]');
+        if (!(ownerEl instanceof HTMLElement)) return false;
+
+        const scopeInfo = readDeclarativeSurface(ownerEl);
+        if (!scopeInfo) return false;
+        if (scopeInfo.decorateRequestsWithin.length === 0) return true;
+
+        return scopeInfo.decorateRequestsWithin.some(function (selector) {
+            return Boolean(selector && sourceEl.closest(selector));
+        });
+    }
 
     function fragmentMergeKey(fragment) {
         if (!fragment || !fragment.targetId) return null;
@@ -614,10 +608,8 @@
     function desiredSubscriptions() {
         const desired = new Map();
 
-        adapters.forEach(function (adapter) {
-            adapter.collectSubscriptions().forEach(function (subscription) {
-                desired.set(subscription.scopeKey, mergeSubscription(desired.get(subscription.scopeKey), subscription));
-            });
+        collectDeclarativeSubscriptions().forEach(function (subscription) {
+            desired.set(subscription.scopeKey, mergeSubscription(desired.get(subscription.scopeKey), subscription));
         });
 
         return desired;
@@ -822,10 +814,7 @@
     }
 
     document.addEventListener('htmx:configRequest', function (event) {
-        const shouldDecorate = adapters.some(function (adapter) {
-            return typeof adapter.shouldDecorateRequest === 'function' && adapter.shouldDecorateRequest(event);
-        });
-        if (!shouldDecorate) return;
+        if (!shouldDecorateDeclarativeRequest(event)) return;
         const clientId = ensureClientId();
         event.detail.headers['X-Live-Update-Client-Id'] = clientId;
     });
@@ -837,7 +826,6 @@
     }
 
     document.addEventListener(actorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
-    document.addEventListener(legacyActorFragmentRefreshEventName, handleActorFragmentRefreshEvent);
 
     document.addEventListener('focusout', function (event) {
         window.setTimeout(function () {
