@@ -1,18 +1,16 @@
 module Web.Controller.LiveUpdates where
 
 import Application.Helper.Controller
-import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
-import Application.Support.LiveUpdates (supportLiveSurfaceDefinition)
+import Application.Helper.LiveUpdate.Internal (registerLiveSubscription,
+                                               unregisterLiveSubscription)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.UUID as UUID
 import qualified Data.UUID.V4 as UUIDv4
 import qualified Network.WebSockets as WebSocket
 import Web.Controller.Prelude
-import Web.RosterWeeks.RenderData (rosterLiveSurfaceDefinition)
-import Web.Timesheets.Projection (timesheetLiveSurfaceDefinition)
-import Web.View.Admin.ShiftTypes (adminShiftTypesLiveSurfaceDefinition)
+import Web.LiveSurfaceRegistry (authorizeRegisteredLiveSurfaceScope)
 
 instance WSApp LiveUpdatesWSApp where
     initialState = LiveUpdatesWSApp { subscriptionIds = [] }
@@ -47,7 +45,7 @@ handleCommand ::
 handleCommand command =
     case command of
         SubscribeLiveUpdates { scope, lastSeenVersion } -> do
-            authorized <- isAuthorizedScope scope
+            authorized <- authorizeRegisteredLiveSurfaceScope scope
             if authorized
                 then do
                     unregisterScopeSubscription scope
@@ -94,20 +92,3 @@ addScopeSubscription subscriptionId scope = do
 
 encodeScopeKey :: LiveUpdateScope -> Text
 encodeScopeKey = cs . Aeson.encode
-
-isAuthorizedScope ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    LiveUpdateScope ->
-    IO Bool
-isAuthorizedScope scope = do
-    typedAuthorizations <-
-        catMaybes
-            <$> sequence
-                [ authorizeTypedLiveSurfaceWireScope supportLiveSurfaceDefinition scope
-                , authorizeTypedLiveSurfaceWireScope adminShiftTypesLiveSurfaceDefinition scope
-                , authorizeTypedLiveSurfaceWireScope timesheetLiveSurfaceDefinition scope
-                , authorizeTypedLiveSurfaceWireScope rosterLiveSurfaceDefinition scope
-                ]
-    case typedAuthorizations of
-        allowed : _ -> pure allowed
-        []          -> authorizeLiveUpdateScope scope

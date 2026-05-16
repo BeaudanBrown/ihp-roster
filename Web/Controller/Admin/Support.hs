@@ -2,8 +2,7 @@ module Web.Controller.Admin.Support where
 
 import Application.Helper.Export
 import Application.Helper.LiveSurface (broadcastSurfaceFragments,
-                                       typedLiveSurfaceDefinition)
-import Application.Helper.LiveUpdate
+                                       broadcastSurfaceResync)
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
 import Application.Helper.VenueInvitation
@@ -138,9 +137,9 @@ broadcastAdminInvitesInvalidation ::
     Id Venue ->
     IO ()
 broadcastAdminInvitesInvalidation venueId =
-    broadcastLiveResync
-        (adminInvitesScope venueId)
-        liveUpdateSourceClientId
+    broadcastSurfaceResync
+        adminInvitesLiveSurfaceDefinition
+        AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
 
 broadcastAdminShiftTypesInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
@@ -148,7 +147,7 @@ broadcastAdminShiftTypesInvalidation ::
     IO ()
 broadcastAdminShiftTypesInvalidation _venueId =
     broadcastSurfaceFragments
-        (typedLiveSurfaceDefinition adminShiftTypesLiveSurfaceDefinition)
+        adminShiftTypesLiveSurfaceDefinition
         ()
         [AdminShiftTypesLiveFragment]
 
@@ -157,27 +156,9 @@ broadcastAdminRosterGroupsInvalidation ::
     Id Venue ->
     IO ()
 broadcastAdminRosterGroupsInvalidation venueId =
-    broadcastLiveResync
-        (adminRosterGroupsScope venueId)
-        liveUpdateSourceClientId
-
-adminInvitesScope :: Id Venue -> LiveUpdateScope
-adminInvitesScope venueId =
-    AdminInvitesScope
-        { venueId = unpackId venueId
-        }
-
-adminShiftTypesScope :: Id Venue -> LiveUpdateScope
-adminShiftTypesScope venueId =
-    AdminShiftTypesScope
-        { venueId = unpackId venueId
-        }
-
-adminRosterGroupsScope :: Id Venue -> LiveUpdateScope
-adminRosterGroupsScope venueId =
-    AdminRosterGroupsScope
-        { venueId = unpackId venueId
-        }
+    broadcastSurfaceResync
+        adminRosterGroupsLiveSurfaceDefinition
+        ()
 
 reorderActiveRosterGroups :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO ()
 reorderActiveRosterGroups rosterGroupId direction = do

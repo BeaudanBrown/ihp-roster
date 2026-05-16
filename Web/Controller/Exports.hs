@@ -1,6 +1,7 @@
 module Web.Controller.Exports where
 
 import Application.Helper.Export
+import Application.Helper.LiveSurface (broadcastSurfaceFragments)
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
@@ -8,6 +9,7 @@ import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status (status200)
 import Network.Wai (responseLBS)
 import Web.Controller.Prelude
+import Web.View.Admin.Exports (AdminExportsLiveFragment (..), adminExportsLiveSurfaceDefinition)
 
 instance Controller ExportsController where
     beforeAction = do
@@ -29,7 +31,9 @@ instance Controller ExportsController where
             (Just exportType, Just rangeStart, Just rangeEnd) -> do
                 requestFixedExport exportType rangeStart rangeEnd >>= \case
                     Left message -> setErrorMessage message
-                    Right _ -> setSuccessMessage "Export generated"
+                    Right _ -> do
+                        broadcastSurfaceFragments adminExportsLiveSurfaceDefinition () [AdminExportsLiveFragment]
+                        setSuccessMessage "Export generated"
                 redirectToPath (pathTo AdminAction <> "#exports")
             _ -> do
                 setErrorMessage "Choose an export type and a valid start and end date."
@@ -38,6 +42,7 @@ instance Controller ExportsController where
     action DownloadExportJobAction { exportJobId } = do
         let downloadToken = param @UUID "token"
         exportJob <- authorizeExportDownload exportJobId downloadToken >>= recordExportDownload
+        broadcastSurfaceFragments adminExportsLiveSurfaceDefinition () [AdminExportsLiveFragment]
 
         let fileName = Text.replace "\"" "" (fromMaybe "export.csv" exportJob.fileName)
         let contentType = fromMaybe "text/csv; charset=utf-8" exportJob.contentType

@@ -1,7 +1,10 @@
 module Test.Controller.SupportSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.LiveSurface (typedLiveSurfaceFragmentRefs,
+                                       unSurfaceFragmentRefs)
 import Application.Helper.LiveUpdate (currentLiveUpdateVersion)
+import Application.Helper.LiveUpdate.Internal (LiveFragmentRef)
 import Application.Support.LiveUpdates
 import Config
 import IHP.FrameworkConfig
@@ -14,6 +17,12 @@ import Test.Support.LiveSurfaceContract
 import Web.Controller.Support ()
 import Web.FrontController ()
 import Web.Types
+
+supportFragmentRef :: SupportLiveFragment -> LiveFragmentRef
+supportFragmentRef fragment =
+    case unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () [fragment]) of
+        [fragmentRef] -> fragmentRef
+        _             -> error "Expected one support fragment ref"
 
 tests :: Spec
 tests = beforeAll testContext do
@@ -41,8 +50,8 @@ tests = beforeAll testContext do
                 publicHolidaysResponse <- withPasskeyVerifiedUser superAdmin do
                     callAction ShowPublicHolidaysSectionAction
 
-                liveFragmentResponseShouldRenderTarget awardRatesResponse supportAwardRatesSectionFragmentRef
-                liveFragmentResponseShouldRenderTarget publicHolidaysResponse supportPublicHolidaysSectionFragmentRef
+                liveFragmentResponseShouldRenderTarget awardRatesResponse (supportFragmentRef SupportAwardRatesLiveFragment)
+                liveFragmentResponseShouldRenderTarget publicHolidaysResponse (supportFragmentRef SupportPublicHolidaysLiveFragment)
 
         it "mounts support live surface metadata for super admins" $ withContext do
             withCleanDb do

@@ -8,11 +8,12 @@ module Application.Xero.Connection
     , xeroClientErrorText
     ) where
 
-import qualified Application.Helper.LiveUpdate as LiveUpdate
+import Application.Helper.LiveSurface (broadcastSurfaceResyncWithoutContext)
 import Application.Helper.Xero
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
+import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinitionForVenue)
 
 xeroClientErrorText :: XeroClientError -> Text
 xeroClientErrorText (XeroHttpError message) = message
@@ -137,4 +138,7 @@ markXeroConnectionErrorWithBroadcast shouldBroadcast connection message = do
 
 broadcastXeroConnectionUpdate :: XeroConnection -> IO ()
 broadcastXeroConnectionUpdate connection =
-    LiveUpdate.broadcastLiveResyncWithoutContext LiveUpdate.AdminXeroScope { LiveUpdate.venueId = connection.venueId } Nothing
+    broadcastSurfaceResyncWithoutContext
+        (adminXeroLiveSurfaceDefinitionForVenue connection.venueId)
+        ()
+        Nothing

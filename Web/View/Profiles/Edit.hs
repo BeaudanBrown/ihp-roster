@@ -1,19 +1,16 @@
 module Web.View.Profiles.Edit where
 
-import Application.Helper.Controller (currentVenueOrNothing,
-                                      leaveRequestCanBeDeleted)
+import Application.Helper.Controller (leaveRequestCanBeDeleted)
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson, mkLiveSurface)
-import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveFragmentProtection (..),
-                                      LiveFragmentRef (..),
-                                      LiveUpdateScope (..), mkLiveFragmentRef)
+                                       liveSurfaceConfigJson,
+                                       mkTypedDefinedLiveSurface)
 import Application.Helper.StaffShiftPreferences
 import Data.List (sortOn)
 import Data.Ord (Down (..))
 import Web.View.LeaveRequests.Index (renderStatusBadge)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Passkeys.Management (renderPasskeyManagement)
+import Web.Profiles.LiveUpdates
 import Web.View.Prelude
 import Web.View.StaffDocuments.Rsa
 import Web.View.StaffProfileForm
@@ -133,24 +130,8 @@ renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedS
 profileLiveSurface :: (?context :: ControllerContext) => Text -> Maybe LiveSurfaceConfig
 profileLiveSurface openSection =
     if currentUser.isProfileCompleted
-        then
-            fmap
-                (\venue ->
-                    (mkLiveSurface
-                        "profile"
-                        ProfileScope { venueId = unpackId venue.id, userId = unpackId currentUser.id }
-                        [profileContentFragmentRef openSection])
-                        { decorateRequestsWithin = ["#" <> profileDetailsFormId] }
-                )
-                currentVenueOrNothing
+        then Just (mkTypedDefinedLiveSurface profileContentLiveSurfaceDefinition (currentProfileContentSurfaceKey openSection))
         else Nothing
-
-profileContentFragmentRef :: (?context :: ControllerContext) => Text -> LiveFragmentRef
-profileContentFragmentRef openSection =
-    mkLiveFragmentRef
-        ProfileContentFragment
-        profileContentFragmentId
-        (appendQueryParams (pathTo ShowProfileContentFragmentAction) [("section", openSection)])
 
 renderAccordionSection :: Text -> Text -> Bool -> Html -> Html
 renderAccordionSection sectionId title isOpen body =
@@ -232,22 +213,7 @@ renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests = [hsx|
 
 profileLeaveRequestsLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
 profileLeaveRequestsLiveSurface =
-    fmap
-        (\venue ->
-        (mkLiveSurface
-            "profile-leave-requests"
-            LeaveRequestsScope { venueId = unpackId venue.id }
-            [profileLeaveRequestsContentFragmentRef])
-            { decorateRequestsWithin = ["#" <> profileLeaveRequestsContentFragmentId] }
-        )
-        currentVenueOrNothing
-
-profileLeaveRequestsContentFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
-profileLeaveRequestsContentFragmentRef =
-    mkLiveFragmentRef
-        ProfileLeaveRequestsContentFragment
-        profileLeaveRequestsContentFragmentId
-        (pathTo ShowProfileLeaveRequestsContentFragmentAction)
+    Just (mkTypedDefinedLiveSurface profileLeaveRequestsLiveSurfaceDefinition currentProfileLeaveSurfaceKey)
 
 renderProfileLeaveRequestFormFragment :: LeaveRequest -> Html
 renderProfileLeaveRequestFormFragment leaveRequest = [hsx|

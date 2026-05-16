@@ -40,11 +40,18 @@ A surface owns:
 - request-decoration selectors
 - optional focused-field protection policies
 
-`LiveSurfaceDefinition` remains the compatibility boundary for projection
-helpers and legacy surfaces. New or migrated surfaces should keep fragment enums
-feature-local and cross the typed-to-wire boundary only through
-`typedLiveSurfaceDefinition`, `typedLiveSurfaceFragmentRef(s)`, or
-`unSurfaceFragmentRefs`.
+The untyped transport boundary is internal to `Application.Helper.LiveUpdate.Internal`
+and `Application.Helper.LiveSurface.Internal`. Feature modules should keep
+fragment enums feature-local and cross the typed-to-wire boundary only through
+strict helpers such as `mkSurfaceFragmentRef`, `mkTypedDefinedLiveSurface`,
+`typedLiveSurfaceFragmentRef(s)`, typed broadcast helpers, and projection
+helpers.
+
+Feature-facing code must not use compatibility/manual authoring helpers such as
+`mkLiveSurface`, `mkDefinedLiveSurface`, `mkLiveFragmentRef`, raw
+`LiveFragmentRef` constructors, raw live broadcasts, raw actor-refresh payloads,
+or fallback `authorizeLiveUpdateScope` checks. The `LiveSurfaceGuard` Hspec
+coverage enforces this across `Web/` and feature `Application/` modules.
 
 ## Refetch And Protection
 
@@ -80,6 +87,9 @@ subscription.
 - Fragment GET actions for typed surfaces should call
   `ensureTypedLiveSurfaceAuthorized` with the same surface key that produced the
   fragment ref.
+- Websocket subscription authorization must go through the registered typed
+  surface definitions in `Web.LiveSurfaceRegistry`; unregistered wire scopes are
+  denied instead of falling back to default scope authorization.
 - Mutating controllers should prefer typed helpers such as
   `broadcastSurfaceFragments` or `performTypedLiveSurfaceMutation` so actor refs
   and passive invalidations are declared in surface fragments, not ad hoc wire
@@ -92,6 +102,7 @@ subscription.
 ```bash
 bash ./bin/in-env typecheck
 bash ./bin/in-env hspec-test --match "LiveUpdate"
+bash ./bin/in-env hspec-test --match "Surface"
 bash ./bin/in-env e2e e2e/live-update-declarative-adapter.spec.ts
 bash ./bin/in-env e2e e2e/live-fragment-multiview.spec.ts
 ```

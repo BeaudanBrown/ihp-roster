@@ -5,6 +5,7 @@ import Application.Billing.Webhook
 import qualified Data.Text.Encoding as TextEncoding
 import Network.HTTP.Types.Status (Status, status400, status500)
 import qualified Network.Wai as Wai
+import Web.Billing.LiveUpdates (BillingSurfaceKey (..), broadcastBillingInvalidationForVenue)
 import Web.Controller.Prelude
 
 instance Controller StripeWebhooksController where
@@ -22,7 +23,8 @@ instance Controller StripeWebhooksController where
                         handleStripeWebhookPayload rawBody >>= \case
                             Left message ->
                                 renderPlainWithStatus status400 message
-                            Right _ ->
+                            Right result -> do
+                                broadcastBillingWebhookResult result
                                 renderPlain "ok"
 
 requireStripeSignatureHeader :: (?context :: ControllerContext, ?request :: Request) => IO Text
@@ -30,6 +32,17 @@ requireStripeSignatureHeader =
     case lookup "Stripe-Signature" (Wai.requestHeaders ?request) of
         Just value -> pure (TextEncoding.decodeUtf8 value)
         Nothing -> renderPlainWithStatus status400 "Stripe-Signature header is required"
+
+broadcastBillingWebhookResult :: BillingWebhookResult -> IO ()
+broadcastBillingWebhookResult result =
+    case billingWebhookResultVenueId result of
+        Nothing -> pure ()
+        Just venueId -> broadcastBillingInvalidationForVenue BillingSurfaceKey { billingSurfaceVenueId = venueId }
+
+billingWebhookResultVenueId :: BillingWebhookResult -> Maybe UUID
+billingWebhookResultVenueId (BillingWebhookProcessed event) = event.venueId
+billingWebhookResultVenueId (BillingWebhookDuplicate event) = event.venueId
+billingWebhookResultVenueId (BillingWebhookIgnored event) = event.venueId
 
 renderPlainWithStatus :: (?request :: Request) => Status -> Text -> IO value
 renderPlainWithStatus status message = do

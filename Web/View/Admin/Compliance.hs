@@ -1,11 +1,61 @@
 module Web.View.Admin.Compliance
-    ( renderComplianceSection
+    ( StaffComplianceLiveFragment (..)
+    , staffComplianceLiveSurfaceDefinition
+    , renderComplianceSection
+    , renderComplianceSectionFragment
     ) where
 
+import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.LiveSurface
+import Application.Helper.LiveUpdate
 import Application.StaffDocuments.Rsa
 import Web.View.Admin.Common
 import Web.View.Prelude
 import Web.View.StaffDocuments.Rsa
+
+data StaffComplianceSurface
+
+data StaffComplianceLiveFragment
+    = StaffComplianceLiveFragment
+    deriving (Eq, Show)
+
+staffComplianceFragmentId :: Text
+staffComplianceFragmentId = "staff-compliance-fragment"
+
+staffComplianceLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition StaffComplianceSurface () StaffComplianceLiveFragment
+staffComplianceLiveSurfaceDefinition =
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "staff-compliance"
+        , typedSurfaceScope = const (SurfaceScope StaffComplianceScope { venueId = currentVenueScopeId })
+        , typedSurfaceScopeFromWire = \case
+            StaffComplianceScope { venueId } | venueId == currentVenueScopeId -> Just ()
+            _ -> Nothing
+        , typedSurfaceDefaultFragments = const [StaffComplianceLiveFragment]
+        , typedSurfaceFragmentRef = const staffComplianceLiveFragmentRef
+        , typedSurfaceDecorateRequestsWithin = const ["#" <> staffComplianceFragmentId]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager currentVenueScopeId))
+        }
+
+staffComplianceLiveFragmentRef :: (?context :: ControllerContext) => StaffComplianceLiveFragment -> SurfaceFragmentRef StaffComplianceSurface
+staffComplianceLiveFragmentRef StaffComplianceLiveFragment =
+    mkSurfaceFragmentRef
+        StaffComplianceFragment
+        staffComplianceFragmentId
+        (pathTo ShowAdminComplianceFragmentAction)
+
+currentVenueScopeId :: (?context :: ControllerContext) => UUID
+currentVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing -> error "Staff compliance live surface requires a current venue"
+
+renderComplianceSectionFragment :: [StaffRsaComplianceRow] -> Day -> Html
+renderComplianceSectionFragment rows today = [hsx|
+    <div id={staffComplianceFragmentId}
+         data-live-update-surface={liveSurfaceConfigJson (mkTypedDefinedLiveSurface staffComplianceLiveSurfaceDefinition ())}>
+        {renderComplianceSection rows today}
+    </div>
+|]
 
 renderComplianceSection :: [StaffRsaComplianceRow] -> Day -> Html
 renderComplianceSection rows today =

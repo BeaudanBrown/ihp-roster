@@ -1,7 +1,9 @@
 module Test.LiveUpdateSpec where
 
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate
+import Application.Helper.LiveSurface.Internal (defaultLiveUpdateScopeAuthorizationRequirement,
+                                               mkLiveSurface)
+import Application.Helper.LiveUpdate.Internal
 import Application.Support.LiveUpdates
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -21,10 +23,13 @@ tests = describe "LiveUpdate runtime types" do
                 , AdminShiftTypesScope { venueId }
                 , AdminRosterGroupsScope { venueId }
                 , AdminInvitesScope { venueId }
+                , AdminExportsScope { venueId }
                 , AdminXeroScope { venueId }
+                , BillingScope { venueId }
                 , LeaveRequestsScope { venueId }
                 , TimesheetWeekScope { venueId, weekOffset = 2 }
                 , ProfileScope { venueId, userId }
+                , StaffComplianceScope { venueId }
                 , SupportPlatformScope
                 ]
 
@@ -40,14 +45,17 @@ tests = describe "LiveUpdate runtime types" do
                 , LeaveRequestsContentFragment
                 , TimesheetDaySectionFragment { dayOffset = 4 }
                 , AdminInvitesFragment
+                , AdminExportsFragment
                 , AdminShiftTypesFragment
                 , AdminRosterGroupsFragment
                 , AdminXeroFragment
                 , AdminXeroStaffMappingsFragment
                 , AdminXeroPayItemsFragment
                 , AdminXeroTimesheetsFragment
+                , BillingStatusFragment
                 , ProfileContentFragment
                 , ProfileLeaveRequestsContentFragment
+                , StaffComplianceFragment
                 , SupportAwardRatesSectionFragment
                 , SupportPublicHolidaysSectionFragment
                 ]
@@ -68,14 +76,20 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe` "admin_roster_groups:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey AdminInvitesScope { venueId }
             `shouldBe` "admin_invites:11111111-1111-1111-1111-111111111111"
+        liveUpdateScopeKey AdminExportsScope { venueId }
+            `shouldBe` "admin_exports:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey AdminXeroScope { venueId }
             `shouldBe` "admin_xero:11111111-1111-1111-1111-111111111111"
+        liveUpdateScopeKey BillingScope { venueId }
+            `shouldBe` "billing:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey LeaveRequestsScope { venueId }
             `shouldBe` "leave_requests:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset = 2 }
             `shouldBe` "timesheet_week:11111111-1111-1111-1111-111111111111:2"
         liveUpdateScopeKey ProfileScope { venueId, userId }
             `shouldBe` "profile:11111111-1111-1111-1111-111111111111:44444444-4444-4444-4444-444444444444"
+        liveUpdateScopeKey StaffComplianceScope { venueId }
+            `shouldBe` "staff_compliance:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey SupportPlatformScope
             `shouldBe` "support_platform"
 
@@ -286,6 +300,18 @@ tests = describe "LiveUpdate runtime types" do
 
         forM_ surfaces \surface ->
             Aeson.decode (LBS.fromStrict (cs (liveSurfaceConfigJson surface))) `shouldBe` Just surface
+
+supportAwardRatesSectionFragmentRef :: LiveFragmentRef
+supportAwardRatesSectionFragmentRef =
+    case unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () [SupportAwardRatesLiveFragment]) of
+        [fragmentRef] -> fragmentRef
+        _             -> error "Expected one support award rates fragment ref"
+
+supportPublicHolidaysSectionFragmentRef :: LiveFragmentRef
+supportPublicHolidaysSectionFragmentRef =
+    case unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () [SupportPublicHolidaysLiveFragment]) of
+        [fragmentRef] -> fragmentRef
+        _             -> error "Expected one support public holidays fragment ref"
 
 expectUuid :: Text -> UUID.UUID
 expectUuid value =

@@ -36,6 +36,7 @@ import qualified Test.DatabaseProtectionSpec
 import qualified Test.DevSeedSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
+import qualified Test.LiveSurfaceGuardSpec
 import qualified Test.LiveSurfaceSpec
 import qualified Test.MailSpec
 import qualified Test.PaySpec
@@ -170,6 +171,7 @@ allSuites =
     , TestSuite "Conflict" Test.ConflictSpec.tests
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
     , TestSuite "RosterLiveUpdates" Test.RosterLiveUpdatesSpec.tests
+    , TestSuite "LiveSurfaceGuard" Test.LiveSurfaceGuardSpec.tests
     , TestSuite "LiveSurface" Test.LiveSurfaceSpec.tests
     , TestSuite "Mail" Test.MailSpec.tests
     , TestSuite "SurfaceProjection" Test.SurfaceProjectionSpec.tests

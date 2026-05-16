@@ -1,7 +1,9 @@
 module Web.View.Billing.Index where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.LiveSurface (liveSurfaceConfigJson, mkTypedDefinedLiveSurface)
 import qualified Data.Text as Text
+import Web.Billing.LiveUpdates
 import Web.View.Prelude
 
 data BillingViewModel = BillingViewModel
@@ -27,10 +29,10 @@ instance View BillingView where
             , appPageActions = mempty
             , appPageWidthClass = ""
             , appPageBody = [hsx|
-                <div class="app-page-stack">
-                    {renderBillingStatusPanel viewModel}
-                    {if currentUserIsSupportAdmin then renderBillingControlPanel viewModel.maybeControl else mempty}
-                    {renderBillingEventsPanel viewModel.recentEvents}
+                <div id="billing-live-surface"
+                     class="app-page-stack"
+                     data-live-update-surface={liveSurfaceConfigJson (mkTypedDefinedLiveSurface billingLiveSurfaceDefinition currentBillingSurfaceKey)}>
+                    {renderBillingStatusFragment viewModel}
                 </div>
             |]
             }
@@ -59,6 +61,15 @@ renderBillingResultPage title message =
                 <p class="mb-0 app-muted">{message}</p>
             |]
         }
+
+renderBillingStatusFragment :: BillingViewModel -> Html
+renderBillingStatusFragment viewModel@BillingViewModel { recentEvents, maybeControl } = [hsx|
+    <div id="billing-status-fragment">
+        {renderBillingStatusPanel viewModel}
+        {if currentUserIsSupportAdmin then renderBillingControlPanel maybeControl else mempty}
+        {renderBillingEventsPanel recentEvents}
+    </div>
+|]
 
 renderBillingStatusPanel :: BillingViewModel -> Html
 renderBillingStatusPanel BillingViewModel { maybeCustomer, maybeSubscription } =

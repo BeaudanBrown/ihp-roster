@@ -1,9 +1,7 @@
 module Web.Controller.Profiles where
 
-import Application.Helper.LiveUpdate (LiveFragmentRef, LiveUpdateScope (..),
-                                      activeRosterWeekScopes,
-                                      broadcastLiveInvalidation,
-                                      liveUpdateSourceClientId)
+import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
+import Application.Helper.LiveUpdate (activeRosterWeekScopes)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
@@ -18,8 +16,10 @@ import qualified Data.Set as Set
 import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
+import Web.Profiles.LiveUpdates
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Projection (buildRosterContentFragmentRef)
+import Web.RosterWeeks.Types (RosterProjectionFragment)
 import Web.View.Profiles.Edit
 
 instance Controller ProfilesController where
@@ -42,15 +42,17 @@ instance Controller ProfilesController where
         render EditView { .. }
 
     action ShowProfileLeaveRequestsContentFragmentAction = do
+        ensureTypedLiveSurfaceAuthorized profileLeaveRequestsLiveSurfaceDefinition currentProfileLeaveSurfaceKey
         leaveRequests <- fetchCurrentUserLeaveRequests
         leaveRequestForm <- buildDefaultLeaveRequest
         respondHtml (renderProfileLeaveRequestsContentFragment leaveRequestForm leaveRequests)
 
     action ShowProfileContentFragmentAction = do
+        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "profile" "section")
+        ensureTypedLiveSurfaceAuthorized profileContentLiveSurfaceDefinition (currentProfileContentSurfaceKey openSection)
         maybeExistingStaff <- fetchCurrentUserStaff
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
         let currentUserEmail = currentUser.email
-        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "profile" "section")
         (preferenceWeekdays, selectedShiftPreferences) <- profilePreferenceViewData maybeExistingStaff
         passkeys <- fetchCurrentUserPasskeys
         leaveRequests <- fetchCurrentUserLeaveRequests
@@ -262,17 +264,10 @@ fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes = do
                 | rosterWeek <- activeRosterWeeks
                 ]
 
-buildProfileRosterInvalidations :: (?context :: ControllerContext) => [(Id RosterGroup, Int, [(UUID.UUID, Int)])] -> [(Id RosterGroup, Int, [LiveFragmentRef])]
+buildProfileRosterInvalidations :: [(Id RosterGroup, Int, [(UUID.UUID, Int)])] -> [(Id RosterGroup, Int, [RosterProjectionFragment])]
 buildProfileRosterInvalidations =
     map \(rosterGroupId, weekOffset, _rowKeys) ->
         ( rosterGroupId
         , weekOffset
         , [buildRosterContentFragmentRef rosterGroupId weekOffset]
         )
-
-broadcastProfileContentInvalidation :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
-broadcastProfileContentInvalidation openSection =
-    broadcastLiveInvalidation
-        ProfileScope { venueId = unpackId currentVenueId, userId = unpackId currentUser.id }
-        liveUpdateSourceClientId
-        [profileContentFragmentRef openSection]

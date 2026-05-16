@@ -1,8 +1,7 @@
 module Web.Controller.Users where
 
 import Application.Helper.Controller (defaultRosterWeekStartsOn)
-import Application.Helper.LiveUpdate (LiveUpdateScope (..), broadcastLiveResync,
-                                      liveUpdateSourceClientId)
+import Application.Helper.LiveSurface (broadcastSurfaceFragments)
 import Application.Helper.VenueBootstrap (createVenueWithBootstrapConfigInCurrentTransaction,
                                           defaultStaffNameFromEmail,
                                           defaultVenueBootstrapTimezone,
@@ -15,6 +14,9 @@ import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import Web.Controller.Prelude
 import Web.Controller.Sessions ()
+import Web.View.Admin.Invites (AdminInvitesLiveFragment (..),
+                               AdminInvitesSurfaceKey (..),
+                               adminInvitesLiveSurfaceDefinitionForVenue)
 import Web.View.Users.New
 
 instance Controller UsersController where
@@ -107,9 +109,10 @@ instance Controller UsersController where
                                         pure user
                                     Sessions.beforeLogin user
                                     LoginSupport.login user
-                                    broadcastLiveResync
-                                        (AdminInvitesScope { venueId = invitation.venueId })
-                                        liveUpdateSourceClientId
+                                    broadcastSurfaceFragments
+                                        (adminInvitesLiveSurfaceDefinitionForVenue invitation.venueId)
+                                        AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
+                                        [AdminInvitesLiveFragment]
                                     setSuccessMessage "Invitation accepted."
                                     redirectTo EditProfileAction
                     _ -> do

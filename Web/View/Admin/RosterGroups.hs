@@ -1,12 +1,20 @@
 module Web.View.Admin.RosterGroups
-    ( renderRosterGroupsSectionFragment
+    ( AdminRosterGroupsLiveFragment (..)
+    , adminRosterGroupsLiveSurfaceDefinition
+    , renderRosterGroupsSectionFragment
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson, mkLiveSurface)
+import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
+                                       LiveSurfaceConfig (..),
+                                       SurfaceFragmentRef, SurfaceScope (..),
+                                       TypedLiveSurfaceDefinition (..),
+                                       liveSurfaceAuthorizationByRequirement,
+                                       liveSurfaceConfigJson,
+                                       mkSurfaceFragmentRef,
+                                       mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveUpdateScope (..), mkLiveFragmentRef)
+                                      LiveUpdateScope (..))
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -30,21 +38,42 @@ renderRosterGroupsSectionFragment rosterGroups showInactive = [hsx|
     </div>
 |]
 
+data AdminRosterGroupsSurface
+
+data AdminRosterGroupsLiveFragment
+    = AdminRosterGroupsLiveFragment
+    deriving (Eq, Show)
+
 adminRosterGroupsLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
 adminRosterGroupsLiveSurface =
-    fmap
-        (\venue ->
-        (mkLiveSurface
-            "admin-roster-groups"
-            AdminRosterGroupsScope { venueId = unpackId venue.id }
-            [ mkLiveFragmentRef
-                AdminRosterGroupsFragment
-                "admin-roster-groups-fragment"
-                (pathTo ShowAdminRosterGroupsFragmentAction)
-            ])
-            { decorateRequestsWithin = ["#admin-roster-groups-fragment"] }
-        )
-        currentVenueOrNothing
+    Just (mkTypedDefinedLiveSurface adminRosterGroupsLiveSurfaceDefinition ())
+
+adminRosterGroupsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminRosterGroupsSurface () AdminRosterGroupsLiveFragment
+adminRosterGroupsLiveSurfaceDefinition =
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "admin-roster-groups"
+        , typedSurfaceScope = const (SurfaceScope AdminRosterGroupsScope { venueId = currentVenueScopeId })
+        , typedSurfaceScopeFromWire = \case
+            AdminRosterGroupsScope { venueId } | venueId == currentVenueScopeId -> Just ()
+            _ -> Nothing
+        , typedSurfaceDefaultFragments = const [AdminRosterGroupsLiveFragment]
+        , typedSurfaceFragmentRef = const adminRosterGroupsLiveFragmentRef
+        , typedSurfaceDecorateRequestsWithin = const ["#admin-roster-groups-fragment"]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
+        }
+
+adminRosterGroupsLiveFragmentRef :: (?context :: ControllerContext) => AdminRosterGroupsLiveFragment -> SurfaceFragmentRef AdminRosterGroupsSurface
+adminRosterGroupsLiveFragmentRef AdminRosterGroupsLiveFragment =
+    mkSurfaceFragmentRef
+        AdminRosterGroupsFragment
+        "admin-roster-groups-fragment"
+        (pathTo ShowAdminRosterGroupsFragmentAction)
+
+currentVenueScopeId :: (?context :: ControllerContext) => UUID
+currentVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing -> error "Admin roster groups live surface requires a current venue"
 
 renderRosterGroupCreateForm :: Bool -> Html
 renderRosterGroupCreateForm showInactive = [hsx|

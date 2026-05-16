@@ -33,10 +33,27 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Billing"
+                response `responseBodyShouldContain` "data-live-update-surface=\""
+                response `responseBodyShouldContain` "billing-status-fragment"
+                response `responseBodyShouldContain` "billing:"
                 response `responseBodyShouldContain` "AUD 100/month"
                 response `responseBodyShouldContain` "Start Subscription"
                 response `responseBodyShouldContain` "Manage Billing"
                 response `responseBodyShouldNotContain` "Manual Controls"
+
+        it "serves the billing status fragment through the typed surface rule" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Billing Fragment Venue"
+                owner <- createUserRecord "billing-fragment-owner@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callAction ShowBillingStatusFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"billing-status-fragment\""
+                response `responseBodyShouldContain` "Start Subscription"
+                response `responseBodyShouldNotContain` "id=\"app\""
 
         it "rejects non-owner venue members" $ withContext do
             withCleanDb do

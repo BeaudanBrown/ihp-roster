@@ -35,7 +35,7 @@ where
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate
+import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveUpdateScope (..), currentLiveUpdateVersion)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.RosterWagePrediction
@@ -52,6 +52,11 @@ import Web.RosterWeeks.Capabilities
 import Web.RosterWeeks.Conflicts
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Projection
+import Web.RosterWeeks.Dom
+import Web.RosterWeeks.Paths (rosterWeekContentFragmentUrl,
+                              rosterWeekDaySectionFragmentUrl,
+                              rosterWeekRowFragmentUrl,
+                              rosterWeekStaffPanelFragmentUrl)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.StaffOptions
@@ -71,15 +76,27 @@ rosterLiveSurfaceDefinition =
         , typedSurfaceFragmentRef = \scope fragment ->
             case fragment of
                 RosterProjectionContent ->
-                    SurfaceFragmentRef (buildRosterContentFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
+                    mkSurfaceFragmentRef
+                        RosterContentFragment
+                        rosterContentFragmentId
+                        (rosterWeekContentFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
                 RosterProjectionStaffPanel ->
-                    SurfaceFragmentRef (buildRosterStaffPanelFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
+                    mkSurfaceFragmentRef
+                        RosterStaffPanelFragment
+                        rosterStaffPanelFragmentId
+                        (rosterWeekStaffPanelFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
                 RosterProjectionDaySection rosterDayId ->
-                    SurfaceFragmentRef (buildRosterDaySectionFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset rosterDayId)
+                    mkSurfaceFragmentRef
+                        RosterDaySectionFragment { rosterDayId }
+                        (rosterDaySectionDomId (coerce rosterDayId))
+                        (rosterWeekDaySectionFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId))
                 RosterProjectionRow rosterDayId rowIndex ->
-                    SurfaceFragmentRef (buildRosterRowFragmentRef scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset rosterDayId rowIndex)
+                    mkSurfaceFragmentRef
+                        RosterRowFragment { rosterDayId, rowIndex }
+                        (rosterRowDomIdText (coerce rosterDayId) rowIndex)
+                        (rosterWeekRowFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId) rowIndex)
         , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByScope rosterSurfaceScope
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup (unpackId currentVenueId) (unpackId scope.rosterProjectionGroupId))
         }
     where
         rosterSurfaceScope scope =
@@ -97,8 +114,8 @@ rosterLiveSurfaceDefinition =
 
 rosterProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition RosterProjectionScope (Maybe RosterRenderData) RosterProjectionFragment
 rosterProjectionDefinition =
-    mkSurfaceProjectionDefinition
-        (typedLiveSurfaceDefinition rosterLiveSurfaceDefinition)
+    mkTypedSurfaceProjectionDefinition
+        rosterLiveSurfaceDefinition
         "roster-week"
         defaultSurfaceProjectionCachePolicy
         (\scope -> tshow scope.rosterProjectionGroupId <> ":" <> tshow scope.rosterProjectionWeekOffset)

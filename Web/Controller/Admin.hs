@@ -2,7 +2,6 @@ module Web.Controller.Admin where
 
 import Application.Helper.Export
 import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
-import Application.Helper.LiveUpdate
 import Application.Helper.Pay
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -25,6 +24,8 @@ import Web.Controller.Admin.Support
 import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
+import Web.View.Admin.Compliance
+import Web.View.Admin.Exports
 import Web.View.Admin.Index
 import Web.View.Admin.Invites
 import Web.View.Admin.RosterGroups
@@ -88,7 +89,6 @@ instance Controller AdminController where
         invitations <- fetchCurrentVenueInvitations
         rsaComplianceRows <- staffRsaComplianceRowsForVenue currentVenueId
         today <- utctDay <$> getCurrentTime
-        let invitesLiveUpdateScope = Just (adminInvitesScope currentVenueId)
         render IndexView { .. }
 
     action XeroAction = do
@@ -238,6 +238,7 @@ instance Controller AdminController where
 
     action ShowAdminInvitesFragmentAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
+        ensureTypedLiveSurfaceAuthorized adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just currentRosterGroup.id }
         invitations <- fetchCurrentVenueInvitations
         respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
 
@@ -250,21 +251,41 @@ instance Controller AdminController where
         respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)
 
     action ShowAdminRosterGroupsFragmentAction = do
+        ensureTypedLiveSurfaceAuthorized adminRosterGroupsLiveSurfaceDefinition ()
         syncVenueDefaultRosterGroupToTopActive currentVenueId
         rosterGroups <- fetchCurrentVenueRosterGroups
         let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
         respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)
 
+    action ShowAdminExportsFragmentAction = do
+        ensureTypedLiveSurfaceAuthorized adminExportsLiveSurfaceDefinition ()
+        currentWeekOffset <- currentReportWeekOffset
+        reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
+        let defaultRangeStart = reportWeekSelection.weekStart
+        let defaultRangeEnd = reportWeekSelection.weekEnd
+        exportJobs <- fetchCurrentVenueExportJobs
+        respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)
+
+    action ShowAdminComplianceFragmentAction = do
+        ensureTypedLiveSurfaceAuthorized staffComplianceLiveSurfaceDefinition ()
+        rsaComplianceRows <- staffRsaComplianceRowsForVenue currentVenueId
+        today <- utctDay <$> getCurrentTime
+        respondHtml (renderComplianceSectionFragment rsaComplianceRows today)
+
     action ShowAdminXeroFragmentAction = do
+        ensureTypedLiveSurfaceAuthorized adminXeroLiveSurfaceDefinition ()
         requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
 
     action ShowAdminXeroStaffMappingsFragmentAction = do
+        ensureTypedLiveSurfaceAuthorized adminXeroLiveSurfaceDefinition ()
         requireCurrentVenueOwnerForXero respondWithXeroStaffMappingsFragment
 
     action ShowAdminXeroPayItemsFragmentAction = do
+        ensureTypedLiveSurfaceAuthorized adminXeroLiveSurfaceDefinition ()
         requireCurrentVenueOwnerForXero respondWithXeroPayItemsFragment
 
     action ShowAdminXeroTimesheetsFragmentAction = do
+        ensureTypedLiveSurfaceAuthorized adminXeroLiveSurfaceDefinition ()
         requireCurrentVenueOwnerForXero respondWithXeroTimesheetsFragment
 
     action CreateVenueInvitationAction = do

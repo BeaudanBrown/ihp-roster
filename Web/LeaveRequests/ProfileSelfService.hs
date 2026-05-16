@@ -1,7 +1,6 @@
 module Web.LeaveRequests.ProfileSelfService
     ( profileLeaveRequestFormFragmentId
     , profileLeaveRequestsContentFragmentId
-    , profileLeaveRequestsContentFragmentRef
     , profileLeaveRequestsListFragmentId
     , profileLeaveTargetFragmentIds
     , renderProfileLeaveRequestFormFragment

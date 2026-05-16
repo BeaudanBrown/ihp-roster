@@ -12,8 +12,10 @@ import qualified Data.Text.IO as TextIO
 import qualified Data.Time.Calendar as Calendar
 import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
+import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
 import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.Projection
+import Web.Profiles.LiveUpdates
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment)
@@ -31,6 +33,7 @@ instance Controller LeaveRequestsController where
     action ShowLeaveRequestsContentFragmentAction = do
         ensureProfileCompleted
         ensureManagerRole
+        ensureTypedLiveSurfaceAuthorized leaveRequestsLiveSurfaceDefinition ()
         maybeHtml <- renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
         when (isNothing maybeHtml) do
             TextIO.putStrLn "leave_projection_miss: fragment=content"
@@ -74,7 +77,7 @@ instance Controller LeaveRequestsController where
                                 then respondWithLeaveRequestValidationFailure responseContext leaveRequest
                                 else render NewView { .. }
                         Right leaveRequest -> do
-                            _ <- withTransaction do
+                            createdLeaveRequest <- withTransaction do
                                 createdLeaveRequest <- leaveRequest |> createRecord
                                 void $
                                     recordCurrentUserLeaveRequestEvent
@@ -85,6 +88,7 @@ instance Controller LeaveRequestsController where
                                         Aeson.Null
                                 pure createdLeaveRequest
                             broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
+                            broadcastProfileLeaveRequestsInvalidation
                             if isHtmxRequest
                                 then respondWithLeaveMutationSuccess responseContext "Unavailable period submitted" True
                                 else do
@@ -128,6 +132,7 @@ instance Controller LeaveRequestsController where
         unless wasApproved do
             invalidateAffectedRosterWeeksForLeave savedLeaveRequest
         broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
+        broadcastProfileLeaveRequestsInvalidationForStaffId savedLeaveRequest.staffId
         if isHtmxRequest
             then respondWithLeaveRequestsContent "Unavailable period approved" False
             else do
@@ -171,6 +176,7 @@ instance Controller LeaveRequestsController where
         when wasApproved do
             invalidateAffectedRosterWeeksForLeave savedLeaveRequest
         broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
+        broadcastProfileLeaveRequestsInvalidationForStaffId savedLeaveRequest.staffId
         if isHtmxRequest
             then respondWithLeaveRequestsContent "Unavailable period denied" False
             else do
@@ -216,6 +222,7 @@ instance Controller LeaveRequestsController where
                     ]
                 )
         broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
+        broadcastProfileLeaveRequestsInvalidationForStaffId leaveRequest.staffId
         if isHtmxRequest
             then respondWithLeaveMutationSuccess responseContext "Unavailable period cancelled" False
             else do

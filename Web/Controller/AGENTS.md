@@ -96,15 +96,15 @@ Every controller requires changes in **four files** (missing any will cause comp
 ## Live Fragment Pattern
 - For collaborative pages, split delivery paths:
   - actor response returns immediate HTMX fragments/OOB swaps
-  - cross-viewer updates use `broadcastLiveInvalidation` with fragment refs that point to dedicated GET fragment actions
+  - cross-viewer updates use typed broadcast or mutation helpers with feature-local fragment enums that point to dedicated GET fragment actions
 - Declare ordinary live surfaces from Haskell with `Application.Helper.LiveSurface.TypedLiveSurfaceDefinition`; render them through `mkTypedDefinedLiveSurface` + `liveSurfaceConfigJson`. The browser runtime discovers `data-live-update-surface` and owns subscription, request decoration, resync, refetch queueing, swapping, and reusable protection policies.
-- Typed fragment GET actions should call `ensureTypedLiveSurfaceAuthorized` with the same surface key that produced the fragment ref. Websocket subscription authorization for migrated surfaces should use the same typed definition via `authorizeTypedLiveSurfaceWireScope`.
+- Typed fragment GET actions should call `ensureTypedLiveSurfaceAuthorized` with the same surface key that produced the fragment ref. Websocket subscription authorization must be registered in `Web.LiveSurfaceRegistry`; do not fall back to raw scope authorization.
 - Treat scopes as authorized logical data slices, not pages. A mutation may invalidate multiple scopes, and only a subset of fragments within each scope.
 - Prefer one websocket connection per browser tab/client with many active scope subscriptions instead of one socket per page.
-- Keep fragment refs explicit (`targetId`, `url`, defer/swap metadata) so the transport stays structural and controllers do not need to know mounted DOM state.
+- Keep typed fragment mappings explicit (`targetId`, `url`, defer/swap metadata) so the transport stays structural and controllers do not need to know mounted DOM state.
 - Keep reconnect semantics explicit in the transport: each scope should expose a monotonic version, subscribe commands may include the client's `lastSeenVersion`, and the server should tell the client when a full scope resync is required instead of assuming no invalidations were missed.
 - Keep fragment GET actions authorized with the same venue/visibility rules as the full page; do not expose restricted fragments just because the websocket payload names them.
-- Include the acting tab's `X-Live-Update-Client-Id` in broadcasts so the client can suppress its own invalidation echo.
+- Use typed broadcast helpers so the acting tab's `X-Live-Update-Client-Id` is carried automatically and the client can suppress its own invalidation echo.
 - Broadcast invalidations for affected scopes after the business transaction commits, not before.
 - For direct mutations that know their exact scope, broadcast that scope directly. For fan-out mutations that could touch many roster weeks or other cold surfaces, first intersect the candidate set with active subscriptions via `Application.Helper.LiveUpdate.activeLiveUpdateScopes` or `activeRosterWeekScopes`, then query/build refs only for those open scopes. Closed pages should rely on fresh HTTP rendering unless the feature explicitly needs durable missed-update semantics.
 - When a slot mutation can change conflict state across multiple rows, it is acceptable for the actor response to return a full `#roster-content` OOB refresh instead of trying to keep actor-side row patches perfectly minimal.

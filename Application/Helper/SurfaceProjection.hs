@@ -19,7 +19,7 @@ module Application.Helper.SurfaceProjection
     , warmSurfaceProjectionFromStore
     ) where
 
-import Application.Helper.LiveUpdate (LiveFragmentRef)
+import Application.Helper.LiveUpdate.Internal (LiveFragmentRef)
 import qualified Data.Dynamic as Dynamic
 import Data.IORef
 import qualified Data.Map.Strict as Map

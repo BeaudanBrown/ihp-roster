@@ -19,13 +19,9 @@ module Web.LeaveRequests.Projection
 
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveFragmentRef (..),
                                       LiveUpdateScope (..),
                                       activeRosterWeekScopes,
-                                      broadcastLiveInvalidation,
-                                      currentLiveUpdateVersion,
-                                      liveUpdateSourceClientId,
-                                      mkLiveFragmentRef)
+                                      currentLiveUpdateVersion)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
 import Data.Coerce (coerce)
@@ -34,7 +30,6 @@ import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
-import Web.LeaveRequests.ProfileSelfService (profileLeaveRequestsContentFragmentRef)
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Projection (buildRosterContentFragmentRef,
                                    buildRosterStaffPanelFragmentRef)
@@ -51,6 +46,8 @@ data LeaveRequestsProjectionFragment
     = LeaveRequestsProjectionPage
     | LeaveRequestsProjectionContent
     deriving (Eq, Show)
+
+data LeaveRequestsSurface
 
 fetchStaffMembersForCurrentVenue :: (?modelContext :: ModelContext, ?context :: ControllerContext) => IO [Staff]
 fetchStaffMembersForCurrentVenue =
@@ -77,22 +74,26 @@ fetchVisibleLeaveRequests = do
                         |> orderByDesc #startDate
                         |> fetch
 
-leaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => LiveSurfaceDefinition () LeaveRequestsProjectionFragment
+leaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsProjectionFragment
 leaveRequestsLiveSurfaceDefinition =
-    LiveSurfaceDefinition
-        { surfaceFeature = "leave-requests"
-        , surfaceScope = const (buildLeaveRequestsScope currentVenueId)
-        , surfaceDefaultFragments = const [LeaveRequestsProjectionContent]
-        , surfaceFragmentRef = \() fragment ->
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "leave-requests"
+        , typedSurfaceScope = const (SurfaceScope (buildLeaveRequestsScope currentVenueId))
+        , typedSurfaceScopeFromWire = \case
+            LeaveRequestsScope { venueId } | venueId == unpackId currentVenueId -> Just ()
+            _ -> Nothing
+        , typedSurfaceDefaultFragments = const [LeaveRequestsProjectionContent]
+        , typedSurfaceFragmentRef = \() fragment ->
             case fragment of
                 LeaveRequestsProjectionPage -> buildLeaveRequestsPageFragmentRef
                 LeaveRequestsProjectionContent -> buildLeaveRequestsContentFragmentRef
-        , surfaceDecorateRequestsWithin = const ["#" <> leaveRequestsShellId]
+        , typedSurfaceDecorateRequestsWithin = const ["#" <> leaveRequestsShellId]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager (unpackId currentVenueId)))
         }
 
 leaveRequestsProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition () LeaveRequestsProjection LeaveRequestsProjectionFragment
 leaveRequestsProjectionDefinition =
-    mkSurfaceProjectionDefinition
+    mkTypedSurfaceProjectionDefinition
         leaveRequestsLiveSurfaceDefinition
         "leave-requests"
         defaultSurfaceProjectionCachePolicy
@@ -147,7 +148,7 @@ leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveP
         , staffMembers = leaveProjectionStaffMembers
         , currentViewerStaffId = leaveProjectionCurrentViewerStaffId
         , today = leaveProjectionToday
-        , liveUpdateSurface = Just (mkDefinedLiveSurface leaveRequestsLiveSurfaceDefinition ())
+        , liveUpdateSurface = Just (mkTypedDefinedLiveSurface leaveRequestsLiveSurfaceDefinition ())
         }
 
 invalidateAffectedRosterWeeksForLeave :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO ()
@@ -190,34 +191,31 @@ buildLeaveRequestsScope venueId =
         { venueId = unpackId venueId
         }
 
-buildLeaveRequestsContentFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
+buildLeaveRequestsContentFragmentRef :: (?context :: ControllerContext) => SurfaceFragmentRef LeaveRequestsSurface
 buildLeaveRequestsContentFragmentRef =
-    mkLiveFragmentRef
+    mkSurfaceFragmentRef
         LeaveRequestsContentFragment
         leaveRequestsContentFragmentId
         (pathTo ShowLeaveRequestsContentFragmentAction)
 
-leaveRequestsContentFragmentRefs :: (?context :: ControllerContext) => [LiveFragmentRef]
+leaveRequestsContentFragmentRefs :: [LeaveRequestsProjectionFragment]
 leaveRequestsContentFragmentRefs =
-    [ buildLeaveRequestsContentFragmentRef
-    , profileLeaveRequestsContentFragmentRef
-    ]
+    [ LeaveRequestsProjectionContent ]
 
-buildLeaveRequestsPageFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
+buildLeaveRequestsPageFragmentRef :: (?context :: ControllerContext) => SurfaceFragmentRef LeaveRequestsSurface
 buildLeaveRequestsPageFragmentRef =
-    mkLiveFragmentRef
+    mkSurfaceFragmentRef
         LeaveRequestsContentFragment
         leaveRequestsShellId
         (pathTo LeaveRequestsAction)
 
 broadcastLeaveRequestsInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
-    [LiveFragmentRef] ->
+    [LeaveRequestsProjectionFragment] ->
     IO ()
 broadcastLeaveRequestsInvalidation fragments =
     unless (null fragments) do
-        liftIO $
-            broadcastLiveInvalidation
-                (buildLeaveRequestsScope currentVenueId)
-                liveUpdateSourceClientId
-                fragments
+        broadcastSurfaceFragments
+            leaveRequestsLiveSurfaceDefinition
+            ()
+            fragments

@@ -1,10 +1,60 @@
 module Web.View.Admin.Exports
-    ( renderExportsSection
+    ( AdminExportsLiveFragment (..)
+    , adminExportsLiveSurfaceDefinition
+    , renderExportsSection
+    , renderExportsSectionFragment
     ) where
 
+import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
+import Application.Helper.LiveSurface
+import Application.Helper.LiveUpdate
 import Web.View.Admin.Common
 import Web.View.Prelude
+
+data AdminExportsSurface
+
+data AdminExportsLiveFragment
+    = AdminExportsLiveFragment
+    deriving (Eq, Show)
+
+adminExportsFragmentId :: Text
+adminExportsFragmentId = "admin-exports-fragment"
+
+adminExportsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminExportsSurface () AdminExportsLiveFragment
+adminExportsLiveSurfaceDefinition =
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "admin-exports"
+        , typedSurfaceScope = const (SurfaceScope AdminExportsScope { venueId = currentVenueScopeId })
+        , typedSurfaceScopeFromWire = \case
+            AdminExportsScope { venueId } | venueId == currentVenueScopeId -> Just ()
+            _ -> Nothing
+        , typedSurfaceDefaultFragments = const [AdminExportsLiveFragment]
+        , typedSurfaceFragmentRef = const adminExportsLiveFragmentRef
+        , typedSurfaceDecorateRequestsWithin = const ["#" <> adminExportsFragmentId]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
+        }
+
+adminExportsLiveFragmentRef :: (?context :: ControllerContext) => AdminExportsLiveFragment -> SurfaceFragmentRef AdminExportsSurface
+adminExportsLiveFragmentRef AdminExportsLiveFragment =
+    mkSurfaceFragmentRef
+        AdminExportsFragment
+        adminExportsFragmentId
+        (pathTo ShowAdminExportsFragmentAction)
+
+currentVenueScopeId :: (?context :: ControllerContext) => UUID
+currentVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing -> error "Admin exports live surface requires a current venue"
+
+renderExportsSectionFragment :: ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
+renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs = [hsx|
+    <div id={adminExportsFragmentId}
+         data-live-update-surface={liveSurfaceConfigJson (mkTypedDefinedLiveSurface adminExportsLiveSurfaceDefinition ())}>
+        {renderExportsSection reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs}
+    </div>
+|]
 
 renderExportsSection :: ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
 renderExportsSection reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs =

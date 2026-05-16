@@ -1,14 +1,23 @@
 module Web.View.Admin.Invites
-    ( adminInvitesLiveSurface
+    ( AdminInvitesLiveFragment (..)
+    , AdminInvitesSurfaceKey (..)
+    , adminInvitesLiveSurface
+    , adminInvitesLiveSurfaceDefinition
+    , adminInvitesLiveSurfaceDefinitionForVenue
     , renderInvitesSectionFragment
     ) where
 
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson, mkLiveSurface)
+import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
+                                       LiveSurfaceConfig (..),
+                                       SurfaceFragmentRef, SurfaceScope (..),
+                                       TypedLiveSurfaceDefinition (..),
+                                       liveSurfaceAuthorizationByRequirement,
+                                       liveSurfaceConfigJson,
+                                       mkSurfaceFragmentRef,
+                                       mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveFragmentProtection (..),
-                                      LiveFragmentRef (..),
-                                      LiveUpdateScope (..), mkLiveFragmentRef)
+                                      LiveUpdateScope (..))
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -65,22 +74,57 @@ renderInviteCreateForm rosterGroupId = [hsx|
 
 renderInvitesSectionFragment :: [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSectionFragment invitations rosterGroupId = [hsx|
-    <div id="admin-invites-fragment">
+    <div id="admin-invites-fragment"
+         data-live-update-surface={liveSurfaceConfigJson (adminInvitesLiveSurface rosterGroupId)}>
         {renderInvitesSection invitations rosterGroupId}
     </div>
 |]
 
-adminInvitesLiveSurface :: (?context :: ControllerContext) => Id RosterGroup -> LiveUpdateScope -> LiveSurfaceConfig
-adminInvitesLiveSurface rosterGroupId scope =
-    (mkLiveSurface
-        "admin-invites"
-        scope
-        [ mkLiveFragmentRef
-            AdminInvitesFragment
-            "admin-invites-fragment"
-            (appendQueryParams (pathTo ShowAdminInvitesFragmentAction) [("rosterGroupId", tshow rosterGroupId)])
-        ])
-        { decorateRequestsWithin = ["#admin-invites-fragment"] }
+data AdminInvitesSurface
+
+data AdminInvitesSurfaceKey = AdminInvitesSurfaceKey
+    { adminInvitesRosterGroupId :: !(Maybe (Id RosterGroup))
+    }
+    deriving (Eq, Show)
+
+data AdminInvitesLiveFragment
+    = AdminInvitesLiveFragment
+    deriving (Eq, Show)
+
+adminInvitesLiveSurface :: (?context :: ControllerContext) => Id RosterGroup -> LiveSurfaceConfig
+adminInvitesLiveSurface rosterGroupId =
+    mkTypedDefinedLiveSurface adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just rosterGroupId }
+
+adminInvitesLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminInvitesSurface AdminInvitesSurfaceKey AdminInvitesLiveFragment
+adminInvitesLiveSurfaceDefinition =
+    adminInvitesLiveSurfaceDefinitionForVenue currentVenueScopeId
+
+adminInvitesLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminInvitesSurface AdminInvitesSurfaceKey AdminInvitesLiveFragment
+adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "admin-invites"
+        , typedSurfaceScope = const (SurfaceScope AdminInvitesScope { venueId = surfaceVenueId })
+        , typedSurfaceScopeFromWire = \case
+            AdminInvitesScope { venueId } | venueId == surfaceVenueId -> Just AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
+            _ -> Nothing
+        , typedSurfaceDefaultFragments = const [AdminInvitesLiveFragment]
+        , typedSurfaceFragmentRef = adminInvitesLiveFragmentRef
+        , typedSurfaceDecorateRequestsWithin = const ["#admin-invites-fragment"]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
+        }
+
+adminInvitesLiveFragmentRef :: AdminInvitesSurfaceKey -> AdminInvitesLiveFragment -> SurfaceFragmentRef AdminInvitesSurface
+adminInvitesLiveFragmentRef AdminInvitesSurfaceKey { adminInvitesRosterGroupId } AdminInvitesLiveFragment =
+    mkSurfaceFragmentRef
+        AdminInvitesFragment
+        "admin-invites-fragment"
+        (appendQueryParams (pathTo ShowAdminInvitesFragmentAction) (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) adminInvitesRosterGroupId))
+
+currentVenueScopeId :: (?context :: ControllerContext) => UUID
+currentVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing -> error "Admin invites live surface requires a current venue"
 
 renderInviteTable :: [VenueInvitation] -> Id RosterGroup -> Html
 renderInviteTable invitations rosterGroupId = [hsx|

@@ -16,8 +16,7 @@ import Application.Async.Queue
 import Application.Helper.Audit
 import Application.Helper.Controller (shiftDurationMinutes, unsafeEnumFromText,
                                       venueWeekOffsetForDay, venueWeekStartDate)
-import Application.Helper.LiveUpdate (LiveUpdateScope (..),
-                                      broadcastLiveResyncWithoutContext)
+import Application.Helper.LiveSurface (broadcastSurfaceResyncWithoutContext)
 import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
@@ -29,6 +28,8 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
 import IHP.ModelSupport (ModelContext, sqlQueryScalar)
+import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
+                                  timesheetLiveSurfaceDefinitionForVenue)
 
 rosterTimesheetCreationJobKind :: Text
 rosterTimesheetCreationJobKind = "roster_timesheet_creation"
@@ -126,11 +127,9 @@ performRosterTimesheetCreationJob appJob = do
                                         )
                             pure entry
                         markRosterTimesheetJobSucceeded appJob "created" (Just timesheetEntry)
-                        broadcastLiveResyncWithoutContext
-                            TimesheetWeekScope
-                                { venueId = rosterWeek.venueId
-                                , weekOffset = venueWeekOffsetForDay venueConfig workedOn
-                                }
+                        broadcastSurfaceResyncWithoutContext
+                            (timesheetLiveSurfaceDefinitionForVenue rosterWeek.venueId)
+                            (TimesheetProjectionRequest (venueWeekOffsetForDay venueConfig workedOn) True True Nothing)
                             Nothing
 
 rosterTimesheetRunAt ::

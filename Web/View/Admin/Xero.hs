@@ -7,19 +7,23 @@ module Web.View.Admin.Xero
     , renderXeroPayItemsFragment
     , renderXeroStaffMappingsFragment
     , renderXeroStaffMappingsOob
+    , AdminXeroLiveFragment (..)
+    , adminXeroLiveSurfaceDefinition
+    , adminXeroLiveSurfaceDefinitionForVenue
     , renderXeroTimesheetsFragment
-    , xeroPayItemsFragmentRef
-    , xeroStaffMappingsFragmentRef
-    , xeroTimesheetsFragmentRef
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
-                                       liveSurfaceConfigJson, mkLiveSurface)
+import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
+                                       LiveSurfaceConfig (..),
+                                       SurfaceFragmentRef, SurfaceScope (..),
+                                       TypedLiveSurfaceDefinition (..),
+                                       liveSurfaceAuthorizationByRequirement,
+                                       liveSurfaceConfigJson,
+                                       mkSurfaceFragmentRef,
+                                       mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveFragmentProtection (..),
-                                      LiveFragmentRef (..),
-                                      LiveUpdateScope (..), mkLiveFragmentRef)
+                                      LiveUpdateScope (..))
 import Application.Helper.XeroAdminTypes
 import Web.View.Admin.Common
 import Web.View.Admin.Xero.Connection
@@ -55,23 +59,64 @@ instance View XeroView where
             , appPageBody = xeroPanel
             }
 
+data AdminXeroSurface
+
+data AdminXeroLiveFragment
+    = AdminXeroShellLiveFragment
+    | AdminXeroStaffMappingsLiveFragment
+    | AdminXeroPayItemsLiveFragment
+    | AdminXeroTimesheetsLiveFragment
+    deriving (Eq, Show)
+
 adminXeroLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
 adminXeroLiveSurface =
-    fmap
-        (\venue ->
-        (mkLiveSurface
-            "admin-xero"
-            AdminXeroScope { venueId = unpackId venue.id }
-            [ mkLiveFragmentRef
-                AdminXeroFragment
-                "admin-xero-fragment"
-                (pathTo ShowAdminXeroFragmentAction)
-            , xeroPayItemsFragmentRef
-            , xeroTimesheetsFragmentRef
-            ])
-            { decorateRequestsWithin = ["#admin-xero-fragment"] }
-        )
-        currentVenueOrNothing
+    Just (mkTypedDefinedLiveSurface adminXeroLiveSurfaceDefinition ())
+
+adminXeroLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminXeroSurface () AdminXeroLiveFragment
+adminXeroLiveSurfaceDefinition =
+    adminXeroLiveSurfaceDefinitionForVenue currentVenueScopeId
+
+adminXeroLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminXeroSurface () AdminXeroLiveFragment
+adminXeroLiveSurfaceDefinitionForVenue surfaceVenueId =
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "admin-xero"
+        , typedSurfaceScope = const (SurfaceScope AdminXeroScope { venueId = surfaceVenueId })
+        , typedSurfaceScopeFromWire = \case
+            AdminXeroScope { venueId } | venueId == surfaceVenueId -> Just ()
+            _ -> Nothing
+        , typedSurfaceDefaultFragments = const [AdminXeroShellLiveFragment, AdminXeroStaffMappingsLiveFragment, AdminXeroPayItemsLiveFragment, AdminXeroTimesheetsLiveFragment]
+        , typedSurfaceFragmentRef = const adminXeroLiveFragmentRef
+        , typedSurfaceDecorateRequestsWithin = const ["#admin-xero-fragment"]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner surfaceVenueId))
+        }
+
+adminXeroLiveFragmentRef :: AdminXeroLiveFragment -> SurfaceFragmentRef AdminXeroSurface
+adminXeroLiveFragmentRef AdminXeroShellLiveFragment =
+    mkSurfaceFragmentRef
+        AdminXeroFragment
+        "admin-xero-fragment"
+        (pathTo ShowAdminXeroFragmentAction)
+adminXeroLiveFragmentRef AdminXeroStaffMappingsLiveFragment =
+    mkSurfaceFragmentRef
+        AdminXeroStaffMappingsFragment
+        "xero-staff-mappings-data"
+        (pathTo ShowAdminXeroStaffMappingsFragmentAction)
+adminXeroLiveFragmentRef AdminXeroPayItemsLiveFragment =
+    mkSurfaceFragmentRef
+        AdminXeroPayItemsFragment
+        "xero-pay-items-data"
+        (pathTo ShowAdminXeroPayItemsFragmentAction)
+adminXeroLiveFragmentRef AdminXeroTimesheetsLiveFragment =
+    mkSurfaceFragmentRef
+        AdminXeroTimesheetsFragment
+        "xero-timesheets-data"
+        (pathTo ShowAdminXeroTimesheetsFragmentAction)
+
+currentVenueScopeId :: (?context :: ControllerContext) => UUID
+currentVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing -> error "Admin Xero live surface requires a current venue"
 
 renderXeroSection :: XeroAdminSectionData -> Html
 renderXeroSection XeroAdminSectionData { xeroConnection = maybeConnection, .. } =
@@ -144,27 +189,6 @@ renderXeroPayItemsFragment =
 renderXeroTimesheetsFragment :: XeroTimesheetPanelData -> Html
 renderXeroTimesheetsFragment =
     renderXeroTimesheetPanel
-
-xeroPayItemsFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
-xeroPayItemsFragmentRef =
-    mkLiveFragmentRef
-        AdminXeroPayItemsFragment
-        "xero-pay-items-data"
-        (pathTo ShowAdminXeroPayItemsFragmentAction)
-
-xeroStaffMappingsFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
-xeroStaffMappingsFragmentRef =
-    mkLiveFragmentRef
-        AdminXeroStaffMappingsFragment
-        "xero-staff-mappings-data"
-        (pathTo ShowAdminXeroStaffMappingsFragmentAction)
-
-xeroTimesheetsFragmentRef :: (?context :: ControllerContext) => LiveFragmentRef
-xeroTimesheetsFragmentRef =
-    mkLiveFragmentRef
-        AdminXeroTimesheetsFragment
-        "xero-timesheets-data"
-        (pathTo ShowAdminXeroTimesheetsFragmentAction)
 
 renderXeroAccordionItem :: Text -> Text -> Bool -> Html -> Html
 renderXeroAccordionItem sectionId title isOpen content =

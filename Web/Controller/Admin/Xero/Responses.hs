@@ -19,12 +19,13 @@ module Web.Controller.Admin.Xero.Responses
     , respondWithXeroStaffMappingsFragment
     , respondWithXeroTimesheetMutation
     , respondWithXeroTimesheetsFragment
-    , xeroPayItemsFragmentRef
     , xeroErrorToast
     , xeroSuccessToast
     ) where
 
-import Application.Helper.LiveUpdate
+import Application.Helper.LiveSurface (broadcastSurfaceFragments,
+                                       broadcastSurfaceResync,
+                                       setTypedLiveSurfaceActorRefresh)
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
@@ -34,7 +35,6 @@ import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel hiding
                                         (fetchCurrentVenueXeroAdminSectionData)
 import qualified Application.Xero.Admin.ReadModel as XeroReadModel
-import qualified Data.Aeson as Aeson
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
@@ -44,40 +44,40 @@ broadcastAdminXeroInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id Venue ->
     IO ()
-broadcastAdminXeroInvalidation venueId =
-    broadcastLiveResync
-        (adminXeroScope venueId)
-        liveUpdateSourceClientId
+broadcastAdminXeroInvalidation _venueId =
+    broadcastSurfaceResync
+        adminXeroLiveSurfaceDefinition
+        ()
 
 broadcastAdminXeroStaffMappingsInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     UUID.UUID ->
     IO ()
-broadcastAdminXeroStaffMappingsInvalidation venueId =
-    broadcastLiveInvalidation
-        AdminXeroScope { venueId }
-        liveUpdateSourceClientId
-        [xeroStaffMappingsFragmentRef]
+broadcastAdminXeroStaffMappingsInvalidation _venueId =
+    broadcastSurfaceFragments
+        adminXeroLiveSurfaceDefinition
+        ()
+        [AdminXeroStaffMappingsLiveFragment]
 
 broadcastAdminXeroPayItemsInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     UUID.UUID ->
     IO ()
-broadcastAdminXeroPayItemsInvalidation venueId =
-    broadcastLiveInvalidation
-        AdminXeroScope { venueId }
-        liveUpdateSourceClientId
-        [xeroPayItemsFragmentRef]
+broadcastAdminXeroPayItemsInvalidation _venueId =
+    broadcastSurfaceFragments
+        adminXeroLiveSurfaceDefinition
+        ()
+        [AdminXeroPayItemsLiveFragment]
 
 broadcastAdminXeroTimesheetsInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     UUID.UUID ->
     IO ()
-broadcastAdminXeroTimesheetsInvalidation venueId =
-    broadcastLiveInvalidation
-        AdminXeroScope { venueId }
-        liveUpdateSourceClientId
-        [xeroTimesheetsFragmentRef]
+broadcastAdminXeroTimesheetsInvalidation _venueId =
+    broadcastSurfaceFragments
+        adminXeroLiveSurfaceDefinition
+        ()
+        [AdminXeroTimesheetsLiveFragment]
 
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -160,7 +160,7 @@ respondWithXeroStaffMappingControlsAndToast ::
 respondWithXeroStaffMappingControlsAndToast connection _ maybeToast = do
     profileActionSpan "admin.xero.staff_mapping.broadcast" $
         broadcastAdminXeroStaffMappingsInvalidation connection.venueId
-    setHeader ("HX-Trigger", cs (Aeson.encode (liveFragmentsRefreshTriggerPayload [xeroStaffMappingsFragmentRef])))
+    setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [AdminXeroStaffMappingsLiveFragment]
     respondWithXeroStaffMappingToastOnly maybeToast
 
 respondWithXeroStaffMappingToastOnly ::
@@ -176,7 +176,7 @@ respondWithXeroTimesheetMutation ::
     Maybe ToastOverlayConfig ->
     IO ()
 respondWithXeroTimesheetMutation maybeToast = do
-    setHeader ("HX-Trigger", cs (Aeson.encode (liveFragmentsRefreshTriggerPayload [xeroTimesheetsFragmentRef])))
+    setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [AdminXeroTimesheetsLiveFragment]
     respondHtmlProfiled $
         maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
 

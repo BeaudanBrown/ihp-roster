@@ -1,6 +1,6 @@
 module Web.Controller.Staff where
 
-import qualified Application.Helper.LiveUpdate as LiveUpdate
+import Application.Helper.LiveSurface (broadcastSurfaceResync)
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupIds,
@@ -17,6 +17,7 @@ import Web.Controller.Prelude
 import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
 import Web.RosterWeeks.Projection (buildRosterContentFragmentRef)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob)
+import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinition)
 import Web.View.Staff.Edit
 
 staffXeroPayItemScopeChanged :: Staff -> Staff -> Bool
@@ -34,9 +35,7 @@ broadcastStaffXeroInvalidation ::
     (?context :: ControllerContext, ?request :: Request) =>
     IO ()
 broadcastStaffXeroInvalidation =
-    LiveUpdate.broadcastLiveResync
-        LiveUpdate.AdminXeroScope { LiveUpdate.venueId = unpackId currentVenueId }
-        LiveUpdate.liveUpdateSourceClientId
+    broadcastSurfaceResync adminXeroLiveSurfaceDefinition ()
 
 instance Controller StaffController where
     beforeAction = do

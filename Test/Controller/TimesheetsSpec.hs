@@ -2,7 +2,8 @@ module Test.Controller.TimesheetsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       parseTimeParam)
-import Application.Helper.LiveSurface (mkTypedDefinedLiveSurface)
+import Application.Helper.LiveSurface (mkTypedDefinedLiveSurface,
+                                       unSurfaceFragmentRefs)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Config
@@ -84,7 +85,7 @@ tests = beforeAll testContext do
                         let liveSurface = mkTypedDefinedLiveSurface timesheetLiveSurfaceDefinition requestKey
                         let expectedRefs = [buildTimesheetDaySectionFragmentRef requestKey dayOffset | dayOffset <- [0 .. 6]]
                         response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
-                        pure (response, liveSurface, expectedRefs)
+                        pure (response, liveSurface, unSurfaceFragmentRefs expectedRefs)
 
                 liveSurfaceConfigShouldRoundTrip liveSurface
                 liveSurfaceConfigShouldExposeRefs liveSurface expectedRefs
@@ -112,7 +113,11 @@ tests = beforeAll testContext do
                         let fragmentRef = buildTimesheetDaySectionFragmentRef requestKey 0
                         callAction ShowTimesheetWeekAction { weekOffset = 0 }
                         response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
-                        pure (response, fragmentRef)
+                        let rawFragmentRef =
+                                case unSurfaceFragmentRefs [fragmentRef] of
+                                    [ref] -> ref
+                                    _     -> error "Expected one timesheet fragment ref"
+                        pure (response, rawFragmentRef)
 
                 liveFragmentResponseShouldRenderTarget response fragmentRef
 

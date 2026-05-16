@@ -18,6 +18,13 @@ Related tickets:
 
 - `ir-jooi` - surface projection cache work
 - `ir-f2p4` - focused-field protection cleanup
+- `ir-3pnb` - strict typed live-surface overhaul
+
+Follow-up workstream:
+
+- `docs/workstreams/strict-live-surface-overhaul.md` replaces incremental
+  migration with the stricter target that removes the compatibility/manual
+  authoring layer from feature code.
 
 Living docs to update:
 

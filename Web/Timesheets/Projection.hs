@@ -18,6 +18,7 @@ module Web.Timesheets.Projection
     , timesheetDayRenderModelFromProjection
     , timesheetIndexView
     , timesheetLiveSurfaceDefinition
+    , timesheetLiveSurfaceDefinitionForVenue
     , timesheetProjectionDefinition
     , timesheetViewFiltersFromRequest
     , weekOffsetFromParamOrCurrent
@@ -26,10 +27,8 @@ module Web.Timesheets.Projection
 
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveFragmentRef (..),
                                       LiveUpdateScope (..),
-                                      currentLiveUpdateVersion,
-                                      mkLiveFragmentRef)
+                                      currentLiveUpdateVersion)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
 import Application.Helper.Url (appendQueryParams)
@@ -179,6 +178,10 @@ fetchTimesheetWeekProjection TimesheetProjectionRequest { projectionWeekOffset =
 
 timesheetLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition TimesheetLiveSurface TimesheetProjectionRequest TimesheetProjectionFragment
 timesheetLiveSurfaceDefinition =
+    timesheetLiveSurfaceDefinitionForVenue (unpackId currentVenueId)
+
+timesheetLiveSurfaceDefinitionForVenue :: UUID.UUID -> TypedLiveSurfaceDefinition TimesheetLiveSurface TimesheetProjectionRequest TimesheetProjectionFragment
+timesheetLiveSurfaceDefinitionForVenue surfaceVenueId =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "timesheets"
         , typedSurfaceScope = timesheetSurfaceScope
@@ -187,27 +190,27 @@ timesheetLiveSurfaceDefinition =
         , typedSurfaceFragmentRef = \requestKey fragment ->
             case fragment of
                 TimesheetProjectionPage ->
-                    SurfaceFragmentRef (buildTimesheetWeekPageFragmentRef requestKey)
+                    buildTimesheetWeekPageFragmentRef requestKey
                 TimesheetProjectionDaySection dayOffset ->
-                    SurfaceFragmentRef (buildTimesheetDaySectionFragmentRef requestKey dayOffset)
-        , typedSurfaceDecorateRequestsWithin = const ["#" <> timesheetWeekShellId]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByScope timesheetSurfaceScope
+                    buildTimesheetDaySectionFragmentRef requestKey dayOffset
+        , typedSurfaceDecorateRequestsWithin = const ["#" <> timesheetWeekShellId, "#roster-staff-self-service-timesheet-live-surface"]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenue surfaceVenueId))
         }
     where
         timesheetSurfaceScope requestKey =
-            SurfaceScope (buildTimesheetWeekScope currentVenueId requestKey.projectionWeekOffset)
+            SurfaceScope TimesheetWeekScope { venueId = surfaceVenueId, weekOffset = requestKey.projectionWeekOffset }
 
         timesheetSurfaceScopeFromWire scope =
-            case (currentVenueOrNothing, scope) of
-                (Just _, TimesheetWeekScope { weekOffset }) ->
+            case scope of
+                TimesheetWeekScope { venueId, weekOffset } | venueId == surfaceVenueId ->
                     Just (TimesheetProjectionRequest weekOffset True True Nothing)
                 _ ->
                     Nothing
 
 timesheetProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition TimesheetProjectionRequest TimesheetWeekProjection TimesheetProjectionFragment
 timesheetProjectionDefinition =
-    mkSurfaceProjectionDefinition
-        (typedLiveSurfaceDefinition timesheetLiveSurfaceDefinition)
+    mkTypedSurfaceProjectionDefinition
+        timesheetLiveSurfaceDefinition
         "timesheet-week"
         defaultSurfaceProjectionCachePolicy
         (\requestKey ->
@@ -309,9 +312,9 @@ buildTimesheetWeekScope venueId weekOffset =
         , weekOffset
         }
 
-buildTimesheetDaySectionFragmentRef :: (?context :: ControllerContext) => TimesheetProjectionRequest -> Int -> LiveFragmentRef
+buildTimesheetDaySectionFragmentRef :: TimesheetProjectionRequest -> Int -> SurfaceFragmentRef TimesheetLiveSurface
 buildTimesheetDaySectionFragmentRef requestKey dayOffset =
-    mkLiveFragmentRef
+    mkSurfaceFragmentRef
         (TimesheetDaySectionFragment { dayOffset })
         (timesheetDaySectionDomId dayOffset)
         ( appendQueryParams
@@ -322,9 +325,9 @@ buildTimesheetDaySectionFragmentRef requestKey dayOffset =
             ]
         )
 
-buildTimesheetWeekPageFragmentRef :: (?context :: ControllerContext) => TimesheetProjectionRequest -> LiveFragmentRef
+buildTimesheetWeekPageFragmentRef :: TimesheetProjectionRequest -> SurfaceFragmentRef TimesheetLiveSurface
 buildTimesheetWeekPageFragmentRef requestKey =
-    mkLiveFragmentRef
+    mkSurfaceFragmentRef
         (TimesheetDaySectionFragment { dayOffset = 0 })
         timesheetWeekShellId
         (timesheetWeekUrl requestKey.projectionWeekOffset requestKey.projectionShowApproved requestKey.projectionShowAllStaff requestKey.projectionStaffFilterId)
@@ -335,7 +338,7 @@ broadcastTimesheetDayInvalidation weekOffset workedOn = do
     let weekStartDate = venueWeekStartDate venueConfig weekOffset
     let dayOffset = timesheetDayOffset weekStartDate workedOn
     broadcastSurfaceFragments
-        (typedLiveSurfaceDefinition timesheetLiveSurfaceDefinition)
+        timesheetLiveSurfaceDefinition
         (TimesheetProjectionRequest weekOffset True True Nothing)
         [TimesheetProjectionDaySection dayOffset]
 
@@ -350,7 +353,7 @@ broadcastTimesheetEntryMoveInvalidation oldWorkedOn newWorkedOn = do
                 ]
     forM_ invalidationTargets \(targetWeekOffset, dayOffset) ->
         broadcastSurfaceFragments
-            (typedLiveSurfaceDefinition timesheetLiveSurfaceDefinition)
+            timesheetLiveSurfaceDefinition
             (TimesheetProjectionRequest targetWeekOffset True True Nothing)
             [TimesheetProjectionDaySection dayOffset]
 

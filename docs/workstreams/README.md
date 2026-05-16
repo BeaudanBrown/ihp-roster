@@ -37,6 +37,8 @@ for forward-looking design.
 - `maintenance.md` - cross-cutting refactors and doc/agent cleanup.
 - `live-surface-architecture.md` - typed live-fragment surface ergonomics and
   robustness.
+- `strict-live-surface-overhaul.md` - removal of the old live-surface
+  compatibility/manual authoring layer and strict typed migration.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.
 
 ## Workstream Exit Criteria

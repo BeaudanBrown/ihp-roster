@@ -143,6 +143,30 @@ tests = beforeAll testContext do
                 (cs visibleRosterGroupsBody :: String) `shouldContainInOrder` ["Active Group", "Inactive Group"]
                 visibleRosterGroupsResponse `responseBodyShouldContain` "checked=\"checked\""
 
+        it "serves export and compliance admin fragments through typed surfaces" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Expansion Fragment Venue"
+                admin <- createUserRecord "admin-expansion-fragments@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                _ <- createStaffRecord venue (Just admin) "Alex" "Compliant"
+
+                exportsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminExportsFragmentAction
+                complianceResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminComplianceFragmentAction
+
+                exportsResponse `responseStatusShouldBe` status200
+                exportsResponse `responseBodyShouldContain` "id=\"admin-exports-fragment\""
+                exportsResponse `responseBodyShouldContain` "data-live-update-surface=\""
+                exportsResponse `responseBodyShouldContain` "admin_exports"
+                exportsResponse `responseBodyShouldNotContain` "id=\"app\""
+
+                complianceResponse `responseStatusShouldBe` status200
+                complianceResponse `responseBodyShouldContain` "id=\"staff-compliance-fragment\""
+                complianceResponse `responseBodyShouldContain` "data-live-update-surface=\""
+                complianceResponse `responseBodyShouldContain` "staff_compliance"
+                complianceResponse `responseBodyShouldNotContain` "id=\"app\""
+
         it "serves shift type and roster group add/update through targeted admin fragments" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Mutation Fragment Venue"

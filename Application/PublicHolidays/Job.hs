@@ -4,7 +4,7 @@ module Application.PublicHolidays.Job
     , publicHolidayRefreshJobKind
     ) where
 
-import Application.Helper.LiveUpdate (broadcastLiveInvalidationWithoutContext)
+import Application.Helper.LiveSurface (broadcastSurfaceFragmentsWithoutContext)
 import Application.PublicHolidays.Sync
 import Application.Support.LiveUpdates
 import Control.Monad (void)
@@ -41,7 +41,9 @@ performPublicHolidayRefreshJob appJob = do
             |> set #status JobStatusSucceeded
             |> updateRecord
         )
-    broadcastLiveInvalidationWithoutContext
-        supportLiveUpdateScope
-        Nothing
-        [supportPublicHolidaysSectionFragmentRef]
+    void $
+        broadcastSurfaceFragmentsWithoutContext
+            supportLiveSurfaceDefinition
+            ()
+            Nothing
+            [SupportPublicHolidaysLiveFragment]

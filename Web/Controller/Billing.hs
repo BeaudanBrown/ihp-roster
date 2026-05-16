@@ -4,6 +4,8 @@ import Application.Billing.Stripe
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
+import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
+import Web.Billing.LiveUpdates
 import Web.Controller.Prelude
 import Web.View.Billing.Index
 
@@ -17,6 +19,11 @@ instance Controller BillingController where
     action BillingAction = do
         viewModel <- fetchBillingViewModel
         render BillingView { .. }
+
+    action ShowBillingStatusFragmentAction = do
+        ensureTypedLiveSurfaceAuthorized billingLiveSurfaceDefinition currentBillingSurfaceKey
+        viewModel <- fetchBillingViewModel
+        respondHtml (renderBillingStatusFragment viewModel)
 
     action CreateBillingCheckoutSessionAction =
         createBillingCheckoutSessionAction
@@ -159,7 +166,7 @@ firstStripeError = \case
     Left err -> Left (stripeClientErrorText err)
     Right value -> Right value
 
-ensureVenueStripeCustomer :: (?context :: ControllerContext, ?modelContext :: ModelContext) => StripeClient -> StripeConfig -> IO (Either Text VenueBillingCustomer)
+ensureVenueStripeCustomer :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => StripeClient -> StripeConfig -> IO (Either Text VenueBillingCustomer)
 ensureVenueStripeCustomer stripeClient stripeConfig = do
     fetchCurrentVenueBillingCustomer >>= \case
         Just customer -> pure (Right customer)
@@ -180,6 +187,7 @@ ensureVenueStripeCustomer stripeClient stripeConfig = do
                         (Aeson.object
                             [ "stripeCustomerId" Aeson..= customer.stripeCustomerId
                             ])
+                    broadcastBillingInvalidation
                     pure (Right customer)
 
 updateVenueBillingControlAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
@@ -218,6 +226,7 @@ updateVenueBillingControlAction = do
                         [ "manualReadOnly" Aeson..= control.manualReadOnly
                         , "manualReadOnlyReason" Aeson..= control.manualReadOnlyReason
                         ])
+                broadcastBillingInvalidation
                 setSuccessMessage "Billing controls updated."
                 redirectTo BillingAction
 

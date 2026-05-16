@@ -2,7 +2,7 @@
 id: ir-jooi
 status: open
 deps: []
-links: [ir-f2p4, ir-ihv0, ir-nnfx]
+links: [ir-f2p4, ir-ihv0, ir-nnfx, ir-3pnb]
 created: 2026-04-29T04:41:29Z
 type: epic
 priority: 1

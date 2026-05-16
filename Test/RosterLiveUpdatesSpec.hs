@@ -1,7 +1,6 @@
 module Test.RosterLiveUpdatesSpec where
 
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
-import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveFragmentRef (..))
 import qualified Data.UUID as UUID
 import Data.UUID (UUID)
 import Generated.Types
@@ -11,6 +10,7 @@ import Test.Hspec
 import Test.Support
 import Web.RosterWeeks.LiveUpdates (coalesceRosterWeekFragmentRefs)
 import Web.RosterWeeks.Projection (buildRosterRowFragmentRef)
+import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 
 tests :: Spec
 tests = beforeAll testContext do
@@ -37,10 +37,10 @@ tests = beforeAll testContext do
                                 | dayId <- [firstDayId, secondDayId, thirdDayId, fourthDayId]
                                 ]
 
-                    map (.fragmentKey) (coalesceRosterWeekFragmentRefs rosterGroupId 0 hotRowBurst)
-                        `shouldBe` [RosterDaySectionFragment { rosterDayId = firstDayId }]
-                    map (.fragmentKey) (coalesceRosterWeekFragmentRefs rosterGroupId 0 multiDayBurst)
-                        `shouldBe` [RosterContentFragment]
+                    coalesceRosterWeekFragmentRefs rosterGroupId 0 hotRowBurst
+                        `shouldBe` [RosterProjectionDaySection firstDayId]
+                    coalesceRosterWeekFragmentRefs rosterGroupId 0 multiDayBurst
+                        `shouldBe` [RosterProjectionContent]
 
 expectUuid :: Text -> UUID
 expectUuid value =

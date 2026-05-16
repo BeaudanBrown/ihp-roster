@@ -1,11 +1,10 @@
 module Application.Support.LiveUpdates
     ( SupportLiveFragment (..)
-    , supportAwardRatesSectionFragmentRef
+    , SupportSurface
     , supportLiveSurface
     , supportLiveSurfaceDefinition
     , supportLiveFragmentRefs
     , supportLiveUpdateScope
-    , supportPublicHolidaysSectionFragmentRef
     ) where
 
 import Application.Helper.LiveSurface
@@ -17,6 +16,7 @@ data SupportSurface
 data SupportLiveFragment
     = SupportAwardRatesLiveFragment
     | SupportPublicHolidaysLiveFragment
+    deriving (Eq, Show)
 
 supportLiveUpdateScope :: LiveUpdateScope
 supportLiveUpdateScope = SupportPlatformScope
@@ -30,14 +30,14 @@ supportLiveSurfaceDefinition =
             SupportPlatformScope -> Just ()
             _ -> Nothing
         , typedSurfaceDefaultFragments = const supportLiveFragmentRefs
-        , typedSurfaceFragmentRef = const (SurfaceFragmentRef . supportLiveFragmentRef)
+        , typedSurfaceFragmentRef = const supportLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin =
             const
                 [ "#support-shell"
                 , "#support-award-rates-section"
                 , "#support-public-holidays-section"
                 ]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByScope (const (SurfaceScope supportLiveUpdateScope))
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const RequireSupportSuperAdmin)
         }
 
 supportLiveFragmentRefs :: [SupportLiveFragment]
@@ -46,25 +46,17 @@ supportLiveFragmentRefs =
     , SupportPublicHolidaysLiveFragment
     ]
 
-supportLiveFragmentRef :: SupportLiveFragment -> LiveFragmentRef
+supportLiveFragmentRef :: SupportLiveFragment -> SurfaceFragmentRef SupportSurface
 supportLiveFragmentRef SupportAwardRatesLiveFragment =
-    mkLiveFragmentRef
+    mkSurfaceFragmentRef
         SupportAwardRatesSectionFragment
         "support-award-rates-section"
         "/ShowFwcMapdAwardRatesSection"
 supportLiveFragmentRef SupportPublicHolidaysLiveFragment =
-    mkLiveFragmentRef
+    mkSurfaceFragmentRef
         SupportPublicHolidaysSectionFragment
         "support-public-holidays-section"
         "/ShowPublicHolidaysSection"
-
-supportAwardRatesSectionFragmentRef :: LiveFragmentRef
-supportAwardRatesSectionFragmentRef =
-    supportLiveFragmentRef SupportAwardRatesLiveFragment
-
-supportPublicHolidaysSectionFragmentRef :: LiveFragmentRef
-supportPublicHolidaysSectionFragmentRef =
-    supportLiveFragmentRef SupportPublicHolidaysLiveFragment
 
 supportLiveSurface :: LiveSurfaceConfig
 supportLiveSurface =

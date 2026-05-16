@@ -2,7 +2,7 @@
 id: ir-nnfx
 status: closed
 deps: []
-links: [ir-f2p4, ir-jooi]
+links: [ir-f2p4, ir-jooi, ir-3pnb]
 created: 2026-05-15T02:26:43Z
 type: epic
 priority: 1

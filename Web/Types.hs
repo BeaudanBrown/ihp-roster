@@ -95,6 +95,7 @@ data StaffDocumentsController
 
 data BillingController
     = BillingAction
+    | ShowBillingStatusFragmentAction
     | CreateBillingCheckoutSessionAction
     | CreateBillingPortalSessionAction
     | BillingSuccessAction
@@ -137,6 +138,8 @@ data AdminController
     | ShowAdminInvitesFragmentAction
     | ShowAdminShiftTypesFragmentAction
     | ShowAdminRosterGroupsFragmentAction
+    | ShowAdminExportsFragmentAction
+    | ShowAdminComplianceFragmentAction
     | ShowAdminXeroFragmentAction
     | ShowAdminXeroStaffMappingsFragmentAction
     | ShowAdminXeroPayItemsFragmentAction
