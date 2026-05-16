@@ -40,18 +40,21 @@ A surface owns:
 - request-decoration selectors
 - optional focused-field protection policies
 
-The untyped transport boundary is internal to `Application.Helper.LiveUpdate.Internal`
+The wire-fragment transport boundary is internal to `Application.Helper.LiveUpdate.Internal`
 and `Application.Helper.LiveSurface.Internal`. Feature modules should keep
 fragment enums feature-local and cross the typed-to-wire boundary only through
 strict helpers such as `mkSurfaceFragmentRef`, `mkTypedDefinedLiveSurface`,
 `typedLiveSurfaceFragmentRef(s)`, typed broadcast helpers, and projection
-helpers.
+helpers. The runtime no longer keeps an untyped `LiveSurfaceDefinition` bridge;
+typed config, projection, broadcast, and actor-refresh helpers derive directly
+from `TypedLiveSurfaceDefinition`.
 
 Feature-facing code must not use compatibility/manual authoring helpers such as
 `mkLiveSurface`, `mkDefinedLiveSurface`, `mkLiveFragmentRef`, raw
-`LiveFragmentRef` constructors, raw live broadcasts, raw actor-refresh payloads,
-or fallback `authorizeLiveUpdateScope` checks. The `LiveSurfaceGuard` Hspec
-coverage enforces this across `Web/` and feature `Application/` modules.
+`LiveFragmentRef` constructors, internal `LiveUpdateWireFragment` constructors,
+raw live broadcasts, raw actor-refresh payloads, or fallback
+`authorizeLiveUpdateScope` checks. The `LiveSurfaceGuard` Hspec coverage
+enforces this across `Web/` and feature `Application/` modules.
 
 ## Refetch And Protection
 
@@ -74,7 +77,7 @@ the `WithBus` helpers instead of touching global process state.
 
 Future distributed implementations, such as Postgres `LISTEN`/`NOTIFY` or
 Redis pub/sub, must preserve the public `LiveBus` contract: structural
-`LiveFragmentRef` invalidations, monotonically increasing versions per
+`LiveUpdateWireFragment` invalidations, monotonically increasing versions per
 `LiveUpdateScope`, and server-side authorization before websocket
 subscription.
 

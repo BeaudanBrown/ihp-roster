@@ -207,10 +207,10 @@ tests = describe "LiveUpdate runtime types" do
         let surface = mkTypedDefinedLiveSurface supportLiveSurfaceDefinition ()
 
         liveSurfaceConfigJson surface
-            `shouldBe` "{\"decorateRequestsWithin\":[],\"feature\":\"support\",\"resyncFragments\":[{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_award_rates_section\"},\"protectionPolicy\":null,\"targetId\":\"support-award-rates-section\",\"url\":\"/ShowFwcMapdAwardRatesSection\"},{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_public_holidays_section\"},\"protectionPolicy\":null,\"targetId\":\"support-public-holidays-section\",\"url\":\"/ShowPublicHolidaysSection\"}],\"scope\":{\"kind\":\"support_platform\"},\"scopeKey\":\"support_platform\",\"socketPath\":\"/live-updates\"}"
+            `shouldBe` "{\"decorateRequestsWithin\":[\"#support-shell\",\"#support-award-rates-section\",\"#support-public-holidays-section\"],\"feature\":\"support\",\"resyncFragments\":[{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_award_rates_section\"},\"protectionPolicy\":null,\"targetId\":\"support-award-rates-section\",\"url\":\"/ShowFwcMapdAwardRatesSection\"},{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_public_holidays_section\"},\"protectionPolicy\":null,\"targetId\":\"support-public-holidays-section\",\"url\":\"/ShowPublicHolidaysSection\"}],\"scope\":{\"kind\":\"support_platform\"},\"scopeKey\":\"support_platform\",\"socketPath\":\"/live-updates\"}"
 
     it "keeps typed support surface refs at the compatibility boundary" do
-        let typedRefs = typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () supportLiveUpdateWireFragments
+        let typedRefs = typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () supportLiveFragmentRefs
 
         unSurfaceFragmentRefs typedRefs
             `shouldBe`

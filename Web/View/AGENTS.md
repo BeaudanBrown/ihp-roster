@@ -69,7 +69,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 
 ## Shared Live Shell Pattern
 - Treat the page shell or stable section shell as the subscription owner. Render declarative surface metadata on that owner so the shared client can subscribe/unsubscribe as HTMX navigation swaps shells in and out.
-- Mark each subscribing shell with `data-live-update-surface={liveSurfaceConfigJson surface}`. For migrated surfaces, build `surface` with `mkTypedDefinedLiveSurface` from the feature's typed surface definition rather than hand-building `LiveFragmentRef`s in the view.
+- Mark each subscribing shell with `data-live-update-surface={liveSurfaceConfigJson surface}`. Build `surface` with `mkTypedDefinedLiveSurface` from the feature's typed surface definition rather than hand-building transport wire fragments in the view.
 - Keep live fragment enums and ref builders feature-local. Views should consume the typed surface config; avoid duplicating scope, target id, URL, or focused-protection wiring beside the markup.
 - A shell may subscribe to more than one scope, but scopes should represent logical data slices rather than page names.
 - Fragment invalidations should name explicit target ids and refetch URLs. Keep the fragment GET route canonical for that DOM region instead of rebuilding HTML inside websocket handlers.

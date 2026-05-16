@@ -1,6 +1,6 @@
 # Live Update Runtime Simplification
 
-Status: proposed
+Status: implemented
 
 Parent ticket:
 
@@ -174,10 +174,8 @@ bash ./bin/in-env e2e e2e/live-fragment-multiview.spec.ts
 ## Exit Criteria
 
 - The untyped live-surface compatibility layer is deleted.
-- Remaining internal transport types have transport-oriented names or explicit
-  documentation for why the old name remains.
-- Actor refresh payloads are reachable only through typed helpers.
-- The compact protocol decision is recorded and, if implemented, has Hspec and
-  Playwright migration coverage.
+- Remaining internal transport types have transport-oriented names.
+- Actor refresh payload encoding is private to typed actor-refresh helpers.
+- The compact protocol decision is recorded; browser JSON remains unchanged.
 - Guard tests enforce the new boundary.
 - Durable docs reflect the simplified runtime.

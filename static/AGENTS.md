@@ -30,7 +30,9 @@ Read this before editing `static/` assets.
   swapping, or focused-field protection.
 - Treat `data-live-update-surface` JSON as server-owned typed-surface output.
   Static JS should not infer feature scopes, target ids, or URLs that belong in
-  Haskell surface definitions.
+  Haskell surface definitions. The current websocket/actor-refresh payloads are
+  intentionally self-describing; do not switch to compact fragment-key payloads
+  without a protocol migration ticket and browser coverage.
 - Feature scripts may handle genuinely feature-specific UI behavior.
 
 ## UI Rules
