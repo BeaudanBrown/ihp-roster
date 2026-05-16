@@ -123,6 +123,14 @@ not expose names that read like supported authoring primitives.
 
 ## Compact Protocol Decision Notes
 
+Decision for `ir-mxsn`: defer compact browser payloads and keep the current
+self-describing JSON protocol. The Haskell runtime cleanup now names structural
+fragment refs as internal wire fragments, but the browser still receives the
+same `fragments[].fragmentKey`, `targetId`, `url`, `deferUntilBlur`, and
+`protectionPolicy` fields. A compact protocol should only be revisited with a
+separate migration ticket after proving stale-config, multi-surface,
+actor-refresh, reconnect-resync, and focused-field behavior in browser tests.
+
 The current protocol is self-describing: an invalidation contains fragment key,
 target id, URL, focus/defer protection, and source client id. This keeps passive
 refetches robust even when multiple surfaces share a scope or fragment URLs
