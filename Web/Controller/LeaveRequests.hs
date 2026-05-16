@@ -88,7 +88,7 @@ instance Controller LeaveRequestsController where
                                         Aeson.Null
                                 pure createdLeaveRequest
                             broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-                            broadcastProfileLeaveRequestsInvalidation
+                            refreshProfileLeaveRequests
                             if isHtmxRequest
                                 then respondWithLeaveMutationSuccess responseContext "Unavailable period submitted" True
                                 else do
@@ -132,7 +132,7 @@ instance Controller LeaveRequestsController where
         unless wasApproved do
             invalidateAffectedRosterWeeksForLeave savedLeaveRequest
         broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-        broadcastProfileLeaveRequestsInvalidationForStaffId savedLeaveRequest.staffId
+        refreshProfileLeaveRequestsForStaffId savedLeaveRequest.staffId
         if isHtmxRequest
             then respondWithLeaveRequestsContent "Unavailable period approved" False
             else do
@@ -176,7 +176,7 @@ instance Controller LeaveRequestsController where
         when wasApproved do
             invalidateAffectedRosterWeeksForLeave savedLeaveRequest
         broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-        broadcastProfileLeaveRequestsInvalidationForStaffId savedLeaveRequest.staffId
+        refreshProfileLeaveRequestsForStaffId savedLeaveRequest.staffId
         if isHtmxRequest
             then respondWithLeaveRequestsContent "Unavailable period denied" False
             else do
@@ -222,7 +222,7 @@ instance Controller LeaveRequestsController where
                     ]
                 )
         broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-        broadcastProfileLeaveRequestsInvalidationForStaffId leaveRequest.staffId
+        refreshProfileLeaveRequestsForStaffId leaveRequest.staffId
         if isHtmxRequest
             then respondWithLeaveMutationSuccess responseContext "Unavailable period cancelled" False
             else do

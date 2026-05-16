@@ -49,7 +49,7 @@ tests = describe "LiveSurface contract helpers" do
         typedLiveSurfaceFragmentShouldMapTo
             (adminXeroLiveSurfaceDefinitionForVenue venueId)
             ()
-            AdminXeroPayItemsLiveFragment
+            adminXeroPayItemsFragment
             AdminXeroPayItemsFragment
             "xero-pay-items-data"
             "/ShowAdminXeroPayItemsFragment"

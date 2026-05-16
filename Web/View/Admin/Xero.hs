@@ -8,8 +8,13 @@ module Web.View.Admin.Xero
     , renderXeroStaffMappingsFragment
     , renderXeroStaffMappingsOob
     , AdminXeroLiveFragment (..)
+    , adminXeroDefaultFragments
     , adminXeroLiveSurfaceDefinition
     , adminXeroLiveSurfaceDefinitionForVenue
+    , adminXeroPayItemsFragment
+    , adminXeroShellFragment
+    , adminXeroStaffMappingsFragment
+    , adminXeroTimesheetsFragment
     , renderXeroTimesheetsFragment
     ) where
 
@@ -68,6 +73,30 @@ data AdminXeroLiveFragment
     | AdminXeroTimesheetsLiveFragment
     deriving (Eq, Show)
 
+adminXeroShellFragment :: AdminXeroLiveFragment
+adminXeroShellFragment =
+    AdminXeroShellLiveFragment
+
+adminXeroStaffMappingsFragment :: AdminXeroLiveFragment
+adminXeroStaffMappingsFragment =
+    AdminXeroStaffMappingsLiveFragment
+
+adminXeroPayItemsFragment :: AdminXeroLiveFragment
+adminXeroPayItemsFragment =
+    AdminXeroPayItemsLiveFragment
+
+adminXeroTimesheetsFragment :: AdminXeroLiveFragment
+adminXeroTimesheetsFragment =
+    AdminXeroTimesheetsLiveFragment
+
+adminXeroDefaultFragments :: [AdminXeroLiveFragment]
+adminXeroDefaultFragments =
+    [ adminXeroShellFragment
+    , adminXeroStaffMappingsFragment
+    , adminXeroPayItemsFragment
+    , adminXeroTimesheetsFragment
+    ]
+
 adminXeroLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
 adminXeroLiveSurface =
     Just (mkTypedDefinedLiveSurface adminXeroLiveSurfaceDefinition ())
@@ -84,7 +113,7 @@ adminXeroLiveSurfaceDefinitionForVenue surfaceVenueId =
         , typedSurfaceScopeFromWire = \case
             AdminXeroScope { venueId } | venueId == surfaceVenueId -> Just ()
             _ -> Nothing
-        , typedSurfaceDefaultFragments = const [AdminXeroShellLiveFragment, AdminXeroStaffMappingsLiveFragment, AdminXeroPayItemsLiveFragment, AdminXeroTimesheetsLiveFragment]
+        , typedSurfaceDefaultFragments = const adminXeroDefaultFragments
         , typedSurfaceFragmentRef = const adminXeroLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#admin-xero-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner surfaceVenueId))

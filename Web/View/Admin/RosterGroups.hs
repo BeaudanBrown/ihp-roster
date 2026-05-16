@@ -1,5 +1,6 @@
 module Web.View.Admin.RosterGroups
     ( AdminRosterGroupsLiveFragment (..)
+    , adminRosterGroupsFragment
     , adminRosterGroupsLiveSurfaceDefinition
     , renderRosterGroupsSectionFragment
     ) where
@@ -44,6 +45,10 @@ data AdminRosterGroupsLiveFragment
     = AdminRosterGroupsLiveFragment
     deriving (Eq, Show)
 
+adminRosterGroupsFragment :: AdminRosterGroupsLiveFragment
+adminRosterGroupsFragment =
+    AdminRosterGroupsLiveFragment
+
 adminRosterGroupsLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
 adminRosterGroupsLiveSurface =
     Just (mkTypedDefinedLiveSurface adminRosterGroupsLiveSurfaceDefinition ())
@@ -56,7 +61,7 @@ adminRosterGroupsLiveSurfaceDefinition =
         , typedSurfaceScopeFromWire = \case
             AdminRosterGroupsScope { venueId } | venueId == currentVenueScopeId -> Just ()
             _ -> Nothing
-        , typedSurfaceDefaultFragments = const [AdminRosterGroupsLiveFragment]
+        , typedSurfaceDefaultFragments = const [adminRosterGroupsFragment]
         , typedSurfaceFragmentRef = const adminRosterGroupsLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#admin-roster-groups-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))

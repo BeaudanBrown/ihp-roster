@@ -1,5 +1,6 @@
 module Web.View.Admin.Compliance
     ( StaffComplianceLiveFragment (..)
+    , staffComplianceFragment
     , staffComplianceLiveSurfaceDefinition
     , renderComplianceSection
     , renderComplianceSectionFragment
@@ -19,6 +20,10 @@ data StaffComplianceLiveFragment
     = StaffComplianceLiveFragment
     deriving (Eq, Show)
 
+staffComplianceFragment :: StaffComplianceLiveFragment
+staffComplianceFragment =
+    StaffComplianceLiveFragment
+
 staffComplianceFragmentId :: Text
 staffComplianceFragmentId = "staff-compliance-fragment"
 
@@ -30,7 +35,7 @@ staffComplianceLiveSurfaceDefinition =
         , typedSurfaceScopeFromWire = \case
             StaffComplianceScope { venueId } | venueId == currentVenueScopeId -> Just ()
             _ -> Nothing
-        , typedSurfaceDefaultFragments = const [StaffComplianceLiveFragment]
+        , typedSurfaceDefaultFragments = const [staffComplianceFragment]
         , typedSurfaceFragmentRef = const staffComplianceLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> staffComplianceFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager currentVenueScopeId))

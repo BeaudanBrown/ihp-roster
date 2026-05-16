@@ -101,7 +101,7 @@ instance Controller TimesheetsController where
                         createdEntry <- timesheetEntry |> createRecord
                         void $ recordCurrentUserTimesheetEntryVersion (unsafeEnumFromText @EntryVersionActionEnum "created") createdEntry Aeson.Null
                         pure createdEntry
-                    broadcastTimesheetDayInvalidation weekOffset createdEntry.workedOn
+                    refreshTimesheetDay weekOffset createdEntry.workedOn
                     if isHtmxRequest
                         then respondWithTimesheetDaySectionUpdate weekOffset createdEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry created" True True
                         else do
@@ -183,7 +183,7 @@ instance Controller TimesheetsController where
                                     ]
                                 )
                         pure updatedEntry
-                    broadcastTimesheetEntryMoveInvalidation oldWorkedOn updatedEntry.workedOn
+                    refreshMovedTimesheetEntry oldWorkedOn updatedEntry.workedOn
                     if isHtmxRequest
                         then respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn updatedEntry.workedOn showApproved showAllStaff selectedStaffFilterId successMessage
                         else do
@@ -223,7 +223,7 @@ instance Controller TimesheetsController where
                     , "deletedAt" Aeson..= now
                     ]
                 )
-        broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
+        refreshTimesheetDay weekOffset timesheetEntry.workedOn
         if isHtmxRequest
             then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry removed" True True
             else setSuccessMessage "Timesheet entry removed"
@@ -270,7 +270,7 @@ instance Controller TimesheetsController where
                     , "approvedAt" Aeson..= now
                     ]
                 )
-        broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
+        refreshTimesheetDay weekOffset timesheetEntry.workedOn
         if isHtmxRequest
             then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry approved" False False
             else do
@@ -315,7 +315,7 @@ instance Controller TimesheetsController where
                     , "previousApprovedByUserId" Aeson..= timesheetEntry.approvedByUserId
                     ]
                 )
-        broadcastTimesheetDayInvalidation weekOffset timesheetEntry.workedOn
+        refreshTimesheetDay weekOffset timesheetEntry.workedOn
         if isHtmxRequest
             then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry unapproved" False False
             else do

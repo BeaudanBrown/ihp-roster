@@ -206,7 +206,7 @@ respondWithPreparationDialog ::
 respondWithPreparationDialog shouldBroadcast result =
     if isHtmxRequest
         then do
-            when shouldBroadcast (broadcastAdminXeroInvalidation currentVenueId)
+            when shouldBroadcast (refreshAdminXero currentVenueId)
             respondHtml $
                 case result of
                     Left message -> renderXeroTimesheetPreparationErrorDialog message
@@ -239,7 +239,7 @@ respondWithXeroTimesheetSuccess ::
 respondWithXeroTimesheetSuccess message =
     if isHtmxRequest
         then do
-            broadcastAdminXeroTimesheetsInvalidation (unpackId currentVenueId)
+            refreshAdminXeroTimesheets (unpackId currentVenueId)
             respondWithXeroTimesheetMutation (Just (xeroSuccessToast message))
         else do
             setSuccessMessage message
@@ -252,7 +252,7 @@ respondWithXeroTimesheetError ::
 respondWithXeroTimesheetError message =
     if isHtmxRequest
         then do
-            broadcastAdminXeroTimesheetsInvalidation (unpackId currentVenueId)
+            refreshAdminXeroTimesheets (unpackId currentVenueId)
             respondWithXeroTimesheetMutation (Just (xeroErrorToast message))
         else do
             setErrorMessage message

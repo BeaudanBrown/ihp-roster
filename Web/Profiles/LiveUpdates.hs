@@ -3,14 +3,16 @@ module Web.Profiles.LiveUpdates
     , ProfileContentSurfaceKey (..)
     , ProfileLeaveFragment (..)
     , ProfileLeaveSurfaceKey (..)
-    , broadcastProfileContentInvalidation
-    , broadcastProfileContentInvalidationForStaffId
-    , broadcastProfileLeaveRequestsInvalidation
-    , broadcastProfileLeaveRequestsInvalidationForStaffId
     , currentProfileContentSurfaceKey
     , currentProfileLeaveSurfaceKey
+    , profileContentFragment
     , profileContentLiveSurfaceDefinition
+    , profileLeaveRequestsFragment
     , profileLeaveRequestsLiveSurfaceDefinition
+    , refreshProfileContent
+    , refreshProfileContentForStaffId
+    , refreshProfileLeaveRequests
+    , refreshProfileLeaveRequestsForStaffId
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -59,11 +61,15 @@ profileContentLiveSurfaceDefinition =
             ProfileScope { venueId, userId } ->
                 Just ProfileContentSurfaceKey { profileContentVenueId = venueId, profileContentUserId = userId, profileContentOpenSection = "profile" }
             _ -> Nothing
-        , typedSurfaceDefaultFragments = \key -> [ProfileContentLiveFragment key.profileContentOpenSection]
+        , typedSurfaceDefaultFragments = \key -> [profileContentFragment key.profileContentOpenSection]
         , typedSurfaceFragmentRef = \_ -> profileContentFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileDetailsFormId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueUser key.profileContentVenueId key.profileContentUserId)
         }
+
+profileContentFragment :: Text -> ProfileContentFragment
+profileContentFragment =
+    ProfileContentLiveFragment
 
 profileContentFragmentRef :: (?context :: ControllerContext) => ProfileContentFragment -> SurfaceFragmentRef ProfileContentSurface
 profileContentFragmentRef (ProfileContentLiveFragment openSection) =
@@ -100,11 +106,15 @@ profileLeaveRequestsLiveSurfaceDefinition =
             ProfileScope { venueId, userId } ->
                 Just ProfileLeaveSurfaceKey { profileLeaveVenueId = venueId, profileLeaveUserId = userId }
             _ -> Nothing
-        , typedSurfaceDefaultFragments = const [ProfileLeaveRequestsLiveFragment]
+        , typedSurfaceDefaultFragments = const [profileLeaveRequestsFragment]
         , typedSurfaceFragmentRef = const profileLeaveRequestsContentFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileLeaveRequestsContentFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueUser key.profileLeaveVenueId key.profileLeaveUserId)
         }
+
+profileLeaveRequestsFragment :: ProfileLeaveFragment
+profileLeaveRequestsFragment =
+    ProfileLeaveRequestsLiveFragment
 
 profileLeaveRequestsContentFragmentRef :: (?context :: ControllerContext) => ProfileLeaveFragment -> SurfaceFragmentRef ProfileLeaveSurface
 profileLeaveRequestsContentFragmentRef ProfileLeaveRequestsLiveFragment =
@@ -119,15 +129,15 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing -> error "Profile live surface requires a current venue"
 
-broadcastProfileContentInvalidation :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
-broadcastProfileContentInvalidation openSection =
+refreshProfileContent :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
+refreshProfileContent openSection =
     broadcastSurfaceFragments
         profileContentLiveSurfaceDefinition
         (currentProfileContentSurfaceKey openSection)
-        [ProfileContentLiveFragment openSection]
+        [profileContentFragment openSection]
 
-broadcastProfileContentInvalidationForStaffId :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> Text -> IO ()
-broadcastProfileContentInvalidationForStaffId staffId openSection = do
+refreshProfileContentForStaffId :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> Text -> IO ()
+refreshProfileContentForStaffId staffId openSection = do
     maybeStaff <-
         query @Staff
             |> filterWhere (#id, (Id staffId :: Id Staff))
@@ -141,17 +151,17 @@ broadcastProfileContentInvalidationForStaffId staffId openSection = do
                 , profileContentUserId = staffUserId
                 , profileContentOpenSection = openSection
                 }
-            [ProfileContentLiveFragment openSection]
+            [profileContentFragment openSection]
 
-broadcastProfileLeaveRequestsInvalidation :: (?context :: ControllerContext, ?request :: Request) => IO ()
-broadcastProfileLeaveRequestsInvalidation =
+refreshProfileLeaveRequests :: (?context :: ControllerContext, ?request :: Request) => IO ()
+refreshProfileLeaveRequests =
     broadcastSurfaceFragments
         profileLeaveRequestsLiveSurfaceDefinition
         currentProfileLeaveSurfaceKey
-        [ProfileLeaveRequestsLiveFragment]
+        [profileLeaveRequestsFragment]
 
-broadcastProfileLeaveRequestsInvalidationForStaffId :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> IO ()
-broadcastProfileLeaveRequestsInvalidationForStaffId staffId = do
+refreshProfileLeaveRequestsForStaffId :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> IO ()
+refreshProfileLeaveRequestsForStaffId staffId = do
     maybeStaff <-
         query @Staff
             |> filterWhere (#id, (Id staffId :: Id Staff))
@@ -164,4 +174,4 @@ broadcastProfileLeaveRequestsInvalidationForStaffId staffId = do
                 { profileLeaveVenueId = unpackId currentVenueId
                 , profileLeaveUserId = staffUserId
                 }
-            [ProfileLeaveRequestsLiveFragment]
+            [profileLeaveRequestsFragment]

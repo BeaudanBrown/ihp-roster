@@ -13,9 +13,10 @@ import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status (status200)
 import Network.Wai (responseLBS)
 import Web.Controller.Prelude
-import Web.Profiles.LiveUpdates (broadcastProfileContentInvalidation,
-                                 broadcastProfileContentInvalidationForStaffId)
-import Web.View.Admin.Compliance (StaffComplianceLiveFragment (..), staffComplianceLiveSurfaceDefinition)
+import Web.Profiles.LiveUpdates (refreshProfileContent,
+                                 refreshProfileContentForStaffId)
+import Web.View.Admin.Compliance (staffComplianceFragment,
+                                  staffComplianceLiveSurfaceDefinition)
 
 instance Controller StaffDocumentsController where
     beforeAction = do
@@ -50,8 +51,8 @@ instance Controller StaffDocumentsController where
                                     , "status" Aeson..= inputValue staffDocument.status
                                     ]
                                 )
-                        broadcastStaffComplianceInvalidation
-                        broadcastProfileContentInvalidation "rsa"
+                        refreshStaffCompliance
+                        refreshProfileContent "rsa"
                         setSuccessMessage "RSA document uploaded for review."
                         redirectToRsaReturnPath
 
@@ -103,8 +104,8 @@ instance Controller StaffDocumentsController where
                             , "reviewedByUserId" Aeson..= updatedDocument.reviewedByUserId
                             ]
                         )
-                broadcastStaffComplianceInvalidation
-                broadcastProfileContentInvalidationForStaffId updatedDocument.staffId "rsa"
+                refreshStaffCompliance
+                refreshProfileContentForStaffId updatedDocument.staffId "rsa"
                 setSuccessMessage "RSA document status updated."
                 redirectToRsaReturnPath
 
@@ -122,12 +123,12 @@ currentUserCanAccessStaffDocumentsFor :: (?context :: ControllerContext) => Staf
 currentUserCanAccessStaffDocumentsFor staff =
     pure (hasRole ManagerRole' || staff.userId == Just (unpackId authenticatedCurrentUser.id))
 
-broadcastStaffComplianceInvalidation :: (?context :: ControllerContext, ?request :: Request) => IO ()
-broadcastStaffComplianceInvalidation =
+refreshStaffCompliance :: (?context :: ControllerContext, ?request :: Request) => IO ()
+refreshStaffCompliance =
     broadcastSurfaceFragments
         staffComplianceLiveSurfaceDefinition
         ()
-        [StaffComplianceLiveFragment]
+        [staffComplianceFragment]
 
 buildRsaUploadFromRequest :: (?request :: Request) => Either Text RsaDocumentUpload
 buildRsaUploadFromRequest = do

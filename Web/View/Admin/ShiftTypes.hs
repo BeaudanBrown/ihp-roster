@@ -1,5 +1,6 @@
 module Web.View.Admin.ShiftTypes
     ( AdminShiftTypesLiveFragment (..)
+    , adminShiftTypesFragment
     , adminShiftTypesLiveSurfaceDefinition
     , renderShiftTypesSectionFragment
     ) where
@@ -46,6 +47,10 @@ data AdminShiftTypesLiveFragment
     = AdminShiftTypesLiveFragment
     deriving (Eq, Show)
 
+adminShiftTypesFragment :: AdminShiftTypesLiveFragment
+adminShiftTypesFragment =
+    AdminShiftTypesLiveFragment
+
 adminShiftTypesLiveSurface :: (?context :: ControllerContext) => LiveSurfaceConfig
 adminShiftTypesLiveSurface =
     mkTypedDefinedLiveSurface adminShiftTypesLiveSurfaceDefinition ()
@@ -59,7 +64,7 @@ adminShiftTypesLiveSurfaceDefinition =
             case (currentVenueOrNothing, scope) of
                 (Just _, AdminShiftTypesScope {}) -> Just ()
                 _                                 -> Nothing
-        , typedSurfaceDefaultFragments = const [AdminShiftTypesLiveFragment]
+        , typedSurfaceDefaultFragments = const [adminShiftTypesFragment]
         , typedSurfaceFragmentRef = const adminShiftTypesLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#admin-shift-types-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))

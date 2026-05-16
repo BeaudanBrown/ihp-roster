@@ -38,7 +38,7 @@ syncXeroPayrollReferenceData connection = do
             |> set #syncKind ("payroll_reference_data" :: Text)
             |> set #startedAt now
             |> createRecord
-    broadcastAdminXeroInvalidation currentVenueId
+    refreshAdminXero currentVenueId
     readXeroConfig >>= \case
         Left message -> failXeroReferenceSync syncRun connection message
         Right xeroConfig -> do
@@ -101,7 +101,7 @@ completeXeroReferenceSync syncRun connection employees earningsRates payrollCale
                 ]
             )
     setSuccessMessage ("Synced Xero payroll reference data: " <> tshow (length employees) <> " employees, " <> tshow (length earningsRates) <> " earnings rates, " <> tshow (length payrollCalendars) <> " payroll calendars.")
-    broadcastAdminXeroInvalidation currentVenueId
+    refreshAdminXero currentVenueId
     if isHtmxRequest
         then respondWithXeroSectionFragment
         else redirectTo XeroAction
@@ -115,7 +115,7 @@ failXeroReferenceSync ::
 failXeroReferenceSync syncRun connection message = do
     recordFailedXeroReferenceSync syncRun connection message
     setErrorMessage message
-    broadcastAdminXeroInvalidation currentVenueId
+    refreshAdminXero currentVenueId
     if isHtmxRequest
         then respondWithXeroSectionFragment
         else redirectTo XeroAction

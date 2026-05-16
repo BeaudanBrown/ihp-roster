@@ -304,7 +304,7 @@ instance Controller AdminController where
                     |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
                     |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
                     |> createRecord
-                broadcastAdminInvitesInvalidation currentVenueId
+                refreshAdminInvites currentVenueId
                 if isHtmxRequest
                     then do
                         invitations <- fetchCurrentVenueInvitations
@@ -328,7 +328,7 @@ instance Controller AdminController where
                 _ <- invitation
                     |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
                     |> updateRecord
-                broadcastAdminInvitesInvalidation currentVenueId
+                refreshAdminInvites currentVenueId
                 respondToInvitesSectionMutation "Invitation revoked." currentRosterGroup.id
 
     action CreateRosterGroupAction = do
@@ -343,7 +343,7 @@ instance Controller AdminController where
                 rosterGroup <- createVenueRosterGroupWithDefaults venue name sortOrder isActive
                 syncVenueDefaultRosterGroupToTopActive currentVenueId
                 setSuccessMessage "Roster group added"
-                broadcastAdminRosterGroupsInvalidation currentVenueId
+                refreshAdminRosterGroups currentVenueId
                 respondToRosterGroupsSectionMutation (Just rosterGroup.id)
 
     action UpdateRosterGroupAction { rosterGroupId } = do
@@ -378,7 +378,7 @@ instance Controller AdminController where
                             pure ()
                         syncVenueDefaultRosterGroupToTopActive currentVenueId
                         setSuccessMessage "Roster group updated"
-                        broadcastAdminRosterGroupsInvalidation currentVenueId
+                        refreshAdminRosterGroups currentVenueId
                         respondToRosterGroupsSectionMutation (Just updatedRosterGroup.id)
 
     action MoveRosterGroupUpAction { rosterGroupId } = do
@@ -389,7 +389,7 @@ instance Controller AdminController where
             reorderActiveRosterGroups rosterGroup.id (-1)
             syncVenueDefaultRosterGroupToTopActive currentVenueId
         setSuccessMessage "Roster group order updated"
-        broadcastAdminRosterGroupsInvalidation currentVenueId
+        refreshAdminRosterGroups currentVenueId
         redirectToAdminFor (Just rosterGroup.id)
 
     action MoveRosterGroupDownAction { rosterGroupId } = do
@@ -400,7 +400,7 @@ instance Controller AdminController where
             reorderActiveRosterGroups rosterGroup.id 1
             syncVenueDefaultRosterGroupToTopActive currentVenueId
         setSuccessMessage "Roster group order updated"
-        broadcastAdminRosterGroupsInvalidation currentVenueId
+        refreshAdminRosterGroups currentVenueId
         redirectToAdminFor (Just rosterGroup.id)
 
     action CreateShiftTypeAction = do
@@ -428,10 +428,10 @@ instance Controller AdminController where
                             _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
                             pure shiftType
                         setSuccessMessage "Shift type added"
-                        broadcastAdminShiftTypesInvalidation currentVenueId
+                        refreshAdminShiftTypes currentVenueId
                         let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
                         when shouldRefreshXero do
-                            broadcastAdminXeroInvalidation currentVenueId
+                            refreshAdminXero currentVenueId
                         respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
 
     action UpdateShiftTypeAction { shiftTypeId } = do
@@ -466,10 +466,10 @@ instance Controller AdminController where
                             pure updatedShiftType
                         unless isHtmxRequest do
                             setSuccessMessage "Shift type updated"
-                        broadcastAdminShiftTypesInvalidation currentVenueId
+                        refreshAdminShiftTypes currentVenueId
                         let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
                         when shouldRefreshXero do
-                            broadcastAdminXeroInvalidation currentVenueId
+                            refreshAdminXero currentVenueId
                         respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
 
     action MoveShiftTypeUpAction { shiftTypeId } = do
@@ -480,7 +480,7 @@ instance Controller AdminController where
             reorderActiveShiftTypes shiftType.id (-1)
             pure ()
         setSuccessMessage "Shift type order updated"
-        broadcastAdminShiftTypesInvalidation currentVenueId
+        refreshAdminShiftTypes currentVenueId
         redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action MoveShiftTypeDownAction { shiftTypeId } = do
@@ -491,5 +491,5 @@ instance Controller AdminController where
             reorderActiveShiftTypes shiftType.id 1
             pure ()
         setSuccessMessage "Shift type order updated"
-        broadcastAdminShiftTypesInvalidation currentVenueId
+        refreshAdminShiftTypes currentVenueId
         redirectToAdminFor (paramOrNothing "rosterGroupId")

@@ -161,7 +161,7 @@ completeLocalXeroDisconnect connection remoteConnectionId = do
                 ]
             )
         pure updated
-    broadcastAdminXeroInvalidation currentVenueId
+    refreshAdminXero currentVenueId
     setSuccessMessage ("Disconnected Xero tenant " <> fromMaybe updatedConnection.tenantId updatedConnection.tenantName <> ".")
     redirectTo XeroAction
 

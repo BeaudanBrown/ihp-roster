@@ -25,7 +25,7 @@ import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
-                                  buildTimesheetDaySectionFragmentRef,
+                                  timesheetDaySectionFragmentRef,
                                   timesheetLiveSurfaceDefinition)
 import Web.Types
 
@@ -83,7 +83,7 @@ tests = beforeAll testContext do
                     withCurrentControllerContext do
                         let requestKey = TimesheetProjectionRequest 0 False True Nothing
                         let liveSurface = mkTypedDefinedLiveSurface timesheetLiveSurfaceDefinition requestKey
-                        let expectedRefs = [buildTimesheetDaySectionFragmentRef requestKey dayOffset | dayOffset <- [0 .. 6]]
+                        let expectedRefs = [timesheetDaySectionFragmentRef requestKey dayOffset | dayOffset <- [0 .. 6]]
                         response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
                         pure (response, liveSurface, unSurfaceFragmentRefs expectedRefs)
 
@@ -110,7 +110,7 @@ tests = beforeAll testContext do
                 (response, fragmentRef) <- withUserAndCurrentVenue user venue.id do
                     withCurrentControllerContext do
                         let requestKey = TimesheetProjectionRequest 0 False True Nothing
-                        let fragmentRef = buildTimesheetDaySectionFragmentRef requestKey 0
+                        let fragmentRef = timesheetDaySectionFragmentRef requestKey 0
                         callAction ShowTimesheetWeekAction { weekOffset = 0 }
                         response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
                         let rawFragmentRef =

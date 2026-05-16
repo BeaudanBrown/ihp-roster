@@ -41,7 +41,7 @@ createMissingXeroPayItems connection = do
                 else do
                     now <- getCurrentTime
                     syncRun <- createRunningXeroPayItemSyncRun connection now
-                    broadcastAdminXeroPayItemsInvalidation (unpackId currentVenueId)
+                    refreshAdminXeroPayItems (unpackId currentVenueId)
                     readXeroConfig >>= \case
                         Left message -> failXeroPayItemSync syncRun message
                         Right xeroConfig -> do
@@ -99,7 +99,7 @@ completeXeroPayItemSync syncRun verifiedCount message = do
         |> set #earningsRatesCount verifiedCount
         |> set #finishedAt (Just now)
         |> updateRecord
-    broadcastAdminXeroPayItemsInvalidation (unpackId currentVenueId)
+    refreshAdminXeroPayItems (unpackId currentVenueId)
     respondToXeroPayItemsMutationSuccess message
 
 failXeroPayItemSync ::
@@ -124,5 +124,5 @@ failXeroPayItemSyncWithVerifiedCount syncRun verifiedCount message = do
         |> set #errorMessage (Just message)
         |> set #finishedAt (Just now)
         |> updateRecord
-    broadcastAdminXeroPayItemsInvalidation (unpackId currentVenueId)
+    refreshAdminXeroPayItems (unpackId currentVenueId)
     respondWithXeroPayItemsMutationError message

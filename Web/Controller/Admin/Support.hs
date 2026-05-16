@@ -132,30 +132,30 @@ nonEmptySuccessMessage message
     | Text.null message = Nothing
     | otherwise = Just message
 
-broadcastAdminInvitesInvalidation ::
+refreshAdminInvites ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id Venue ->
     IO ()
-broadcastAdminInvitesInvalidation venueId =
+refreshAdminInvites venueId =
     broadcastSurfaceResync
         adminInvitesLiveSurfaceDefinition
         AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
 
-broadcastAdminShiftTypesInvalidation ::
+refreshAdminShiftTypes ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id Venue ->
     IO ()
-broadcastAdminShiftTypesInvalidation _venueId =
+refreshAdminShiftTypes _venueId =
     broadcastSurfaceFragments
         adminShiftTypesLiveSurfaceDefinition
         ()
-        [AdminShiftTypesLiveFragment]
+        [adminShiftTypesFragment]
 
-broadcastAdminRosterGroupsInvalidation ::
+refreshAdminRosterGroups ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id Venue ->
     IO ()
-broadcastAdminRosterGroupsInvalidation venueId =
+refreshAdminRosterGroups venueId =
     broadcastSurfaceResync
         adminRosterGroupsLiveSurfaceDefinition
         ()

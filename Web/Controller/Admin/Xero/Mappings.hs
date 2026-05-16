@@ -211,7 +211,7 @@ persistXeroStaffMappingWithControlRefresh connection staff mappingStatus maybeEm
         then respondWithXeroStaffMappingControlsAndToast connection maybeUnchangedStaffId (Just (xeroSuccessToast message))
         else do
             profileActionSpan "admin.xero.staff_mapping.persist.broadcast" $
-                broadcastAdminXeroInvalidation currentVenueId
+                refreshAdminXero currentVenueId
             setSuccessMessage message
             redirectTo XeroAction
 
@@ -301,7 +301,7 @@ persistXeroEarningsRateMapping connection bucket mappingStatus maybeEarningsRate
             if mapping.mappingStatus == "verified"
                 then "Saved Xero earnings-rate mapping for " <> bucket.localBucketLabel <> "."
                 else "Cleared Xero earnings-rate mapping for " <> bucket.localBucketLabel <> "."
-    broadcastAdminXeroInvalidation currentVenueId
+    refreshAdminXero currentVenueId
     respondToXeroMappingMutationSuccess message
 
 saveXeroPayItemAccountCodeSelection ::
@@ -363,7 +363,7 @@ persistXeroPayItemAccountCodeSelection connection selectionStatus maybeAccountCo
             if selection.selectionStatus == "verified"
                 then "Saved Xero pay item account code " <> fromMaybe "" selection.accountCode <> "."
                 else "Cleared Xero pay item account code."
-    broadcastAdminXeroInvalidation currentVenueId
+    refreshAdminXero currentVenueId
     respondToXeroMappingMutationSuccess message
 
 saveXeroPayrollCalendarSelection ::
@@ -428,5 +428,5 @@ persistXeroPayrollCalendarSelection connection calendarStatus maybePayrollCalend
             if selection.calendarStatus == "verified"
                 then "Saved Xero payroll calendar selection."
                 else "Cleared Xero payroll calendar selection."
-    broadcastAdminXeroInvalidation currentVenueId
+    refreshAdminXero currentVenueId
     respondToXeroMappingMutationSuccess message

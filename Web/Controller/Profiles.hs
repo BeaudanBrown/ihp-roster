@@ -124,7 +124,7 @@ instance Controller ProfilesController where
                             currentUser
                                 |> set #isProfileCompleted isProfileCompleted
                                 |> updateRecord
-                            broadcastProfileContentInvalidation openSection
+                            refreshProfileContent openSection
                             if not wasProfileCompleted && isProfileCompleted
                                 then redirectTo RosterWeeksAction
                                 else if isHtmxRequest

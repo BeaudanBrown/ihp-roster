@@ -1,5 +1,6 @@
 module Web.View.Admin.Exports
     ( AdminExportsLiveFragment (..)
+    , adminExportsFragment
     , adminExportsLiveSurfaceDefinition
     , renderExportsSection
     , renderExportsSectionFragment
@@ -18,6 +19,10 @@ data AdminExportsLiveFragment
     = AdminExportsLiveFragment
     deriving (Eq, Show)
 
+adminExportsFragment :: AdminExportsLiveFragment
+adminExportsFragment =
+    AdminExportsLiveFragment
+
 adminExportsFragmentId :: Text
 adminExportsFragmentId = "admin-exports-fragment"
 
@@ -29,7 +34,7 @@ adminExportsLiveSurfaceDefinition =
         , typedSurfaceScopeFromWire = \case
             AdminExportsScope { venueId } | venueId == currentVenueScopeId -> Just ()
             _ -> Nothing
-        , typedSurfaceDefaultFragments = const [AdminExportsLiveFragment]
+        , typedSurfaceDefaultFragments = const [adminExportsFragment]
         , typedSurfaceFragmentRef = const adminExportsLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> adminExportsFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))

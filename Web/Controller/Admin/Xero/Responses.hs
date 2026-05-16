@@ -1,7 +1,7 @@
 module Web.Controller.Admin.Xero.Responses
-    ( broadcastAdminXeroInvalidation
-    , broadcastAdminXeroPayItemsInvalidation
-    , broadcastAdminXeroTimesheetsInvalidation
+    ( refreshAdminXero
+    , refreshAdminXeroPayItems
+    , refreshAdminXeroTimesheets
     , currentUserCanManageXeroIntegration
     , fetchCurrentVenueXeroAdminSectionData
     , renderCurrentVenueXeroSectionFragmentOob
@@ -41,44 +41,44 @@ import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.Admin.Xero
 
-broadcastAdminXeroInvalidation ::
+refreshAdminXero ::
     (?context :: ControllerContext, ?request :: Request) =>
     Id Venue ->
     IO ()
-broadcastAdminXeroInvalidation _venueId =
+refreshAdminXero _venueId =
     broadcastSurfaceResync
         adminXeroLiveSurfaceDefinition
         ()
 
-broadcastAdminXeroStaffMappingsInvalidation ::
+refreshAdminXeroStaffMappings ::
     (?context :: ControllerContext, ?request :: Request) =>
     UUID.UUID ->
     IO ()
-broadcastAdminXeroStaffMappingsInvalidation _venueId =
+refreshAdminXeroStaffMappings _venueId =
     broadcastSurfaceFragments
         adminXeroLiveSurfaceDefinition
         ()
-        [AdminXeroStaffMappingsLiveFragment]
+        [adminXeroStaffMappingsFragment]
 
-broadcastAdminXeroPayItemsInvalidation ::
+refreshAdminXeroPayItems ::
     (?context :: ControllerContext, ?request :: Request) =>
     UUID.UUID ->
     IO ()
-broadcastAdminXeroPayItemsInvalidation _venueId =
+refreshAdminXeroPayItems _venueId =
     broadcastSurfaceFragments
         adminXeroLiveSurfaceDefinition
         ()
-        [AdminXeroPayItemsLiveFragment]
+        [adminXeroPayItemsFragment]
 
-broadcastAdminXeroTimesheetsInvalidation ::
+refreshAdminXeroTimesheets ::
     (?context :: ControllerContext, ?request :: Request) =>
     UUID.UUID ->
     IO ()
-broadcastAdminXeroTimesheetsInvalidation _venueId =
+refreshAdminXeroTimesheets _venueId =
     broadcastSurfaceFragments
         adminXeroLiveSurfaceDefinition
         ()
-        [AdminXeroTimesheetsLiveFragment]
+        [adminXeroTimesheetsFragment]
 
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -163,7 +163,7 @@ respondWithXeroStaffMappingControlsAndToast _ _ maybeToast = do
         broadcastSurfaceFragmentsAndSetActorRefresh
             adminXeroLiveSurfaceDefinition
             ()
-            [AdminXeroStaffMappingsLiveFragment]
+            [adminXeroStaffMappingsFragment]
     respondWithXeroStaffMappingToastOnly maybeToast
 
 respondWithXeroStaffMappingToastOnly ::
@@ -179,7 +179,7 @@ respondWithXeroTimesheetMutation ::
     Maybe ToastOverlayConfig ->
     IO ()
 respondWithXeroTimesheetMutation maybeToast = do
-    setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [AdminXeroTimesheetsLiveFragment]
+    setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [adminXeroTimesheetsFragment]
     respondHtmlProfiled $
         maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
 

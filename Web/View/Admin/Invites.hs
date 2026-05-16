@@ -1,6 +1,7 @@
 module Web.View.Admin.Invites
     ( AdminInvitesLiveFragment (..)
     , AdminInvitesSurfaceKey (..)
+    , adminInvitesFragment
     , adminInvitesLiveSurface
     , adminInvitesLiveSurfaceDefinition
     , adminInvitesLiveSurfaceDefinitionForVenue
@@ -91,6 +92,10 @@ data AdminInvitesLiveFragment
     = AdminInvitesLiveFragment
     deriving (Eq, Show)
 
+adminInvitesFragment :: AdminInvitesLiveFragment
+adminInvitesFragment =
+    AdminInvitesLiveFragment
+
 adminInvitesLiveSurface :: (?context :: ControllerContext) => Id RosterGroup -> LiveSurfaceConfig
 adminInvitesLiveSurface rosterGroupId =
     mkTypedDefinedLiveSurface adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just rosterGroupId }
@@ -107,7 +112,7 @@ adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
         , typedSurfaceScopeFromWire = \case
             AdminInvitesScope { venueId } | venueId == surfaceVenueId -> Just AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
             _ -> Nothing
-        , typedSurfaceDefaultFragments = const [AdminInvitesLiveFragment]
+        , typedSurfaceDefaultFragments = const [adminInvitesFragment]
         , typedSurfaceFragmentRef = adminInvitesLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#admin-invites-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
