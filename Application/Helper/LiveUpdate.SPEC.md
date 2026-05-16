@@ -23,6 +23,9 @@ This file describes the shared live-fragment architecture implemented by
 
 ## Surface Declaration
 
+For the step-by-step checklist and glossary used when adding a fragment, see
+`Application/Helper/LiveSurface.COOKBOOK.md`.
+
 Ordinary live surfaces should be declared in Haskell with
 `Application.Helper.LiveSurface.TypedLiveSurfaceDefinition` and rendered on a
 stable owner element as `data-live-update-surface` via
