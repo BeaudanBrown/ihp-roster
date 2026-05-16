@@ -15,6 +15,7 @@ module Application.Helper.LiveSurface
     , broadcastProjectionSurfaceFragments
     , broadcastProjectionSurfaceFragmentsWith
     , broadcastSurfaceFragments
+    , broadcastSurfaceFragmentsAndSetActorRefresh
     , broadcastSurfaceFragmentsWithoutContext
     , broadcastSurfaceResync
     , broadcastSurfaceResyncWithoutContext
@@ -30,6 +31,7 @@ module Application.Helper.LiveSurface
     , mkTypedDefinedLiveSurface
     , mkTypedSurfaceProjectionDefinition
     , performTypedLiveSurfaceMutation
+    , performTypedLiveSurfaceMutationAndSetActorRefresh
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
     , setTypedLiveSurfaceActorRefresh
@@ -61,6 +63,7 @@ import Application.Helper.LiveSurface.Internal
     , authorizeTypedLiveSurfaceWireScope
     , broadcastProjectionSurfaceFragments
     , broadcastProjectionSurfaceFragmentsWith
+    , broadcastTypedSurfaceFragmentsAndSetActorRefresh
     , broadcastTypedSurfaceFragmentsWithoutContext
     , broadcastTypedSurfaceResync
     , broadcastTypedSurfaceResyncWithoutContext
@@ -75,6 +78,7 @@ import Application.Helper.LiveSurface.Internal
     , mkSurfaceFragmentRef
     , mkTypedDefinedLiveSurface
     , performTypedLiveSurfaceMutation
+    , performTypedLiveSurfaceMutationAndSetActorRefresh
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
     , setTypedLiveSurfaceActorRefresh
@@ -103,6 +107,14 @@ broadcastSurfaceFragments ::
     [fragment] ->
     IO ()
 broadcastSurfaceFragments = Internal.broadcastTypedSurfaceFragments
+
+broadcastSurfaceFragmentsAndSetActorRefresh ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    scope ->
+    [fragment] ->
+    IO ()
+broadcastSurfaceFragmentsAndSetActorRefresh = Internal.broadcastTypedSurfaceFragmentsAndSetActorRefresh
 
 broadcastSurfaceFragmentsWithoutContext ::
     TypedLiveSurfaceDefinition surface scope fragment ->

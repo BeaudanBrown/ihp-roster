@@ -24,6 +24,7 @@ module Web.Controller.Admin.Xero.Responses
     ) where
 
 import Application.Helper.LiveSurface (broadcastSurfaceFragments,
+                                       broadcastSurfaceFragmentsAndSetActorRefresh,
                                        broadcastSurfaceResync,
                                        setTypedLiveSurfaceActorRefresh)
 import Application.Helper.Profiling
@@ -157,10 +158,12 @@ respondWithXeroStaffMappingControlsAndToast ::
     Maybe (Id Staff) ->
     Maybe ToastOverlayConfig ->
     IO ()
-respondWithXeroStaffMappingControlsAndToast connection _ maybeToast = do
+respondWithXeroStaffMappingControlsAndToast _ _ maybeToast = do
     profileActionSpan "admin.xero.staff_mapping.broadcast" $
-        broadcastAdminXeroStaffMappingsInvalidation connection.venueId
-    setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [AdminXeroStaffMappingsLiveFragment]
+        broadcastSurfaceFragmentsAndSetActorRefresh
+            adminXeroLiveSurfaceDefinition
+            ()
+            [AdminXeroStaffMappingsLiveFragment]
     respondWithXeroStaffMappingToastOnly maybeToast
 
 respondWithXeroStaffMappingToastOnly ::

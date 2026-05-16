@@ -36,7 +36,8 @@ import Web.RosterWeeks.Filters
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
 import Web.RosterWeeks.LiveUpdates (refreshRosterContent,
                                     refreshRosterContentAndStaffPanel,
-                                    refreshRosterFragments)
+                                    refreshRosterFragments,
+                                    refreshRosterFragmentsAndSetActorRefresh)
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterWeekUrl)
 import Web.RosterWeeks.Projection
@@ -743,24 +744,19 @@ respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
     respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
 
 refreshRosterFragmentsAndRespondToActor :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
-refreshRosterFragmentsAndRespondToActor rosterGroupId weekOffset fragments = do
-    refreshRosterFragments rosterGroupId weekOffset fragments
-    respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments
+refreshRosterFragmentsAndRespondToActor rosterGroupId weekOffset fragments =
+    refreshRosterFragmentsAndRespondToActorWithToast rosterGroupId weekOffset fragments Nothing
 
 refreshRosterFragmentsAndRespondToActorWithToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Maybe Text -> IO ()
 refreshRosterFragmentsAndRespondToActorWithToast rosterGroupId weekOffset fragments maybeWarningMessage = do
-    refreshRosterFragments rosterGroupId weekOffset fragments
-    respondWithActorRosterFragmentRefreshWithToast rosterGroupId weekOffset fragments maybeWarningMessage
-
-respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
-respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments =
-    respondWithActorRosterFragmentRefreshWithToast rosterGroupId weekOffset fragments Nothing
-
-respondWithActorRosterFragmentRefreshWithToast :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Maybe Text -> IO ()
-respondWithActorRosterFragmentRefreshWithToast rosterGroupId weekOffset fragments maybeWarningMessage = do
-    setTypedLiveSurfaceActorRefresh rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) fragments
+    refreshRosterFragmentsAndSetActorRefresh rosterGroupId weekOffset fragments
     respondHtmlProfiled $
         maybe mempty (renderToastOob ToastBottomCenter . errorToast) maybeWarningMessage
+
+respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
+respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments = do
+    setTypedLiveSurfaceActorRefresh rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) fragments
+    respondHtmlProfiled mempty
 
 respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefreshStaffPanel = do

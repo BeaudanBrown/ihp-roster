@@ -15,6 +15,7 @@ module Application.Helper.LiveSurface.Internal
     , broadcastProjectionSurfaceFragments
     , broadcastProjectionSurfaceFragmentsWith
     , broadcastTypedSurfaceFragments
+    , broadcastTypedSurfaceFragmentsAndSetActorRefresh
     , broadcastTypedSurfaceFragmentsWithoutContext
     , broadcastTypedSurfaceResync
     , broadcastTypedSurfaceResyncWithoutContext
@@ -31,6 +32,7 @@ module Application.Helper.LiveSurface.Internal
     , mkSurfaceProjectionDefinition
     , mkTypedDefinedLiveSurface
     , performTypedLiveSurfaceMutation
+    , performTypedLiveSurfaceMutationAndSetActorRefresh
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
     , setTypedLiveSurfaceActorRefresh
@@ -242,6 +244,16 @@ performTypedLiveSurfaceMutation definition mutation = do
             , liveMutationBroadcast = broadcastResult
             }
 
+performTypedLiveSurfaceMutationAndSetActorRefresh ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    LiveSurfaceMutation scope fragment ->
+    IO (LiveSurfaceMutationResult surface)
+performTypedLiveSurfaceMutationAndSetActorRefresh definition mutation = do
+    result <- performTypedLiveSurfaceMutation definition mutation
+    setTypedLiveSurfaceActorRefresh definition mutation.liveMutationScope mutation.liveMutationActorFragments
+    pure result
+
 authorizeTypedLiveSurfaceScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     TypedLiveSurfaceDefinition surface scope fragment ->
@@ -362,6 +374,16 @@ broadcastTypedSurfaceFragments definition surfaceKey fragments =
         (unSurfaceScope (definition.typedSurfaceScope surfaceKey))
         liveUpdateSourceClientId
         (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey fragments))
+
+broadcastTypedSurfaceFragmentsAndSetActorRefresh ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    scope ->
+    [fragment] ->
+    IO ()
+broadcastTypedSurfaceFragmentsAndSetActorRefresh definition surfaceKey fragments = do
+    _ <- performTypedLiveSurfaceMutationAndSetActorRefresh definition (liveSurfaceMutation surfaceKey fragments)
+    pure ()
 
 broadcastTypedSurfaceResync ::
     (?context :: ControllerContext, ?request :: Request) =>

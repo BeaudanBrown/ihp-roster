@@ -4,10 +4,13 @@ module Web.RosterWeeks.LiveUpdates
     , refreshRosterContentAndStaffPanel
     , refreshRosterDaySections
     , refreshRosterFragments
+    , refreshRosterFragmentsAndSetActorRefresh
     , refreshRosterRows
     ) where
 
-import Application.Helper.LiveSurface (broadcastSurfaceFragments)
+import Application.Helper.LiveSurface (LiveSurfaceMutation (..),
+                                       broadcastSurfaceFragments,
+                                       performTypedLiveSurfaceMutationAndSetActorRefresh)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
@@ -38,6 +41,28 @@ refreshRosterFragments rosterGroupId weekOffset fragments =
     where
         coalescedFragments =
             coalesceRosterWeekFragmentRefs rosterGroupId weekOffset fragments
+
+refreshRosterFragmentsAndSetActorRefresh ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id RosterGroup ->
+    Int ->
+    [RosterProjectionFragment] ->
+    IO ()
+refreshRosterFragmentsAndSetActorRefresh rosterGroupId weekOffset actorFragments =
+    unless (null passiveFragments && null actorFragments) do
+        _ <-
+            performTypedLiveSurfaceMutationAndSetActorRefresh
+                rosterLiveSurfaceDefinition
+                LiveSurfaceMutation
+                    { liveMutationScope = buildRosterProjectionScope rosterGroupId weekOffset
+                    , liveMutationActorFragments = actorFragments
+                    , liveMutationPassiveFragments = passiveFragments
+                    }
+        unless (null passiveFragments) do
+            keepCurrentRosterWeekProjectionHot rosterGroupId weekOffset
+    where
+        passiveFragments =
+            coalesceRosterWeekFragmentRefs rosterGroupId weekOffset actorFragments
 
 refreshRosterContent ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
