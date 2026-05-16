@@ -62,6 +62,31 @@ tests = describe "LiveUpdate runtime types" do
         forM_ fragmentKeys \fragmentKey ->
             Aeson.decode (Aeson.encode fragmentKey) `shouldBe` Just fragmentKey
 
+    it "keeps wire fragment payloads self-describing for the browser" do
+        let rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222"
+        let fragment =
+                LiveUpdateWireFragment
+                    { fragmentKey = RosterRowFragment { rosterDayId, rowIndex = 2 }
+                    , targetId = "roster-row-2"
+                    , url = "/ShowRosterWeekRowFragment?weekOffset=0&rowIndex=2"
+                    , deferUntilBlur = True
+                    , protectionPolicy = NoProtection
+                    }
+
+        Aeson.toJSON fragment
+            `shouldBe`
+                Aeson.object
+                    [ "fragmentKey" Aeson..= Aeson.object
+                        [ "kind" Aeson..= ("roster_row" :: Text)
+                        , "rosterDayId" Aeson..= UUID.toText rosterDayId
+                        , "rowIndex" Aeson..= (2 :: Int)
+                        ]
+                    , "targetId" Aeson..= ("roster-row-2" :: Text)
+                    , "url" Aeson..= ("/ShowRosterWeekRowFragment?weekOffset=0&rowIndex=2" :: Text)
+                    , "deferUntilBlur" Aeson..= True
+                    , "protectionPolicy" Aeson..= NoProtection
+                    ]
+
     it "uses stable live scope keys for client/server subscription matching" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
