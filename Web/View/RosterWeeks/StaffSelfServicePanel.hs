@@ -7,12 +7,14 @@ module Web.View.RosterWeeks.StaffSelfServicePanel
     ) where
 
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
+                                       TypedLiveSurfaceDefinition (..),
                                        liveSurfaceConfigJson,
                                        mkTypedDefinedLiveSurface)
 import Application.Helper.Url (appendQueryParams)
 import Data.Time.Calendar (diffDays)
 import Web.RosterWeeks.Types (RosterStaffSelfServicePanel (..))
-import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
+import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
+                                  TimesheetProjectionRequest (..),
                                   timesheetLiveSurfaceDefinition)
 import Web.View.LeaveRequests.New (renderLeaveRequestFormFields)
 import Web.View.Prelude
@@ -108,7 +110,11 @@ timesheetDayModel panel =
 
 timesheetLiveSurface :: (?context :: ControllerContext) => RosterStaffSelfServicePanel -> LiveSurfaceConfig
 timesheetLiveSurface panel =
-    mkTypedDefinedLiveSurface timesheetLiveSurfaceDefinition (timesheetProjectionRequest panel)
+    mkTypedDefinedLiveSurface
+        timesheetLiveSurfaceDefinition
+            { typedSurfaceDefaultFragments = const [TimesheetProjectionDaySection (quickToolsTimesheetDayOffset panel)]
+            }
+        (timesheetProjectionRequest panel)
 
 timesheetProjectionRequest :: RosterStaffSelfServicePanel -> TimesheetProjectionRequest
 timesheetProjectionRequest panel =
