@@ -4,9 +4,12 @@ module Test.Support.LiveSurfaceContract
     , liveSurfaceConfigShouldExposeRefs
     , liveSurfaceConfigShouldRoundTrip
     , responseShouldMountLiveSurface
+    , typedLiveSurfaceConfigShouldExposeDefaultRefs
+    , typedLiveSurfaceFragmentShouldMapTo
     ) where
 
 import Application.Helper.LiveSurface
+import Application.Helper.LiveUpdate (LiveFragmentKey)
 import Application.Helper.LiveUpdate.Internal (LiveUpdateWireFragment (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
@@ -34,6 +37,36 @@ responseShouldMountLiveSurface response surface = do
     response `responseBodyShouldContain` surface.scopeKey
     forM_ surface.resyncFragments \fragment -> do
         response `responseBodyShouldContain` fragment.targetId
+
+typedLiveSurfaceConfigShouldExposeDefaultRefs ::
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    scope ->
+    [fragment] ->
+    Expectation
+typedLiveSurfaceConfigShouldExposeDefaultRefs definition surfaceKey expectedDefaultFragments =
+    liveSurfaceConfigShouldExposeRefs
+        (mkTypedDefinedLiveSurface definition surfaceKey)
+        (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey expectedDefaultFragments))
+
+typedLiveSurfaceFragmentShouldMapTo ::
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    scope ->
+    fragment ->
+    LiveFragmentKey ->
+    Text ->
+    Text ->
+    Expectation
+typedLiveSurfaceFragmentShouldMapTo definition surfaceKey fragment expectedFragmentKey expectedTargetId expectedUrl = do
+    let wireFragment = singleWireFragment (typedLiveSurfaceFragmentRef definition surfaceKey fragment)
+    wireFragment.fragmentKey `shouldBe` expectedFragmentKey
+    wireFragment.targetId `shouldBe` expectedTargetId
+    wireFragment.url `shouldBe` expectedUrl
+
+singleWireFragment :: SurfaceFragmentRef surface -> LiveUpdateWireFragment
+singleWireFragment fragmentRef =
+    case unSurfaceFragmentRefs [fragmentRef] of
+        [wireFragment] -> wireFragment
+        _              -> error "Expected one live surface fragment ref"
 
 liveFragmentResponseShouldRenderTarget :: Response -> LiveUpdateWireFragment -> Expectation
 liveFragmentResponseShouldRenderTarget response fragment = do

@@ -1,6 +1,7 @@
 module Test.LiveSurfaceSpec where
 
 import Application.Helper.LiveSurface
+import Application.Helper.LiveUpdate (LiveFragmentKey (..))
 import Application.Support.LiveUpdates
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -34,6 +35,24 @@ tests = describe "LiveSurface contract helpers" do
                 ]
 
         forM_ surfaces liveSurfaceConfigShouldRoundTrip
+        typedLiveSurfaceConfigShouldExposeDefaultRefs
+            (timesheetLiveSurfaceDefinitionForVenue venueId)
+            timesheetKey
+            (map TimesheetProjectionDaySection [0 .. 6])
+        typedLiveSurfaceFragmentShouldMapTo
+            (timesheetLiveSurfaceDefinitionForVenue venueId)
+            timesheetKey
+            (TimesheetProjectionDaySection 2)
+            TimesheetDaySectionFragment { dayOffset = 2 }
+            "timesheet-day-section-2"
+            "/ShowTimesheetDaySectionFragment?weekOffset=1&dayOffset=2&showApproved=true&showAllStaff=true"
+        typedLiveSurfaceFragmentShouldMapTo
+            (adminXeroLiveSurfaceDefinitionForVenue venueId)
+            ()
+            AdminXeroPayItemsLiveFragment
+            AdminXeroPayItemsFragment
+            "xero-pay-items-data"
+            "/ShowAdminXeroPayItemsFragment"
         map (.feature) surfaces `shouldBe` ["billing", "timesheets", "admin-invites", "admin-xero"]
         map (.scopeKey) surfaces
             `shouldBe`
