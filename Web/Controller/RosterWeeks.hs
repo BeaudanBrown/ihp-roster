@@ -33,6 +33,7 @@ import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
+import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
 import Web.RosterWeeks.LiveUpdates (refreshRosterContent,
                                     refreshRosterContentAndStaffPanel,
                                     refreshRosterFragments)

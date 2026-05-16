@@ -10,7 +10,7 @@ import Web.Billing.LiveUpdates (billingLiveSurfaceDefinition)
 import Web.LeaveRequests.Projection (leaveRequestsLiveSurfaceDefinition)
 import Web.Profiles.LiveUpdates (profileContentLiveSurfaceDefinition,
                                  profileLeaveRequestsLiveSurfaceDefinition)
-import Web.RosterWeeks.RenderData (rosterLiveSurfaceDefinition)
+import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
 import Web.Timesheets.Projection (timesheetLiveSurfaceDefinition)
 import Web.View.Admin.Compliance (staffComplianceLiveSurfaceDefinition)
 import Web.View.Admin.Exports (adminExportsLiveSurfaceDefinition)

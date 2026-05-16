@@ -7,7 +7,7 @@ import Application.Helper.LiveUpdate (LiveUpdateScope)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Projection (buildRosterProjectionScope)
-import Web.RosterWeeks.RenderData (rosterLiveSurfaceDefinition)
+import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
 import Web.View.RosterWeeks.Grid (renderRosterContentFragment)

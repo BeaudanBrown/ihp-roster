@@ -18,8 +18,8 @@ import Web.RosterWeeks.Projection (buildRosterProjectionScope,
                                    rosterDaySectionFragment,
                                    rosterDaySectionFragments,
                                    rosterRowFragments)
-import Web.RosterWeeks.RenderData (keepCurrentRosterWeekProjectionHot,
-                                   rosterLiveSurfaceDefinition)
+import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
+import Web.RosterWeeks.RenderData (keepCurrentRosterWeekProjectionHot)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 
 refreshRosterFragments ::

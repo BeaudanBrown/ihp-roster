@@ -5,8 +5,7 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Web.RosterWeeks.RenderData
-    ( rosterLiveSurfaceDefinition
-    , rosterProjectionDefinition
+    ( rosterProjectionDefinition
     , fetchVisibleRosterRenderDataCached
     , renderVisibleRosterProjectionFragment
     , renderRosterProjectionFragment
@@ -35,7 +34,6 @@ where
 import Application.Helper.Conflict
 import Application.Helper.Controller
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveUpdateScope (..), currentLiveUpdateVersion)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.RosterWagePrediction
@@ -53,10 +51,7 @@ import Web.RosterWeeks.Conflicts
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.Dom
-import Web.RosterWeeks.Paths (rosterWeekContentFragmentUrl,
-                              rosterWeekDaySectionFragmentUrl,
-                              rosterWeekRowFragmentUrl,
-                              rosterWeekStaffPanelFragmentUrl)
+import Web.RosterWeeks.LiveSurface
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.StaffOptions
@@ -64,81 +59,11 @@ import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
 
-data RosterLiveSurface
-
-rosterLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope RosterProjectionFragment
-rosterLiveSurfaceDefinition =
-    TypedLiveSurfaceDefinition
-        { typedSurfaceFeature = "roster"
-        , typedSurfaceScope = rosterSurfaceScope
-        , typedSurfaceScopeFromWire = rosterSurfaceScopeFromWire
-        , typedSurfaceDefaultFragments = const [RosterProjectionContent, RosterProjectionStaffPanel]
-        , typedSurfaceFragmentRef = \scope fragment ->
-            case fragment of
-                RosterProjectionContent ->
-                    mkSurfaceFragmentRef
-                        RosterContentFragment
-                        rosterContentFragmentId
-                        (rosterWeekContentFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
-                RosterProjectionStaffPanel ->
-                    mkSurfaceFragmentRef
-                        RosterStaffPanelFragment
-                        rosterStaffPanelFragmentId
-                        (rosterWeekStaffPanelFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
-                RosterProjectionDaySection rosterDayId ->
-                    mkSurfaceFragmentRef
-                        RosterDaySectionFragment { rosterDayId }
-                        (rosterDaySectionDomId (coerce rosterDayId))
-                        (rosterWeekDaySectionFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId))
-                RosterProjectionRow rosterDayId rowIndex ->
-                    mkSurfaceFragmentRef
-                        RosterRowFragment { rosterDayId, rowIndex }
-                        (rosterRowDomIdText (coerce rosterDayId) rowIndex)
-                        (rosterWeekRowFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId) rowIndex)
-        , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup (unpackId currentVenueId) (unpackId scope.rosterProjectionGroupId))
-        }
-    where
-        rosterSurfaceScope scope =
-            SurfaceScope (buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
-
-        rosterSurfaceScopeFromWire scope =
-            case (currentVenueOrNothing, scope) of
-                (Just _, RosterWeekScope { rosterGroupId, weekOffset }) ->
-                    Just RosterProjectionScope
-                        { rosterProjectionGroupId = coerce rosterGroupId
-                        , rosterProjectionWeekOffset = weekOffset
-                        }
-                _ ->
-                    Nothing
-
 rosterProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope (Maybe RosterRenderData) RosterProjectionFragment
 rosterProjectionDefinition =
-    mkTypedSurfaceProjectionDefinition
-        rosterLiveSurfaceDefinition
-        "roster-week"
-        defaultSurfaceProjectionCachePolicy
-        (\scope -> tshow scope.rosterProjectionGroupId <> ":" <> tshow scope.rosterProjectionWeekOffset)
-        do
-            filters <- fetchRosterAssignmentFilters
-            layoutMode <- fetchCurrentRosterLayoutMode
-            pure (tshow currentUser.id <> ":" <> encodeRosterAssignmentFilters filters <> ":" <> rosterLayoutModeValue layoutMode)
-        rosterProjectionVersion
+    mkRosterProjectionDefinition
         (\scope -> fetchVisibleRosterRenderData scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
         renderRosterProjectionFragment
-
-rosterProjectionVersion :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterProjectionScope -> IO Int
-rosterProjectionVersion scope = do
-    rosterVersion <- currentLiveUpdateVersion (buildRosterWeekScope scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
-    if hasRole ManagerRole' || currentUserIsSuperAdmin
-        then pure rosterVersion
-        else do
-            venueConfig <- fetchVenueConfig
-            operationalDay <- currentOperationalDayForVenue venueConfig
-            let timesheetWeekOffset = venueWeekOffsetForDay venueConfig operationalDay
-            timesheetVersion <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId currentVenueId, weekOffset = timesheetWeekOffset }
-            leaveVersion <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId currentVenueId }
-            pure (rosterVersion + timesheetVersion + leaveVersion + fromInteger (Calendar.toModifiedJulianDay operationalDay))
 
 fetchVisibleRosterRenderDataCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterRenderDataCached rosterGroupId weekOffset =
