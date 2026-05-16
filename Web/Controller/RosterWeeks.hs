@@ -317,16 +317,16 @@ instance Controller RosterWeeksController where
         withTransaction do
             repackRosterWeekDays rosterWeek
 
-        refreshRosterContentAndStaffPanel
-            rosterGroupId
-            rosterWeek.weekOffset
         if isHtmxRequest
             then
-                respondWithActorRosterFragmentRefresh
+                refreshRosterFragmentsAndRespondToActor
                     rosterGroupId
                     rosterWeek.weekOffset
                     rosterContentAndStaffPanelFragments
             else do
+                refreshRosterContentAndStaffPanel
+                    rosterGroupId
+                    rosterWeek.weekOffset
                 setSuccessMessage "Roster sorted."
                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
@@ -348,10 +348,6 @@ instance Controller RosterWeeksController where
 
         _ <- rosterDay |> set #isClosed nextClosedState |> updateRecord
 
-        refreshRosterContentAndStaffPanel
-            rosterGroupId
-            rosterWeek.weekOffset
-
         let successMessage =
                 if nextClosedState
                     then "Roster day marked closed."
@@ -360,11 +356,14 @@ instance Controller RosterWeeksController where
         if isHtmxRequest
             then do
                 setHtmxPushUrl targetPath
-                respondWithActorRosterFragmentRefresh
+                refreshRosterFragmentsAndRespondToActor
                     rosterGroupId
                     rosterWeek.weekOffset
                     rosterContentAndStaffPanelFragments
             else do
+                refreshRosterContentAndStaffPanel
+                    rosterGroupId
+                    rosterWeek.weekOffset
                 setSuccessMessage successMessage
                 redirectToPath targetPath
 
@@ -403,16 +402,16 @@ instance Controller RosterWeeksController where
                     |> set #rowCount (rosterDay.rowCount + 1)
                     |> updateRecord
 
-                refreshRosterContentAndStaffPanel
-                    rosterGroupId
-                    rosterWeek.weekOffset
                 if isHtmxRequest
                     then
-                        respondWithActorRosterFragmentRefresh
+                        refreshRosterFragmentsAndRespondToActor
                             rosterGroupId
                             rosterWeek.weekOffset
                             rosterContentAndStaffPanelFragments
                     else do
+                        refreshRosterContentAndStaffPanel
+                            rosterGroupId
+                            rosterWeek.weekOffset
                         setSuccessMessage "Roster row added."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
@@ -456,16 +455,16 @@ instance Controller RosterWeeksController where
                 withTransaction do
                     removeRosterRowWithPacking rosterDay activeDefinitions
 
-                refreshRosterContentAndStaffPanel
-                    rosterGroupId
-                    rosterWeek.weekOffset
                 if isHtmxRequest
                     then
-                        respondWithActorRosterFragmentRefresh
+                        refreshRosterFragmentsAndRespondToActor
                             rosterGroupId
                             rosterWeek.weekOffset
                             rosterContentAndStaffPanelFragments
                     else do
+                        refreshRosterContentAndStaffPanel
+                            rosterGroupId
+                            rosterWeek.weekOffset
                         setSuccessMessage "Roster row removed."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
@@ -583,10 +582,10 @@ instance Controller RosterWeeksController where
                                             <> [rosterStaffPanelFragment]
                                     )
                                     createdSlot
-                refreshRosterFragments rosterGroupId rosterWeek.weekOffset actorFragments
                 if isHtmxRequest
-                    then respondWithActorRosterFragmentRefresh rosterGroupId rosterWeek.weekOffset actorFragments
+                    then refreshRosterFragmentsAndRespondToActor rosterGroupId rosterWeek.weekOffset actorFragments
                     else do
+                        refreshRosterFragments rosterGroupId rosterWeek.weekOffset actorFragments
                         setSuccessMessage "Roster slot updated."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
@@ -661,11 +660,7 @@ instance Controller RosterWeeksController where
                                 actorRosterRowFragments maybeStaffParam impactedRowKeys
                                     <> assignmentRefreshFragments maybeStaffParam
                                     <> [rosterStaffPanelFragment]
-                refreshRosterFragments
-                    rosterGroupId
-                    rosterWeek.weekOffset
-                    actorFragments
-                respondWithActorRosterFragmentRefreshWithToast
+                refreshRosterFragmentsAndRespondToActorWithToast
                     rosterGroupId
                     rosterWeek.weekOffset
                     actorFragments
@@ -745,6 +740,16 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
 respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> IO ()
 respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
     respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
+
+refreshRosterFragmentsAndRespondToActor :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
+refreshRosterFragmentsAndRespondToActor rosterGroupId weekOffset fragments = do
+    refreshRosterFragments rosterGroupId weekOffset fragments
+    respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments
+
+refreshRosterFragmentsAndRespondToActorWithToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Maybe Text -> IO ()
+refreshRosterFragmentsAndRespondToActorWithToast rosterGroupId weekOffset fragments maybeWarningMessage = do
+    refreshRosterFragments rosterGroupId weekOffset fragments
+    respondWithActorRosterFragmentRefreshWithToast rosterGroupId weekOffset fragments maybeWarningMessage
 
 respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
 respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments =
