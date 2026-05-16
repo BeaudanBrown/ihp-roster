@@ -33,7 +33,9 @@ import Web.Controller.Sessions (passkeySetupPromptSessionKey)
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
-import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
+import Web.RosterWeeks.LiveUpdates (refreshRosterContent,
+                                    refreshRosterContentAndStaffPanel,
+                                    refreshRosterFragments)
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterWeekUrl)
 import Web.RosterWeeks.Projection
@@ -124,10 +126,9 @@ instance Controller RosterWeeksController where
         (rosterWeek, wasCreated) <- ensureRosterWeekExists rosterGroup.id weekOffset
 
         when wasCreated do
-            broadcastRosterWeekInvalidation
+            refreshRosterContent
                 rosterGroup.id
                 weekOffset
-                [buildRosterContentFragmentRef rosterGroup.id weekOffset]
 
         let successMessage =
                 if wasCreated
@@ -178,10 +179,9 @@ instance Controller RosterWeeksController where
                                 Just targetWeek -> replaceRosterWeekFromSource sourceWeek targetWeek
                                 Nothing -> copyRosterWeek sourceWeek targetWeekOffset
 
-                        broadcastRosterWeekInvalidation
+                        refreshRosterContent
                             rosterGroup.id
                             targetWeekOffset
-                            [buildRosterContentFragmentRef rosterGroup.id targetWeekOffset]
                         let successMessage = "Roster week copied from the previous week."
                         let targetPath = rosterWeekUrl targetWeekOffset rosterGroup.id
                         if isHtmxRequest
@@ -216,10 +216,9 @@ instance Controller RosterWeeksController where
                         then enqueueRosterTimesheetCreationJobsForWeek (Just currentUser.id) updatedRosterWeek
                         else pure []
 
-                broadcastRosterWeekInvalidation
+                refreshRosterContent
                     rosterGroupId
                     rosterWeek.weekOffset
-                    [buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset]
                 let successMessage =
                         if nextLiveStatus
                             then
@@ -255,12 +254,9 @@ instance Controller RosterWeeksController where
                         withTransaction do
                             _ <- appendRosterWeekSlotDefinition rosterWeek slotName
                             pure ()
-                        broadcastRosterWeekInvalidation
+                        refreshRosterContentAndStaffPanel
                             rosterGroupId
                             rosterWeek.weekOffset
-                            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                            ]
                         respondToRosterSlotDefinitionSuccess rosterWeek "Roster column added."
 
     action UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = do
@@ -282,10 +278,9 @@ instance Controller RosterWeeksController where
                         _ <- slotDefinition
                             |> set #name slotName
                             |> updateRecord
-                        broadcastRosterWeekInvalidation
+                        refreshRosterContent
                             rosterGroupId
                             rosterWeek.weekOffset
-                            [buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset]
                         respondToRosterSlotDefinitionSuccess rosterWeek "Roster column renamed."
 
     action DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = do
@@ -306,12 +301,9 @@ instance Controller RosterWeeksController where
                 let rosterGroupId = coerce rosterWeek.rosterGroupId
                 withTransaction do
                     deleteRosterWeekSlotDefinition slotDefinition
-                broadcastRosterWeekInvalidation
+                refreshRosterContentAndStaffPanel
                     rosterGroupId
                     rosterWeek.weekOffset
-                    [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                    , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                    ]
                 respondToRosterSlotDefinitionSuccess rosterWeek "Roster column removed."
 
     action SortRosterWeekAction { rosterWeekId } = do
@@ -325,20 +317,15 @@ instance Controller RosterWeeksController where
         withTransaction do
             repackRosterWeekDays rosterWeek
 
-        broadcastRosterWeekInvalidation
+        refreshRosterContentAndStaffPanel
             rosterGroupId
             rosterWeek.weekOffset
-            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-            ]
         if isHtmxRequest
             then
                 respondWithActorRosterFragmentRefresh
                     rosterGroupId
                     rosterWeek.weekOffset
-                    [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                    , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                    ]
+                    rosterContentAndStaffPanelFragments
             else do
                 setSuccessMessage "Roster sorted."
                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -361,12 +348,9 @@ instance Controller RosterWeeksController where
 
         _ <- rosterDay |> set #isClosed nextClosedState |> updateRecord
 
-        broadcastRosterWeekInvalidation
+        refreshRosterContentAndStaffPanel
             rosterGroupId
             rosterWeek.weekOffset
-            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-            ]
 
         let successMessage =
                 if nextClosedState
@@ -379,9 +363,7 @@ instance Controller RosterWeeksController where
                 respondWithActorRosterFragmentRefresh
                     rosterGroupId
                     rosterWeek.weekOffset
-                    [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                    , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                    ]
+                    rosterContentAndStaffPanelFragments
             else do
                 setSuccessMessage successMessage
                 redirectToPath targetPath
@@ -421,20 +403,15 @@ instance Controller RosterWeeksController where
                     |> set #rowCount (rosterDay.rowCount + 1)
                     |> updateRecord
 
-                broadcastRosterWeekInvalidation
+                refreshRosterContentAndStaffPanel
                     rosterGroupId
                     rosterWeek.weekOffset
-                    [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                    , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                    ]
                 if isHtmxRequest
                     then
                         respondWithActorRosterFragmentRefresh
                             rosterGroupId
                             rosterWeek.weekOffset
-                            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                            ]
+                            rosterContentAndStaffPanelFragments
                     else do
                         setSuccessMessage "Roster row added."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -479,20 +456,15 @@ instance Controller RosterWeeksController where
                 withTransaction do
                     removeRosterRowWithPacking rosterDay activeDefinitions
 
-                broadcastRosterWeekInvalidation
+                refreshRosterContentAndStaffPanel
                     rosterGroupId
                     rosterWeek.weekOffset
-                    [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                    , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                    ]
                 if isHtmxRequest
                     then
                         respondWithActorRosterFragmentRefresh
                             rosterGroupId
                             rosterWeek.weekOffset
-                            [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                            , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                            ]
+                            rosterContentAndStaffPanelFragments
                     else do
                         setSuccessMessage "Roster row removed."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -601,19 +573,17 @@ instance Controller RosterWeeksController where
                 let actorFragments =
                         case rosterLayoutModeValue layoutMode of
                             "day_columns" ->
-                                [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                                , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                                ]
+                                rosterContentAndStaffPanelFragments
                             _ ->
                                 maybe
-                                    [buildRosterRowFragmentRef rosterGroupId rosterWeek.weekOffset (unpackId rosterDay.id) rowIndex]
+                                    [rosterRowFragment (unpackId rosterDay.id) rowIndex]
                                     (\slot ->
-                                        buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset [(slot.rosterDayId, slot.rowIndex)]
-                                            <> buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset
-                                            <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset]
+                                        actorRosterRowFragments maybeStaffParam [(slot.rosterDayId, slot.rowIndex)]
+                                            <> assignmentRefreshFragments maybeStaffParam
+                                            <> [rosterStaffPanelFragment]
                                     )
                                     createdSlot
-                broadcastRosterWeekInvalidation rosterGroupId rosterWeek.weekOffset actorFragments
+                refreshRosterFragments rosterGroupId rosterWeek.weekOffset actorFragments
                 if isHtmxRequest
                     then respondWithActorRosterFragmentRefresh rosterGroupId rosterWeek.weekOffset actorFragments
                     else do
@@ -686,14 +656,12 @@ instance Controller RosterWeeksController where
                 let actorFragments =
                         case rosterLayoutModeValue layoutMode of
                             "day_columns" ->
-                                [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                                , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                                ]
+                                rosterContentAndStaffPanelFragments
                             _ ->
-                                buildActorRosterRowFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset impactedRowKeys
-                                    <> buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId rosterWeek.weekOffset
-                                    <> [buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset]
-                broadcastRosterWeekInvalidation
+                                actorRosterRowFragments maybeStaffParam impactedRowKeys
+                                    <> assignmentRefreshFragments maybeStaffParam
+                                    <> [rosterStaffPanelFragment]
+                refreshRosterFragments
                     rosterGroupId
                     rosterWeek.weekOffset
                     actorFragments
@@ -1013,9 +981,7 @@ respondToRosterSlotDefinitionSuccess rosterWeek successMessage =
             respondWithActorRosterFragmentRefresh
                 rosterGroupId
                 rosterWeek.weekOffset
-                [ buildRosterContentFragmentRef rosterGroupId rosterWeek.weekOffset
-                , buildRosterStaffPanelFragmentRef rosterGroupId rosterWeek.weekOffset
-                ]
+                rosterContentAndStaffPanelFragments
         else do
             setSuccessMessage successMessage
             redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)

@@ -17,8 +17,8 @@ import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
 import Web.Profiles.LiveUpdates
-import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
-import Web.RosterWeeks.Projection (buildRosterContentFragmentRef)
+import Web.RosterWeeks.LiveUpdates (refreshRosterFragments)
+import Web.RosterWeeks.Projection (rosterContentFragment)
 import Web.RosterWeeks.Types (RosterProjectionFragment)
 import Web.View.Profiles.Edit
 
@@ -118,7 +118,7 @@ instance Controller ProfilesController where
                             invalidationTargets <- fetchProfileRosterInvalidationTargets currentVenueId staff
                             let invalidations = buildProfileRosterInvalidations invalidationTargets
                             forM_ invalidations \(rosterGroupId, weekOffset, fragments) ->
-                                broadcastRosterWeekInvalidation rosterGroupId weekOffset fragments
+                                refreshRosterFragments rosterGroupId weekOffset fragments
                             let isProfileCompleted = requiredProfileFieldsCompleted staff
                             let wasProfileCompleted = currentUser.isProfileCompleted
                             currentUser
@@ -269,5 +269,5 @@ buildProfileRosterInvalidations =
     map \(rosterGroupId, weekOffset, _rowKeys) ->
         ( rosterGroupId
         , weekOffset
-        , [buildRosterContentFragmentRef rosterGroupId weekOffset]
+        , [rosterContentFragment]
         )

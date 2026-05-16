@@ -30,9 +30,8 @@ import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
-import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
-import Web.RosterWeeks.Projection (buildRosterContentFragmentRef,
-                                   buildRosterStaffPanelFragmentRef)
+import Web.RosterWeeks.LiveUpdates (refreshRosterFragments)
+import Web.RosterWeeks.Projection (rosterContentAndStaffPanelFragments)
 import Web.View.LeaveRequests.Index
 
 data LeaveRequestsProjection = LeaveRequestsProjection
@@ -156,12 +155,10 @@ invalidateAffectedRosterWeeksForLeave leaveRequest = do
     venueConfig <- fetchVenueConfig
     activeScopes <- activeRosterWeekScopes
     forM_ (affectedRosterWeekInvalidationTargetsForScopes currentVenueId venueConfig leaveRequest activeScopes) \(rosterGroupId, weekOffset) ->
-        broadcastRosterWeekInvalidation
+        refreshRosterFragments
             rosterGroupId
             weekOffset
-            [ buildRosterContentFragmentRef rosterGroupId weekOffset
-            , buildRosterStaffPanelFragmentRef rosterGroupId weekOffset
-            ]
+            rosterContentAndStaffPanelFragments
 
 affectedRosterWeekInvalidationTargetsForScopes ::
     Id Venue ->

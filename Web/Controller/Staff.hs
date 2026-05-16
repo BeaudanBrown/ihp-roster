@@ -14,8 +14,7 @@ import Control.Monad (void)
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Web.Controller.Prelude
-import Web.RosterWeeks.LiveUpdates (broadcastRosterWeekInvalidation)
-import Web.RosterWeeks.Projection (buildRosterContentFragmentRef)
+import Web.RosterWeeks.LiveUpdates (refreshRosterContent)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob)
 import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinition)
 import Web.View.Staff.Edit
@@ -134,10 +133,9 @@ instance Controller StaffController where
                                                 Just rosterGroupId -> pure rosterGroupId
                                                 Nothing -> (.id) <$> fetchCurrentVenueDefaultRosterGroup
                                             forM_ invalidatedRosterGroupIds \invalidatedRosterGroupId ->
-                                                broadcastRosterWeekInvalidation
+                                                refreshRosterContent
                                                     invalidatedRosterGroupId
                                                     weekOffset
-                                                    [buildRosterContentFragmentRef invalidatedRosterGroupId weekOffset]
                                             respondWithRosterContentOob rosterGroupId weekOffset
                                         else do
                                             setSuccessMessage "Staff member updated"

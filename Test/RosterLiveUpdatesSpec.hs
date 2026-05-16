@@ -9,7 +9,7 @@ import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
 import Web.RosterWeeks.LiveUpdates (coalesceRosterWeekFragmentRefs)
-import Web.RosterWeeks.Projection (buildRosterRowFragmentRef)
+import Web.RosterWeeks.Projection (rosterRowFragment)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 
 tests :: Spec
@@ -26,12 +26,12 @@ tests = beforeAll testContext do
                     let thirdDayId = expectUuid "66666666-6666-6666-6666-666666666666"
                     let fourthDayId = expectUuid "77777777-7777-7777-7777-777777777777"
                     let hotRowBurst =
-                            [ buildRosterRowFragmentRef rosterGroupId 0 firstDayId rowIndex
+                            [ rosterRowFragment firstDayId rowIndex
                             | rowIndex <- [0, 1, 2]
                             ]
                     let multiDayBurst =
                             concat
-                                [ [ buildRosterRowFragmentRef rosterGroupId 0 dayId rowIndex
+                                [ [ rosterRowFragment dayId rowIndex
                                   | rowIndex <- [0, 1, 2]
                                   ]
                                 | dayId <- [firstDayId, secondDayId, thirdDayId, fourthDayId]

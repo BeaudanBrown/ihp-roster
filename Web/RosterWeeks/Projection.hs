@@ -1,13 +1,15 @@
 module Web.RosterWeeks.Projection
-    ( buildActorRosterRowFragmentRefs
-    , buildAssignmentRefreshFragmentRefs
-    , buildRosterContentFragmentRef
-    , buildRosterDaySectionFragmentRef
+    ( actorRosterRowFragments
+    , assignmentRefreshFragments
     , buildRosterProjectionScope
-    , buildRosterRowFragmentRef
-    , buildRosterRowFragmentRefs
-    , buildRosterStaffPanelFragmentRef
     , buildRosterWeekScope
+    , rosterContentAndStaffPanelFragments
+    , rosterContentFragment
+    , rosterDaySectionFragment
+    , rosterDaySectionFragments
+    , rosterRowFragment
+    , rosterRowFragments
+    , rosterStaffPanelFragment
     ) where
 
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
@@ -31,32 +33,42 @@ buildRosterWeekScope rosterGroupId weekOffset =
         , weekOffset
         }
 
-buildRosterContentFragmentRef :: Id RosterGroup -> Int -> RosterProjectionFragment
-buildRosterContentFragmentRef _ _ =
+rosterContentFragment :: RosterProjectionFragment
+rosterContentFragment =
     RosterProjectionContent
 
-buildRosterStaffPanelFragmentRef :: Id RosterGroup -> Int -> RosterProjectionFragment
-buildRosterStaffPanelFragmentRef _ _ =
+rosterStaffPanelFragment :: RosterProjectionFragment
+rosterStaffPanelFragment =
     RosterProjectionStaffPanel
 
-buildRosterDaySectionFragmentRef :: Id RosterGroup -> Int -> UUID.UUID -> RosterProjectionFragment
-buildRosterDaySectionFragmentRef _ _ rosterDayId =
-    RosterProjectionDaySection rosterDayId
-
-buildRosterRowFragmentRefs :: Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> [RosterProjectionFragment]
-buildRosterRowFragmentRefs rosterGroupId weekOffset =
-    map (uncurry (buildRosterRowFragmentRef rosterGroupId weekOffset)) . nub
-
-buildActorRosterRowFragmentRefs :: Maybe Text -> Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> [RosterProjectionFragment]
-buildActorRosterRowFragmentRefs _ =
-    buildRosterRowFragmentRefs
-
-buildAssignmentRefreshFragmentRefs :: Maybe Text -> Id RosterGroup -> Int -> [RosterProjectionFragment]
-buildAssignmentRefreshFragmentRefs maybeStaffParam rosterGroupId weekOffset =
-    [ buildRosterContentFragmentRef rosterGroupId weekOffset
-    | isJust maybeStaffParam
+rosterContentAndStaffPanelFragments :: [RosterProjectionFragment]
+rosterContentAndStaffPanelFragments =
+    [ rosterContentFragment
+    , rosterStaffPanelFragment
     ]
 
-buildRosterRowFragmentRef :: Id RosterGroup -> Int -> UUID.UUID -> Int -> RosterProjectionFragment
-buildRosterRowFragmentRef _ _ rosterDayId rowIndex =
-    RosterProjectionRow rosterDayId rowIndex
+rosterDaySectionFragment :: UUID.UUID -> RosterProjectionFragment
+rosterDaySectionFragment =
+    RosterProjectionDaySection
+
+rosterDaySectionFragments :: [UUID.UUID] -> [RosterProjectionFragment]
+rosterDaySectionFragments =
+    map rosterDaySectionFragment . nub
+
+rosterRowFragment :: UUID.UUID -> Int -> RosterProjectionFragment
+rosterRowFragment =
+    RosterProjectionRow
+
+rosterRowFragments :: [(UUID.UUID, Int)] -> [RosterProjectionFragment]
+rosterRowFragments =
+    map (uncurry rosterRowFragment) . nub
+
+actorRosterRowFragments :: Maybe Text -> [(UUID.UUID, Int)] -> [RosterProjectionFragment]
+actorRosterRowFragments _ =
+    rosterRowFragments
+
+assignmentRefreshFragments :: Maybe Text -> [RosterProjectionFragment]
+assignmentRefreshFragments maybeStaffParam =
+    [ rosterContentFragment
+    | isJust maybeStaffParam
+    ]

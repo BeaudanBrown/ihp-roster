@@ -1,6 +1,10 @@
 module Web.RosterWeeks.LiveUpdates
-    ( broadcastRosterWeekInvalidation
-    , coalesceRosterWeekFragmentRefs
+    ( coalesceRosterWeekFragmentRefs
+    , refreshRosterContent
+    , refreshRosterContentAndStaffPanel
+    , refreshRosterDaySections
+    , refreshRosterFragments
+    , refreshRosterRows
     ) where
 
 import Application.Helper.LiveSurface (broadcastSurfaceFragments)
@@ -8,20 +12,23 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
-import Web.RosterWeeks.Projection (buildRosterContentFragmentRef,
-                                   buildRosterDaySectionFragmentRef,
-                                   buildRosterProjectionScope)
+import Web.RosterWeeks.Projection (buildRosterProjectionScope,
+                                   rosterContentAndStaffPanelFragments,
+                                   rosterContentFragment,
+                                   rosterDaySectionFragment,
+                                   rosterDaySectionFragments,
+                                   rosterRowFragments)
 import Web.RosterWeeks.RenderData (keepCurrentRosterWeekProjectionHot,
                                    rosterLiveSurfaceDefinition)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))
 
-broadcastRosterWeekInvalidation ::
+refreshRosterFragments ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id RosterGroup ->
     Int ->
     [RosterProjectionFragment] ->
     IO ()
-broadcastRosterWeekInvalidation rosterGroupId weekOffset fragments =
+refreshRosterFragments rosterGroupId weekOffset fragments =
     unless (null coalescedFragments) do
         broadcastSurfaceFragments
             rosterLiveSurfaceDefinition
@@ -32,6 +39,40 @@ broadcastRosterWeekInvalidation rosterGroupId weekOffset fragments =
         coalescedFragments =
             coalesceRosterWeekFragmentRefs rosterGroupId weekOffset fragments
 
+refreshRosterContent ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id RosterGroup ->
+    Int ->
+    IO ()
+refreshRosterContent rosterGroupId weekOffset =
+    refreshRosterFragments rosterGroupId weekOffset [rosterContentFragment]
+
+refreshRosterContentAndStaffPanel ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id RosterGroup ->
+    Int ->
+    IO ()
+refreshRosterContentAndStaffPanel rosterGroupId weekOffset =
+    refreshRosterFragments rosterGroupId weekOffset rosterContentAndStaffPanelFragments
+
+refreshRosterRows ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id RosterGroup ->
+    Int ->
+    [(UUID.UUID, Int)] ->
+    IO ()
+refreshRosterRows rosterGroupId weekOffset rowKeys =
+    refreshRosterFragments rosterGroupId weekOffset (rosterRowFragments rowKeys)
+
+refreshRosterDaySections ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id RosterGroup ->
+    Int ->
+    [UUID.UUID] ->
+    IO ()
+refreshRosterDaySections rosterGroupId weekOffset dayIds =
+    refreshRosterFragments rosterGroupId weekOffset (rosterDaySectionFragments dayIds)
+
 coalesceRosterWeekFragmentRefs ::
     Id RosterGroup ->
     Int ->
@@ -41,7 +82,7 @@ coalesceRosterWeekFragmentRefs rosterGroupId weekOffset fragments
     | hasRosterContent =
         filter (not . isCoveredByRosterContent) dedupedFragments
     | Set.size coveredDayIds >= rosterContentCollapseDayThreshold =
-        buildRosterContentFragmentRef rosterGroupId weekOffset : filter (not . isRosterDayOrRow) dedupedFragments
+        rosterContentFragment : filter (not . isRosterDayOrRow) dedupedFragments
     | otherwise =
         collapseRowsToDaySections coveredDayIds dedupedFragments
     where
@@ -78,8 +119,8 @@ coalesceRosterWeekFragmentRefs rosterGroupId weekOffset fragments
                 _ ->
                     (fragment : kept, emittedDayIds)
 
-        daySectionRef dayId =
-            buildRosterDaySectionFragmentRef rosterGroupId weekOffset dayId
+        daySectionRef =
+            rosterDaySectionFragment
 
 rosterRowCollapseThreshold :: Int
 rosterRowCollapseThreshold =
