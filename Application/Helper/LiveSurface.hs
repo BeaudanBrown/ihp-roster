@@ -32,7 +32,6 @@ module Application.Helper.LiveSurface
     , performTypedLiveSurfaceMutation
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
-    , setLiveSurfaceActorRefresh
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
@@ -78,7 +77,6 @@ import Application.Helper.LiveSurface.Internal
     , performTypedLiveSurfaceMutation
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
-    , setLiveSurfaceActorRefresh
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection

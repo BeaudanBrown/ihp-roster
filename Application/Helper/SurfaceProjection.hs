@@ -19,7 +19,7 @@ module Application.Helper.SurfaceProjection
     , warmSurfaceProjectionFromStore
     ) where
 
-import Application.Helper.LiveUpdate.Internal (LiveFragmentRef)
+import Application.Helper.LiveUpdate.Internal (LiveUpdateWireFragment)
 import qualified Data.Dynamic as Dynamic
 import Data.IORef
 import qualified Data.Map.Strict as Map
@@ -52,7 +52,7 @@ data SurfaceProjectionDefinition scope snapshot fragment = SurfaceProjectionDefi
     , currentVersion   :: scope -> IO Int
     , loadProjection   :: scope -> IO snapshot
     , renderFragment   :: snapshot -> fragment -> Maybe Blaze.Html
-    , buildFragmentRef :: scope -> fragment -> LiveFragmentRef
+    , buildFragmentRef :: scope -> fragment -> LiveUpdateWireFragment
     }
 
 data SurfaceProjectionStore = SurfaceProjectionStore
@@ -197,11 +197,11 @@ renderSurfaceProjectionFragmentFromStore store definition scope fragment = do
     snapshot <- loadSurfaceProjectionFromStore store definition scope
     pure (definition.renderFragment snapshot fragment)
 
-surfaceProjectionFragmentRef :: SurfaceProjectionDefinition scope snapshot fragment -> scope -> fragment -> LiveFragmentRef
+surfaceProjectionFragmentRef :: SurfaceProjectionDefinition scope snapshot fragment -> scope -> fragment -> LiveUpdateWireFragment
 surfaceProjectionFragmentRef definition scope fragment =
     definition.buildFragmentRef scope fragment
 
-surfaceProjectionFragmentRefs :: SurfaceProjectionDefinition scope snapshot fragment -> scope -> [fragment] -> [LiveFragmentRef]
+surfaceProjectionFragmentRefs :: SurfaceProjectionDefinition scope snapshot fragment -> scope -> [fragment] -> [LiveUpdateWireFragment]
 surfaceProjectionFragmentRefs definition scope =
     map (surfaceProjectionFragmentRef definition scope)
 

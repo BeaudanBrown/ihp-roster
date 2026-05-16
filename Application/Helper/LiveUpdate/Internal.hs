@@ -1,7 +1,7 @@
 module Application.Helper.LiveUpdate.Internal
     ( LiveFragmentKey (..)
     , LiveFragmentProtection (..)
-    , LiveFragmentRef (..)
+    , LiveUpdateWireFragment (..)
     , LiveBus
     , FocusedFieldProtectionConfig (..)
     , LiveUpdateBroadcastResult (..)
@@ -21,14 +21,13 @@ module Application.Helper.LiveUpdate.Internal
     , broadcastLiveInvalidationWithoutContext
     , broadcastLiveResync
     , broadcastLiveResyncWithoutContext
-    , coalesceLiveFragmentRefs
+    , coalesceLiveUpdateWireFragments
     , currentLiveUpdateVersion
     , currentLiveUpdateVersionWithBus
     , incrementLiveUpdateVersionWithBus
     , liveUpdateSourceClientId
     , liveUpdateScopeKey
-    , liveFragmentsRefreshTriggerPayload
-    , mkLiveFragmentRef
+    , mkLiveUpdateWireFragment
     , newInMemoryLiveBus
     , registerLiveSubscription
     , registerLiveSubscriptionWithBus
@@ -137,7 +136,7 @@ data LiveFragmentProtection
     | FocusedFieldProtection FocusedFieldProtectionConfig
     deriving (Eq, Show)
 
-data LiveFragmentRef = LiveFragmentRef
+data LiveUpdateWireFragment = LiveUpdateWireFragment
     { fragmentKey      :: !LiveFragmentKey
     , targetId         :: !Text
     , url              :: !Text
@@ -146,9 +145,9 @@ data LiveFragmentRef = LiveFragmentRef
     }
     deriving (Eq, Show)
 
-mkLiveFragmentRef :: LiveFragmentKey -> Text -> Text -> LiveFragmentRef
-mkLiveFragmentRef fragmentKey targetId url =
-    LiveFragmentRef
+mkLiveUpdateWireFragment :: LiveFragmentKey -> Text -> Text -> LiveUpdateWireFragment
+mkLiveUpdateWireFragment fragmentKey targetId url =
+    LiveUpdateWireFragment
         { fragmentKey
         , targetId
         , url
@@ -178,7 +177,7 @@ data LiveUpdateMessage
         { scope          :: !LiveUpdateScope
         , scopeKey       :: !Text
         , version        :: !Int
-        , fragments      :: ![LiveFragmentRef]
+        , fragments      :: ![LiveUpdateWireFragment]
         , sourceClientId :: !(Maybe Text)
         }
     | LiveUpdatesError
@@ -225,17 +224,6 @@ liveUpdateScopeKey SupportPlatformScope =
 liveUpdateSourceClientId :: (?request :: Request) => Maybe Text
 liveUpdateSourceClientId =
     cs <$> getHeader "X-Live-Update-Client-Id"
-
-liveFragmentsRefreshTriggerPayload :: [LiveFragmentRef] -> Aeson.Value
-liveFragmentsRefreshTriggerPayload fragments =
-    let detail =
-            Aeson.object
-                [ "fragments" Aeson..= coalesceLiveFragmentRefs fragments
-                ]
-     in Aeson.object
-            [ "app-live-fragments-refresh" Aeson..= detail
-            , "app-roster-fragments-refresh" Aeson..= detail
-            ]
 
 instance Aeson.ToJSON LiveUpdateScope where
     toJSON RosterWeekScope { venueId, rosterGroupId, weekOffset } =
@@ -476,8 +464,8 @@ instance Aeson.FromJSON LiveFragmentProtection where
                             )
                 _ -> fail ("Unknown live fragment protection kind: " <> cs kind)
 
-instance Aeson.ToJSON LiveFragmentRef where
-    toJSON LiveFragmentRef { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } =
+instance Aeson.ToJSON LiveUpdateWireFragment where
+    toJSON LiveUpdateWireFragment { fragmentKey, targetId, url, deferUntilBlur, protectionPolicy } =
         Aeson.object
             [ "fragmentKey" Aeson..= fragmentKey
             , "targetId" Aeson..= targetId
@@ -486,9 +474,9 @@ instance Aeson.ToJSON LiveFragmentRef where
             , "protectionPolicy" Aeson..= protectionPolicy
             ]
 
-instance Aeson.FromJSON LiveFragmentRef where
-    parseJSON = Aeson.withObject "LiveFragmentRef" \object ->
-        LiveFragmentRef
+instance Aeson.FromJSON LiveUpdateWireFragment where
+    parseJSON = Aeson.withObject "LiveUpdateWireFragment" \object ->
+        LiveUpdateWireFragment
             <$> object Aeson..: "fragmentKey"
             <*> object Aeson..: "targetId"
             <*> object Aeson..: "url"
@@ -559,7 +547,7 @@ data LiveBus = LiveBus
     , liveBusActiveScopes             :: IO [LiveUpdateScope]
     , liveBusCurrentVersion           :: LiveUpdateScope -> IO Int
     , liveBusIncrementVersion         :: LiveUpdateScope -> IO Int
-    , liveBusBroadcastInvalidation    :: LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO LiveUpdateBroadcastResult
+    , liveBusBroadcastInvalidation    :: LiveUpdateScope -> Maybe Text -> [LiveUpdateWireFragment] -> IO LiveUpdateBroadcastResult
     }
 
 data InMemoryLiveBusState = InMemoryLiveBusState
@@ -681,33 +669,33 @@ incrementInMemoryVersion state scope =
         let nextVersion = Map.findWithDefault 0 scope versions + 1
          in (Map.insert scope nextVersion versions, nextVersion)
 
-broadcastLiveInvalidation :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO ()
+broadcastLiveInvalidation :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> [LiveUpdateWireFragment] -> IO ()
 broadcastLiveInvalidation scope sourceClientId fragments = do
     _ <- broadcastLiveInvalidationDetailed scope sourceClientId fragments
     pure ()
 
-broadcastLiveInvalidationDetailed :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO LiveUpdateBroadcastResult
+broadcastLiveInvalidationDetailed :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> [LiveUpdateWireFragment] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailed scope sourceClientId fragments =
     profileActionSpanWithDetail "live_updates.broadcast_invalidation" do
         result <- broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments
         pure (result, Just (liveUpdateBroadcastDetail result))
 
-broadcastLiveInvalidationWithoutContext :: LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO ()
+broadcastLiveInvalidationWithoutContext :: LiveUpdateScope -> Maybe Text -> [LiveUpdateWireFragment] -> IO ()
 broadcastLiveInvalidationWithoutContext scope sourceClientId fragments = do
     _ <- broadcastLiveInvalidationDetailedWithoutContext scope sourceClientId fragments
     pure ()
 
-broadcastLiveInvalidationDetailedWithoutContext :: LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO LiveUpdateBroadcastResult
+broadcastLiveInvalidationDetailedWithoutContext :: LiveUpdateScope -> Maybe Text -> [LiveUpdateWireFragment] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailedWithoutContext =
     broadcastLiveInvalidationDetailedWithBus defaultLiveBus
 
-broadcastLiveInvalidationDetailedWithBus :: LiveBus -> LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO LiveUpdateBroadcastResult
+broadcastLiveInvalidationDetailedWithBus :: LiveBus -> LiveUpdateScope -> Maybe Text -> [LiveUpdateWireFragment] -> IO LiveUpdateBroadcastResult
 broadcastLiveInvalidationDetailedWithBus =
     liveBusBroadcastInvalidation
 
-broadcastInMemoryInvalidation :: InMemoryLiveBusState -> LiveUpdateScope -> Maybe Text -> [LiveFragmentRef] -> IO LiveUpdateBroadcastResult
+broadcastInMemoryInvalidation :: InMemoryLiveBusState -> LiveUpdateScope -> Maybe Text -> [LiveUpdateWireFragment] -> IO LiveUpdateBroadcastResult
 broadcastInMemoryInvalidation state scope sourceClientId fragments = do
-    let coalescedFragments = coalesceLiveFragmentRefs fragments
+    let coalescedFragments = coalesceLiveUpdateWireFragments fragments
     version <- incrementInMemoryVersion state scope
     subscriptions <- readIORef state.inMemorySubscriptionsRef
     let matchingSubscriptions = filter (\subscription -> subscription.subscriptionScope == scope) subscriptions
@@ -727,18 +715,18 @@ broadcastInMemoryInvalidation state scope sourceClientId fragments = do
             , broadcastDroppedSubscriptions = length staleIds
             }
 
-coalesceLiveFragmentRefs :: [LiveFragmentRef] -> [LiveFragmentRef]
-coalesceLiveFragmentRefs fragments =
+coalesceLiveUpdateWireFragments :: [LiveUpdateWireFragment] -> [LiveUpdateWireFragment]
+coalesceLiveUpdateWireFragments fragments =
     reverse (fst (foldl' step ([], Set.empty) fragments))
     where
         step (kept, seen) fragment =
-            let key = liveFragmentRefMergeKey fragment
+            let key = liveUpdateWireFragmentMergeKey fragment
              in if Set.member key seen
                     then (kept, seen)
                     else (fragment : kept, Set.insert key seen)
 
-liveFragmentRefMergeKey :: LiveFragmentRef -> (LiveFragmentKey, Text, Text)
-liveFragmentRefMergeKey fragment =
+liveUpdateWireFragmentMergeKey :: LiveUpdateWireFragment -> (LiveFragmentKey, Text, Text)
+liveUpdateWireFragmentMergeKey fragment =
     (fragment.fragmentKey, fragment.targetId, fragment.url)
 
 broadcastLiveResync :: (?context :: ControllerContext) => LiveUpdateScope -> Maybe Text -> IO ()
@@ -764,7 +752,7 @@ liveUpdateBroadcastDetail result =
         , "dropped=" <> tshow result.broadcastDroppedSubscriptions
         ]
 
-sendInvalidation :: LiveUpdateScope -> Int -> Maybe Text -> [LiveFragmentRef] -> LiveSubscription -> IO (Maybe UUID.UUID)
+sendInvalidation :: LiveUpdateScope -> Int -> Maybe Text -> [LiveUpdateWireFragment] -> LiveSubscription -> IO (Maybe UUID.UUID)
 sendInvalidation scope version sourceClientId fragments subscription = do
     result <-
         Exception.tryAny $

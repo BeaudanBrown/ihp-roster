@@ -97,7 +97,7 @@ tests = describe "LiveUpdate runtime types" do
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let scope = RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
         let fragment =
-                LiveFragmentRef
+                LiveUpdateWireFragment
                     { fragmentKey = RosterStaffPanelFragment
                     , targetId = "roster-staff-panel"
                     , url = "/ShowRosterStaffPanelFragment?weekOffset=0"
@@ -136,7 +136,7 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = LeaveRequestsScope { venueId }
         let fragment =
-                LiveFragmentRef
+                LiveUpdateWireFragment
                     { fragmentKey = LeaveRequestsContentFragment
                     , targetId = "leave-requests-content"
                     , url = "/ShowLeaveRequestsContentFragment"
@@ -167,7 +167,7 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = LeaveRequestsScope { venueId }
         let fragment =
-                LiveFragmentRef
+                LiveUpdateWireFragment
                     { fragmentKey = LeaveRequestsContentFragment
                     , targetId = "leave-requests-content"
                     , url = "/ShowLeaveRequestsContentFragment"
@@ -188,7 +188,7 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let scope = LeaveRequestsScope { venueId }
         let fragment =
-                LiveFragmentRef
+                LiveUpdateWireFragment
                     { fragmentKey = LeaveRequestsContentFragment
                     , targetId = "leave-requests-content"
                     , url = "/ShowLeaveRequestsContentFragment"
@@ -196,7 +196,7 @@ tests = describe "LiveUpdate runtime types" do
                     , protectionPolicy = NoProtection
                     }
 
-        coalesceLiveFragmentRefs [fragment, fragment] `shouldBe` [fragment]
+        coalesceLiveUpdateWireFragments [fragment, fragment] `shouldBe` [fragment]
         result <- broadcastLiveInvalidationDetailedWithoutContext scope Nothing [fragment, fragment]
 
         result.broadcastFragmentCount `shouldBe` 2
@@ -210,7 +210,7 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe` "{\"decorateRequestsWithin\":[],\"feature\":\"support\",\"resyncFragments\":[{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_award_rates_section\"},\"protectionPolicy\":null,\"targetId\":\"support-award-rates-section\",\"url\":\"/ShowFwcMapdAwardRatesSection\"},{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_public_holidays_section\"},\"protectionPolicy\":null,\"targetId\":\"support-public-holidays-section\",\"url\":\"/ShowPublicHolidaysSection\"}],\"scope\":{\"kind\":\"support_platform\"},\"scopeKey\":\"support_platform\",\"socketPath\":\"/live-updates\"}"
 
     it "keeps typed support surface refs at the compatibility boundary" do
-        let typedRefs = typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () supportLiveFragmentRefs
+        let typedRefs = typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () supportLiveUpdateWireFragments
 
         unSurfaceFragmentRefs typedRefs
             `shouldBe`
@@ -247,7 +247,7 @@ tests = describe "LiveUpdate runtime types" do
                 [ testLiveSurfaceConfig
                     "leave-requests"
                     LeaveRequestsScope { venueId }
-                    [ LiveFragmentRef
+                    [ LiveUpdateWireFragment
                         { fragmentKey = LeaveRequestsContentFragment
                         , targetId = "leave-requests-content"
                         , url = "/ShowLeaveRequestsContentFragment"
@@ -258,7 +258,7 @@ tests = describe "LiveUpdate runtime types" do
                 , testLiveSurfaceConfig
                     "timesheets"
                     TimesheetWeekScope { venueId, weekOffset = 1 }
-                    [ LiveFragmentRef
+                    [ LiveUpdateWireFragment
                         { fragmentKey = TimesheetDaySectionFragment { dayOffset = 2 }
                         , targetId = "timesheet-day-2"
                         , url = "/ShowTimesheetDaySectionFragment?weekOffset=1&dayOffset=2"
@@ -269,7 +269,7 @@ tests = describe "LiveUpdate runtime types" do
                 , testLiveSurfaceConfig
                     "roster"
                     RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
-                    [ LiveFragmentRef
+                    [ LiveUpdateWireFragment
                         { fragmentKey = RosterContentFragment
                         , targetId = "roster-content"
                         , url = "/ShowRosterWeekContentFragment?weekOffset=0"
@@ -282,7 +282,7 @@ tests = describe "LiveUpdate runtime types" do
         forM_ surfaces \surface ->
             Aeson.decode (LBS.fromStrict (cs (liveSurfaceConfigJson surface))) `shouldBe` Just surface
 
-testLiveSurfaceConfig :: Text -> LiveUpdateScope -> [LiveFragmentRef] -> LiveSurfaceConfig
+testLiveSurfaceConfig :: Text -> LiveUpdateScope -> [LiveUpdateWireFragment] -> LiveSurfaceConfig
 testLiveSurfaceConfig feature scope resyncFragments =
     LiveSurfaceConfig
         { feature
@@ -293,13 +293,13 @@ testLiveSurfaceConfig feature scope resyncFragments =
         , decorateRequestsWithin = []
         }
 
-supportAwardRatesSectionFragmentRef :: LiveFragmentRef
+supportAwardRatesSectionFragmentRef :: LiveUpdateWireFragment
 supportAwardRatesSectionFragmentRef =
     case unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () [SupportAwardRatesLiveFragment]) of
         [fragmentRef] -> fragmentRef
         _             -> error "Expected one support award rates fragment ref"
 
-supportPublicHolidaysSectionFragmentRef :: LiveFragmentRef
+supportPublicHolidaysSectionFragmentRef :: LiveUpdateWireFragment
 supportPublicHolidaysSectionFragmentRef =
     case unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () [SupportPublicHolidaysLiveFragment]) of
         [fragmentRef] -> fragmentRef

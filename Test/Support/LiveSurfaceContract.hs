@@ -7,7 +7,7 @@ module Test.Support.LiveSurfaceContract
     ) where
 
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate.Internal (LiveFragmentRef (..))
+import Application.Helper.LiveUpdate.Internal (LiveUpdateWireFragment (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import IHP.Prelude
@@ -20,7 +20,7 @@ liveSurfaceConfigShouldRoundTrip :: LiveSurfaceConfig -> Expectation
 liveSurfaceConfigShouldRoundTrip surface =
     Aeson.decode (LBS.fromStrict (cs (liveSurfaceConfigJson surface))) `shouldBe` Just surface
 
-liveSurfaceConfigShouldExposeRefs :: LiveSurfaceConfig -> [LiveFragmentRef] -> Expectation
+liveSurfaceConfigShouldExposeRefs :: LiveSurfaceConfig -> [LiveUpdateWireFragment] -> Expectation
 liveSurfaceConfigShouldExposeRefs surface refs = do
     surface.resyncFragments `shouldBe` refs
     map (.targetId) surface.resyncFragments `shouldBe` map (.targetId) refs
@@ -35,7 +35,7 @@ responseShouldMountLiveSurface response surface = do
     forM_ surface.resyncFragments \fragment -> do
         response `responseBodyShouldContain` fragment.targetId
 
-liveFragmentResponseShouldRenderTarget :: Response -> LiveFragmentRef -> Expectation
+liveFragmentResponseShouldRenderTarget :: Response -> LiveUpdateWireFragment -> Expectation
 liveFragmentResponseShouldRenderTarget response fragment = do
     response `responseStatusShouldBe` status200
     response `responseBodyShouldContain` ("id=\"" <> fragment.targetId <> "\"")

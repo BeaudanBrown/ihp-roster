@@ -4,7 +4,7 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveSurface (typedLiveSurfaceFragmentRefs,
                                        unSurfaceFragmentRefs)
 import Application.Helper.LiveUpdate (currentLiveUpdateVersion)
-import Application.Helper.LiveUpdate.Internal (LiveFragmentRef)
+import Application.Helper.LiveUpdate.Internal (LiveUpdateWireFragment)
 import Application.Support.LiveUpdates
 import Config
 import IHP.FrameworkConfig
@@ -18,7 +18,7 @@ import Web.Controller.Support ()
 import Web.FrontController ()
 import Web.Types
 
-supportFragmentRef :: SupportLiveFragment -> LiveFragmentRef
+supportFragmentRef :: SupportLiveFragment -> LiveUpdateWireFragment
 supportFragmentRef fragment =
     case unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs supportLiveSurfaceDefinition () [fragment]) of
         [fragmentRef] -> fragmentRef

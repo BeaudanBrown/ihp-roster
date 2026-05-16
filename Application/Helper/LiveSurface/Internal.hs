@@ -33,7 +33,6 @@ module Application.Helper.LiveSurface.Internal
     , performTypedLiveSurfaceMutation
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
-    , setLiveSurfaceActorRefresh
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
@@ -73,7 +72,7 @@ data LiveSurfaceConfig = LiveSurfaceConfig
     , socketPath             :: !Text
     , scope                  :: !LiveUpdateScope
     , scopeKey               :: !Text
-    , resyncFragments        :: ![LiveFragmentRef]
+    , resyncFragments        :: ![LiveUpdateWireFragment]
     , decorateRequestsWithin :: ![Text]
     }
     deriving (Eq, Show)
@@ -84,7 +83,7 @@ newtype SurfaceScope surface = SurfaceScope
     deriving (Eq, Show)
 
 newtype SurfaceFragmentRef surface = SurfaceFragmentRef
-    { unSurfaceFragmentRef :: LiveFragmentRef
+    { unSurfaceFragmentRef :: LiveUpdateWireFragment
     }
     deriving (Eq, Show)
 
@@ -165,7 +164,7 @@ instance Aeson.FromJSON LiveSurfaceConfig where
 
 mkSurfaceFragmentRef :: LiveFragmentKey -> Text -> Text -> SurfaceFragmentRef surface
 mkSurfaceFragmentRef fragmentKey targetId url =
-    SurfaceFragmentRef (mkLiveFragmentRef fragmentKey targetId url)
+    SurfaceFragmentRef (mkLiveUpdateWireFragment fragmentKey targetId url)
 
 surfaceFragmentRefWithProtection :: LiveFragmentProtection -> SurfaceFragmentRef surface -> SurfaceFragmentRef surface
 surfaceFragmentRefWithProtection protection (SurfaceFragmentRef ref) =
@@ -199,7 +198,7 @@ typedLiveSurfaceFragmentRefs :: TypedLiveSurfaceDefinition surface scope fragmen
 typedLiveSurfaceFragmentRefs definition surfaceKey =
     map (typedLiveSurfaceFragmentRef definition surfaceKey)
 
-unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveFragmentRef]
+unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveUpdateWireFragment]
 unSurfaceFragmentRefs =
     map unSurfaceFragmentRef
 
@@ -242,16 +241,6 @@ performTypedLiveSurfaceMutation definition mutation = do
             , passiveSurfaceFragmentRefs = passiveRefs
             , liveMutationBroadcast = broadcastResult
             }
-
-setLiveSurfaceActorRefresh ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    LiveSurfaceMutationResult surface ->
-    IO ()
-setLiveSurfaceActorRefresh result =
-    setHeader
-        ( "HX-Trigger"
-        , cs (Aeson.encode (liveFragmentsRefreshTriggerPayload (unSurfaceFragmentRefs result.actorSurfaceFragmentRefs)))
-        )
 
 authorizeTypedLiveSurfaceScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -415,8 +404,19 @@ setTypedLiveSurfaceActorRefresh ::
 setTypedLiveSurfaceActorRefresh definition surfaceKey fragments =
     setHeader
         ( "HX-Trigger"
-        , cs (Aeson.encode (liveFragmentsRefreshTriggerPayload (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey fragments))))
+        , cs (Aeson.encode (liveUpdateWireRefreshTriggerPayload (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey fragments))))
         )
+
+liveUpdateWireRefreshTriggerPayload :: [LiveUpdateWireFragment] -> Aeson.Value
+liveUpdateWireRefreshTriggerPayload fragments =
+    let detail =
+            Aeson.object
+                [ "fragments" Aeson..= coalesceLiveUpdateWireFragments fragments
+                ]
+     in Aeson.object
+            [ "app-live-fragments-refresh" Aeson..= detail
+            , "app-roster-fragments-refresh" Aeson..= detail
+            ]
 
 broadcastProjectionSurfaceFragments ::
     forall surface scope snapshot fragment.
@@ -474,7 +474,7 @@ mkSurfaceProjectionDefinition typedDefinition surfaceName cachePolicy scopeKey v
                 }
         }
 
-liveSurfaceProjectionFragmentRef :: ProjectionLiveSurfaceDefinition surface scope snapshot fragment -> scope -> fragment -> LiveFragmentRef
+liveSurfaceProjectionFragmentRef :: ProjectionLiveSurfaceDefinition surface scope snapshot fragment -> scope -> fragment -> LiveUpdateWireFragment
 liveSurfaceProjectionFragmentRef definition surfaceKey fragment =
     unSurfaceFragmentRef (definition.projectionSurfaceFragmentRef surfaceKey fragment)
 

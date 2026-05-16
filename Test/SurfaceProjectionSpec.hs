@@ -4,7 +4,7 @@ import Application.Helper.LiveSurface
 import Application.Helper.LiveSurface.Internal (mkSurfaceProjectionDefinition)
 import Application.Helper.LiveUpdate.Internal (LiveFragmentKey (RosterContentFragment),
                                                LiveFragmentProtection (NoProtection),
-                                               LiveFragmentRef (..),
+                                               LiveUpdateWireFragment (..),
                                                LiveUpdateScope (SupportPlatformScope))
 import Application.Helper.SurfaceProjection
 import Data.IORef
@@ -216,7 +216,7 @@ testDefinition viewerRef versionRef loadCountRef cachePolicy =
             pure ("projection-" <> tshow loadCount)
         , renderFragment = \snapshot fragment -> Just (Html5.toHtml (snapshot <> "-fragment-" <> tshow fragment))
         , buildFragmentRef = \scope _ ->
-            LiveFragmentRef
+            LiveUpdateWireFragment
                 { fragmentKey = RosterContentFragment
                 , targetId = "target-" <> tshow scope
                 , url = "/surface/" <> tshow scope
