@@ -14,6 +14,7 @@
     let activeClientId = null;
     let nextPerfToken = 0;
 
+    // Diagnostics and instrumentation.
     function supportsPerformanceTimeline() {
         return Boolean(window.performance && typeof window.performance.mark === 'function' && typeof window.performance.measure === 'function');
     }
@@ -81,6 +82,7 @@
         }));
     }
 
+    // Focus protection and deferred refresh state.
     function findPreservedField(root, preserveField) {
         if (!(root instanceof HTMLElement) || !preserveField) return null;
 
@@ -109,6 +111,7 @@
         return null;
     }
 
+    // Websocket connection and client identity.
     function makeClientId() {
         if (window.crypto && typeof window.crypto.randomUUID === 'function') {
             return window.crypto.randomUUID();
@@ -154,6 +157,7 @@
         socketPath = null;
     }
 
+    // Fragment refetch, swapping, and per-target queueing.
     async function swapFragmentHtml(targetId, html) {
         const perfSpan = beginPerfSpan('live_updates.swap_fragment', { targetId });
         const target = document.getElementById(targetId);
@@ -416,6 +420,7 @@
         });
     }
 
+    // Subscription lifecycle and reconnect handling.
     function scheduleReconnect() {
         if (reconnectTimer) return;
 
@@ -482,6 +487,7 @@
         });
     }
 
+    // Declarative surface discovery and merging.
     function readDeclarativeSurface(ownerEl) {
         if (!(ownerEl instanceof HTMLElement)) return null;
 
@@ -615,6 +621,7 @@
         return desired;
     }
 
+    // Server message handling.
     function handleSubscribedMessage(message) {
         if (!message) return;
 
@@ -813,6 +820,7 @@
         }
     }
 
+    // DOM event bindings.
     document.addEventListener('htmx:configRequest', function (event) {
         if (!shouldDecorateDeclarativeRequest(event)) return;
         const clientId = ensureClientId();
