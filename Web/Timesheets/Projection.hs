@@ -207,7 +207,7 @@ timesheetLiveSurfaceDefinitionForVenue surfaceVenueId =
                 _ ->
                     Nothing
 
-timesheetProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition TimesheetProjectionRequest TimesheetWeekProjection TimesheetProjectionFragment
+timesheetProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition TimesheetLiveSurface TimesheetProjectionRequest TimesheetWeekProjection TimesheetProjectionFragment
 timesheetProjectionDefinition =
     mkTypedSurfaceProjectionDefinition
         timesheetLiveSurfaceDefinition

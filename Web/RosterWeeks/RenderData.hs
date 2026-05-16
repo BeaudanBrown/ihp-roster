@@ -112,7 +112,7 @@ rosterLiveSurfaceDefinition =
                 _ ->
                     Nothing
 
-rosterProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition RosterProjectionScope (Maybe RosterRenderData) RosterProjectionFragment
+rosterProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope (Maybe RosterRenderData) RosterProjectionFragment
 rosterProjectionDefinition =
     mkTypedSurfaceProjectionDefinition
         rosterLiveSurfaceDefinition

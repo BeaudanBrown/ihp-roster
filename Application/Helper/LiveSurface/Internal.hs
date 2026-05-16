@@ -1,8 +1,7 @@
 module Application.Helper.LiveSurface.Internal
     ( LiveSurfaceConfig (..)
     , LiveSurfaceBroadcastOptions (..)
-    , LiveSurfaceDefinition (..)
-    , LiveScopeAuthorizationRequirement (..)
+        , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , ProjectionLiveSurfaceDefinition (..)
     , SurfaceFragmentRef (..)
@@ -11,12 +10,10 @@ module Application.Helper.LiveSurface.Internal
     , SurfaceScope (..)
     , TypedLiveSurfaceDefinition (..)
     , authorizeLiveScopeRequirement
-    , authorizeLiveUpdateScope
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
     , broadcastProjectionSurfaceFragments
     , broadcastProjectionSurfaceFragmentsWith
-    , broadcastSurfaceFragments
     , broadcastTypedSurfaceFragments
     , broadcastTypedSurfaceFragmentsWithoutContext
     , broadcastTypedSurfaceResync
@@ -25,16 +22,11 @@ module Application.Helper.LiveSurface.Internal
     , defaultLiveUpdateScopeAuthorizationRequirement
     , ensureTypedLiveSurfaceAuthorized
     , liveSurfaceAuthorizationByRequirement
-    , liveSurfaceAuthorizationByScope
     , liveSurfaceMutation
     , liveSurfaceProjectionFragmentRef
     , liveSurfaceConfigJson
-    , liveSurfaceFragmentRef
-    , liveSurfaceFragmentRefs
     , loadLiveSurfaceProjection
     , loadLiveSurfaceProjectionFromStore
-    , mkDefinedLiveSurface
-    , mkLiveSurface
     , mkSurfaceFragmentRef
     , mkSurfaceProjectionDefinition
     , mkTypedDefinedLiveSurface
@@ -46,7 +38,6 @@ module Application.Helper.LiveSurface.Internal
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
     , surfaceFragmentRefWithProtection
-    , typedLiveSurfaceDefinition
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
     , typedLiveSurfaceMutationRefs
@@ -97,14 +88,6 @@ newtype SurfaceFragmentRef surface = SurfaceFragmentRef
     }
     deriving (Eq, Show)
 
-data LiveSurfaceDefinition scope fragment = LiveSurfaceDefinition
-    { surfaceFeature                :: !Text
-    , surfaceScope                  :: scope -> LiveUpdateScope
-    , surfaceDefaultFragments       :: scope -> [fragment]
-    , surfaceFragmentRef            :: scope -> fragment -> LiveFragmentRef
-    , surfaceDecorateRequestsWithin :: scope -> [Text]
-    }
-
 data LiveSurfaceAuthorization scope = LiveSurfaceAuthorization
     { authorizeLiveSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => scope -> IO Bool
     }
@@ -142,9 +125,10 @@ data LiveScopeAuthorizationRequirement
     | RequireSupportSuperAdmin
     deriving (Eq, Show)
 
-data ProjectionLiveSurfaceDefinition scope snapshot fragment = ProjectionLiveSurfaceDefinition
-    { liveSurfaceDefinition       :: !(LiveSurfaceDefinition scope fragment)
-    , surfaceProjectionDefinition :: !(SurfaceProjectionDefinition scope snapshot fragment)
+data ProjectionLiveSurfaceDefinition surface scope snapshot fragment = ProjectionLiveSurfaceDefinition
+    { projectionSurfaceScope       :: !(scope -> SurfaceScope surface)
+    , projectionSurfaceFragmentRef :: !(scope -> fragment -> SurfaceFragmentRef surface)
+    , surfaceProjectionDefinition  :: !(SurfaceProjectionDefinition scope snapshot fragment)
     }
 
 data LiveSurfaceBroadcastOptions = LiveSurfaceBroadcastOptions
@@ -179,17 +163,6 @@ instance Aeson.FromJSON LiveSurfaceConfig where
             <*> object Aeson..: "resyncFragments"
             <*> object Aeson..: "decorateRequestsWithin"
 
-mkLiveSurface :: Text -> LiveUpdateScope -> [LiveFragmentRef] -> LiveSurfaceConfig
-mkLiveSurface feature scope resyncFragments =
-    LiveSurfaceConfig
-        { feature
-        , socketPath = "/live-updates"
-        , scope
-        , scopeKey = liveUpdateScopeKey scope
-        , resyncFragments
-        , decorateRequestsWithin = []
-        }
-
 mkSurfaceFragmentRef :: LiveFragmentKey -> Text -> Text -> SurfaceFragmentRef surface
 mkSurfaceFragmentRef fragmentKey targetId url =
     SurfaceFragmentRef (mkLiveFragmentRef fragmentKey targetId url)
@@ -206,37 +179,17 @@ surfaceFragmentRefWithFocusedProtection :: LiveFragmentProtection -> SurfaceFrag
 surfaceFragmentRefWithFocusedProtection protection =
     surfaceFragmentRefWithDeferUntilBlur True . surfaceFragmentRefWithProtection protection
 
-mkDefinedLiveSurface :: LiveSurfaceDefinition scope fragment -> scope -> LiveSurfaceConfig
-mkDefinedLiveSurface definition surfaceKey =
-    (mkLiveSurface
-        definition.surfaceFeature
-        (definition.surfaceScope surfaceKey)
-        (liveSurfaceFragmentRefs definition surfaceKey (definition.surfaceDefaultFragments surfaceKey)))
-        { decorateRequestsWithin = definition.surfaceDecorateRequestsWithin surfaceKey
-        }
-
-liveSurfaceFragmentRef :: LiveSurfaceDefinition scope fragment -> scope -> fragment -> LiveFragmentRef
-liveSurfaceFragmentRef definition surfaceKey fragment =
-    definition.surfaceFragmentRef surfaceKey fragment
-
-liveSurfaceFragmentRefs :: LiveSurfaceDefinition scope fragment -> scope -> [fragment] -> [LiveFragmentRef]
-liveSurfaceFragmentRefs definition surfaceKey =
-    map (liveSurfaceFragmentRef definition surfaceKey)
-
-typedLiveSurfaceDefinition :: TypedLiveSurfaceDefinition surface scope fragment -> LiveSurfaceDefinition scope fragment
-typedLiveSurfaceDefinition definition =
-    LiveSurfaceDefinition
-        { surfaceFeature = definition.typedSurfaceFeature
-        , surfaceScope = unSurfaceScope . definition.typedSurfaceScope
-        , surfaceDefaultFragments = definition.typedSurfaceDefaultFragments
-        , surfaceFragmentRef = \surfaceKey fragment ->
-            unSurfaceFragmentRef (definition.typedSurfaceFragmentRef surfaceKey fragment)
-        , surfaceDecorateRequestsWithin = definition.typedSurfaceDecorateRequestsWithin
-        }
-
 mkTypedDefinedLiveSurface :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> LiveSurfaceConfig
-mkTypedDefinedLiveSurface definition =
-    mkDefinedLiveSurface (typedLiveSurfaceDefinition definition)
+mkTypedDefinedLiveSurface definition surfaceKey =
+    let surfaceScope = unSurfaceScope (definition.typedSurfaceScope surfaceKey)
+     in LiveSurfaceConfig
+            { feature = definition.typedSurfaceFeature
+            , socketPath = "/live-updates"
+            , scope = surfaceScope
+            , scopeKey = liveUpdateScopeKey surfaceScope
+            , resyncFragments = unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey (definition.typedSurfaceDefaultFragments surfaceKey))
+            , decorateRequestsWithin = definition.typedSurfaceDecorateRequestsWithin surfaceKey
+            }
 
 typedLiveSurfaceFragmentRef :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> fragment -> SurfaceFragmentRef surface
 typedLiveSurfaceFragmentRef definition surfaceKey fragment =
@@ -329,14 +282,6 @@ ensureTypedLiveSurfaceAuthorized definition surfaceKey = do
     authorized <- authorizeTypedLiveSurfaceScope definition surfaceKey
     accessDeniedUnless authorized
 
-liveSurfaceAuthorizationByScope ::
-    (scope -> SurfaceScope surface) ->
-    LiveSurfaceAuthorization scope
-liveSurfaceAuthorizationByScope surfaceScope =
-    LiveSurfaceAuthorization
-        { authorizeLiveSurfaceScope = authorizeLiveUpdateScope . unSurfaceScope . surfaceScope
-        }
-
 liveSurfaceAuthorizationByRequirement ::
     (scope -> LiveScopeAuthorizationRequirement) ->
     LiveSurfaceAuthorization scope
@@ -344,13 +289,6 @@ liveSurfaceAuthorizationByRequirement requirement =
     LiveSurfaceAuthorization
         { authorizeLiveSurfaceScope = authorizeLiveScopeRequirement . requirement
         }
-
-authorizeLiveUpdateScope ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext) =>
-    LiveUpdateScope ->
-    IO Bool
-authorizeLiveUpdateScope =
-    authorizeLiveScopeRequirement . defaultLiveUpdateScopeAuthorizationRequirement
 
 defaultLiveUpdateScopeAuthorizationRequirement :: LiveUpdateScope -> LiveScopeAuthorizationRequirement
 defaultLiveUpdateScopeAuthorizationRequirement RosterWeekScope { venueId, rosterGroupId } =
@@ -424,18 +362,6 @@ isAuthorizedCurrentVenueRosterGroupScope rosterGroupId = do
                     |> fetchOneOrNothing
             pure (isJust rosterGroupOrNothing)
 
-broadcastSurfaceFragments ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    LiveSurfaceDefinition scope fragment ->
-    scope ->
-    [fragment] ->
-    IO ()
-broadcastSurfaceFragments definition surfaceKey fragments =
-    broadcastLiveInvalidation
-        (definition.surfaceScope surfaceKey)
-        liveUpdateSourceClientId
-        (liveSurfaceFragmentRefs definition surfaceKey fragments)
-
 broadcastTypedSurfaceFragments ::
     (?context :: ControllerContext, ?request :: Request) =>
     TypedLiveSurfaceDefinition surface scope fragment ->
@@ -493,9 +419,9 @@ setTypedLiveSurfaceActorRefresh definition surfaceKey fragments =
         )
 
 broadcastProjectionSurfaceFragments ::
-    forall scope snapshot fragment.
+    forall surface scope snapshot fragment.
     (?context :: ControllerContext, ?request :: Request, Dynamic.Typeable snapshot) =>
-    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
     scope ->
     [fragment] ->
     IO LiveUpdateBroadcastResult
@@ -503,25 +429,25 @@ broadcastProjectionSurfaceFragments =
     broadcastProjectionSurfaceFragmentsWith defaultLiveSurfaceBroadcastOptions
 
 broadcastProjectionSurfaceFragmentsWith ::
-    forall scope snapshot fragment.
+    forall surface scope snapshot fragment.
     (?context :: ControllerContext, ?request :: Request, Dynamic.Typeable snapshot) =>
     LiveSurfaceBroadcastOptions ->
-    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
     scope ->
     [fragment] ->
     IO LiveUpdateBroadcastResult
 broadcastProjectionSurfaceFragmentsWith options definition surfaceKey fragments = do
     result <-
         broadcastLiveInvalidationDetailed
-            (definition.liveSurfaceDefinition.surfaceScope surfaceKey)
+            (unSurfaceScope (definition.projectionSurfaceScope surfaceKey))
             liveUpdateSourceClientId
-            (liveSurfaceFragmentRefs definition.liveSurfaceDefinition surfaceKey fragments)
+            (unSurfaceFragmentRefs (map (definition.projectionSurfaceFragmentRef surfaceKey) fragments))
     when options.warmProjectionAfterBroadcast do
         warmLiveSurfaceProjection definition surfaceKey
     pure result
 
 mkSurfaceProjectionDefinition ::
-    LiveSurfaceDefinition scope fragment ->
+    TypedLiveSurfaceDefinition surface scope fragment ->
     Text ->
     SurfaceProjectionCachePolicy ->
     (scope -> Text) ->
@@ -529,10 +455,11 @@ mkSurfaceProjectionDefinition ::
     (scope -> IO Int) ->
     (scope -> IO snapshot) ->
     (snapshot -> fragment -> Maybe Blaze.Html) ->
-    ProjectionLiveSurfaceDefinition scope snapshot fragment
-mkSurfaceProjectionDefinition liveSurfaceDefinition surfaceName cachePolicy scopeKey viewerKey currentVersion loadProjection renderFragment =
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment
+mkSurfaceProjectionDefinition typedDefinition surfaceName cachePolicy scopeKey viewerKey currentVersion loadProjection renderFragment =
     ProjectionLiveSurfaceDefinition
-        { liveSurfaceDefinition
+        { projectionSurfaceScope = typedDefinition.typedSurfaceScope
+        , projectionSurfaceFragmentRef = typedDefinition.typedSurfaceFragmentRef
         , surfaceProjectionDefinition =
             SurfaceProjectionDefinition
                 { surfaceName
@@ -542,56 +469,57 @@ mkSurfaceProjectionDefinition liveSurfaceDefinition surfaceName cachePolicy scop
                 , currentVersion
                 , loadProjection
                 , renderFragment
-                , buildFragmentRef = liveSurfaceFragmentRef liveSurfaceDefinition
+                , buildFragmentRef = \surfaceKey fragment ->
+                    unSurfaceFragmentRef (typedDefinition.typedSurfaceFragmentRef surfaceKey fragment)
                 }
         }
 
-liveSurfaceProjectionFragmentRef :: ProjectionLiveSurfaceDefinition scope snapshot fragment -> scope -> fragment -> LiveFragmentRef
-liveSurfaceProjectionFragmentRef definition =
-    liveSurfaceFragmentRef definition.liveSurfaceDefinition
+liveSurfaceProjectionFragmentRef :: ProjectionLiveSurfaceDefinition surface scope snapshot fragment -> scope -> fragment -> LiveFragmentRef
+liveSurfaceProjectionFragmentRef definition surfaceKey fragment =
+    unSurfaceFragmentRef (definition.projectionSurfaceFragmentRef surfaceKey fragment)
 
 loadLiveSurfaceProjection ::
-    forall scope snapshot fragment.
+    forall surface scope snapshot fragment.
     (Dynamic.Typeable snapshot) =>
-    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
     scope ->
     IO snapshot
 loadLiveSurfaceProjection definition =
     loadSurfaceProjection definition.surfaceProjectionDefinition
 
 loadLiveSurfaceProjectionFromStore ::
-    forall scope snapshot fragment.
+    forall surface scope snapshot fragment.
     (Dynamic.Typeable snapshot) =>
     SurfaceProjectionStore ->
-    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
     scope ->
     IO snapshot
 loadLiveSurfaceProjectionFromStore store definition =
     loadSurfaceProjectionFromStore store definition.surfaceProjectionDefinition
 
 warmLiveSurfaceProjection ::
-    forall scope snapshot fragment.
+    forall surface scope snapshot fragment.
     (Dynamic.Typeable snapshot) =>
-    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
     scope ->
     IO ()
 warmLiveSurfaceProjection definition =
     warmSurfaceProjection definition.surfaceProjectionDefinition
 
 warmLiveSurfaceProjectionFromStore ::
-    forall scope snapshot fragment.
+    forall surface scope snapshot fragment.
     (Dynamic.Typeable snapshot) =>
     SurfaceProjectionStore ->
-    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
     scope ->
     IO ()
 warmLiveSurfaceProjectionFromStore store definition =
     warmSurfaceProjectionFromStore store definition.surfaceProjectionDefinition
 
 renderLiveSurfaceProjectionFragment ::
-    forall scope snapshot fragment.
+    forall surface scope snapshot fragment.
     (Dynamic.Typeable snapshot) =>
-    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
     scope ->
     fragment ->
     IO (Maybe Blaze.Html)
@@ -599,10 +527,10 @@ renderLiveSurfaceProjectionFragment definition =
     renderSurfaceProjectionFragment definition.surfaceProjectionDefinition
 
 renderLiveSurfaceProjectionFragmentFromStore ::
-    forall scope snapshot fragment.
+    forall surface scope snapshot fragment.
     (Dynamic.Typeable snapshot) =>
     SurfaceProjectionStore ->
-    ProjectionLiveSurfaceDefinition scope snapshot fragment ->
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
     scope ->
     fragment ->
     IO (Maybe Blaze.Html)

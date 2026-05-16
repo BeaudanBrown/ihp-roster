@@ -1,13 +1,11 @@
 module Test.SurfaceProjectionSpec where
 
 import Application.Helper.LiveSurface
-import Application.Helper.LiveSurface.Internal (LiveSurfaceDefinition (..),
-                                               mkSurfaceProjectionDefinition)
+import Application.Helper.LiveSurface.Internal (mkSurfaceProjectionDefinition)
 import Application.Helper.LiveUpdate.Internal (LiveFragmentKey (RosterContentFragment),
                                                LiveFragmentProtection (NoProtection),
                                                LiveFragmentRef (..),
-                                               LiveUpdateScope (SupportPlatformScope),
-                                               mkLiveFragmentRef)
+                                               LiveUpdateScope (SupportPlatformScope))
 import Application.Helper.SurfaceProjection
 import Data.IORef
 import Data.Time.Calendar (fromGregorian)
@@ -163,21 +161,23 @@ tests = describe "SurfaceProjection helper" do
         viewerRef <- newIORef "manager"
         versionRef <- newIORef 0
         loadCountRef <- newIORef (0 :: Int)
-        let liveSurface =
-                LiveSurfaceDefinition
-                    { surfaceFeature = "test"
-                    , surfaceScope = const SupportPlatformScope
-                    , surfaceDefaultFragments = const [7]
-                    , surfaceFragmentRef = \scope fragment ->
-                        mkLiveFragmentRef
+        let typedSurface =
+                TypedLiveSurfaceDefinition
+                    { typedSurfaceFeature = "test"
+                    , typedSurfaceScope = const (SurfaceScope SupportPlatformScope)
+                    , typedSurfaceScopeFromWire = const Nothing
+                    , typedSurfaceDefaultFragments = const [7]
+                    , typedSurfaceFragmentRef = \scope fragment ->
+                        mkSurfaceFragmentRef
                             RosterContentFragment
                             ("surface-target-" <> tshow scope <> "-" <> tshow fragment)
                             ("/surface/" <> tshow scope <> "/" <> tshow fragment)
-                    , surfaceDecorateRequestsWithin = const []
+                    , typedSurfaceDecorateRequestsWithin = const []
+                    , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
                     }
         let definition =
                 mkSurfaceProjectionDefinition
-                    liveSurface
+                    typedSurface
                     "test-surface"
                     defaultSurfaceProjectionCachePolicy
                     tshow

@@ -91,7 +91,7 @@ leaveRequestsLiveSurfaceDefinition =
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager (unpackId currentVenueId)))
         }
 
-leaveRequestsProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition () LeaveRequestsProjection LeaveRequestsProjectionFragment
+leaveRequestsProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition LeaveRequestsSurface () LeaveRequestsProjection LeaveRequestsProjectionFragment
 leaveRequestsProjectionDefinition =
     mkTypedSurfaceProjectionDefinition
         leaveRequestsLiveSurfaceDefinition

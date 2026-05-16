@@ -1,8 +1,7 @@
 module Test.LiveUpdateSpec where
 
 import Application.Helper.LiveSurface
-import Application.Helper.LiveSurface.Internal (defaultLiveUpdateScopeAuthorizationRequirement,
-                                               mkLiveSurface)
+import Application.Helper.LiveSurface.Internal (defaultLiveUpdateScopeAuthorizationRequirement)
 import Application.Helper.LiveUpdate.Internal
 import Application.Support.LiveUpdates
 import qualified Data.Aeson as Aeson
@@ -205,13 +204,7 @@ tests = describe "LiveUpdate runtime types" do
         result.broadcastCoalescedFragmentCount `shouldBe` 1
 
     it "encodes support live surface config with stable JSON" do
-        let surface =
-                mkLiveSurface
-                    "support"
-                    SupportPlatformScope
-                    [ supportAwardRatesSectionFragmentRef
-                    , supportPublicHolidaysSectionFragmentRef
-                    ]
+        let surface = mkTypedDefinedLiveSurface supportLiveSurfaceDefinition ()
 
         liveSurfaceConfigJson surface
             `shouldBe` "{\"decorateRequestsWithin\":[],\"feature\":\"support\",\"resyncFragments\":[{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_award_rates_section\"},\"protectionPolicy\":null,\"targetId\":\"support-award-rates-section\",\"url\":\"/ShowFwcMapdAwardRatesSection\"},{\"deferUntilBlur\":false,\"fragmentKey\":{\"kind\":\"support_public_holidays_section\"},\"protectionPolicy\":null,\"targetId\":\"support-public-holidays-section\",\"url\":\"/ShowPublicHolidaysSection\"}],\"scope\":{\"kind\":\"support_platform\"},\"scopeKey\":\"support_platform\",\"socketPath\":\"/live-updates\"}"
@@ -225,19 +218,7 @@ tests = describe "LiveUpdate runtime types" do
                 , supportPublicHolidaysSectionFragmentRef
                 ]
         supportLiveSurface
-            `shouldBe`
-                (mkLiveSurface
-                    "support"
-                    SupportPlatformScope
-                    [ supportAwardRatesSectionFragmentRef
-                    , supportPublicHolidaysSectionFragmentRef
-                    ])
-                    { decorateRequestsWithin =
-                        [ "#support-shell"
-                        , "#support-award-rates-section"
-                        , "#support-public-holidays-section"
-                        ]
-                    }
+            `shouldBe` mkTypedDefinedLiveSurface supportLiveSurfaceDefinition ()
 
     it "declares live authorization requirements at the surface boundary" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -263,7 +244,7 @@ tests = describe "LiveUpdate runtime types" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
         let surfaces =
-                [ mkLiveSurface
+                [ testLiveSurfaceConfig
                     "leave-requests"
                     LeaveRequestsScope { venueId }
                     [ LiveFragmentRef
@@ -274,7 +255,7 @@ tests = describe "LiveUpdate runtime types" do
                         , protectionPolicy = NoProtection
                         }
                     ]
-                , mkLiveSurface
+                , testLiveSurfaceConfig
                     "timesheets"
                     TimesheetWeekScope { venueId, weekOffset = 1 }
                     [ LiveFragmentRef
@@ -285,7 +266,7 @@ tests = describe "LiveUpdate runtime types" do
                         , protectionPolicy = NoProtection
                         }
                     ]
-                , mkLiveSurface
+                , testLiveSurfaceConfig
                     "roster"
                     RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
                     [ LiveFragmentRef
@@ -300,6 +281,17 @@ tests = describe "LiveUpdate runtime types" do
 
         forM_ surfaces \surface ->
             Aeson.decode (LBS.fromStrict (cs (liveSurfaceConfigJson surface))) `shouldBe` Just surface
+
+testLiveSurfaceConfig :: Text -> LiveUpdateScope -> [LiveFragmentRef] -> LiveSurfaceConfig
+testLiveSurfaceConfig feature scope resyncFragments =
+    LiveSurfaceConfig
+        { feature
+        , socketPath = "/live-updates"
+        , scope
+        , scopeKey = liveUpdateScopeKey scope
+        , resyncFragments
+        , decorateRequestsWithin = []
+        }
 
 supportAwardRatesSectionFragmentRef :: LiveFragmentRef
 supportAwardRatesSectionFragmentRef =

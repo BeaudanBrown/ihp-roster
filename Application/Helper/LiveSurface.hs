@@ -137,6 +137,6 @@ mkTypedSurfaceProjectionDefinition ::
     (scope -> IO Int) ->
     (scope -> IO snapshot) ->
     (snapshot -> fragment -> Maybe Blaze.Html) ->
-    ProjectionLiveSurfaceDefinition scope snapshot fragment
-mkTypedSurfaceProjectionDefinition definition =
-    Internal.mkSurfaceProjectionDefinition (Internal.typedLiveSurfaceDefinition definition)
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment
+mkTypedSurfaceProjectionDefinition =
+    Internal.mkSurfaceProjectionDefinition
