@@ -16,7 +16,7 @@ module Web.Profiles.LiveUpdates
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
-import Application.Helper.ControllerContext (authenticatedCurrentUser)
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import Application.Helper.Url (appendQueryParams)
@@ -35,7 +35,7 @@ data ProfileContentSurface
 
 data ProfileContentSurfaceKey = ProfileContentSurfaceKey
     { profileContentVenueId     :: !UUID
-    , profileContentUserId      :: !UUID
+    , profileContentStaffId     :: !UUID
     , profileContentOpenSection :: !Text
     }
     deriving (Eq, Show)
@@ -44,11 +44,11 @@ data ProfileContentFragment
     = ProfileContentLiveFragment !Text
     deriving (Eq, Show)
 
-currentProfileContentSurfaceKey :: (?context :: ControllerContext) => Text -> ProfileContentSurfaceKey
-currentProfileContentSurfaceKey openSection =
+currentProfileContentSurfaceKey :: (?context :: ControllerContext) => Staff -> Text -> ProfileContentSurfaceKey
+currentProfileContentSurfaceKey staff openSection =
     ProfileContentSurfaceKey
         { profileContentVenueId = currentVenueScopeId
-        , profileContentUserId = unpackId authenticatedCurrentUser.id
+        , profileContentStaffId = unpackId staff.id
         , profileContentOpenSection = openSection
         }
 
@@ -56,21 +56,29 @@ profileContentLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedL
 profileContentLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "profile"
-        , typedSurfaceScope = \key -> SurfaceScope ProfileScope { venueId = key.profileContentVenueId, userId = key.profileContentUserId }
+        , typedSurfaceScope = \key -> SurfaceScope ProfileScope { venueId = key.profileContentVenueId, staffId = key.profileContentStaffId }
         , typedSurfaceScopeFromWire = \case
-            ProfileScope { venueId, userId } ->
-                Just ProfileContentSurfaceKey { profileContentVenueId = venueId, profileContentUserId = userId, profileContentOpenSection = "profile" }
+            ProfileScope { venueId, staffId } ->
+                Just ProfileContentSurfaceKey { profileContentVenueId = venueId, profileContentStaffId = staffId, profileContentOpenSection = "profile" }
             _ -> Nothing
         , typedSurfaceDefaultFragments = \key -> [profileContentFragment key.profileContentOpenSection]
         , typedSurfaceFragmentRef = const profileContentFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileDetailsFormId]
-        , typedSurfaceDependsOn = \_ _ -> []
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueUser key.profileContentVenueId key.profileContentUserId)
+        , typedSurfaceDependsOn = profileContentDependsOn
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueStaff key.profileContentVenueId key.profileContentStaffId)
         }
 
 profileContentFragment :: Text -> ProfileContentFragment
 profileContentFragment =
     ProfileContentLiveFragment
+
+profileContentDependsOn :: ProfileContentSurfaceKey -> ProfileContentFragment -> [LiveResource]
+profileContentDependsOn key (ProfileContentLiveFragment openSection) =
+    case openSection of
+        "rsa" -> [StaffRsaDocumentsResource key.profileContentStaffId]
+        "leave" -> [StaffLeaveRequestsResource key.profileContentStaffId]
+        "security" -> []
+        _ -> [StaffProfileResource key.profileContentStaffId, StaffPreferencesResource key.profileContentStaffId]
 
 profileContentFragmentRef :: (?context :: ControllerContext) => ProfileContentFragment -> SurfaceFragmentRef ProfileContentSurface
 profileContentFragmentRef (ProfileContentLiveFragment openSection) =
@@ -83,7 +91,7 @@ data ProfileLeaveSurface
 
 data ProfileLeaveSurfaceKey = ProfileLeaveSurfaceKey
     { profileLeaveVenueId :: !UUID
-    , profileLeaveUserId  :: !UUID
+    , profileLeaveStaffId :: !UUID
     }
     deriving (Eq, Show)
 
@@ -91,27 +99,27 @@ data ProfileLeaveFragment
     = ProfileLeaveRequestsLiveFragment
     deriving (Eq, Show)
 
-currentProfileLeaveSurfaceKey :: (?context :: ControllerContext) => ProfileLeaveSurfaceKey
-currentProfileLeaveSurfaceKey =
+currentProfileLeaveSurfaceKey :: (?context :: ControllerContext) => Staff -> ProfileLeaveSurfaceKey
+currentProfileLeaveSurfaceKey staff =
     ProfileLeaveSurfaceKey
         { profileLeaveVenueId = currentVenueScopeId
-        , profileLeaveUserId = unpackId authenticatedCurrentUser.id
+        , profileLeaveStaffId = unpackId staff.id
         }
 
 profileLeaveRequestsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition ProfileLeaveSurface ProfileLeaveSurfaceKey ProfileLeaveFragment
 profileLeaveRequestsLiveSurfaceDefinition =
     TypedLiveSurfaceDefinition
         { typedSurfaceFeature = "profile-leave-requests"
-        , typedSurfaceScope = \key -> SurfaceScope ProfileScope { venueId = key.profileLeaveVenueId, userId = key.profileLeaveUserId }
+        , typedSurfaceScope = \key -> SurfaceScope ProfileScope { venueId = key.profileLeaveVenueId, staffId = key.profileLeaveStaffId }
         , typedSurfaceScopeFromWire = \case
-            ProfileScope { venueId, userId } ->
-                Just ProfileLeaveSurfaceKey { profileLeaveVenueId = venueId, profileLeaveUserId = userId }
+            ProfileScope { venueId, staffId } ->
+                Just ProfileLeaveSurfaceKey { profileLeaveVenueId = venueId, profileLeaveStaffId = staffId }
             _ -> Nothing
         , typedSurfaceDefaultFragments = const [profileLeaveRequestsFragment]
         , typedSurfaceFragmentRef = const profileLeaveRequestsContentFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileLeaveRequestsContentFragmentId]
-        , typedSurfaceDependsOn = \_ _ -> []
-        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueUser key.profileLeaveVenueId key.profileLeaveUserId)
+        , typedSurfaceDependsOn = \key _ -> [StaffLeaveRequestsResource key.profileLeaveStaffId]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueStaff key.profileLeaveVenueId key.profileLeaveStaffId)
         }
 
 profileLeaveRequestsFragment :: ProfileLeaveFragment
@@ -131,12 +139,14 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing -> error "Profile live surface requires a current venue"
 
-refreshProfileContent :: (?context :: ControllerContext, ?request :: Request) => Text -> IO ()
-refreshProfileContent openSection =
-    broadcastSurfaceFragments
-        profileContentLiveSurfaceDefinition
-        (currentProfileContentSurfaceKey openSection)
-        [profileContentFragment openSection]
+refreshProfileContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO ()
+refreshProfileContent openSection = do
+    maybeStaff <- fetchCurrentUserStaff
+    forM_ maybeStaff \staff ->
+        broadcastSurfaceFragments
+            profileContentLiveSurfaceDefinition
+            (currentProfileContentSurfaceKey staff openSection)
+            [profileContentFragment openSection]
 
 refreshProfileContentForStaffId :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> Text -> IO ()
 refreshProfileContentForStaffId staffId openSection = do
@@ -145,22 +155,24 @@ refreshProfileContentForStaffId staffId openSection = do
             |> filterWhere (#id, Id staffId :: Id Staff)
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> fetchOneOrNothing
-    forM_ (maybeStaff >>= (.userId)) \staffUserId ->
+    forM_ maybeStaff \staff ->
         broadcastSurfaceFragments
             profileContentLiveSurfaceDefinition
             ProfileContentSurfaceKey
                 { profileContentVenueId = unpackId currentVenueId
-                , profileContentUserId = staffUserId
+                , profileContentStaffId = unpackId staff.id
                 , profileContentOpenSection = openSection
                 }
             [profileContentFragment openSection]
 
-refreshProfileLeaveRequests :: (?context :: ControllerContext, ?request :: Request) => IO ()
-refreshProfileLeaveRequests =
-    broadcastSurfaceFragments
-        profileLeaveRequestsLiveSurfaceDefinition
-        currentProfileLeaveSurfaceKey
-        [profileLeaveRequestsFragment]
+refreshProfileLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
+refreshProfileLeaveRequests = do
+    maybeStaff <- fetchCurrentUserStaff
+    forM_ maybeStaff \staff ->
+        broadcastSurfaceFragments
+            profileLeaveRequestsLiveSurfaceDefinition
+            (currentProfileLeaveSurfaceKey staff)
+            [profileLeaveRequestsFragment]
 
 refreshProfileLeaveRequestsForStaffId :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> IO ()
 refreshProfileLeaveRequestsForStaffId staffId = do
@@ -169,11 +181,11 @@ refreshProfileLeaveRequestsForStaffId staffId = do
             |> filterWhere (#id, Id staffId :: Id Staff)
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> fetchOneOrNothing
-    forM_ (maybeStaff >>= (.userId)) \staffUserId ->
+    forM_ maybeStaff \staff ->
         broadcastSurfaceFragments
             profileLeaveRequestsLiveSurfaceDefinition
             ProfileLeaveSurfaceKey
                 { profileLeaveVenueId = unpackId currentVenueId
-                , profileLeaveUserId = staffUserId
+                , profileLeaveStaffId = unpackId staff.id
                 }
             [profileLeaveRequestsFragment]

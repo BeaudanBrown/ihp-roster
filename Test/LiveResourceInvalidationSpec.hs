@@ -72,6 +72,12 @@ tests = do
                     , InvalidateAdminXeroForStaff staffId
                     ]
 
+            planLiveInvalidationsForResources [] (Set.singleton (StaffPreferencesResource staffId))
+                `shouldBe` Set.fromList
+                    [ InvalidateProfileContent staffId "profile"
+                    , InvalidateRosterWeeksForStaff staffId
+                    ]
+
         it "plans admin export invalidations from export resources" do
             let venueId = fromWords 4 0 0 0
 

@@ -4,8 +4,15 @@ import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (TypedLiveSurfaceDefinition (..))
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
+import IHP.Controller.Context (ControllerContext)
 import IHP.Prelude
 import Test.Hspec
+import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
+                                 ProfileContentSurfaceKey (..),
+                                 ProfileLeaveSurfaceKey (..),
+                                 profileContentLiveSurfaceDefinition,
+                                 profileLeaveRequestsFragment,
+                                 profileLeaveRequestsLiveSurfaceDefinition)
 import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
                                   TimesheetProjectionRequest (..),
                                   timesheetLiveSurfaceDefinitionForVenue)
@@ -49,6 +56,20 @@ tests = do
                 `shouldBe` [XeroPayItemsResource venueId]
             typedSurfaceDependsOn definition () adminXeroTimesheetsFragment
                 `shouldBe` [XeroTimesheetsResource venueId]
+
+        it "declares profile dependencies by staff-backed section" do
+            let ?context = error "profile dependency test does not use controller context" :: ControllerContext
+            let venueId = fromWords 4 0 0 0
+            let staffId = fromWords 5 0 0 0
+            let contentKey = ProfileContentSurfaceKey venueId staffId "profile"
+            let leaveKey = ProfileLeaveSurfaceKey venueId staffId
+
+            typedSurfaceDependsOn profileContentLiveSurfaceDefinition contentKey (ProfileContentLiveFragment "profile")
+                `shouldBe` [StaffProfileResource staffId, StaffPreferencesResource staffId]
+            typedSurfaceDependsOn profileContentLiveSurfaceDefinition contentKey (ProfileContentLiveFragment "rsa")
+                `shouldBe` [StaffRsaDocumentsResource staffId]
+            typedSurfaceDependsOn profileLeaveRequestsLiveSurfaceDefinition leaveKey profileLeaveRequestsFragment
+                `shouldBe` [StaffLeaveRequestsResource staffId]
 
         it "declares admin invitation dependencies for venue-scoped invite surfaces" do
             let venueId = fromWords 3 0 0 0

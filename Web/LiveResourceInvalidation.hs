@@ -92,7 +92,7 @@ planLiveInvalidationsForResources activeRosterScopes resources =
         planForResource (StaffProfileResource staffId) =
             Set.fromList [InvalidateProfileContent staffId "profile", InvalidateRosterWeeksForStaff staffId]
         planForResource (StaffPreferencesResource staffId) =
-            Set.singleton (InvalidateRosterWeeksForStaff staffId)
+            Set.fromList [InvalidateProfileContent staffId "profile", InvalidateRosterWeeksForStaff staffId]
         planForResource (StaffRosterMembershipResource staffId) =
             Set.singleton (InvalidateRosterWeeksForStaff staffId)
         planForResource (StaffPayProfileResource staffId) =

@@ -16,7 +16,7 @@ tests = describe "LiveUpdate runtime types" do
     it "round-trips roster, admin, leave, timesheet, and support scopes through JSON" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
-        let userId = expectUuid "44444444-4444-4444-4444-444444444444"
+        let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
         let scopes =
                 [ RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
                 , AdminShiftTypesScope { venueId }
@@ -27,7 +27,7 @@ tests = describe "LiveUpdate runtime types" do
                 , BillingScope { venueId }
                 , LeaveRequestsScope { venueId }
                 , TimesheetWeekScope { venueId, weekOffset = 2 }
-                , ProfileScope { venueId, userId }
+                , ProfileScope { venueId, staffId }
                 , StaffComplianceScope { venueId }
                 , SupportPlatformScope
                 ]
@@ -90,7 +90,7 @@ tests = describe "LiveUpdate runtime types" do
     it "uses stable live scope keys for client/server subscription matching" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
         let rosterGroupId = expectUuid "33333333-3333-3333-3333-333333333333"
-        let userId = expectUuid "44444444-4444-4444-4444-444444444444"
+        let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
 
         liveUpdateScopeKey RosterWeekScope { venueId, rosterGroupId, weekOffset = -1 }
             `shouldBe` "roster_week:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:-1"
@@ -110,7 +110,7 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe` "leave_requests:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset = 2 }
             `shouldBe` "timesheet_week:11111111-1111-1111-1111-111111111111:2"
-        liveUpdateScopeKey ProfileScope { venueId, userId }
+        liveUpdateScopeKey ProfileScope { venueId, staffId }
             `shouldBe` "profile:11111111-1111-1111-1111-111111111111:44444444-4444-4444-4444-444444444444"
         liveUpdateScopeKey StaffComplianceScope { venueId }
             `shouldBe` "staff_compliance:11111111-1111-1111-1111-111111111111"

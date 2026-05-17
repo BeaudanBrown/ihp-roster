@@ -34,24 +34,29 @@ instance Controller ProfilesController where
         render EditView { .. }
 
     action ShowProfileLeaveRequestsContentFragmentAction = do
-        ensureTypedLiveSurfaceAuthorized profileLeaveRequestsLiveSurfaceDefinition currentProfileLeaveSurfaceKey
-        leaveRequests <- fetchCurrentUserLeaveRequests
-        leaveRequestForm <- buildDefaultLeaveRequest
-        respondHtml (renderProfileLeaveRequestsContentFragment leaveRequestForm leaveRequests)
+        maybeExistingStaff <- fetchCurrentUserStaff
+        case maybeExistingStaff of
+            Nothing -> accessDeniedUnless False
+            Just staff -> do
+                ensureTypedLiveSurfaceAuthorized profileLeaveRequestsLiveSurfaceDefinition (currentProfileLeaveSurfaceKey staff)
+                leaveRequests <- fetchCurrentUserLeaveRequests
+                leaveRequestForm <- buildDefaultLeaveRequest
+                respondHtml (renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests)
 
     action ShowProfileContentFragmentAction = do
         let openSection = normalizeProfileOpenSection (paramOrDefault @Text "profile" "section")
-        ensureTypedLiveSurfaceAuthorized profileContentLiveSurfaceDefinition (currentProfileContentSurfaceKey openSection)
-        maybeExistingStaff <- fetchCurrentUserStaff
-        let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
-        let currentUserEmail = currentUser.email
-        (preferenceWeekdays, selectedShiftPreferences) <- profilePreferenceViewData maybeExistingStaff
-        passkeys <- fetchCurrentUserPasskeys
-        leaveRequests <- fetchCurrentUserLeaveRequests
-        leaveRequestForm <- buildDefaultLeaveRequest
-        staffRsaDocument <- maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff
-        today <- utctDay <$> getCurrentTime
-        respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection)
+        fetchCurrentUserStaff >>= \case
+            Nothing -> accessDeniedUnless False
+            Just staff -> do
+                ensureTypedLiveSurfaceAuthorized profileContentLiveSurfaceDefinition (currentProfileContentSurfaceKey staff openSection)
+                let currentUserEmail = currentUser.email
+                (preferenceWeekdays, selectedShiftPreferences) <- profilePreferenceViewData (Just staff)
+                passkeys <- fetchCurrentUserPasskeys
+                leaveRequests <- fetchCurrentUserLeaveRequests
+                leaveRequestForm <- buildDefaultLeaveRequest
+                staffRsaDocument <- latestRsaDocumentForStaff staff
+                today <- utctDay <$> getCurrentTime
+                respondHtml (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection)
 
     action UpdateProfileAction = do
         maybeExistingStaff <- fetchCurrentUserStaff

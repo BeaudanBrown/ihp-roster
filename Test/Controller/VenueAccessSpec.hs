@@ -185,6 +185,7 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 user <- createUserRecord "worker-live-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
+                staff <- createStaffRecord venue (Just user) "Worker" "Live"
                 rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
 
                 rosterAuthorized <- withAuthenticatedControllerContext user venue.id do
@@ -205,7 +206,7 @@ tests = beforeAll testContext do
                 profileAuthorized <- withAuthenticatedControllerContext user venue.id do
                     authorizeRegisteredLiveSurfaceScope ProfileScope
                         { venueId = unpackId venue.id
-                        , userId = unpackId user.id
+                        , staffId = unpackId staff.id
                         }
 
                 rosterAuthorized `shouldBe` True
@@ -220,6 +221,7 @@ tests = beforeAll testContext do
                 admin <- createUserRecord "admin-foreign-live-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venueA admin "venue_admin"
                 rosterGroupB <- query @RosterGroup |> filterWhere (#venueId, unpackId venueB.id) |> fetchOne
+                foreignStaff <- createStaffRecord venueB Nothing "Foreign" "Staff"
 
                 rosterAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeRegisteredLiveSurfaceScope RosterWeekScope
@@ -247,7 +249,7 @@ tests = beforeAll testContext do
                 profileAuthorized <- withAuthenticatedControllerContext admin venueA.id do
                     authorizeRegisteredLiveSurfaceScope ProfileScope
                         { venueId = unpackId venueB.id
-                        , userId = unpackId admin.id
+                        , staffId = unpackId foreignStaff.id
                         }
 
                 rosterAuthorized `shouldBe` False
@@ -264,11 +266,12 @@ tests = beforeAll testContext do
                 otherUser <- createUserRecord "other-profile-live-scope@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 _ <- createVenueMembershipRecord venue otherUser "worker"
+                otherStaff <- createStaffRecord venue (Just otherUser) "Other" "Profile"
 
                 authorized <- withAuthenticatedControllerContext user venue.id do
                     authorizeRegisteredLiveSurfaceScope ProfileScope
                         { venueId = unpackId venue.id
-                        , userId = unpackId otherUser.id
+                        , staffId = unpackId otherStaff.id
                         }
 
                 authorized `shouldBe` False

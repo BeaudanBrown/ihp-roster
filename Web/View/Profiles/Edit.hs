@@ -82,15 +82,16 @@ instance View EditView where
                     , appPanelBodyClass = ""
                     , appPanelBody =
                         renderProfileLiveSurface
+                            staff
                             openSection
                             (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection)
                     }
             })
 
-renderProfileLiveSurface :: Text -> Html -> Html
-renderProfileLiveSurface openSection body = [hsx|
+renderProfileLiveSurface :: Staff -> Text -> Html -> Html
+renderProfileLiveSurface staff openSection body = [hsx|
     <div id={profileLiveSurfaceId}
-         data-live-update-surface={liveSurfaceConfigJson <$> profileLiveSurface openSection}>
+         data-live-update-surface={liveSurfaceConfigJson <$> profileLiveSurface staff openSection}>
         {body}
     </div>
 |]
@@ -115,7 +116,7 @@ renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedS
                 "profile-leave"
                 "Unavailability"
                 (openSection == "leave")
-                (renderProfileLeaveRequestsContentFragment leaveRequestForm leaveRequests)
+                (renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests)
             }
             {renderAccordionSection
                 "profile-rsa"
@@ -127,10 +128,10 @@ renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedS
     </div>
 |]
 
-profileLiveSurface :: (?context :: ControllerContext) => Text -> Maybe LiveSurfaceConfig
-profileLiveSurface openSection =
-    if currentUser.isProfileCompleted
-        then Just (mkTypedDefinedLiveSurface profileContentLiveSurfaceDefinition (currentProfileContentSurfaceKey openSection))
+profileLiveSurface :: (?context :: ControllerContext) => Staff -> Text -> Maybe LiveSurfaceConfig
+profileLiveSurface staff openSection =
+    if currentUser.isProfileCompleted && not (isNew staff)
+        then Just (mkTypedDefinedLiveSurface profileContentLiveSurfaceDefinition (currentProfileContentSurfaceKey staff openSection))
         else Nothing
 
 renderAccordionSection :: Text -> Text -> Bool -> Html -> Html
@@ -196,10 +197,10 @@ renderProfileRsaSection staff staffRsaDocument today =
                 , rsaPanelCanReview = currentUserIsManager
                 }
 
-renderProfileLeaveRequestsContentFragment :: LeaveRequest -> [LeaveRequest] -> Html
-renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests = [hsx|
+renderProfileLeaveRequestsContentFragment :: Staff -> LeaveRequest -> [LeaveRequest] -> Html
+renderProfileLeaveRequestsContentFragment staff leaveRequest leaveRequests = [hsx|
     <div id={profileLeaveRequestsContentFragmentId}
-         data-live-update-surface={liveSurfaceConfigJson <$> profileLeaveRequestsLiveSurface}>
+         data-live-update-surface={liveSurfaceConfigJson <$> profileLeaveRequestsLiveSurface staff}>
         <div class="row g-4 align-items-start">
             <div class="col-12 col-xl-5">
                 {renderProfileLeaveRequestFormFragment leaveRequest}
@@ -211,9 +212,11 @@ renderProfileLeaveRequestsContentFragment leaveRequest leaveRequests = [hsx|
     </div>
 |]
 
-profileLeaveRequestsLiveSurface :: (?context :: ControllerContext) => Maybe LiveSurfaceConfig
-profileLeaveRequestsLiveSurface =
-    Just (mkTypedDefinedLiveSurface profileLeaveRequestsLiveSurfaceDefinition currentProfileLeaveSurfaceKey)
+profileLeaveRequestsLiveSurface :: (?context :: ControllerContext) => Staff -> Maybe LiveSurfaceConfig
+profileLeaveRequestsLiveSurface staff =
+    if isNew staff
+        then Nothing
+        else Just (mkTypedDefinedLiveSurface profileLeaveRequestsLiveSurfaceDefinition (currentProfileLeaveSurfaceKey staff))
 
 renderProfileLeaveRequestFormFragment :: LeaveRequest -> Html
 renderProfileLeaveRequestFormFragment leaveRequest = [hsx|

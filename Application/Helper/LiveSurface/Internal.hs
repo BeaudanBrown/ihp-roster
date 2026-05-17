@@ -120,6 +120,7 @@ data LiveSurfaceMutationResult surface = LiveSurfaceMutationResult
 data LiveScopeAuthorizationRequirement
     = RequireCurrentVenue UUID.UUID
     | RequireCurrentVenueUser UUID.UUID UUID.UUID
+    | RequireCurrentVenueStaff UUID.UUID UUID.UUID
     | RequireCurrentVenueRosterGroup UUID.UUID UUID.UUID
     | RequireCurrentVenueAdmin UUID.UUID
     | RequireCurrentVenueManager UUID.UUID
@@ -312,8 +313,8 @@ defaultLiveUpdateScopeAuthorizationRequirement LeaveRequestsScope { venueId } =
     RequireCurrentVenueManager venueId
 defaultLiveUpdateScopeAuthorizationRequirement TimesheetWeekScope { venueId } =
     RequireCurrentVenue venueId
-defaultLiveUpdateScopeAuthorizationRequirement ProfileScope { venueId, userId } =
-    RequireCurrentVenueUser venueId userId
+defaultLiveUpdateScopeAuthorizationRequirement ProfileScope { venueId, staffId } =
+    RequireCurrentVenueStaff venueId staffId
 defaultLiveUpdateScopeAuthorizationRequirement StaffComplianceScope { venueId } =
     RequireCurrentVenueManager venueId
 defaultLiveUpdateScopeAuthorizationRequirement SupportPlatformScope =
@@ -327,6 +328,16 @@ authorizeLiveScopeRequirement (RequireCurrentVenue venueId) =
     pure (currentVenueMatches venueId)
 authorizeLiveScopeRequirement (RequireCurrentVenueUser venueId userId) =
     pure (currentVenueMatches venueId && userId == unpackId authenticatedCurrentUser.id)
+authorizeLiveScopeRequirement (RequireCurrentVenueStaff venueId staffId) =
+    if currentVenueMatches venueId
+        then do
+            maybeStaff <-
+                query @Staff
+                    |> filterWhere (#id, Id staffId :: Id Staff)
+                    |> filterWhere (#venueId, venueId)
+                    |> fetchOneOrNothing
+            pure (maybe False (\staff -> staff.userId == Just (unpackId authenticatedCurrentUser.id)) maybeStaff)
+        else pure False
 authorizeLiveScopeRequirement (RequireCurrentVenueRosterGroup venueId rosterGroupId) =
     if currentVenueMatches venueId
         then isAuthorizedCurrentVenueRosterGroupScope rosterGroupId

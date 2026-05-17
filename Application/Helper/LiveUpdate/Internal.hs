@@ -84,8 +84,8 @@ data LiveUpdateScope
         , weekOffset :: !Int
         }
     | ProfileScope
-        { venueId :: !UUID.UUID
-        , userId  :: !UUID.UUID
+        { venueId  :: !UUID.UUID
+        , staffId  :: !UUID.UUID
         }
     | StaffComplianceScope
         { venueId :: !UUID.UUID
@@ -214,8 +214,8 @@ liveUpdateScopeKey LeaveRequestsScope { venueId } =
     Text.intercalate ":" ["leave_requests", UUID.toText venueId]
 liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset } =
     Text.intercalate ":" ["timesheet_week", UUID.toText venueId, tshow weekOffset]
-liveUpdateScopeKey ProfileScope { venueId, userId } =
-    Text.intercalate ":" ["profile", UUID.toText venueId, UUID.toText userId]
+liveUpdateScopeKey ProfileScope { venueId, staffId } =
+    Text.intercalate ":" ["profile", UUID.toText venueId, UUID.toText staffId]
 liveUpdateScopeKey StaffComplianceScope { venueId } =
     Text.intercalate ":" ["staff_compliance", UUID.toText venueId]
 liveUpdateScopeKey SupportPlatformScope =
@@ -274,11 +274,11 @@ instance Aeson.ToJSON LiveUpdateScope where
             , "venueId" Aeson..= UUID.toText venueId
             , "weekOffset" Aeson..= weekOffset
             ]
-    toJSON ProfileScope { venueId, userId } =
+    toJSON ProfileScope { venueId, staffId } =
         Aeson.object
             [ "kind" Aeson..= ("profile" :: Text)
             , "venueId" Aeson..= UUID.toText venueId
-            , "userId" Aeson..= UUID.toText userId
+            , "staffId" Aeson..= UUID.toText staffId
             ]
     toJSON StaffComplianceScope { venueId } =
         Aeson.object
@@ -327,7 +327,7 @@ instance Aeson.FromJSON LiveUpdateScope where
             "profile" ->
                 ProfileScope
                     <$> (parseUuid =<< object Aeson..: "venueId")
-                    <*> (parseUuid =<< object Aeson..: "userId")
+                    <*> (parseUuid =<< object Aeson..: "staffId")
             "staff_compliance" ->
                 StaffComplianceScope
                     <$> (parseUuid =<< object Aeson..: "venueId")
