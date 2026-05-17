@@ -1,7 +1,7 @@
 module Web.Controller.Exports where
 
 import Application.Helper.Export
-import Application.Helper.LiveSurface (broadcastSurfaceFragments)
+import Application.Helper.LiveResource (LiveMutationResult (..))
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.Text as Text
 import Data.Text.Encoding (encodeUtf8)
@@ -9,7 +9,8 @@ import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status (status200)
 import Network.Wai (responseLBS)
 import Web.Controller.Prelude
-import Web.View.Admin.Exports (AdminExportsLiveFragment (..), adminExportsLiveSurfaceDefinition)
+import Web.Exports.Mutations (recordExportDownloadMutation,
+                              requestFixedExportMutation)
 
 instance Controller ExportsController where
     beforeAction = do
@@ -29,10 +30,9 @@ instance Controller ExportsController where
 
         case (maybeExportType, maybeRangeStart, maybeRangeEnd) of
             (Just exportType, Just rangeStart, Just rangeEnd) -> do
-                requestFixedExport exportType rangeStart rangeEnd >>= \case
+                requestFixedExportMutation exportType rangeStart rangeEnd >>= \case
                     Left message -> setErrorMessage message
                     Right _ -> do
-                        broadcastSurfaceFragments adminExportsLiveSurfaceDefinition () [AdminExportsLiveFragment]
                         setSuccessMessage "Export generated"
                 redirectToPath (pathTo AdminAction <> "#exports")
             _ -> do
@@ -41,8 +41,7 @@ instance Controller ExportsController where
 
     action DownloadExportJobAction { exportJobId } = do
         let downloadToken = param @UUID "token"
-        exportJob <- authorizeExportDownload exportJobId downloadToken >>= recordExportDownload
-        broadcastSurfaceFragments adminExportsLiveSurfaceDefinition () [AdminExportsLiveFragment]
+        exportJob <- liveMutationValue <$> (authorizeExportDownload exportJobId downloadToken >>= recordExportDownloadMutation)
 
         let fileName = Text.replace "\"" "" (fromMaybe "export.csv" exportJob.fileName)
         let contentType = fromMaybe "text/csv; charset=utf-8" exportJob.contentType

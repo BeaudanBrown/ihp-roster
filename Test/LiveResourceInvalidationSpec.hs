@@ -70,6 +70,12 @@ tests = do
                     , InvalidateAdminXeroForStaff staffId
                     ]
 
+        it "plans admin export invalidations from export resources" do
+            let venueId = fromWords 4 0 0 0
+
+            planLiveInvalidationsForResources [] (Set.singleton (AdminExportsResource venueId))
+                `shouldBe` Set.singleton (InvalidateAdminExports venueId)
+
         it "plans RSA profile and admin compliance invalidations from staff document resources" do
             let venueId = fromWords 4 0 0 0
             let staffId = fromWords 5 0 0 0

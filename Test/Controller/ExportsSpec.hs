@@ -1,6 +1,7 @@
 module Test.Controller.ExportsSpec where
 
 import Application.Helper.Export
+import Application.Helper.LiveResource
 import qualified Codec.Archive.Zip as Zip
 import Config
 import qualified Data.Aeson as Aeson
@@ -25,6 +26,7 @@ import Test.Support
 import Test.Support.PayrollFixtures (createAndApproveEntry,
                                      createPayrollSnapshot, seedWeekDayNames)
 import Web.Controller.Exports ()
+import Web.Exports.Mutations (exportJobTouchedResources)
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
@@ -84,6 +86,23 @@ tests = beforeAll testContext do
                 auditEvent.eventType `shouldBe` "export_generated"
                 auditEvent.targetTable `shouldBe` "export_jobs"
                 auditEvent.targetId `shouldBe` unpackId exportJob.id
+
+        it "records touched resources for export job changes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Export Touch Venue"
+                admin <- createUserRecord "exports-touch@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateExportJobAction
+                        [ ("exportType", cs (exportJobTypeToText ApprovedTimesheetsCsv))
+                        , ("rangeStart", "2025-01-06")
+                        , ("rangeEnd", "2025-01-12")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                exportJob <- query @ExportJob |> fetchOne
+                exportJobTouchedResources exportJob `shouldBe` [AdminExportsResource (unpackId venue.id)]
 
         it "creates a staff-hours payroll export grouped by effective pay level" $ withContext do
             withCleanDb do

@@ -18,6 +18,7 @@ import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Web.Controller.Admin.Xero.Responses (refreshAdminXero,
                                             refreshAdminXeroPayItems)
 import Web.Controller.Prelude
+import Web.Exports.LiveUpdates (refreshAdminExports)
 import Web.LeaveRequests.Projection (broadcastLeaveRequestsInvalidation,
                                      leaveRequestsContentFragmentRefs)
 import Web.Profiles.LiveUpdates (refreshProfileLeaveRequestsForStaffId)
@@ -40,6 +41,7 @@ data PlannedLiveInvalidation
     | InvalidateRosterWeeksForStaff !UUID
     | InvalidateAdminInvites !UUID
     | InvalidateAdminStaffCompliance !UUID
+    | InvalidateAdminExports !UUID
     | InvalidateAdminRosterGroups !UUID
     | InvalidateAdminShiftTypes !UUID
     | InvalidateXeroPayItems !UUID
@@ -93,6 +95,8 @@ planLiveInvalidationsForResources activeRosterScopes resources =
             Set.singleton (InvalidateAdminInvites venueId)
         planForResource (AdminStaffComplianceResource venueId) =
             Set.singleton (InvalidateAdminStaffCompliance venueId)
+        planForResource (AdminExportsResource venueId) =
+            Set.singleton (InvalidateAdminExports venueId)
         planForResource (AdminRosterGroupsResource venueId) =
             Set.singleton (InvalidateAdminRosterGroups venueId)
         planForResource (AdminShiftTypesResource venueId) =
@@ -146,6 +150,8 @@ performPlannedInvalidation (InvalidateAdminInvites venueId) =
     refreshAdminInvites (Id venueId)
 performPlannedInvalidation (InvalidateAdminStaffCompliance venueId) =
     refreshStaffCompliance venueId
+performPlannedInvalidation (InvalidateAdminExports venueId) =
+    refreshAdminExports venueId
 performPlannedInvalidation (InvalidateAdminRosterGroups venueId) =
     refreshAdminRosterGroups (Id venueId)
 performPlannedInvalidation (InvalidateAdminShiftTypes venueId) =

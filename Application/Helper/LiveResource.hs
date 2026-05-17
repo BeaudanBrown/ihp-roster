@@ -31,6 +31,7 @@ data LiveResource
     | AdminShiftTypesResource !UUID
     | AdminInvitesResource !UUID
     | AdminStaffComplianceResource !UUID
+    | AdminExportsResource !UUID
     | XeroConnectionResource !UUID
     | XeroMappingsResource !UUID
     | XeroPayItemsResource !UUID
