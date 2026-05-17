@@ -20,8 +20,8 @@ import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
-import Web.Controller.Profiles (fetchProfileRosterInvalidationTargets,
-                                fetchProfileRosterInvalidationTargetsForScopes)
+import Web.Profiles.Mutations (fetchProfileRosterInvalidationTargets,
+                               fetchProfileRosterInvalidationTargetsForScopes)
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
