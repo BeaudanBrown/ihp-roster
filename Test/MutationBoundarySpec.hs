@@ -37,6 +37,11 @@ tests = describe "Mutation boundary guard" do
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "enqueueRosterTimesheetCreationJobsForWeek", "appendRosterWeekSlotDefinition rosterWeek", "deleteRosterWeekSlotDefinition", "repackRosterWeekDays", "removeRosterRowWithPacking"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
+    it "routes roster mutation live invalidation through touched resources" do
+        source <- Text.readFile "Web/RosterWeeks/Mutations.hs"
+        let forbiddenTokens = ["refreshRosterContent", "refreshRosterContentAndStaffPanel", "refreshRosterFragments", "broadcastSurface"]
+        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+
     it "keeps admin config writes in the mutation module" do
         source <- Text.readFile "Web/Controller/Admin.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "enqueueVenueInvitationDeliveryJob", "ensureShiftTypePayVersionForShiftType", "createVenueRosterGroupWithDefaults", "ensureDefaultRosterSlots", "syncVenueDefaultRosterGroupToTopActive", "reorderActiveRosterGroups", "reorderActiveShiftTypes"]
