@@ -11,7 +11,7 @@ import qualified Data.Aeson.KeyMap as KeyMap
 import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day, addDays, fromGregorian)
+import Data.Time.Calendar (Day, addDays, diffDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
@@ -167,8 +167,12 @@ data PreviewFixture = PreviewFixture
 
 createPreviewFixture :: (?modelContext :: ModelContext) => Text -> [EntrySpec] -> IO PreviewFixture
 createPreviewFixture calendarType entrySpecs = do
-    let periodStart = fromGregorian 2026 5 4
-        periodEnd = addDays (if calendarType == "fortnightly" then 13 else 6) periodStart
+    today <- utctDay <$> getCurrentTime
+    let anchorStart = fromGregorian 2026 5 4
+        periodLength = if calendarType == "fortnightly" then 14 else 7
+        periodsElapsed = diffDays today anchorStart `div` periodLength
+        periodStart = addDays (periodsElapsed * periodLength) anchorStart
+        periodEnd = addDays (periodLength - 1) periodStart
     venue <- createVenueWithConfig "Xero Preview Venue"
     owner <- createUserRecord "preview-owner@example.com" "admin" True
     _ <- createVenueMembershipRecord venue owner "venue_owner"

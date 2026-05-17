@@ -1073,7 +1073,7 @@ tests = beforeAll testContext do
                 loadingResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams OpenXeroTimesheetPreparationAction
-                            [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+                            [("periodKey", fixturePeriodKey fixture)]
 
                 loadingResponse `responseStatusShouldBe` status200
                 loadingResponse `responseBodyShouldContain` "Preparing Xero draft timesheets..."
@@ -1087,7 +1087,7 @@ tests = beforeAll testContext do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams RunXeroTimesheetPreparationAction
-                                    [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+                                    [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Prepare Xero draft timesheets"
@@ -1127,7 +1127,7 @@ tests = beforeAll testContext do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams RunXeroTimesheetPreparationAction
-                                    [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+                                    [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Setup"
@@ -1168,7 +1168,7 @@ tests = beforeAll testContext do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams RunXeroTimesheetPreparationAction
-                                    [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+                                    [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "posted"
@@ -1191,10 +1191,10 @@ tests = beforeAll testContext do
                     callAction SubmitXeroDraftTimesheetsAction
                 openPreparationResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
                     callActionWithParams OpenXeroTimesheetPreparationAction
-                        [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+                        [("periodKey", fixturePeriodKey fixture)]
                 runPreparationResponse <- withPasskeyVerifiedUserAndCurrentVenue manager fixture.venue.id do
                     callActionWithParams RunXeroTimesheetPreparationAction
-                        [("periodKey", "calendar-preview:2026-05-04:2026-05-10")]
+                        [("periodKey", fixturePeriodKey fixture)]
 
                 pageResponse `responseStatusShouldBe` status302
                 previewResponse `responseStatusShouldBe` status302
@@ -1818,6 +1818,9 @@ addCasualBaseAndSaturdayPenalty awardLevel baseRate saturdayRate = do
             |> set #hourlyRate saturdayRate
             |> createRecord
     pure ()
+
+fixturePeriodKey fixture =
+    cs ("calendar-preview:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd :: Text)
 
 createXeroPayrollCalendarRecord ::
     (?modelContext :: ModelContext) =>

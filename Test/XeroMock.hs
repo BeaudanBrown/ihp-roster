@@ -12,8 +12,8 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import qualified Data.Text.IO as TextIO
-import Data.Time.Calendar (fromGregorian)
-import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
+import Data.Time.Calendar (addDays, diffDays, fromGregorian)
+import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime, utctDay)
 import qualified Data.Vector as Vector
 import IHP.Prelude
 import Network.HTTP.Simple (Request, parseRequest, setRequestBodyJSON,
@@ -423,7 +423,9 @@ xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef request re
                 (method, "/payroll.xro/1.0/PayRuns")
                     | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock pay runs list" "/PayRuns" "/PayRuns" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 payRunsFixture))
                 (method, "/payroll.xro/1.0/Timesheets")
-                    | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 timesheetsFixture))
+                    | method == methodGet -> do
+                        dynamicTimesheetsFixture <- currentPeriodTimesheetsFixture
+                        pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock timesheets list" "/Timesheets" "/Timesheets" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 dynamicTimesheetsFixture))
                     | method == methodPost -> do
                         response <- nextTimesheetCreateResponse
                         pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock timesheet create" "/Timesheets" "/Timesheets" JsonArrayBody, response))
@@ -576,13 +578,25 @@ timesheetFixture :: Aeson.Value
 timesheetFixture =
     Aeson.object ["Timesheet" Aeson..= timesheetObjectFixture]
 
+currentPeriodTimesheetsFixture :: IO Aeson.Value
+currentPeriodTimesheetsFixture = do
+    today <- utctDay <$> getCurrentTime
+    let anchorStart = fromGregorian 2026 5 4
+        periodLength = 7
+        periodsElapsed = diffDays today anchorStart `div` periodLength
+        periodStart = addDays (periodsElapsed * periodLength) anchorStart
+        periodEnd = addDays (periodLength - 1) periodStart
+    pure (Aeson.object ["Timesheets" Aeson..= [timesheetObject periodStart periodEnd]])
+
 timesheetObjectFixture :: Aeson.Value
-timesheetObjectFixture =
+timesheetObjectFixture = timesheetObject (fromGregorian 2026 5 4) (fromGregorian 2026 5 10)
+
+timesheetObject periodStart periodEnd =
     Aeson.object
         [ "TimesheetID" Aeson..= ("timesheet-id" :: Text)
         , "EmployeeID" Aeson..= ("employee-id" :: Text)
-        , "StartDate" Aeson..= ("2026-05-04" :: Text)
-        , "EndDate" Aeson..= ("2026-05-10" :: Text)
+        , "StartDate" Aeson..= tshow periodStart
+        , "EndDate" Aeson..= tshow periodEnd
         , "Status" Aeson..= ("DRAFT" :: Text)
         , "Hours" Aeson..= (2 :: Int)
         , "TimesheetLines" Aeson..=
