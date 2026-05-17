@@ -1,13 +1,8 @@
 module Web.Controller.Timesheets where
 
-import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
-                               lockPayVersionsForApproval,
-                               payVersionManifestForEntry)
 import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
-import Control.Monad (void)
-import qualified Data.Aeson as Aeson
-import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
+import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (timesheetWeekUrl)
 import Web.Timesheets.Projection
 import Web.Timesheets.Responses
@@ -97,11 +92,7 @@ instance Controller TimesheetsController where
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
                     ensureShiftTypeAllowed timesheetEntry.shiftTypeId
-                    createdEntry <- withTransaction do
-                        createdEntry <- timesheetEntry |> createRecord
-                        void $ recordCurrentUserTimesheetEntryVersion (unsafeEnumFromText @EntryVersionActionEnum "created") createdEntry Aeson.Null
-                        pure createdEntry
-                    refreshTimesheetDay weekOffset createdEntry.workedOn
+                    createdEntry <- createTimesheetEntryMutation weekOffset timesheetEntry
                     if isHtmxRequest
                         then respondWithTimesheetDaySectionUpdate weekOffset createdEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry created" True True
                         else do
@@ -157,33 +148,7 @@ instance Controller TimesheetsController where
                             if wasApproved && coreChanged
                                 then "Timesheet entry updated (approval reset)"
                                 else "Timesheet entry updated"
-                    let updateAction = unsafeEnumFromText @EntryVersionActionEnum (if wasApproved && coreChanged then "approval_reset" else "updated")
-                    updatedEntry <- withTransaction do
-                        updatedEntry <- timesheetEntry
-                            |> resetApprovalOnEdit (wasApproved && coreChanged)
-                            |> updateRecord
-                        void $
-                            recordCurrentUserTimesheetEntryVersion
-                                updateAction
-                                updatedEntry
-                                (Aeson.object
-                                    [ "previous" Aeson..= timesheetEntrySnapshot existingEntry
-                                    ]
-                                )
-                        when (wasApproved && coreChanged) do
-                            void $ recordCurrentUserAuditEvent
-                                "timesheet_approval_reset"
-                                "timesheet_entries"
-                                (unpackId (get #id timesheetEntry))
-                                (Aeson.object
-                                    [ "staffId" Aeson..= timesheetEntry.staffId
-                                    , "workedOn" Aeson..= timesheetEntry.workedOn
-                                    , "previousApprovedAt" Aeson..= timesheetEntry.approvedAt
-                                    , "previousApprovedByUserId" Aeson..= timesheetEntry.approvedByUserId
-                                    ]
-                                )
-                        pure updatedEntry
-                    refreshMovedTimesheetEntry oldWorkedOn updatedEntry.workedOn
+                    updatedEntry <- updateTimesheetEntryMutation weekOffset existingEntry timesheetEntry (wasApproved && coreChanged)
                     if isHtmxRequest
                         then respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn updatedEntry.workedOn showApproved showAllStaff selectedStaffFilterId successMessage
                         else do
@@ -200,30 +165,7 @@ instance Controller TimesheetsController where
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId
-        now <- getCurrentTime
-        withTransaction do
-            softDeletedEntry <- timesheetEntry
-                |> set #deletedAt (Just now)
-                |> set #deletedByUserId (Just (unpackId currentUser.id))
-                |> set #deleteReason (Just "user_deleted")
-                |> updateRecord
-            void $
-                recordCurrentUserTimesheetEntryVersion
-                    (unsafeEnumFromText @EntryVersionActionEnum "deleted")
-                    softDeletedEntry
-                    Aeson.Null
-            void $ recordCurrentUserAuditEvent
-                "timesheet_deleted"
-                "timesheet_entries"
-                (unpackId (get #id timesheetEntry))
-                (Aeson.object
-                    [ "staffId" Aeson..= timesheetEntry.staffId
-                    , "workedOn" Aeson..= timesheetEntry.workedOn
-                    , "wasApproved" Aeson..= timesheetEntry.isApproved
-                    , "deletedAt" Aeson..= now
-                    ]
-                )
-        refreshTimesheetDay weekOffset timesheetEntry.workedOn
+        _ <- deleteTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
             then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry removed" True True
             else setSuccessMessage "Timesheet entry removed"
@@ -239,38 +181,7 @@ instance Controller TimesheetsController where
         weekOffset <- weekOffsetFromParamOrEntry timesheetEntry.workedOn
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
 
-        now <- getCurrentTime
-        (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval currentUser.id timesheetEntry
-        withTransaction do
-            lockPayVersionsForApproval currentUser.id now staffPayVersion shiftTypePayVersion
-            updatedEntry <- timesheetEntry
-                |> set #isApproved True
-                |> set #staffPayVersionId (Just (unpackId (get #id staffPayVersion)))
-                |> set #shiftTypePayVersionId (Just (unpackId (get #id shiftTypePayVersion)))
-                |> set #approvedAt (Just now)
-                |> set #approvedByUserId (Just (unpackId (get #id currentUser)))
-                |> updateRecord
-            void $
-                recordCurrentUserTimesheetEntryVersion
-                    (unsafeEnumFromText @EntryVersionActionEnum "approved")
-                    updatedEntry
-                    (Aeson.object
-                        [ "previous" Aeson..= timesheetEntrySnapshot timesheetEntry
-                        ]
-                    )
-            void $ recordCurrentUserAuditEvent
-                "timesheet_approved"
-                "timesheet_entries"
-                (unpackId (get #id timesheetEntry))
-                (Aeson.object
-                    [ "staffId" Aeson..= timesheetEntry.staffId
-                    , "workedOn" Aeson..= timesheetEntry.workedOn
-                    , "wasApproved" Aeson..= timesheetEntry.isApproved
-                    , "payConfigVersionManifest" Aeson..= payVersionManifestForEntry updatedEntry
-                    , "approvedAt" Aeson..= now
-                    ]
-                )
-        refreshTimesheetDay weekOffset timesheetEntry.workedOn
+        _ <- approveTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
             then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry approved" False False
             else do
@@ -287,35 +198,7 @@ instance Controller TimesheetsController where
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId
 
-        withTransaction do
-            updatedEntry <- timesheetEntry
-                |> set #isApproved False
-                |> set #staffPayVersionId Nothing
-                |> set #shiftTypePayVersionId Nothing
-                |> set #approvedAt Nothing
-                |> set #approvedByUserId Nothing
-                |> updateRecord
-            void $
-                recordCurrentUserTimesheetEntryVersion
-                    (unsafeEnumFromText @EntryVersionActionEnum "unapproved")
-                    updatedEntry
-                    (Aeson.object
-                        [ "previous" Aeson..= timesheetEntrySnapshot timesheetEntry
-                        ]
-                    )
-            void $ recordCurrentUserAuditEvent
-                "timesheet_unapproved"
-                "timesheet_entries"
-                (unpackId (get #id timesheetEntry))
-                (Aeson.object
-                    [ "staffId" Aeson..= timesheetEntry.staffId
-                    , "workedOn" Aeson..= timesheetEntry.workedOn
-                    , "wasApproved" Aeson..= timesheetEntry.isApproved
-                    , "previousApprovedAt" Aeson..= timesheetEntry.approvedAt
-                    , "previousApprovedByUserId" Aeson..= timesheetEntry.approvedByUserId
-                    ]
-                )
-        refreshTimesheetDay weekOffset timesheetEntry.workedOn
+        _ <- unapproveTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
             then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry unapproved" False False
             else do
