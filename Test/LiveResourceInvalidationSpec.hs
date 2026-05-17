@@ -63,8 +63,9 @@ tests = do
         it "plans profile and roster invalidations from staff resources" do
             let staffId = fromWords 3 0 0 0
 
-            planLiveInvalidationsForResources [] (Set.fromList [StaffProfileResource staffId, StaffPreferencesResource staffId])
+            planLiveInvalidationsForResources [] (Set.fromList [StaffProfileResource staffId, StaffPreferencesResource staffId, StaffPayProfileResource staffId])
                 `shouldBe` Set.fromList
                     [ InvalidateProfileContent staffId
                     , InvalidateRosterWeeksForStaff staffId
+                    , InvalidateAdminXeroForStaff staffId
                     ]

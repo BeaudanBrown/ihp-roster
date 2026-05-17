@@ -15,7 +15,8 @@ import Web.Controller.Admin.Support (refreshAdminInvites,
                                      refreshAdminRosterGroups,
                                      refreshAdminShiftTypes)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
-import Web.Controller.Admin.Xero.Responses (refreshAdminXeroPayItems)
+import Web.Controller.Admin.Xero.Responses (refreshAdminXero,
+                                            refreshAdminXeroPayItems)
 import Web.Controller.Prelude
 import Web.LeaveRequests.Projection (broadcastLeaveRequestsInvalidation,
                                      leaveRequestsContentFragmentRefs)
@@ -40,6 +41,7 @@ data PlannedLiveInvalidation
     | InvalidateAdminRosterGroups !UUID
     | InvalidateAdminShiftTypes !UUID
     | InvalidateXeroPayItems !UUID
+    | InvalidateAdminXeroForStaff !UUID
     deriving (Eq, Ord, Show)
 
 leaveRequestsContentDependsOn :: Id Venue -> [LiveResource]
@@ -81,6 +83,8 @@ planLiveInvalidationsForResources activeRosterScopes resources =
             Set.singleton (InvalidateRosterWeeksForStaff staffId)
         planForResource (StaffRosterMembershipResource staffId) =
             Set.singleton (InvalidateRosterWeeksForStaff staffId)
+        planForResource (StaffPayProfileResource staffId) =
+            Set.singleton (InvalidateAdminXeroForStaff staffId)
         planForResource (AdminInvitesResource venueId) =
             Set.singleton (InvalidateAdminInvites venueId)
         planForResource (AdminRosterGroupsResource venueId) =
@@ -140,6 +144,18 @@ performPlannedInvalidation (InvalidateAdminShiftTypes venueId) =
     refreshAdminShiftTypes (Id venueId)
 performPlannedInvalidation (InvalidateXeroPayItems venueId) =
     refreshAdminXeroPayItems venueId
+performPlannedInvalidation (InvalidateAdminXeroForStaff staffId) =
+    refreshAdminXeroForStaff staffId
+
+refreshAdminXeroForStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> IO ()
+refreshAdminXeroForStaff staffId = do
+    maybeStaff <-
+        query @Staff
+            |> filterWhere (#id, Id staffId :: Id Staff)
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOneOrNothing
+    forM_ maybeStaff \staff ->
+        refreshAdminXero (Id staff.venueId)
 
 refreshActiveRosterWeeksForStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> IO ()
 refreshActiveRosterWeeksForStaff staffId = do
