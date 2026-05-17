@@ -1,40 +1,19 @@
 module Web.Controller.Staff where
 
-import Application.Helper.LiveSurface (broadcastSurfaceResync)
-import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupIds,
                                         fetchCurrentVenueRosterGroups,
-                                        fetchStaffRosterGroupIds,
-                                        syncStaffRosterGroupAssignments)
+                                        fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
 import Application.Helper.Url (appendQueryParams)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
-import Control.Monad (void)
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Web.Controller.Prelude
 import Web.RosterWeeks.LiveUpdates (refreshRosterContent)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob)
-import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinition)
+import Web.Staff.Mutations
 import Web.View.Staff.Edit
-
-staffXeroPayItemScopeChanged :: Staff -> Staff -> Bool
-staffXeroPayItemScopeChanged oldStaff newStaff =
-    staffXeroPayItemScope oldStaff /= staffXeroPayItemScope newStaff
-
-staffXeroPayItemScope :: Staff -> Maybe (Id AwardLevel, StaffEmploymentBasisEnum)
-staffXeroPayItemScope staff
-    | staff.isActive && isNothing staff.archivedAt = do
-        awardLevelId <- staff.defaultAwardLevelId
-        pure (awardLevelId, staff.employmentBasis)
-    | otherwise = Nothing
-
-broadcastStaffXeroInvalidation ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    IO ()
-broadcastStaffXeroInvalidation =
-    broadcastSurfaceResync adminXeroLiveSurfaceDefinition ()
 
 instance Controller StaffController where
     beforeAction = do
@@ -116,16 +95,7 @@ instance Controller StaffController where
                                         then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
                                         else render EditView { .. }
                                 Right submittedSelections -> do
-                                    updatedStaff <- withTransaction do
-                                        updatedStaff <- staff |> updateRecord
-                                        syncStaffRosterGroupAssignments updatedStaff selectedRosterGroupIds
-                                        replaceStaffShiftPreferences updatedStaff submittedSelections
-                                        when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
-                                            today <- utctDay <$> getCurrentTime
-                                            void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
-                                        pure updatedStaff
-                                    when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
-                                        broadcastStaffXeroInvalidation
+                                    _ <- updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
                                     let invalidatedRosterGroupIds = nub (previousRosterGroupIds <> selectedRosterGroupIds)
                                     if isHtmxRequest
                                         then do
