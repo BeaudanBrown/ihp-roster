@@ -476,6 +476,7 @@ saveXeroPayrollCalendarSelectionMutation connection calendarStatus maybePayrollC
     invalidateTouchedResources "xero.mapping.payroll_calendar.save" $
         liveMutationResult selection (xeroMappingsTouchedResources (Id connection.venueId))
 
+-- Xero timesheet service modules own their internal writes; this wrapper owns passive invalidation.
 recordXeroTimesheetsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> a -> IO (LiveMutationResult a)
 recordXeroTimesheetsMutation label value =
     invalidateTouchedResources label $

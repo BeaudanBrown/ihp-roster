@@ -23,6 +23,22 @@ lands.
 - Probe scripts are diagnostics; do not make production behavior depend on
   ad hoc probe output.
 
+## Mutation And Live Invalidation Boundary
+
+- `Application/Xero/Timesheets/{Prepare,Preview,Submission}.hs` are internal
+  mutation services: they may write Xero preparation/submission records and
+  perform Xero API orchestration, but they must not broadcast passive live
+  updates directly.
+- `Web/Admin/Xero/Mutations.hs` is the web-facing mutation boundary for Xero
+  admin write flows. It wraps internal Xero services, returns
+  `LiveMutationResult`, and calls touched-resource invalidation.
+- Controllers in `Web/Controller/Admin/Xero/*` should not import Xero
+  preparation/preview/submission services directly, except narrow domain types
+  needed for request parsing.
+- Background Xero jobs that mutate connection state should route passive
+  invalidation through touched resources, not through direct live-surface
+  broadcasts.
+
 ## Timesheet Submission Direction
 
 - Submission must use approved, locked timesheet/pay facts.
