@@ -51,6 +51,8 @@ planLiveInvalidationsForResources activeRosterScopes resources =
                 , activeVenueId == venueId
                 , activeWeekOffset == weekOffset
                 ]
+        planForResource (RosterWeekResource rosterGroupId weekOffset) =
+            Set.singleton (InvalidateRosterWeek rosterGroupId weekOffset)
         planForResource _ =
             Set.empty
 

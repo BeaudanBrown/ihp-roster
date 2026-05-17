@@ -26,10 +26,16 @@ tests = do
                     , InvalidateRosterWeek rosterGroupId 0
                     ]
 
-        it "does not invalidate cold roster weeks" do
+        it "does not invalidate cold roster weeks for leave-calendar resources" do
             let venueId = fromWords 1 0 0 0
             let rosterGroupId = fromWords 4 0 0 0
             let activeScopes = [(venueId, rosterGroupId, 1)]
 
             planLiveInvalidationsForResources activeScopes (Set.singleton (LeaveCalendarResource venueId 0))
                 `shouldBe` Set.empty
+
+        it "plans direct roster week invalidations from roster week resources" do
+            let rosterGroupId = fromWords 4 0 0 0
+
+            planLiveInvalidationsForResources [] (Set.singleton (RosterWeekResource rosterGroupId 0))
+                `shouldBe` Set.singleton (InvalidateRosterWeek rosterGroupId 0)
