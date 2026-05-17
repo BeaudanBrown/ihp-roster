@@ -7,6 +7,7 @@ module Application.Xero.Keepalive
     ) where
 
 import Application.Async.Queue
+import Application.Helper.LiveResource
 import Application.Helper.Xero
 import Application.Xero.Connection
 import Control.Monad (void)
@@ -15,6 +16,7 @@ import qualified Data.Text.IO as TextIO
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
+import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 data XeroKeepaliveSweepSummary = XeroKeepaliveSweepSummary
     { dueConnectionCount :: !Int
@@ -100,7 +102,8 @@ performXeroConnectionKeepaliveJob appJob =
                             Right xeroConfig -> do
                                 refreshResult <- refreshXeroConnectionAccess xeroConfig connection
                                 case refreshResult of
-                                    Right (updatedConnection, _) ->
+                                    Right (updatedConnection, _) -> do
+                                        _ <- invalidateXeroKeepaliveConnection updatedConnection "xero.connection.keepalive.refresh"
                                         completeKeepaliveJob appJob
                                             (Aeson.object
                                                 [ "xeroConnectionId" Aeson..= tshow updatedConnection.id
@@ -111,16 +114,23 @@ performXeroConnectionKeepaliveJob appJob =
                                     Left message -> do
                                         latestConnection <- fetch connection.id
                                         if latestConnection.connectionStatus == "reauthorization_required"
-                                            then completeKeepaliveJob appJob
-                                                (Aeson.object
-                                                    [ "xeroConnectionId" Aeson..= tshow latestConnection.id
-                                                    , "tenantId" Aeson..= latestConnection.tenantId
-                                                    , "refreshed" Aeson..= False
-                                                    , "reauthorizationRequired" Aeson..= True
-                                                    , "message" Aeson..= message
-                                                    ]
-                                                )
+                                            then do
+                                                _ <- invalidateXeroKeepaliveConnection latestConnection "xero.connection.keepalive.reauthorization_required"
+                                                completeKeepaliveJob appJob
+                                                    ( Aeson.object
+                                                        [ "xeroConnectionId" Aeson..= tshow latestConnection.id
+                                                        , "tenantId" Aeson..= latestConnection.tenantId
+                                                        , "refreshed" Aeson..= False
+                                                        , "reauthorizationRequired" Aeson..= True
+                                                        , "message" Aeson..= message
+                                                        ]
+                                                    )
                                             else fail (cs message)
+
+invalidateXeroKeepaliveConnection :: XeroConnection -> Text -> IO (LiveMutationResult XeroConnection)
+invalidateXeroKeepaliveConnection connection label =
+    invalidateTouchedResourcesWithoutContext label $
+        liveMutationResult connection [XeroConnectionResource connection.venueId]
 
 completeKeepaliveJob ::
     (?modelContext :: ModelContext) =>

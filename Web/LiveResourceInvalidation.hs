@@ -1,6 +1,7 @@
 module Web.LiveResourceInvalidation
     ( PlannedLiveInvalidation (..)
     , invalidateTouchedResources
+    , invalidateTouchedResourcesWithoutContext
     , leaveRequestsContentDependsOn
     , planLiveInvalidationsForResources
     , profileLeaveRequestsDependsOn
@@ -8,7 +9,8 @@ module Web.LiveResourceInvalidation
     ) where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveSurface (broadcastSurfaceResync)
+import Application.Helper.LiveSurface (broadcastSurfaceResync,
+                                       broadcastSurfaceResyncWithoutContext)
 import Application.Helper.LiveUpdate (activeRosterWeekScopes)
 import qualified Data.Set as Set
 import Data.UUID (UUID)
@@ -33,6 +35,7 @@ import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
                                   timesheetDaySectionFragments)
 import Web.View.Admin.Invites (AdminInvitesSurfaceKey (..),
                                adminInvitesLiveSurfaceDefinitionForVenue)
+import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinitionForVenue)
 
 data PlannedLiveInvalidation
     = InvalidateLeaveRequests
@@ -125,6 +128,14 @@ invalidateTouchedResources label result = do
     forM_ (Set.toAscList plannedInvalidations) performPlannedInvalidation
     pure observed
 
+invalidateTouchedResourcesWithoutContext :: Text -> LiveMutationResult a -> IO (LiveMutationResult a)
+invalidateTouchedResourcesWithoutContext label result = do
+    observed <- recordLiveMutationDiagnostics label result
+    activeRosterScopes <- activeRosterWeekScopes
+    let plannedInvalidations = planLiveInvalidationsForResources activeRosterScopes (liveMutationTouchedResources observed)
+    forM_ (Set.toAscList plannedInvalidations) performPlannedInvalidationWithoutContext
+    pure observed
+
 suppressTimesheetWeekWhenDaysPresent :: Set.Set PlannedLiveInvalidation -> Set.Set PlannedLiveInvalidation
 suppressTimesheetWeekWhenDaysPresent planned =
     Set.filter shouldKeep planned
@@ -175,6 +186,15 @@ performPlannedInvalidation (InvalidateAdminXero venueId) =
     refreshAdminXero (Id venueId)
 performPlannedInvalidation (InvalidateAdminXeroForStaff staffId) =
     refreshAdminXeroForStaff staffId
+
+performPlannedInvalidationWithoutContext :: PlannedLiveInvalidation -> IO ()
+performPlannedInvalidationWithoutContext (InvalidateAdminXero venueId) =
+    broadcastSurfaceResyncWithoutContext
+        (adminXeroLiveSurfaceDefinitionForVenue venueId)
+        ()
+        Nothing
+performPlannedInvalidationWithoutContext _ =
+    pure ()
 
 refreshAdminInvitesForVenue :: (?context :: ControllerContext, ?request :: Request) => UUID -> IO ()
 refreshAdminInvitesForVenue venueId =
