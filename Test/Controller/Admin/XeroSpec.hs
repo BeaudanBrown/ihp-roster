@@ -37,7 +37,8 @@ import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
 import qualified Test.XeroTimesheetPreviewSpec as Preview
-import Web.Admin.Xero.Mutations (xeroPayItemsTouchedResources)
+import Web.Admin.Xero.Mutations (xeroPayItemsTouchedResources,
+                                 xeroReferenceSyncTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -87,6 +88,16 @@ tests = beforeAll testContext do
 
                 Set.fromList (xeroPayItemsTouchedResources venue.id)
                     `shouldBe` Set.fromList [XeroPayItemsResource (unpackId venue.id)]
+
+        it "records touched resources for Xero reference sync mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Reference Touch Venue"
+
+                Set.fromList (xeroReferenceSyncTouchedResources venue.id)
+                    `shouldBe` Set.fromList
+                        [ XeroConnectionResource (unpackId venue.id)
+                        , XeroMappingsResource (unpackId venue.id)
+                        ]
 
         it "decodes Xero payroll calendar dates from API date wrappers" $ withContext do
             let decoded =
