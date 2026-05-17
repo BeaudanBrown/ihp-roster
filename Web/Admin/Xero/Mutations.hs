@@ -6,8 +6,8 @@ module Web.Admin.Xero.Mutations
     ) where
 
 import Application.Helper.LiveResource
-import Web.Controller.Admin.Xero.Responses (refreshAdminXeroPayItems)
 import Web.Controller.Prelude
+import Web.LiveResourceInvalidation (invalidateTouchedResources)
 
 createRunningXeroPayItemSyncRunMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> UTCTime -> IO (LiveMutationResult XeroSyncRun)
 createRunningXeroPayItemSyncRunMutation connection now = do
@@ -18,8 +18,7 @@ createRunningXeroPayItemSyncRunMutation connection now = do
         |> set #syncKind ("pay_item_create" :: Text)
         |> set #startedAt now
         |> createRecord
-    refreshAdminXeroPayItems connection.venueId
-    pure (liveMutationResult syncRun (xeroPayItemsTouchedResources (Id connection.venueId)))
+    invalidateTouchedResources "xero.pay_items.sync.start" (liveMutationResult syncRun (xeroPayItemsTouchedResources (Id connection.venueId)))
 
 completeXeroPayItemSyncMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroSyncRun -> Int -> IO (LiveMutationResult XeroSyncRun)
 completeXeroPayItemSyncMutation syncRun verifiedCount = do
@@ -29,8 +28,7 @@ completeXeroPayItemSyncMutation syncRun verifiedCount = do
         |> set #earningsRatesCount verifiedCount
         |> set #finishedAt (Just now)
         |> updateRecord
-    refreshAdminXeroPayItems (unpackId currentVenueId)
-    pure (liveMutationResult updated (xeroPayItemsTouchedResources currentVenueId))
+    invalidateTouchedResources "xero.pay_items.sync.complete" (liveMutationResult updated (xeroPayItemsTouchedResources currentVenueId))
 
 failXeroPayItemSyncMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroSyncRun -> Int -> Text -> IO (LiveMutationResult XeroSyncRun)
 failXeroPayItemSyncMutation syncRun verifiedCount message = do
@@ -41,8 +39,7 @@ failXeroPayItemSyncMutation syncRun verifiedCount message = do
         |> set #errorMessage (Just message)
         |> set #finishedAt (Just now)
         |> updateRecord
-    refreshAdminXeroPayItems (unpackId currentVenueId)
-    pure (liveMutationResult updated (xeroPayItemsTouchedResources currentVenueId))
+    invalidateTouchedResources "xero.pay_items.sync.fail" (liveMutationResult updated (xeroPayItemsTouchedResources currentVenueId))
 
 xeroPayItemsTouchedResources :: Id Venue -> [LiveResource]
 xeroPayItemsTouchedResources venueId =

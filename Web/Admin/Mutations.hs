@@ -28,8 +28,8 @@ import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Control.Monad (void)
 import Data.Time.Clock (addUTCTime, getCurrentTime, utctDay)
 import Web.Controller.Admin.Support
-import Web.Controller.Admin.Xero.Responses (refreshAdminXero)
 import Web.Controller.Prelude
+import Web.LiveResourceInvalidation (invalidateTouchedResources)
 
 data AdminShiftTypeMutationResult = AdminShiftTypeMutationResult
     { adminShiftTypeMutationShiftType         :: !ShiftType
@@ -41,14 +41,14 @@ setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled = do
     updated <- venueConfig
         |> set #rosterEndTimesEnabled rosterEndTimesEnabled
         |> updateRecord
-    pure (liveMutationResult updated (adminVenueConfigTouchedResources currentVenueId))
+    invalidateTouchedResources "admin.venue_config.roster_end_times" (liveMutationResult updated (adminVenueConfigTouchedResources currentVenueId))
 
 setAutoTimesheetCreationEnabledMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Bool -> IO (LiveMutationResult VenueConfig)
 setAutoTimesheetCreationEnabledMutation venueConfig autoTimesheetCreationEnabled = do
     updated <- venueConfig
         |> set #autoTimesheetCreationEnabled autoTimesheetCreationEnabled
         |> updateRecord
-    pure (liveMutationResult updated (adminVenueConfigTouchedResources currentVenueId))
+    invalidateTouchedResources "admin.venue_config.auto_timesheets" (liveMutationResult updated (adminVenueConfigTouchedResources currentVenueId))
 
 setRosterWeekStartsOnMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> IO (LiveMutationResult VenueConfig)
 setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
@@ -57,7 +57,7 @@ setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
             |> set #rosterWeekStartsOn rosterWeekStartsOn
             |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
             |> updateRecord
-    pure (liveMutationResult updated (adminVenueConfigTouchedResources currentVenueId))
+    invalidateTouchedResources "admin.venue_config.week_start" (liveMutationResult updated (adminVenueConfigTouchedResources currentVenueId))
 
 adminVenueConfigTouchedResources :: Id Venue -> [LiveResource]
 adminVenueConfigTouchedResources venueId =
@@ -75,17 +75,15 @@ createVenueInvitationMutation email = do
         |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
         |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
         |> createRecord
-    refreshAdminInvites currentVenueId
     void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
-    pure (liveMutationResult invitation [AdminInvitesResource (unpackId currentVenueId)])
+    invalidateTouchedResources "admin.invite.create" (liveMutationResult invitation [AdminInvitesResource (unpackId currentVenueId)])
 
 revokeVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueInvitation -> IO (LiveMutationResult VenueInvitation)
 revokeVenueInvitationMutation invitation = do
     updated <- invitation
         |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
         |> updateRecord
-    refreshAdminInvites currentVenueId
-    pure (liveMutationResult updated [AdminInvitesResource (unpackId currentVenueId)])
+    invalidateTouchedResources "admin.invite.revoke" (liveMutationResult updated [AdminInvitesResource (unpackId currentVenueId)])
 
 ensureAdminRosterGroupsNormalizedMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (LiveMutationResult ())
 ensureAdminRosterGroupsNormalizedMutation = do
@@ -97,8 +95,7 @@ createRosterGroupMutation venue name isActive = do
     sortOrder <- nextRosterGroupSortOrder
     rosterGroup <- createVenueRosterGroupWithDefaults venue name sortOrder isActive
     syncVenueDefaultRosterGroupToTopActive currentVenueId
-    refreshAdminRosterGroups currentVenueId
-    pure (liveMutationResult rosterGroup [AdminRosterGroupsResource (unpackId currentVenueId)])
+    invalidateTouchedResources "admin.roster_group.create" (liveMutationResult rosterGroup [AdminRosterGroupsResource (unpackId currentVenueId)])
 
 updateRosterGroupMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Venue -> RosterGroup -> Text -> Bool -> IO (LiveMutationResult RosterGroup)
 updateRosterGroupMutation venue rosterGroup name isActive = do
@@ -115,16 +112,14 @@ updateRosterGroupMutation venue rosterGroup name isActive = do
         _ <- ensureDefaultRosterSlots venue updatedRosterGroup
         pure ()
     syncVenueDefaultRosterGroupToTopActive currentVenueId
-    refreshAdminRosterGroups currentVenueId
-    pure (liveMutationResult updatedRosterGroup [AdminRosterGroupsResource (unpackId currentVenueId)])
+    invalidateTouchedResources "admin.roster_group.update" (liveMutationResult updatedRosterGroup [AdminRosterGroupsResource (unpackId currentVenueId)])
 
 moveRosterGroupMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterGroup -> Int -> IO (LiveMutationResult ())
 moveRosterGroupMutation _rosterGroup direction = do
     withTransaction do
         reorderActiveRosterGroups _rosterGroup.id direction
         syncVenueDefaultRosterGroupToTopActive currentVenueId
-    refreshAdminRosterGroups currentVenueId
-    pure (liveMutationResult () [AdminRosterGroupsResource (unpackId currentVenueId)])
+    invalidateTouchedResources "admin.roster_group.move" (liveMutationResult () [AdminRosterGroupsResource (unpackId currentVenueId)])
 
 createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> IO (LiveMutationResult AdminShiftTypeMutationResult)
 createShiftTypeMutation name isActive overrideAwardLevelId = do
@@ -141,8 +136,7 @@ createShiftTypeMutation name isActive overrideAwardLevelId = do
         _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
         pure shiftType
     let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
-    refreshShiftTypeSurfaces shouldRefreshXero
-    pure (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources shouldRefreshXero))
+    invalidateTouchedResources "admin.shift_type.create" (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources shouldRefreshXero))
 
 updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> IO (LiveMutationResult AdminShiftTypeMutationResult)
 updateShiftTypeMutation shiftType name isActive overrideAwardLevelId = do
@@ -163,22 +157,14 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId = do
             pure ()
         pure updated
     let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
-    refreshShiftTypeSurfaces shouldRefreshXero
-    pure (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) (shiftTypeTouchedResources shouldRefreshXero))
+    invalidateTouchedResources "admin.shift_type.update" (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) (shiftTypeTouchedResources shouldRefreshXero))
 
 moveShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Int -> IO (LiveMutationResult ())
 moveShiftTypeMutation shiftType direction = do
     withTransaction do
         reorderActiveShiftTypes shiftType.id direction
         pure ()
-    refreshAdminShiftTypes currentVenueId
-    pure (liveMutationResult () [AdminShiftTypesResource (unpackId currentVenueId)])
-
-refreshShiftTypeSurfaces :: (?context :: ControllerContext, ?request :: Request) => Bool -> IO ()
-refreshShiftTypeSurfaces shouldRefreshXero = do
-    refreshAdminShiftTypes currentVenueId
-    when shouldRefreshXero do
-        refreshAdminXero currentVenueId
+    invalidateTouchedResources "admin.shift_type.move" (liveMutationResult () [AdminShiftTypesResource (unpackId currentVenueId)])
 
 shiftTypeTouchedResources :: (?context :: ControllerContext) => Bool -> [LiveResource]
 shiftTypeTouchedResources shouldRefreshXero =
