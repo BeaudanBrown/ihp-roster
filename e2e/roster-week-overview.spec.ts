@@ -1,12 +1,11 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs } from './test-helpers';
+import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 test.describe('Roster week overview', () => {
     test('shows month data for another week and counts assigned shifts correctly', async ({ page }) => {
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, e2eRosterPath, '#roster-week-shell');
+        await openRoster(page);
         await expect(page.locator('[data-week-overview-fragment-mount="true"] [data-week-overview-loaded="true"]')).toHaveCount(1);
 
         await page.getByRole('button', { name: 'Open roster week overview' }).click();
@@ -46,8 +45,7 @@ test.describe('Roster week overview', () => {
     });
 
     test('exports the live roster as a jpg from the roster actions menu', async ({ page }) => {
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, e2eRosterPath, '#roster-week-shell');
+        await openRoster(page);
 
         await page.getByRole('button', { name: 'Roster actions' }).click();
         const exportButton = page.getByRole('button', { name: 'Export JPG' });
@@ -59,8 +57,7 @@ test.describe('Roster week overview', () => {
     });
 
     test('keeps the desktop roster grid fitted without page-level horizontal scrolling', async ({ page }) => {
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, e2eRosterPath, '#roster-week-shell');
+        await openRoster(page);
 
         const metrics = await page.locator('.roster-grid-frame').first().evaluate((frame) => {
             if (!(frame instanceof HTMLElement)) {

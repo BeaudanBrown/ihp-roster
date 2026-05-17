@@ -1,13 +1,10 @@
 import { test, expect } from '@playwright/test';
-import { addRowToFirstRosterDay, gotoWhenReady, loginAs } from './test-helpers';
+import { addRowToFirstRosterDay, openRoster } from './test-helpers';
 import { attachRosterMobileDiagnostics, expectRosterMobileLayoutStable } from './roster-mobile-diagnostics';
-
-const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 test.describe('Roster mobile screenshots', () => {
     test('captures the main roster mobile states for visual review', async ({ page }, testInfo) => {
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, e2eRosterPath, '.roster-grid');
+        await openRoster(page);
         await expect(page.locator('#roster-week-shell')).toBeVisible();
         await expectRosterMobileLayoutStable(page);
         await attachRosterMobileDiagnostics(page, testInfo, 'initial');

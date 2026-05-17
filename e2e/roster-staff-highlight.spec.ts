@@ -1,5 +1,5 @@
 import { test, expect, Page } from '@playwright/test';
-import { openRoster } from './test-helpers';
+import { ensureRosterLayout, openRoster } from './test-helpers';
 
 type GridSlotMetrics = {
     slotCellCount: number;
@@ -39,14 +39,7 @@ async function assignFirstSlotToStaff(page: Page, staffId: string) {
 }
 
 async function chooseRosterLayout(page: Page, layoutMode: 'day_rows' | 'day_columns') {
-    await page.getByRole('button', { name: 'Roster actions' }).click();
-    await page.locator(`label[for="roster-layout-mode-${layoutMode}"]`).click();
-
-    if (layoutMode === 'day_columns') {
-        await expect(page.locator('.roster-day-columns')).toBeVisible();
-    } else {
-        await expect(page.locator('.roster-grid-frame[data-roster-layout="day_rows"]')).toBeVisible();
-    }
+    await ensureRosterLayout(page, layoutMode);
 }
 
 async function hoverStaffRow(page: Page, staffId: string) {
@@ -60,7 +53,9 @@ async function toggleLocateShifts(page: Page, staffId: string) {
     const staffRow = page.locator(`.roster-staff-panel-entry[data-roster-staff-id="${staffId}"]`).first();
     await expect(staffRow).toBeVisible();
 
-    const locateButton = staffRow.getByRole('button', { name: /Locate shifts for/ });
+    const locateButton = staffRow.locator('[data-roster-staff-highlight-toggle="true"]');
+    await staffRow.hover();
+    await expect(locateButton).toBeVisible();
     await locateButton.click();
     await expect(locateButton).toHaveAttribute('aria-pressed', 'true');
 }
@@ -94,6 +89,8 @@ async function gridSlotMetrics(page: Page, staffId: string): Promise<GridSlotMet
 }
 
 test.describe('Roster staff shift highlight', () => {
+    test.use({ viewport: { width: 1440, height: 900 } });
+
     test('highlights the assigned slot outline in the row grid without changing cell borders', async ({ page }) => {
         await openRoster(page, { email: 'e2e-test@example.com' });
         await chooseRosterLayout(page, 'day_rows');

@@ -245,7 +245,7 @@ export async function registerFirstSupportPasskeyForCurrentUser(page: Page) {
 }
 
 function currentPasskeyManagement(page: Page) {
-    return page.locator('.js-passkey-register').locator('xpath=ancestor::div[contains(@class, "app-form-width")][1]');
+    return page.locator('[data-passkey-management="true"]').first();
 }
 
 export async function openProfileSecuritySection(page: Page) {
@@ -327,6 +327,8 @@ export async function openNewLeaveRequestDialog(page: Page) {
     await expect(page.locator('#leave-request-form')).toBeVisible();
 }
 
+type RosterLayoutMode = 'day_rows' | 'day_columns';
+
 type OpenRosterOptions = {
     email?: string;
     password?: string;
@@ -335,7 +337,29 @@ type OpenRosterOptions = {
     maxWeekAdvances?: number;
     ensureDraft?: boolean;
     ensureEditable?: boolean;
+    rosterLayoutMode?: RosterLayoutMode;
 };
+
+export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMode = 'day_rows') {
+    const frame = page.locator('.roster-grid-frame').first();
+    await expect(frame).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+
+    if ((await frame.getAttribute('data-roster-layout')) !== layoutMode) {
+        const menu = page.locator('.app-action-menu').filter({ has: page.locator('.roster-layout-mode-group') }).first();
+        if (!(await menu.isVisible().catch(() => false))) {
+            await page.getByRole('button', { name: 'Roster actions' }).click();
+        }
+        await expect(menu).toBeVisible({ timeout: E2E_TIMEOUT.action });
+        await menu.locator(`label[for="roster-layout-mode-${layoutMode}"]`).click();
+        await expect(frame).toHaveAttribute('data-roster-layout', layoutMode, { timeout: E2E_TIMEOUT.assertion });
+    }
+
+    if (layoutMode === 'day_rows') {
+        await expect(page.locator('.roster-grid')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+    } else {
+        await expect(page.locator('.roster-day-columns')).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
+    }
+}
 
 export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
     const {
@@ -346,6 +370,7 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
         maxWeekAdvances = 4,
         ensureDraft = true,
         ensureEditable = true,
+        rosterLayoutMode = 'day_rows',
     } = options;
 
     await loginAs(page, email, password);
@@ -356,12 +381,13 @@ export async function openRoster(page: Page, options: OpenRosterOptions = {}) {
             weekOffset: String(weekOffset),
             rosterGroupId,
         }).toString()}`,
-        '.roster-grid',
+        '.roster-grid-frame',
     );
     await expect(page.locator('#roster-content')).toBeVisible();
+    await ensureRosterLayout(page, rosterLayoutMode);
 
     for (let step = 0; step <= maxWeekAdvances; step += 1) {
-        await expect(page.locator('.roster-grid')).toBeVisible();
+        await expect(page.locator('.roster-grid-frame')).toBeVisible();
 
         if (!ensureEditable) {
             return;

@@ -1,10 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAs, webauthnBaseURL } from './test-helpers';
+import { openRoster, webauthnBaseURL } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
-
-const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 test.describe('Roster week columns', () => {
     test('manager can add and delete a draft-week spacing column with live refresh', async ({ browser }) => {
@@ -13,10 +11,8 @@ test.describe('Roster week columns', () => {
         const editorPage = await editorContext.newPage();
         const viewerPage = await viewerContext.newPage();
 
-        await loginAs(editorPage, 'e2e-test@example.com', 'test-password-123');
-        await loginAs(viewerPage, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(editorPage, e2eRosterPath, '.roster-grid');
-        await gotoWhenReady(viewerPage, e2eRosterPath, '.roster-grid');
+        await openRoster(editorPage);
+        await openRoster(viewerPage);
         await expect(editorPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
         await expect(viewerPage.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 

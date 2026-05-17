@@ -14,7 +14,7 @@ renderPasskeyManagement =
 
 renderPasskeyManagementWithAddButton :: Bool -> [Passkey] -> Text -> Html
 renderPasskeyManagementWithAddButton canAddPasskey passkeys successRedirect = [hsx|
-    <div class="app-form-width">
+    <div class="app-form-width" data-passkey-management="true">
         {renderPasskeyRegistrationAction canAddPasskey successRedirect}
         <div class="mt-4">
             {renderPasskeyTable passkeys}

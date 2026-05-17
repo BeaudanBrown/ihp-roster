@@ -9,6 +9,7 @@ import {
     openNewLeaveRequestDialog,
     loginAsPrivilegedUserWithFreshPasskey,
     openAuthenticatedNavIfCollapsed,
+    openRoster,
     webauthnBaseURL,
 } from './test-helpers';
 
@@ -155,7 +156,7 @@ test.describe('Mobile experience smoke', () => {
     });
 
     test('roster creator remains usable on a narrow viewport without leaking page-level overflow', async ({ page }) => {
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await openRoster(page);
         await expect(page.locator('.roster-grid')).toBeVisible();
 
         const firstDaySection = page.locator('[data-roster-day-section]').first();

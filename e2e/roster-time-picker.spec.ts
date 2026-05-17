@@ -13,6 +13,20 @@ async function loginAndOpenRoster(page) {
     }
 }
 
+async function waitForRosterSlotMutation(page) {
+    const response = await page.waitForResponse((candidate) => {
+        const url = new URL(candidate.url());
+        return candidate.request().method() === 'POST' && /\/(Create|Update)RosterSlot$/.test(url.pathname);
+    }, { timeout: E2E_TIMEOUT.assertion });
+    expect(response.status(), await response.text()).toBe(200);
+}
+
+async function clickAndWaitForRosterSlotMutation(page, clickTarget) {
+    const mutationResponse = waitForRosterSlotMutation(page);
+    await clickTarget.click();
+    await mutationResponse;
+}
+
 async function addFreshRowAndGetFirstTimeField(page) {
     const firstDaySection = page.locator('[data-roster-day-section="true"]').first();
     const editableRows = editableRosterRows(firstDaySection);
@@ -47,7 +61,10 @@ test.describe('Roster Time Picker', () => {
         await expect(page.locator(modalSelector)).toBeVisible();
         await expect(page.locator(`${modalSelector} .js-time-picker-option`)).toHaveCount(92);
 
-        await page.locator(`${modalSelector} .js-time-picker-option[data-time-value="13:15"]`).click();
+        await clickAndWaitForRosterSlotMutation(
+            page,
+            page.locator(`${modalSelector} .js-time-picker-option[data-time-value="13:15"]`),
+        );
 
         await expect(page.locator(modalSelector)).toBeHidden();
         await expect(firstField.locator('.js-time-picker-label')).toHaveText('1:15 PM');
@@ -68,7 +85,10 @@ test.describe('Roster Time Picker', () => {
         const clearButton = page.locator(`${modalSelector} .js-time-picker-clear`);
 
         await trigger.click();
-        await page.locator(`${modalSelector} .js-time-picker-option[data-time-value="06:30"]`).click();
+        await clickAndWaitForRosterSlotMutation(
+            page,
+            page.locator(`${modalSelector} .js-time-picker-option[data-time-value="06:30"]`),
+        );
         await expect(modal).toBeHidden();
         await expect(firstField.locator('.js-time-picker-label')).toHaveText('6:30 AM');
         await expect(firstField.locator('.js-time-picker-input')).toHaveValue('06:30');
@@ -76,7 +96,7 @@ test.describe('Roster Time Picker', () => {
         await trigger.click();
         await expect(modal).toBeVisible();
         await expect(clearButton).toBeVisible();
-        await clearButton.click();
+        await clickAndWaitForRosterSlotMutation(page, clearButton);
 
         await expect(modal).toBeHidden();
         await expect(firstField.locator('.js-time-picker-label')).toHaveText('Time');

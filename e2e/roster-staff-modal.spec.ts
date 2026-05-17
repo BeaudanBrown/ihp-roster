@@ -23,10 +23,11 @@ test.describe('Roster Staff Modal', () => {
         await expect(modalMount.locator('[data-dialog-overlay="true"]')).toBeVisible();
         await expect(modalMount).toContainText('Edit Staff Member');
 
-        const firstNameField = modalMount.locator('#firstName');
-        const lastNameField = modalMount.locator('#lastName');
-        const formAction = await modalMount.locator('form').getAttribute('action');
-        const weekOffset = await modalMount.locator('input[name="weekOffset"]').inputValue();
+        const staffEditForm = modalMount.locator('#staff-edit-form');
+        const firstNameField = staffEditForm.locator('#firstName');
+        const lastNameField = staffEditForm.locator('#lastName');
+        const formAction = await staffEditForm.getAttribute('action');
+        const weekOffset = await staffEditForm.locator('input[name="weekOffset"]').inputValue();
 
         const validationResponse = await page.evaluate(
             async ({ action, currentWeekOffset }) => {

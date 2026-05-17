@@ -96,9 +96,10 @@ test.describe('Venue owner onboarding invites', () => {
         await ownerPage.getByRole('button', { name: 'Create Account And Venue' }).click();
 
         await expect(ownerPage).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
-        await expect(ownerPage.locator('#profile-content-fragment')).toContainText(
-            'Shift preferences will appear once this staff member is assigned to at least one roster group.',
-        );
+        const preferenceLabels = await ownerPage
+            .locator('[data-shift-preference-window] .shift-preference-table__available label span:not(.visually-hidden)')
+            .allTextContents();
+        expect(preferenceLabels.slice(0, 7)).toEqual(['Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon']);
 
         await gotoWhenReady(ownerPage, inviteUrl, 'body');
         await expect(ownerPage.locator('body')).toContainText('Invitation Required');

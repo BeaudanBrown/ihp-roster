@@ -499,12 +499,11 @@
 }
 
 .roster-staff-action {
-    display: none;
     text-align: right;
 }
 
 .roster-staff-action-head {
-    display: none;
+    text-align: right;
 }
 
 .roster-staff-locate-button {

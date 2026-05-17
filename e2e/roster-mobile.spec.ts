@@ -5,16 +5,12 @@ import {
     expectNoHorizontalViewportOverflow,
     firstRosterDayAddButton,
     firstRosterDayRemoveButton,
-    gotoWhenReady,
-    loginAs,
+    openRoster,
 } from './test-helpers';
-
-const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
 test.describe('Roster mobile baseline', () => {
     test.beforeEach(async ({ page }) => {
-        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
-        await gotoWhenReady(page, e2eRosterPath, '.roster-grid');
+        await openRoster(page);
         await expect(page.locator('#roster-week-shell')).toBeVisible();
         await expect(page.locator('#roster-content')).toBeVisible();
         await expect(page.locator('.roster-grid')).toBeVisible();

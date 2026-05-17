@@ -36,9 +36,9 @@ test.describe('Roster staff panel sorting', () => {
     test('sorts by name, role, and shifts with asc/desc toggles', async ({ page }) => {
         await loginAndOpenRoster(page);
 
-        const sortByName = page.getByRole('button', { name: 'Name' });
-        const sortByRole = page.getByRole('button', { name: 'Role' });
-        const sortByShifts = page.getByRole('button', { name: 'Shifts' });
+        const sortByName = page.locator('button[data-roster-staff-sort-key="name"]');
+        const sortByRole = page.locator('button[data-roster-staff-sort-key="role"]');
+        const sortByShifts = page.locator('button[data-roster-staff-sort-key="shifts"]');
 
         const baselineRows = await readPanelRows(page);
 

@@ -2,10 +2,11 @@ import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
 import { addRowToRosterDay, firstEditableRosterDaySection, openRoster } from './test-helpers';
 
-const duplicateConflictWeekOffset = 37;
+const actorDuplicateConflictWeekOffset = 137;
+const multiviewDuplicateConflictWeekOffset = 138;
 
-async function loginAndOpenRoster(page) {
-    await openRoster(page, { weekOffset: duplicateConflictWeekOffset });
+async function loginAndOpenRoster(page, weekOffset = actorDuplicateConflictWeekOffset) {
+    await openRoster(page, { weekOffset });
 }
 
 function editableRosterRows(page) {
@@ -75,12 +76,9 @@ test.describe('Roster duplicate conflicts', () => {
         await normalizeRosterForDuplicateConflict(page);
 
         const alphaCrewStaffId = 'a1000000-0000-0000-0000-000000000031';
-        const duplicateTargetRow = editableRosterRows(page).nth(1);
-        const duplicateTargetSelect = duplicateTargetRow.locator('select[name="staffId"]').first();
         const initialConflictCount = await duplicateConflictCells(page).count();
 
-        await duplicateTargetSelect.selectOption(alphaCrewStaffId);
-        await expect(duplicateTargetSelect).toHaveValue(alphaCrewStaffId);
+        await assignStaffToRow(page, 1, alphaCrewStaffId);
         await blurActiveRosterInput(page);
         await expect
             .poll(async () => duplicateConflictCells(page).count(), { timeout: E2E_TIMEOUT.liveUpdate })
@@ -93,10 +91,10 @@ test.describe('Roster duplicate conflicts', () => {
         const actorPage = await actorContext.newPage();
         const viewerPage = await viewerContext.newPage();
 
-        await loginAndOpenRoster(actorPage);
+        await loginAndOpenRoster(actorPage, multiviewDuplicateConflictWeekOffset);
         await normalizeRosterForDuplicateConflict(actorPage);
 
-        await loginAndOpenRoster(viewerPage);
+        await loginAndOpenRoster(viewerPage, multiviewDuplicateConflictWeekOffset);
         await expect
             .poll(async () => editableRosterRows(viewerPage).count())
             .toBeGreaterThanOrEqual(2);

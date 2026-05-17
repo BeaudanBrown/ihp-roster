@@ -1,6 +1,6 @@
 import { expect, Page, test } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { addRowToFirstRosterDay, editableRosterRows, gotoWhenReady, loginAs, openProfileLeaveSection, runSql, setFlatpickrDate } from './test-helpers';
+import { addRowToFirstRosterDay, editableRosterRows, gotoWhenReady, loginAs, openProfileLeaveSection, openRoster, runSql, setFlatpickrDate } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -23,8 +23,7 @@ async function loginWorker(page) {
 }
 
 async function loginAndOpenRoster(page) {
-    await loginManager(page);
-    await gotoWhenReady(page, e2eRosterPath, '.roster-grid');
+    await openRoster(page, { email: managerCreds.email, password: managerCreds.password });
     await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
 }
 
