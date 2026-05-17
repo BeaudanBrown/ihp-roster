@@ -39,3 +39,15 @@ tests = do
 
             planLiveInvalidationsForResources [] (Set.singleton (RosterWeekResource rosterGroupId 0))
                 `shouldBe` Set.singleton (InvalidateRosterWeek rosterGroupId 0)
+
+        it "plans admin and Xero invalidations from admin resources" do
+            let venueId = fromWords 1 0 0 0
+            let resources = Set.fromList [AdminInvitesResource venueId, AdminRosterGroupsResource venueId, AdminShiftTypesResource venueId, XeroPayItemsResource venueId]
+
+            planLiveInvalidationsForResources [] resources
+                `shouldBe` Set.fromList
+                    [ InvalidateAdminInvites venueId
+                    , InvalidateAdminRosterGroups venueId
+                    , InvalidateAdminShiftTypes venueId
+                    , InvalidateXeroPayItems venueId
+                    ]

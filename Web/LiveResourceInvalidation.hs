@@ -11,6 +11,10 @@ import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate (activeRosterWeekScopes)
 import qualified Data.Set as Set
 import Data.UUID (UUID)
+import Web.Controller.Admin.Support (refreshAdminInvites,
+                                     refreshAdminRosterGroups,
+                                     refreshAdminShiftTypes)
+import Web.Controller.Admin.Xero.Responses (refreshAdminXeroPayItems)
 import Web.Controller.Prelude
 import Web.LeaveRequests.Projection (broadcastLeaveRequestsInvalidation,
                                      leaveRequestsContentFragmentRefs)
@@ -22,6 +26,10 @@ data PlannedLiveInvalidation
     = InvalidateLeaveRequests
     | InvalidateProfileLeaveRequests !UUID
     | InvalidateRosterWeek !UUID !Int
+    | InvalidateAdminInvites !UUID
+    | InvalidateAdminRosterGroups !UUID
+    | InvalidateAdminShiftTypes !UUID
+    | InvalidateXeroPayItems !UUID
     deriving (Eq, Ord, Show)
 
 leaveRequestsContentDependsOn :: Id Venue -> [LiveResource]
@@ -53,6 +61,14 @@ planLiveInvalidationsForResources activeRosterScopes resources =
                 ]
         planForResource (RosterWeekResource rosterGroupId weekOffset) =
             Set.singleton (InvalidateRosterWeek rosterGroupId weekOffset)
+        planForResource (AdminInvitesResource venueId) =
+            Set.singleton (InvalidateAdminInvites venueId)
+        planForResource (AdminRosterGroupsResource venueId) =
+            Set.singleton (InvalidateAdminRosterGroups venueId)
+        planForResource (AdminShiftTypesResource venueId) =
+            Set.singleton (InvalidateAdminShiftTypes venueId)
+        planForResource (XeroPayItemsResource venueId) =
+            Set.singleton (InvalidateXeroPayItems venueId)
         planForResource _ =
             Set.empty
 
@@ -71,3 +87,11 @@ performPlannedInvalidation (InvalidateProfileLeaveRequests staffId) =
     refreshProfileLeaveRequestsForStaffId staffId
 performPlannedInvalidation (InvalidateRosterWeek rosterGroupId weekOffset) =
     refreshRosterFragments (Id rosterGroupId) weekOffset rosterContentAndStaffPanelFragments
+performPlannedInvalidation (InvalidateAdminInvites venueId) =
+    refreshAdminInvites (Id venueId)
+performPlannedInvalidation (InvalidateAdminRosterGroups venueId) =
+    refreshAdminRosterGroups (Id venueId)
+performPlannedInvalidation (InvalidateAdminShiftTypes venueId) =
+    refreshAdminShiftTypes (Id venueId)
+performPlannedInvalidation (InvalidateXeroPayItems venueId) =
+    refreshAdminXeroPayItems venueId
