@@ -1,8 +1,10 @@
 module Web.Staff.Mutations
-    ( staffXeroPayItemScopeChanged
+    ( staffUpdateTouchedResources
+    , staffXeroPayItemScopeChanged
     , updateStaffMember
     ) where
 
+import Application.Helper.LiveResource
 import Application.Helper.LiveSurface (broadcastSurfaceResync)
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (syncStaffRosterGroupAssignments)
@@ -24,7 +26,7 @@ staffXeroPayItemScope staff
         pure (awardLevelId, staff.employmentBasis)
     | otherwise = Nothing
 
-updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> IO Staff
+updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> IO (LiveMutationResult Staff)
 updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections = do
     updatedStaff <- withTransaction do
         updatedStaff <- staff |> updateRecord
@@ -34,6 +36,15 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
             today <- utctDay <$> getCurrentTime
             void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
         pure updatedStaff
-    when (staffXeroPayItemScopeChanged originalStaff updatedStaff) do
+    let payScopeChanged = staffXeroPayItemScopeChanged originalStaff updatedStaff
+    when payScopeChanged do
         broadcastSurfaceResync adminXeroLiveSurfaceDefinition ()
-    pure updatedStaff
+    pure (liveMutationResult updatedStaff (staffUpdateTouchedResources payScopeChanged updatedStaff))
+
+staffUpdateTouchedResources :: Bool -> Staff -> [LiveResource]
+staffUpdateTouchedResources payScopeChanged staff =
+    [ StaffProfileResource (unpackId staff.id)
+    , StaffPreferencesResource (unpackId staff.id)
+    , StaffRosterMembershipResource (unpackId staff.id)
+    ]
+        <> [StaffPayProfileResource (unpackId staff.id) | payScopeChanged]

@@ -16,6 +16,8 @@ data LiveResource
     | StaffTimesheetResource !UUID
     | StaffProfileResource !UUID
     | StaffPreferencesResource !UUID
+    | StaffRosterMembershipResource !UUID
+    | StaffPayProfileResource !UUID
     deriving (Eq, Ord, Show)
 
 data LiveMutationResult a = LiveMutationResult

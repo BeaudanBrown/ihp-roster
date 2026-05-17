@@ -1,5 +1,6 @@
 module Test.Controller.StaffSpec where
 
+import Application.Helper.LiveResource (LiveResource (..))
 import qualified Application.Helper.LiveUpdate as LiveUpdate
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Config
@@ -9,6 +10,7 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Test.Mocking
+import qualified Data.Set as Set
 import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
@@ -16,6 +18,7 @@ import Test.Support
 import Web.Controller.Staff ()
 import Web.FrontController ()
 import Web.Routes
+import Web.Staff.Mutations (staffUpdateTouchedResources)
 import Web.Types
 
 tests :: Spec
@@ -37,6 +40,19 @@ tests = beforeAll testContext do
                 , ("weekOffset", "7")
                 ]
             response `responseStatusShouldBe` status302
+
+        it "records touched resources for staff updates" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Touched Venue"
+                staff <- createStaffRecord venue Nothing "Sam" "Touched"
+
+                Set.fromList (staffUpdateTouchedResources True staff)
+                    `shouldBe` Set.fromList
+                        [ StaffProfileResource (unpackId staff.id)
+                        , StaffPreferencesResource (unpackId staff.id)
+                        , StaffRosterMembershipResource (unpackId staff.id)
+                        , StaffPayProfileResource (unpackId staff.id)
+                        ]
 
         it "returns a roster content patch for HTMX roster-launched staff edits" $ withContext do
             withCleanDb do
