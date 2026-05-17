@@ -14,12 +14,14 @@ import Data.UUID (UUID)
 import Web.Controller.Admin.Support (refreshAdminInvites,
                                      refreshAdminRosterGroups,
                                      refreshAdminShiftTypes)
+import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Web.Controller.Admin.Xero.Responses (refreshAdminXeroPayItems)
 import Web.Controller.Prelude
 import Web.LeaveRequests.Projection (broadcastLeaveRequestsInvalidation,
                                      leaveRequestsContentFragmentRefs)
 import Web.Profiles.LiveUpdates (refreshProfileLeaveRequestsForStaffId)
 import Web.RosterWeeks.LiveUpdates (refreshRosterFragments)
+import Web.Profiles.LiveUpdates (refreshProfileContentForStaffId)
 import Web.RosterWeeks.Projection (rosterContentAndStaffPanelFragments)
 import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
                                   refreshTimesheetFragments,
@@ -32,6 +34,8 @@ data PlannedLiveInvalidation
     | InvalidateRosterWeek !UUID !Int
     | InvalidateTimesheetWeek !UUID !Int
     | InvalidateTimesheetDay !UUID !Int !Int
+    | InvalidateProfileContent !UUID
+    | InvalidateRosterWeeksForStaff !UUID
     | InvalidateAdminInvites !UUID
     | InvalidateAdminRosterGroups !UUID
     | InvalidateAdminShiftTypes !UUID
@@ -71,6 +75,12 @@ planLiveInvalidationsForResources activeRosterScopes resources =
             Set.singleton (InvalidateTimesheetWeek venueId weekOffset)
         planForResource (TimesheetDayResource venueId weekOffset dayOffset) =
             Set.singleton (InvalidateTimesheetDay venueId weekOffset dayOffset)
+        planForResource (StaffProfileResource staffId) =
+            Set.fromList [InvalidateProfileContent staffId, InvalidateRosterWeeksForStaff staffId]
+        planForResource (StaffPreferencesResource staffId) =
+            Set.singleton (InvalidateRosterWeeksForStaff staffId)
+        planForResource (StaffRosterMembershipResource staffId) =
+            Set.singleton (InvalidateRosterWeeksForStaff staffId)
         planForResource (AdminInvitesResource venueId) =
             Set.singleton (InvalidateAdminInvites venueId)
         planForResource (AdminRosterGroupsResource venueId) =
@@ -118,6 +128,10 @@ performPlannedInvalidation (InvalidateTimesheetDay _venueId weekOffset dayOffset
     refreshTimesheetFragments
         (TimesheetProjectionRequest weekOffset True True Nothing)
         [timesheetDaySectionFragment dayOffset]
+performPlannedInvalidation (InvalidateProfileContent staffId) =
+    refreshProfileContentForStaffId staffId "profile"
+performPlannedInvalidation (InvalidateRosterWeeksForStaff staffId) =
+    refreshActiveRosterWeeksForStaff staffId
 performPlannedInvalidation (InvalidateAdminInvites venueId) =
     refreshAdminInvites (Id venueId)
 performPlannedInvalidation (InvalidateAdminRosterGroups venueId) =
@@ -126,3 +140,24 @@ performPlannedInvalidation (InvalidateAdminShiftTypes venueId) =
     refreshAdminShiftTypes (Id venueId)
 performPlannedInvalidation (InvalidateXeroPayItems venueId) =
     refreshAdminXeroPayItems venueId
+
+refreshActiveRosterWeeksForStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> IO ()
+refreshActiveRosterWeeksForStaff staffId = do
+    maybeStaff <-
+        query @Staff
+            |> filterWhere (#id, Id staffId :: Id Staff)
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOneOrNothing
+    forM_ maybeStaff \staff -> do
+        rosterGroupIds <- fetchStaffRosterGroupIds staff
+        activeScopes <- activeRosterWeekScopes
+        let rosterGroupIdSet = Set.fromList (map unpackId rosterGroupIds)
+        let targets =
+                Set.fromList
+                    [ (rosterGroupId, weekOffset)
+                    | (venueId, rosterGroupId, weekOffset) <- activeScopes
+                    , venueId == unpackId currentVenueId
+                    , rosterGroupId `Set.member` rosterGroupIdSet
+                    ]
+        forM_ (Set.toAscList targets) \(rosterGroupId, weekOffset) ->
+            refreshRosterFragments (Id rosterGroupId) weekOffset rosterContentAndStaffPanelFragments

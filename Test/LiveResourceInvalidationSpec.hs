@@ -59,3 +59,12 @@ tests = do
                 `shouldBe` Set.singleton (InvalidateTimesheetWeek venueId 0)
             planLiveInvalidationsForResources [] (Set.fromList [TimesheetWeekResource venueId 0, TimesheetDayResource venueId 0 2])
                 `shouldBe` Set.singleton (InvalidateTimesheetDay venueId 0 2)
+
+        it "plans profile and roster invalidations from staff resources" do
+            let staffId = fromWords 3 0 0 0
+
+            planLiveInvalidationsForResources [] (Set.fromList [StaffProfileResource staffId, StaffPreferencesResource staffId])
+                `shouldBe` Set.fromList
+                    [ InvalidateProfileContent staffId
+                    , InvalidateRosterWeeksForStaff staffId
+                    ]
