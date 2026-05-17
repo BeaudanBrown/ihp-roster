@@ -2,10 +2,12 @@ module Web.Timesheets.Mutations
     ( approveTimesheetEntryMutation
     , createTimesheetEntryMutation
     , deleteTimesheetEntryMutation
+    , timesheetEntryTouchedResources
     , unapproveTimesheetEntryMutation
     , updateTimesheetEntryMutation
     ) where
 
+import Application.Helper.LiveResource
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                lockPayVersionsForApproval,
                                payVersionManifestForEntry)
@@ -17,16 +19,17 @@ import Web.Timesheets.Projection (refreshMovedTimesheetEntry,
                                   refreshTimesheetDay)
 import Web.Timesheets.Validation (resetApprovalOnEdit)
 
-createTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO TimesheetEntry
+createTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
 createTimesheetEntryMutation weekOffset timesheetEntry = do
     createdEntry <- withTransaction do
         createdEntry <- timesheetEntry |> createRecord
         void $ recordCurrentUserTimesheetEntryVersion (unsafeEnumFromText @EntryVersionActionEnum "created") createdEntry Aeson.Null
         pure createdEntry
     refreshTimesheetDay weekOffset createdEntry.workedOn
-    pure createdEntry
+    venueConfig <- fetchVenueConfig
+    pure (liveMutationResult createdEntry (timesheetEntryTouchedResources venueConfig [createdEntry]))
 
-updateTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> TimesheetEntry -> Bool -> IO TimesheetEntry
+updateTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> TimesheetEntry -> Bool -> IO (LiveMutationResult TimesheetEntry)
 updateTimesheetEntryMutation _weekOffset existingEntry timesheetEntry shouldResetApproval = do
     let updateAction = unsafeEnumFromText @EntryVersionActionEnum (if shouldResetApproval then "approval_reset" else "updated")
     updatedEntry <- withTransaction do
@@ -56,9 +59,10 @@ updateTimesheetEntryMutation _weekOffset existingEntry timesheetEntry shouldRese
                 )
         pure updatedEntry
     refreshMovedTimesheetEntry existingEntry.workedOn updatedEntry.workedOn
-    pure updatedEntry
+    venueConfig <- fetchVenueConfig
+    pure (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [existingEntry, updatedEntry]))
 
-deleteTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO TimesheetEntry
+deleteTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
 deleteTimesheetEntryMutation weekOffset timesheetEntry = do
     now <- getCurrentTime
     softDeletedEntry <- withTransaction do
@@ -86,9 +90,10 @@ deleteTimesheetEntryMutation weekOffset timesheetEntry = do
             )
         pure softDeletedEntry
     refreshTimesheetDay weekOffset timesheetEntry.workedOn
-    pure softDeletedEntry
+    venueConfig <- fetchVenueConfig
+    pure (liveMutationResult softDeletedEntry (timesheetEntryTouchedResources venueConfig [timesheetEntry]))
 
-approveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO TimesheetEntry
+approveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
 approveTimesheetEntryMutation weekOffset timesheetEntry = do
     now <- getCurrentTime
     (staffPayVersion, shiftTypePayVersion) <- ensurePayVersionsForTimesheetApproval currentUser.id timesheetEntry
@@ -124,9 +129,10 @@ approveTimesheetEntryMutation weekOffset timesheetEntry = do
             )
         pure updatedEntry
     refreshTimesheetDay weekOffset timesheetEntry.workedOn
-    pure updatedEntry
+    venueConfig <- fetchVenueConfig
+    pure (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [updatedEntry]))
 
-unapproveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO TimesheetEntry
+unapproveTimesheetEntryMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> TimesheetEntry -> IO (LiveMutationResult TimesheetEntry)
 unapproveTimesheetEntryMutation weekOffset timesheetEntry = do
     updatedEntry <- withTransaction do
         updatedEntry <-
@@ -159,4 +165,14 @@ unapproveTimesheetEntryMutation weekOffset timesheetEntry = do
             )
         pure updatedEntry
     refreshTimesheetDay weekOffset timesheetEntry.workedOn
-    pure updatedEntry
+    venueConfig <- fetchVenueConfig
+    pure (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [updatedEntry]))
+
+timesheetEntryTouchedResources :: VenueConfig -> [TimesheetEntry] -> [LiveResource]
+timesheetEntryTouchedResources venueConfig entries =
+    concatMap entryResources entries
+    where
+        entryResources entry =
+            [ TimesheetWeekResource entry.venueId (venueWeekOffsetForDay venueConfig entry.workedOn)
+            , StaffTimesheetResource entry.staffId
+            ]

@@ -12,6 +12,8 @@ data LiveResource
     = LeaveRequestsResource !UUID
     | StaffLeaveRequestsResource !UUID
     | LeaveCalendarResource !UUID !Int
+    | TimesheetWeekResource !UUID !Int
+    | StaffTimesheetResource !UUID
     deriving (Eq, Ord, Show)
 
 data LiveMutationResult a = LiveMutationResult

@@ -1,5 +1,6 @@
 module Web.Controller.Timesheets where
 
+import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
 import Web.Controller.Prelude
 import Web.Timesheets.Mutations
@@ -92,7 +93,8 @@ instance Controller TimesheetsController where
                 Right timesheetEntry -> do
                     ensureStaffAssignmentAllowed timesheetEntry.staffId
                     ensureShiftTypeAllowed timesheetEntry.shiftTypeId
-                    createdEntry <- createTimesheetEntryMutation weekOffset timesheetEntry
+                    mutationResult <- createTimesheetEntryMutation weekOffset timesheetEntry
+                    let createdEntry = mutationResult.liveMutationValue
                     if isHtmxRequest
                         then respondWithTimesheetDaySectionUpdate weekOffset createdEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry created" True True
                         else do
@@ -148,7 +150,8 @@ instance Controller TimesheetsController where
                             if wasApproved && coreChanged
                                 then "Timesheet entry updated (approval reset)"
                                 else "Timesheet entry updated"
-                    updatedEntry <- updateTimesheetEntryMutation weekOffset existingEntry timesheetEntry (wasApproved && coreChanged)
+                    mutationResult <- updateTimesheetEntryMutation weekOffset existingEntry timesheetEntry (wasApproved && coreChanged)
+                    let updatedEntry = mutationResult.liveMutationValue
                     if isHtmxRequest
                         then respondWithTimesheetDateMoveUpdate weekOffset oldWorkedOn updatedEntry.workedOn showApproved showAllStaff selectedStaffFilterId successMessage
                         else do

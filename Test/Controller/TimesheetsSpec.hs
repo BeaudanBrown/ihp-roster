@@ -2,11 +2,14 @@ module Test.Controller.TimesheetsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       parseTimeParam)
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface (mkTypedDefinedLiveSurface,
                                        unSurfaceFragmentRefs)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
+import Application.Helper.WeekBoundaries (venueWeekOffsetForDay)
 import Config
+import qualified Data.Set as Set
 import Data.Time.Calendar (fromGregorian)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Generated.Types
@@ -24,6 +27,7 @@ import Test.Support.LiveSurfaceContract
 import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes
+import Web.Timesheets.Mutations (timesheetEntryTouchedResources)
 import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
                                   timesheetDaySectionFragmentRef,
                                   timesheetLiveSurfaceDefinition)
@@ -94,6 +98,20 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "timesheet_week"
                 response `responseBodyShouldContain` "data-timesheet-day-offset=\"0\""
+
+        it "records touched resources for timesheet entry mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Touched Timesheet Venue"
+                staff <- createStaffRecord venue Nothing "Tim" "Touched"
+                entry <- createTimesheetEntryRecord venue staff (fromGregorian 2025 1 7)
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let weekOffset = venueWeekOffsetForDay venueConfig entry.workedOn
+
+                Set.fromList (timesheetEntryTouchedResources venueConfig [entry])
+                    `shouldBe` Set.fromList
+                        [ TimesheetWeekResource (unpackId venue.id) weekOffset
+                        , StaffTimesheetResource (unpackId staff.id)
+                        ]
 
         it "denies unauthenticated users through the timesheet surface fragment contract" $ withContext do
             response <- callAction ShowTimesheetDaySectionFragmentAction { weekOffset = 0, dayOffset = 0 }
