@@ -65,7 +65,17 @@ tests = do
 
             planLiveInvalidationsForResources [] (Set.fromList [StaffProfileResource staffId, StaffPreferencesResource staffId, StaffPayProfileResource staffId])
                 `shouldBe` Set.fromList
-                    [ InvalidateProfileContent staffId
+                    [ InvalidateProfileContent staffId "profile"
                     , InvalidateRosterWeeksForStaff staffId
                     , InvalidateAdminXeroForStaff staffId
+                    ]
+
+        it "plans RSA profile and admin compliance invalidations from staff document resources" do
+            let venueId = fromWords 4 0 0 0
+            let staffId = fromWords 5 0 0 0
+
+            planLiveInvalidationsForResources [] (Set.fromList [StaffRsaDocumentsResource staffId, AdminStaffComplianceResource venueId])
+                `shouldBe` Set.fromList
+                    [ InvalidateProfileContent staffId "rsa"
+                    , InvalidateAdminStaffCompliance venueId
                     ]

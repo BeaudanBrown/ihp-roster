@@ -22,6 +22,7 @@ data LiveResource
     | StaffPreferencesResource !UUID
     | StaffRosterMembershipResource !UUID
     | StaffPayProfileResource !UUID
+    | StaffRsaDocumentsResource !UUID
     | RosterWeekResource !UUID !Int
     | RosterDayResource !UUID
     | RosterSlotResource !UUID
@@ -29,6 +30,7 @@ data LiveResource
     | AdminRosterGroupsResource !UUID
     | AdminShiftTypesResource !UUID
     | AdminInvitesResource !UUID
+    | AdminStaffComplianceResource !UUID
     | XeroConnectionResource !UUID
     | XeroMappingsResource !UUID
     | XeroPayItemsResource !UUID

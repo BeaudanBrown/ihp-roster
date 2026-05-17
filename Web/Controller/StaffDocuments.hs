@@ -1,10 +1,7 @@
 module Web.Controller.StaffDocuments where
 
-import Application.Helper.LiveSurface (broadcastSurfaceFragments)
 import Application.Helper.Url (appendQueryParams)
 import Application.StaffDocuments.Rsa
-import Control.Monad (void)
-import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
@@ -13,10 +10,7 @@ import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status (status200)
 import Network.Wai (responseLBS)
 import Web.Controller.Prelude
-import Web.Profiles.LiveUpdates (refreshProfileContent,
-                                 refreshProfileContentForStaffId)
-import Web.View.Admin.Compliance (staffComplianceFragment,
-                                  staffComplianceLiveSurfaceDefinition)
+import Web.StaffDocuments.Mutations (reviewStaffDocument, uploadRsaDocument)
 
 instance Controller StaffDocumentsController where
     beforeAction = do
@@ -38,21 +32,7 @@ instance Controller StaffDocumentsController where
                         setErrorMessage message
                         redirectToRsaReturnPath
                     Right upload -> do
-                        staffDocument <- createRsaDocument currentUser.id staff upload
-                        void $
-                            recordCurrentUserAuditEvent
-                                "rsa_document_uploaded"
-                                "staff_documents"
-                                (unpackId staffDocument.id)
-                                ( Aeson.object
-                                    [ "staffId" Aeson..= staffDocument.staffId
-                                    , "documentType" Aeson..= inputValue staffDocument.documentType
-                                    , "expiryDate" Aeson..= staffDocument.expiryDate
-                                    , "status" Aeson..= inputValue staffDocument.status
-                                    ]
-                                )
-                        refreshStaffCompliance
-                        refreshProfileContent "rsa"
+                        _ <- uploadRsaDocument currentUser.id staff upload
                         setSuccessMessage "RSA document uploaded for review."
                         redirectToRsaReturnPath
 
@@ -90,22 +70,7 @@ instance Controller StaffDocumentsController where
                 setErrorMessage "Add a rejection reason before rejecting an RSA document."
                 redirectToRsaReturnPath
             Just newStatus -> do
-                updatedDocument <- reviewRsaDocument currentUser.id staffDocument newStatus (normalizeOptionalTextParam "rejectionReason")
-                void $
-                    recordCurrentUserAuditEvent
-                        "rsa_document_reviewed"
-                        "staff_documents"
-                        (unpackId updatedDocument.id)
-                        ( Aeson.object
-                            [ "staffId" Aeson..= updatedDocument.staffId
-                            , "documentType" Aeson..= inputValue updatedDocument.documentType
-                            , "previousStatus" Aeson..= inputValue staffDocument.status
-                            , "newStatus" Aeson..= inputValue updatedDocument.status
-                            , "reviewedByUserId" Aeson..= updatedDocument.reviewedByUserId
-                            ]
-                        )
-                refreshStaffCompliance
-                refreshProfileContentForStaffId updatedDocument.staffId "rsa"
+                _ <- reviewStaffDocument currentUser.id staffDocument newStatus (normalizeOptionalTextParam "rejectionReason")
                 setSuccessMessage "RSA document status updated."
                 redirectToRsaReturnPath
 
@@ -122,13 +87,6 @@ parseSubmittedStaff =
 currentUserCanAccessStaffDocumentsFor :: (?context :: ControllerContext) => Staff -> IO Bool
 currentUserCanAccessStaffDocumentsFor staff =
     pure (hasRole ManagerRole' || staff.userId == Just (unpackId authenticatedCurrentUser.id))
-
-refreshStaffCompliance :: (?context :: ControllerContext, ?request :: Request) => IO ()
-refreshStaffCompliance =
-    broadcastSurfaceFragments
-        staffComplianceLiveSurfaceDefinition
-        ()
-        [staffComplianceFragment]
 
 buildRsaUploadFromRequest :: (?request :: Request) => Either Text RsaDocumentUpload
 buildRsaUploadFromRequest = do

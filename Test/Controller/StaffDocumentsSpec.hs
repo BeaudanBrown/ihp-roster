@@ -1,5 +1,6 @@
 module Test.Controller.StaffDocumentsSpec where
 
+import Application.Helper.LiveResource
 import Application.StaffDocuments.Rsa
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
@@ -13,6 +14,7 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.StaffDocuments ()
 import Web.FrontController ()
+import Web.StaffDocuments.Mutations (rsaStaffDocumentTouchedResources)
 import Web.Routes
 import Web.Types
 
@@ -59,6 +61,19 @@ tests = beforeAll testContext do
                     callAction DownloadStaffDocumentAction { staffDocumentId = staffDocument.id }
 
                 response `responseStatusShouldBe` status403
+
+        it "records touched resources for RSA document changes" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "RSA Touch Venue"
+                user <- createUserRecord "rsa-touch@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                staff <- createStaffRecord venue (Just user) "Touch" "Worker"
+                staffDocument <- createRsaDocument user.id staff (testRsaUpload (fromGregorian 2027 5 2))
+
+                rsaStaffDocumentTouchedResources staffDocument
+                    `shouldBe` [ StaffRsaDocumentsResource (unpackId staff.id)
+                               , AdminStaffComplianceResource (unpackId venue.id)
+                               ]
 
         it "allows managers to review RSA documents in their venue" $ withContext do
             withCleanDb do

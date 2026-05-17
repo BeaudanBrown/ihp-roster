@@ -24,6 +24,7 @@ import Web.Profiles.LiveUpdates (refreshProfileLeaveRequestsForStaffId)
 import Web.RosterWeeks.LiveUpdates (refreshRosterFragments)
 import Web.Profiles.LiveUpdates (refreshProfileContentForStaffId)
 import Web.RosterWeeks.Projection (rosterContentAndStaffPanelFragments)
+import Web.StaffDocuments.LiveUpdates (refreshStaffCompliance)
 import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
                                   refreshTimesheetFragments,
                                   timesheetDaySectionFragment,
@@ -35,9 +36,10 @@ data PlannedLiveInvalidation
     | InvalidateRosterWeek !UUID !Int
     | InvalidateTimesheetWeek !UUID !Int
     | InvalidateTimesheetDay !UUID !Int !Int
-    | InvalidateProfileContent !UUID
+    | InvalidateProfileContent !UUID !Text
     | InvalidateRosterWeeksForStaff !UUID
     | InvalidateAdminInvites !UUID
+    | InvalidateAdminStaffCompliance !UUID
     | InvalidateAdminRosterGroups !UUID
     | InvalidateAdminShiftTypes !UUID
     | InvalidateXeroPayItems !UUID
@@ -78,15 +80,19 @@ planLiveInvalidationsForResources activeRosterScopes resources =
         planForResource (TimesheetDayResource venueId weekOffset dayOffset) =
             Set.singleton (InvalidateTimesheetDay venueId weekOffset dayOffset)
         planForResource (StaffProfileResource staffId) =
-            Set.fromList [InvalidateProfileContent staffId, InvalidateRosterWeeksForStaff staffId]
+            Set.fromList [InvalidateProfileContent staffId "profile", InvalidateRosterWeeksForStaff staffId]
         planForResource (StaffPreferencesResource staffId) =
             Set.singleton (InvalidateRosterWeeksForStaff staffId)
         planForResource (StaffRosterMembershipResource staffId) =
             Set.singleton (InvalidateRosterWeeksForStaff staffId)
         planForResource (StaffPayProfileResource staffId) =
             Set.singleton (InvalidateAdminXeroForStaff staffId)
+        planForResource (StaffRsaDocumentsResource staffId) =
+            Set.singleton (InvalidateProfileContent staffId "rsa")
         planForResource (AdminInvitesResource venueId) =
             Set.singleton (InvalidateAdminInvites venueId)
+        planForResource (AdminStaffComplianceResource venueId) =
+            Set.singleton (InvalidateAdminStaffCompliance venueId)
         planForResource (AdminRosterGroupsResource venueId) =
             Set.singleton (InvalidateAdminRosterGroups venueId)
         planForResource (AdminShiftTypesResource venueId) =
@@ -132,12 +138,14 @@ performPlannedInvalidation (InvalidateTimesheetDay _venueId weekOffset dayOffset
     refreshTimesheetFragments
         (TimesheetProjectionRequest weekOffset True True Nothing)
         [timesheetDaySectionFragment dayOffset]
-performPlannedInvalidation (InvalidateProfileContent staffId) =
-    refreshProfileContentForStaffId staffId "profile"
+performPlannedInvalidation (InvalidateProfileContent staffId openSection) =
+    refreshProfileContentForStaffId staffId openSection
 performPlannedInvalidation (InvalidateRosterWeeksForStaff staffId) =
     refreshActiveRosterWeeksForStaff staffId
 performPlannedInvalidation (InvalidateAdminInvites venueId) =
     refreshAdminInvites (Id venueId)
+performPlannedInvalidation (InvalidateAdminStaffCompliance venueId) =
+    refreshStaffCompliance venueId
 performPlannedInvalidation (InvalidateAdminRosterGroups venueId) =
     refreshAdminRosterGroups (Id venueId)
 performPlannedInvalidation (InvalidateAdminShiftTypes venueId) =
