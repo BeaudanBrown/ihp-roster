@@ -1,0 +1,35 @@
+module Test.LiveResourceInvalidationSpec where
+
+import Application.Helper.LiveResource
+import IHP.Prelude
+import qualified Data.Set as Set
+import Data.UUID (fromWords)
+import Test.Hspec
+import Web.LiveResourceInvalidation
+
+tests :: Spec
+tests = do
+    describe "Live resource invalidation planning" do
+        it "plans leave, profile leave, and active roster invalidations from touched resources" do
+            let venueId = fromWords 1 0 0 0
+            let otherVenueId = fromWords 2 0 0 0
+            let staffId = fromWords 3 0 0 0
+            let rosterGroupId = fromWords 4 0 0 0
+            let otherRosterGroupId = fromWords 5 0 0 0
+            let activeScopes = [(venueId, rosterGroupId, 0), (otherVenueId, otherRosterGroupId, 0)]
+            let resources = Set.fromList [LeaveRequestsResource venueId, StaffLeaveRequestsResource staffId, LeaveCalendarResource venueId 0]
+
+            planLiveInvalidationsForResources activeScopes resources
+                `shouldBe` Set.fromList
+                    [ InvalidateLeaveRequests
+                    , InvalidateProfileLeaveRequests staffId
+                    , InvalidateRosterWeek rosterGroupId 0
+                    ]
+
+        it "does not invalidate cold roster weeks" do
+            let venueId = fromWords 1 0 0 0
+            let rosterGroupId = fromWords 4 0 0 0
+            let activeScopes = [(venueId, rosterGroupId, 1)]
+
+            planLiveInvalidationsForResources activeScopes (Set.singleton (LeaveCalendarResource venueId 0))
+                `shouldBe` Set.empty
