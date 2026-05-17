@@ -42,14 +42,16 @@ tests = do
 
         it "plans admin and Xero invalidations from admin resources" do
             let venueId = fromWords 1 0 0 0
-            let resources = Set.fromList [AdminInvitesResource venueId, AdminRosterGroupsResource venueId, AdminShiftTypesResource venueId, XeroPayItemsResource venueId]
+            let resources = Set.fromList [AdminInvitesResource venueId, AdminRosterGroupsResource venueId, AdminShiftTypesResource venueId, XeroConnectionResource venueId, XeroMappingsResource venueId, XeroPayItemsResource venueId, XeroTimesheetsResource venueId]
 
             planLiveInvalidationsForResources [] resources
                 `shouldBe` Set.fromList
                     [ InvalidateAdminInvites venueId
                     , InvalidateAdminRosterGroups venueId
                     , InvalidateAdminShiftTypes venueId
+                    , InvalidateAdminXero venueId
                     , InvalidateXeroPayItems venueId
+                    , InvalidateXeroTimesheets venueId
                     ]
 
         it "plans timesheet invalidations from timesheet resources" do

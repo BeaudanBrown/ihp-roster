@@ -16,7 +16,8 @@ import Web.Controller.Admin.Support (refreshAdminRosterGroups,
                                      refreshAdminShiftTypes)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Web.Controller.Admin.Xero.Responses (refreshAdminXero,
-                                            refreshAdminXeroPayItems)
+                                            refreshAdminXeroPayItems,
+                                            refreshAdminXeroTimesheets)
 import Web.Controller.Prelude
 import Web.Exports.LiveUpdates (refreshAdminExports)
 import Web.LeaveRequests.Projection (broadcastLeaveRequestsInvalidation,
@@ -47,6 +48,8 @@ data PlannedLiveInvalidation
     | InvalidateAdminRosterGroups !UUID
     | InvalidateAdminShiftTypes !UUID
     | InvalidateXeroPayItems !UUID
+    | InvalidateXeroTimesheets !UUID
+    | InvalidateAdminXero !UUID
     | InvalidateAdminXeroForStaff !UUID
     deriving (Eq, Ord, Show)
 
@@ -103,8 +106,14 @@ planLiveInvalidationsForResources activeRosterScopes resources =
             Set.singleton (InvalidateAdminRosterGroups venueId)
         planForResource (AdminShiftTypesResource venueId) =
             Set.singleton (InvalidateAdminShiftTypes venueId)
+        planForResource (XeroConnectionResource venueId) =
+            Set.singleton (InvalidateAdminXero venueId)
+        planForResource (XeroMappingsResource venueId) =
+            Set.singleton (InvalidateAdminXero venueId)
         planForResource (XeroPayItemsResource venueId) =
             Set.singleton (InvalidateXeroPayItems venueId)
+        planForResource (XeroTimesheetsResource venueId) =
+            Set.singleton (InvalidateXeroTimesheets venueId)
         planForResource _ =
             Set.empty
 
@@ -160,6 +169,10 @@ performPlannedInvalidation (InvalidateAdminShiftTypes venueId) =
     refreshAdminShiftTypes (Id venueId)
 performPlannedInvalidation (InvalidateXeroPayItems venueId) =
     refreshAdminXeroPayItems venueId
+performPlannedInvalidation (InvalidateXeroTimesheets venueId) =
+    refreshAdminXeroTimesheets venueId
+performPlannedInvalidation (InvalidateAdminXero venueId) =
+    refreshAdminXero (Id venueId)
 performPlannedInvalidation (InvalidateAdminXeroForStaff staffId) =
     refreshAdminXeroForStaff staffId
 
