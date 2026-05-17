@@ -1,11 +1,14 @@
 module Test.Controller.LeaveRequestsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (ensureVenueDefaultRosterGroup)
+import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Config
 import qualified Data.ByteString.Lazy.Char8 as LByteString
+import qualified Data.Set as Set
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime,
                         utctDay)
@@ -21,6 +24,8 @@ import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import Web.FrontController ()
+import Web.LeaveRequests.Mutations (LeaveReviewDecision (..),
+                                    leaveReviewTouchedResources)
 import Web.LeaveRequests.Projection (affectedRosterWeekInvalidationTargetsForScopes)
 import Web.Routes
 import Web.Types
@@ -117,6 +122,27 @@ tests = beforeAll testContext do
                 refreshedWeekA.updatedAt `shouldBe` staleTimestamp
                 refreshedWeekA1.updatedAt `shouldBe` staleTimestamp
                 refreshedWeekB.updatedAt `shouldBe` staleTimestamp
+
+        it "records touched resources for approved leave mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Touched Leave Venue"
+                manager <- createUserRecord "leave-touched-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Touched" "Staff"
+                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 8) (fromGregorian 2025 1 15) "pending"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let expectedCalendarResources =
+                        [ LeaveCalendarResource (unpackId venue.id) weekOffset
+                        | weekOffset <- affectedVenueWeekOffsetsForDateRange venueConfig leaveRequest.startDate leaveRequest.endDate
+                        ]
+
+                Set.fromList (leaveReviewTouchedResources venueConfig ApproveLeave False leaveRequest)
+                    `shouldBe` Set.fromList
+                        ( [ LeaveRequestsResource (unpackId venue.id)
+                          , StaffLeaveRequestsResource leaveRequest.staffId
+                          ]
+                            <> expectedCalendarResources
+                        )
 
         it "renders a subscribed leave shell for authenticated viewers" $ withContext do
             withCleanDb do

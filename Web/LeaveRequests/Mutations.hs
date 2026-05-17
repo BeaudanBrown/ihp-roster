@@ -2,10 +2,13 @@ module Web.LeaveRequests.Mutations
     ( LeaveReviewDecision (..)
     , ReviewedLeaveRequest (..)
     , cancelLeaveRequest
+    , leaveReviewTouchedResources
     , reviewLeaveRequest
     , submitLeaveRequest
     ) where
 
+import Application.Helper.LiveResource
+import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Time.Clock (getCurrentTime)
@@ -24,7 +27,7 @@ data ReviewedLeaveRequest = ReviewedLeaveRequest
     }
     deriving (Eq, Show)
 
-submitLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO LeaveRequest
+submitLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO (LiveMutationResult LeaveRequest)
 submitLeaveRequest leaveRequest = do
     createdLeaveRequest <- withTransaction do
         createdLeaveRequest <- leaveRequest |> createRecord
@@ -38,9 +41,9 @@ submitLeaveRequest leaveRequest = do
         pure createdLeaveRequest
     broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
     refreshProfileLeaveRequests
-    pure createdLeaveRequest
+    pure (liveMutationResult createdLeaveRequest (baseLeaveTouchedResources createdLeaveRequest))
 
-reviewLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveReviewDecision -> LeaveRequest -> IO ReviewedLeaveRequest
+reviewLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveReviewDecision -> LeaveRequest -> IO (LiveMutationResult ReviewedLeaveRequest)
 reviewLeaveRequest decision leaveRequest = do
     let wasApproved = parseLeaveRequestStatus leaveRequest.status == Just LeaveApproved
     updatedLeaveRequest <- withTransaction do
@@ -69,16 +72,22 @@ reviewLeaveRequest decision leaveRequest = do
             )
         pure updatedLeaveRequest
 
-    when (reviewDecisionChangesRoster decision wasApproved) do
+    let rosterVisibilityChanged = reviewDecisionChangesRoster decision wasApproved
+    venueConfig <- fetchVenueConfig
+    let touchedResources = leaveReviewTouchedResources venueConfig decision wasApproved updatedLeaveRequest
+    when rosterVisibilityChanged do
         invalidateAffectedRosterWeeksForLeave updatedLeaveRequest
     broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
     refreshProfileLeaveRequestsForStaffId updatedLeaveRequest.staffId
-    pure ReviewedLeaveRequest
-        { reviewedLeaveRequest = updatedLeaveRequest
-        , reviewedLeaveWasAlreadyApproved = wasApproved
-        }
+    pure $
+        liveMutationResult
+            ReviewedLeaveRequest
+                { reviewedLeaveRequest = updatedLeaveRequest
+                , reviewedLeaveWasAlreadyApproved = wasApproved
+                }
+            touchedResources
 
-cancelLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO LeaveRequest
+cancelLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO (LiveMutationResult LeaveRequest)
 cancelLeaveRequest leaveRequest = do
     now <- getCurrentTime
     softDeletedLeaveRequest <- withTransaction do
@@ -110,7 +119,25 @@ cancelLeaveRequest leaveRequest = do
         pure softDeletedLeaveRequest
     broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
     refreshProfileLeaveRequestsForStaffId leaveRequest.staffId
-    pure softDeletedLeaveRequest
+    pure (liveMutationResult softDeletedLeaveRequest (baseLeaveTouchedResources softDeletedLeaveRequest))
+
+baseLeaveTouchedResources :: LeaveRequest -> [LiveResource]
+baseLeaveTouchedResources leaveRequest =
+    [ LeaveRequestsResource leaveRequest.venueId
+    , StaffLeaveRequestsResource leaveRequest.staffId
+    ]
+
+leaveReviewTouchedResources :: VenueConfig -> LeaveReviewDecision -> Bool -> LeaveRequest -> [LiveResource]
+leaveReviewTouchedResources venueConfig decision wasApproved leaveRequest =
+    baseLeaveTouchedResources leaveRequest <> calendarResources
+    where
+        calendarResources =
+            if reviewDecisionChangesRoster decision wasApproved
+                then
+                    [ LeaveCalendarResource leaveRequest.venueId weekOffset
+                    | weekOffset <- affectedVenueWeekOffsetsForDateRange venueConfig leaveRequest.startDate leaveRequest.endDate
+                    ]
+                else []
 
 reviewDecisionStatus :: LeaveReviewDecision -> LeaveRequestStatus
 reviewDecisionStatus ApproveLeave = LeaveApproved
