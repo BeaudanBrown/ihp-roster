@@ -2,11 +2,14 @@ module Application.Helper.LiveResource
     ( LiveMutationResult (..)
     , LiveResource (..)
     , liveMutationResult
+    , recordLiveMutationDiagnostics
     ) where
 
 import qualified Data.Set as Set
+import qualified Data.Text.IO as TextIO
 import Data.UUID (UUID)
 import IHP.Prelude
+import System.Environment (lookupEnv)
 
 data LiveResource
     = LeaveRequestsResource !UUID
@@ -43,3 +46,21 @@ liveMutationResult value resources =
         { liveMutationValue = value
         , liveMutationTouchedResources = Set.fromList resources
         }
+
+recordLiveMutationDiagnostics :: Text -> LiveMutationResult a -> IO (LiveMutationResult a)
+recordLiveMutationDiagnostics label result = do
+    enabled <- liveMutationDiagnosticsEnabled
+    when enabled do
+        TextIO.putStrLn $
+            "live_mutation_touches label="
+                <> label
+                <> " resources="
+                <> tshow (Set.toAscList (liveMutationTouchedResources result))
+    pure result
+
+liveMutationDiagnosticsEnabled :: IO Bool
+liveMutationDiagnosticsEnabled = do
+    value <- lookupEnv "LIVE_MUTATION_DIAGNOSTICS"
+    pure (maybe False isEnabled value)
+    where
+        isEnabled raw = raw `elem` ["1", "true", "TRUE", "yes", "YES"]
