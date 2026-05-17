@@ -6,6 +6,7 @@ module Web.View.Admin.RosterGroups
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
                                        LiveSurfaceConfig (..),
                                        SurfaceFragmentRef, SurfaceScope (..),
@@ -64,6 +65,7 @@ adminRosterGroupsLiveSurfaceDefinition =
         , typedSurfaceDefaultFragments = const [adminRosterGroupsFragment]
         , typedSurfaceFragmentRef = const adminRosterGroupsLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#admin-roster-groups-fragment"]
+        , typedSurfaceDependsOn = \_ _ -> [AdminRosterGroupsResource currentVenueScopeId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
         }
 

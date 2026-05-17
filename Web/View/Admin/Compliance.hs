@@ -7,6 +7,7 @@ module Web.View.Admin.Compliance
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import Application.StaffDocuments.Rsa
@@ -38,6 +39,7 @@ staffComplianceLiveSurfaceDefinition =
         , typedSurfaceDefaultFragments = const [staffComplianceFragment]
         , typedSurfaceFragmentRef = const staffComplianceLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> staffComplianceFragmentId]
+        , typedSurfaceDependsOn = \_ _ -> [AdminStaffComplianceResource currentVenueScopeId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager currentVenueScopeId))
         }
 

@@ -8,6 +8,7 @@ module Web.View.Admin.Exports
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.Export
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import Web.View.Admin.Common
@@ -37,6 +38,7 @@ adminExportsLiveSurfaceDefinition =
         , typedSurfaceDefaultFragments = const [adminExportsFragment]
         , typedSurfaceFragmentRef = const adminExportsLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> adminExportsFragmentId]
+        , typedSurfaceDependsOn = \_ _ -> [AdminExportsResource currentVenueScopeId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
         }
 

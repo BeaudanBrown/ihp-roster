@@ -42,6 +42,12 @@ A surface owns:
 - feature-local fragment enum to structural fragment refs
 - request-decoration selectors
 - optional focused-field protection policies
+- semantic `LiveResource` dependencies for each rendered fragment
+
+`typedSurfaceDependsOn` declares the semantic resources a fragment reads. The
+current planner still maps touched resources to typed invalidation adapters, but
+new or migrated live surfaces should keep these declarations accurate so the
+planner can move toward dependency-driven fanout without changing writers.
 
 The wire-fragment transport boundary is internal to `Application.Helper.LiveUpdate.Internal`
 and `Application.Helper.LiveSurface.Internal`. Feature modules should keep

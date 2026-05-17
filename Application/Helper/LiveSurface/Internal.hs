@@ -47,6 +47,7 @@ module Application.Helper.LiveSurface.Internal
     , warmLiveSurfaceProjectionFromStore
     ) where
 
+import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveUpdate.Internal
 import Application.Helper.SurfaceProjection
 import Application.Helper.ControllerAccess (hasRole)
@@ -100,6 +101,7 @@ data TypedLiveSurfaceDefinition surface scope fragment = TypedLiveSurfaceDefinit
     , typedSurfaceDefaultFragments       :: scope -> [fragment]
     , typedSurfaceFragmentRef            :: scope -> fragment -> SurfaceFragmentRef surface
     , typedSurfaceDecorateRequestsWithin :: scope -> [Text]
+    , typedSurfaceDependsOn              :: scope -> fragment -> [LiveResource]
     , typedSurfaceAuthorize              :: !(LiveSurfaceAuthorization scope)
     }
 

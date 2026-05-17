@@ -19,6 +19,7 @@ module Web.View.Admin.Xero
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
                                        LiveSurfaceConfig (..),
                                        SurfaceFragmentRef, SurfaceScope (..),
@@ -116,6 +117,20 @@ adminXeroLiveSurfaceDefinitionForVenue surfaceVenueId =
         , typedSurfaceDefaultFragments = const adminXeroDefaultFragments
         , typedSurfaceFragmentRef = const adminXeroLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#admin-xero-fragment"]
+        , typedSurfaceDependsOn = \_ fragment ->
+            case fragment of
+                AdminXeroShellLiveFragment ->
+                    [ XeroConnectionResource surfaceVenueId
+                    , XeroMappingsResource surfaceVenueId
+                    , XeroPayItemsResource surfaceVenueId
+                    , XeroTimesheetsResource surfaceVenueId
+                    ]
+                AdminXeroStaffMappingsLiveFragment ->
+                    [XeroMappingsResource surfaceVenueId]
+                AdminXeroPayItemsLiveFragment ->
+                    [XeroPayItemsResource surfaceVenueId]
+                AdminXeroTimesheetsLiveFragment ->
+                    [XeroTimesheetsResource surfaceVenueId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner surfaceVenueId))
         }
 

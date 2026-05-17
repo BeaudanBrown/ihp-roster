@@ -39,6 +39,7 @@ import qualified Test.LiveUpdateSpec
 import qualified Test.LiveSurfaceGuardSpec
 import qualified Test.LiveResourceInvalidationSpec
 import qualified Test.LiveResourceSpec
+import qualified Test.LiveSurfaceDependencySpec
 import qualified Test.LiveSurfaceSpec
 import qualified Test.MailSpec
 import qualified Test.MutationBoundarySpec
@@ -176,6 +177,7 @@ allSuites =
     , TestSuite "RosterLiveUpdates" Test.RosterLiveUpdatesSpec.tests
     , TestSuite "LiveResource" Test.LiveResourceSpec.tests
     , TestSuite "LiveResourceInvalidation" Test.LiveResourceInvalidationSpec.tests
+    , TestSuite "LiveSurfaceDependency" Test.LiveSurfaceDependencySpec.tests
     , TestSuite "LiveSurfaceGuard" Test.LiveSurfaceGuardSpec.tests
     , TestSuite "LiveSurface" Test.LiveSurfaceSpec.tests
     , TestSuite "Mail" Test.MailSpec.tests

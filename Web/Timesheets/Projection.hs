@@ -29,6 +29,7 @@ module Web.Timesheets.Projection
     , weekOffsetFromParamOrEntry
     ) where
 
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..),
@@ -198,6 +199,12 @@ timesheetLiveSurfaceDefinitionForVenue surfaceVenueId =
                 TimesheetProjectionDaySection dayOffset ->
                     timesheetDaySectionFragmentRef requestKey dayOffset
         , typedSurfaceDecorateRequestsWithin = const ["#" <> timesheetWeekShellId, "#roster-staff-self-service-timesheet-live-surface"]
+        , typedSurfaceDependsOn = \requestKey fragment ->
+            case fragment of
+                TimesheetProjectionPage ->
+                    [TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset]
+                TimesheetProjectionDaySection dayOffset ->
+                    [TimesheetDayResource surfaceVenueId requestKey.projectionWeekOffset dayOffset]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenue surfaceVenueId))
         }
     where

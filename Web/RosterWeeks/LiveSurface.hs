@@ -10,6 +10,7 @@ module Web.RosterWeeks.LiveSurface
     ) where
 
 import Application.Helper.Controller
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveUpdateScope (..), currentLiveUpdateVersion)
 import Application.Helper.SurfaceProjection
@@ -59,6 +60,16 @@ rosterLiveSurfaceDefinition =
                         (rosterRowDomIdText (coerce rosterDayId) rowIndex)
                         (rosterWeekRowFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId) rowIndex)
         , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
+        , typedSurfaceDependsOn = \scope fragment ->
+            case fragment of
+                RosterProjectionContent ->
+                    [RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset]
+                RosterProjectionStaffPanel ->
+                    [RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset]
+                RosterProjectionDaySection rosterDayId ->
+                    [RosterDayResource rosterDayId]
+                RosterProjectionRow rosterDayId _ ->
+                    [RosterDayResource rosterDayId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup (unpackId currentVenueId) (unpackId scope.rosterProjectionGroupId))
         }
     where

@@ -16,6 +16,7 @@ module Web.LeaveRequests.Projection
     , renderLeaveRequestsProjectionHtml
     ) where
 
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..),
@@ -83,6 +84,7 @@ leaveRequestsLiveSurfaceDefinition =
                 LeaveRequestsProjectionPage -> buildLeaveRequestsPageFragmentRef
                 LeaveRequestsProjectionContent -> buildLeaveRequestsContentFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> leaveRequestsShellId]
+        , typedSurfaceDependsOn = \_ _ -> [LeaveRequestsResource (unpackId currentVenueId)]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager (unpackId currentVenueId)))
         }
 

@@ -6,6 +6,7 @@ module Web.View.Admin.ShiftTypes
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
                                        LiveSurfaceConfig (..),
                                        SurfaceFragmentRef,
@@ -67,6 +68,7 @@ adminShiftTypesLiveSurfaceDefinition =
         , typedSurfaceDefaultFragments = const [adminShiftTypesFragment]
         , typedSurfaceFragmentRef = const adminShiftTypesLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#admin-shift-types-fragment"]
+        , typedSurfaceDependsOn = \_ _ -> [AdminShiftTypesResource currentVenueScopeId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
         }
 

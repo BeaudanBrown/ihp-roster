@@ -64,6 +64,7 @@ profileContentLiveSurfaceDefinition =
         , typedSurfaceDefaultFragments = \key -> [profileContentFragment key.profileContentOpenSection]
         , typedSurfaceFragmentRef = const profileContentFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileDetailsFormId]
+        , typedSurfaceDependsOn = \_ _ -> []
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueUser key.profileContentVenueId key.profileContentUserId)
         }
 
@@ -109,6 +110,7 @@ profileLeaveRequestsLiveSurfaceDefinition =
         , typedSurfaceDefaultFragments = const [profileLeaveRequestsFragment]
         , typedSurfaceFragmentRef = const profileLeaveRequestsContentFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileLeaveRequestsContentFragmentId]
+        , typedSurfaceDependsOn = \_ _ -> []
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueUser key.profileLeaveVenueId key.profileLeaveUserId)
         }
 

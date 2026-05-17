@@ -173,6 +173,7 @@ tests = describe "SurfaceProjection helper" do
                             ("surface-target-" <> tshow scope <> "-" <> tshow fragment)
                             ("/surface/" <> tshow scope <> "/" <> tshow fragment)
                     , typedSurfaceDecorateRequestsWithin = const []
+                    , typedSurfaceDependsOn = \_ _ -> []
                     , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
                     }
         let definition =

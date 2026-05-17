@@ -9,6 +9,7 @@ module Web.View.Admin.Invites
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
                                        LiveSurfaceConfig (..),
                                        SurfaceFragmentRef, SurfaceScope (..),
@@ -115,6 +116,7 @@ adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
         , typedSurfaceDefaultFragments = const [adminInvitesFragment]
         , typedSurfaceFragmentRef = adminInvitesLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#admin-invites-fragment"]
+        , typedSurfaceDependsOn = \_ _ -> [AdminInvitesResource surfaceVenueId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
         }
 

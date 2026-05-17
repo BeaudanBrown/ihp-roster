@@ -37,6 +37,7 @@ supportLiveSurfaceDefinition =
                 , "#support-award-rates-section"
                 , "#support-public-holidays-section"
                 ]
+        , typedSurfaceDependsOn = \_ _ -> []
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const RequireSupportSuperAdmin)
         }
 
