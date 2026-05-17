@@ -37,7 +37,8 @@ import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
 import qualified Test.XeroTimesheetPreviewSpec as Preview
-import Web.Admin.Xero.Mutations (xeroPayItemsTouchedResources,
+import Web.Admin.Xero.Mutations (xeroConnectionTouchedResources,
+                                 xeroPayItemsTouchedResources,
                                  xeroReferenceSyncTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
@@ -81,6 +82,13 @@ tests = beforeAll testContext do
                 fragmentResponse `responseBodyShouldContain` "not connected"
                 fragmentResponse `responseBodyShouldNotContain` "Staff mappings"
                 fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
+
+        it "records touched resources for Xero connection mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Connection Touch Venue"
+
+                Set.fromList (xeroConnectionTouchedResources venue.id)
+                    `shouldBe` Set.fromList [XeroConnectionResource (unpackId venue.id)]
 
         it "records touched resources for Xero pay item mutations" $ withContext do
             withCleanDb do
