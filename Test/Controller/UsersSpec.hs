@@ -3,6 +3,7 @@ module Test.Controller.UsersSpec where
 import Application.Helper.Controller (unsafeEnumFromText,
                                       updateVenueMembershipRoleWithAudit,
                                       validRosterWeekStartDays)
+import Application.Helper.LiveResource
 import Config
 import Data.Aeson (Value (Null))
 import Data.Time.Clock (addUTCTime, getCurrentTime)
@@ -20,6 +21,7 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.Users ()
 import Web.FrontController ()
+import Web.Users.Mutations (acceptedVenueInvitationTouchedResources)
 import Web.Routes
 import Web.Types
 
@@ -154,6 +156,13 @@ tests = beforeAll testContext do
                 membershipCount <- query @VenueMembership |> fetchCount
                 userCount `shouldBe` 0
                 membershipCount `shouldBe` 0
+
+        it "records touched resources for accepted venue invitations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Invitation Touch Venue"
+                invitation <- createVenueInvitationRecord venue Nothing "touch@example.com" "manager"
+
+                acceptedVenueInvitationTouchedResources invitation `shouldBe` [AdminInvitesResource (unpackId venue.id)]
 
         it "creates a verified user and venue membership from a pending invitation" $ withContext do
             withCleanDb do

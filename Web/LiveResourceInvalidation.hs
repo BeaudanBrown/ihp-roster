@@ -8,11 +8,11 @@ module Web.LiveResourceInvalidation
     ) where
 
 import Application.Helper.LiveResource
+import Application.Helper.LiveSurface (broadcastSurfaceResync)
 import Application.Helper.LiveUpdate (activeRosterWeekScopes)
 import qualified Data.Set as Set
 import Data.UUID (UUID)
-import Web.Controller.Admin.Support (refreshAdminInvites,
-                                     refreshAdminRosterGroups,
+import Web.Controller.Admin.Support (refreshAdminRosterGroups,
                                      refreshAdminShiftTypes)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import Web.Controller.Admin.Xero.Responses (refreshAdminXero,
@@ -30,6 +30,8 @@ import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
                                   refreshTimesheetFragments,
                                   timesheetDaySectionFragment,
                                   timesheetDaySectionFragments)
+import Web.View.Admin.Invites (AdminInvitesSurfaceKey (..),
+                               adminInvitesLiveSurfaceDefinitionForVenue)
 
 data PlannedLiveInvalidation
     = InvalidateLeaveRequests
@@ -147,7 +149,7 @@ performPlannedInvalidation (InvalidateProfileContent staffId openSection) =
 performPlannedInvalidation (InvalidateRosterWeeksForStaff staffId) =
     refreshActiveRosterWeeksForStaff staffId
 performPlannedInvalidation (InvalidateAdminInvites venueId) =
-    refreshAdminInvites (Id venueId)
+    refreshAdminInvitesForVenue venueId
 performPlannedInvalidation (InvalidateAdminStaffCompliance venueId) =
     refreshStaffCompliance venueId
 performPlannedInvalidation (InvalidateAdminExports venueId) =
@@ -160,6 +162,12 @@ performPlannedInvalidation (InvalidateXeroPayItems venueId) =
     refreshAdminXeroPayItems venueId
 performPlannedInvalidation (InvalidateAdminXeroForStaff staffId) =
     refreshAdminXeroForStaff staffId
+
+refreshAdminInvitesForVenue :: (?context :: ControllerContext, ?request :: Request) => UUID -> IO ()
+refreshAdminInvitesForVenue venueId =
+    broadcastSurfaceResync
+        (adminInvitesLiveSurfaceDefinitionForVenue venueId)
+        AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
 
 refreshAdminXeroForStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> IO ()
 refreshAdminXeroForStaff staffId = do

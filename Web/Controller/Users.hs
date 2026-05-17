@@ -1,7 +1,7 @@
 module Web.Controller.Users where
 
 import Application.Helper.Controller (defaultRosterWeekStartsOn)
-import Application.Helper.LiveSurface (broadcastSurfaceFragments)
+import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.VenueBootstrap (createVenueWithBootstrapConfigInCurrentTransaction,
                                           defaultStaffNameFromEmail,
                                           defaultVenueBootstrapTimezone,
@@ -14,9 +14,7 @@ import qualified IHP.AuthSupport.Controller.Sessions as Sessions
 import qualified IHP.LoginSupport.Helper.Controller as LoginSupport
 import Web.Controller.Prelude
 import Web.Controller.Sessions ()
-import Web.View.Admin.Invites (AdminInvitesLiveFragment (..),
-                               AdminInvitesSurfaceKey (..),
-                               adminInvitesLiveSurfaceDefinitionForVenue)
+import Web.Users.Mutations (acceptVenueInvitation)
 import Web.View.Users.New
 
 instance Controller UsersController where
@@ -68,51 +66,9 @@ instance Controller UsersController where
                                     render InvitationSignupView { user, venueInvitation = invitation }
                                 Right user -> do
                                     hashed <- hashPassword user.passwordHash
-                                    user <- withTransaction do
-                                        verifiedAt <- getCurrentTime
-                                        user <- user
-                                            |> set #passwordHash hashed
-                                            |> set #emailVerifiedAt (Just verifiedAt)
-                                            |> createRecord
-                                        venue <- fetch (Id invitation.venueId :: Id Venue)
-                                        membership <- provisionVenueMembership venue user (inputValue invitation.inviteRole)
-                                        _ <- invitation
-                                            |> set #status (unsafeEnumFromText @InvitationStatusEnum "accepted")
-                                            |> set #acceptedByUserId (Just (unpackId (get #id user)))
-                                            |> set #acceptedAt (Just now)
-                                            |> updateRecord
-                                        void $ recordAuditEvent
-                                            invitation.venueId
-                                            (unpackId (get #id user))
-                                            "venue_role_assigned"
-                                            "venue_memberships"
-                                            (unpackId (get #id membership))
-                                            (Aeson.object
-                                                [ "email" Aeson..= user.email
-                                                , "assignedRole" Aeson..= inputValue membership.venueRole
-                                                , "invitationId" Aeson..= unpackId (get #id invitation)
-                                                ]
-                                            )
-                                            requestAuditSourceChannel
-                                        void $ recordVenueMembershipRoleEvent
-                                            invitation.venueId
-                                            (unpackId (get #id user))
-                                            membership
-                                            (unsafeEnumFromText @VenueMembershipRoleEventTypeEnum "assigned")
-                                            Nothing
-                                            membership.venueRole
-                                            (Aeson.object
-                                                [ "email" Aeson..= user.email
-                                                , "invitationId" Aeson..= unpackId (get #id invitation)
-                                                ]
-                                            )
-                                        pure user
+                                    user <- liveMutationValue <$> acceptVenueInvitation now invitation user hashed
                                     Sessions.beforeLogin user
                                     LoginSupport.login user
-                                    broadcastSurfaceFragments
-                                        (adminInvitesLiveSurfaceDefinitionForVenue invitation.venueId)
-                                        AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
-                                        [AdminInvitesLiveFragment]
                                     setSuccessMessage "Invitation accepted."
                                     redirectTo EditProfileAction
                     _ -> do

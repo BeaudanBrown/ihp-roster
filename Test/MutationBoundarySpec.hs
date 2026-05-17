@@ -78,6 +78,14 @@ tests = describe "Mutation boundary guard" do
         let forbiddenTokens = ["refreshAdminInvites", "refreshAdminRosterGroups", "refreshAdminShiftTypes", "refreshAdminXero", "broadcastSurface"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
+    it "routes venue invitation acceptance through the mutation module" do
+        controllerSource <- Text.readFile "Web/Controller/Users.hs"
+        mutationSource <- Text.readFile "Web/Users/Mutations.hs"
+        let controllerForbiddenTokens = ["broadcastSurfaceFragments", "adminInvitesLiveSurfaceDefinitionForVenue", "AdminInvitesLiveFragment"]
+        let mutationForbiddenTokens = ["broadcastSurface", "refreshAdminInvites"]
+        filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
+        filter (`Text.isInfixOf` mutationSource) mutationForbiddenTokens `shouldBe` []
+
     it "keeps export job writes in the mutation module" do
         source <- Text.readFile "Web/Controller/Exports.hs"
         let forbiddenTokens = ["requestFixedExport ", "recordExportDownload ", "createRecord", "updateRecord", "recordCurrentUserAuditEvent"]
