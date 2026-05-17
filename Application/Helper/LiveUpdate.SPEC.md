@@ -84,6 +84,47 @@ Redis pub/sub, must preserve the public `LiveBus` contract: structural
 `LiveUpdateScope`, and server-side authorization before websocket
 subscription.
 
+## Mutation Invalidation Boundary
+
+`Application.Helper.LiveResource` is the business-mutation boundary for passive
+live invalidation. A mutation returns `LiveMutationResult a`, where
+`liveMutationValue` is the domain result and `liveMutationTouchedResources` is
+the set of semantic `LiveResource` values changed by the write.
+
+Mutation modules own three things together:
+
+- business database writes and their audit/version side effects
+- semantic touched-resource calculation, including old/new scope comparisons
+- passive invalidation via `Web.LiveResourceInvalidation.invalidateTouchedResources`
+
+Controllers should parse, authorize, choose actor response shape, and inspect
+`liveMutationValue`. They should not perform passive refresh/broadcast calls
+after a migrated write path. Actor-specific HTMX responses, toasts, redirects,
+dialog updates, and OOB fragments may remain in controllers when they only serve
+the requester.
+
+`Web.LiveResourceInvalidation` is the planner/adapter layer. It maps semantic
+resources such as `StaffProfileResource`, `RosterWeekResource`, or
+`XeroTimesheetsResource` to the existing typed live-surface refresh helpers and
+performs deduplication/suppression. Feature mutation modules must not call
+feature refresh helpers such as `refreshRosterFragments`,
+`refreshProfileContent`, `refreshAdminXero`, `refreshTimesheetFragments`, or raw
+`broadcastSurface*` helpers once the domain has been migrated.
+
+When adding or migrating a mutation flow:
+
+- keep exported functions semantic, e.g. `updateStaffMember` or
+  `submitXeroDraftTimesheetsMutation`, rather than generic CRUD wrappers
+- compute touches from business meaning, not table names, unless no narrower
+  resource exists
+- keep passive invalidation labels stable and descriptive, e.g.
+  `"xero.timesheets.submit"`
+- split helpers that mix passive broadcasts with actor refresh triggers so the
+  passive part goes through touched resources
+- add mutation-boundary coverage in `Test/MutationBoundarySpec.hs` for direct DB
+  writes in controllers and direct refresh/broadcast calls in migrated mutation
+  modules
+
 ## Extension Rules
 
 - Do not add feature-specific JavaScript adapters for normal subscribe, resync,
