@@ -54,10 +54,8 @@ tests = do
 
         it "plans timesheet invalidations from timesheet resources" do
             let venueId = fromWords 1 0 0 0
-            let resources = Set.fromList [TimesheetWeekResource venueId 0, TimesheetDayResource venueId 0 2]
 
-            planLiveInvalidationsForResources [] resources
-                `shouldBe` Set.fromList
-                    [ InvalidateTimesheetWeek venueId 0
-                    , InvalidateTimesheetDay venueId 0 2
-                    ]
+            planLiveInvalidationsForResources [] (Set.singleton (TimesheetWeekResource venueId 0))
+                `shouldBe` Set.singleton (InvalidateTimesheetWeek venueId 0)
+            planLiveInvalidationsForResources [] (Set.fromList [TimesheetWeekResource venueId 0, TimesheetDayResource venueId 0 2])
+                `shouldBe` Set.singleton (InvalidateTimesheetDay venueId 0 2)

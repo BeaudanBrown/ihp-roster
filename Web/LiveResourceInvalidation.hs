@@ -8,8 +8,7 @@ module Web.LiveResourceInvalidation
     ) where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveUpdateScope (..), activeLiveUpdateScopes,
-                                      activeRosterWeekScopes)
+import Application.Helper.LiveUpdate (activeRosterWeekScopes)
 import qualified Data.Set as Set
 import Data.UUID (UUID)
 import Web.Controller.Admin.Support (refreshAdminInvites,
@@ -53,7 +52,7 @@ rosterWeekLeaveCalendarDependsOn venueId weekOffset =
 
 planLiveInvalidationsForResources :: [(UUID, UUID, Int)] -> Set.Set LiveResource -> Set.Set PlannedLiveInvalidation
 planLiveInvalidationsForResources activeRosterScopes resources =
-    Set.unions (map planForResource (Set.toList resources))
+    suppressTimesheetWeekWhenDaysPresent (Set.unions (map planForResource (Set.toList resources)))
     where
         planForResource (LeaveRequestsResource _) =
             Set.singleton InvalidateLeaveRequests
@@ -87,24 +86,21 @@ invalidateTouchedResources :: (?context :: ControllerContext, ?modelContext :: M
 invalidateTouchedResources label result = do
     observed <- recordLiveMutationDiagnostics label result
     activeRosterScopes <- activeRosterWeekScopes
-    activeScopes <- activeLiveUpdateScopes
-    let plannedInvalidations = filterInactiveTimesheetInvalidations activeScopes (planLiveInvalidationsForResources activeRosterScopes (liveMutationTouchedResources observed))
+    let plannedInvalidations = planLiveInvalidationsForResources activeRosterScopes (liveMutationTouchedResources observed)
     forM_ (Set.toAscList plannedInvalidations) performPlannedInvalidation
     pure observed
 
-filterInactiveTimesheetInvalidations :: [LiveUpdateScope] -> Set.Set PlannedLiveInvalidation -> Set.Set PlannedLiveInvalidation
-filterInactiveTimesheetInvalidations activeScopes planned =
+suppressTimesheetWeekWhenDaysPresent :: Set.Set PlannedLiveInvalidation -> Set.Set PlannedLiveInvalidation
+suppressTimesheetWeekWhenDaysPresent planned =
     Set.filter shouldKeep planned
     where
-        activeTimesheetScopes =
+        dayScopes =
             Set.fromList
                 [ (venueId, weekOffset)
-                | TimesheetWeekScope { venueId, weekOffset } <- activeScopes
+                | InvalidateTimesheetDay venueId weekOffset _ <- Set.toList planned
                 ]
         shouldKeep (InvalidateTimesheetWeek venueId weekOffset) =
-            (venueId, weekOffset) `Set.member` activeTimesheetScopes
-        shouldKeep (InvalidateTimesheetDay venueId weekOffset _) =
-            (venueId, weekOffset) `Set.member` activeTimesheetScopes
+            (venueId, weekOffset) `Set.notMember` dayScopes
         shouldKeep _ = True
 
 performPlannedInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => PlannedLiveInvalidation -> IO ()

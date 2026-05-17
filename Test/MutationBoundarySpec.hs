@@ -22,6 +22,11 @@ tests = describe "Mutation boundary guard" do
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserTimesheetEntryVersion", "recordCurrentUserAuditEvent"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
+    it "routes timesheet mutation live invalidation through touched resources" do
+        source <- Text.readFile "Web/Timesheets/Mutations.hs"
+        let forbiddenTokens = ["refreshTimesheetDay", "refreshMovedTimesheetEntry", "refreshTimesheetFragments", "broadcastSurface"]
+        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+
     it "keeps profile update writes in the mutation module" do
         source <- Text.readFile "Web/Controller/Profiles.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "replaceStaffShiftPreferences", "refreshRosterFragments", "refreshProfileContent"]
