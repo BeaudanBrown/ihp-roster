@@ -111,6 +111,18 @@ feature refresh helpers such as `refreshRosterFragments`,
 `refreshProfileContent`, `refreshAdminXero`, `refreshTimesheetFragments`, or raw
 `broadcastSurface*` helpers once the domain has been migrated.
 
+Allowed direct live-surface calls after migration are limited to planner or
+transport adapters and actor-only response helpers:
+
+- planner adapters in `Web.LiveResourceInvalidation` and feature `LiveUpdates`
+  modules may call `broadcastSurface*` helpers
+- controllers may call `setTypedLiveSurfaceActorRefresh` or helpers that only
+  set actor refresh headers for the requester
+- background jobs should call a touched-resource invalidation adapter, such as
+  `invalidateTouchedResourcesWithoutContext`, when passive viewers need updates
+- controllers and mutation modules should not combine passive broadcasts with
+  actor refreshes after the passive path has moved to touched resources
+
 When adding or migrating a mutation flow:
 
 - keep exported functions semantic, e.g. `updateStaffMember` or

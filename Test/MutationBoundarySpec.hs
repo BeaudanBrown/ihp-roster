@@ -64,9 +64,12 @@ tests = describe "Mutation boundary guard" do
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
     it "routes roster mutation live invalidation through touched resources" do
-        source <- Text.readFile "Web/RosterWeeks/Mutations.hs"
-        let forbiddenTokens = ["refreshRosterContent", "refreshRosterContentAndStaffPanel", "refreshRosterFragments", "broadcastSurface"]
-        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+        mutationSource <- Text.readFile "Web/RosterWeeks/Mutations.hs"
+        controllerSource <- Text.readFile "Web/Controller/RosterWeeks.hs"
+        let mutationForbiddenTokens = ["refreshRosterContent", "refreshRosterContentAndStaffPanel", "refreshRosterFragments", "broadcastSurface"]
+        let controllerForbiddenTokens = ["refreshRosterFragments", "refreshRosterFragmentsAndSetActorRefresh"]
+        filter (`Text.isInfixOf` mutationSource) mutationForbiddenTokens `shouldBe` []
+        filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
 
     it "keeps admin config writes in the mutation module" do
         source <- Text.readFile "Web/Controller/Admin.hs"

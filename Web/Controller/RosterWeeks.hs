@@ -33,8 +33,6 @@ import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
-import Web.RosterWeeks.LiveUpdates (refreshRosterFragments,
-                                    refreshRosterFragmentsAndSetActorRefresh)
 import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterWeekUrl)
@@ -278,7 +276,7 @@ instance Controller RosterWeeksController where
 
         if isHtmxRequest
             then
-                refreshRosterFragmentsAndRespondToActor
+                respondWithRosterActorRefresh
                     rosterGroupId
                     rosterWeek.weekOffset
                     rosterContentAndStaffPanelFragments
@@ -309,7 +307,7 @@ instance Controller RosterWeeksController where
         if isHtmxRequest
             then do
                 setHtmxPushUrl targetPath
-                refreshRosterFragmentsAndRespondToActor
+                respondWithRosterActorRefresh
                     rosterGroupId
                     rosterWeek.weekOffset
                     rosterContentAndStaffPanelFragments
@@ -352,7 +350,7 @@ instance Controller RosterWeeksController where
 
                 if isHtmxRequest
                     then
-                        refreshRosterFragmentsAndRespondToActor
+                        respondWithRosterActorRefresh
                             rosterGroupId
                             rosterWeek.weekOffset
                             rosterContentAndStaffPanelFragments
@@ -401,7 +399,7 @@ instance Controller RosterWeeksController where
 
                 if isHtmxRequest
                     then
-                        refreshRosterFragmentsAndRespondToActor
+                        respondWithRosterActorRefresh
                             rosterGroupId
                             rosterWeek.weekOffset
                             rosterContentAndStaffPanelFragments
@@ -505,9 +503,8 @@ instance Controller RosterWeeksController where
                                     )
                                     createdSlot
                 if isHtmxRequest
-                    then refreshRosterFragmentsAndRespondToActor rosterGroupId rosterWeek.weekOffset actorFragments
+                    then respondWithRosterActorRefresh rosterGroupId rosterWeek.weekOffset actorFragments
                     else do
-                        refreshRosterFragments rosterGroupId rosterWeek.weekOffset actorFragments
                         setSuccessMessage "Roster slot updated."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
@@ -567,7 +564,7 @@ instance Controller RosterWeeksController where
                                 actorRosterRowFragments maybeStaffParam impactedRowKeys
                                     <> assignmentRefreshFragments maybeStaffParam
                                     <> [rosterStaffPanelFragment]
-                refreshRosterFragmentsAndRespondToActorWithToast
+                respondWithRosterActorRefreshWithToast
                     rosterGroupId
                     rosterWeek.weekOffset
                     actorFragments
@@ -648,13 +645,13 @@ respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelC
 respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
     respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
 
-refreshRosterFragmentsAndRespondToActor :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
-refreshRosterFragmentsAndRespondToActor rosterGroupId weekOffset fragments =
-    refreshRosterFragmentsAndRespondToActorWithToast rosterGroupId weekOffset fragments Nothing
+respondWithRosterActorRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
+respondWithRosterActorRefresh rosterGroupId weekOffset fragments =
+    respondWithRosterActorRefreshWithToast rosterGroupId weekOffset fragments Nothing
 
-refreshRosterFragmentsAndRespondToActorWithToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Maybe Text -> IO ()
-refreshRosterFragmentsAndRespondToActorWithToast rosterGroupId weekOffset fragments maybeWarningMessage = do
-    refreshRosterFragmentsAndSetActorRefresh rosterGroupId weekOffset fragments
+respondWithRosterActorRefreshWithToast :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Maybe Text -> IO ()
+respondWithRosterActorRefreshWithToast rosterGroupId weekOffset fragments maybeWarningMessage = do
+    setTypedLiveSurfaceActorRefresh rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) fragments
     respondHtmlProfiled $
         maybe mempty (renderToastOob ToastBottomCenter . errorToast) maybeWarningMessage
 
