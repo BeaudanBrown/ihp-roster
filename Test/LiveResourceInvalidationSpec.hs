@@ -84,6 +84,10 @@ tests = do
             planLiveInvalidationsForResources [] (Set.fromList [AdminExportsResource venueId, BillingResource venueId])
                 `shouldBe` Set.fromList [InvalidateAdminExports venueId, InvalidateBilling venueId]
 
+        it "plans support invalidations from support resources" do
+            planLiveInvalidationsForResources [] (Set.fromList [SupportAwardRatesResource, SupportPublicHolidaysResource])
+                `shouldBe` Set.fromList [InvalidateSupportAwardRates, InvalidateSupportPublicHolidays]
+
         it "plans RSA profile and admin compliance invalidations from staff document resources" do
             let venueId = fromWords 4 0 0 0
             let staffId = fromWords 5 0 0 0

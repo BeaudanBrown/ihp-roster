@@ -4,9 +4,9 @@ module Application.PublicHolidays.Job
     , publicHolidayRefreshJobKind
     ) where
 
-import Application.Helper.LiveSurface (broadcastSurfaceFragmentsWithoutContext)
+import Application.Helper.LiveResource
 import Application.PublicHolidays.Sync
-import Application.Support.LiveUpdates
+import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Generated.Types
@@ -42,8 +42,5 @@ performPublicHolidayRefreshJob appJob = do
             |> updateRecord
         )
     void $
-        broadcastSurfaceFragmentsWithoutContext
-            supportLiveSurfaceDefinition
-            ()
-            Nothing
-            [SupportPublicHolidaysLiveFragment]
+        invalidateTouchedResourcesWithoutContext "support.public_holidays.refresh" $
+            liveMutationResult summary [SupportPublicHolidaysResource]

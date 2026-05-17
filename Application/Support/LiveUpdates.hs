@@ -7,6 +7,7 @@ module Application.Support.LiveUpdates
     , supportLiveUpdateScope
     ) where
 
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import IHP.Prelude
@@ -37,7 +38,10 @@ supportLiveSurfaceDefinition =
                 , "#support-award-rates-section"
                 , "#support-public-holidays-section"
                 ]
-        , typedSurfaceDependsOn = \_ _ -> []
+        , typedSurfaceDependsOn = \_ fragment ->
+            case fragment of
+                SupportAwardRatesLiveFragment -> [SupportAwardRatesResource]
+                SupportPublicHolidaysLiveFragment -> [SupportPublicHolidaysResource]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const RequireSupportSuperAdmin)
         }
 

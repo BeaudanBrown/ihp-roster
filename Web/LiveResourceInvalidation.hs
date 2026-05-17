@@ -9,7 +9,8 @@ module Web.LiveResourceInvalidation
     ) where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveSurface (broadcastSurfaceResync,
+import Application.Helper.LiveSurface (broadcastSurfaceFragmentsWithoutContext,
+                                       broadcastSurfaceResync,
                                        broadcastSurfaceResyncWithoutContext)
 import Application.Helper.LiveUpdate (activeRosterWeekScopes)
 import qualified Data.Set as Set
@@ -31,10 +32,13 @@ import Web.RosterWeeks.LiveUpdates (refreshRosterFragments)
 import Web.Profiles.LiveUpdates (refreshProfileContentForStaffId)
 import Web.RosterWeeks.Projection (rosterContentAndStaffPanelFragments)
 import Web.StaffDocuments.LiveUpdates (refreshStaffCompliance)
+import Application.Support.LiveUpdates (SupportLiveFragment (..),
+                                        supportLiveSurfaceDefinition)
 import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
                                   refreshTimesheetFragments,
                                   timesheetDaySectionFragment,
-                                  timesheetDaySectionFragments)
+                                  timesheetDaySectionFragments,
+                                  timesheetLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Invites (AdminInvitesSurfaceKey (..),
                                adminInvitesLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinitionForVenue)
@@ -57,6 +61,8 @@ data PlannedLiveInvalidation
     | InvalidateXeroTimesheets !UUID
     | InvalidateAdminXero !UUID
     | InvalidateAdminXeroForStaff !UUID
+    | InvalidateSupportAwardRates
+    | InvalidateSupportPublicHolidays
     deriving (Eq, Ord, Show)
 
 leaveRequestsContentDependsOn :: Id Venue -> [LiveResource]
@@ -110,6 +116,10 @@ planLiveInvalidationsForResources activeRosterScopes resources =
             Set.singleton (InvalidateAdminExports venueId)
         planForResource (BillingResource venueId) =
             Set.singleton (InvalidateBilling venueId)
+        planForResource SupportAwardRatesResource =
+            Set.singleton InvalidateSupportAwardRates
+        planForResource SupportPublicHolidaysResource =
+            Set.singleton InvalidateSupportPublicHolidays
         planForResource (AdminRosterGroupsResource venueId) =
             Set.singleton (InvalidateAdminRosterGroups venueId)
         planForResource (AdminShiftTypesResource venueId) =
@@ -193,6 +203,10 @@ performPlannedInvalidation (InvalidateAdminXero venueId) =
     refreshAdminXero (Id venueId)
 performPlannedInvalidation (InvalidateAdminXeroForStaff staffId) =
     refreshAdminXeroForStaff staffId
+performPlannedInvalidation InvalidateSupportAwardRates =
+    pure ()
+performPlannedInvalidation InvalidateSupportPublicHolidays =
+    pure ()
 
 performPlannedInvalidationWithoutContext :: PlannedLiveInvalidation -> IO ()
 performPlannedInvalidationWithoutContext (InvalidateAdminXero venueId) =
@@ -202,6 +216,39 @@ performPlannedInvalidationWithoutContext (InvalidateAdminXero venueId) =
         Nothing
 performPlannedInvalidationWithoutContext (InvalidateBilling venueId) =
     broadcastBillingInvalidationForVenue venueId
+performPlannedInvalidationWithoutContext (InvalidateAdminInvites venueId) =
+    broadcastSurfaceResyncWithoutContext
+        (adminInvitesLiveSurfaceDefinitionForVenue venueId)
+        AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
+        Nothing
+performPlannedInvalidationWithoutContext (InvalidateTimesheetWeek venueId weekOffset) = do
+    _ <- broadcastSurfaceFragmentsWithoutContext
+        (timesheetLiveSurfaceDefinitionForVenue venueId)
+        (TimesheetProjectionRequest weekOffset True True Nothing)
+        Nothing
+        (timesheetDaySectionFragments [0 .. 6])
+    pure ()
+performPlannedInvalidationWithoutContext (InvalidateTimesheetDay venueId weekOffset dayOffset) = do
+    _ <- broadcastSurfaceFragmentsWithoutContext
+        (timesheetLiveSurfaceDefinitionForVenue venueId)
+        (TimesheetProjectionRequest weekOffset True True Nothing)
+        Nothing
+        [timesheetDaySectionFragment dayOffset]
+    pure ()
+performPlannedInvalidationWithoutContext InvalidateSupportAwardRates = do
+    _ <- broadcastSurfaceFragmentsWithoutContext
+        supportLiveSurfaceDefinition
+        ()
+        Nothing
+        [SupportAwardRatesLiveFragment]
+    pure ()
+performPlannedInvalidationWithoutContext InvalidateSupportPublicHolidays = do
+    _ <- broadcastSurfaceFragmentsWithoutContext
+        supportLiveSurfaceDefinition
+        ()
+        Nothing
+        [SupportPublicHolidaysLiveFragment]
+    pure ()
 performPlannedInvalidationWithoutContext _ =
     pure ()
 

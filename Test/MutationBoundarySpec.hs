@@ -81,6 +81,16 @@ tests = describe "Mutation boundary guard" do
         let forbiddenTokens = ["refreshAdminInvites", "refreshAdminRosterGroups", "refreshAdminShiftTypes", "refreshAdminXero", "broadcastSurface"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
+    it "routes background job invalidation through touched resources" do
+        sources <- mapM Text.readFile
+            [ "Application/PublicHolidays/Job.hs"
+            , "Application/FwcMapd/Job.hs"
+            , "Application/RosterTimesheets/Automation.hs"
+            , "Application/InvitationDelivery/Job.hs"
+            ]
+        let forbiddenTokens = ["broadcastSurfaceFragmentsWithoutContext", "broadcastSurfaceResyncWithoutContext"]
+        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
+
     it "keeps billing writes in the mutation module" do
         controllerSource <- Text.readFile "Web/Controller/Billing.hs"
         webhookSource <- Text.readFile "Web/Controller/StripeWebhooks.hs"

@@ -5,13 +5,13 @@ module Application.FwcMapd.Job
     ) where
 
 import Application.FwcMapd.Sync
-import Application.Helper.LiveSurface (broadcastSurfaceFragmentsWithoutContext)
-import Application.Support.LiveUpdates
+import Application.Helper.LiveResource
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
+import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 fwcMapdRefreshJobKind :: Text
 fwcMapdRefreshJobKind = "fwc_mapd_refresh"
@@ -43,8 +43,5 @@ performFwcMapdRefreshJob appJob = do
                     |> updateRecord
                 )
             void $
-                broadcastSurfaceFragmentsWithoutContext
-                    supportLiveSurfaceDefinition
-                    ()
-                    Nothing
-                    [SupportAwardRatesLiveFragment]
+                invalidateTouchedResourcesWithoutContext "support.award_rates.refresh" $
+                    liveMutationResult summary [SupportAwardRatesResource]

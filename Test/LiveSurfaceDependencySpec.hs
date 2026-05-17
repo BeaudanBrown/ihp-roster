@@ -7,6 +7,8 @@ import Data.UUID (fromWords)
 import IHP.Controller.Context (ControllerContext)
 import IHP.Prelude
 import Test.Hspec
+import Application.Support.LiveUpdates (SupportLiveFragment (..),
+                                        supportLiveSurfaceDefinition)
 import Web.Billing.LiveUpdates (BillingLiveFragment (..),
                                 BillingSurfaceKey (..),
                                 billingLiveSurfaceDefinition)
@@ -40,6 +42,12 @@ tests = do
                 `shouldBe` [TimesheetWeekResource venueId 2]
             typedSurfaceDependsOn definition request (TimesheetProjectionDaySection 4)
                 `shouldBe` [TimesheetDayResource venueId 2 4]
+
+        it "declares support dependencies by support fragment" do
+            typedSurfaceDependsOn supportLiveSurfaceDefinition () SupportAwardRatesLiveFragment
+                `shouldBe` [SupportAwardRatesResource]
+            typedSurfaceDependsOn supportLiveSurfaceDefinition () SupportPublicHolidaysLiveFragment
+                `shouldBe` [SupportPublicHolidaysResource]
 
         it "declares admin Xero dependencies by fragment" do
             let venueId = fromWords 2 0 0 0

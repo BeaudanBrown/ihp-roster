@@ -9,7 +9,7 @@ module Application.InvitationDelivery.Job
 
 import Application.Async.Queue
 import Application.Helper.Controller (unsafeEnumFromText)
-import Application.Helper.LiveSurface (broadcastSurfaceFragmentsWithoutContext)
+import Application.Helper.LiveResource
 import Application.Helper.VenueInvitation (deliverVenueInvitationEmail)
 import Application.Helper.VenueOnboardingInvitation (deliverVenueOnboardingInvitationEmail)
 import Control.Monad (void)
@@ -17,9 +17,7 @@ import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig (FrameworkConfig)
-import Web.View.Admin.Invites (AdminInvitesLiveFragment (..),
-                               AdminInvitesSurfaceKey (..),
-                               adminInvitesLiveSurfaceDefinitionForVenue)
+import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 venueInvitationDeliveryJobKind :: Text
 venueInvitationDeliveryJobKind = "venue_invitation_delivery"
@@ -81,11 +79,8 @@ performVenueInvitationDeliveryJob appJob = do
             |> updateRecord
         )
     void $
-        broadcastSurfaceFragmentsWithoutContext
-            (adminInvitesLiveSurfaceDefinitionForVenue invitation.venueId)
-            AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
-            Nothing
-            [AdminInvitesLiveFragment]
+        invalidateTouchedResourcesWithoutContext "admin.invites.delivery" $
+            liveMutationResult invitation [AdminInvitesResource invitation.venueId]
 
 performVenueOnboardingInvitationDeliveryJob ::
     (?context :: FrameworkConfig, ?modelContext :: ModelContext) =>

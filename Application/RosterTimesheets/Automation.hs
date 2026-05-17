@@ -16,11 +16,11 @@ import Application.Async.Queue
 import Application.Helper.Audit
 import Application.Helper.Controller (shiftDurationMinutes, unsafeEnumFromText,
                                       venueWeekOffsetForDay, venueWeekStartDate)
-import Application.Helper.LiveSurface (broadcastSurfaceResyncWithoutContext)
+import Application.Helper.LiveResource
 import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
-import Data.Time.Calendar (Day, addDays)
+import Data.Time.Calendar (Day, addDays, diffDays)
 import Data.Time.Clock (UTCTime)
 import Data.Time.LocalTime (TimeOfDay)
 import Data.UUID (UUID)
@@ -28,8 +28,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
 import IHP.ModelSupport (ModelContext, sqlQueryScalar)
-import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
-                                  timesheetLiveSurfaceDefinitionForVenue)
+import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 rosterTimesheetCreationJobKind :: Text
 rosterTimesheetCreationJobKind = "roster_timesheet_creation"
@@ -127,10 +126,16 @@ performRosterTimesheetCreationJob appJob = do
                                         )
                             pure entry
                         markRosterTimesheetJobSucceeded appJob "created" (Just timesheetEntry)
-                        broadcastSurfaceResyncWithoutContext
-                            (timesheetLiveSurfaceDefinitionForVenue rosterWeek.venueId)
-                            (TimesheetProjectionRequest (venueWeekOffsetForDay venueConfig workedOn) True True Nothing)
-                            Nothing
+                        void $
+                            invalidateTouchedResourcesWithoutContext "timesheet.roster_automation.create" $
+                                liveMutationResult timesheetEntry [rosterTimesheetTouchedResource venueConfig rosterWeek workedOn]
+
+rosterTimesheetTouchedResource :: VenueConfig -> RosterWeek -> Day -> LiveResource
+rosterTimesheetTouchedResource venueConfig rosterWeek workedOn =
+    TimesheetDayResource rosterWeek.venueId weekOffset dayOffset
+    where
+        weekOffset = venueWeekOffsetForDay venueConfig workedOn
+        dayOffset = fromIntegral (diffDays workedOn (venueWeekStartDate venueConfig weekOffset))
 
 rosterTimesheetRunAt ::
     (?modelContext :: ModelContext) =>
