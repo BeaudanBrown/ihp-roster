@@ -20,8 +20,11 @@ import Network.HTTP.Types.Status
 import Network.Wai
 import Test.Hspec
 import Test.Support
+import Application.Helper.LiveResource (LiveResource (..))
+import qualified Data.Set as Set
 import Web.Profiles.Mutations (fetchProfileRosterInvalidationTargets,
-                               fetchProfileRosterInvalidationTargetsForScopes)
+                               fetchProfileRosterInvalidationTargetsForScopes,
+                               profileUpdateTouchedResources)
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
@@ -245,6 +248,19 @@ tests = beforeAll testContext do
                 map (.weekdayIndex) preferences `shouldBe` [1]
                 map (.preferredStartHour) preferences `shouldBe` [12]
                 map (.preferredEndHour) preferences `shouldBe` [20]
+
+        it "records touched resources for profile updates" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Profile Touched Venue"
+                user <- createUserRecord "profile-touched@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                staff <- createStaffRecord venue (Just user) "Taylor" "Touched"
+
+                Set.fromList (profileUpdateTouchedResources staff)
+                    `shouldBe` Set.fromList
+                        [ StaffProfileResource (unpackId staff.id)
+                        , StaffPreferencesResource (unpackId staff.id)
+                        ]
 
         it "creates a linked staff row on the first successful profile submission" $ withContext do
             withCleanDb do

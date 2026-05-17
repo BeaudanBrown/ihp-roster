@@ -1,5 +1,6 @@
 module Web.Controller.Profiles where
 
+import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
 import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
                                         fetchCurrentUserLeaveRequests)
@@ -105,8 +106,9 @@ instance Controller ProfilesController where
                                 else render EditView { .. }
                         Right submittedSelections -> do
                             mutationResult <- updateCurrentUserProfile openSection staff submittedSelections
-                            let updatedStaff = mutationResult.profileUpdatedStaff
-                            if not mutationResult.profileWasCompletedBefore && mutationResult.profileIsCompletedNow
+                            let profileUpdate = mutationResult.liveMutationValue
+                            let updatedStaff = profileUpdate.profileUpdatedStaff
+                            if not profileUpdate.profileWasCompletedBefore && profileUpdate.profileIsCompletedNow
                                 then redirectTo RosterWeeksAction
                                 else if isHtmxRequest
                                     then

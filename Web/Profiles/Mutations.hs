@@ -2,9 +2,11 @@ module Web.Profiles.Mutations
     ( ProfileUpdateMutationResult (..)
     , fetchProfileRosterInvalidationTargets
     , fetchProfileRosterInvalidationTargetsForScopes
+    , profileUpdateTouchedResources
     , updateCurrentUserProfile
     ) where
 
+import Application.Helper.LiveResource
 import Application.Helper.LiveUpdate (activeRosterWeekScopes)
 import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchStaffRosterGroupIds,
@@ -27,7 +29,7 @@ data ProfileUpdateMutationResult = ProfileUpdateMutationResult
     }
     deriving (Eq, Show)
 
-updateCurrentUserProfile :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Staff -> [ShiftPreferenceSelection] -> IO ProfileUpdateMutationResult
+updateCurrentUserProfile :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Staff -> [ShiftPreferenceSelection] -> IO (LiveMutationResult ProfileUpdateMutationResult)
 updateCurrentUserProfile openSection staffInput submittedSelections = do
     staff <- upsertCurrentUserStaff staffInput
     replaceStaffShiftPreferences staff submittedSelections
@@ -41,11 +43,20 @@ updateCurrentUserProfile openSection staffInput submittedSelections = do
         |> set #isProfileCompleted isProfileCompleted
         |> updateRecord
     refreshProfileContent openSection
-    pure ProfileUpdateMutationResult
-        { profileUpdatedStaff = staff
-        , profileWasCompletedBefore = wasProfileCompleted
-        , profileIsCompletedNow = isProfileCompleted
-        }
+    pure $
+        liveMutationResult
+            ProfileUpdateMutationResult
+                { profileUpdatedStaff = staff
+                , profileWasCompletedBefore = wasProfileCompleted
+                , profileIsCompletedNow = isProfileCompleted
+                }
+            (profileUpdateTouchedResources staff)
+
+profileUpdateTouchedResources :: Staff -> [LiveResource]
+profileUpdateTouchedResources staff =
+    [ StaffProfileResource (unpackId staff.id)
+    , StaffPreferencesResource (unpackId staff.id)
+    ]
 
 upsertCurrentUserStaff :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Staff -> IO Staff
 upsertCurrentUserStaff staff = do
