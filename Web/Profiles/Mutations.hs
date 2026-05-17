@@ -17,10 +17,7 @@ import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
-import Web.Profiles.LiveUpdates (refreshProfileContent)
-import Web.RosterWeeks.LiveUpdates (refreshRosterFragments)
-import Web.RosterWeeks.Projection (rosterContentFragment)
-import Web.RosterWeeks.Types (RosterProjectionFragment)
+import Web.LiveResourceInvalidation (invalidateTouchedResources)
 
 data ProfileUpdateMutationResult = ProfileUpdateMutationResult
     { profileUpdatedStaff       :: !Staff
@@ -33,17 +30,12 @@ updateCurrentUserProfile :: (?context :: ControllerContext, ?modelContext :: Mod
 updateCurrentUserProfile openSection staffInput submittedSelections = do
     staff <- upsertCurrentUserStaff staffInput
     replaceStaffShiftPreferences staff submittedSelections
-    invalidationTargets <- fetchProfileRosterInvalidationTargets currentVenueId staff
-    let invalidations = buildProfileRosterInvalidations invalidationTargets
-    forM_ invalidations \(rosterGroupId, weekOffset, fragments) ->
-        refreshRosterFragments rosterGroupId weekOffset fragments
     let isProfileCompleted = requiredProfileFieldsCompleted staff
     let wasProfileCompleted = currentUser.isProfileCompleted
     currentUser
         |> set #isProfileCompleted isProfileCompleted
         |> updateRecord
-    refreshProfileContent openSection
-    pure $
+    invalidateTouchedResources ("profile.update." <> openSection) $
         liveMutationResult
             ProfileUpdateMutationResult
                 { profileUpdatedStaff = staff
@@ -152,10 +144,3 @@ fetchProfileRosterInvalidationTargetsForScopes venueId staff activeScopes = do
                 | rosterWeek <- activeRosterWeeks
                 ]
 
-buildProfileRosterInvalidations :: [(Id RosterGroup, Int, [(UUID.UUID, Int)])] -> [(Id RosterGroup, Int, [RosterProjectionFragment])]
-buildProfileRosterInvalidations =
-    map \(rosterGroupId, weekOffset, _rowKeys) ->
-        ( rosterGroupId
-        , weekOffset
-        , [rosterContentFragment]
-        )
