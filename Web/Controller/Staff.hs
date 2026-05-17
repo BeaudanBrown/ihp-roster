@@ -10,7 +10,6 @@ import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
 import Data.Time.Calendar (Day)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Web.Controller.Prelude
-import Web.RosterWeeks.LiveUpdates (refreshRosterContent)
 import Web.RosterWeeks.Responses (respondWithRosterContentOob)
 import Web.Staff.Mutations
 import Web.View.Staff.Edit
@@ -58,7 +57,6 @@ instance Controller StaffController where
         maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
         let canManageStaffPay = hasRole VenueAdminRole
         maybeSubmittedDefaultAwardLevelId <- parseSubmittedDefaultAwardLevelId canManageStaffPay
-        previousRosterGroupIds <- fetchStaffRosterGroupIds staff
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         staffRsaDocument <- latestRsaDocumentForStaff staff
         today <- utctDay <$> getCurrentTime
@@ -96,13 +94,11 @@ instance Controller StaffController where
                                         else render EditView { .. }
                                 Right submittedSelections -> do
                                     _ <- updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
-                                    let invalidatedRosterGroupIds = nub (previousRosterGroupIds <> selectedRosterGroupIds)
                                     if isHtmxRequest
                                         then do
                                             rosterGroupId <- case maybeRosterGroupId of
                                                 Just rosterGroupId -> pure rosterGroupId
                                                 Nothing -> (.id) <$> fetchCurrentVenueDefaultRosterGroup
-                                            forM_ invalidatedRosterGroupIds (`refreshRosterContent` weekOffset)
                                             respondWithRosterContentOob rosterGroupId weekOffset
                                         else do
                                             setSuccessMessage "Staff member updated"

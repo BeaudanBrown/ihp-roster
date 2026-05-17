@@ -5,7 +5,6 @@ module Web.Staff.Mutations
     ) where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveSurface (broadcastSurfaceResync)
 import Application.Helper.Pay (ensureStaffPayVersionForStaff)
 import Application.Helper.RosterGroups (syncStaffRosterGroupAssignments)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
@@ -13,7 +12,7 @@ import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection,
 import Control.Monad (void)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Web.Controller.Prelude
-import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinition)
+import Web.LiveResourceInvalidation (invalidateTouchedResources)
 
 staffXeroPayItemScopeChanged :: Staff -> Staff -> Bool
 staffXeroPayItemScopeChanged oldStaff newStaff =
@@ -37,9 +36,7 @@ updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
             void (ensureStaffPayVersionForStaff currentUser.id updatedStaff today)
         pure updatedStaff
     let payScopeChanged = staffXeroPayItemScopeChanged originalStaff updatedStaff
-    when payScopeChanged do
-        broadcastSurfaceResync adminXeroLiveSurfaceDefinition ()
-    pure (liveMutationResult updatedStaff (staffUpdateTouchedResources payScopeChanged updatedStaff))
+    invalidateTouchedResources "staff.update" (liveMutationResult updatedStaff (staffUpdateTouchedResources payScopeChanged updatedStaff))
 
 staffUpdateTouchedResources :: Bool -> Staff -> [LiveResource]
 staffUpdateTouchedResources payScopeChanged staff =

@@ -42,6 +42,12 @@ tests = describe "Mutation boundary guard" do
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "syncStaffRosterGroupAssignments", "replaceStaffShiftPreferences", "ensureStaffPayVersionForStaff"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
+    it "routes staff mutation live invalidation through touched resources" do
+        mutationSource <- Text.readFile "Web/Staff/Mutations.hs"
+        controllerSource <- Text.readFile "Web/Controller/Staff.hs"
+        let forbiddenTokens = ["broadcastSurface", "refreshRosterContent", "refreshAdminXero"]
+        filter (`Text.isInfixOf` (mutationSource <> controllerSource)) forbiddenTokens `shouldBe` []
+
     it "keeps roster week writes in the mutation module" do
         source <- Text.readFile "Web/Controller/RosterWeeks.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "enqueueRosterTimesheetCreationJobsForWeek", "appendRosterWeekSlotDefinition rosterWeek", "deleteRosterWeekSlotDefinition", "repackRosterWeekDays", "removeRosterRowWithPacking"]
