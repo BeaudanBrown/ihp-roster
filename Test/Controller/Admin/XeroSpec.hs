@@ -1,6 +1,7 @@
 module Test.Controller.Admin.XeroSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
@@ -17,6 +18,7 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import qualified Data.IORef as IORef
 import qualified Data.List as List
+import qualified Data.Set as Set
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
@@ -35,6 +37,7 @@ import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
 import qualified Test.XeroTimesheetPreviewSpec as Preview
+import Web.Admin.Xero.Mutations (xeroPayItemsTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -77,6 +80,13 @@ tests = beforeAll testContext do
                 fragmentResponse `responseBodyShouldContain` "not connected"
                 fragmentResponse `responseBodyShouldNotContain` "Staff mappings"
                 fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
+
+        it "records touched resources for Xero pay item mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Touched Venue"
+
+                Set.fromList (xeroPayItemsTouchedResources venue.id)
+                    `shouldBe` Set.fromList [XeroPayItemsResource (unpackId venue.id)]
 
         it "decodes Xero payroll calendar dates from API date wrappers" $ withContext do
             let decoded =
