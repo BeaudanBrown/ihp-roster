@@ -1,6 +1,7 @@
 module Test.Controller.Admin.ConfigSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
@@ -14,6 +15,7 @@ import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import qualified Data.IORef as IORef
 import qualified Data.List as List
+import qualified Data.Set as Set
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (fromGregorian)
@@ -30,6 +32,7 @@ import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
+import Web.Admin.Mutations (adminVenueConfigTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -52,6 +55,13 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Exports"
                 response `responseBodyShouldContain` "href=\"/Xero\""
                 response `responseBodyShouldNotContain` "Venue Config"
+
+        it "records touched resources for admin config mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Touched Venue"
+
+                Set.fromList (adminVenueConfigTouchedResources venue.id)
+                    `shouldBe` Set.fromList [AdminVenueConfigResource (unpackId venue.id)]
 
         it "shows the Xero header button and page to super admins" $ withContext do
             withCleanDb do

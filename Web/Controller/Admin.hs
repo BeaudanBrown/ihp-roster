@@ -2,24 +2,21 @@ module Web.Controller.Admin where
 
 import Application.Helper.Export
 import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
-import Application.Helper.Pay
+import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
-import Application.Helper.VenueInvitation
-import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay,
-                                          validRosterWeekStartDays,
+import Application.Helper.WeekBoundaries (validRosterWeekStartDays,
                                           weekdayIndexLabel)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
-import Application.InvitationDelivery.Job (enqueueVenueInvitationDeliveryJob)
 import Application.StaffDocuments.Rsa (staffRsaComplianceRowsForVenue)
 import Application.Xero.Connection
-import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Clock (utctDay)
+import Web.Admin.Mutations
 import Web.Controller.Admin.Support
 import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
@@ -31,19 +28,6 @@ import Web.View.Admin.Invites
 import Web.View.Admin.RosterGroups
 import Web.View.Admin.ShiftTypes
 import Web.View.Admin.Xero
-
-shiftTypeAffectsXeroPayItems :: ShiftType -> Bool
-shiftTypeAffectsXeroPayItems shiftType =
-    shiftType.isActive && isJust shiftType.overrideAwardLevelId
-
-shiftTypeXeroPayItemScopeChanged :: ShiftType -> ShiftType -> Bool
-shiftTypeXeroPayItemScopeChanged oldShiftType newShiftType =
-    shiftTypeXeroPayItemScope oldShiftType /= shiftTypeXeroPayItemScope newShiftType
-
-shiftTypeXeroPayItemScope :: ShiftType -> Maybe (Id AwardLevel)
-shiftTypeXeroPayItemScope shiftType
-    | shiftType.isActive = shiftType.overrideAwardLevelId
-    | otherwise = Nothing
 
 respondToShiftTypesSectionMutationWithXeroRefresh ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -72,7 +56,7 @@ instance Controller AdminController where
         ensureAdminRole
 
     action AdminAction = do
-        syncVenueDefaultRosterGroupToTopActive currentVenueId
+        _ <- ensureAdminRosterGroupsNormalizedMutation
         rosterGroups <- fetchCurrentVenueRosterGroups
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
         shiftTypes <- fetchCurrentVenueShiftTypes
@@ -199,9 +183,7 @@ instance Controller AdminController where
         case configField of
             "rosterEndTimesEnabled" -> do
                 let rosterEndTimesEnabled = isJust (paramOrNothing @Text "rosterEndTimesEnabled")
-                _ <- venueConfig
-                    |> set #rosterEndTimesEnabled rosterEndTimesEnabled
-                    |> updateRecord
+                _ <- setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled
                 setSuccessMessage $
                     if rosterEndTimesEnabled
                         then "Roster end times enabled."
@@ -209,9 +191,7 @@ instance Controller AdminController where
                 redirectToAdminFor (paramOrNothing "rosterGroupId")
             "autoTimesheetCreationEnabled" -> do
                 let autoTimesheetCreationEnabled = isJust (paramOrNothing @Text "autoTimesheetCreationEnabled")
-                _ <- venueConfig
-                    |> set #autoTimesheetCreationEnabled autoTimesheetCreationEnabled
-                    |> updateRecord
+                _ <- setAutoTimesheetCreationEnabledMutation venueConfig autoTimesheetCreationEnabled
                 setSuccessMessage $
                     if autoTimesheetCreationEnabled
                         then "Auto-created pending timesheets enabled."
@@ -228,11 +208,7 @@ instance Controller AdminController where
                                 setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll version data exists."
                                 redirectToAdminFor (paramOrNothing "rosterGroupId")
                             else do
-                                _ <- withTransaction do
-                                    venueConfig
-                                        |> set #rosterWeekStartsOn rosterWeekStartsOn
-                                        |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
-                                        |> updateRecord
+                                _ <- setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn
                                 setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
                                 redirectToAdminFor (paramOrNothing "rosterGroupId")
 
@@ -252,7 +228,7 @@ instance Controller AdminController where
 
     action ShowAdminRosterGroupsFragmentAction = do
         ensureTypedLiveSurfaceAuthorized adminRosterGroupsLiveSurfaceDefinition ()
-        syncVenueDefaultRosterGroupToTopActive currentVenueId
+        _ <- ensureAdminRosterGroupsNormalizedMutation
         rosterGroups <- fetchCurrentVenueRosterGroups
         let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
         respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)
@@ -294,25 +270,13 @@ instance Controller AdminController where
         maybeEmail <- parseRequiredEmail "email" "Invite email is required."
         case maybeEmail of
             Just email -> do
-                now <- getCurrentTime
-                invitation <- newRecord @VenueInvitation
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #invitedByUserId (Just (unpackId currentUser.id))
-                    |> set #email email
-                    |> set #inviteRole (venueRoleToEnum WorkerRole)
-                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
-                    |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
-                    |> set #expiresAt (Just (addUTCTime venueInvitationLifetime now))
-                    |> createRecord
-                refreshAdminInvites currentVenueId
+                _ <- createVenueInvitationMutation email
                 if isHtmxRequest
                     then do
                         invitations <- fetchCurrentVenueInvitations
-                        void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
                         setSuccessMessage ("Invitation queued for " <> email)
                         respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
                     else do
-                        void (enqueueVenueInvitationDeliveryJob (Just currentUser.id) invitation)
                         respondToInvitesSectionMutation ("Invitation queued for " <> email) currentRosterGroup.id
             _ ->
                 respondToInvitesSectionMutation "" currentRosterGroup.id
@@ -325,10 +289,7 @@ instance Controller AdminController where
         if invitation.status /= unsafeEnumFromText @InvitationStatusEnum "pending"
             then respondToInvitesSectionMutation "Only pending invitations can be revoked." currentRosterGroup.id
             else do
-                _ <- invitation
-                    |> set #status (unsafeEnumFromText @InvitationStatusEnum "revoked")
-                    |> updateRecord
-                refreshAdminInvites currentVenueId
+                _ <- revokeVenueInvitationMutation invitation
                 respondToInvitesSectionMutation "Invitation revoked." currentRosterGroup.id
 
     action CreateRosterGroupAction = do
@@ -339,11 +300,8 @@ instance Controller AdminController where
             Nothing -> respondToRosterGroupsSectionMutation Nothing
             Just name -> do
                 let isActive = parseIsActiveParam
-                sortOrder <- nextRosterGroupSortOrder
-                rosterGroup <- createVenueRosterGroupWithDefaults venue name sortOrder isActive
-                syncVenueDefaultRosterGroupToTopActive currentVenueId
+                LiveMutationResult { liveMutationValue = rosterGroup } <- createRosterGroupMutation venue name isActive
                 setSuccessMessage "Roster group added"
-                refreshAdminRosterGroups currentVenueId
                 respondToRosterGroupsSectionMutation (Just rosterGroup.id)
 
     action UpdateRosterGroupAction { rosterGroupId } = do
@@ -363,44 +321,24 @@ instance Controller AdminController where
                         setErrorMessage "Each venue needs at least one active roster group."
                         respondToRosterGroupsSectionMutation (Just rosterGroup.id)
                     else do
-                        sortOrder <-
-                            if not rosterGroup.isActive && isActive
-                                then nextRosterGroupSortOrder
-                                else pure rosterGroup.sortOrder
-                        updatedRosterGroup <-
-                            rosterGroup
-                                |> set #name name
-                                |> set #sortOrder sortOrder
-                                |> set #isActive isActive
-                                |> updateRecord
-                        when isActive do
-                            _ <- ensureDefaultRosterSlots venue updatedRosterGroup
-                            pure ()
-                        syncVenueDefaultRosterGroupToTopActive currentVenueId
+                        LiveMutationResult { liveMutationValue = updatedRosterGroup } <- updateRosterGroupMutation venue rosterGroup name isActive
                         setSuccessMessage "Roster group updated"
-                        refreshAdminRosterGroups currentVenueId
                         respondToRosterGroupsSectionMutation (Just updatedRosterGroup.id)
 
     action MoveRosterGroupUpAction { rosterGroupId } = do
         ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        withTransaction do
-            reorderActiveRosterGroups rosterGroup.id (-1)
-            syncVenueDefaultRosterGroupToTopActive currentVenueId
+        _ <- moveRosterGroupMutation rosterGroup (-1)
         setSuccessMessage "Roster group order updated"
-        refreshAdminRosterGroups currentVenueId
         redirectToAdminFor (Just rosterGroup.id)
 
     action MoveRosterGroupDownAction { rosterGroupId } = do
         ensureVenueWritable
         rosterGroup <- fetch rosterGroupId
         ensureRecordInCurrentVenue rosterGroup.venueId
-        withTransaction do
-            reorderActiveRosterGroups rosterGroup.id 1
-            syncVenueDefaultRosterGroupToTopActive currentVenueId
+        _ <- moveRosterGroupMutation rosterGroup 1
         setSuccessMessage "Roster group order updated"
-        refreshAdminRosterGroups currentVenueId
         redirectToAdminFor (Just rosterGroup.id)
 
     action CreateShiftTypeAction = do
@@ -410,28 +348,12 @@ instance Controller AdminController where
             Nothing -> respondToShiftTypesSectionMutation
             Just name -> do
                 let isActive = parseIsActiveParam
-                sortOrder <- nextShiftTypeSortOrder
                 maybeOverrideAwardLevelId <- parseSubmittedOverrideAwardLevelId
                 case maybeOverrideAwardLevelId of
                     Nothing -> respondToShiftTypesSectionMutation
                     Just overrideAwardLevelId -> do
-                        now <- getCurrentTime
-                        shiftType <- withTransaction do
-                            shiftType <-
-                                newRecord @ShiftType
-                                    |> set #venueId (unpackId currentVenueId)
-                                    |> set #name name
-                                    |> set #sortOrder sortOrder
-                                    |> set #overrideAwardLevelId overrideAwardLevelId
-                                    |> set #isActive isActive
-                                    |> createRecord
-                            _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
-                            pure shiftType
+                        LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- createShiftTypeMutation name isActive overrideAwardLevelId
                         setSuccessMessage "Shift type added"
-                        refreshAdminShiftTypes currentVenueId
-                        let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
-                        when shouldRefreshXero do
-                            refreshAdminXero currentVenueId
                         respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
 
     action UpdateShiftTypeAction { shiftTypeId } = do
@@ -447,49 +369,23 @@ instance Controller AdminController where
                 case maybeOverrideAwardLevelId of
                     Nothing -> respondToShiftTypesSectionMutation
                     Just overrideAwardLevelId -> do
-                        now <- getCurrentTime
-                        sortOrder <-
-                            if not shiftType.isActive && isActive
-                                then nextShiftTypeSortOrder
-                                else pure shiftType.sortOrder
-                        updatedShiftType <- withTransaction do
-                            updatedShiftType <-
-                                shiftType
-                                    |> set #name name
-                                    |> set #sortOrder sortOrder
-                                    |> set #overrideAwardLevelId overrideAwardLevelId
-                                    |> set #isActive isActive
-                                    |> updateRecord
-                            when (shiftType.name /= updatedShiftType.name || shiftType.overrideAwardLevelId /= updatedShiftType.overrideAwardLevelId) do
-                                _ <- ensureShiftTypePayVersionForShiftType currentUser.id updatedShiftType (utctDay now)
-                                pure ()
-                            pure updatedShiftType
+                        LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- updateShiftTypeMutation shiftType name isActive overrideAwardLevelId
                         unless isHtmxRequest do
                             setSuccessMessage "Shift type updated"
-                        refreshAdminShiftTypes currentVenueId
-                        let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
-                        when shouldRefreshXero do
-                            refreshAdminXero currentVenueId
                         respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
 
     action MoveShiftTypeUpAction { shiftTypeId } = do
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
-        withTransaction do
-            reorderActiveShiftTypes shiftType.id (-1)
-            pure ()
+        _ <- moveShiftTypeMutation shiftType (-1)
         setSuccessMessage "Shift type order updated"
-        refreshAdminShiftTypes currentVenueId
         redirectToAdminFor (paramOrNothing "rosterGroupId")
 
     action MoveShiftTypeDownAction { shiftTypeId } = do
         ensureVenueWritable
         shiftType <- fetch shiftTypeId
         ensureRecordInCurrentVenue shiftType.venueId
-        withTransaction do
-            reorderActiveShiftTypes shiftType.id 1
-            pure ()
+        _ <- moveShiftTypeMutation shiftType 1
         setSuccessMessage "Shift type order updated"
-        refreshAdminShiftTypes currentVenueId
         redirectToAdminFor (paramOrNothing "rosterGroupId")
