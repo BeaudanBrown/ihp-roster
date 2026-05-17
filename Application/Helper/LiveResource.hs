@@ -18,6 +18,17 @@ data LiveResource
     | StaffPreferencesResource !UUID
     | StaffRosterMembershipResource !UUID
     | StaffPayProfileResource !UUID
+    | RosterWeekResource !UUID !Int
+    | RosterDayResource !UUID
+    | RosterSlotResource !UUID
+    | AdminVenueConfigResource !UUID
+    | AdminRosterGroupsResource !UUID
+    | AdminShiftTypesResource !UUID
+    | AdminInvitesResource !UUID
+    | XeroConnectionResource !UUID
+    | XeroMappingsResource !UUID
+    | XeroPayItemsResource !UUID
+    | XeroTimesheetsResource !UUID
     deriving (Eq, Ord, Show)
 
 data LiveMutationResult a = LiveMutationResult

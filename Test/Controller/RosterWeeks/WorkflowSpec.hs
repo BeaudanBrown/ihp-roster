@@ -1,11 +1,14 @@
 module Test.Controller.RosterWeeks.WorkflowSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
+import Data.Coerce (coerce)
 import Data.List (sortOn)
+import qualified Data.Set as Set
 import Data.Maybe (fromJust)
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -24,12 +27,38 @@ import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDaySectionDomId,
                             rosterRowDomIdText, rosterStaffPanelFragmentId)
+import Web.RosterWeeks.Mutations (rosterDayTouchedResources,
+                                  rosterSlotTouchedResources,
+                                  rosterWeekTouchedResources)
 import Web.Routes
 import Web.Types
 
 tests :: Spec
 tests = beforeAll testContext do
     describe "RosterWeeksController" do
+        it "records touched resources for roster mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Roster Touched Venue"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotName <- fetchSlotNameRecord venue "Early"
+                rosterSlot <- createRosterSlotRecord rosterDay slotName Nothing 0
+                let rosterGroupId = coerce rosterWeek.rosterGroupId
+
+                Set.fromList (rosterSlotTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay (Just rosterSlot))
+                    `shouldBe` Set.fromList
+                        [ RosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        , RosterDayResource (unpackId rosterDay.id)
+                        , RosterSlotResource (unpackId rosterSlot.id)
+                        ]
+                rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset
+                    `shouldBe` [RosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset]
+                rosterDayTouchedResources rosterGroupId rosterWeek.weekOffset rosterDay
+                    `shouldBe`
+                        [ RosterWeekResource (unpackId rosterGroupId) rosterWeek.weekOffset
+                        , RosterDayResource (unpackId rosterDay.id)
+                        ]
+
         it "always renders separate day-name and date rows even when a day only has one roster row" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

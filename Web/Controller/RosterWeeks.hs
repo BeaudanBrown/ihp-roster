@@ -18,8 +18,7 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderDialogOverlay, renderToastOob)
-import Application.RosterTimesheets.Automation (enqueueRosterTimesheetCreationJobsForWeek,
-                                                rosterSlotHasGeneratedTimesheet)
+import Application.Helper.LiveResource (LiveMutationResult (..))
 import Data.Coerce (coerce)
 import Data.List (nub)
 import Data.Maybe (catMaybes, fromMaybe, isJust, mapMaybe)
@@ -34,10 +33,9 @@ import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
-import Web.RosterWeeks.LiveUpdates (refreshRosterContent,
-                                    refreshRosterContentAndStaffPanel,
-                                    refreshRosterFragments,
+import Web.RosterWeeks.LiveUpdates (refreshRosterFragments,
                                     refreshRosterFragmentsAndSetActorRefresh)
+import Web.RosterWeeks.Mutations
 import Web.RosterWeeks.Overview
 import Web.RosterWeeks.Paths (rosterWeekUrl)
 import Web.RosterWeeks.Projection
@@ -125,12 +123,7 @@ instance Controller RosterWeeksController where
         ensureManagerRole
         ensureVenueWritable
         rosterGroup <- resolveRequestedRosterGroup
-        (rosterWeek, wasCreated) <- ensureRosterWeekExists rosterGroup.id weekOffset
-
-        when wasCreated do
-            refreshRosterContent
-                rosterGroup.id
-                weekOffset
+        LiveMutationResult { liveMutationValue = (rosterWeek, wasCreated) } <- ensureRosterWeekExistsMutation rosterGroup.id weekOffset
 
         let successMessage =
                 if wasCreated
@@ -172,18 +165,7 @@ instance Controller RosterWeeksController where
                                 setErrorMessage errorMessage
                                 redirectToPath (rosterWeekUrl targetWeekOffset rosterGroup.id)
                     Just sourceWeek -> do
-                        withTransaction do
-                            existingTarget <- query @RosterWeek
-                                |> filterWhere (#rosterGroupId, unpackId rosterGroup.id)
-                                |> filterWhere (#weekOffset, targetWeekOffset)
-                                |> fetchOneOrNothing
-                            case existingTarget of
-                                Just targetWeek -> replaceRosterWeekFromSource sourceWeek targetWeek
-                                Nothing -> copyRosterWeek sourceWeek targetWeekOffset
-
-                        refreshRosterContent
-                            rosterGroup.id
-                            targetWeekOffset
+                        _ <- copyRosterWeekFromSourceMutation rosterGroup.id sourceWeek targetWeekOffset
                         let successMessage = "Roster week copied from the previous week."
                         let targetPath = rosterWeekUrl targetWeekOffset rosterGroup.id
                         if isHtmxRequest
@@ -210,23 +192,13 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             Nothing -> do
-                updatedRosterWeek <- rosterWeek
-                    |> set #isLive nextLiveStatus
-                    |> updateRecord
-                queuedTimesheetJobs <-
-                    if nextLiveStatus
-                        then enqueueRosterTimesheetCreationJobsForWeek (Just currentUser.id) updatedRosterWeek
-                        else pure []
-
-                refreshRosterContent
-                    rosterGroupId
-                    rosterWeek.weekOffset
+                LiveMutationResult { liveMutationValue = (updatedRosterWeek, queuedTimesheetJobCount) } <- toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus
                 let successMessage =
                         if nextLiveStatus
                             then
-                                if null queuedTimesheetJobs
+                                if queuedTimesheetJobCount == 0
                                     then "Roster week is now live."
-                                    else "Roster week is now live. Pending timesheet jobs queued for " <> tshow (length queuedTimesheetJobs) <> " shifts."
+                                    else "Roster week is now live. Pending timesheet jobs queued for " <> tshow queuedTimesheetJobCount <> " shifts."
                             else "Roster week moved back to draft."
                 let targetPath = rosterWeekUrl rosterWeek.weekOffset rosterGroupId
                 if isHtmxRequest
@@ -253,12 +225,7 @@ instance Controller RosterWeeksController where
                 case duplicate of
                     Just _ -> respondToRosterSlotDefinitionError rosterWeek "A column with that name already exists for this week."
                     Nothing -> do
-                        withTransaction do
-                            _ <- appendRosterWeekSlotDefinition rosterWeek slotName
-                            pure ()
-                        refreshRosterContentAndStaffPanel
-                            rosterGroupId
-                            rosterWeek.weekOffset
+                        _ <- appendRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotName
                         respondToRosterSlotDefinitionSuccess rosterWeek "Roster column added."
 
     action UpdateRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = do
@@ -277,12 +244,7 @@ instance Controller RosterWeeksController where
                 case duplicate of
                     Just _ -> respondToRosterSlotDefinitionError rosterWeek "A column with that name already exists for this week."
                     Nothing -> do
-                        _ <- slotDefinition
-                            |> set #name slotName
-                            |> updateRecord
-                        refreshRosterContent
-                            rosterGroupId
-                            rosterWeek.weekOffset
+                        _ <- renameRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition slotName
                         respondToRosterSlotDefinitionSuccess rosterWeek "Roster column renamed."
 
     action DeleteRosterWeekSlotDefinitionAction { rosterWeekSlotDefinitionId } = do
@@ -301,11 +263,7 @@ instance Controller RosterWeeksController where
             then respondToRosterSlotDefinitionError rosterWeek "Roster weeks need at least one column."
             else do
                 let rosterGroupId = coerce rosterWeek.rosterGroupId
-                withTransaction do
-                    deleteRosterWeekSlotDefinition slotDefinition
-                refreshRosterContentAndStaffPanel
-                    rosterGroupId
-                    rosterWeek.weekOffset
+                _ <- removeRosterWeekSlotDefinitionMutation rosterGroupId rosterWeek slotDefinition
                 respondToRosterSlotDefinitionSuccess rosterWeek "Roster column removed."
 
     action SortRosterWeekAction { rosterWeekId } = do
@@ -316,8 +274,7 @@ instance Controller RosterWeeksController where
         ensureRosterWeekIsDraftForEdit rosterWeek
 
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        withTransaction do
-            repackRosterWeekDays rosterWeek
+        _ <- repackRosterWeekMutation rosterWeek
 
         if isHtmxRequest
             then
@@ -326,9 +283,6 @@ instance Controller RosterWeeksController where
                     rosterWeek.weekOffset
                     rosterContentAndStaffPanelFragments
             else do
-                refreshRosterContentAndStaffPanel
-                    rosterGroupId
-                    rosterWeek.weekOffset
                 setSuccessMessage "Roster sorted."
                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
@@ -345,10 +299,7 @@ instance Controller RosterWeeksController where
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         let nextClosedState = not rosterDay.isClosed
 
-        when nextClosedState do
-            ensureRosterDayHasMinimumRows rosterDay rosterGroupId closedRosterDayRows
-
-        _ <- rosterDay |> set #isClosed nextClosedState |> updateRecord
+        _ <- toggleRosterDayClosedMutation rosterGroupId rosterWeek rosterDay nextClosedState closedRosterDayRows
 
         let successMessage =
                 if nextClosedState
@@ -363,9 +314,6 @@ instance Controller RosterWeeksController where
                     rosterWeek.weekOffset
                     rosterContentAndStaffPanelFragments
             else do
-                refreshRosterContentAndStaffPanel
-                    rosterGroupId
-                    rosterWeek.weekOffset
                 setSuccessMessage successMessage
                 redirectToPath targetPath
 
@@ -400,9 +348,7 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             else do
-                _ <- rosterDay
-                    |> set #rowCount (rosterDay.rowCount + 1)
-                    |> updateRecord
+                _ <- addRosterDayRowMutation rosterGroupId rosterWeek rosterDay
 
                 if isHtmxRequest
                     then
@@ -411,9 +357,6 @@ instance Controller RosterWeeksController where
                             rosterWeek.weekOffset
                             rosterContentAndStaffPanelFragments
                     else do
-                        refreshRosterContentAndStaffPanel
-                            rosterGroupId
-                            rosterWeek.weekOffset
                         setSuccessMessage "Roster row added."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
@@ -454,8 +397,7 @@ instance Controller RosterWeeksController where
         if preview.removeRosterRowOverflowCount > 0 && not confirmDeletePopulatedRow
             then respondWithRemoveRosterRowConfirmation rosterDay preview
             else do
-                withTransaction do
-                    removeRosterRowWithPacking rosterDay activeDefinitions
+                _ <- removeRosterDayRowMutation rosterGroupId rosterWeek rosterDay activeDefinitions
 
                 if isHtmxRequest
                     then
@@ -464,9 +406,6 @@ instance Controller RosterWeeksController where
                             rosterWeek.weekOffset
                             rosterContentAndStaffPanelFragments
                     else do
-                        refreshRosterContentAndStaffPanel
-                            rosterGroupId
-                            rosterWeek.weekOffset
                         setSuccessMessage "Roster row removed."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
 
@@ -549,27 +488,8 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             else do
-                when (rowIndex >= rosterDay.rowCount) do
-                    _ <- rosterDay
-                        |> set #rowCount (rowIndex + 1)
-                        |> updateRecord
-                    pure ()
-                createdSlot <-
-                    case (existingSlot, rosterSlotHasData newSlot) of
-                        (Just _, True) ->
-                            Just <$> updateRecord newSlot
-                        (Just _, False) -> do
-                            now <- getCurrentTime
-                            _ <- newSlot
-                                |> set #deletedAt (Just now)
-                                |> set #deletedByUserId (Just (unpackId currentUser.id))
-                                |> set #deleteReason (Just "roster_slot_cleared")
-                                |> updateRecord
-                            pure Nothing
-                        (Nothing, True) ->
-                            Just <$> createRecord newSlot
-                        (Nothing, False) ->
-                            pure Nothing
+                LiveMutationResult { liveMutationValue = RosterSlotMutationResult { rosterSlotMutationSlot = createdSlot } } <-
+                    saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot
                 layoutMode <- fetchCurrentRosterLayoutMode
                 let actorFragments =
                         case rosterLayoutModeValue layoutMode of
@@ -597,7 +517,6 @@ instance Controller RosterWeeksController where
 
         rosterSlot <- fetch rosterSlotId
         accessDeniedUnless (isNothing rosterSlot.deletedAt)
-        let previousStaffId = rosterSlot.staffId
         let rosterDayId = (coerce rosterSlot.rosterDayId :: Id RosterDay)
         rosterDay <- fetch rosterDayId
         let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
@@ -609,8 +528,6 @@ instance Controller RosterWeeksController where
         let maybeStartTimeParam = paramOrNothing @Text "startTime"
         let maybeEndTimeParam = paramOrNothing @Text "endTime"
         let maybeShiftTypeParam = paramOrNothing @Text "shiftTypeId"
-        sourceTimesheetExists <- rosterSlotHasGeneratedTimesheet rosterSlot
-
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         let updatedSlot =
                 rosterSlot
@@ -636,20 +553,8 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             else do
-                if rosterSlotHasData updatedSlot
-                    then do
-                        _ <- updatedSlot |> updateRecord
-                        pure ()
-                    else do
-                        now <- getCurrentTime
-                        _ <- updatedSlot
-                            |> set #deletedAt (Just now)
-                            |> set #deletedByUserId (Just (unpackId currentUser.id))
-                            |> set #deleteReason (Just "roster_slot_cleared")
-                            |> updateRecord
-                        pure ()
-                let shouldWarnSourceTimesheetUnchanged =
-                        sourceTimesheetExists && rosterSlotTimesheetSourceChanged rosterSlot updatedSlot
+                LiveMutationResult { liveMutationValue = RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } } <-
+                    updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
 
                 relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, updatedSlot.staffId])
                 let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
