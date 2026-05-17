@@ -39,6 +39,7 @@ import qualified Test.LiveUpdateSpec
 import qualified Test.LiveSurfaceGuardSpec
 import qualified Test.LiveSurfaceSpec
 import qualified Test.MailSpec
+import qualified Test.MutationBoundarySpec
 import qualified Test.PaySpec
 import qualified Test.ProfilingSpec
 import qualified Test.PublicHolidaySyncSpec
@@ -174,6 +175,7 @@ allSuites =
     , TestSuite "LiveSurfaceGuard" Test.LiveSurfaceGuardSpec.tests
     , TestSuite "LiveSurface" Test.LiveSurfaceSpec.tests
     , TestSuite "Mail" Test.MailSpec.tests
+    , TestSuite "MutationBoundary" Test.MutationBoundarySpec.tests
     , TestSuite "SurfaceProjection" Test.SurfaceProjectionSpec.tests
     , TestSuite "XeroContract" Test.XeroContractSpec.tests
     , TestSuite "XeroKeepalive" Test.XeroKeepaliveSpec.tests
