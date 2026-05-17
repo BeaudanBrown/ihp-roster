@@ -8,7 +8,6 @@ module Web.LeaveRequests.Projection
     , broadcastLeaveRequestsInvalidation
     , fetchLeaveRequestsProjection
     , fetchLeaveRequestsProjectionCached
-    , invalidateAffectedRosterWeeksForLeave
     , leaveRequestsContentFragmentRefs
     , leaveRequestsIndexView
     , leaveRequestsLiveSurfaceDefinition
@@ -20,7 +19,6 @@ module Web.LeaveRequests.Projection
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
                                       LiveUpdateScope (..),
-                                      activeRosterWeekScopes,
                                       currentLiveUpdateVersion)
 import Application.Helper.Profiling
 import Application.Helper.SurfaceProjection
@@ -30,8 +28,6 @@ import Data.Time.Clock (getCurrentTime, utctDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
-import Web.RosterWeeks.LiveUpdates (refreshRosterFragments)
-import Web.RosterWeeks.Projection (rosterContentAndStaffPanelFragments)
 import Web.View.LeaveRequests.Index
 
 data LeaveRequestsProjection = LeaveRequestsProjection
@@ -149,16 +145,6 @@ leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveP
         , today = leaveProjectionToday
         , liveUpdateSurface = Just (mkTypedDefinedLiveSurface leaveRequestsLiveSurfaceDefinition ())
         }
-
-invalidateAffectedRosterWeeksForLeave :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO ()
-invalidateAffectedRosterWeeksForLeave leaveRequest = do
-    venueConfig <- fetchVenueConfig
-    activeScopes <- activeRosterWeekScopes
-    forM_ (affectedRosterWeekInvalidationTargetsForScopes currentVenueId venueConfig leaveRequest activeScopes) \(rosterGroupId, weekOffset) ->
-        refreshRosterFragments
-            rosterGroupId
-            weekOffset
-            rosterContentAndStaffPanelFragments
 
 affectedRosterWeekInvalidationTargetsForScopes ::
     Id Venue ->

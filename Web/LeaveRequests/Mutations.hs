@@ -13,8 +13,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
-import Web.LeaveRequests.Projection
-import Web.Profiles.LiveUpdates
+import Web.LiveResourceInvalidation (invalidateTouchedResources)
 
 data LeaveReviewDecision
     = ApproveLeave
@@ -39,9 +38,7 @@ submitLeaveRequest leaveRequest = do
                 (Just createdLeaveRequest.status)
                 Aeson.Null
         pure createdLeaveRequest
-    broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-    refreshProfileLeaveRequests
-    pure (liveMutationResult createdLeaveRequest (baseLeaveTouchedResources createdLeaveRequest))
+    invalidateTouchedResources "leave.submit" (liveMutationResult createdLeaveRequest (baseLeaveTouchedResources createdLeaveRequest))
 
 reviewLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveReviewDecision -> LeaveRequest -> IO (LiveMutationResult ReviewedLeaveRequest)
 reviewLeaveRequest decision leaveRequest = do
@@ -72,14 +69,9 @@ reviewLeaveRequest decision leaveRequest = do
             )
         pure updatedLeaveRequest
 
-    let rosterVisibilityChanged = reviewDecisionChangesRoster decision wasApproved
     venueConfig <- fetchVenueConfig
     let touchedResources = leaveReviewTouchedResources venueConfig decision wasApproved updatedLeaveRequest
-    when rosterVisibilityChanged do
-        invalidateAffectedRosterWeeksForLeave updatedLeaveRequest
-    broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-    refreshProfileLeaveRequestsForStaffId updatedLeaveRequest.staffId
-    pure $
+    invalidateTouchedResources "leave.review" $
         liveMutationResult
             ReviewedLeaveRequest
                 { reviewedLeaveRequest = updatedLeaveRequest
@@ -117,9 +109,7 @@ cancelLeaveRequest leaveRequest = do
                 ]
             )
         pure softDeletedLeaveRequest
-    broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-    refreshProfileLeaveRequestsForStaffId leaveRequest.staffId
-    pure (liveMutationResult softDeletedLeaveRequest (baseLeaveTouchedResources softDeletedLeaveRequest))
+    invalidateTouchedResources "leave.cancel" (liveMutationResult softDeletedLeaveRequest (baseLeaveTouchedResources softDeletedLeaveRequest))
 
 baseLeaveTouchedResources :: LeaveRequest -> [LiveResource]
 baseLeaveTouchedResources leaveRequest =

@@ -12,6 +12,11 @@ tests = describe "Mutation boundary guard" do
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserLeaveRequestEvent", "recordCurrentUserAuditEvent"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
+    it "routes leave request live invalidation through touched resources" do
+        source <- Text.readFile "Web/LeaveRequests/Mutations.hs"
+        let forbiddenTokens = ["broadcastLeaveRequestsInvalidation", "refreshProfileLeaveRequests", "invalidateAffectedRosterWeeksForLeave", "refreshRosterFragments"]
+        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+
     it "keeps timesheet database writes in the mutation module" do
         source <- Text.readFile "Web/Controller/Timesheets.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserTimesheetEntryVersion", "recordCurrentUserAuditEvent"]
