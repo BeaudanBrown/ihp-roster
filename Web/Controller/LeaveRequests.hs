@@ -5,17 +5,14 @@ import Application.Helper.ProfileLeave (buildDefaultLeaveRequest,
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayPosition (..), dialogOverlayMountId,
                                 errorToast, renderToastOob, successToast)
-import Control.Monad (void)
-import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.Text.IO as TextIO
 import qualified Data.Time.Calendar as Calendar
-import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
 import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
+import Web.LeaveRequests.Mutations
 import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.Projection
-import Web.Profiles.LiveUpdates
 import Web.View.LeaveRequests.Index
 import Web.View.LeaveRequests.New
 import Web.View.RosterWeeks.StaffSelfServicePanel (renderRosterStaffSelfServiceLeaveFormFragment)
@@ -77,18 +74,7 @@ instance Controller LeaveRequestsController where
                                 then respondWithLeaveRequestValidationFailure responseContext leaveRequest
                                 else render NewView { .. }
                         Right leaveRequest -> do
-                            createdLeaveRequest <- withTransaction do
-                                createdLeaveRequest <- leaveRequest |> createRecord
-                                void $
-                                    recordCurrentUserLeaveRequestEvent
-                                        createdLeaveRequest
-                                        (unsafeEnumFromText @LeaveRequestEventTypeEnum "created")
-                                        Nothing
-                                        (Just createdLeaveRequest.status)
-                                        Aeson.Null
-                                pure createdLeaveRequest
-                            broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-                            refreshProfileLeaveRequests
+                            _ <- submitLeaveRequest leaveRequest
                             if isHtmxRequest
                                 then respondWithLeaveMutationSuccess responseContext "Unavailable period submitted" True
                                 else do
@@ -102,37 +88,7 @@ instance Controller LeaveRequestsController where
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
-        updatedLeaveRequest <- withTransaction do
-            let wasApproved = parseLeaveRequestStatus leaveRequest.status == Just LeaveApproved
-            updatedLeaveRequest <-
-                leaveRequest
-                    |> set #status (leaveRequestStatusToEnum LeaveApproved)
-                    |> updateRecord
-            void $
-                recordCurrentUserLeaveRequestEvent
-                    updatedLeaveRequest
-                    (unsafeEnumFromText @LeaveRequestEventTypeEnum "approved")
-                    (Just leaveRequest.status)
-                    (Just updatedLeaveRequest.status)
-                    Aeson.Null
-            void $ recordCurrentUserAuditEvent
-                "leave_approved"
-                "leave_requests"
-                (unpackId (get #id leaveRequest))
-                (Aeson.object
-                    [ "staffId" Aeson..= leaveRequest.staffId
-                    , "startDate" Aeson..= leaveRequest.startDate
-                    , "endDate" Aeson..= leaveRequest.endDate
-                    , "previousStatus" Aeson..= inputValue leaveRequest.status
-                    , "newStatus" Aeson..= inputValue updatedLeaveRequest.status
-                    ]
-                )
-            pure (updatedLeaveRequest, wasApproved)
-        let (savedLeaveRequest, wasApproved) = updatedLeaveRequest
-        unless wasApproved do
-            invalidateAffectedRosterWeeksForLeave savedLeaveRequest
-        broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-        refreshProfileLeaveRequestsForStaffId savedLeaveRequest.staffId
+        _ <- reviewLeaveRequest ApproveLeave leaveRequest
         if isHtmxRequest
             then respondWithLeaveRequestsContent "Unavailable period approved" False
             else do
@@ -146,37 +102,7 @@ instance Controller LeaveRequestsController where
         leaveRequest <- fetch leaveRequestId
         ensureRecordInCurrentVenue leaveRequest.venueId
         accessDeniedUnless (isNothing leaveRequest.deletedAt)
-        deniedLeaveRequest <- withTransaction do
-            let wasApproved = parseLeaveRequestStatus leaveRequest.status == Just LeaveApproved
-            updatedLeaveRequest <-
-                leaveRequest
-                    |> set #status (leaveRequestStatusToEnum LeaveDenied)
-                    |> updateRecord
-            void $
-                recordCurrentUserLeaveRequestEvent
-                    updatedLeaveRequest
-                    (unsafeEnumFromText @LeaveRequestEventTypeEnum "denied")
-                    (Just leaveRequest.status)
-                    (Just updatedLeaveRequest.status)
-                    Aeson.Null
-            void $ recordCurrentUserAuditEvent
-                "leave_denied"
-                "leave_requests"
-                (unpackId (get #id leaveRequest))
-                (Aeson.object
-                    [ "staffId" Aeson..= leaveRequest.staffId
-                    , "startDate" Aeson..= leaveRequest.startDate
-                    , "endDate" Aeson..= leaveRequest.endDate
-                    , "previousStatus" Aeson..= inputValue leaveRequest.status
-                    , "newStatus" Aeson..= inputValue updatedLeaveRequest.status
-                    ]
-                )
-            pure (updatedLeaveRequest, wasApproved)
-        let (savedLeaveRequest, wasApproved) = deniedLeaveRequest
-        when wasApproved do
-            invalidateAffectedRosterWeeksForLeave savedLeaveRequest
-        broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-        refreshProfileLeaveRequestsForStaffId savedLeaveRequest.staffId
+        _ <- reviewLeaveRequest DenyLeave leaveRequest
         if isHtmxRequest
             then respondWithLeaveRequestsContent "Unavailable period denied" False
             else do
@@ -194,35 +120,7 @@ instance Controller LeaveRequestsController where
         unless (leaveRequestCanBeDeleted leaveRequest) do
             setErrorMessage "Reviewed unavailable periods cannot be deleted."
             redirectToPath (leaveFallbackPath responseContext)
-        now <- getCurrentTime
-        withTransaction do
-            softDeletedLeaveRequest <-
-                leaveRequest
-                    |> set #deletedAt (Just now)
-                    |> set #deletedByUserId (Just (unpackId currentUser.id))
-                    |> set #deleteReason (Just "user_deleted")
-                    |> updateRecord
-            void $
-                recordCurrentUserLeaveRequestEvent
-                    softDeletedLeaveRequest
-                    (unsafeEnumFromText @LeaveRequestEventTypeEnum "deleted")
-                    (Just leaveRequest.status)
-                    Nothing
-                    (Aeson.object ["deletedAt" Aeson..= now])
-            void $ recordCurrentUserAuditEvent
-                "leave_deleted"
-                "leave_requests"
-                (unpackId (get #id leaveRequest))
-                (Aeson.object
-                    [ "staffId" Aeson..= leaveRequest.staffId
-                    , "startDate" Aeson..= leaveRequest.startDate
-                    , "endDate" Aeson..= leaveRequest.endDate
-                    , "deletedStatus" Aeson..= inputValue leaveRequest.status
-                    , "deletedAt" Aeson..= now
-                    ]
-                )
-        broadcastLeaveRequestsInvalidation leaveRequestsContentFragmentRefs
-        refreshProfileLeaveRequestsForStaffId leaveRequest.staffId
+        _ <- cancelLeaveRequest leaveRequest
         if isHtmxRequest
             then respondWithLeaveMutationSuccess responseContext "Unavailable period cancelled" False
             else do
