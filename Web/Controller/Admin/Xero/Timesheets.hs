@@ -15,14 +15,26 @@ module Web.Controller.Admin.Xero.Timesheets
     , syncXeroTimesheetPreparationReferenceDataAction
     ) where
 
+import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.XeroTimesheetReadiness
 import Application.Helper.XeroAdminTypes (XeroTimesheetPreparationView)
 import Application.Xero.Admin.ReadModel
-import Application.Xero.Timesheets.Preview
-import Application.Xero.Timesheets.Prepare
-import Application.Xero.Timesheets.Submission
+import Application.Xero.Timesheets.Prepare (XeroPreparationStaffDecision (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
+import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutation,
+                                 approveXeroTimesheetPreparationPayItemsMutation,
+                                 createPersistedXeroTimesheetPreviewMutation,
+                                 previewXeroTimesheetPreparationMutation,
+                                 refreshXeroTimesheetPreparationMutation,
+                                 retryXeroDraftTimesheetSubmissionMutation,
+                                 runXeroTimesheetPreparationMutation,
+                                 saveXeroTimesheetPreparationAccountCodeMutation,
+                                 saveXeroTimesheetPreparationCalendarMutation,
+                                 saveXeroTimesheetPreparationEarningsRateMutation,
+                                 submitXeroDraftTimesheetsMutation,
+                                 submitXeroTimesheetPreparationMutation,
+                                 syncXeroTimesheetPreparationReferenceDataMutation)
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 import Web.View.Admin.Xero.TimesheetPreparation
@@ -35,32 +47,32 @@ openXeroTimesheetPreparationAction = do
     if isHtmxRequest
         then respondHtml (renderXeroTimesheetPreparationLoadingDialog selectedPeriodKey)
         else do
-            result <- startXeroTimesheetPreparation selectedPeriodKey
-            respondWithPreparationDialog False result
+            result <- liveMutationValue <$> runXeroTimesheetPreparationMutation selectedPeriodKey
+            respondWithPreparationDialog result
 
 runXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO ()
 runXeroTimesheetPreparationAction = do
     let selectedPeriodKey = Text.strip (paramOrDefault @Text "" "periodKey")
-    result <- startXeroTimesheetPreparation selectedPeriodKey
-    respondWithPreparationDialog False result
+    result <- liveMutationValue <$> runXeroTimesheetPreparationMutation selectedPeriodKey
+    respondWithPreparationDialog result
 
 refreshXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
 refreshXeroTimesheetPreparationAction runId = do
-    result <- refreshXeroTimesheetPreparation runId
-    respondWithPreparationDialog True result
+    result <- liveMutationValue <$> refreshXeroTimesheetPreparationMutation runId
+    respondWithPreparationDialog result
 
 syncXeroTimesheetPreparationReferenceDataAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
 syncXeroTimesheetPreparationReferenceDataAction runId = do
-    result <- syncXeroPreparationReferenceData runId
-    respondWithPreparationDialog True result
+    result <- liveMutationValue <$> syncXeroTimesheetPreparationReferenceDataMutation runId
+    respondWithPreparationDialog result
 
 saveXeroTimesheetPreparationCalendarAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -68,8 +80,8 @@ saveXeroTimesheetPreparationCalendarAction ::
     IO ()
 saveXeroTimesheetPreparationCalendarAction runId = do
     let calendarId = Text.strip (paramOrDefault @Text "" "xeroPayrollCalendarSelection")
-    result <- saveXeroPreparationPayrollCalendar runId calendarId
-    respondWithPreparationDialog True result
+    result <- liveMutationValue <$> saveXeroTimesheetPreparationCalendarMutation runId calendarId
+    respondWithPreparationDialog result
 
 saveXeroTimesheetPreparationAccountCodeAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -77,8 +89,8 @@ saveXeroTimesheetPreparationAccountCodeAction ::
     IO ()
 saveXeroTimesheetPreparationAccountCodeAction runId = do
     let accountCode = Text.strip (paramOrDefault @Text "" "xeroPayItemAccountCodeSelection")
-    result <- saveXeroPreparationAccountCode runId accountCode
-    respondWithPreparationDialog True result
+    result <- liveMutationValue <$> saveXeroTimesheetPreparationAccountCodeMutation runId accountCode
+    respondWithPreparationDialog result
 
 saveXeroTimesheetPreparationEarningsRateAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -87,8 +99,8 @@ saveXeroTimesheetPreparationEarningsRateAction ::
 saveXeroTimesheetPreparationEarningsRateAction runId = do
     let localBucketKey = Text.strip (paramOrDefault @Text "" "localBucketKey")
     let earningsRateId = Text.strip (paramOrDefault @Text "" "xeroEarningsRateSelection")
-    result <- saveXeroPreparationEarningsRateMapping runId localBucketKey earningsRateId
-    respondWithPreparationDialog True result
+    result <- liveMutationValue <$> saveXeroTimesheetPreparationEarningsRateMutation runId localBucketKey earningsRateId
+    respondWithPreparationDialog result
 
 applyXeroTimesheetPreparationStaffDecisionAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -97,10 +109,10 @@ applyXeroTimesheetPreparationStaffDecisionAction ::
 applyXeroTimesheetPreparationStaffDecisionAction runId = do
     let staffId = param @(Id Staff) "staffId"
     case parseStaffDecision of
-        Left message -> respondWithPreparationDialog False (Left message)
+        Left message -> respondWithPreparationDialog (Left message)
         Right decision -> do
-            result <- applyXeroPreparationStaffDecision runId staffId decision
-            respondWithPreparationDialog True result
+            result <- liveMutationValue <$> applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision
+            respondWithPreparationDialog result
 
 approveXeroTimesheetPreparationPayItemsAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -108,24 +120,24 @@ approveXeroTimesheetPreparationPayItemsAction ::
     IO ()
 approveXeroTimesheetPreparationPayItemsAction runId = do
     let maybeAccountCode = Text.strip <$> paramOrNothing @Text "accountCode"
-    result <- approveXeroPreparationPayItems runId maybeAccountCode
-    respondWithPreparationDialog True result
+    result <- liveMutationValue <$> approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode
+    respondWithPreparationDialog result
 
 previewXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
 previewXeroTimesheetPreparationAction runId = do
-    result <- previewXeroTimesheetPreparation runId
-    respondWithPreparationDialog True result
+    result <- liveMutationValue <$> previewXeroTimesheetPreparationMutation runId
+    respondWithPreparationDialog result
 
 submitXeroTimesheetPreparationAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Id XeroTimesheetPreparationRun ->
     IO ()
 submitXeroTimesheetPreparationAction runId = do
-    result <- submitXeroTimesheetPreparation runId
-    respondWithPreparationDialog True result
+    result <- liveMutationValue <$> submitXeroTimesheetPreparationMutation runId
+    respondWithPreparationDialog result
 
 previewXeroDraftTimesheetsAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -141,7 +153,7 @@ previewXeroDraftTimesheetsAction = do
                         [ "remoteTimesheetCount" Aeson..= (0 :: Int)
                         , "remoteTimesheets" Aeson..= ([] :: [Aeson.Value])
                         ]
-            createPersistedXeroTimesheetPreview currentUser.id readinessRequest readiness duplicateCheckJson >>= \case
+            (liveMutationValue <$> createPersistedXeroTimesheetPreviewMutation currentUser.id readinessRequest readiness duplicateCheckJson) >>= \case
                 Left message -> respondWithXeroTimesheetError message
                 Right _ -> respondWithXeroTimesheetSuccess "Prepared Xero draft-timesheet preview."
 
@@ -153,7 +165,7 @@ submitXeroDraftTimesheetsAction = do
     case requestResult of
         Left message -> respondWithXeroTimesheetError message
         Right readinessRequest ->
-            submitXeroDraftTimesheets currentUser.id readinessRequest >>= \case
+            (liveMutationValue <$> submitXeroDraftTimesheetsMutation currentUser.id readinessRequest) >>= \case
                 Left message -> respondWithXeroTimesheetError message
                 Right run
                     | run.status == "submitted" -> respondWithXeroTimesheetSuccess "Submitted Xero draft timesheets."
@@ -170,7 +182,7 @@ retryXeroDraftTimesheetSubmissionAction submissionId = do
     if not authorized
         then respondWithXeroTimesheetError "Xero timesheet submission was not found for this venue."
         else
-            retryXeroDraftTimesheetSubmission submissionId >>= \case
+            (liveMutationValue <$> retryXeroDraftTimesheetSubmissionMutation submissionId) >>= \case
                 Left message -> respondWithXeroTimesheetError message
                 Right submission
                     | submission.status == "submitted" -> respondWithXeroTimesheetSuccess "Retried and submitted the Xero draft timesheet."
@@ -200,13 +212,11 @@ parseStaffDecision =
 
 respondWithPreparationDialog ::
     (?context :: ControllerContext, ?request :: Request) =>
-    Bool ->
     Either Text XeroTimesheetPreparationView ->
     IO ()
-respondWithPreparationDialog shouldBroadcast result =
+respondWithPreparationDialog result =
     if isHtmxRequest
         then do
-            when shouldBroadcast (refreshAdminXero currentVenueId)
             respondHtml $
                 case result of
                     Left message -> renderXeroTimesheetPreparationErrorDialog message
@@ -239,7 +249,6 @@ respondWithXeroTimesheetSuccess ::
 respondWithXeroTimesheetSuccess message =
     if isHtmxRequest
         then do
-            refreshAdminXeroTimesheets (unpackId currentVenueId)
             respondWithXeroTimesheetMutation (Just (xeroSuccessToast message))
         else do
             setSuccessMessage message
@@ -252,7 +261,6 @@ respondWithXeroTimesheetError ::
 respondWithXeroTimesheetError message =
     if isHtmxRequest
         then do
-            refreshAdminXeroTimesheets (unpackId currentVenueId)
             respondWithXeroTimesheetMutation (Just (xeroErrorToast message))
         else do
             setErrorMessage message

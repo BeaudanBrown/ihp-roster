@@ -96,6 +96,11 @@ tests = describe "Mutation boundary guard" do
         let forbiddenTokens = ["refreshAdminExports", "broadcastSurface"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
+    it "routes Xero timesheet mutation live invalidation through touched resources" do
+        source <- Text.readFile "Web/Controller/Admin/Xero/Timesheets.hs"
+        let forbiddenTokens = ["refreshAdminXero", "refreshAdminXeroTimesheets", "broadcastSurface"]
+        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+
     it "keeps Xero mapping writes in the mutation module" do
         source <- Text.readFile "Web/Controller/Admin/Xero/Mappings.hs"
         let forbiddenTokens = ["createRecord", "updateRecord", "withTransaction", "recordCurrentUserAuditEvent", "refreshAdminXero"]

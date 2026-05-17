@@ -40,7 +40,8 @@ import qualified Test.XeroTimesheetPreviewSpec as Preview
 import Web.Admin.Xero.Mutations (xeroConnectionTouchedResources,
                                  xeroMappingsTouchedResources,
                                  xeroPayItemsTouchedResources,
-                                 xeroReferenceSyncTouchedResources)
+                                 xeroReferenceSyncTouchedResources,
+                                 xeroTimesheetsTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -104,6 +105,13 @@ tests = beforeAll testContext do
 
                 Set.fromList (xeroPayItemsTouchedResources venue.id)
                     `shouldBe` Set.fromList [XeroPayItemsResource (unpackId venue.id)]
+
+        it "records touched resources for Xero timesheet mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Timesheet Touch Venue"
+
+                Set.fromList (xeroTimesheetsTouchedResources venue.id)
+                    `shouldBe` Set.fromList [XeroTimesheetsResource (unpackId venue.id)]
 
         it "records touched resources for Xero reference sync mutations" $ withContext do
             withCleanDb do

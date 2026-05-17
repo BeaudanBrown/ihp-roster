@@ -15,17 +15,35 @@ module Web.Admin.Xero.Mutations
     , saveXeroPayItemAccountCodeSelectionMutation
     , saveXeroPayrollCalendarSelectionMutation
     , saveXeroStaffMappingMutation
+    , applyXeroTimesheetPreparationStaffDecisionMutation
+    , approveXeroTimesheetPreparationPayItemsMutation
+    , createPersistedXeroTimesheetPreviewMutation
+    , previewXeroTimesheetPreparationMutation
+    , refreshXeroTimesheetPreparationMutation
+    , retryXeroDraftTimesheetSubmissionMutation
+    , runXeroTimesheetPreparationMutation
+    , saveXeroTimesheetPreparationAccountCodeMutation
+    , saveXeroTimesheetPreparationCalendarMutation
+    , saveXeroTimesheetPreparationEarningsRateMutation
     , startXeroReferenceSyncMutation
+    , submitXeroDraftTimesheetsMutation
+    , submitXeroTimesheetPreparationMutation
+    , syncXeroTimesheetPreparationReferenceDataMutation
     , xeroConnectionTouchedResources
     , xeroMappingsTouchedResources
     , xeroPayItemsTouchedResources
     , xeroReferenceSyncTouchedResources
+    , xeroTimesheetsTouchedResources
     ) where
 
 import Application.Helper.LiveResource
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
+import Application.Helper.XeroTimesheetReadiness
 import Application.Xero.Admin.ReferenceData
+import qualified Application.Xero.Timesheets.Prepare as XeroPrepare
+import qualified Application.Xero.Timesheets.Preview as XeroPreview
+import qualified Application.Xero.Timesheets.Submission as XeroSubmission
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import Web.Controller.Prelude
@@ -458,6 +476,63 @@ saveXeroPayrollCalendarSelectionMutation connection calendarStatus maybePayrollC
     invalidateTouchedResources "xero.mapping.payroll_calendar.save" $
         liveMutationResult selection (xeroMappingsTouchedResources (Id connection.venueId))
 
+recordXeroTimesheetsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> a -> IO (LiveMutationResult a)
+recordXeroTimesheetsMutation label value =
+    invalidateTouchedResources label $
+        liveMutationResult value (xeroTimesheetsTouchedResources currentVenueId)
+
+runXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+runXeroTimesheetPreparationMutation selectedPeriodKey =
+    XeroPrepare.startXeroTimesheetPreparation selectedPeriodKey >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.start"
+
+refreshXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+refreshXeroTimesheetPreparationMutation runId =
+    XeroPrepare.refreshXeroTimesheetPreparation runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.refresh"
+
+syncXeroTimesheetPreparationReferenceDataMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+syncXeroTimesheetPreparationReferenceDataMutation runId =
+    XeroPrepare.syncXeroPreparationReferenceData runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.reference_sync"
+
+saveXeroTimesheetPreparationCalendarMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+saveXeroTimesheetPreparationCalendarMutation runId calendarId =
+    XeroPrepare.saveXeroPreparationPayrollCalendar runId calendarId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.calendar"
+
+saveXeroTimesheetPreparationAccountCodeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+saveXeroTimesheetPreparationAccountCodeMutation runId accountCode =
+    XeroPrepare.saveXeroPreparationAccountCode runId accountCode >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.account_code"
+
+saveXeroTimesheetPreparationEarningsRateMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Text -> Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+saveXeroTimesheetPreparationEarningsRateMutation runId localBucketKey earningsRateId =
+    XeroPrepare.saveXeroPreparationEarningsRateMapping runId localBucketKey earningsRateId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.earnings_rate"
+
+applyXeroTimesheetPreparationStaffDecisionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Id Staff -> XeroPrepare.XeroPreparationStaffDecision -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision =
+    XeroPrepare.applyXeroPreparationStaffDecision runId staffId decision >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.staff_decision"
+
+approveXeroTimesheetPreparationPayItemsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Maybe Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode =
+    XeroPrepare.approveXeroPreparationPayItems runId maybeAccountCode >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.pay_items"
+
+previewXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+previewXeroTimesheetPreparationMutation runId =
+    XeroPrepare.previewXeroTimesheetPreparation runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.preview"
+
+submitXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+submitXeroTimesheetPreparationMutation runId =
+    XeroPrepare.submitXeroTimesheetPreparation runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.submit"
+
+createPersistedXeroTimesheetPreviewMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id User -> XeroTimesheetReadinessRequest -> XeroTimesheetReadiness -> Aeson.Value -> IO (LiveMutationResult (Either Text XeroSubmissionRun))
+createPersistedXeroTimesheetPreviewMutation userId readinessRequest readiness duplicateCheckJson =
+    XeroPreview.createPersistedXeroTimesheetPreview userId readinessRequest readiness duplicateCheckJson >>= recordXeroTimesheetsMutation "xero.timesheets.preview"
+
+submitXeroDraftTimesheetsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id User -> XeroTimesheetReadinessRequest -> IO (LiveMutationResult (Either Text XeroSubmissionRun))
+submitXeroDraftTimesheetsMutation userId readinessRequest =
+    XeroSubmission.submitXeroDraftTimesheets userId readinessRequest >>= recordXeroTimesheetsMutation "xero.timesheets.submit"
+
+retryXeroDraftTimesheetSubmissionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetSubmission -> IO (LiveMutationResult (Either Text XeroTimesheetSubmission))
+retryXeroDraftTimesheetSubmissionMutation submissionId =
+    XeroSubmission.retryXeroDraftTimesheetSubmission submissionId >>= recordXeroTimesheetsMutation "xero.timesheets.retry"
+
 xeroConnectionTouchedResources :: Id Venue -> [LiveResource]
 xeroConnectionTouchedResources venueId =
     [XeroConnectionResource (unpackId venueId)]
@@ -469,6 +544,10 @@ xeroPayItemsTouchedResources venueId =
 xeroMappingsTouchedResources :: Id Venue -> [LiveResource]
 xeroMappingsTouchedResources venueId =
     [XeroMappingsResource (unpackId venueId)]
+
+xeroTimesheetsTouchedResources :: Id Venue -> [LiveResource]
+xeroTimesheetsTouchedResources venueId =
+    [XeroTimesheetsResource (unpackId venueId)]
 
 xeroReferenceSyncTouchedResources :: Id Venue -> [LiveResource]
 xeroReferenceSyncTouchedResources venueId =
