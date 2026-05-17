@@ -412,10 +412,9 @@ broadcastTypedSurfaceResyncWithoutContext ::
     scope ->
     Maybe Text ->
     IO ()
-broadcastTypedSurfaceResyncWithoutContext definition surfaceKey sourceClientId =
+broadcastTypedSurfaceResyncWithoutContext definition surfaceKey =
     broadcastLiveResyncWithoutContext
         (unSurfaceScope (definition.typedSurfaceScope surfaceKey))
-        sourceClientId
 
 setTypedLiveSurfaceActorRefresh ::
     (?context :: ControllerContext, ?request :: Request) =>

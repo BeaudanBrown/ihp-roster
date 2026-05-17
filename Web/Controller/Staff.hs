@@ -132,10 +132,7 @@ instance Controller StaffController where
                                             rosterGroupId <- case maybeRosterGroupId of
                                                 Just rosterGroupId -> pure rosterGroupId
                                                 Nothing -> (.id) <$> fetchCurrentVenueDefaultRosterGroup
-                                            forM_ invalidatedRosterGroupIds \invalidatedRosterGroupId ->
-                                                refreshRosterContent
-                                                    invalidatedRosterGroupId
-                                                    weekOffset
+                                            forM_ invalidatedRosterGroupIds (`refreshRosterContent` weekOffset)
                                             respondWithRosterContentOob rosterGroupId weekOffset
                                         else do
                                             setSuccessMessage "Staff member updated"

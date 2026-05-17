@@ -623,8 +623,8 @@ activeInMemoryScopes state =
     Set.toList . Set.fromList . map (.subscriptionScope) <$> readIORef state.inMemorySubscriptionsRef
 
 activeLiveUpdateScopeMatches :: Ord a => (LiveUpdateScope -> Maybe a) -> IO [a]
-activeLiveUpdateScopeMatches matcher =
-    activeLiveUpdateScopeMatchesWithBus defaultLiveBus matcher
+activeLiveUpdateScopeMatches =
+    activeLiveUpdateScopeMatchesWithBus defaultLiveBus
 
 activeLiveUpdateScopeMatchesWithBus :: Ord a => LiveBus -> (LiveUpdateScope -> Maybe a) -> IO [a]
 activeLiveUpdateScopeMatchesWithBus bus matcher =
@@ -644,8 +644,8 @@ activeRosterWeekScopesWithBus bus =
             Nothing
 
 currentLiveUpdateVersion :: LiveUpdateScope -> IO Int
-currentLiveUpdateVersion scope =
-    currentLiveUpdateVersionWithBus defaultLiveBus scope
+currentLiveUpdateVersion =
+    currentLiveUpdateVersionWithBus defaultLiveBus
 
 currentLiveUpdateVersionWithBus :: LiveBus -> LiveUpdateScope -> IO Int
 currentLiveUpdateVersionWithBus =

@@ -62,7 +62,7 @@ profileContentLiveSurfaceDefinition =
                 Just ProfileContentSurfaceKey { profileContentVenueId = venueId, profileContentUserId = userId, profileContentOpenSection = "profile" }
             _ -> Nothing
         , typedSurfaceDefaultFragments = \key -> [profileContentFragment key.profileContentOpenSection]
-        , typedSurfaceFragmentRef = \_ -> profileContentFragmentRef
+        , typedSurfaceFragmentRef = const profileContentFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileDetailsFormId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueUser key.profileContentVenueId key.profileContentUserId)
         }
@@ -140,7 +140,7 @@ refreshProfileContentForStaffId :: (?context :: ControllerContext, ?modelContext
 refreshProfileContentForStaffId staffId openSection = do
     maybeStaff <-
         query @Staff
-            |> filterWhere (#id, (Id staffId :: Id Staff))
+            |> filterWhere (#id, Id staffId :: Id Staff)
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> fetchOneOrNothing
     forM_ (maybeStaff >>= (.userId)) \staffUserId ->
@@ -164,7 +164,7 @@ refreshProfileLeaveRequestsForStaffId :: (?context :: ControllerContext, ?modelC
 refreshProfileLeaveRequestsForStaffId staffId = do
     maybeStaff <-
         query @Staff
-            |> filterWhere (#id, (Id staffId :: Id Staff))
+            |> filterWhere (#id, Id staffId :: Id Staff)
             |> filterWhere (#venueId, unpackId currentVenueId)
             |> fetchOneOrNothing
     forM_ (maybeStaff >>= (.userId)) \staffUserId ->

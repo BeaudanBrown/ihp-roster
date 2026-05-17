@@ -349,11 +349,8 @@ timesheetWeekPageFragmentRef requestKey =
         (timesheetWeekUrl requestKey.projectionWeekOffset requestKey.projectionShowApproved requestKey.projectionShowAllStaff requestKey.projectionStaffFilterId)
 
 refreshTimesheetFragments :: (?context :: ControllerContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> IO ()
-refreshTimesheetFragments requestKey fragments =
-    broadcastSurfaceFragments
-        timesheetLiveSurfaceDefinition
-        requestKey
-        fragments
+refreshTimesheetFragments =
+    broadcastSurfaceFragments timesheetLiveSurfaceDefinition
 
 refreshTimesheetDay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> IO ()
 refreshTimesheetDay weekOffset workedOn = do

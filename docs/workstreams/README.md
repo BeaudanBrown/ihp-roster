@@ -39,6 +39,8 @@ for forward-looking design.
   robustness.
 - `strict-live-surface-overhaul.md` - removal of the old live-surface
   compatibility/manual authoring layer and strict typed migration.
+- `live-update-runtime-simplification.md` - follow-up cleanup of internal
+  live-update compatibility primitives and protocol simplification decisions.
 - `backlog.md` - smaller open streams that do not yet need dedicated files.
 
 ## Workstream Exit Criteria

@@ -1,8 +1,6 @@
 {-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE DataKinds           #-}
-{-# LANGUAGE OverloadedLabels    #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE TypeApplications    #-}
 
 module Web.RosterWeeks.LiveSurface
     ( RosterLiveSurface
@@ -82,7 +80,7 @@ mkRosterProjectionDefinition ::
     (RosterProjectionScope -> IO snapshot) ->
     (snapshot -> RosterProjectionFragment -> Maybe Blaze.Html) ->
     ProjectionLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope snapshot RosterProjectionFragment
-mkRosterProjectionDefinition loadProjection renderFragment =
+mkRosterProjectionDefinition =
     mkTypedSurfaceProjectionDefinition
         rosterLiveSurfaceDefinition
         "roster-week"
@@ -93,8 +91,6 @@ mkRosterProjectionDefinition loadProjection renderFragment =
             layoutMode <- fetchCurrentRosterLayoutMode
             pure (tshow currentUser.id <> ":" <> encodeRosterAssignmentFilters filters <> ":" <> rosterLayoutModeValue layoutMode)
         rosterProjectionVersion
-        loadProjection
-        renderFragment
 
 rosterProjectionVersion :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterProjectionScope -> IO Int
 rosterProjectionVersion scope = do
