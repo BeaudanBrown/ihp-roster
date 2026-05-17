@@ -16,6 +16,7 @@ data LiveResource
     | StaffLeaveRequestsResource !UUID
     | LeaveCalendarResource !UUID !Int
     | TimesheetWeekResource !UUID !Int
+    | TimesheetDayResource !UUID !Int !Int
     | StaffTimesheetResource !UUID
     | StaffProfileResource !UUID
     | StaffPreferencesResource !UUID

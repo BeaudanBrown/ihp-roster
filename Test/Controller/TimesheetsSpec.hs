@@ -110,6 +110,7 @@ tests = beforeAll testContext do
                 Set.fromList (timesheetEntryTouchedResources venueConfig [entry])
                     `shouldBe` Set.fromList
                         [ TimesheetWeekResource (unpackId venue.id) weekOffset
+                        , TimesheetDayResource (unpackId venue.id) weekOffset 1
                         , StaffTimesheetResource (unpackId staff.id)
                         ]
 

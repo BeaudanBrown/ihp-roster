@@ -51,3 +51,13 @@ tests = do
                     , InvalidateAdminShiftTypes venueId
                     , InvalidateXeroPayItems venueId
                     ]
+
+        it "plans timesheet invalidations from timesheet resources" do
+            let venueId = fromWords 1 0 0 0
+            let resources = Set.fromList [TimesheetWeekResource venueId 0, TimesheetDayResource venueId 0 2]
+
+            planLiveInvalidationsForResources [] resources
+                `shouldBe` Set.fromList
+                    [ InvalidateTimesheetWeek venueId 0
+                    , InvalidateTimesheetDay venueId 0 2
+                    ]

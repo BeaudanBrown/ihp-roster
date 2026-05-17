@@ -8,7 +8,8 @@ module Web.LiveResourceInvalidation
     ) where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (activeRosterWeekScopes)
+import Application.Helper.LiveUpdate (LiveUpdateScope (..), activeLiveUpdateScopes,
+                                      activeRosterWeekScopes)
 import qualified Data.Set as Set
 import Data.UUID (UUID)
 import Web.Controller.Admin.Support (refreshAdminInvites,
@@ -21,11 +22,17 @@ import Web.LeaveRequests.Projection (broadcastLeaveRequestsInvalidation,
 import Web.Profiles.LiveUpdates (refreshProfileLeaveRequestsForStaffId)
 import Web.RosterWeeks.LiveUpdates (refreshRosterFragments)
 import Web.RosterWeeks.Projection (rosterContentAndStaffPanelFragments)
+import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
+                                  refreshTimesheetFragments,
+                                  timesheetDaySectionFragment,
+                                  timesheetDaySectionFragments)
 
 data PlannedLiveInvalidation
     = InvalidateLeaveRequests
     | InvalidateProfileLeaveRequests !UUID
     | InvalidateRosterWeek !UUID !Int
+    | InvalidateTimesheetWeek !UUID !Int
+    | InvalidateTimesheetDay !UUID !Int !Int
     | InvalidateAdminInvites !UUID
     | InvalidateAdminRosterGroups !UUID
     | InvalidateAdminShiftTypes !UUID
@@ -61,6 +68,10 @@ planLiveInvalidationsForResources activeRosterScopes resources =
                 ]
         planForResource (RosterWeekResource rosterGroupId weekOffset) =
             Set.singleton (InvalidateRosterWeek rosterGroupId weekOffset)
+        planForResource (TimesheetWeekResource venueId weekOffset) =
+            Set.singleton (InvalidateTimesheetWeek venueId weekOffset)
+        planForResource (TimesheetDayResource venueId weekOffset dayOffset) =
+            Set.singleton (InvalidateTimesheetDay venueId weekOffset dayOffset)
         planForResource (AdminInvitesResource venueId) =
             Set.singleton (InvalidateAdminInvites venueId)
         planForResource (AdminRosterGroupsResource venueId) =
@@ -76,9 +87,25 @@ invalidateTouchedResources :: (?context :: ControllerContext, ?modelContext :: M
 invalidateTouchedResources label result = do
     observed <- recordLiveMutationDiagnostics label result
     activeRosterScopes <- activeRosterWeekScopes
-    let plannedInvalidations = planLiveInvalidationsForResources activeRosterScopes (liveMutationTouchedResources observed)
+    activeScopes <- activeLiveUpdateScopes
+    let plannedInvalidations = filterInactiveTimesheetInvalidations activeScopes (planLiveInvalidationsForResources activeRosterScopes (liveMutationTouchedResources observed))
     forM_ (Set.toAscList plannedInvalidations) performPlannedInvalidation
     pure observed
+
+filterInactiveTimesheetInvalidations :: [LiveUpdateScope] -> Set.Set PlannedLiveInvalidation -> Set.Set PlannedLiveInvalidation
+filterInactiveTimesheetInvalidations activeScopes planned =
+    Set.filter shouldKeep planned
+    where
+        activeTimesheetScopes =
+            Set.fromList
+                [ (venueId, weekOffset)
+                | TimesheetWeekScope { venueId, weekOffset } <- activeScopes
+                ]
+        shouldKeep (InvalidateTimesheetWeek venueId weekOffset) =
+            (venueId, weekOffset) `Set.member` activeTimesheetScopes
+        shouldKeep (InvalidateTimesheetDay venueId weekOffset _) =
+            (venueId, weekOffset) `Set.member` activeTimesheetScopes
+        shouldKeep _ = True
 
 performPlannedInvalidation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => PlannedLiveInvalidation -> IO ()
 performPlannedInvalidation InvalidateLeaveRequests =
@@ -87,6 +114,14 @@ performPlannedInvalidation (InvalidateProfileLeaveRequests staffId) =
     refreshProfileLeaveRequestsForStaffId staffId
 performPlannedInvalidation (InvalidateRosterWeek rosterGroupId weekOffset) =
     refreshRosterFragments (Id rosterGroupId) weekOffset rosterContentAndStaffPanelFragments
+performPlannedInvalidation (InvalidateTimesheetWeek _venueId weekOffset) =
+    refreshTimesheetFragments
+        (TimesheetProjectionRequest weekOffset True True Nothing)
+        (timesheetDaySectionFragments [0 .. 6])
+performPlannedInvalidation (InvalidateTimesheetDay _venueId weekOffset dayOffset) =
+    refreshTimesheetFragments
+        (TimesheetProjectionRequest weekOffset True True Nothing)
+        [timesheetDaySectionFragment dayOffset]
 performPlannedInvalidation (InvalidateAdminInvites venueId) =
     refreshAdminInvites (Id venueId)
 performPlannedInvalidation (InvalidateAdminRosterGroups venueId) =

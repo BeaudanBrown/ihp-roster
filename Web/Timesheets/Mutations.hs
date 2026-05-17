@@ -13,6 +13,7 @@ import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
                                payVersionManifestForEntry)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import Data.Time.Calendar (diffDays)
 import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
 import Web.Timesheets.Projection (refreshMovedTimesheetEntry,
@@ -173,6 +174,13 @@ timesheetEntryTouchedResources venueConfig entries =
     concatMap entryResources entries
     where
         entryResources entry =
-            [ TimesheetWeekResource entry.venueId (venueWeekOffsetForDay venueConfig entry.workedOn)
-            , StaffTimesheetResource entry.staffId
-            ]
+            let weekOffset = venueWeekOffsetForDay venueConfig entry.workedOn
+                dayOffset = timesheetEntryDayOffset venueConfig entry
+             in [ TimesheetWeekResource entry.venueId weekOffset
+                , TimesheetDayResource entry.venueId weekOffset dayOffset
+                , StaffTimesheetResource entry.staffId
+                ]
+
+timesheetEntryDayOffset :: VenueConfig -> TimesheetEntry -> Int
+timesheetEntryDayOffset venueConfig entry =
+    fromIntegral (diffDays entry.workedOn (venueWeekStartDate venueConfig (venueWeekOffsetForDay venueConfig entry.workedOn)))
