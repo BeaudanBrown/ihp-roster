@@ -7,6 +7,9 @@ import Data.UUID (fromWords)
 import IHP.Controller.Context (ControllerContext)
 import IHP.Prelude
 import Test.Hspec
+import Web.Billing.LiveUpdates (BillingLiveFragment (..),
+                                BillingSurfaceKey (..),
+                                billingLiveSurfaceDefinition)
 import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
                                  ProfileContentSurfaceKey (..),
                                  ProfileLeaveSurfaceKey (..),
@@ -56,6 +59,13 @@ tests = do
                 `shouldBe` [XeroPayItemsResource venueId]
             typedSurfaceDependsOn definition () adminXeroTimesheetsFragment
                 `shouldBe` [XeroTimesheetsResource venueId]
+
+        it "declares billing dependencies for billing status fragments" do
+            let venueId = fromWords 6 0 0 0
+            let key = BillingSurfaceKey venueId
+
+            typedSurfaceDependsOn billingLiveSurfaceDefinition key BillingStatusLiveFragment
+                `shouldBe` [BillingResource venueId]
 
         it "declares profile dependencies by staff-backed section" do
             let ?context = error "profile dependency test does not use controller context" :: ControllerContext

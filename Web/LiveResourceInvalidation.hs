@@ -21,6 +21,8 @@ import Web.Controller.Admin.Xero.Responses (refreshAdminXero,
                                             refreshAdminXeroPayItems,
                                             refreshAdminXeroTimesheets)
 import Web.Controller.Prelude
+import Web.Billing.LiveUpdates (broadcastBillingInvalidationForVenue,
+                                refreshBillingStatus)
 import Web.Exports.LiveUpdates (refreshAdminExports)
 import Web.LeaveRequests.Projection (broadcastLeaveRequestsInvalidation,
                                      leaveRequestsContentFragmentRefs)
@@ -48,6 +50,7 @@ data PlannedLiveInvalidation
     | InvalidateAdminInvites !UUID
     | InvalidateAdminStaffCompliance !UUID
     | InvalidateAdminExports !UUID
+    | InvalidateBilling !UUID
     | InvalidateAdminRosterGroups !UUID
     | InvalidateAdminShiftTypes !UUID
     | InvalidateXeroPayItems !UUID
@@ -105,6 +108,8 @@ planLiveInvalidationsForResources activeRosterScopes resources =
             Set.singleton (InvalidateAdminStaffCompliance venueId)
         planForResource (AdminExportsResource venueId) =
             Set.singleton (InvalidateAdminExports venueId)
+        planForResource (BillingResource venueId) =
+            Set.singleton (InvalidateBilling venueId)
         planForResource (AdminRosterGroupsResource venueId) =
             Set.singleton (InvalidateAdminRosterGroups venueId)
         planForResource (AdminShiftTypesResource venueId) =
@@ -174,6 +179,8 @@ performPlannedInvalidation (InvalidateAdminStaffCompliance venueId) =
     refreshStaffCompliance venueId
 performPlannedInvalidation (InvalidateAdminExports venueId) =
     refreshAdminExports venueId
+performPlannedInvalidation (InvalidateBilling venueId) =
+    refreshBillingStatus venueId
 performPlannedInvalidation (InvalidateAdminRosterGroups venueId) =
     refreshAdminRosterGroups (Id venueId)
 performPlannedInvalidation (InvalidateAdminShiftTypes venueId) =
@@ -193,6 +200,8 @@ performPlannedInvalidationWithoutContext (InvalidateAdminXero venueId) =
         (adminXeroLiveSurfaceDefinitionForVenue venueId)
         ()
         Nothing
+performPlannedInvalidationWithoutContext (InvalidateBilling venueId) =
+    broadcastBillingInvalidationForVenue venueId
 performPlannedInvalidationWithoutContext _ =
     pure ()
 

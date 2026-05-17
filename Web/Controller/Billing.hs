@@ -1,11 +1,13 @@
 module Web.Controller.Billing where
 
 import Application.Billing.Stripe
+import Application.Helper.LiveResource (LiveMutationResult (..))
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
 import Web.Billing.LiveUpdates
+import Web.Billing.Mutations
 import Web.Controller.Prelude
 import Web.View.Billing.Index
 
@@ -175,20 +177,8 @@ ensureVenueStripeCustomer stripeClient stripeConfig = do
             case customerResult of
                 Left err -> pure (Left ("Stripe Customer create failed: " <> stripeClientErrorText err))
                 Right stripeCustomer -> do
-                    customer <-
-                        newRecord @VenueBillingCustomer
-                            |> set #venueId (unpackId currentVenueId)
-                            |> set #stripeCustomerId stripeCustomer.stripeCustomerId
-                            |> createRecord
-                    void $ recordCurrentUserAuditEvent
-                        "billing_customer_created"
-                        "venue_billing_customers"
-                        (unpackId customer.id)
-                        (Aeson.object
-                            [ "stripeCustomerId" Aeson..= customer.stripeCustomerId
-                            ])
-                    broadcastBillingInvalidation
-                    pure (Right customer)
+                    mutationResult <- createVenueBillingCustomerMutation stripeCustomer.stripeCustomerId
+                    pure (Right mutationResult.liveMutationValue)
 
 updateVenueBillingControlAction :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 updateVenueBillingControlAction = do
@@ -201,32 +191,7 @@ updateVenueBillingControlAction = do
             then billingRedirectWithError "Manual read-only reason must be 500 characters or fewer."
             else do
                 now <- getCurrentTime
-                maybeControl <- fetchCurrentVenueBillingControl
-                control <- case maybeControl of
-                    Nothing ->
-                        newRecord @VenueBillingControl
-                            |> set #venueId (unpackId currentVenueId)
-                            |> set #manualReadOnly manualReadOnly
-                            |> set #manualReadOnlyReason (if Text.null reason then Nothing else Just reason)
-                            |> set #setByUserId (Just (unpackId currentUser.id))
-                            |> set #setAt (Just now)
-                            |> createRecord
-                    Just existing ->
-                        existing
-                            |> set #manualReadOnly manualReadOnly
-                            |> set #manualReadOnlyReason (if manualReadOnly then Just reason else Nothing)
-                            |> set #setByUserId (Just (unpackId currentUser.id))
-                            |> set #setAt (Just now)
-                            |> updateRecord
-                void $ recordCurrentUserAuditEvent
-                    "venue_billing_control_updated"
-                    "venue_billing_controls"
-                    (unpackId control.id)
-                    (Aeson.object
-                        [ "manualReadOnly" Aeson..= control.manualReadOnly
-                        , "manualReadOnlyReason" Aeson..= control.manualReadOnlyReason
-                        ])
-                broadcastBillingInvalidation
+                _ <- updateVenueBillingControlMutation manualReadOnly reason now
                 setSuccessMessage "Billing controls updated."
                 redirectTo BillingAction
 

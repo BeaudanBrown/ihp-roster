@@ -32,6 +32,7 @@ data LiveResource
     | AdminInvitesResource !UUID
     | AdminStaffComplianceResource !UUID
     | AdminExportsResource !UUID
+    | BillingResource !UUID
     | XeroConnectionResource !UUID
     | XeroMappingsResource !UUID
     | XeroPayItemsResource !UUID

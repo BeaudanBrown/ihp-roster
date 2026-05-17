@@ -78,11 +78,11 @@ tests = do
                     , InvalidateRosterWeeksForStaff staffId
                     ]
 
-        it "plans admin export invalidations from export resources" do
+        it "plans admin export and billing invalidations from venue resources" do
             let venueId = fromWords 4 0 0 0
 
-            planLiveInvalidationsForResources [] (Set.singleton (AdminExportsResource venueId))
-                `shouldBe` Set.singleton (InvalidateAdminExports venueId)
+            planLiveInvalidationsForResources [] (Set.fromList [AdminExportsResource venueId, BillingResource venueId])
+                `shouldBe` Set.fromList [InvalidateAdminExports venueId, InvalidateBilling venueId]
 
         it "plans RSA profile and admin compliance invalidations from staff document resources" do
             let venueId = fromWords 4 0 0 0

@@ -81,6 +81,19 @@ tests = describe "Mutation boundary guard" do
         let forbiddenTokens = ["refreshAdminInvites", "refreshAdminRosterGroups", "refreshAdminShiftTypes", "refreshAdminXero", "broadcastSurface"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
+    it "keeps billing writes in the mutation module" do
+        controllerSource <- Text.readFile "Web/Controller/Billing.hs"
+        webhookSource <- Text.readFile "Web/Controller/StripeWebhooks.hs"
+        let controllerForbiddenTokens = ["newRecord @VenueBillingCustomer", "newRecord @VenueBillingControl", "updateRecord", "broadcastBillingInvalidation"]
+        let webhookForbiddenTokens = ["broadcastBillingInvalidation", "broadcastBillingWebhookResult"]
+        filter (`Text.isInfixOf` controllerSource) controllerForbiddenTokens `shouldBe` []
+        filter (`Text.isInfixOf` webhookSource) webhookForbiddenTokens `shouldBe` []
+
+    it "routes billing mutation live invalidation through touched resources" do
+        source <- Text.readFile "Web/Billing/Mutations.hs"
+        let forbiddenTokens = ["broadcastBillingInvalidation", "broadcastSurface"]
+        filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
+
     it "routes venue invitation acceptance through the mutation module" do
         controllerSource <- Text.readFile "Web/Controller/Users.hs"
         mutationSource <- Text.readFile "Web/Users/Mutations.hs"

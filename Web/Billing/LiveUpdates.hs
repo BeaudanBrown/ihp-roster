@@ -5,9 +5,11 @@ module Web.Billing.LiveUpdates
     , broadcastBillingInvalidation
     , broadcastBillingInvalidationForVenue
     , currentBillingSurfaceKey
+    , refreshBillingStatus
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
 import Web.Controller.Prelude
@@ -38,7 +40,7 @@ billingLiveSurfaceDefinition =
         , typedSurfaceDefaultFragments = const [BillingStatusLiveFragment]
         , typedSurfaceFragmentRef = const billingLiveFragmentRef
         , typedSurfaceDecorateRequestsWithin = const ["#billing-live-surface", "#billing-status-fragment"]
-        , typedSurfaceDependsOn = \_ _ -> []
+        , typedSurfaceDependsOn = \key _ -> [BillingResource key.billingSurfaceVenueId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueOwner key.billingSurfaceVenueId)
         }
 
@@ -62,11 +64,18 @@ broadcastBillingInvalidation =
         currentBillingSurfaceKey
         [BillingStatusLiveFragment]
 
-broadcastBillingInvalidationForVenue :: BillingSurfaceKey -> IO ()
-broadcastBillingInvalidationForVenue surfaceKey = do
+refreshBillingStatus :: (?context :: ControllerContext, ?request :: Request) => UUID -> IO ()
+refreshBillingStatus venueId =
+    broadcastSurfaceFragments
+        billingLiveSurfaceDefinition
+        BillingSurfaceKey { billingSurfaceVenueId = venueId }
+        [BillingStatusLiveFragment]
+
+broadcastBillingInvalidationForVenue :: UUID -> IO ()
+broadcastBillingInvalidationForVenue venueId = do
     _ <- broadcastSurfaceFragmentsWithoutContext
         billingLiveSurfaceDefinition
-        surfaceKey
+        BillingSurfaceKey { billingSurfaceVenueId = venueId }
         Nothing
         [BillingStatusLiveFragment]
     pure ()
