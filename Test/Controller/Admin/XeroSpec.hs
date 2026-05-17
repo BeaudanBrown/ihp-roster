@@ -38,6 +38,7 @@ import Test.Support
 import qualified Test.XeroMock as XeroMock
 import qualified Test.XeroTimesheetPreviewSpec as Preview
 import Web.Admin.Xero.Mutations (xeroConnectionTouchedResources,
+                                 xeroMappingsTouchedResources,
                                  xeroPayItemsTouchedResources,
                                  xeroReferenceSyncTouchedResources)
 import Web.Controller.Admin ()
@@ -89,6 +90,13 @@ tests = beforeAll testContext do
 
                 Set.fromList (xeroConnectionTouchedResources venue.id)
                     `shouldBe` Set.fromList [XeroConnectionResource (unpackId venue.id)]
+
+        it "records touched resources for Xero mapping mutations" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Mapping Touch Venue"
+
+                Set.fromList (xeroMappingsTouchedResources venue.id)
+                    `shouldBe` Set.fromList [XeroMappingsResource (unpackId venue.id)]
 
         it "records touched resources for Xero pay item mutations" $ withContext do
             withCleanDb do

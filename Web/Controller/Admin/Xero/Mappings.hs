@@ -6,14 +6,17 @@ module Web.Controller.Admin.Xero.Mappings
     , suggestXeroStaffMappingAction
     ) where
 
+import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.Profiling
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Xero.Admin.ReadModel
-import Control.Monad (void)
-import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
+import Web.Admin.Xero.Mutations (saveXeroEarningsRateMappingMutation,
+                                 saveXeroPayItemAccountCodeSelectionMutation,
+                                 saveXeroPayrollCalendarSelectionMutation,
+                                 saveXeroStaffMappingMutation)
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 
@@ -164,44 +167,7 @@ persistXeroStaffMappingWithControlRefresh ::
     Maybe (Id Staff) ->
     IO ()
 persistXeroStaffMappingWithControlRefresh connection staff mappingStatus maybeEmployee maybeUnchangedStaffId = do
-    now <- getCurrentTime
-    mapping <- profileActionSpan "admin.xero.staff_mapping.persist.upsert" $ withTransaction do
-        existingMapping <-
-            query @XeroStaffMapping
-                |> filterWhere (#staffId, unpackId staff.id)
-                |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                |> fetchOneOrNothing
-        let prepared record =
-                record
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #staffId (unpackId staff.id)
-                    |> set #xeroConnectionId (unpackId connection.id)
-                    |> set #xeroEmployeeId ((.xeroEmployeeId) <$> maybeEmployee)
-                    |> set #xeroEmployeeName ((.displayName) <$> maybeEmployee)
-                    |> set #xeroEmployeeEmail (maybeEmployee >>= (.email))
-                    |> set #mappingStatus mappingStatus
-                    |> set #lastVerifiedAt (if mappingStatus == "verified" then Just now else Nothing)
-                    |> set #updatedByUserId (Just (unpackId currentUser.id))
-        savedMapping <-
-            case existingMapping of
-                Just existing ->
-                    prepared existing
-                        |> updateRecord
-                Nothing ->
-                    prepared (newRecord @XeroStaffMapping)
-                        |> set #createdByUserId (Just (unpackId currentUser.id))
-                        |> createRecord
-        void $ recordCurrentUserAuditEvent
-            "xero_staff_mapping_saved"
-            "xero_staff_mappings"
-            (unpackId savedMapping.id)
-            (Aeson.object
-                [ "staffId" Aeson..= tshow staff.id
-                , "mappingStatus" Aeson..= mappingStatus
-                , "xeroEmployeeId" Aeson..= ((.xeroEmployeeId) <$> maybeEmployee)
-                ]
-            )
-        pure savedMapping
+    mapping <- liveMutationValue <$> profileActionSpan "admin.xero.staff_mapping.persist.upsert" (saveXeroStaffMappingMutation connection staff mappingStatus maybeEmployee)
     let message =
             case mapping.mappingStatus of
                 "verified"       -> "Saved Xero employee mapping for " <> staff.firstName <> " " <> staff.lastName <> "."
@@ -210,8 +176,6 @@ persistXeroStaffMappingWithControlRefresh connection staff mappingStatus maybeEm
     if isHtmxRequest
         then respondWithXeroStaffMappingControlsAndToast connection maybeUnchangedStaffId (Just (xeroSuccessToast message))
         else do
-            profileActionSpan "admin.xero.staff_mapping.persist.broadcast" $
-                refreshAdminXero currentVenueId
             setSuccessMessage message
             redirectTo XeroAction
 
@@ -260,48 +224,11 @@ persistXeroEarningsRateMapping ::
     Maybe XeroEarningsRate ->
     IO ()
 persistXeroEarningsRateMapping connection bucket mappingStatus maybeEarningsRate = do
-    now <- getCurrentTime
-    mapping <- withTransaction do
-        existingMapping <-
-            query @XeroEarningsRateMapping
-                |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                |> filterWhere (#localBucketKey, bucket.localBucketKey)
-                |> fetchOneOrNothing
-        let prepared record =
-                record
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #xeroConnectionId (unpackId connection.id)
-                    |> set #localBucketKey bucket.localBucketKey
-                    |> set #localBucketLabel bucket.localBucketLabel
-                    |> set #xeroEarningsRateId ((.xeroEarningsRateId) <$> maybeEarningsRate)
-                    |> set #xeroEarningsRateName ((.name) <$> maybeEarningsRate)
-                    |> set #mappingStatus mappingStatus
-                    |> set #lastVerifiedAt (if mappingStatus == "verified" then Just now else Nothing)
-                    |> set #updatedByUserId (Just (unpackId currentUser.id))
-        savedMapping <-
-            case existingMapping of
-                Just existing -> prepared existing |> updateRecord
-                Nothing ->
-                    prepared (newRecord @XeroEarningsRateMapping)
-                        |> set #createdByUserId (Just (unpackId currentUser.id))
-                        |> createRecord
-        void $ recordCurrentUserAuditEvent
-            "xero_earnings_rate_mapping_saved"
-            "xero_earnings_rate_mappings"
-            (unpackId savedMapping.id)
-            (Aeson.object
-                [ "localBucketKey" Aeson..= bucket.localBucketKey
-                , "localBucketLabel" Aeson..= bucket.localBucketLabel
-                , "mappingStatus" Aeson..= mappingStatus
-                , "xeroEarningsRateId" Aeson..= ((.xeroEarningsRateId) <$> maybeEarningsRate)
-                ]
-            )
-        pure savedMapping
+    mapping <- liveMutationValue <$> saveXeroEarningsRateMappingMutation connection bucket mappingStatus maybeEarningsRate
     let message =
             if mapping.mappingStatus == "verified"
                 then "Saved Xero earnings-rate mapping for " <> bucket.localBucketLabel <> "."
                 else "Cleared Xero earnings-rate mapping for " <> bucket.localBucketLabel <> "."
-    refreshAdminXero currentVenueId
     respondToXeroMappingMutationSuccess message
 
 saveXeroPayItemAccountCodeSelection ::
@@ -328,42 +255,11 @@ persistXeroPayItemAccountCodeSelection ::
     Maybe Text ->
     IO ()
 persistXeroPayItemAccountCodeSelection connection selectionStatus maybeAccountCode = do
-    now <- getCurrentTime
-    selection <- withTransaction do
-        existingSelection <-
-            query @XeroPayItemAccountCodeSelection
-                |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                |> fetchOneOrNothing
-        let prepared record =
-                record
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #xeroConnectionId (unpackId connection.id)
-                    |> set #accountCode maybeAccountCode
-                    |> set #selectionStatus selectionStatus
-                    |> set #lastVerifiedAt (if selectionStatus == "verified" then Just now else Nothing)
-                    |> set #updatedByUserId (Just (unpackId currentUser.id))
-        savedSelection <-
-            case existingSelection of
-                Just existing -> prepared existing |> updateRecord
-                Nothing ->
-                    prepared (newRecord @XeroPayItemAccountCodeSelection)
-                        |> set #createdByUserId (Just (unpackId currentUser.id))
-                        |> createRecord
-        void $ recordCurrentUserAuditEvent
-            "xero_pay_item_account_code_selected"
-            "xero_pay_item_account_code_selections"
-            (unpackId savedSelection.id)
-            (Aeson.object
-                [ "selectionStatus" Aeson..= selectionStatus
-                , "accountCode" Aeson..= maybeAccountCode
-                ]
-            )
-        pure savedSelection
+    selection <- liveMutationValue <$> saveXeroPayItemAccountCodeSelectionMutation connection selectionStatus maybeAccountCode
     let message =
             if selection.selectionStatus == "verified"
                 then "Saved Xero pay item account code " <> fromMaybe "" selection.accountCode <> "."
                 else "Cleared Xero pay item account code."
-    refreshAdminXero currentVenueId
     respondToXeroMappingMutationSuccess message
 
 saveXeroPayrollCalendarSelection ::
@@ -392,41 +288,9 @@ persistXeroPayrollCalendarSelection ::
     Maybe XeroPayrollCalendar ->
     IO ()
 persistXeroPayrollCalendarSelection connection calendarStatus maybePayrollCalendar = do
-    now <- getCurrentTime
-    selection <- withTransaction do
-        existingSelection <-
-            query @XeroPayrollCalendarSelection
-                |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                |> fetchOneOrNothing
-        let prepared record =
-                record
-                    |> set #venueId (unpackId currentVenueId)
-                    |> set #xeroConnectionId (unpackId connection.id)
-                    |> set #xeroPayrollCalendarId ((.xeroPayrollCalendarId) <$> maybePayrollCalendar)
-                    |> set #xeroPayrollCalendarName ((.name) <$> maybePayrollCalendar)
-                    |> set #calendarStatus calendarStatus
-                    |> set #lastVerifiedAt (if calendarStatus == "verified" then Just now else Nothing)
-                    |> set #updatedByUserId (Just (unpackId currentUser.id))
-        savedSelection <-
-            case existingSelection of
-                Just existing -> prepared existing |> updateRecord
-                Nothing ->
-                    prepared (newRecord @XeroPayrollCalendarSelection)
-                        |> set #createdByUserId (Just (unpackId currentUser.id))
-                        |> createRecord
-        void $ recordCurrentUserAuditEvent
-            "xero_payroll_calendar_selected"
-            "xero_payroll_calendar_selections"
-            (unpackId savedSelection.id)
-            (Aeson.object
-                [ "calendarStatus" Aeson..= calendarStatus
-                , "xeroPayrollCalendarId" Aeson..= ((.xeroPayrollCalendarId) <$> maybePayrollCalendar)
-                ]
-            )
-        pure savedSelection
+    selection <- liveMutationValue <$> saveXeroPayrollCalendarSelectionMutation connection calendarStatus maybePayrollCalendar
     let message =
             if selection.calendarStatus == "verified"
                 then "Saved Xero payroll calendar selection."
                 else "Cleared Xero payroll calendar selection."
-    refreshAdminXero currentVenueId
     respondToXeroMappingMutationSuccess message

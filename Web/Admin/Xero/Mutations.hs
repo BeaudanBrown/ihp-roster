@@ -11,14 +11,20 @@ module Web.Admin.Xero.Mutations
     , failXeroReferenceSyncMutation
     , markXeroConnectionErrorMutation
     , startXeroConnectionMutation
+    , saveXeroEarningsRateMappingMutation
+    , saveXeroPayItemAccountCodeSelectionMutation
+    , saveXeroPayrollCalendarSelectionMutation
+    , saveXeroStaffMappingMutation
     , startXeroReferenceSyncMutation
     , xeroConnectionTouchedResources
+    , xeroMappingsTouchedResources
     , xeroPayItemsTouchedResources
     , xeroReferenceSyncTouchedResources
     ) where
 
 import Application.Helper.LiveResource
 import Application.Helper.Xero
+import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReferenceData
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
@@ -292,6 +298,166 @@ failXeroReferenceSyncMutation syncRun connection message = do
     invalidateTouchedResources "xero.reference_sync.fail" $
         liveMutationResult updated (xeroReferenceSyncTouchedResources currentVenueId)
 
+saveXeroStaffMappingMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> Staff -> Text -> Maybe XeroEmployee -> IO (LiveMutationResult XeroStaffMapping)
+saveXeroStaffMappingMutation connection staff mappingStatus maybeEmployee = do
+    now <- getCurrentTime
+    mapping <- withTransaction do
+        existingMapping <-
+            query @XeroStaffMapping
+                |> filterWhere (#staffId, unpackId staff.id)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchOneOrNothing
+        let prepared record =
+                record
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #staffId (unpackId staff.id)
+                    |> set #xeroConnectionId (unpackId connection.id)
+                    |> set #xeroEmployeeId ((.xeroEmployeeId) <$> maybeEmployee)
+                    |> set #xeroEmployeeName ((.displayName) <$> maybeEmployee)
+                    |> set #xeroEmployeeEmail (maybeEmployee >>= (.email))
+                    |> set #mappingStatus mappingStatus
+                    |> set #lastVerifiedAt (if mappingStatus == "verified" then Just now else Nothing)
+                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+        savedMapping <-
+            case existingMapping of
+                Just existing -> prepared existing |> updateRecord
+                Nothing ->
+                    prepared (newRecord @XeroStaffMapping)
+                        |> set #createdByUserId (Just (unpackId currentUser.id))
+                        |> createRecord
+        void $
+            recordCurrentUserAuditEvent
+                "xero_staff_mapping_saved"
+                "xero_staff_mappings"
+                (unpackId savedMapping.id)
+                ( Aeson.object
+                    [ "staffId" Aeson..= tshow staff.id
+                    , "mappingStatus" Aeson..= mappingStatus
+                    , "xeroEmployeeId" Aeson..= ((.xeroEmployeeId) <$> maybeEmployee)
+                    ]
+                )
+        pure savedMapping
+    invalidateTouchedResources "xero.mapping.staff.save" $
+        liveMutationResult mapping (xeroMappingsTouchedResources (Id connection.venueId))
+
+saveXeroEarningsRateMappingMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> XeroLocalEarningsBucket -> Text -> Maybe XeroEarningsRate -> IO (LiveMutationResult XeroEarningsRateMapping)
+saveXeroEarningsRateMappingMutation connection bucket mappingStatus maybeEarningsRate = do
+    now <- getCurrentTime
+    mapping <- withTransaction do
+        existingMapping <-
+            query @XeroEarningsRateMapping
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> filterWhere (#localBucketKey, bucket.localBucketKey)
+                |> fetchOneOrNothing
+        let prepared record =
+                record
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #xeroConnectionId (unpackId connection.id)
+                    |> set #localBucketKey bucket.localBucketKey
+                    |> set #localBucketLabel bucket.localBucketLabel
+                    |> set #xeroEarningsRateId ((.xeroEarningsRateId) <$> maybeEarningsRate)
+                    |> set #xeroEarningsRateName ((.name) <$> maybeEarningsRate)
+                    |> set #mappingStatus mappingStatus
+                    |> set #lastVerifiedAt (if mappingStatus == "verified" then Just now else Nothing)
+                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+        savedMapping <-
+            case existingMapping of
+                Just existing -> prepared existing |> updateRecord
+                Nothing ->
+                    prepared (newRecord @XeroEarningsRateMapping)
+                        |> set #createdByUserId (Just (unpackId currentUser.id))
+                        |> createRecord
+        void $
+            recordCurrentUserAuditEvent
+                "xero_earnings_rate_mapping_saved"
+                "xero_earnings_rate_mappings"
+                (unpackId savedMapping.id)
+                ( Aeson.object
+                    [ "localBucketKey" Aeson..= bucket.localBucketKey
+                    , "localBucketLabel" Aeson..= bucket.localBucketLabel
+                    , "mappingStatus" Aeson..= mappingStatus
+                    , "xeroEarningsRateId" Aeson..= ((.xeroEarningsRateId) <$> maybeEarningsRate)
+                    ]
+                )
+        pure savedMapping
+    invalidateTouchedResources "xero.mapping.earnings_rate.save" $
+        liveMutationResult mapping (xeroMappingsTouchedResources (Id connection.venueId))
+
+saveXeroPayItemAccountCodeSelectionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> Text -> Maybe Text -> IO (LiveMutationResult XeroPayItemAccountCodeSelection)
+saveXeroPayItemAccountCodeSelectionMutation connection selectionStatus maybeAccountCode = do
+    now <- getCurrentTime
+    selection <- withTransaction do
+        existingSelection <-
+            query @XeroPayItemAccountCodeSelection
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchOneOrNothing
+        let prepared record =
+                record
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #xeroConnectionId (unpackId connection.id)
+                    |> set #accountCode maybeAccountCode
+                    |> set #selectionStatus selectionStatus
+                    |> set #lastVerifiedAt (if selectionStatus == "verified" then Just now else Nothing)
+                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+        savedSelection <-
+            case existingSelection of
+                Just existing -> prepared existing |> updateRecord
+                Nothing ->
+                    prepared (newRecord @XeroPayItemAccountCodeSelection)
+                        |> set #createdByUserId (Just (unpackId currentUser.id))
+                        |> createRecord
+        void $
+            recordCurrentUserAuditEvent
+                "xero_pay_item_account_code_selected"
+                "xero_pay_item_account_code_selections"
+                (unpackId savedSelection.id)
+                ( Aeson.object
+                    [ "selectionStatus" Aeson..= selectionStatus
+                    , "accountCode" Aeson..= maybeAccountCode
+                    ]
+                )
+        pure savedSelection
+    invalidateTouchedResources "xero.mapping.account_code.save" $
+        liveMutationResult selection (xeroMappingsTouchedResources (Id connection.venueId))
+
+saveXeroPayrollCalendarSelectionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> Text -> Maybe XeroPayrollCalendar -> IO (LiveMutationResult XeroPayrollCalendarSelection)
+saveXeroPayrollCalendarSelectionMutation connection calendarStatus maybePayrollCalendar = do
+    now <- getCurrentTime
+    selection <- withTransaction do
+        existingSelection <-
+            query @XeroPayrollCalendarSelection
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> fetchOneOrNothing
+        let prepared record =
+                record
+                    |> set #venueId (unpackId currentVenueId)
+                    |> set #xeroConnectionId (unpackId connection.id)
+                    |> set #xeroPayrollCalendarId ((.xeroPayrollCalendarId) <$> maybePayrollCalendar)
+                    |> set #xeroPayrollCalendarName ((.name) <$> maybePayrollCalendar)
+                    |> set #calendarStatus calendarStatus
+                    |> set #lastVerifiedAt (if calendarStatus == "verified" then Just now else Nothing)
+                    |> set #updatedByUserId (Just (unpackId currentUser.id))
+        savedSelection <-
+            case existingSelection of
+                Just existing -> prepared existing |> updateRecord
+                Nothing ->
+                    prepared (newRecord @XeroPayrollCalendarSelection)
+                        |> set #createdByUserId (Just (unpackId currentUser.id))
+                        |> createRecord
+        void $
+            recordCurrentUserAuditEvent
+                "xero_payroll_calendar_selected"
+                "xero_payroll_calendar_selections"
+                (unpackId savedSelection.id)
+                ( Aeson.object
+                    [ "calendarStatus" Aeson..= calendarStatus
+                    , "xeroPayrollCalendarId" Aeson..= ((.xeroPayrollCalendarId) <$> maybePayrollCalendar)
+                    ]
+                )
+        pure savedSelection
+    invalidateTouchedResources "xero.mapping.payroll_calendar.save" $
+        liveMutationResult selection (xeroMappingsTouchedResources (Id connection.venueId))
+
 xeroConnectionTouchedResources :: Id Venue -> [LiveResource]
 xeroConnectionTouchedResources venueId =
     [XeroConnectionResource (unpackId venueId)]
@@ -299,6 +465,10 @@ xeroConnectionTouchedResources venueId =
 xeroPayItemsTouchedResources :: Id Venue -> [LiveResource]
 xeroPayItemsTouchedResources venueId =
     [XeroPayItemsResource (unpackId venueId)]
+
+xeroMappingsTouchedResources :: Id Venue -> [LiveResource]
+xeroMappingsTouchedResources venueId =
+    [XeroMappingsResource (unpackId venueId)]
 
 xeroReferenceSyncTouchedResources :: Id Venue -> [LiveResource]
 xeroReferenceSyncTouchedResources venueId =

@@ -159,11 +159,7 @@ respondWithXeroStaffMappingControlsAndToast ::
     Maybe ToastOverlayConfig ->
     IO ()
 respondWithXeroStaffMappingControlsAndToast _ _ maybeToast = do
-    profileActionSpan "admin.xero.staff_mapping.broadcast" $
-        broadcastSurfaceFragmentsAndSetActorRefresh
-            adminXeroLiveSurfaceDefinition
-            ()
-            [adminXeroStaffMappingsFragment]
+    setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [adminXeroStaffMappingsFragment]
     respondWithXeroStaffMappingToastOnly maybeToast
 
 respondWithXeroStaffMappingToastOnly ::
