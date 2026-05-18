@@ -109,19 +109,20 @@ after a migrated write path. Actor-specific HTMX responses, toasts, redirects,
 dialog updates, and OOB fragments may remain in controllers when they only serve
 the requester.
 
-`Web.LiveResourceInvalidation` is the planner/adapter layer. It maps semantic
-resources such as `StaffProfileResource`, `RosterWeekResource`, or
-`XeroTimesheetsResource` to the existing typed live-surface refresh helpers and
-performs deduplication/suppression. Feature mutation modules must not call
-feature refresh helpers such as `refreshRosterFragments`,
+`Web.LiveResourceInvalidation` is the planner/adapter layer. It expands indirect
+semantic resources only through active-scope-bounded rules, then asks
+`Web.LiveSurfaceRegistry` to match the touched/expanded `LiveResource` set
+against each surface's `typedSurfaceDependsOn` declarations. The registry owns
+passive broadcast emission for matched scope/fragment targets. Feature mutation
+modules must not call feature refresh helpers such as `refreshRosterFragments`,
 `refreshProfileContent`, `refreshAdminXero`, `refreshTimesheetFragments`, or raw
 `broadcastSurface*` helpers once the domain has been migrated.
 
 Allowed direct live-surface calls after migration are limited to planner or
 transport adapters and actor-only response helpers:
 
-- planner adapters in `Web.LiveResourceInvalidation` and feature `LiveUpdates`
-  modules may call `broadcastSurface*` helpers
+- live transport adapters in `Web.LiveSurfaceRegistry` and typed live-surface
+  infrastructure may call raw broadcast helpers
 - controllers may call `setTypedLiveSurfaceActorRefresh` or helpers that only
   set actor refresh headers for the requester
 - background jobs should call a touched-resource invalidation adapter, such as
@@ -155,11 +156,10 @@ When adding or migrating a mutation flow:
 - Websocket subscription authorization must go through the registered typed
   surface definitions in `Web.LiveSurfaceRegistry`; unregistered wire scopes are
   denied instead of falling back to default scope authorization.
-- Mutating controllers should prefer typed helpers such as
-  `broadcastSurfaceFragments` or `performTypedLiveSurfaceMutation` so actor refs
-  and passive invalidations are declared in surface fragments, not ad hoc wire
-  refs.
-- For broad fanout mutations, intersect candidate scopes with active
+- Mutating controllers should use typed actor-only helpers, such as
+  `setTypedLiveSurfaceActorRefresh`, only for requester-local refresh triggers;
+  passive invalidation belongs behind touched resources.
+- For broad fanout mutations, expand indirect resources only through active
   subscriptions before querying cold historical data.
 
 ## Verification
