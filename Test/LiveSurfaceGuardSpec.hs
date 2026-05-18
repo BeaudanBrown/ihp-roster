@@ -108,4 +108,5 @@ isAllowedInfrastructureFile path =
             , "Application/Helper/LiveSurface.hs"
             , "Application/Helper/LiveSurface/Internal.hs"
             , "Application/Helper/SurfaceProjection.hs"
+            , "Web/LiveSurfaceRegistry.hs"
             ]

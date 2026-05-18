@@ -7,15 +7,20 @@ module Application.Helper.LiveUpdate
     , LiveUpdateCommand (..)
     , LiveUpdateMessage (..)
     , LiveUpdateScope (..)
+    , LiveUpdateWireFragment (..)
     , activeLiveUpdateScopeMatches
     , activeLiveUpdateScopeMatchesWithBus
     , activeLiveUpdateScopes
     , activeLiveUpdateScopesWithBus
     , activeRosterWeekScopes
     , activeRosterWeekScopesWithBus
+    , broadcastLiveInvalidation
+    , broadcastLiveInvalidationWithoutContext
+    , coalesceLiveUpdateWireFragments
     , currentLiveUpdateVersion
     , currentLiveUpdateVersionWithBus
     , incrementLiveUpdateVersionWithBus
+    , liveUpdateSourceClientId
     , liveUpdateScopeKey
     , newInMemoryLiveBus
     ) where
