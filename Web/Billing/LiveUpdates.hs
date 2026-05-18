@@ -2,10 +2,7 @@ module Web.Billing.LiveUpdates
     ( BillingLiveFragment (..)
     , BillingSurfaceKey (..)
     , billingLiveSurfaceDefinition
-    , broadcastBillingInvalidation
-    , broadcastBillingInvalidationForVenue
     , currentBillingSurfaceKey
-    , refreshBillingStatus
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -57,25 +54,3 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing -> error "Billing live surface requires a current venue"
 
-broadcastBillingInvalidation :: (?context :: ControllerContext, ?request :: Request) => IO ()
-broadcastBillingInvalidation =
-    broadcastSurfaceFragments
-        billingLiveSurfaceDefinition
-        currentBillingSurfaceKey
-        [BillingStatusLiveFragment]
-
-refreshBillingStatus :: (?context :: ControllerContext, ?request :: Request) => UUID -> IO ()
-refreshBillingStatus venueId =
-    broadcastSurfaceFragments
-        billingLiveSurfaceDefinition
-        BillingSurfaceKey { billingSurfaceVenueId = venueId }
-        [BillingStatusLiveFragment]
-
-broadcastBillingInvalidationForVenue :: UUID -> IO ()
-broadcastBillingInvalidationForVenue venueId = do
-    _ <- broadcastSurfaceFragmentsWithoutContext
-        billingLiveSurfaceDefinition
-        BillingSurfaceKey { billingSurfaceVenueId = venueId }
-        Nothing
-        [BillingStatusLiveFragment]
-    pure ()

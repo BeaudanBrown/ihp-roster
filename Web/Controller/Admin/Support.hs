@@ -1,8 +1,6 @@
 module Web.Controller.Admin.Support where
 
 import Application.Helper.Export
-import Application.Helper.LiveSurface (broadcastSurfaceFragments,
-                                       broadcastSurfaceResync)
 import Application.Helper.Pay
 import Application.Helper.RosterGroups
 import Application.Helper.VenueInvitation
@@ -132,33 +130,6 @@ nonEmptySuccessMessage message
     | Text.null message = Nothing
     | otherwise = Just message
 
-refreshAdminInvites ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    Id Venue ->
-    IO ()
-refreshAdminInvites venueId =
-    broadcastSurfaceResync
-        adminInvitesLiveSurfaceDefinition
-        AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
-
-refreshAdminShiftTypes ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    Id Venue ->
-    IO ()
-refreshAdminShiftTypes _venueId =
-    broadcastSurfaceFragments
-        adminShiftTypesLiveSurfaceDefinition
-        ()
-        [adminShiftTypesFragment]
-
-refreshAdminRosterGroups ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    Id Venue ->
-    IO ()
-refreshAdminRosterGroups venueId =
-    broadcastSurfaceResync
-        adminRosterGroupsLiveSurfaceDefinition
-        ()
 
 reorderActiveRosterGroups :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> IO ()
 reorderActiveRosterGroups rosterGroupId direction = do

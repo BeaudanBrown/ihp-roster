@@ -5,10 +5,8 @@ module Web.LeaveRequests.Projection
     , buildLeaveRequestsContentFragmentRef
     , buildLeaveRequestsPageFragmentRef
     , buildLeaveRequestsScope
-    , broadcastLeaveRequestsInvalidation
     , fetchLeaveRequestsProjection
     , fetchLeaveRequestsProjectionCached
-    , leaveRequestsContentFragmentRefs
     , leaveRequestsIndexView
     , leaveRequestsLiveSurfaceDefinition
     , leaveRequestsProjectionDefinition
@@ -183,9 +181,6 @@ buildLeaveRequestsContentFragmentRef =
         leaveRequestsContentFragmentId
         (pathTo ShowLeaveRequestsContentFragmentAction)
 
-leaveRequestsContentFragmentRefs :: [LeaveRequestsProjectionFragment]
-leaveRequestsContentFragmentRefs =
-    [ LeaveRequestsProjectionContent ]
 
 buildLeaveRequestsPageFragmentRef :: (?context :: ControllerContext) => SurfaceFragmentRef LeaveRequestsSurface
 buildLeaveRequestsPageFragmentRef =
@@ -194,13 +189,3 @@ buildLeaveRequestsPageFragmentRef =
         leaveRequestsShellId
         (pathTo LeaveRequestsAction)
 
-broadcastLeaveRequestsInvalidation ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    [LeaveRequestsProjectionFragment] ->
-    IO ()
-broadcastLeaveRequestsInvalidation fragments =
-    unless (null fragments) do
-        broadcastSurfaceFragments
-            leaveRequestsLiveSurfaceDefinition
-            ()
-            fragments

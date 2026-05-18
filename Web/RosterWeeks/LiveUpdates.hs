@@ -1,102 +1,14 @@
 module Web.RosterWeeks.LiveUpdates
     ( coalesceRosterWeekFragmentRefs
-    , refreshRosterContent
-    , refreshRosterContentAndStaffPanel
-    , refreshRosterDaySections
-    , refreshRosterFragments
-    , refreshRosterFragmentsAndSetActorRefresh
-    , refreshRosterRows
     ) where
 
-import Application.Helper.LiveSurface (LiveSurfaceMutation (..),
-                                       broadcastSurfaceFragments,
-                                       performTypedLiveSurfaceMutationAndSetActorRefresh)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import qualified Data.UUID as UUID
 import Web.Controller.Prelude
-import Web.RosterWeeks.Projection (buildRosterProjectionScope,
-                                   rosterContentAndStaffPanelFragments,
-                                   rosterContentFragment,
-                                   rosterDaySectionFragment,
-                                   rosterDaySectionFragments,
-                                   rosterRowFragments)
-import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
-import Web.RosterWeeks.RenderData (keepCurrentRosterWeekProjectionHot)
+import Web.RosterWeeks.Projection (rosterContentFragment,
+                                   rosterDaySectionFragment)
 import Web.RosterWeeks.Types (RosterProjectionFragment (..))
-
-refreshRosterFragments ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id RosterGroup ->
-    Int ->
-    [RosterProjectionFragment] ->
-    IO ()
-refreshRosterFragments rosterGroupId weekOffset fragments =
-    unless (null coalescedFragments) do
-        broadcastSurfaceFragments
-            rosterLiveSurfaceDefinition
-            (buildRosterProjectionScope rosterGroupId weekOffset)
-            coalescedFragments
-        keepCurrentRosterWeekProjectionHot rosterGroupId weekOffset
-    where
-        coalescedFragments =
-            coalesceRosterWeekFragmentRefs rosterGroupId weekOffset fragments
-
-refreshRosterFragmentsAndSetActorRefresh ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id RosterGroup ->
-    Int ->
-    [RosterProjectionFragment] ->
-    IO ()
-refreshRosterFragmentsAndSetActorRefresh rosterGroupId weekOffset actorFragments =
-    unless (null passiveFragments && null actorFragments) do
-        _ <-
-            performTypedLiveSurfaceMutationAndSetActorRefresh
-                rosterLiveSurfaceDefinition
-                LiveSurfaceMutation
-                    { liveMutationScope = buildRosterProjectionScope rosterGroupId weekOffset
-                    , liveMutationActorFragments = actorFragments
-                    , liveMutationPassiveFragments = passiveFragments
-                    }
-        unless (null passiveFragments) do
-            keepCurrentRosterWeekProjectionHot rosterGroupId weekOffset
-    where
-        passiveFragments =
-            coalesceRosterWeekFragmentRefs rosterGroupId weekOffset actorFragments
-
-refreshRosterContent ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id RosterGroup ->
-    Int ->
-    IO ()
-refreshRosterContent rosterGroupId weekOffset =
-    refreshRosterFragments rosterGroupId weekOffset [rosterContentFragment]
-
-refreshRosterContentAndStaffPanel ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id RosterGroup ->
-    Int ->
-    IO ()
-refreshRosterContentAndStaffPanel rosterGroupId weekOffset =
-    refreshRosterFragments rosterGroupId weekOffset rosterContentAndStaffPanelFragments
-
-refreshRosterRows ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id RosterGroup ->
-    Int ->
-    [(UUID.UUID, Int)] ->
-    IO ()
-refreshRosterRows rosterGroupId weekOffset rowKeys =
-    refreshRosterFragments rosterGroupId weekOffset (rosterRowFragments rowKeys)
-
-refreshRosterDaySections ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id RosterGroup ->
-    Int ->
-    [UUID.UUID] ->
-    IO ()
-refreshRosterDaySections rosterGroupId weekOffset dayIds =
-    refreshRosterFragments rosterGroupId weekOffset (rosterDaySectionFragments dayIds)
 
 coalesceRosterWeekFragmentRefs ::
     Id RosterGroup ->

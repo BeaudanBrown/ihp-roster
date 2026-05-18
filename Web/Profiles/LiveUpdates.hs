@@ -9,10 +9,6 @@ module Web.Profiles.LiveUpdates
     , profileContentLiveSurfaceDefinition
     , profileLeaveRequestsFragment
     , profileLeaveRequestsLiveSurfaceDefinition
-    , refreshProfileContent
-    , refreshProfileContentForStaffId
-    , refreshProfileLeaveRequests
-    , refreshProfileLeaveRequestsForStaffId
     ) where
 
 import Application.Helper.Controller (currentVenueOrNothing)
@@ -139,53 +135,3 @@ currentVenueScopeId =
         Just venue -> unpackId venue.id
         Nothing -> error "Profile live surface requires a current venue"
 
-refreshProfileContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO ()
-refreshProfileContent openSection = do
-    maybeStaff <- fetchCurrentUserStaff
-    forM_ maybeStaff \staff ->
-        broadcastSurfaceFragments
-            profileContentLiveSurfaceDefinition
-            (currentProfileContentSurfaceKey staff openSection)
-            [profileContentFragment openSection]
-
-refreshProfileContentForStaffId :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> Text -> IO ()
-refreshProfileContentForStaffId staffId openSection = do
-    maybeStaff <-
-        query @Staff
-            |> filterWhere (#id, Id staffId :: Id Staff)
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchOneOrNothing
-    forM_ maybeStaff \staff ->
-        broadcastSurfaceFragments
-            profileContentLiveSurfaceDefinition
-            ProfileContentSurfaceKey
-                { profileContentVenueId = unpackId currentVenueId
-                , profileContentStaffId = unpackId staff.id
-                , profileContentOpenSection = openSection
-                }
-            [profileContentFragment openSection]
-
-refreshProfileLeaveRequests :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
-refreshProfileLeaveRequests = do
-    maybeStaff <- fetchCurrentUserStaff
-    forM_ maybeStaff \staff ->
-        broadcastSurfaceFragments
-            profileLeaveRequestsLiveSurfaceDefinition
-            (currentProfileLeaveSurfaceKey staff)
-            [profileLeaveRequestsFragment]
-
-refreshProfileLeaveRequestsForStaffId :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UUID -> IO ()
-refreshProfileLeaveRequestsForStaffId staffId = do
-    maybeStaff <-
-        query @Staff
-            |> filterWhere (#id, Id staffId :: Id Staff)
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> fetchOneOrNothing
-    forM_ maybeStaff \staff ->
-        broadcastSurfaceFragments
-            profileLeaveRequestsLiveSurfaceDefinition
-            ProfileLeaveSurfaceKey
-                { profileLeaveVenueId = unpackId currentVenueId
-                , profileLeaveStaffId = unpackId staff.id
-                }
-            [profileLeaveRequestsFragment]

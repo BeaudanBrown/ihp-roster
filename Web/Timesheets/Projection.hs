@@ -10,9 +10,6 @@ module Web.Timesheets.Projection
     , fetchTimesheetWeekProjectionCached
     , renderTimesheetProjectionFragment
     , renderTimesheetWeekProjectionFragment
-    , refreshMovedTimesheetEntry
-    , refreshTimesheetDay
-    , refreshTimesheetFragments
     , timesheetDayOffset
     , timesheetDayRenderModelFromProjection
     , timesheetDaySectionFragment
@@ -357,32 +354,6 @@ timesheetWeekPageFragmentRef requestKey =
         timesheetWeekShellId
         (timesheetWeekUrl requestKey.projectionWeekOffset requestKey.projectionShowApproved requestKey.projectionShowAllStaff requestKey.projectionStaffFilterId)
 
-refreshTimesheetFragments :: (?context :: ControllerContext, ?request :: Request) => TimesheetProjectionRequest -> [TimesheetProjectionFragment] -> IO ()
-refreshTimesheetFragments =
-    broadcastSurfaceFragments timesheetLiveSurfaceDefinition
-
-refreshTimesheetDay :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Int -> Day -> IO ()
-refreshTimesheetDay weekOffset workedOn = do
-    venueConfig <- fetchVenueConfig
-    let weekStartDate = venueWeekStartDate venueConfig weekOffset
-    let dayOffset = timesheetDayOffset weekStartDate workedOn
-    refreshTimesheetFragments
-        (TimesheetProjectionRequest weekOffset True True Nothing)
-        [timesheetDaySectionFragment dayOffset]
-
-refreshMovedTimesheetEntry :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Day -> Day -> IO ()
-refreshMovedTimesheetEntry oldWorkedOn newWorkedOn = do
-    venueConfig <- fetchVenueConfig
-    let refreshTargets =
-            nub
-                [ (weekOffset, timesheetDayOffset (venueWeekStartDate venueConfig weekOffset) workedOn)
-                | workedOn <- [oldWorkedOn, newWorkedOn]
-                , let weekOffset = venueWeekOffsetForDay venueConfig workedOn
-                ]
-    forM_ refreshTargets \(targetWeekOffset, dayOffset) ->
-        refreshTimesheetFragments
-            (TimesheetProjectionRequest targetWeekOffset True True Nothing)
-            [timesheetDaySectionFragment dayOffset]
 
 timesheetViewFiltersFromRequest :: (?request :: Request) => (Bool, Bool, Maybe UUID.UUID)
 timesheetViewFiltersFromRequest =

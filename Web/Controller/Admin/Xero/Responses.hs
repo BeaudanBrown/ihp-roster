@@ -1,8 +1,5 @@
 module Web.Controller.Admin.Xero.Responses
-    ( refreshAdminXero
-    , refreshAdminXeroPayItems
-    , refreshAdminXeroTimesheets
-    , currentUserCanManageXeroIntegration
+    ( currentUserCanManageXeroIntegration
     , fetchCurrentVenueXeroAdminSectionData
     , renderCurrentVenueXeroSectionFragmentOob
     , requireCurrentVenueOwnerForXero
@@ -23,10 +20,7 @@ module Web.Controller.Admin.Xero.Responses
     , xeroSuccessToast
     ) where
 
-import Application.Helper.LiveSurface (broadcastSurfaceFragments,
-                                       broadcastSurfaceFragmentsAndSetActorRefresh,
-                                       broadcastSurfaceResync,
-                                       setTypedLiveSurfaceActorRefresh)
+import Application.Helper.LiveSurface (setTypedLiveSurfaceActorRefresh)
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
@@ -36,49 +30,10 @@ import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel hiding
                                         (fetchCurrentVenueXeroAdminSectionData)
 import qualified Application.Xero.Admin.ReadModel as XeroReadModel
-import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.Admin.Xero
 
-refreshAdminXero ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    Id Venue ->
-    IO ()
-refreshAdminXero _venueId =
-    broadcastSurfaceResync
-        adminXeroLiveSurfaceDefinition
-        ()
-
-refreshAdminXeroStaffMappings ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    UUID.UUID ->
-    IO ()
-refreshAdminXeroStaffMappings _venueId =
-    broadcastSurfaceFragments
-        adminXeroLiveSurfaceDefinition
-        ()
-        [adminXeroStaffMappingsFragment]
-
-refreshAdminXeroPayItems ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    UUID.UUID ->
-    IO ()
-refreshAdminXeroPayItems _venueId =
-    broadcastSurfaceFragments
-        adminXeroLiveSurfaceDefinition
-        ()
-        [adminXeroPayItemsFragment]
-
-refreshAdminXeroTimesheets ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    UUID.UUID ->
-    IO ()
-refreshAdminXeroTimesheets _venueId =
-    broadcastSurfaceFragments
-        adminXeroLiveSurfaceDefinition
-        ()
-        [adminXeroTimesheetsFragment]
 
 respondWithXeroSectionFragment ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
