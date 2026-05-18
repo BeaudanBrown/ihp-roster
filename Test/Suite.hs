@@ -37,6 +37,7 @@ import qualified Test.DevSeedSpec
 import qualified Test.FwcMapdSyncSpec
 import qualified Test.LiveUpdateSpec
 import qualified Test.LiveSurfaceGuardSpec
+import qualified Test.LiveSurfaceRegistrySpec
 import qualified Test.LiveResourceInvalidationSpec
 import qualified Test.LiveResourceSpec
 import qualified Test.LiveSurfaceDependencySpec
@@ -179,6 +180,7 @@ allSuites =
     , TestSuite "LiveResourceInvalidation" Test.LiveResourceInvalidationSpec.tests
     , TestSuite "LiveSurfaceDependency" Test.LiveSurfaceDependencySpec.tests
     , TestSuite "LiveSurfaceGuard" Test.LiveSurfaceGuardSpec.tests
+    , TestSuite "LiveSurfaceRegistry" Test.LiveSurfaceRegistrySpec.tests
     , TestSuite "LiveSurface" Test.LiveSurfaceSpec.tests
     , TestSuite "Mail" Test.MailSpec.tests
     , TestSuite "MutationBoundary" Test.MutationBoundarySpec.tests
