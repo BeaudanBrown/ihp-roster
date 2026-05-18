@@ -48,7 +48,6 @@ import qualified Test.PaySpec
 import qualified Test.ProfilingSpec
 import qualified Test.PublicHolidaySyncSpec
 import qualified Test.RosterGridSpec
-import qualified Test.RosterLiveUpdatesSpec
 import qualified Test.RosterTimesheetsAutomationSpec
 import qualified Test.SchemaSpec
 import qualified Test.StaffDocumentsRsaSpec
@@ -175,7 +174,6 @@ allSuites =
     , TestSuite "DevSeed" Test.DevSeedSpec.tests
     , TestSuite "Conflict" Test.ConflictSpec.tests
     , TestSuite "LiveUpdate" Test.LiveUpdateSpec.tests
-    , TestSuite "RosterLiveUpdates" Test.RosterLiveUpdatesSpec.tests
     , TestSuite "LiveResource" Test.LiveResourceSpec.tests
     , TestSuite "LiveResourceInvalidation" Test.LiveResourceInvalidationSpec.tests
     , TestSuite "LiveSurfaceDependency" Test.LiveSurfaceDependencySpec.tests

@@ -1,29 +1,17 @@
 module Application.Helper.LiveSurface.Internal
     ( LiveSurfaceConfig (..)
-    , LiveSurfaceBroadcastOptions (..)
-        , LiveScopeAuthorizationRequirement (..)
+    , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , ProjectionLiveSurfaceDefinition (..)
     , SurfaceFragmentRef (..)
-    , LiveSurfaceMutation (..)
-    , LiveSurfaceMutationResult (..)
     , SurfaceScope (..)
     , TypedLiveSurfaceDefinition (..)
     , authorizeLiveScopeRequirement
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
-    , broadcastProjectionSurfaceFragments
-    , broadcastProjectionSurfaceFragmentsWith
-    , broadcastTypedSurfaceFragments
-    , broadcastTypedSurfaceFragmentsAndSetActorRefresh
-    , broadcastTypedSurfaceFragmentsWithoutContext
-    , broadcastTypedSurfaceResync
-    , broadcastTypedSurfaceResyncWithoutContext
-    , defaultLiveSurfaceBroadcastOptions
     , defaultLiveUpdateScopeAuthorizationRequirement
     , ensureTypedLiveSurfaceAuthorized
     , liveSurfaceAuthorizationByRequirement
-    , liveSurfaceMutation
     , liveSurfaceProjectionFragmentRef
     , liveSurfaceConfigJson
     , loadLiveSurfaceProjection
@@ -31,8 +19,6 @@ module Application.Helper.LiveSurface.Internal
     , mkSurfaceFragmentRef
     , mkSurfaceProjectionDefinition
     , mkTypedDefinedLiveSurface
-    , performTypedLiveSurfaceMutation
-    , performTypedLiveSurfaceMutationAndSetActorRefresh
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
     , setTypedLiveSurfaceActorRefresh
@@ -41,7 +27,6 @@ module Application.Helper.LiveSurface.Internal
     , surfaceFragmentRefWithProtection
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
-    , typedLiveSurfaceMutationRefs
     , unSurfaceFragmentRefs
     , warmLiveSurfaceProjection
     , warmLiveSurfaceProjectionFromStore
@@ -105,18 +90,6 @@ data TypedLiveSurfaceDefinition surface scope fragment = TypedLiveSurfaceDefinit
     , typedSurfaceAuthorize              :: !(LiveSurfaceAuthorization scope)
     }
 
-data LiveSurfaceMutation scope fragment = LiveSurfaceMutation
-    { liveMutationScope            :: !scope
-    , liveMutationActorFragments   :: ![fragment]
-    , liveMutationPassiveFragments :: ![fragment]
-    }
-
-data LiveSurfaceMutationResult surface = LiveSurfaceMutationResult
-    { actorSurfaceFragmentRefs   :: ![SurfaceFragmentRef surface]
-    , passiveSurfaceFragmentRefs :: ![SurfaceFragmentRef surface]
-    , liveMutationBroadcast      :: !(Maybe LiveUpdateBroadcastResult)
-    }
-
 data LiveScopeAuthorizationRequirement
     = RequireCurrentVenue UUID.UUID
     | RequireCurrentVenueUser UUID.UUID UUID.UUID
@@ -134,17 +107,6 @@ data ProjectionLiveSurfaceDefinition surface scope snapshot fragment = Projectio
     , projectionSurfaceFragmentRef :: !(scope -> fragment -> SurfaceFragmentRef surface)
     , surfaceProjectionDefinition  :: !(SurfaceProjectionDefinition scope snapshot fragment)
     }
-
-data LiveSurfaceBroadcastOptions = LiveSurfaceBroadcastOptions
-    { warmProjectionAfterBroadcast :: !Bool
-    }
-    deriving (Eq, Show)
-
-defaultLiveSurfaceBroadcastOptions :: LiveSurfaceBroadcastOptions
-defaultLiveSurfaceBroadcastOptions =
-    LiveSurfaceBroadcastOptions
-        { warmProjectionAfterBroadcast = False
-        }
 
 instance Aeson.ToJSON LiveSurfaceConfig where
     toJSON LiveSurfaceConfig { feature, socketPath, scope, scopeKey, resyncFragments, decorateRequestsWithin } =
@@ -206,56 +168,6 @@ typedLiveSurfaceFragmentRefs definition surfaceKey =
 unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveUpdateWireFragment]
 unSurfaceFragmentRefs =
     map unSurfaceFragmentRef
-
-liveSurfaceMutation :: scope -> [fragment] -> LiveSurfaceMutation scope fragment
-liveSurfaceMutation surfaceKey fragments =
-    LiveSurfaceMutation
-        { liveMutationScope = surfaceKey
-        , liveMutationActorFragments = fragments
-        , liveMutationPassiveFragments = fragments
-        }
-
-typedLiveSurfaceMutationRefs ::
-    TypedLiveSurfaceDefinition surface scope fragment ->
-    LiveSurfaceMutation scope fragment ->
-    ([SurfaceFragmentRef surface], [SurfaceFragmentRef surface])
-typedLiveSurfaceMutationRefs definition mutation =
-    ( typedLiveSurfaceFragmentRefs definition mutation.liveMutationScope mutation.liveMutationActorFragments
-    , typedLiveSurfaceFragmentRefs definition mutation.liveMutationScope mutation.liveMutationPassiveFragments
-    )
-
-performTypedLiveSurfaceMutation ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    TypedLiveSurfaceDefinition surface scope fragment ->
-    LiveSurfaceMutation scope fragment ->
-    IO (LiveSurfaceMutationResult surface)
-performTypedLiveSurfaceMutation definition mutation = do
-    let (actorRefs, passiveRefs) = typedLiveSurfaceMutationRefs definition mutation
-    broadcastResult <-
-        if null mutation.liveMutationPassiveFragments
-            then pure Nothing
-            else
-                Just
-                    <$> broadcastLiveInvalidationDetailed
-                        (unSurfaceScope (definition.typedSurfaceScope mutation.liveMutationScope))
-                        liveUpdateSourceClientId
-                        (unSurfaceFragmentRefs passiveRefs)
-    pure
-        LiveSurfaceMutationResult
-            { actorSurfaceFragmentRefs = actorRefs
-            , passiveSurfaceFragmentRefs = passiveRefs
-            , liveMutationBroadcast = broadcastResult
-            }
-
-performTypedLiveSurfaceMutationAndSetActorRefresh ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    TypedLiveSurfaceDefinition surface scope fragment ->
-    LiveSurfaceMutation scope fragment ->
-    IO (LiveSurfaceMutationResult surface)
-performTypedLiveSurfaceMutationAndSetActorRefresh definition mutation = do
-    result <- performTypedLiveSurfaceMutation definition mutation
-    setTypedLiveSurfaceActorRefresh definition mutation.liveMutationScope mutation.liveMutationActorFragments
-    pure result
 
 authorizeTypedLiveSurfaceScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -376,59 +288,6 @@ isAuthorizedCurrentVenueRosterGroupScope rosterGroupId = do
                     |> fetchOneOrNothing
             pure (isJust rosterGroupOrNothing)
 
-broadcastTypedSurfaceFragments ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    TypedLiveSurfaceDefinition surface scope fragment ->
-    scope ->
-    [fragment] ->
-    IO ()
-broadcastTypedSurfaceFragments definition surfaceKey fragments =
-    broadcastLiveInvalidation
-        (unSurfaceScope (definition.typedSurfaceScope surfaceKey))
-        liveUpdateSourceClientId
-        (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey fragments))
-
-broadcastTypedSurfaceFragmentsAndSetActorRefresh ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    TypedLiveSurfaceDefinition surface scope fragment ->
-    scope ->
-    [fragment] ->
-    IO ()
-broadcastTypedSurfaceFragmentsAndSetActorRefresh definition surfaceKey fragments = do
-    _ <- performTypedLiveSurfaceMutationAndSetActorRefresh definition (liveSurfaceMutation surfaceKey fragments)
-    pure ()
-
-broadcastTypedSurfaceResync ::
-    (?context :: ControllerContext, ?request :: Request) =>
-    TypedLiveSurfaceDefinition surface scope fragment ->
-    scope ->
-    IO ()
-broadcastTypedSurfaceResync definition surfaceKey =
-    broadcastLiveResync
-        (unSurfaceScope (definition.typedSurfaceScope surfaceKey))
-        liveUpdateSourceClientId
-
-broadcastTypedSurfaceFragmentsWithoutContext ::
-    TypedLiveSurfaceDefinition surface scope fragment ->
-    scope ->
-    Maybe Text ->
-    [fragment] ->
-    IO LiveUpdateBroadcastResult
-broadcastTypedSurfaceFragmentsWithoutContext definition surfaceKey sourceClientId fragments =
-    broadcastLiveInvalidationDetailedWithoutContext
-        (unSurfaceScope (definition.typedSurfaceScope surfaceKey))
-        sourceClientId
-        (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey fragments))
-
-broadcastTypedSurfaceResyncWithoutContext ::
-    TypedLiveSurfaceDefinition surface scope fragment ->
-    scope ->
-    Maybe Text ->
-    IO ()
-broadcastTypedSurfaceResyncWithoutContext definition surfaceKey =
-    broadcastLiveResyncWithoutContext
-        (unSurfaceScope (definition.typedSurfaceScope surfaceKey))
-
 setTypedLiveSurfaceActorRefresh ::
     (?context :: ControllerContext, ?request :: Request) =>
     TypedLiveSurfaceDefinition surface scope fragment ->
@@ -451,34 +310,6 @@ liveUpdateWireRefreshTriggerPayload fragments =
             [ "app-live-fragments-refresh" Aeson..= detail
             , "app-roster-fragments-refresh" Aeson..= detail
             ]
-
-broadcastProjectionSurfaceFragments ::
-    forall surface scope snapshot fragment.
-    (?context :: ControllerContext, ?request :: Request, Dynamic.Typeable snapshot) =>
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
-    scope ->
-    [fragment] ->
-    IO LiveUpdateBroadcastResult
-broadcastProjectionSurfaceFragments =
-    broadcastProjectionSurfaceFragmentsWith defaultLiveSurfaceBroadcastOptions
-
-broadcastProjectionSurfaceFragmentsWith ::
-    forall surface scope snapshot fragment.
-    (?context :: ControllerContext, ?request :: Request, Dynamic.Typeable snapshot) =>
-    LiveSurfaceBroadcastOptions ->
-    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
-    scope ->
-    [fragment] ->
-    IO LiveUpdateBroadcastResult
-broadcastProjectionSurfaceFragmentsWith options definition surfaceKey fragments = do
-    result <-
-        broadcastLiveInvalidationDetailed
-            (unSurfaceScope (definition.projectionSurfaceScope surfaceKey))
-            liveUpdateSourceClientId
-            (unSurfaceFragmentRefs (map (definition.projectionSurfaceFragmentRef surfaceKey) fragments))
-    when options.warmProjectionAfterBroadcast do
-        warmLiveSurfaceProjection definition surfaceKey
-    pure result
 
 mkSurfaceProjectionDefinition ::
     TypedLiveSurfaceDefinition surface scope fragment ->

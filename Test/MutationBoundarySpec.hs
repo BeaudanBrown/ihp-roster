@@ -86,7 +86,6 @@ tests = describe "Mutation boundary guard" do
             [ "Web/Billing/LiveUpdates.hs"
             , "Web/LeaveRequests/Projection.hs"
             , "Web/Profiles/LiveUpdates.hs"
-            , "Web/RosterWeeks/LiveUpdates.hs"
             , "Web/Timesheets/Projection.hs"
             , "Web/Controller/Admin/Support.hs"
             , "Web/Controller/Admin/Xero/Responses.hs"
@@ -105,6 +104,8 @@ tests = describe "Mutation boundary guard" do
                 , "refreshAdminRosterGroups"
                 , "refreshAdminShiftTypes"
                 , "refreshAdminXero"
+                , "performTypedLiveSurfaceMutation"
+                , "liveSurfaceMutation"
                 ]
         filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
 

@@ -62,7 +62,7 @@ tests = beforeAll testContext do
 
                 responseShouldMountLiveSurface response supportLiveSurface
 
-        it "broadcasts support refresh mutations through typed live helpers" $ withContext do
+        it "routes support refresh mutations through touched resources" $ withContext do
             withCleanDb do
                 superAdmin <- createUserRecordWithPlatformRole "support-mutation-super@example.com" "staff" (Just SuperAdminRole) True
                 versionBefore <- currentLiveUpdateVersion supportLiveUpdateScope

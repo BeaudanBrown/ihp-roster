@@ -45,18 +45,17 @@ A surface owns:
 - semantic `LiveResource` dependencies for each rendered fragment
 
 `typedSurfaceDependsOn` declares the semantic resources a fragment reads. The
-current planner still maps touched resources to typed invalidation adapters, but
-new or migrated live surfaces should keep these declarations accurate so the
-planner can move toward dependency-driven fanout without changing writers.
+registry planner matches touched/expanded resources against these declarations
+to decide which subscribed scope fragments receive passive invalidations.
 
 The wire-fragment transport boundary is internal to `Application.Helper.LiveUpdate.Internal`
 and `Application.Helper.LiveSurface.Internal`. Feature modules should keep
 fragment enums feature-local and cross the typed-to-wire boundary only through
 strict helpers such as `mkSurfaceFragmentRef`, `mkTypedDefinedLiveSurface`,
-`typedLiveSurfaceFragmentRef(s)`, typed broadcast helpers, and projection
-helpers. The runtime no longer keeps an untyped `LiveSurfaceDefinition` bridge;
-typed config, projection, broadcast, and actor-refresh helpers derive directly
-from `TypedLiveSurfaceDefinition`.
+`typedLiveSurfaceFragmentRef(s)` and projection helpers. The runtime no longer
+keeps feature-facing broadcast or typed mutation helpers; typed config,
+projection, dependency matching, and actor-refresh helpers derive directly from
+`TypedLiveSurfaceDefinition`.
 
 Feature-facing code must not use compatibility/manual authoring helpers such as
 `mkLiveSurface`, `mkDefinedLiveSurface`, `mkLiveFragmentRef`, raw
@@ -114,21 +113,23 @@ semantic resources only through active-scope-bounded rules, then asks
 `Web.LiveSurfaceRegistry` to match the touched/expanded `LiveResource` set
 against each surface's `typedSurfaceDependsOn` declarations. The registry owns
 passive broadcast emission for matched scope/fragment targets. Feature mutation
-modules must not call feature refresh helpers such as `refreshRosterFragments`,
-`refreshProfileContent`, `refreshAdminXero`, `refreshTimesheetFragments`, or raw
-`broadcastSurface*` helpers once the domain has been migrated.
+modules must not call or recreate legacy feature refresh helpers such as
+`refreshRosterFragments`, `refreshProfileContent`, `refreshAdminXero`,
+`refreshTimesheetFragments`, or removed `broadcastSurface*` pathways.
 
-Allowed direct live-surface calls after migration are limited to planner or
-transport adapters and actor-only response helpers:
+Allowed direct live calls after migration are limited to the passive planner,
+transport runtime, and actor-only response helpers:
 
-- live transport adapters in `Web.LiveSurfaceRegistry` and typed live-surface
-  infrastructure may call raw broadcast helpers
+- `Web.LiveSurfaceRegistry` is the passive adapter that turns planned targets
+  into raw transport invalidations
+- `Application.Helper.LiveUpdate` owns the transport bus and raw websocket
+  invalidation primitives
 - controllers may call `setTypedLiveSurfaceActorRefresh` or helpers that only
   set actor refresh headers for the requester
 - background jobs should call a touched-resource invalidation adapter, such as
   `invalidateTouchedResourcesWithoutContext`, when passive viewers need updates
-- controllers and mutation modules should not combine passive broadcasts with
-  actor refreshes after the passive path has moved to touched resources
+- controllers and mutation modules must not call typed broadcast/mutation
+  helpers for passive updates; those compatibility pathways have been removed
 
 When adding or migrating a mutation flow:
 
@@ -139,7 +140,7 @@ When adding or migrating a mutation flow:
 - keep passive invalidation labels stable and descriptive, e.g.
   `"xero.timesheets.submit"`
 - split helpers that mix passive broadcasts with actor refresh triggers so the
-  passive part goes through touched resources
+  passive part goes through touched resources, then delete the passive helper
 - add mutation-boundary coverage in `Test/MutationBoundarySpec.hs` for direct DB
   writes in controllers and direct refresh/broadcast calls in migrated mutation
   modules

@@ -76,9 +76,11 @@ from that typed contract.
   typed surface key that produced the fragment ref.
 - Websocket subscription authorization uses a typed surface registry. Unknown
   or unregistered live scopes are rejected.
-- Controllers broadcast changes with typed broadcast or typed mutation helpers.
-  Actor HTMX refreshes and passive invalidations derive from one changed
-  typed-fragment declaration.
+- Business mutations emit touched `LiveResource` values. `Web.LiveSurfaceRegistry`
+  matches those resources against `typedSurfaceDependsOn` declarations and owns
+  passive broadcast emission.
+- Controllers may set actor-only refresh headers, but do not broadcast passive
+  invalidations directly.
 - The only raw live-update layer is internal transport/runtime plumbing:
   JSON codecs, the websocket bus, and the browser-facing protocol.
 

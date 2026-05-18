@@ -33,12 +33,18 @@ URLs, authorization, and protection policy.
    typed surface definition that created the fragment ref.
 5. Render `data-live-update-surface={liveSurfaceConfigJson surface}` on a
    stable owner shell, where `surface` comes from `mkTypedDefinedLiveSurface`.
-6. After a mutation commits, broadcast typed fragments with a feature refresh
-   helper such as `refreshRosterFragments` or `refreshTimesheetFragments`.
-7. For HTMX actors, also set an actor refresh trigger with the shared
-   broadcast-and-actor helper or the feature wrapper around it.
-8. Add contract coverage for the surface config, fragment target, fragment URL,
-   default resync fragments, and fragment GET target.
+6. Add `typedSurfaceDependsOn` entries that describe the semantic
+   `LiveResource` values read by each fragment.
+7. Register the surface in `Web.LiveSurfaceRegistry` so touched resources can be
+   matched to subscribed scopes and fragments.
+8. Make the business mutation return touched resources and call
+   `invalidateTouchedResources` or `invalidateTouchedResourcesWithoutContext`
+   after the write commits.
+9. For HTMX actors, set requester-local refresh triggers with
+   `setTypedLiveSurfaceActorRefresh` only when the actor response needs an extra
+   client refetch.
+10. Add contract coverage for the surface config, dependencies, fragment target,
+   fragment URL, default resync fragments, and fragment GET target.
 
 ## Safety Rules
 
@@ -48,10 +54,12 @@ URLs, authorization, and protection policy.
   protection policies from compact fragment keys.
 - Do not add feature-specific JavaScript for generic subscribe, reconnect,
   resync, refetch, dedupe, swap, or focused-field protection behavior.
-- Prefer broad but safe fragments over stale DOM. For hot row churn, coalesce in
-  Haskell before broadcasting.
-- Use active-scope discovery for broad fanout mutations so closed historical
+- Prefer broad but safe fragments over stale DOM. Let the registry/live
+  transport coalesce duplicate fragment targets during invalidation planning.
+- Use active-scope discovery for indirect fanout mutations so closed historical
   pages do not force unnecessary database work.
+- Do not add feature-level passive broadcast or refresh helpers. Passive viewer
+  updates flow from touched `LiveResource` values through `Web.LiveSurfaceRegistry`.
 
 ## Review Checklist
 
@@ -60,5 +68,6 @@ URLs, authorization, and protection policy.
   websocket authorization needs it.
 - The rendered shell has stable `data-live-update-surface` metadata.
 - The fragment GET action returns plain target HTML, not actor-only OOB wrappers.
-- The actor path and passive path refresh compatible fragments.
+- The actor path refreshes only the requester; passive updates are derived from
+  touched resources and `typedSurfaceDependsOn`.
 - Tests cover the typed mapping and the fragment endpoint authorization.

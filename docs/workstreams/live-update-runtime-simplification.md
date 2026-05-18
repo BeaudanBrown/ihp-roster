@@ -65,7 +65,7 @@ The remaining old names are internal compatibility/runtime details:
 | `mkDefinedLiveSurface` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used only by `mkTypedDefinedLiveSurface`. | No. | Delete; construct `LiveSurfaceConfig` directly in `mkTypedDefinedLiveSurface`. |
 | `liveSurfaceFragmentRef(s)` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used by untyped broadcasts and projection helpers. | No. | Delete; use `typedLiveSurfaceFragmentRef(s)` and stored typed projection fragment builder fields. |
 | `typedLiveSurfaceDefinition` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used by `mkTypedDefinedLiveSurface` and public `mkTypedSurfaceProjectionDefinition`. | No. | Delete; reimplement those helpers from `TypedLiveSurfaceDefinition`. |
-| untyped `broadcastSurfaceFragments` | Defined/exported only by `Application.Helper.LiveSurface.Internal`; public `Application.Helper.LiveSurface.broadcastSurfaceFragments` is already typed and aliases `broadcastTypedSurfaceFragments`. | No. | Delete the internal untyped helper; keep typed public aliases. |
+| typed/direct broadcast helpers (`broadcastSurface*`, `broadcastTypedSurface*`, `broadcastProjectionSurface*`) | Previously exposed by the typed facade/internal live-surface layer; feature callers have been removed. | No. | Public aliases and internal exports are removed; passive broadcast emission is owned by `Web.LiveSurfaceRegistry` and raw transport stays in `Application.Helper.LiveUpdate`. |
 | `ProjectionLiveSurfaceDefinition.liveSurfaceDefinition` | Used in projection broadcasts, `mkSurfaceProjectionDefinition`, and `liveSurfaceProjectionFragmentRef`. | No. | Replace with `projectionSurfaceScope :: scope -> SurfaceScope surface` and `projectionSurfaceFragmentRef :: scope -> fragment -> SurfaceFragmentRef surface`, making `ProjectionLiveSurfaceDefinition` typed by `surface`. |
 | `LiveFragmentRef` | Transport payload type in `Application.Helper.LiveUpdate.Internal`, `LiveSurfaceConfig`, `SurfaceProjectionDefinition`, controller/support tests, and contract helpers. | Not feature-facing by guard; tests/runtime only. | Rename to `LiveUpdateWireFragment` while preserving JSON keys and field names. |
 | `mkLiveFragmentRef` | Constructor helper used by `mkSurfaceFragmentRef` and projection tests. | Not feature-facing. | Rename to `mkLiveUpdateWireFragment`; keep typed `mkSurfaceFragmentRef` as feature entrypoint. |
@@ -82,10 +82,14 @@ After cleanup, the layers should be explicit:
 1. Feature authoring: feature-local surface key and fragment enum plus
    `TypedLiveSurfaceDefinition`.
 2. Typed facade: `Application.Helper.LiveSurface` exports typed config,
-   authorization, broadcast, mutation, projection, and actor-refresh helpers.
-3. Transport runtime: internal bus, websocket JSON, versions, subscriptions, and
+   authorization, projection, and actor-refresh helpers; it does not expose
+   passive broadcast or typed mutation entrypoints.
+3. Passive planner: `Web.LiveSurfaceRegistry` matches touched/expanded
+   resources against registered `typedSurfaceDependsOn` declarations and emits
+   transport invalidations.
+4. Transport runtime: internal bus, websocket JSON, versions, subscriptions, and
    transport fragment metadata.
-4. Browser adapter: generic `static/app-live-updates.js` consumes mounted typed
+5. Browser adapter: generic `static/app-live-updates.js` consumes mounted typed
    surface config and websocket invalidations.
 
 The transport layer may still carry structural fragment metadata, but it should
@@ -110,11 +114,11 @@ not expose names that read like supported authoring primitives.
    - Preserve JSON object fields unless `ir-mxsn` changes the protocol.
    - Update projection and contract-test helpers.
 4. `ir-r27i`: make actor refresh payload construction typed-only.
-   - Keep `setTypedLiveSurfaceActorRefresh` and mutation helpers as the entry
-     points.
+   - Keep `setTypedLiveSurfaceActorRefresh` as the only feature-facing actor
+     refresh entrypoint.
    - Delete or private-rename `liveFragmentsRefreshTriggerPayload`.
-   - Add tests that actor and passive refs derive from the same typed fragment
-     declaration.
+   - Route passive updates through touched resources rather than typed mutation
+     helpers.
 5. `ir-mxsn`: decide compact protocol separately.
    - Option A: keep self-describing transport payloads and record an ADR note.
    - Option B: send compact fragment keys and resolve target/url/protection from
@@ -176,6 +180,8 @@ bash ./bin/in-env e2e e2e/live-fragment-multiview.spec.ts
 - The untyped live-surface compatibility layer is deleted.
 - Remaining internal transport types have transport-oriented names.
 - Actor refresh payload encoding is private to typed actor-refresh helpers.
+- Public typed broadcast/mutation helpers are removed; passive invalidation is
+  registry-derived from touched resources.
 - The compact protocol decision is recorded; browser JSON remains unchanged.
 - Guard tests enforce the new boundary.
 - Durable docs reflect the simplified runtime.

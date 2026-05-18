@@ -7,9 +7,8 @@ import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
-import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized,
-                                       liveSurfaceMutation,
-                                       performTypedLiveSurfaceMutation)
+import Application.Helper.LiveResource (LiveResource (..), liveMutationResult)
+import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobDedupeKey,
@@ -20,6 +19,7 @@ import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
+import Web.LiveResourceInvalidation (invalidateTouchedResources)
 import Web.View.Support.Index
 
 instance Controller SupportController where
@@ -90,9 +90,8 @@ instance Controller SupportController where
             ExistingActiveAppJob _ ->
                 setSuccessMessage "Award rate refresh is already queued or running."
         void $
-            performTypedLiveSurfaceMutation
-                supportLiveSurfaceDefinition
-                (liveSurfaceMutation () [SupportAwardRatesLiveFragment])
+            invalidateTouchedResources "support.award_rates.enqueue" $
+                liveMutationResult () [SupportAwardRatesResource]
         respondToAwardRatesRefresh
 
     action CreatePublicHolidayRefreshJobAction = do
@@ -115,9 +114,8 @@ instance Controller SupportController where
             ExistingActiveAppJob _ ->
                 setSuccessMessage "Public holiday refresh is already queued or running."
         void $
-            performTypedLiveSurfaceMutation
-                supportLiveSurfaceDefinition
-                (liveSurfaceMutation () [SupportPublicHolidaysLiveFragment])
+            invalidateTouchedResources "support.public_holidays.enqueue" $
+                liveMutationResult () [SupportPublicHolidaysResource]
         respondToPublicHolidayRefresh
 
     action SwitchSupportVenueAction = do
