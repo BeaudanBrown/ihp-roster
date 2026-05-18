@@ -4,6 +4,7 @@ module Web.LiveSurfaceRegistry
     , performLiveSurfaceInvalidationTarget
     , performLiveSurfaceInvalidationTargetWithoutContext
     , planRegisteredLiveSurfaceInvalidations
+    , planRegisteredLiveSurfaceInvalidationsWithoutContext
     ) where
 
 import Application.Helper.LiveResource (LiveResource)
@@ -12,7 +13,7 @@ import Application.Helper.LiveSurface (SurfaceScope (..),
                                        authorizeTypedLiveSurfaceWireScope,
                                        typedLiveSurfaceFragmentRefs,
                                        unSurfaceFragmentRefs)
-import Application.Helper.LiveUpdate (LiveUpdateScope,
+import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       LiveUpdateWireFragment,
                                       broadcastLiveInvalidation,
                                       broadcastLiveInvalidationWithoutContext,
@@ -28,13 +29,16 @@ import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
                                  profileContentLiveSurfaceDefinition,
                                  profileLeaveRequestsLiveSurfaceDefinition)
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
-import Web.Timesheets.Projection (timesheetLiveSurfaceDefinition)
+import Web.Timesheets.Projection (timesheetLiveSurfaceDefinition,
+                                  timesheetLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Compliance (staffComplianceLiveSurfaceDefinition)
 import Web.View.Admin.Exports (adminExportsLiveSurfaceDefinition)
-import Web.View.Admin.Invites (adminInvitesLiveSurfaceDefinition)
+import Web.View.Admin.Invites (adminInvitesLiveSurfaceDefinition,
+                               adminInvitesLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.RosterGroups (adminRosterGroupsLiveSurfaceDefinition)
 import Web.View.Admin.ShiftTypes (adminShiftTypesLiveSurfaceDefinition)
-import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinition)
+import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinition,
+                            adminXeroLiveSurfaceDefinitionForVenue)
 
 data LiveSurfaceInvalidationTarget = LiveSurfaceInvalidationTarget
     { targetScope     :: !LiveUpdateScope
@@ -83,6 +87,18 @@ planRegisteredLiveSurfaceInvalidations resources scopes =
         , Just target <- [planRegisteredSurfaceInvalidation surface resources scope]
         ]
 
+planRegisteredLiveSurfaceInvalidationsWithoutContext ::
+    Set.Set LiveResource ->
+    [LiveUpdateScope] ->
+    [LiveSurfaceInvalidationTarget]
+planRegisteredLiveSurfaceInvalidationsWithoutContext resources scopes =
+    coalesceTargets
+        [ target
+        | scope <- scopes
+        , surface <- contextFreeRegisteredLiveSurfacesForScope scope
+        , Just target <- [planRegisteredSurfaceInvalidation surface resources scope]
+        ]
+
 performLiveSurfaceInvalidationTarget ::
     (?context :: ControllerContext, ?request :: Request) =>
     LiveSurfaceInvalidationTarget ->
@@ -112,6 +128,21 @@ registeredLiveSurfaces =
     , registeredTypedLiveSurface timesheetLiveSurfaceDefinition defaultCandidateFragments
     , registeredTypedLiveSurface rosterLiveSurfaceDefinition defaultCandidateFragments
     ]
+
+contextFreeRegisteredLiveSurfacesForScope :: LiveUpdateScope -> [RegisteredLiveSurface]
+contextFreeRegisteredLiveSurfacesForScope = \case
+    SupportPlatformScope ->
+        [registeredTypedLiveSurface supportLiveSurfaceDefinition defaultCandidateFragments]
+    BillingScope { venueId } ->
+        [registeredTypedLiveSurface billingLiveSurfaceDefinition defaultCandidateFragments]
+    AdminInvitesScope { venueId } ->
+        [registeredTypedLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue venueId) defaultCandidateFragments]
+    TimesheetWeekScope { venueId } ->
+        [registeredTypedLiveSurface (timesheetLiveSurfaceDefinitionForVenue venueId) defaultCandidateFragments]
+    AdminXeroScope { venueId } ->
+        [registeredTypedLiveSurface (adminXeroLiveSurfaceDefinitionForVenue venueId) defaultCandidateFragments]
+    _ ->
+        []
 
 defaultCandidateFragments ::
     TypedLiveSurfaceDefinition surface scope fragment ->
