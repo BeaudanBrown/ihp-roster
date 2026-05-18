@@ -164,8 +164,8 @@ unapproveTimesheetEntryMutation _weekOffset timesheetEntry = do
     invalidateTouchedResources "timesheet.unapprove" (liveMutationResult updatedEntry (timesheetEntryTouchedResources venueConfig [updatedEntry]))
 
 timesheetEntryTouchedResources :: VenueConfig -> [TimesheetEntry] -> [LiveResource]
-timesheetEntryTouchedResources venueConfig entries =
-    concatMap entryResources entries
+timesheetEntryTouchedResources venueConfig =
+    concatMap entryResources
     where
         entryResources entry =
             let weekOffset = venueWeekOffsetForDay venueConfig entry.workedOn

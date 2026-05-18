@@ -153,7 +153,8 @@ previewXeroDraftTimesheetsAction = do
                         [ "remoteTimesheetCount" Aeson..= (0 :: Int)
                         , "remoteTimesheets" Aeson..= ([] :: [Aeson.Value])
                         ]
-            (liveMutationValue <$> createPersistedXeroTimesheetPreviewMutation currentUser.id readinessRequest readiness duplicateCheckJson) >>= \case
+            previewResult <- createPersistedXeroTimesheetPreviewMutation currentUser.id readinessRequest readiness duplicateCheckJson
+            case liveMutationValue previewResult of
                 Left message -> respondWithXeroTimesheetError message
                 Right _ -> respondWithXeroTimesheetSuccess "Prepared Xero draft-timesheet preview."
 
@@ -164,8 +165,9 @@ submitXeroDraftTimesheetsAction = do
     requestResult <- currentTimesheetReadinessRequestForAction
     case requestResult of
         Left message -> respondWithXeroTimesheetError message
-        Right readinessRequest ->
-            (liveMutationValue <$> submitXeroDraftTimesheetsMutation currentUser.id readinessRequest) >>= \case
+        Right readinessRequest -> do
+            submissionResult <- submitXeroDraftTimesheetsMutation currentUser.id readinessRequest
+            case liveMutationValue submissionResult of
                 Left message -> respondWithXeroTimesheetError message
                 Right run
                     | run.status == "submitted" -> respondWithXeroTimesheetSuccess "Submitted Xero draft timesheets."
@@ -181,8 +183,9 @@ retryXeroDraftTimesheetSubmissionAction submissionId = do
     authorized <- submissionBelongsToCurrentVenue submissionId
     if not authorized
         then respondWithXeroTimesheetError "Xero timesheet submission was not found for this venue."
-        else
-            (liveMutationValue <$> retryXeroDraftTimesheetSubmissionMutation submissionId) >>= \case
+        else do
+            retryResult <- retryXeroDraftTimesheetSubmissionMutation submissionId
+            case liveMutationValue retryResult of
                 Left message -> respondWithXeroTimesheetError message
                 Right submission
                     | submission.status == "submitted" -> respondWithXeroTimesheetSuccess "Retried and submitted the Xero draft timesheet."
