@@ -38,6 +38,7 @@ forbiddenReferences =
     , ExactIdentifier "LiveUpdateWireFragment"
     , IdentifierPrefix "broadcastLiveInvalidation"
     , IdentifierPrefix "broadcastLiveResync"
+    , IdentifierPrefix "broadcastSurface"
     , ExactIdentifier "liveFragmentsRefreshTriggerPayload"
     , ExactIdentifier "liveUpdateWireRefreshTriggerPayload"
     , ExactIdentifier "authorizeLiveUpdateScope"

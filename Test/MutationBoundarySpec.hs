@@ -81,6 +81,33 @@ tests = describe "Mutation boundary guard" do
         let forbiddenTokens = ["refreshAdminInvites", "refreshAdminRosterGroups", "refreshAdminShiftTypes", "refreshAdminXero", "broadcastSurface"]
         filter (`Text.isInfixOf` source) forbiddenTokens `shouldBe` []
 
+    it "does not keep obsolete direct refresh helper definitions around" do
+        sources <- mapM Text.readFile
+            [ "Web/Billing/LiveUpdates.hs"
+            , "Web/LeaveRequests/Projection.hs"
+            , "Web/Profiles/LiveUpdates.hs"
+            , "Web/RosterWeeks/LiveUpdates.hs"
+            , "Web/Timesheets/Projection.hs"
+            , "Web/Controller/Admin/Support.hs"
+            , "Web/Controller/Admin/Xero/Responses.hs"
+            ]
+        let forbiddenTokens =
+                [ "broadcastBillingInvalidation"
+                , "broadcastLeaveRequestsInvalidation"
+                , "refreshProfileContent"
+                , "refreshProfileLeaveRequests"
+                , "refreshRosterFragments"
+                , "refreshRosterContent"
+                , "refreshTimesheetFragments"
+                , "refreshTimesheetDay"
+                , "refreshMovedTimesheetEntry"
+                , "refreshAdminInvites"
+                , "refreshAdminRosterGroups"
+                , "refreshAdminShiftTypes"
+                , "refreshAdminXero"
+                ]
+        filter (\token -> any (Text.isInfixOf token) sources) forbiddenTokens `shouldBe` []
+
     it "routes background job invalidation through touched resources" do
         sources <- mapM Text.readFile
             [ "Application/PublicHolidays/Job.hs"
