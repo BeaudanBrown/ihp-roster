@@ -536,7 +536,7 @@ tests = beforeAll testContext do
                 updatedEntry <- fetch entry.id
                 updatedEntry.workedOn `shouldBe` fromGregorian 2025 1 8
                 versionAfter <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
-                versionAfter `shouldBe` versionBefore + 2
+                versionAfter `shouldBe` versionBefore + 1
 
         it "manager review actions bump the timesheet week scope version" $ withContext do
             withCleanDb do

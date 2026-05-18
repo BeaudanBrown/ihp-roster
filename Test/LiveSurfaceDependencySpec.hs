@@ -41,7 +41,7 @@ tests = do
             typedSurfaceDependsOn definition request TimesheetProjectionPage
                 `shouldBe` [TimesheetWeekResource venueId 2]
             typedSurfaceDependsOn definition request (TimesheetProjectionDaySection 4)
-                `shouldBe` [TimesheetDayResource venueId 2 4]
+                `shouldBe` [TimesheetWeekResource venueId 2, TimesheetDayResource venueId 2 4]
 
         it "declares support dependencies by support fragment" do
             typedSurfaceDependsOn supportLiveSurfaceDefinition () SupportAwardRatesLiveFragment

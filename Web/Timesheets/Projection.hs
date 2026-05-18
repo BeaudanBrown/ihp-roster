@@ -204,7 +204,9 @@ timesheetLiveSurfaceDefinitionForVenue surfaceVenueId =
                 TimesheetProjectionPage ->
                     [TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset]
                 TimesheetProjectionDaySection dayOffset ->
-                    [TimesheetDayResource surfaceVenueId requestKey.projectionWeekOffset dayOffset]
+                    [ TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset
+                    , TimesheetDayResource surfaceVenueId requestKey.projectionWeekOffset dayOffset
+                    ]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenue surfaceVenueId))
         }
     where
