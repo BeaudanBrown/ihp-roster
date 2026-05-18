@@ -83,7 +83,7 @@ planRegisteredLiveSurfaceInvalidations resources scopes =
     coalesceTargets
         [ target
         | scope <- scopes
-        , surface <- registeredLiveSurfaces
+        , surface <- registeredLiveSurfacesForScope scope
         , Just target <- [planRegisteredSurfaceInvalidation surface resources scope]
         ]
 
@@ -112,22 +112,27 @@ performLiveSurfaceInvalidationTargetWithoutContext ::
 performLiveSurfaceInvalidationTargetWithoutContext target =
     broadcastLiveInvalidationWithoutContext target.targetScope Nothing target.targetFragments
 
-registeredLiveSurfaces :: (?context :: ControllerContext) => [RegisteredLiveSurface]
-registeredLiveSurfaces =
-    [ registeredTypedLiveSurface supportLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface adminInvitesLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface adminExportsLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface adminShiftTypesLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface adminRosterGroupsLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface adminXeroLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface billingLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface staffComplianceLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface leaveRequestsLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface profileContentLiveSurfaceDefinition profileContentCandidateFragments
-    , registeredTypedLiveSurface profileLeaveRequestsLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface timesheetLiveSurfaceDefinition defaultCandidateFragments
-    , registeredTypedLiveSurface rosterLiveSurfaceDefinition defaultCandidateFragments
-    ]
+registeredLiveSurfacesForScope :: (?context :: ControllerContext) => LiveUpdateScope -> [RegisteredLiveSurface]
+registeredLiveSurfacesForScope scope =
+    contextFreeRegisteredLiveSurfacesForScope scope <> currentVenueRegisteredLiveSurfacesForScope scope
+
+currentVenueRegisteredLiveSurfacesForScope :: (?context :: ControllerContext) => LiveUpdateScope -> [RegisteredLiveSurface]
+currentVenueRegisteredLiveSurfacesForScope scope =
+    case currentVenueOrNothing of
+        Nothing -> []
+        Just _ ->
+            case scope of
+                AdminExportsScope {} -> [registeredTypedLiveSurface adminExportsLiveSurfaceDefinition defaultCandidateFragments]
+                AdminShiftTypesScope {} -> [registeredTypedLiveSurface adminShiftTypesLiveSurfaceDefinition defaultCandidateFragments]
+                AdminRosterGroupsScope {} -> [registeredTypedLiveSurface adminRosterGroupsLiveSurfaceDefinition defaultCandidateFragments]
+                StaffComplianceScope {} -> [registeredTypedLiveSurface staffComplianceLiveSurfaceDefinition defaultCandidateFragments]
+                LeaveRequestsScope {} -> [registeredTypedLiveSurface leaveRequestsLiveSurfaceDefinition defaultCandidateFragments]
+                ProfileScope {} ->
+                    [ registeredTypedLiveSurface profileContentLiveSurfaceDefinition profileContentCandidateFragments
+                    , registeredTypedLiveSurface profileLeaveRequestsLiveSurfaceDefinition defaultCandidateFragments
+                    ]
+                RosterWeekScope {} -> [registeredTypedLiveSurface rosterLiveSurfaceDefinition defaultCandidateFragments]
+                _ -> []
 
 contextFreeRegisteredLiveSurfacesForScope :: LiveUpdateScope -> [RegisteredLiveSurface]
 contextFreeRegisteredLiveSurfacesForScope = \case
