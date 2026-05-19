@@ -1437,6 +1437,46 @@ EOF
                             echo "Profile load suite artifacts: $PROFILE_SUITE_OUTPUT_DIR"
                         '';
 
+                        # Run a synthetic server-side benchmark for dependency-derived live invalidation planning.
+                        # Usage: profile-live-invalidation [--output-dir=path] [--scopes=0,10,100,500,1000] [--iterations=N] [--scenario=name[,name...]]
+                        profile-live-invalidation.exec = ''
+                            set -euo pipefail
+
+                            PROFILE_LIVE_RUN_ID="''${PROFILE_LIVE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+                            PROFILE_LIVE_OUTPUT_DIR="''${PROFILE_LIVE_OUTPUT_DIR:-$PWD/output/profile-live-invalidation/$PROFILE_LIVE_RUN_ID}"
+                            SCRIPT_ARGS=(--output-dir="$PROFILE_LIVE_OUTPUT_DIR")
+
+                            for arg in "$@"; do
+                                case "$arg" in
+                                    --output-dir=*)
+                                        PROFILE_LIVE_OUTPUT_DIR="''${arg#--output-dir=}"
+                                        ;;
+                                esac
+                                SCRIPT_ARGS+=("$arg")
+                            done
+
+                            PROFILE_LIVE_OUTPUT_DIR="$(realpath -m "$PROFILE_LIVE_OUTPUT_DIR")"
+                            mkdir -p "$PROFILE_LIVE_OUTPUT_DIR"
+                            SCRIPT_ARGS[0]="--output-dir=$PROFILE_LIVE_OUTPUT_DIR"
+
+                            GHC_OPTS=$(make print-ghc-options GHC_RTS_FLAGS="" 2>/dev/null \
+                              | sed 's/-iIHP[^ ]* //g; s/-fbyte-code//g')
+                            mkdir -p build/Script
+                            cat > build/Script/ProfileLiveInvalidationMain.hs <<'EOF'
+import qualified Application.Script.ProfileLiveInvalidation as Script
+
+main = Script.run
+EOF
+                            ghc $GHC_OPTS -main-is Main build/Script/ProfileLiveInvalidationMain.hs \
+                                -o build/Script/ProfileLiveInvalidation \
+                                -odir build/Script \
+                                -hidir build/Script
+
+                            build/Script/ProfileLiveInvalidation "''${SCRIPT_ARGS[@]}"
+                            ln -sfn "$PROFILE_LIVE_OUTPUT_DIR" "$PWD/output/profile-live-invalidation/latest"
+                            echo "Live invalidation profile artifacts: $PROFILE_LIVE_OUTPUT_DIR"
+                        '';
+
                         # Fetch and cache configured FWC MAPD award data into the local database.
                         # Usage: sync-fwc-mapd
                         sync-fwc-mapd.exec = ''

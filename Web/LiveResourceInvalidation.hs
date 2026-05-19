@@ -1,6 +1,7 @@
 module Web.LiveResourceInvalidation
     ( LiveInvalidationProfile (..)
     , LiveInvalidationStageDurations (..)
+    , candidateLiveScopesForResourcesWithoutContext
     , expandLiveResources
     , expandLiveResourcesWithoutContext
     , invalidateTouchedResources
