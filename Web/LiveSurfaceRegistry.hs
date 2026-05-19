@@ -13,10 +13,11 @@ import Application.Helper.LiveSurface (SurfaceScope (..),
                                        authorizeTypedLiveSurfaceWireScope,
                                        typedLiveSurfaceFragmentRefs,
                                        unSurfaceFragmentRefs)
-import Application.Helper.LiveUpdate (LiveUpdateScope (..),
+import Application.Helper.LiveUpdate (LiveUpdateBroadcastResult,
+                                      LiveUpdateScope (..),
                                       LiveUpdateWireFragment,
-                                      broadcastLiveInvalidation,
-                                      broadcastLiveInvalidationWithoutContext,
+                                      broadcastLiveInvalidationDetailed,
+                                      broadcastLiveInvalidationDetailedWithoutContext,
                                       coalesceLiveUpdateWireFragments,
                                       liveUpdateSourceClientId)
 import Application.Support.LiveUpdates (supportLiveSurfaceDefinition)
@@ -102,15 +103,15 @@ planRegisteredLiveSurfaceInvalidationsWithoutContext resources scopes =
 performLiveSurfaceInvalidationTarget ::
     (?context :: ControllerContext, ?request :: Request) =>
     LiveSurfaceInvalidationTarget ->
-    IO ()
+    IO LiveUpdateBroadcastResult
 performLiveSurfaceInvalidationTarget target =
-    broadcastLiveInvalidation target.targetScope liveUpdateSourceClientId target.targetFragments
+    broadcastLiveInvalidationDetailed target.targetScope liveUpdateSourceClientId target.targetFragments
 
 performLiveSurfaceInvalidationTargetWithoutContext ::
     LiveSurfaceInvalidationTarget ->
-    IO ()
+    IO LiveUpdateBroadcastResult
 performLiveSurfaceInvalidationTargetWithoutContext target =
-    broadcastLiveInvalidationWithoutContext target.targetScope Nothing target.targetFragments
+    broadcastLiveInvalidationDetailedWithoutContext target.targetScope Nothing target.targetFragments
 
 registeredLiveSurfacesForScope :: (?context :: ControllerContext) => LiveUpdateScope -> [RegisteredLiveSurface]
 registeredLiveSurfacesForScope scope =

@@ -15,6 +15,8 @@ module Application.Helper.LiveUpdate
     , activeRosterWeekScopes
     , activeRosterWeekScopesWithBus
     , broadcastLiveInvalidation
+    , broadcastLiveInvalidationDetailed
+    , broadcastLiveInvalidationDetailedWithoutContext
     , broadcastLiveInvalidationWithoutContext
     , coalesceLiveUpdateWireFragments
     , currentLiveUpdateVersion

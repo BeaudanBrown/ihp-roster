@@ -1,11 +1,17 @@
 module Test.LiveResourceInvalidationSpec where
 
 import Application.Helper.LiveResource
+import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveFragmentProtection (..),
+                                      LiveUpdateBroadcastResult (..),
+                                      LiveUpdateScope (..),
+                                      LiveUpdateWireFragment (..))
 import IHP.Prelude
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
 import Test.Hspec
 import Web.LiveResourceInvalidation
+import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..))
 
 tests :: Spec
 tests = do
@@ -59,3 +65,47 @@ tests = do
 
             expandLiveResourcesWithoutContext [] directResources
                 `shouldBe` directResources
+
+        it "renders live invalidation profile counts for timing diagnostics" do
+            let venueId = fromWords 1 0 0 0
+            let scope = BillingScope venueId
+            let fragment =
+                    LiveUpdateWireFragment
+                        { fragmentKey = BillingStatusFragment
+                        , targetId = "billing-status"
+                        , url = "/ShowBillingStatusFragment"
+                        , deferUntilBlur = False
+                        , protectionPolicy = NoProtection
+                        }
+            let target = LiveSurfaceInvalidationTarget scope [fragment]
+            let broadcastResult =
+                    LiveUpdateBroadcastResult
+                        { broadcastVersion = 3
+                        , broadcastSubscriberCount = 7
+                        , broadcastFragmentCount = 1
+                        , broadcastRefetchFragmentCount = 1
+                        , broadcastCoalescedFragmentCount = 0
+                        , broadcastDroppedSubscriptions = 0
+                        }
+            let profile =
+                    liveInvalidationProfile
+                        "billing.update"
+                        12.34
+                        (Set.fromList [BillingResource venueId])
+                        [scope]
+                        (Set.fromList [BillingResource venueId])
+                        [scope]
+                        [scope]
+                        [target]
+                        [broadcastResult]
+                        LiveInvalidationStageDurations
+                            { observeDurationMs = 0.1
+                            , activeDurationMs = 0.2
+                            , expandDurationMs = 0.3
+                            , candidateDurationMs = 0.4
+                            , planDurationMs = 0.5
+                            , broadcastDurationMs = 0.6
+                            }
+
+            renderLiveInvalidationProfile profile
+                `shouldBe` "label=billing.update touched=1 active_scopes=1 expanded=1 candidate_scopes=1 planning_scopes=1 targets=1 target_fragments=1 broadcasts=1 subscribers=7 total_ms=12.3 observe_ms=0.1 active_ms=0.2 expand_ms=0.3 candidate_ms=0.4 plan_ms=0.5 broadcast_ms=0.6"

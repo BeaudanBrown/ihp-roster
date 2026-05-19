@@ -1,20 +1,32 @@
 module Web.LiveResourceInvalidation
-    ( expandLiveResources
+    ( LiveInvalidationProfile (..)
+    , LiveInvalidationStageDurations (..)
+    , expandLiveResources
     , expandLiveResourcesWithoutContext
     , invalidateTouchedResources
     , invalidateTouchedResourcesWithoutContext
     , leaveRequestsContentDependsOn
+    , liveInvalidationProfile
     , profileLeaveRequestsDependsOn
+    , renderLiveInvalidationProfile
     , rosterWeekLeaveCalendarDependsOn
     ) where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveUpdateScope (..), activeLiveUpdateScopes, activeRosterWeekScopes)
+import Application.Helper.LiveUpdate (LiveUpdateBroadcastResult (..),
+                                      LiveUpdateScope (..), activeLiveUpdateScopes,
+                                      activeRosterWeekScopes)
+import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
+import GHC.Clock (getMonotonicTimeNSec)
 import qualified Data.Set as Set
+import qualified Data.Text as Text
+import qualified Data.Text.IO as TextIO
 import Data.UUID (UUID)
+import qualified System.Environment as Environment
 import Web.Controller.Prelude
-import Web.LiveSurfaceRegistry (performLiveSurfaceInvalidationTarget,
+import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
+                                performLiveSurfaceInvalidationTarget,
                                 performLiveSurfaceInvalidationTargetWithoutContext,
                                 planRegisteredLiveSurfaceInvalidations,
                                 planRegisteredLiveSurfaceInvalidationsWithoutContext)
@@ -68,25 +80,162 @@ expandLiveResourcesWithoutContext activeRosterScopes resources =
             Set.empty
 
 invalidateTouchedResources :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> LiveMutationResult a -> IO (LiveMutationResult a)
-invalidateTouchedResources label result = do
-    observed <- recordLiveMutationDiagnostics label result
-    activeScopes <- activeLiveUpdateScopes
-    expandedResources <- expandLiveResources activeScopes (liveMutationTouchedResources observed)
-    candidateScopes <- candidateLiveScopesForResources expandedResources
-    let dependencyTargets = planRegisteredLiveSurfaceInvalidations expandedResources (coalesceScopes (activeScopes <> candidateScopes))
-    forM_ dependencyTargets performLiveSurfaceInvalidationTarget
-    pure observed
+invalidateTouchedResources label result =
+    profileActionSpanWithDetail "live_resources.invalidate" do
+        startedAtNs <- getMonotonicTimeNSec
+        (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
+        (activeScopes, activeDurationMs) <- measureDuration activeLiveUpdateScopes
+        (expandedResources, expandDurationMs) <- measureDuration (expandLiveResources activeScopes (liveMutationTouchedResources observed))
+        (candidateScopes, candidateDurationMs) <- measureDuration (candidateLiveScopesForResources expandedResources)
+        let planningScopes = coalesceScopes (activeScopes <> candidateScopes)
+        (dependencyTargets, planDurationMs) <- measureDuration (pure (planRegisteredLiveSurfaceInvalidations expandedResources planningScopes))
+        (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performLiveSurfaceInvalidationTarget dependencyTargets)
+        completedAtNs <- getMonotonicTimeNSec
+        let profile =
+                liveInvalidationProfile
+                    label
+                    (durationBetweenMs startedAtNs completedAtNs)
+                    (liveMutationTouchedResources observed)
+                    activeScopes
+                    expandedResources
+                    candidateScopes
+                    planningScopes
+                    dependencyTargets
+                    broadcastResults
+                    LiveInvalidationStageDurations { observeDurationMs, activeDurationMs, expandDurationMs, candidateDurationMs, planDurationMs, broadcastDurationMs }
+        emitLiveInvalidationProfileLog profile
+        pure (observed, Just (renderLiveInvalidationProfile profile))
 
 invalidateTouchedResourcesWithoutContext :: Text -> LiveMutationResult a -> IO (LiveMutationResult a)
 invalidateTouchedResourcesWithoutContext label result = do
-    observed <- recordLiveMutationDiagnostics label result
-    activeScopes <- activeLiveUpdateScopes
-    activeRosterScopes <- activeRosterWeekScopes
-    let expandedResources = expandLiveResourcesWithoutContext activeRosterScopes (liveMutationTouchedResources observed)
-    let candidateScopes = candidateLiveScopesForResourcesWithoutContext expandedResources
-    let dependencyTargets = planRegisteredLiveSurfaceInvalidationsWithoutContext expandedResources (coalesceScopes (activeScopes <> candidateScopes))
-    forM_ dependencyTargets performLiveSurfaceInvalidationTargetWithoutContext
+    startedAtNs <- getMonotonicTimeNSec
+    (observed, observeDurationMs) <- measureDuration (recordLiveMutationDiagnostics label result)
+    (activeScopes, activeDurationMs) <- measureDuration activeLiveUpdateScopes
+    (activeRosterScopes, activeRosterDurationMs) <- measureDuration activeRosterWeekScopes
+    let activeDurationMs' = activeDurationMs + activeRosterDurationMs
+    (expandedResources, expandDurationMs) <- measureDuration (pure (expandLiveResourcesWithoutContext activeRosterScopes (liveMutationTouchedResources observed)))
+    (candidateScopes, candidateDurationMs) <- measureDuration (pure (candidateLiveScopesForResourcesWithoutContext expandedResources))
+    let planningScopes = coalesceScopes (activeScopes <> candidateScopes)
+    (dependencyTargets, planDurationMs) <- measureDuration (pure (planRegisteredLiveSurfaceInvalidationsWithoutContext expandedResources planningScopes))
+    (broadcastResults, broadcastDurationMs) <- measureDuration (mapM performLiveSurfaceInvalidationTargetWithoutContext dependencyTargets)
+    completedAtNs <- getMonotonicTimeNSec
+    let profile =
+            liveInvalidationProfile
+                label
+                (durationBetweenMs startedAtNs completedAtNs)
+                (liveMutationTouchedResources observed)
+                activeScopes
+                expandedResources
+                candidateScopes
+                planningScopes
+                dependencyTargets
+                broadcastResults
+                LiveInvalidationStageDurations { observeDurationMs, activeDurationMs = activeDurationMs', expandDurationMs, candidateDurationMs, planDurationMs, broadcastDurationMs }
+    emitLiveInvalidationProfileLog profile
     pure observed
+
+data LiveInvalidationProfile = LiveInvalidationProfile
+    { profileLabel                 :: !Text
+    , profileTotalDurationMs       :: !Double
+    , profileTouchedResourceCount  :: !Int
+    , profileActiveScopeCount      :: !Int
+    , profileExpandedResourceCount :: !Int
+    , profileCandidateScopeCount   :: !Int
+    , profilePlanningScopeCount    :: !Int
+    , profileTargetCount           :: !Int
+    , profileTargetFragmentCount   :: !Int
+    , profileBroadcastCount        :: !Int
+    , profileBroadcastSubscriberCount :: !Int
+    , profileStageDurations        :: !LiveInvalidationStageDurations
+    }
+    deriving (Eq, Show)
+
+data LiveInvalidationStageDurations = LiveInvalidationStageDurations
+    { observeDurationMs   :: !Double
+    , activeDurationMs    :: !Double
+    , expandDurationMs    :: !Double
+    , candidateDurationMs :: !Double
+    , planDurationMs      :: !Double
+    , broadcastDurationMs :: !Double
+    }
+    deriving (Eq, Show)
+
+liveInvalidationProfile ::
+    Text ->
+    Double ->
+    Set.Set LiveResource ->
+    [LiveUpdateScope] ->
+    Set.Set LiveResource ->
+    [LiveUpdateScope] ->
+    [LiveUpdateScope] ->
+    [LiveSurfaceInvalidationTarget] ->
+    [LiveUpdateBroadcastResult] ->
+    LiveInvalidationStageDurations ->
+    LiveInvalidationProfile
+liveInvalidationProfile label totalDurationMs touchedResources activeScopes expandedResources candidateScopes planningScopes targets broadcastResults stageDurations =
+    LiveInvalidationProfile
+        { profileLabel = label
+        , profileTotalDurationMs = totalDurationMs
+        , profileTouchedResourceCount = Set.size touchedResources
+        , profileActiveScopeCount = length activeScopes
+        , profileExpandedResourceCount = Set.size expandedResources
+        , profileCandidateScopeCount = length candidateScopes
+        , profilePlanningScopeCount = length planningScopes
+        , profileTargetCount = length targets
+        , profileTargetFragmentCount = sum (map (length . (.targetFragments)) targets)
+        , profileBroadcastCount = length broadcastResults
+        , profileBroadcastSubscriberCount = sum (map (.broadcastSubscriberCount) broadcastResults)
+        , profileStageDurations = stageDurations
+        }
+
+renderLiveInvalidationProfile :: LiveInvalidationProfile -> Text
+renderLiveInvalidationProfile profile =
+    Text.intercalate
+        " "
+        [ "label=" <> profile.profileLabel
+        , "touched=" <> tshow profile.profileTouchedResourceCount
+        , "active_scopes=" <> tshow profile.profileActiveScopeCount
+        , "expanded=" <> tshow profile.profileExpandedResourceCount
+        , "candidate_scopes=" <> tshow profile.profileCandidateScopeCount
+        , "planning_scopes=" <> tshow profile.profilePlanningScopeCount
+        , "targets=" <> tshow profile.profileTargetCount
+        , "target_fragments=" <> tshow profile.profileTargetFragmentCount
+        , "broadcasts=" <> tshow profile.profileBroadcastCount
+        , "subscribers=" <> tshow profile.profileBroadcastSubscriberCount
+        , "total_ms=" <> renderDuration profile.profileTotalDurationMs
+        , "observe_ms=" <> renderDuration profile.profileStageDurations.observeDurationMs
+        , "active_ms=" <> renderDuration profile.profileStageDurations.activeDurationMs
+        , "expand_ms=" <> renderDuration profile.profileStageDurations.expandDurationMs
+        , "candidate_ms=" <> renderDuration profile.profileStageDurations.candidateDurationMs
+        , "plan_ms=" <> renderDuration profile.profileStageDurations.planDurationMs
+        , "broadcast_ms=" <> renderDuration profile.profileStageDurations.broadcastDurationMs
+        ]
+
+emitLiveInvalidationProfileLog :: LiveInvalidationProfile -> IO ()
+emitLiveInvalidationProfileLog profile = do
+    enabled <- liveInvalidationProfilingLogEnabled
+    when enabled do
+        TextIO.putStrLn ("[live-invalidation] " <> renderLiveInvalidationProfile profile)
+
+liveInvalidationProfilingLogEnabled :: IO Bool
+liveInvalidationProfilingLogEnabled = do
+    value <- Environment.lookupEnv "LIVE_INVALIDATION_PROFILING"
+    pure (maybe False (`elem` ["1", "true", "TRUE", "yes", "YES", "on", "ON"]) value)
+
+measureDuration :: IO a -> IO (a, Double)
+measureDuration action = do
+    startedAtNs <- getMonotonicTimeNSec
+    result <- action
+    completedAtNs <- getMonotonicTimeNSec
+    pure (result, durationBetweenMs startedAtNs completedAtNs)
+
+durationBetweenMs :: Word64 -> Word64 -> Double
+durationBetweenMs startedAtNs completedAtNs =
+    fromIntegral (completedAtNs - startedAtNs) / 1000000
+
+renderDuration :: Double -> Text
+renderDuration durationMs =
+    tshow (fromIntegral (round (durationMs * 10)) / 10 :: Double)
 
 candidateLiveScopesForResources ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
