@@ -1477,15 +1477,19 @@ EOF
                             echo "Live invalidation profile artifacts: $PROFILE_LIVE_OUTPUT_DIR"
                         '';
 
-                        # Run k6 websocket live invalidation load against a running app server.
-                        # Usage: profile-live-load --base-url=http://127.0.0.1:8000 --manifest=build/profile-seed/latest/manifest.json [--subscribers=N] [--mutators=N]
+                        # Run k6 websocket live invalidation load against an isolated profile DB/server.
+                        # Usage: profile-live-load [--seed|--reuse-db] [--db=app_profile_live_name] [--subscribers=N] [--mutators=N]
                         profile-live-load.exec = ''
                             set -euo pipefail
 
+                            export PROFILE_DB_SOCKET="''${PROFILE_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"
                             PROFILE_LIVE_RUN_ID="''${PROFILE_LIVE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
                             PROFILE_LIVE_OUTPUT_DIR="''${PROFILE_LIVE_OUTPUT_DIR:-$PWD/output/profile-live-load/$PROFILE_LIVE_RUN_ID}"
-                            PROFILE_BASE_URL="''${PROFILE_BASE_URL:-http://127.0.0.1:8000}"
-                            PROFILE_MANIFEST="''${PROFILE_MANIFEST:-$PWD/build/profile-seed/latest/manifest.json}"
+                            PROFILE_DATABASE_NAME="''${PROFILE_DATABASE_NAME:-app_profile_live_load_$PROFILE_LIVE_RUN_ID}"
+                            PROFILE_SHOULD_SEED=1
+                            PROFILE_SEED_ARGS=()
+                            PROFILE_BASE_URL="''${PROFILE_BASE_URL:-}"
+                            PROFILE_MANIFEST="''${PROFILE_MANIFEST:-}"
                             PROFILE_LIVE_SUBSCRIBERS="''${PROFILE_LIVE_SUBSCRIBERS:-20}"
                             PROFILE_LIVE_MUTATORS="''${PROFILE_LIVE_MUTATORS:-1}"
                             PROFILE_LIVE_WARMUP_MS="''${PROFILE_LIVE_WARMUP_MS:-2000}"
@@ -1500,20 +1504,34 @@ EOF
 Usage: profile-live-load [options] [-- k6-args...]
 
 Options:
-  --base-url=url                  Running app server URL (default: http://127.0.0.1:8000)
-  --manifest=path                 Profile seed manifest (default: build/profile-seed/latest/manifest.json)
-  --output-dir=path               Artifact directory
-  --subscribers=N                 WebSocket subscriber VUs (default: 20)
-  --mutators=N                    Mutating subscribers (default: 1)
-  --warmup-ms=N                   Delay before mutations after subscribe (default: 2000)
-  --hold-ms=N                     Time to keep sockets open after warmup (default: 8000)
-  --max-duration=20s              k6 maxDuration for per-VU iterations
+  --seed                         Seed the profile database before running (default)
+  --reuse-db                     Reuse the selected profile database
+  --db=app_profile_*             Profile database name
+  --output-dir=path              Artifact directory
+  --seed-arg=arg                 Forward an option to seed-profile
+  --base-url=url                 Use an already-running app server instead of starting one
+  --manifest=path                Profile seed manifest for --base-url or --reuse-db runs
+  --subscribers=N                WebSocket subscriber VUs (default: 20)
+  --mutators=N                   Mutating subscribers (default: 1)
+  --warmup-ms=N                  Delay before mutations after subscribe (default: 2000)
+  --hold-ms=N                    Time to keep sockets open after warmup (default: 8000)
+  --max-duration=20s             k6 maxDuration for per-VU iterations
 EOF
                                         exit 0
                                         ;;
+                                    --seed)
+                                        PROFILE_SHOULD_SEED=1
+                                        shift
+                                        ;;
+                                    --reuse-db)
+                                        PROFILE_SHOULD_SEED=0
+                                        shift
+                                        ;;
+                                    --db=*) PROFILE_DATABASE_NAME="''${1#--db=}"; shift ;;
+                                    --output-dir=*) PROFILE_LIVE_OUTPUT_DIR="''${1#--output-dir=}"; shift ;;
+                                    --seed-arg=*) PROFILE_SEED_ARGS+=("''${1#--seed-arg=}"); shift ;;
                                     --base-url=*) PROFILE_BASE_URL="''${1#--base-url=}"; shift ;;
                                     --manifest=*) PROFILE_MANIFEST="''${1#--manifest=}"; shift ;;
-                                    --output-dir=*) PROFILE_LIVE_OUTPUT_DIR="''${1#--output-dir=}"; shift ;;
                                     --subscribers=*) PROFILE_LIVE_SUBSCRIBERS="''${1#--subscribers=}"; shift ;;
                                     --mutators=*) PROFILE_LIVE_MUTATORS="''${1#--mutators=}"; shift ;;
                                     --warmup-ms=*) PROFILE_LIVE_WARMUP_MS="''${1#--warmup-ms=}"; shift ;;
@@ -1531,17 +1549,126 @@ EOF
                                 esac
                             done
 
+                            case "$PROFILE_DATABASE_NAME" in
+                                app_profile|app_profile_*)
+                                    ;;
+                                *)
+                                    echo "Unsupported profiling database target: $PROFILE_DATABASE_NAME" >&2
+                                    echo "Use app_profile or an app_profile_* database name." >&2
+                                    exit 1
+                                    ;;
+                            esac
+
+                            if ! psql -h "$PROFILE_DB_SOCKET" -d postgres -c "select 1" >/dev/null 2>&1; then
+                                echo "Live load profiling requires the local postgres socket at $PROFILE_DB_SOCKET" >&2
+                                echo "Start the local environment first (e.g. dev-start or devenv up)." >&2
+                                exit 1
+                            fi
+
                             PROFILE_LIVE_OUTPUT_DIR="$(realpath -m "$PROFILE_LIVE_OUTPUT_DIR")"
-                            PROFILE_MANIFEST="$(realpath -m "$PROFILE_MANIFEST")"
                             mkdir -p "$PROFILE_LIVE_OUTPUT_DIR"
+                            PROFILE_SEED_OUTPUT_DIR="$PROFILE_LIVE_OUTPUT_DIR/seed"
+                            PROFILE_LOG="$PROFILE_LIVE_OUTPUT_DIR/server.log"
+                            PROFILE_PID_FILE="$PROFILE_LIVE_OUTPUT_DIR/server.pid"
                             PROFILE_K6_METRICS="$PROFILE_LIVE_OUTPUT_DIR/k6-metrics.ndjson"
                             PROFILE_K6_STDOUT="$PROFILE_LIVE_OUTPUT_DIR/k6.stdout"
                             PROFILE_LIVE_METADATA="$PROFILE_LIVE_OUTPUT_DIR/metadata.json"
 
-                            if [ ! -f "$PROFILE_MANIFEST" ]; then
-                                echo "Missing profile seed manifest: $PROFILE_MANIFEST" >&2
-                                echo "Run seed-profile first, or pass --manifest=path." >&2
+                            if [ "$PROFILE_SHOULD_SEED" = "1" ]; then
+                                seed-profile "$PROFILE_DATABASE_NAME" --output-dir="$PROFILE_SEED_OUTPUT_DIR" "''${PROFILE_SEED_ARGS[@]}"
+                                PROFILE_MANIFEST="$PROFILE_SEED_OUTPUT_DIR/manifest.json"
+                            else
+                                if [ -n "$PROFILE_MANIFEST" ]; then
+                                    PROFILE_MANIFEST="$(realpath -m "$PROFILE_MANIFEST")"
+                                elif [ -f "$PROFILE_SEED_OUTPUT_DIR/manifest.json" ]; then
+                                    PROFILE_MANIFEST="$PROFILE_SEED_OUTPUT_DIR/manifest.json"
+                                elif [ -f "$PWD/build/profile-seed/latest/manifest.json" ]; then
+                                    PROFILE_MANIFEST="$PWD/build/profile-seed/latest/manifest.json"
+                                fi
+                            fi
+
+                            if [ -z "$PROFILE_MANIFEST" ] || [ ! -f "$PROFILE_MANIFEST" ]; then
+                                echo "Missing profile seed manifest." >&2
+                                echo "Run with --seed, pass --manifest=path, or reuse an output dir containing seed/manifest.json." >&2
                                 exit 1
+                            fi
+                            PROFILE_MANIFEST="$(realpath -m "$PROFILE_MANIFEST")"
+
+                            process_group_pids() {
+                                local pgid="$1"
+                                pgrep -g "$pgid" 2>/dev/null | tr '\n' ' ' || true
+                            }
+
+                            detect_profile_base_url() {
+                                local pgid="$1"
+                                local pids ports port
+                                pids=$(process_group_pids "$pgid")
+                                if [ -z "$pids" ]; then
+                                    return 1
+                                fi
+
+                                ports=$(
+                                    lsof -Pan -iTCP -sTCP:LISTEN $(printf ' -p %s' $pids) 2>/dev/null \
+                                        | awk 'NR > 1 { split($9, parts, ":"); print parts[length(parts)] }' \
+                                        | sort -n -u
+                                )
+
+                                for port in $ports; do
+                                    if curl -fsS "http://127.0.0.1:$port/NewSession" 2>/dev/null | grep -q 'id="email"'; then
+                                        printf 'http://127.0.0.1:%s\n' "$port"
+                                        return 0
+                                    fi
+                                done
+
+                                return 1
+                            }
+
+                            cleanup_profile_server() {
+                                if [ -f "$PROFILE_PID_FILE" ]; then
+                                    local pid
+                                    pid=$(cat "$PROFILE_PID_FILE")
+                                    kill -TERM -"$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+                                    rm -f "$PROFILE_PID_FILE"
+                                fi
+                            }
+                            trap cleanup_profile_server EXIT INT TERM
+
+                            if [ -z "$PROFILE_BASE_URL" ]; then
+                                (
+                                    export PROFILE_DATABASE_NAME
+                                    export PROFILE_DB_SOCKET
+                                    export IHP_ROSTER_PROFILING=1
+                                    export LIVE_INVALIDATION_PROFILING="''${LIVE_INVALIDATION_PROFILING:-1}"
+                                    setsid profile-test-server </dev/null >>"$PROFILE_LOG" 2>&1 &
+                                    echo "$!" > "$PROFILE_PID_FILE"
+                                    wait "$!"
+                                ) &
+                                PROFILE_WRAPPER_PID="$!"
+
+                                PROFILE_SERVER_PID=""
+                                for _ in $(seq 1 180); do
+                                    if [ -f "$PROFILE_PID_FILE" ]; then
+                                        PROFILE_SERVER_PID="$(cat "$PROFILE_PID_FILE")"
+                                    fi
+                                    if [ -n "$PROFILE_SERVER_PID" ] && PROFILE_BASE_URL=$(detect_profile_base_url "$PROFILE_SERVER_PID"); then
+                                        break
+                                    fi
+
+                                    if [ -n "$PROFILE_SERVER_PID" ] && ! kill -0 "$PROFILE_SERVER_PID" 2>/dev/null; then
+                                        echo "Live load app server failed to start" >&2
+                                        tail -n 120 "$PROFILE_LOG" >&2 || true
+                                        exit 1
+                                    fi
+
+                                    sleep 1
+                                done
+
+                                if [ -z "$PROFILE_BASE_URL" ]; then
+                                    echo "Timed out waiting for live load app server" >&2
+                                    tail -n 120 "$PROFILE_LOG" >&2 || true
+                                    kill "$PROFILE_WRAPPER_PID" 2>/dev/null || true
+                                    exit 1
+                                fi
                             fi
 
                             export PROFILE_BASE_URL PROFILE_MANIFEST PROFILE_LIVE_SUBSCRIBERS PROFILE_LIVE_MUTATORS PROFILE_LIVE_WARMUP_MS PROFILE_LIVE_HOLD_MS PROFILE_LIVE_MAX_DURATION
@@ -1550,13 +1677,19 @@ EOF
                                 --arg runId "$PROFILE_LIVE_RUN_ID" \
                                 --arg baseUrl "$PROFILE_BASE_URL" \
                                 --arg manifest "$PROFILE_MANIFEST" \
+                                --arg database "$PROFILE_DATABASE_NAME" \
                                 --arg subscribers "$PROFILE_LIVE_SUBSCRIBERS" \
                                 --arg mutators "$PROFILE_LIVE_MUTATORS" \
                                 --arg warmupMs "$PROFILE_LIVE_WARMUP_MS" \
                                 --arg holdMs "$PROFILE_LIVE_HOLD_MS" \
                                 --arg maxDuration "$PROFILE_LIVE_MAX_DURATION" \
-                                '{runId:$runId, baseUrl:$baseUrl, manifest:$manifest, subscribers:($subscribers|tonumber), mutators:($mutators|tonumber), warmupMs:($warmupMs|tonumber), holdMs:($holdMs|tonumber), maxDuration:$maxDuration}' \
+                                --slurpfile manifestJson "$PROFILE_MANIFEST" \
+                                '{runId:$runId, baseUrl:$baseUrl, manifest:$manifest, database:$database, subscribers:($subscribers|tonumber), mutators:($mutators|tonumber), warmupMs:($warmupMs|tonumber), holdMs:($holdMs|tonumber), maxDuration:$maxDuration, seed:$manifestJson[0].options}' \
                                 > "$PROFILE_LIVE_METADATA"
+
+                            echo "Profile live load server ready at $PROFILE_BASE_URL"
+                            echo "Profile live load database: $PROFILE_DATABASE_NAME"
+                            echo "Profile live load subscribers=$PROFILE_LIVE_SUBSCRIBERS mutators=$PROFILE_LIVE_MUTATORS"
 
                             k6 run \
                                 --out "json=$PROFILE_K6_METRICS" \
