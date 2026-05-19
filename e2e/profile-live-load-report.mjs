@@ -2,6 +2,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+const failureMetricNames = new Set([
+    'profile_live_errors',
+    'profile_live_failed_mutations',
+    'profile_live_missed_own_invalidations',
+]);
+
 if (process.argv.length < 4) {
     console.log('Usage: node e2e/profile-live-load-report.mjs <k6-metrics.ndjson> <output-dir> [metadata.json]');
     process.exit(64);
@@ -77,6 +83,7 @@ function summarize(filePath, logPath) {
         trends: Object.fromEntries([...trends.entries()].sort().map(([name, values]) => [name, trendSummary(values)])),
         taggedCounters: [...taggedCounters.entries()].sort().map(([key, value]) => ({ ...JSON.parse(key), count: value })),
         taggedTrends: [...taggedTrends.entries()].sort().map(([key, values]) => ({ ...JSON.parse(key), ...trendSummary(values) })),
+        failureSummary: summarizeFailures(taggedCounters, checks.byName),
         mutationsBySurface: summarizeMutationSurfaces(mutations),
         checks: {
             total: checks.total,
@@ -257,7 +264,40 @@ function tagKey(metric, tags) {
         surface: tags.surface || '',
         scope: tags.scope || '',
         venue: tags.venue || '',
+        route: tags.route || '',
+        status: tags.status || '',
     });
+}
+
+function summarizeFailures(taggedCounters, checksByName) {
+    const counterRows = [...taggedCounters.entries()]
+        .map(([key, count]) => ({ ...JSON.parse(key), count }))
+        .filter((row) => row.count > 0 && failureMetricNames.has(row.metric))
+        .sort((a, b) => a.metric.localeCompare(b.metric) || a.surface.localeCompare(b.surface) || a.route.localeCompare(b.route));
+    const failedChecks = [...checksByName.entries()]
+        .map(([check, value]) => ({ check, ...value }))
+        .filter((row) => row.failed > 0)
+        .sort((a, b) => b.failed - a.failed || a.check.localeCompare(b.check));
+    const failedMutations = counterRows.filter((row) => row.metric === 'profile_live_failed_mutations');
+    const missedOwnInvalidations = counterRows.filter((row) => row.metric === 'profile_live_missed_own_invalidations');
+    return {
+        counters: counterRows,
+        failedChecks,
+        hints: failureHints(failedMutations, missedOwnInvalidations),
+    };
+}
+
+function failureHints(failedMutations, missedOwnInvalidations) {
+    if (failedMutations.length > 0 && missedOwnInvalidations.length === 0) {
+        return ['Mutation failures were recorded, but missed-own-invalidation counters stayed clear; inspect the failed route/status first.'];
+    }
+    if (failedMutations.length > 0 && missedOwnInvalidations.length > 0) {
+        return ['Mutation failures and missed own invalidations both occurred; separate failed requests from successful requests that missed delivery.'];
+    }
+    if (failedMutations.length === 0 && missedOwnInvalidations.length > 0) {
+        return ['Successful mutations missed own invalidations; inspect scope/resource dependencies, source client ids, websocket lifetime, and transport fanout.'];
+    }
+    return ['No failed mutation or missed own-invalidation counters were recorded.'];
 }
 
 function trendSummary(values) {
@@ -297,7 +337,8 @@ function renderMarkdown(metadata, summary) {
         '',
         `- Scenario \`${metadata.scenario ?? ''}\`, subscribers \`${metadata.subscribers ?? ''}\`, mutators \`${metadata.mutators ?? ''}\`, venues \`${metadata.venues ?? ''}\`, weeks \`${metadata.weeks ?? ''}\`.`,
         `- Checks failed \`${summary.checks.failed}/${summary.checks.total}\`; mutations \`${summary.rates.mutationCount}\` at burst \`${summary.rates.mutationBurstRatePerSec}/s\`; invalidations \`${summary.rates.invalidationCount}\` at delivery-window \`${summary.rates.invalidationDeliveryRatePerSec}/s\`.`,
-        `- Own invalidations \`${summary.rates.ownInvalidationCount}/${summary.rates.mutationCount}\`; own latency p95 \`${summary.trends.profile_live_own_invalidation_latency?.p95Ms ?? 0}ms\`; mutation p95 \`${summary.trends.profile_live_mutation_duration?.p95Ms ?? 0}ms\`.`,
+        `- Own invalidations \`${summary.rates.ownInvalidationCount}/${summary.rates.mutationCount}\`; failed mutations \`${summary.counters.profile_live_failed_mutations ?? 0}\`; missed own invalidations \`${summary.counters.profile_live_missed_own_invalidations ?? 0}\`.`,
+        `- Own latency p95 \`${summary.trends.profile_live_own_invalidation_latency?.p95Ms ?? 0}ms\`; mutation p95 \`${summary.trends.profile_live_mutation_duration?.p95Ms ?? 0}ms\`.`,
         `- Slowest server labels: ${compactLabels(summary.serverInvalidation.slowestLabels, 'p95TotalMs')}.`,
         `- Highest fanout labels: ${compactLabels(summary.serverInvalidation.highestFanoutLabels, 'maxSubscribers')}.`,
         '',
@@ -326,6 +367,18 @@ function renderMarkdown(metadata, summary) {
         `| Own invalidations | ${summary.rates.ownInvalidationCount} |`,
         `| Own invalidations/sec during burst | ${summary.rates.ownInvalidationBurstRatePerSec} |`,
         '',
+        '## Failure Summary',
+        '',
+        ...summary.failureSummary.hints.map((hint) => `- ${hint}`),
+        '',
+        '| Metric | Surface | Scope | Venue | Route | Status | Count |',
+        '| --- | --- | --- | --- | --- | --- | ---: |',
+        ...summary.failureSummary.counters.map((row) => `| \`${row.metric}\` | \`${row.surface}\` | \`${row.scope}\` | \`${row.venue}\` | \`${row.route}\` | \`${row.status}\` | ${row.count} |`),
+        '',
+        '| Failed Check | Failed | Total |',
+        '| --- | ---: | ---: |',
+        ...summary.failureSummary.failedChecks.map((row) => `| \`${row.check}\` | ${row.failed} | ${row.total} |`),
+        '',
         '## Mutation Timing By Surface',
         '',
         '| Surface | Count | Median | P95 | P99 | Max |',
@@ -346,9 +399,9 @@ function renderMarkdown(metadata, summary) {
         '',
         '## Counters By Surface',
         '',
-        '| Metric | Surface | Scope | Venue | Count |',
-        '| --- | --- | --- | --- | ---: |',
-        ...summary.taggedCounters.map((row) => `| \`${row.metric}\` | \`${row.surface}\` | \`${row.scope}\` | \`${row.venue}\` | ${row.count} |`),
+        '| Metric | Surface | Scope | Venue | Route | Status | Count |',
+        '| --- | --- | --- | --- | --- | --- | ---: |',
+        ...summary.taggedCounters.map((row) => `| \`${row.metric}\` | \`${row.surface}\` | \`${row.scope}\` | \`${row.venue}\` | \`${row.route}\` | \`${row.status}\` | ${row.count} |`),
         '',
         '## Trends',
         '',
@@ -358,9 +411,9 @@ function renderMarkdown(metadata, summary) {
         '',
         '## Trends By Surface',
         '',
-        '| Metric | Surface | Scope | Venue | Count | Median | P95 | P99 | Max |',
-        '| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
-        ...summary.taggedTrends.map((row) => `| \`${row.metric}\` | \`${row.surface}\` | \`${row.scope}\` | \`${row.venue}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`),
+        '| Metric | Surface | Scope | Venue | Route | Status | Count | Median | P95 | P99 | Max |',
+        '| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...summary.taggedTrends.map((row) => `| \`${row.metric}\` | \`${row.surface}\` | \`${row.scope}\` | \`${row.venue}\` | \`${row.route}\` | \`${row.status}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`),
         '',
         '## Checks',
         '',

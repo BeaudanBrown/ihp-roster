@@ -16,8 +16,12 @@ const holdMs = Number(__ENV.PROFILE_LIVE_HOLD_MS || '8000');
 const maxDuration = __ENV.PROFILE_LIVE_MAX_DURATION || '20s';
 
 const liveSubscribed = new Counter('profile_live_subscribed');
+const liveMutations = new Counter('profile_live_mutations');
+const liveSuccessfulMutations = new Counter('profile_live_successful_mutations');
+const liveFailedMutations = new Counter('profile_live_failed_mutations');
 const liveInvalidations = new Counter('profile_live_invalidations');
 const liveOwnInvalidations = new Counter('profile_live_own_invalidations');
+const liveMissedOwnInvalidations = new Counter('profile_live_missed_own_invalidations');
 const liveErrors = new Counter('profile_live_errors');
 const liveMutationDuration = new Trend('profile_live_mutation_duration', true);
 const liveOwnInvalidationLatency = new Trend('profile_live_own_invalidation_latency', true);
@@ -37,9 +41,11 @@ export const options = {
     thresholds: {
         checks: ['rate==1'],
         profile_live_errors: ['count==0'],
+        profile_live_failed_mutations: ['count==0'],
+        profile_live_missed_own_invalidations: ['count==0'],
         profile_live_subscribed: [`count>=${subscribers}`],
         profile_live_invalidations: [`count>=${Math.max(1, mutators)}`],
-        profile_live_own_invalidations: [`count>=${mutators}`],
+        profile_live_successful_mutations: [`count>=${mutators}`],
     },
     summaryTrendStats: ['med', 'p(90)', 'p(95)', 'p(99)', 'max'],
 };
@@ -54,6 +60,7 @@ export default function () {
     const mutationPlan = isMutator ? mutationPlanFor(vuId) : null;
     let subscribed = false;
     let mutationStartedAt = null;
+    let mutationSucceeded = false;
     let ownInvalidationReceived = false;
     let invalidationCount = 0;
 
@@ -76,11 +83,33 @@ export default function () {
                     socket.setTimeout(() => {
                         mutationStartedAt = Date.now();
                         const mutationResponse = performMutation(mutationPlan, clientId);
-                        liveMutationDuration.add(mutationResponse.timings.duration, metricTags(mutationPlan));
+                        const mutationTags = metricTags(mutationPlan, {
+                            route: mutationPlan.mutationRoute,
+                            status: String(mutationResponse.status),
+                        });
+                        liveMutations.add(1, mutationTags);
+                        liveMutationDuration.add(mutationResponse.timings.duration, mutationTags);
                         const ok = check(mutationResponse, {
                             'live mutation status ok': (res) => res.status >= 200 && res.status < 400,
                         });
-                        if (!ok) liveErrors.add(1, metricTags(mutationPlan));
+                        mutationSucceeded = ok;
+                        if (ok) {
+                            liveSuccessfulMutations.add(1, mutationTags);
+                        } else {
+                            liveFailedMutations.add(1, mutationTags);
+                            liveErrors.add(1, mutationTags);
+                            console.error(JSON.stringify({
+                                type: 'profile_live_mutation_failure',
+                                scenario: scenarioName,
+                                surface: mutationPlan.surface,
+                                scope: mutationPlan.scope.kind,
+                                venue: mutationPlan.venue?.id || 'platform',
+                                route: mutationPlan.mutationRoute,
+                                status: mutationResponse.status,
+                                clientId,
+                                body: String(mutationResponse.body || '').slice(0, 500),
+                            }));
+                        }
                     }, warmupMs);
                 }
                 socket.setTimeout(() => socket.close(), warmupMs + holdMs);
@@ -102,10 +131,14 @@ export default function () {
         });
     });
 
+    if (isMutator && mutationSucceeded && !ownInvalidationReceived) {
+        liveMissedOwnInvalidations.add(1, metricTags(mutationPlan));
+    }
+
     check(response, {
         'websocket upgrade ok': (res) => res && res.status === 101,
         'websocket subscribed': () => subscribed,
-        'mutator received own invalidation': () => !isMutator || ownInvalidationReceived,
+        'successful mutator received own invalidation': () => !isMutator || !mutationSucceeded || ownInvalidationReceived,
     });
 }
 
@@ -258,12 +291,13 @@ function weekOffsetFor(seed) {
     return current + (seed % weekSpread);
 }
 
-function metricTags(plan) {
+function metricTags(plan, extra = {}) {
     return {
         scenario: scenarioName,
         surface: plan.surface,
         scope: plan.scope.kind,
         venue: plan.venue?.id || 'platform',
+        ...extra,
     };
 }
 

@@ -221,7 +221,8 @@ For live-update bottlenecks, compare these signals in order:
 - `Server Invalidation Labels`: high `Avg Plan` points at dependency matching/expansion; high `Avg Broadcast` with high subscribers points at fanout/transport; high fragments points at over-broad surface dependencies.
 - `Mutation Timing By Surface`: high p95/max with low server invalidation time means the endpoint/business write is slow, not the live planner.
 - `Rates`: mutation burst/sec and invalidation delivery/sec are more meaningful than total-run rates because setup/login/websocket warmup dominate elapsed time.
-- `Counters By Surface`: missing own invalidations indicate an authorization/scope/dependency mismatch or a mutation failure; unexpected broad invalidations indicate a dependency or resource touch is too coarse.
+- `Failure Summary`: `profile_live_failed_mutations` identifies endpoint/request failures; `profile_live_missed_own_invalidations` identifies successful mutations whose actor did not receive an own invalidation. Treat a missed own invalidation only as a live-delivery issue when failed mutations are zero.
+- `Counters By Surface`: missing own invalidations indicate an authorization/scope/dependency mismatch, source-client-id issue, websocket lifetime issue, or mutation failure; unexpected broad invalidations indicate a dependency or resource touch is too coarse.
 - `server.log`: `[live-invalidation]` lines carry touched, active scopes, expanded resources, candidate/planning scopes, target fragments, subscribers, and stage timings.
 
 The current useful mixed-live baseline is about `100` subscribers and `10` synchronized mutators. A heavier `200` subscriber / `25` mutator run has exposed occasional missed actor invalidations and one mutation failure; use that size as a stress probe, not as a required local gate.

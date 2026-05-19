@@ -194,8 +194,13 @@ Interpret results by separating layers:
 - high mutation HTTP p95 with low `[live-invalidation] total_ms` means the
   business endpoint or setup/login load is slow, not the live invalidation
   architecture
-- missing own invalidations usually indicate a scope/resource dependency gap,
-  authorization mismatch, or failed mutation
+- `profile_live_failed_mutations` means the endpoint/request failed before a
+  successful invalidation can be expected
+- `profile_live_missed_own_invalidations` means a successful mutation did not
+  echo an invalidation to the actor; investigate source client ids, scope and
+  resource dependencies, websocket lifetime, and transport fanout
+- missing own invalidations after failed mutations are downstream symptoms, not
+  proof that the live bus lost a message
 - high fragment counts indicate a surface dependency may be too broad
 
 Recommended local commands:
