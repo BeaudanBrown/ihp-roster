@@ -16,9 +16,13 @@ Add first-class Xero Payroll AU Pay Runs support and use it to build selectable 
 
 ## Design
 
-Extend Application.Helper.Xero with XeroPayRunRef, response parsing, request builders, fetchPayRuns, pagination, and strict contract/mock coverage. Combine synced payroll calendars, pay runs, and remote timesheets into period options. Show what Xero returns for historical periods; add diagnostics for any real-world lookback/API limits rather than assuming a fixed range.
+Extend `Application.Helper.Xero` with `XeroPayRunRef`, response parsing, request builders, `fetchPayRuns`, pagination, and strict contract/mock coverage. Persist/surface synced Xero pay runs enough for the admin read model to build selectable period options.
+
+Period options are derived from synced payroll calendars plus fetched pay runs. Each option must carry the Xero payroll calendar id/name, pay-period start/end, payment date when known, pay-run id/status when known, whether the option came from Xero pay-run data or derived calendar cadence, and whether a POSTED pay run blocks submission. The option key must be stable and include calendar id plus period start/end so later steps can reject tampering.
+
+Do not introduce local staff-to-calendar assignment. Employee calendar membership comes from synced Xero employee reference data in later tickets.
 
 ## Acceptance Criteria
 
-Pay runs can be fetched through the Xero client boundary; period options include calendar id/name, start/end, payment date where known, pay-run id/status where known, and blocking state for POSTED periods. Existing contract tests cover request shape and response decoding.
+Pay runs can be fetched through the Xero client boundary and persisted/read for the current venue. Period options include all calendar/period/pay-run fields required by preparation and clearly label weekly/fortnightly/etc from Xero calendar data. POSTED periods are marked blocked at option-build time. Existing contract tests cover request shape and response decoding, including date wrappers and pagination.
 

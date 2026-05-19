@@ -1,7 +1,7 @@
 ---
 id: ir-8usq
 status: open
-deps: [ir-omzt, ir-mjos]
+deps: [ir-omzt, ir-mjos, ir-szt9]
 links: []
 created: 2026-05-08T04:22:39Z
 type: feature
@@ -16,9 +16,11 @@ Harden readiness/preparation around Xero pay-run status and existing remote time
 
 ## Design
 
-Hard-block periods whose Xero pay run is POSTED. For v1, block any existing remote Xero timesheet for the same employee and period, regardless of draft/approved status, until explicit update support lands. Surface clear modal events and keep duplicate snapshots on preparation/submission records.
+Hard-block periods whose selected Xero pay run is POSTED. For v1, block any existing remote Xero timesheet for the same included employee and selected period, regardless of draft/approved status, until explicit update support lands. Duplicate checks must use the selected period/calendar from the preparation run, after excluding staff whose mapped Xero employee belongs to another synced payroll calendar.
+
+Surface clear modal blockers/events and keep pay-run/duplicate snapshots on preparation/submission records. Different-calendar employee exclusions are warnings, not duplicate blockers. Missing synced employee/calendar data remains a blocker because duplicate/inclusion checks cannot be trusted.
 
 ## Acceptance Criteria
 
-Posted pay runs cannot reach preview. Existing remote employee-period timesheets prevent create and are visible in modal blockers. Tests cover posted pay-run and existing-timesheet blockers.
+Posted pay runs cannot reach preview. Existing remote employee-period timesheets for included selected-calendar employees prevent create and are visible in modal blockers. Different-calendar employees are excluded with warnings before duplicate matching. Preparation/submission records keep duplicate/pay-run snapshots. Tests cover posted pay-run, existing-timesheet, different-calendar exclusion, and missing-calendar-data blocker paths.
 

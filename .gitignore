@@ -30,8 +30,8 @@ test-results/
 !test-results/.gitkeep
 playwright-report/
 .playwright-cli/
-output/playwright/
-output/profile/
+output/
+!output/.gitkeep
 output/profile-load/
 output/profile-load-suite/
 output/coverage/

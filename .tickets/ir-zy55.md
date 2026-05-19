@@ -7,7 +7,7 @@ created: 2026-05-08T04:22:46Z
 type: task
 priority: 2
 assignee: Beaudan Brown
-parent: ir-9u78
+parent: ir-176p
 tags: [area:xero, area:payroll, research]
 ---
 # Research Xero draft timesheet update support
