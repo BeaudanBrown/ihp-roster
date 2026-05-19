@@ -1144,6 +1144,7 @@ tests = beforeAll testContext do
                 preparationRun.status `shouldBe` "ready_for_preview"
                 preparationRun.payPeriodStart `shouldBe` fixture.periodStart
                 preparationRun.payPeriodEnd `shouldBe` fixture.periodEnd
+                (AesonTypes.parseMaybe AesonTypes.parseJSON preparationRun.eventsJson :: Maybe [Aeson.Value]) `shouldSatisfy` maybe False (not . null)
 
         it "keeps missing Xero payroll calendar selection repair inside the guided preparation modal" $ withContext do
             withCleanDb do

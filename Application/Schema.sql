@@ -1257,6 +1257,7 @@ CREATE TABLE xero_timesheet_preparation_runs (
     remote_timesheets_json JSONB DEFAULT '{}'::JSONB NOT NULL,
     readiness_snapshot_json JSONB DEFAULT '{}'::JSONB NOT NULL,
     proposed_actions_json JSONB DEFAULT '{}'::JSONB NOT NULL,
+    events_json JSONB DEFAULT '[]'::JSONB NOT NULL,
     preview_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL,
     xero_submission_run_id UUID DEFAULT NULL,
     error_summary TEXT DEFAULT NULL,
@@ -1269,7 +1270,7 @@ CREATE TABLE xero_timesheet_preparation_runs (
     FOREIGN KEY (created_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (xero_submission_run_id) REFERENCES xero_submission_runs (id) ON DELETE RESTRICT,
     CHECK (pay_period_end >= pay_period_start),
-    CHECK (status = 'started' OR status = 'preparing' OR status = 'needs_reconnect' OR status = 'needs_approval' OR status = 'blocked' OR status = 'ready_for_preview' OR status = 'previewed' OR status = 'submitted' OR status = 'failed' OR status = 'cancelled')
+    CHECK (status = 'started' OR status = 'preparing' OR status = 'needs_reconnect' OR status = 'needs_approval' OR status = 'blocked' OR status = 'resolved' OR status = 'ready_for_preview' OR status = 'previewed' OR status = 'submitted' OR status = 'failed' OR status = 'cancelled')
 );
 CREATE TABLE xero_timesheet_preparation_decisions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
@@ -1293,7 +1294,7 @@ CREATE TABLE xero_timesheet_preparation_decisions (
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (decided_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     CHECK (decision_kind = 'staff_auto_match' OR decision_kind = 'staff_manual_mapping' OR decision_kind = 'staff_not_paid' OR decision_kind = 'staff_skip' OR decision_kind = 'pay_item_create' OR decision_kind = 'account_code' OR decision_kind = 'calendar_selection'),
-    CHECK (decision_status = 'pending' OR decision_status = 'applied' OR decision_status = 'dismissed')
+    CHECK (decision_status = 'pending' OR decision_status = 'proposed' OR decision_status = 'applied' OR decision_status = 'blocked' OR decision_status = 'resolved' OR decision_status = 'dismissed')
 );
 CREATE TABLE xero_timesheet_submissions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,

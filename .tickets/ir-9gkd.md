@@ -1,6 +1,6 @@
 ---
 id: ir-9gkd
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-08T04:22:29Z
@@ -24,3 +24,9 @@ Preparation persistence should represent the modal workflow decisions without ma
 
 Preparation run records can store pending/proposed/applied/blocked/resolved states and enough selected-period metadata for later readiness, preview, duplicate-check, and submission steps to run without URL params or global calendar selection. Proposed staff mappings, manual dropdown choices, persistent not-paid-through-Xero decisions, run-scoped skips for unmapped staff, account-code choices, and pay-item create approvals are represented without overloading `xero_submission_runs`.
 
+
+## Notes
+
+**2026-05-19T05:17:41Z**
+
+Added preparation-run events_json persistence, broadened run/decision status constraints to represent resolved/proposed/blocked states, regenerated IHP types, and covered persisted event metadata in focused Xero controller spec. Typecheck passes; focused Hspec compiles but cannot run because local postgres socket is unavailable.

@@ -69,6 +69,7 @@ startXeroTimesheetPreparation selectedPeriodKey = do
                             |> set #xeroPayRunStatus option.periodOptionXeroPayRunStatus
                             |> set #status ("preparing" :: Text)
                             |> set #connectionSnapshotJson (xeroConnectionSnapshotJson connection)
+                            |> set #eventsJson (preparationInitialEventsJson now selectedPeriodKey)
                             |> set #startedAt now
                             |> createRecord
                     _ <- persistPreparationPayrollCalendarSelection connection option.periodOptionPayrollCalendarId
@@ -1156,6 +1157,17 @@ preparationProposedActionsJson pendingDecisionCount manualStaffDecisionCount =
     Aeson.object
         [ "pendingDecisionCount" Aeson..= pendingDecisionCount
         , "manualStaffDecisionCount" Aeson..= manualStaffDecisionCount
+        ]
+
+preparationInitialEventsJson :: UTCTime -> Text -> Aeson.Value
+preparationInitialEventsJson occurredAt selectedPeriodKey =
+    Aeson.toJSON
+        [ Aeson.object
+            [ "event" Aeson..= ("preparation_started" :: Text)
+            , "status" Aeson..= ("preparing" :: Text)
+            , "selectedPeriodKey" Aeson..= selectedPeriodKey
+            , "occurredAt" Aeson..= occurredAt
+            ]
         ]
 
 readinessErrorSummary :: XeroTimesheetReadiness -> Text
