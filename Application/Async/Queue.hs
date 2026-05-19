@@ -11,6 +11,7 @@ import qualified Data.Aeson as Aeson
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
+import IHP.ModelSupport (sqlQuery)
 
 data AppJobRequest = AppJobRequest
     { jobKind              :: !Text
@@ -48,20 +49,7 @@ enqueueAppJob request = do
             Just key -> fetchActiveAppJobByDedupeKey key
     case existingJob of
         Just appJob -> pure (ExistingActiveAppJob appJob)
-        Nothing -> do
-            appJob <-
-                newRecord @AppJob
-                    |> set #jobKind request.jobKind
-                    |> set #payload request.payload
-                    |> set #payloadSchemaVersion request.payloadSchemaVersion
-                    |> set #requestedByUserId request.requestedByUserId
-                    |> set #venueId request.venueId
-                    |> set #relatedTable request.relatedTable
-                    |> set #relatedId request.relatedId
-                    |> set #dedupeKey request.dedupeKey
-                    |> setRunAt request.runAt
-                    |> createRecord
-            pure (EnqueuedAppJob appJob)
+        Nothing -> insertAppJobHandlingDedupeRace request
 
 fetchActiveAppJobByDedupeKey ::
     (?modelContext :: ModelContext) =>
@@ -84,6 +72,37 @@ fetchLatestAppJobByKind kind =
         |> orderByDesc #createdAt
         |> fetchOneOrNothing
 
-setRunAt :: Maybe UTCTime -> AppJob -> AppJob
-setRunAt Nothing appJob      = appJob
-setRunAt (Just runAt) appJob = appJob |> set #runAt runAt
+insertAppJobHandlingDedupeRace ::
+    (?modelContext :: ModelContext) =>
+    AppJobRequest ->
+    IO EnqueueAppJobResult
+insertAppJobHandlingDedupeRace request = do
+    insertedJobs <- insertAppJobIgnoringActiveDedupeConflict request
+    case insertedJobs of
+        [appJob] -> pure (EnqueuedAppJob appJob)
+        [] -> case request.dedupeKey of
+            Just key -> do
+                existingJob <- fetchActiveAppJobByDedupeKey key
+                case existingJob of
+                    Just appJob -> pure (ExistingActiveAppJob appJob)
+                    Nothing     -> error "App job dedupe conflict occurred but no active job could be fetched"
+            Nothing -> error "App job insert returned no row without a dedupe key"
+        _ -> error "App job insert unexpectedly returned multiple rows"
+
+insertAppJobIgnoringActiveDedupeConflict ::
+    (?modelContext :: ModelContext) =>
+    AppJobRequest ->
+    IO [AppJob]
+insertAppJobIgnoringActiveDedupeConflict request =
+    sqlQuery
+        "INSERT INTO app_jobs (job_kind, payload, payload_schema_version, requested_by_user_id, venue_id, related_table, related_id, dedupe_key, run_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?::timestamptz, NOW())) ON CONFLICT (dedupe_key) WHERE dedupe_key IS NOT NULL AND (status = 'job_status_not_started' OR status = 'job_status_running' OR status = 'job_status_retry') DO NOTHING RETURNING id, created_at, updated_at, status, last_error, attempts_count, locked_at, locked_by, run_at, job_kind, payload, payload_schema_version, requested_by_user_id, venue_id, related_table, related_id, dedupe_key, progress, result"
+        ( request.jobKind
+        , request.payload
+        , request.payloadSchemaVersion
+        , request.requestedByUserId
+        , request.venueId
+        , request.relatedTable
+        , request.relatedId
+        , request.dedupeKey
+        , request.runAt
+        )

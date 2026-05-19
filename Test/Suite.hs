@@ -12,6 +12,7 @@ import System.Environment (lookupEnv)
 import Test.Hspec (Spec)
 import Text.Read (readMaybe)
 
+import qualified Test.AsyncQueueSpec
 import qualified Test.BillingPersistenceSpec
 import qualified Test.BillingReadOnlySpec
 import qualified Test.BillingWebhookSpec
@@ -140,6 +141,7 @@ selectShardSuites total index
 allSuites :: [TestSuite]
 allSuites =
     [ TestSuite "StaticController" Test.Controller.StaticSpec.tests
+    , TestSuite "AsyncQueue" Test.AsyncQueueSpec.tests
     , TestSuite "Billing" Test.BillingPersistenceSpec.tests
     , TestSuite "BillingReadOnly" Test.BillingReadOnlySpec.tests
     , TestSuite "BillingController" Test.Controller.BillingSpec.tests
