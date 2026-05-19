@@ -2,7 +2,7 @@ module Web.Controller.Admin where
 
 import Application.Helper.Export
 import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
-import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource (..), liveMutationResult)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays,
@@ -16,11 +16,13 @@ import qualified Data.Aeson as Aeson
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Data.Time.Clock (utctDay)
+import Data.UUID (UUID)
 import Web.Admin.Mutations
 import Web.Controller.Admin.Support
 import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
+import Web.LiveResourceInvalidation (invalidateTouchedResources)
 import Web.View.Admin.Compliance
 import Web.View.Admin.Exports
 import Web.View.Admin.Index
@@ -28,6 +30,38 @@ import Web.View.Admin.Invites
 import Web.View.Admin.RosterGroups
 import Web.View.Admin.ShiftTypes
 import Web.View.Admin.Xero
+
+profileLiveResourcesFor ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Text ->
+    IO [LiveResource]
+profileLiveResourcesFor resourceName = do
+    let venueUuid = unpackId currentVenueId
+    let weekOffset = paramOrDefault @Int 0 "weekOffset"
+    let dayOffset = paramOrDefault @Int 0 "dayOffset"
+    let rosterGroupId = paramOrNothing @UUID "rosterGroupId"
+    let staffId = paramOrNothing @UUID "staffId"
+    pure case resourceName of
+        "billing" -> [BillingResource venueUuid]
+        "admin-invites" -> [AdminInvitesResource venueUuid]
+        "admin-roster-groups" -> [AdminRosterGroupsResource venueUuid]
+        "admin-shift-types" -> [AdminShiftTypesResource venueUuid]
+        "admin-exports" -> [AdminExportsResource venueUuid]
+        "admin-compliance" -> [AdminStaffComplianceResource venueUuid]
+        "xero-connection" -> [XeroConnectionResource venueUuid]
+        "xero-mappings" -> [XeroMappingsResource venueUuid]
+        "xero-pay-items" -> [XeroPayItemsResource venueUuid]
+        "xero-timesheets" -> [XeroTimesheetsResource venueUuid]
+        "timesheet-week" -> [TimesheetWeekResource venueUuid weekOffset]
+        "timesheet-day" -> [TimesheetDayResource venueUuid weekOffset dayOffset]
+        "leave-requests" -> [LeaveRequestsResource venueUuid]
+        "leave-calendar" -> [LeaveCalendarResource venueUuid weekOffset]
+        "roster-week" -> maybe [] (\value -> [RosterWeekResource value weekOffset]) rosterGroupId
+        "staff-leave" -> maybe [] (\value -> [StaffLeaveRequestsResource value]) staffId
+        "staff-profile" -> maybe [] (\value -> [StaffProfileResource value]) staffId
+        "staff-preferences" -> maybe [] (\value -> [StaffPreferencesResource value]) staffId
+        "staff-roster-membership" -> maybe [] (\value -> [StaffRosterMembershipResource value]) staffId
+        _ -> []
 
 respondToShiftTypesSectionMutationWithXeroRefresh ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -80,6 +114,14 @@ instance Controller AdminController where
         let xeroAutoSyncAfterReconnect = paramOrDefault @Text "false" "syncAfterReconnect" == "true"
         xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
         render XeroView { .. }
+
+    action ProfileLiveInvalidateVenueAction = do
+        profilingEnabled <- liftIO isRequestProfilingEnabled
+        redirectPermissionDeniedUnless profilingEnabled "Live profiling endpoints are only available while profiling is enabled."
+        let resourceName = param @Text "resource"
+        resources <- profileLiveResourcesFor resourceName
+        _ <- invalidateTouchedResources ("profile.live." <> resourceName) (liveMutationResult () resources)
+        respondHtml "ok"
 
     action StartXeroConnectionAction = do
         ensureVenueWritable

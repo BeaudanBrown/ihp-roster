@@ -154,6 +154,7 @@ data AdminController
     | UpdateShiftTypeAction { shiftTypeId :: !(Id ShiftType) }
     | MoveShiftTypeUpAction { shiftTypeId :: !(Id ShiftType) }
     | MoveShiftTypeDownAction { shiftTypeId :: !(Id ShiftType) }
+    | ProfileLiveInvalidateVenueAction
     deriving (Eq, Show, Data)
 
 data SupportController

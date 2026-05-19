@@ -20,6 +20,8 @@ console.log(`Live profile summary: ${path.join(outputDir, 'live-profile.md')}`);
 function summarize(filePath) {
     const counters = new Map();
     const trends = new Map();
+    const taggedCounters = new Map();
+    const taggedTrends = new Map();
     const checks = { total: 0, failed: 0 };
     const httpStatuses = new Map();
 
@@ -29,6 +31,7 @@ function summarize(filePath) {
         const event = JSON.parse(line);
         if (event.type !== 'Point') continue;
         const data = event.data || {};
+        const tags = data.tags || {};
         const value = Number(data.value);
         if (!Number.isFinite(value)) continue;
 
@@ -37,13 +40,13 @@ function summarize(filePath) {
             if (value === 0) checks.failed += 1;
         } else if (event.metric.startsWith('profile_live_')) {
             if (event.metric.endsWith('_duration') || event.metric.endsWith('_latency')) {
-                if (!trends.has(event.metric)) trends.set(event.metric, []);
-                trends.get(event.metric).push(value);
+                addTrend(trends, event.metric, value);
+                addTaggedTrend(taggedTrends, event.metric, tags, value);
             } else {
                 counters.set(event.metric, (counters.get(event.metric) || 0) + value);
+                addTaggedCounter(taggedCounters, event.metric, tags, value);
             }
         } else if (event.metric === 'http_req_duration') {
-            const tags = data.tags || {};
             const route = tags.route || 'unknown';
             const status = String(tags.status || 'unknown');
             const key = `${route}:${status}`;
@@ -54,9 +57,36 @@ function summarize(filePath) {
     return {
         counters: Object.fromEntries([...counters.entries()].sort()),
         trends: Object.fromEntries([...trends.entries()].sort().map(([name, values]) => [name, trendSummary(values)])),
+        taggedCounters: [...taggedCounters.entries()].sort().map(([key, value]) => ({ ...JSON.parse(key), count: value })),
+        taggedTrends: [...taggedTrends.entries()].sort().map(([key, values]) => ({ ...JSON.parse(key), ...trendSummary(values) })),
         checks,
         httpStatuses: Object.fromEntries([...httpStatuses.entries()].sort()),
     };
+}
+
+function addTrend(map, metric, value) {
+    if (!map.has(metric)) map.set(metric, []);
+    map.get(metric).push(value);
+}
+
+function addTaggedCounter(map, metric, tags, value) {
+    const key = tagKey(metric, tags);
+    map.set(key, (map.get(key) || 0) + value);
+}
+
+function addTaggedTrend(map, metric, tags, value) {
+    const key = tagKey(metric, tags);
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(value);
+}
+
+function tagKey(metric, tags) {
+    return JSON.stringify({
+        metric,
+        surface: tags.surface || '',
+        scope: tags.scope || '',
+        venue: tags.venue || '',
+    });
 }
 
 function trendSummary(values) {
@@ -84,8 +114,11 @@ function renderMarkdown(metadata, summary) {
     const rows = [
         '# Live Load Profile',
         '',
+        `Scenario: \`${metadata.scenario ?? ''}\``,
         `Subscribers: \`${metadata.subscribers ?? ''}\``,
         `Mutators: \`${metadata.mutators ?? ''}\``,
+        `Venues: \`${metadata.venues ?? ''}\``,
+        `Weeks: \`${metadata.weeks ?? ''}\``,
         `Database: \`${metadata.database ?? ''}\``,
         '',
         '## Counters',
@@ -94,11 +127,23 @@ function renderMarkdown(metadata, summary) {
         '| --- | ---: |',
         ...Object.entries(summary.counters).map(([name, value]) => `| \`${name}\` | ${value} |`),
         '',
+        '## Counters By Surface',
+        '',
+        '| Metric | Surface | Scope | Venue | Count |',
+        '| --- | --- | --- | --- | ---: |',
+        ...summary.taggedCounters.map((row) => `| \`${row.metric}\` | \`${row.surface}\` | \`${row.scope}\` | \`${row.venue}\` | ${row.count} |`),
+        '',
         '## Trends',
         '',
         '| Metric | Count | Median | P95 | P99 | Max |',
         '| --- | ---: | ---: | ---: | ---: | ---: |',
         ...Object.entries(summary.trends).map(([name, value]) => `| \`${name}\` | ${value.count} | ${value.medianMs} | ${value.p95Ms} | ${value.p99Ms} | ${value.maxMs} |`),
+        '',
+        '## Trends By Surface',
+        '',
+        '| Metric | Surface | Scope | Venue | Count | Median | P95 | P99 | Max |',
+        '| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: |',
+        ...summary.taggedTrends.map((row) => `| \`${row.metric}\` | \`${row.surface}\` | \`${row.scope}\` | \`${row.venue}\` | ${row.count} | ${row.medianMs} | ${row.p95Ms} | ${row.p99Ms} | ${row.maxMs} |`),
         '',
         '## Checks',
         '',

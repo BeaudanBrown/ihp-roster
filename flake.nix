@@ -1490,8 +1490,11 @@ EOF
                             PROFILE_SEED_ARGS=()
                             PROFILE_BASE_URL="''${PROFILE_BASE_URL:-}"
                             PROFILE_MANIFEST="''${PROFILE_MANIFEST:-}"
+                            PROFILE_LIVE_SCENARIO="''${PROFILE_LIVE_SCENARIO:-support}"
                             PROFILE_LIVE_SUBSCRIBERS="''${PROFILE_LIVE_SUBSCRIBERS:-20}"
                             PROFILE_LIVE_MUTATORS="''${PROFILE_LIVE_MUTATORS:-1}"
+                            PROFILE_LIVE_VENUES="''${PROFILE_LIVE_VENUES:-4}"
+                            PROFILE_LIVE_WEEKS="''${PROFILE_LIVE_WEEKS:-3}"
                             PROFILE_LIVE_WARMUP_MS="''${PROFILE_LIVE_WARMUP_MS:-2000}"
                             PROFILE_LIVE_HOLD_MS="''${PROFILE_LIVE_HOLD_MS:-8000}"
                             PROFILE_LIVE_MAX_DURATION="''${PROFILE_LIVE_MAX_DURATION:-20s}"
@@ -1511,8 +1514,11 @@ Options:
   --seed-arg=arg                 Forward an option to seed-profile
   --base-url=url                 Use an already-running app server instead of starting one
   --manifest=path                Profile seed manifest for --base-url or --reuse-db runs
+  --scenario=support|mixed-live  Live profile scenario (default: support)
   --subscribers=N                WebSocket subscriber VUs (default: 20)
   --mutators=N                   Mutating subscribers (default: 1)
+  --venues=N                     Venues to spread mixed-live plans across (default: 4)
+  --weeks=N                      Week offsets to spread mixed-live plans across (default: 3)
   --warmup-ms=N                  Delay before mutations after subscribe (default: 2000)
   --hold-ms=N                    Time to keep sockets open after warmup (default: 8000)
   --max-duration=20s             k6 maxDuration for per-VU iterations
@@ -1532,8 +1538,11 @@ EOF
                                     --seed-arg=*) PROFILE_SEED_ARGS+=("''${1#--seed-arg=}"); shift ;;
                                     --base-url=*) PROFILE_BASE_URL="''${1#--base-url=}"; shift ;;
                                     --manifest=*) PROFILE_MANIFEST="''${1#--manifest=}"; shift ;;
+                                    --scenario=*) PROFILE_LIVE_SCENARIO="''${1#--scenario=}"; shift ;;
                                     --subscribers=*) PROFILE_LIVE_SUBSCRIBERS="''${1#--subscribers=}"; shift ;;
                                     --mutators=*) PROFILE_LIVE_MUTATORS="''${1#--mutators=}"; shift ;;
+                                    --venues=*) PROFILE_LIVE_VENUES="''${1#--venues=}"; shift ;;
+                                    --weeks=*) PROFILE_LIVE_WEEKS="''${1#--weeks=}"; shift ;;
                                     --warmup-ms=*) PROFILE_LIVE_WARMUP_MS="''${1#--warmup-ms=}"; shift ;;
                                     --hold-ms=*) PROFILE_LIVE_HOLD_MS="''${1#--hold-ms=}"; shift ;;
                                     --max-duration=*) PROFILE_LIVE_MAX_DURATION="''${1#--max-duration=}"; shift ;;
@@ -1671,31 +1680,37 @@ EOF
                                 fi
                             fi
 
-                            export PROFILE_BASE_URL PROFILE_MANIFEST PROFILE_LIVE_SUBSCRIBERS PROFILE_LIVE_MUTATORS PROFILE_LIVE_WARMUP_MS PROFILE_LIVE_HOLD_MS PROFILE_LIVE_MAX_DURATION
+                            export PROFILE_BASE_URL PROFILE_MANIFEST PROFILE_LIVE_SCENARIO PROFILE_LIVE_SUBSCRIBERS PROFILE_LIVE_MUTATORS PROFILE_LIVE_VENUES PROFILE_LIVE_WEEKS PROFILE_LIVE_WARMUP_MS PROFILE_LIVE_HOLD_MS PROFILE_LIVE_MAX_DURATION
 
                             jq -n \
                                 --arg runId "$PROFILE_LIVE_RUN_ID" \
                                 --arg baseUrl "$PROFILE_BASE_URL" \
                                 --arg manifest "$PROFILE_MANIFEST" \
                                 --arg database "$PROFILE_DATABASE_NAME" \
+                                --arg scenario "$PROFILE_LIVE_SCENARIO" \
                                 --arg subscribers "$PROFILE_LIVE_SUBSCRIBERS" \
                                 --arg mutators "$PROFILE_LIVE_MUTATORS" \
+                                --arg venues "$PROFILE_LIVE_VENUES" \
+                                --arg weeks "$PROFILE_LIVE_WEEKS" \
                                 --arg warmupMs "$PROFILE_LIVE_WARMUP_MS" \
                                 --arg holdMs "$PROFILE_LIVE_HOLD_MS" \
                                 --arg maxDuration "$PROFILE_LIVE_MAX_DURATION" \
                                 --slurpfile manifestJson "$PROFILE_MANIFEST" \
-                                '{runId:$runId, baseUrl:$baseUrl, manifest:$manifest, database:$database, subscribers:($subscribers|tonumber), mutators:($mutators|tonumber), warmupMs:($warmupMs|tonumber), holdMs:($holdMs|tonumber), maxDuration:$maxDuration, seed:$manifestJson[0].options}' \
+                                '{runId:$runId, baseUrl:$baseUrl, manifest:$manifest, database:$database, scenario:$scenario, subscribers:($subscribers|tonumber), mutators:($mutators|tonumber), venues:($venues|tonumber), weeks:($weeks|tonumber), warmupMs:($warmupMs|tonumber), holdMs:($holdMs|tonumber), maxDuration:$maxDuration, seed:$manifestJson[0].options}' \
                                 > "$PROFILE_LIVE_METADATA"
 
                             echo "Profile live load server ready at $PROFILE_BASE_URL"
                             echo "Profile live load database: $PROFILE_DATABASE_NAME"
-                            echo "Profile live load subscribers=$PROFILE_LIVE_SUBSCRIBERS mutators=$PROFILE_LIVE_MUTATORS"
+                            echo "Profile live load scenario=$PROFILE_LIVE_SCENARIO subscribers=$PROFILE_LIVE_SUBSCRIBERS mutators=$PROFILE_LIVE_MUTATORS"
 
+                            set +e
                             k6 run \
                                 --out "json=$PROFILE_K6_METRICS" \
                                 "''${PROFILE_K6_ARGS[@]}" \
                                 ./e2e/profile-live-load.js \
                                 | tee "$PROFILE_K6_STDOUT"
+                            K6_STATUS="''${PIPESTATUS[0]}"
+                            set -e
 
                             node ./e2e/profile-live-load-report.mjs \
                                 "$PROFILE_K6_METRICS" \
@@ -1703,6 +1718,7 @@ EOF
                                 "$PROFILE_LIVE_METADATA"
                             ln -sfn "$PROFILE_LIVE_OUTPUT_DIR" "$PWD/output/profile-live-load/latest"
                             echo "Live load profile artifacts: $PROFILE_LIVE_OUTPUT_DIR"
+                            exit "$K6_STATUS"
                         '';
 
                         # Fetch and cache configured FWC MAPD award data into the local database.
