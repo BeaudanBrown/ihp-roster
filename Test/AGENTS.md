@@ -11,6 +11,7 @@ Tests are a devenv shell script — use `bash ./bin/in-env` outside an interacti
 bash ./bin/in-env hspec-test                        # compile and run the full suite, auto-sharded across local cores
 bash ./bin/in-env hspec-test --match "PostsController"  # run tests matching a pattern
 bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # OR multiple patterns in one run
+bash ./bin/in-env ./bin/agent-hspec-test --match "Xero" # agent-safe wrapper: starts/stops dev with a timeout
 TEST_SHARDS=1 bash ./bin/in-env hspec-test          # force serial execution
 TEST_SHARDS=4 bash ./bin/in-env hspec-test          # override shard count explicitly
 TEST_SHARDS=2 bash ./bin/in-env hspec-test --match "PasskeysController" --match "LiveUpdate"  # shard a focused multi-suite run
