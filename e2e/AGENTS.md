@@ -183,6 +183,49 @@ E2E timeouts are centralized in `e2e/timeouts.ts` and imported as `E2E_TIMEOUT`.
 
 Tests should fail fast when the page is already in the wrong state. For example, assert that an accordion is expanded and the target card/button is visible with `E2E_TIMEOUT.action` before clicking, then wait for the concrete result with `E2E_TIMEOUT.assertion`. Do not rely on a whole-test timeout to catch a hidden locator.
 
+## Live Load Profiling
+
+Use the profile commands when investigating live-update scalability. They are profiling tools, not pass/fail regression gates, and write durable artifacts under `output/` for later agents to compare.
+
+```bash
+# Fast planner-only benchmark: no sockets, isolates expansion/planning cost.
+bash ./bin/in-env profile-live-invalidation \
+  --scopes=0,10,100,500,1000,2500,5000 \
+  --iterations=100
+
+# Real websocket fanout: isolated profile server and DB by default.
+bash ./bin/in-env profile-live-load \
+  --scenario=mixed-live \
+  --subscribers=100 \
+  --mutators=10 \
+  --venues=4 \
+  --weeks=3 \
+  --warmup-ms=3000 \
+  --hold-ms=12000 \
+  --max-duration=35s
+
+# Reuse a large seeded profile DB from a profile-load-suite run.
+bash ./bin/in-env profile-live-load \
+  --reuse-db \
+  --db=app_profile_load_suite_<run-id> \
+  --manifest=output/profile-load-suite/<run-id>/seed/manifest.json \
+  --scenario=mixed-live \
+  --subscribers=100 \
+  --mutators=10
+```
+
+Read `output/profile-live-load/latest/live-profile.md` first. Its `Agent Snapshot` is intentionally compact: failed checks, mutation burst rate, invalidation delivery rate, own-invalidation coverage, slowest invalidation labels, and highest-fanout labels. Use it to decide where to dig before opening full logs.
+
+For live-update bottlenecks, compare these signals in order:
+
+- `Server Invalidation Labels`: high `Avg Plan` points at dependency matching/expansion; high `Avg Broadcast` with high subscribers points at fanout/transport; high fragments points at over-broad surface dependencies.
+- `Mutation Timing By Surface`: high p95/max with low server invalidation time means the endpoint/business write is slow, not the live planner.
+- `Rates`: mutation burst/sec and invalidation delivery/sec are more meaningful than total-run rates because setup/login/websocket warmup dominate elapsed time.
+- `Counters By Surface`: missing own invalidations indicate an authorization/scope/dependency mismatch or a mutation failure; unexpected broad invalidations indicate a dependency or resource touch is too coarse.
+- `server.log`: `[live-invalidation]` lines carry touched, active scopes, expanded resources, candidate/planning scopes, target fragments, subscribers, and stage timings.
+
+The current useful mixed-live baseline is about `100` subscribers and `10` synchronized mutators. A heavier `200` subscriber / `25` mutator run has exposed occasional missed actor invalidations and one mutation failure; use that size as a stress probe, not as a required local gate.
+
 ## Operational Notes
 
 - `dev-status` still reports the normal dev server on `:8000`; the E2E wrapper launches a separate temporary server on the next free IHP dev port and exports that URL to Playwright

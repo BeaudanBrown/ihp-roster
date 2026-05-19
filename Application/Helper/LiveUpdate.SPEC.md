@@ -163,6 +163,63 @@ When adding or migrating a mutation flow:
 - For broad fanout mutations, expand indirect resources only through active
   subscriptions before querying cold historical data.
 
+## Profiling And Scalability Triage
+
+Live-update profiling has three layers:
+
+1. Request-scoped instrumentation in `Web.LiveResourceInvalidation` records the
+   `live_resources.invalidate` span and emits `[live-invalidation]` diagnostics
+   when `LIVE_INVALIDATION_PROFILING=1` is enabled.
+2. `profile-live-invalidation` is a synthetic benchmark for resource expansion,
+   candidate-scope derivation, registry planning, and target coalescing without
+   websocket clients.
+3. `profile-live-load` is a k6 websocket profile that starts an isolated profile
+   server and DB by default, subscribes live clients, performs mutations, and
+   records invalidation delivery latency.
+
+Use `profile-live-load --scenario=mixed-live` for app-wide live-update triage.
+It spreads subscribers across support, admin invites, timesheets, roster weeks,
+and leave requests, then mutates those surfaces through normal touched-resource
+invalidation. The report at `output/profile-live-load/latest/live-profile.md`
+starts with an `Agent Snapshot` intended for future agents: checks, mutation
+burst rate, invalidation delivery rate, own-invalidation coverage, slowest
+server invalidation labels, and highest-fanout labels.
+
+Interpret results by separating layers:
+
+- high `plan_ms` or `expand_ms` means the dependency/resource planner needs
+  attention
+- high `broadcast_ms` with many subscribers means fanout/transport is the
+  limiting path
+- high mutation HTTP p95 with low `[live-invalidation] total_ms` means the
+  business endpoint or setup/login load is slow, not the live invalidation
+  architecture
+- missing own invalidations usually indicate a scope/resource dependency gap,
+  authorization mismatch, or failed mutation
+- high fragment counts indicate a surface dependency may be too broad
+
+Recommended local commands:
+
+```bash
+bash ./bin/in-env profile-live-invalidation \
+  --scopes=0,10,100,500,1000,2500,5000 \
+  --iterations=100
+
+bash ./bin/in-env profile-live-load \
+  --scenario=mixed-live \
+  --subscribers=100 \
+  --mutators=10 \
+  --venues=4 \
+  --weeks=3 \
+  --warmup-ms=3000 \
+  --hold-ms=12000 \
+  --max-duration=35s
+```
+
+A `100` subscriber / `10` mutator mixed run is the current practical baseline.
+Use larger synchronized bursts, such as `200` subscribers / `25` mutators, as
+stress probes to find failure thresholds rather than as routine verification.
+
 ## Verification
 
 ```bash
