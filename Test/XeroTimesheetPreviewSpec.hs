@@ -192,8 +192,14 @@ createPreviewFixture calendarType entrySpecs = do
         , request =
             XeroTimesheetReadinessRequest
                 { readinessVenueId = venue.id
+                , readinessPayrollCalendarId = Just "calendar-preview"
+                , readinessPayrollCalendarName = Just "Preview Calendar"
+                , readinessSelectedPeriodKey = Just ("calendar-preview:" <> tshow periodStart <> ":" <> tshow periodEnd)
                 , readinessPeriodStart = periodStart
                 , readinessPeriodEnd = periodEnd
+                , readinessPaymentDate = Nothing
+                , readinessXeroPayRunId = Nothing
+                , readinessXeroPayRunStatus = Nothing
                 , readinessRemoteTimesheets = []
                 , readinessSkippedStaffIds = []
                 }
@@ -253,14 +259,6 @@ createPreviewPayrollCalendar venue connection calendarType periodStart = do
             |> set #calendarType (Just calendarType)
             |> set #startDate (Just periodStart)
             |> set #rawPayload (Aeson.object ["PayrollCalendarID" Aeson..= ("calendar-preview" :: Text)])
-            |> createRecord
-    _ <-
-        newRecord @XeroPayrollCalendarSelection
-            |> set #venueId (unpackId venue.id)
-            |> set #xeroConnectionId (unpackId connection.id)
-            |> set #xeroPayrollCalendarId (Just calendar.xeroPayrollCalendarId)
-            |> set #xeroPayrollCalendarName (Just calendar.name)
-            |> set #calendarStatus ("verified" :: Text)
             |> createRecord
     pure calendar
 

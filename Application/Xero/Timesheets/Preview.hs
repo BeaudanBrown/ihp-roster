@@ -179,7 +179,7 @@ fetchPreviewInput request connection = do
             |> filterWhereIn (#staffId, map (.staffId) includedEntries)
             |> filterWhere (#mappingStatus, "verified" :: Text)
             |> fetch
-    selectedPayrollCalendarEmployeeIds <- fetchSelectedPayrollCalendarEmployeeIds connection
+    selectedPayrollCalendarEmployeeIds <- fetchSelectedPayrollCalendarEmployeeIds request connection
     let entries =
             includedEntries
                 |> filter \entry ->
@@ -220,14 +220,19 @@ fetchPreviewInput request connection = do
         , previewTimePenaltyAllowances = timeAllowances
         }
 
-fetchSelectedPayrollCalendarEmployeeIds :: (?modelContext :: ModelContext) => XeroConnection -> IO [Text]
-fetchSelectedPayrollCalendarEmployeeIds connection = do
-    maybeSelection <-
-        query @XeroPayrollCalendarSelection
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#calendarStatus, "verified" :: Text)
-            |> fetchOneOrNothing
-    case maybeSelection >>= (.xeroPayrollCalendarId) of
+fetchSelectedPayrollCalendarEmployeeIds :: (?modelContext :: ModelContext) => XeroTimesheetReadinessRequest -> XeroConnection -> IO [Text]
+fetchSelectedPayrollCalendarEmployeeIds request connection = do
+    maybePayrollCalendarId <-
+        case request.readinessPayrollCalendarId of
+            Just calendarId -> pure (Just calendarId)
+            Nothing -> do
+                maybeSelection <-
+                    query @XeroPayrollCalendarSelection
+                        |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                        |> filterWhere (#calendarStatus, "verified" :: Text)
+                        |> fetchOneOrNothing
+                pure (maybeSelection >>= (.xeroPayrollCalendarId))
+    case maybePayrollCalendarId of
         Nothing -> pure []
         Just payrollCalendarId ->
             fmap (map (.xeroEmployeeId)) $

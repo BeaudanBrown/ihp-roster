@@ -217,6 +217,16 @@ tests = do
                 fortnightlyReadiness <- validateXeroTimesheetReadiness fortnightly.request
                 fortnightlyReadiness.xeroTimesheetReady `shouldBe` True
 
+        it "blocks tampered selected period keys" $ withContext do
+            withCleanDb do
+                fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                let request = fixture.request { readinessSelectedPeriodKey = Just "calendar-ready:2026-05-04:2026-05-10" }
+
+                readiness <- validateXeroTimesheetReadiness request
+
+                readinessBlockerCodes readiness `shouldSatisfy` elem "selected_period_key_mismatch"
+                readiness.xeroTimesheetReady `shouldBe` False
+
 data ReadinessFixture = ReadinessFixture
     { venue      :: Venue
     , owner      :: User
@@ -259,8 +269,14 @@ createReadinessFixture calendarType periodStart periodEnd = do
         , request =
             XeroTimesheetReadinessRequest
                 { readinessVenueId = venue.id
+                , readinessPayrollCalendarId = Just "calendar-ready"
+                , readinessPayrollCalendarName = Just "Ready Calendar"
+                , readinessSelectedPeriodKey = Just ("calendar-ready:" <> tshow periodStart <> ":" <> tshow periodEnd)
                 , readinessPeriodStart = periodStart
                 , readinessPeriodEnd = periodEnd
+                , readinessPaymentDate = Nothing
+                , readinessXeroPayRunId = Nothing
+                , readinessXeroPayRunStatus = Nothing
                 , readinessRemoteTimesheets = []
                 , readinessSkippedStaffIds = []
                 }
@@ -384,14 +400,6 @@ createReadinessPayrollCalendar venue connection calendarType periodStart = do
             |> set #calendarType (Just calendarType)
             |> set #startDate (Just periodStart)
             |> set #rawPayload (Aeson.object ["PayrollCalendarID" Aeson..= ("calendar-ready" :: Text)])
-            |> createRecord
-    _ <-
-        newRecord @XeroPayrollCalendarSelection
-            |> set #venueId (unpackId venue.id)
-            |> set #xeroConnectionId (unpackId connection.id)
-            |> set #xeroPayrollCalendarId (Just calendar.xeroPayrollCalendarId)
-            |> set #xeroPayrollCalendarName (Just calendar.name)
-            |> set #calendarStatus ("verified" :: Text)
             |> createRecord
     pure calendar
 

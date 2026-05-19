@@ -145,7 +145,7 @@ setupLooksComplete :: XeroTimesheetPreparationView -> Bool
 setupLooksComplete view =
     view.preparationConnection.connectionStatus == "active"
         && not (null view.preparationPayrollCalendars)
-        && isJust view.preparationPayrollCalendarSelection
+        && selectedPreparationPayrollCalendarId view /= ""
         && (not (preparationNeedsAccountCode view) || isJust (selectedAccountCode view))
 
 preparationNeedsAccountCode :: XeroTimesheetPreparationView -> Bool

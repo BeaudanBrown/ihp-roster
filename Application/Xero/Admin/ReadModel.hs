@@ -532,8 +532,14 @@ currentVenueXeroTimesheetReadinessRequest (Just connection) (Just selection) =
                 (periodStart, periodEnd) <- deriveXeroPayrollCalendarPeriod calendar today
                 pure XeroTimesheetReadinessRequest
                     { readinessVenueId = currentVenueId
+                    , readinessPayrollCalendarId = Just calendar.xeroPayrollCalendarId
+                    , readinessPayrollCalendarName = Just calendar.name
+                    , readinessSelectedPeriodKey = Just (xeroPeriodOptionKey calendar.xeroPayrollCalendarId periodStart periodEnd)
                     , readinessPeriodStart = periodStart
                     , readinessPeriodEnd = periodEnd
+                    , readinessPaymentDate = calendar.paymentDate
+                    , readinessXeroPayRunId = Nothing
+                    , readinessXeroPayRunStatus = Nothing
                     , readinessRemoteTimesheets = []
                     , readinessSkippedStaffIds = []
                     }

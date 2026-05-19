@@ -72,7 +72,6 @@ startXeroTimesheetPreparation selectedPeriodKey = do
                             |> set #eventsJson (preparationInitialEventsJson now selectedPeriodKey)
                             |> set #startedAt now
                             |> createRecord
-                    _ <- persistPreparationPayrollCalendarSelection connection option.periodOptionPayrollCalendarId
                     refreshXeroTimesheetPreparation run.id
 
 refreshXeroTimesheetPreparation ::
@@ -338,7 +337,6 @@ saveXeroPreparationPayrollCalendar runId payrollCalendarId =
                     case maybePayrollCalendar of
                         Nothing -> pure (Left "Choose a synced Xero payroll calendar from this venue.")
                         Just payrollCalendar -> do
-                            _ <- persistPreparationPayrollCalendarSelection connection selectedCalendarId
                             _ <-
                                 run
                                     |> set #selectedPayrollCalendarId payrollCalendar.xeroPayrollCalendarId
@@ -792,43 +790,6 @@ failPreparationReferenceSync run syncRun connection message = do
                 )
     loadXeroTimesheetPreparationView run.id
 
-persistPreparationPayrollCalendarSelection ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    XeroConnection ->
-    Text ->
-    IO ()
-persistPreparationPayrollCalendarSelection connection payrollCalendarId = do
-    maybePayrollCalendar <-
-        query @XeroPayrollCalendar
-            |> filterWhere (#venueId, unpackId currentVenueId)
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#xeroPayrollCalendarId, payrollCalendarId)
-            |> fetchOneOrNothing
-    case maybePayrollCalendar of
-        Nothing -> pure ()
-        Just payrollCalendar -> do
-            now <- getCurrentTime
-            existingSelection <-
-                query @XeroPayrollCalendarSelection
-                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                    |> fetchOneOrNothing
-            let prepared record =
-                    record
-                        |> set #venueId (unpackId currentVenueId)
-                        |> set #xeroConnectionId (unpackId connection.id)
-                        |> set #xeroPayrollCalendarId (Just payrollCalendar.xeroPayrollCalendarId)
-                        |> set #xeroPayrollCalendarName (Just payrollCalendar.name)
-                        |> set #calendarStatus ("verified" :: Text)
-                        |> set #lastVerifiedAt (Just now)
-                        |> set #updatedByUserId (Just (unpackId currentUser.id))
-            case existingSelection of
-                Just existing -> prepared existing |> updateRecord |> void
-                Nothing ->
-                    prepared (newRecord @XeroPayrollCalendarSelection)
-                        |> set #createdByUserId (Just (unpackId currentUser.id))
-                        |> createRecord
-                        |> void
-
 persistPreparationAccountCodeSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
@@ -999,8 +960,14 @@ preparationReadinessRequest :: XeroTimesheetPreparationRun -> [XeroTimesheetRef]
 preparationReadinessRequest run remoteTimesheets skippedStaffIds =
     XeroTimesheetReadinessRequest
         { readinessVenueId = Id run.venueId
+        , readinessPayrollCalendarId = Just run.selectedPayrollCalendarId
+        , readinessPayrollCalendarName = run.selectedPayrollCalendarName
+        , readinessSelectedPeriodKey = Just run.selectedPeriodKey
         , readinessPeriodStart = run.payPeriodStart
         , readinessPeriodEnd = run.payPeriodEnd
+        , readinessPaymentDate = run.paymentDate
+        , readinessXeroPayRunId = run.xeroPayRunId
+        , readinessXeroPayRunStatus = run.xeroPayRunStatus
         , readinessRemoteTimesheets = remoteTimesheets
         , readinessSkippedStaffIds = skippedStaffIds
         }

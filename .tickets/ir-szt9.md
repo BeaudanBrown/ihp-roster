@@ -1,6 +1,6 @@
 ---
 id: ir-szt9
-status: open
+status: closed
 deps: [ir-omzt, ir-9gkd]
 links: []
 created: 2026-05-19T04:20:51Z
@@ -26,3 +26,9 @@ Keep the old global selection only for legacy/admin defaults until all modal pat
 
 Preparing from a dropdown period works without any `xero_payroll_calendar_selections` row. Readiness/preview/submission use the selected period calendar and reject tampered/mismatched period-calendar state. Employees on other synced Xero payroll calendars are excluded with a clear warning, not treated as user-assigned local state. Missing synced employee/calendar data remains actionable as a blocker. Tests cover no global calendar selection, weekly/fortnightly selected windows, selected-calendar employee filtering, and tamper/mismatch rejection.
 
+
+## Notes
+
+**2026-05-19T05:31:20Z**
+
+Threaded selected Xero period calendar metadata through readiness, preview, and modal preparation. Preparation no longer writes/depends on xero_payroll_calendar_selections; focused readiness/preview specs pass without a global selection row and cover tampered selected period keys.

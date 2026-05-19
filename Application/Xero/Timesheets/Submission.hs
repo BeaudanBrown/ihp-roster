@@ -85,8 +85,14 @@ retryExistingSubmission submission = do
                             let readinessRequest =
                                     XeroTimesheetReadinessRequest
                                         { readinessVenueId = Id run.venueId
+                                        , readinessPayrollCalendarId = Nothing
+                                        , readinessPayrollCalendarName = Nothing
+                                        , readinessSelectedPeriodKey = Nothing
                                         , readinessPeriodStart = run.payPeriodStart
                                         , readinessPeriodEnd = run.payPeriodEnd
+                                        , readinessPaymentDate = Nothing
+                                        , readinessXeroPayRunId = Nothing
+                                        , readinessXeroPayRunStatus = Nothing
                                         , readinessRemoteTimesheets = remoteTimesheets
                                         , readinessSkippedStaffIds = []
                                         }
