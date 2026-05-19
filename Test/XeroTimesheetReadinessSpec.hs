@@ -14,6 +14,17 @@ import Test.Support
 
 tests :: Spec
 tests = do
+    describe "Xero preparation modal states" do
+        it "maps persisted preparation statuses to typed modal states" do
+            xeroPreparationStateFromStatus "needs_reconnect" `shouldBe` XeroPreparationNeedsReconnect
+            xeroPreparationStateFromStatus "needs_approval" `shouldBe` XeroPreparationNeedsDecision
+            xeroPreparationStateFromStatus "blocked" `shouldBe` XeroPreparationBlocked
+            xeroPreparationStateFromStatus "ready_for_preview" `shouldBe` XeroPreparationReadyForPreview
+            xeroPreparationStateFromStatus "previewed" `shouldBe` XeroPreparationPreviewed
+            xeroPreparationStateFromStatus "submitted" `shouldBe` XeroPreparationSubmitted
+            xeroPreparationStateFromStatus "failed" `shouldBe` XeroPreparationFailed
+            xeroPreparationStateFromStatus "preparing" `shouldBe` XeroPreparationPreparing
+
     describe "Xero timesheet API parsing" do
         it "parses Timesheets envelopes with Microsoft JSON dates and line units" do
             let payload = "{\"Timesheets\":[{\"TimesheetID\":\"ts-1\",\"EmployeeID\":\"employee-1\",\"StartDate\":\"/Date(1777248000000+0000)/\",\"EndDate\":\"/Date(1777766400000+0000)/\",\"Status\":\"DRAFT\",\"Hours\":17.0,\"TimesheetLines\":[{\"EarningsRateID\":\"earnings-1\",\"NumberOfUnits\":[2.0,10.0,0.0,0.0,5.0,0.0,0.0]}]}]}"

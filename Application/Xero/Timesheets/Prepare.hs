@@ -172,6 +172,7 @@ loadXeroTimesheetPreparationView runId = do
                 Right
                     XeroTimesheetPreparationView
                         { preparationRun = run
+                        , preparationState = xeroPreparationStateFromStatus run.status
                         , preparationConnection = connection
                         , preparationPeriodOption = periodOptionFromPreparationRun run
                         , preparationReadiness = readinessView

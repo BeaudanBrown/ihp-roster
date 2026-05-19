@@ -162,8 +162,34 @@ data XeroPreparationPayItemRow = XeroPreparationPayItemRow
     , preparationPayItemDecision    :: Maybe XeroTimesheetPreparationDecision
     }
 
+data XeroTimesheetPreparationState
+    = XeroPreparationNeedsReconnect
+    | XeroPreparationPreparing
+    | XeroPreparationNeedsDecision
+    | XeroPreparationBlocked
+    | XeroPreparationReadyForPreview
+    | XeroPreparationPreviewed
+    | XeroPreparationSubmitted
+    | XeroPreparationFailed
+    deriving (Eq, Show)
+
+xeroPreparationStateFromStatus :: Text -> XeroTimesheetPreparationState
+xeroPreparationStateFromStatus status =
+    case status of
+        "needs_reconnect" -> XeroPreparationNeedsReconnect
+        "needs_approval" -> XeroPreparationNeedsDecision
+        "resolved" -> XeroPreparationNeedsDecision
+        "blocked" -> XeroPreparationBlocked
+        "ready_for_preview" -> XeroPreparationReadyForPreview
+        "previewed" -> XeroPreparationPreviewed
+        "submitted" -> XeroPreparationSubmitted
+        "failed" -> XeroPreparationFailed
+        "cancelled" -> XeroPreparationFailed
+        _ -> XeroPreparationPreparing
+
 data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     { preparationRun                         :: XeroTimesheetPreparationRun
+    , preparationState                       :: XeroTimesheetPreparationState
     , preparationConnection                  :: XeroConnection
     , preparationPeriodOption                :: XeroTimesheetPeriodOption
     , preparationReadiness                   :: XeroTimesheetReadinessView

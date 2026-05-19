@@ -1,6 +1,6 @@
 ---
 id: ir-mjos
-status: open
+status: closed
 deps: [ir-omzt, ir-9gkd, ir-szt9]
 links: []
 created: 2026-05-08T04:22:29Z
@@ -25,3 +25,9 @@ Do not auto-select a global payroll calendar. The selected period from the panel
 ## Acceptance Criteria
 
 Controller actions call a cohesive prepare service rather than duplicating sync/mapping/pay-item logic. The service returns typed modal states such as needs reconnect, preparing, needs decision, blocked, ready for preview, previewed, submitted, and failed. It can advance from Prepare to preview with no extra clicks when there are no user decisions, pauses with actionable decision rows when decisions are needed, and never reaches preview while selected-period, staff, pay-item, duplicate, or posted-pay-run blockers remain. Existing separate services remain reusable underneath.
+
+## Notes
+
+**2026-05-19T05:34:22Z**
+
+Implemented typed Xero preparation modal state in the preparation view, backed by status-to-state mapping and focused Hspec coverage. Typecheck passes; focused Hspec compile succeeds but runtime is blocked by missing local postgres socket.
