@@ -1,6 +1,6 @@
 ---
 id: ir-omzt
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-08T04:22:29Z
@@ -26,3 +26,9 @@ Do not introduce local staff-to-calendar assignment. Employee calendar membershi
 
 Pay runs can be fetched through the Xero client boundary and persisted/read for the current venue. Period options include all calendar/period/pay-run fields required by preparation and clearly label weekly/fortnightly/etc from Xero calendar data. POSTED periods are marked blocked at option-build time. Existing contract tests cover request shape and response decoding, including date wrappers and pagination.
 
+
+## Notes
+
+**2026-05-19T05:22:26Z**
+
+Verified Xero Pay Runs API/client contract, persistence/read-model period options, posted-run blocking, and focused Xero Hspec coverage; acceptance criteria are satisfied.
