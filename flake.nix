@@ -1477,6 +1477,101 @@ EOF
                             echo "Live invalidation profile artifacts: $PROFILE_LIVE_OUTPUT_DIR"
                         '';
 
+                        # Run k6 websocket live invalidation load against a running app server.
+                        # Usage: profile-live-load --base-url=http://127.0.0.1:8000 --manifest=build/profile-seed/latest/manifest.json [--subscribers=N] [--mutators=N]
+                        profile-live-load.exec = ''
+                            set -euo pipefail
+
+                            PROFILE_LIVE_RUN_ID="''${PROFILE_LIVE_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+                            PROFILE_LIVE_OUTPUT_DIR="''${PROFILE_LIVE_OUTPUT_DIR:-$PWD/output/profile-live-load/$PROFILE_LIVE_RUN_ID}"
+                            PROFILE_BASE_URL="''${PROFILE_BASE_URL:-http://127.0.0.1:8000}"
+                            PROFILE_MANIFEST="''${PROFILE_MANIFEST:-$PWD/build/profile-seed/latest/manifest.json}"
+                            PROFILE_LIVE_SUBSCRIBERS="''${PROFILE_LIVE_SUBSCRIBERS:-20}"
+                            PROFILE_LIVE_MUTATORS="''${PROFILE_LIVE_MUTATORS:-1}"
+                            PROFILE_LIVE_WARMUP_MS="''${PROFILE_LIVE_WARMUP_MS:-2000}"
+                            PROFILE_LIVE_HOLD_MS="''${PROFILE_LIVE_HOLD_MS:-8000}"
+                            PROFILE_LIVE_MAX_DURATION="''${PROFILE_LIVE_MAX_DURATION:-20s}"
+                            PROFILE_K6_ARGS=()
+
+                            while [ "$#" -gt 0 ]; do
+                                case "$1" in
+                                    --help|-h)
+                                        cat <<'EOF'
+Usage: profile-live-load [options] [-- k6-args...]
+
+Options:
+  --base-url=url                  Running app server URL (default: http://127.0.0.1:8000)
+  --manifest=path                 Profile seed manifest (default: build/profile-seed/latest/manifest.json)
+  --output-dir=path               Artifact directory
+  --subscribers=N                 WebSocket subscriber VUs (default: 20)
+  --mutators=N                    Mutating subscribers (default: 1)
+  --warmup-ms=N                   Delay before mutations after subscribe (default: 2000)
+  --hold-ms=N                     Time to keep sockets open after warmup (default: 8000)
+  --max-duration=20s              k6 maxDuration for per-VU iterations
+EOF
+                                        exit 0
+                                        ;;
+                                    --base-url=*) PROFILE_BASE_URL="''${1#--base-url=}"; shift ;;
+                                    --manifest=*) PROFILE_MANIFEST="''${1#--manifest=}"; shift ;;
+                                    --output-dir=*) PROFILE_LIVE_OUTPUT_DIR="''${1#--output-dir=}"; shift ;;
+                                    --subscribers=*) PROFILE_LIVE_SUBSCRIBERS="''${1#--subscribers=}"; shift ;;
+                                    --mutators=*) PROFILE_LIVE_MUTATORS="''${1#--mutators=}"; shift ;;
+                                    --warmup-ms=*) PROFILE_LIVE_WARMUP_MS="''${1#--warmup-ms=}"; shift ;;
+                                    --hold-ms=*) PROFILE_LIVE_HOLD_MS="''${1#--hold-ms=}"; shift ;;
+                                    --max-duration=*) PROFILE_LIVE_MAX_DURATION="''${1#--max-duration=}"; shift ;;
+                                    --)
+                                        shift
+                                        PROFILE_K6_ARGS+=("$@")
+                                        break
+                                        ;;
+                                    *)
+                                        PROFILE_K6_ARGS+=("$1")
+                                        shift
+                                        ;;
+                                esac
+                            done
+
+                            PROFILE_LIVE_OUTPUT_DIR="$(realpath -m "$PROFILE_LIVE_OUTPUT_DIR")"
+                            PROFILE_MANIFEST="$(realpath -m "$PROFILE_MANIFEST")"
+                            mkdir -p "$PROFILE_LIVE_OUTPUT_DIR"
+                            PROFILE_K6_METRICS="$PROFILE_LIVE_OUTPUT_DIR/k6-metrics.ndjson"
+                            PROFILE_K6_STDOUT="$PROFILE_LIVE_OUTPUT_DIR/k6.stdout"
+                            PROFILE_LIVE_METADATA="$PROFILE_LIVE_OUTPUT_DIR/metadata.json"
+
+                            if [ ! -f "$PROFILE_MANIFEST" ]; then
+                                echo "Missing profile seed manifest: $PROFILE_MANIFEST" >&2
+                                echo "Run seed-profile first, or pass --manifest=path." >&2
+                                exit 1
+                            fi
+
+                            export PROFILE_BASE_URL PROFILE_MANIFEST PROFILE_LIVE_SUBSCRIBERS PROFILE_LIVE_MUTATORS PROFILE_LIVE_WARMUP_MS PROFILE_LIVE_HOLD_MS PROFILE_LIVE_MAX_DURATION
+
+                            jq -n \
+                                --arg runId "$PROFILE_LIVE_RUN_ID" \
+                                --arg baseUrl "$PROFILE_BASE_URL" \
+                                --arg manifest "$PROFILE_MANIFEST" \
+                                --arg subscribers "$PROFILE_LIVE_SUBSCRIBERS" \
+                                --arg mutators "$PROFILE_LIVE_MUTATORS" \
+                                --arg warmupMs "$PROFILE_LIVE_WARMUP_MS" \
+                                --arg holdMs "$PROFILE_LIVE_HOLD_MS" \
+                                --arg maxDuration "$PROFILE_LIVE_MAX_DURATION" \
+                                '{runId:$runId, baseUrl:$baseUrl, manifest:$manifest, subscribers:($subscribers|tonumber), mutators:($mutators|tonumber), warmupMs:($warmupMs|tonumber), holdMs:($holdMs|tonumber), maxDuration:$maxDuration}' \
+                                > "$PROFILE_LIVE_METADATA"
+
+                            k6 run \
+                                --out "json=$PROFILE_K6_METRICS" \
+                                "''${PROFILE_K6_ARGS[@]}" \
+                                ./e2e/profile-live-load.js \
+                                | tee "$PROFILE_K6_STDOUT"
+
+                            node ./e2e/profile-live-load-report.mjs \
+                                "$PROFILE_K6_METRICS" \
+                                "$PROFILE_LIVE_OUTPUT_DIR" \
+                                "$PROFILE_LIVE_METADATA"
+                            ln -sfn "$PROFILE_LIVE_OUTPUT_DIR" "$PWD/output/profile-live-load/latest"
+                            echo "Live load profile artifacts: $PROFILE_LIVE_OUTPUT_DIR"
+                        '';
+
                         # Fetch and cache configured FWC MAPD award data into the local database.
                         # Usage: sync-fwc-mapd
                         sync-fwc-mapd.exec = ''
