@@ -491,12 +491,6 @@ SQL
                             echo "Shard logs: $STATE_DIR"
                         '';
 
-                        # Agent-safe Hspec wrapper: start dev if needed, always stop it on abort/timeout.
-                        # Usage: agent-hspec-test [hspec-args...]
-                        agent-hspec-test.exec = ''
-                            exec ./bin/agent-hspec-test "$@"
-                        '';
-
                         # Run the Hspec test suite with GHC HPC coverage instrumentation.
                         # Usage: hspec-coverage [hspec-args...]
                         hspec-coverage.exec = ''
