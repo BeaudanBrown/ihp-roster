@@ -1,6 +1,6 @@
 ---
 id: ir-q8vs
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-20T07:24:35Z
@@ -22,3 +22,9 @@ Add a focused Application/StaffDocuments extraction module. Shell out to configu
 
 Unit tests cover the current sample shape via sanitized fixture text, date range parsing such as '21 January 2024 - 21 January 2027', certificate-number variants, authority extraction, recipient-name candidate extraction, empty/scanned-PDF failure behavior, and parser warnings. Production/runtime dependencies needed for extraction are declared in Nix packaging. No controller or schema behavior changes are required in this ticket.
 
+
+## Notes
+
+**2026-05-20T07:46:19Z**
+
+Implemented deterministic RSA PDF text extraction helper using local pdftotext, with parser candidates/warnings/failure result and focused Hspec coverage for sample text, date ranges, document numbers, authority/name extraction, empty text fallback, and low-confidence warnings. Verified with focused RSA extraction/staff-document specs and typecheck.

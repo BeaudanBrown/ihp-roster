@@ -2,9 +2,11 @@ module Test.StaffDocumentsRsaSpec where
 
 import Application.Async.Queue
 import Application.StaffDocuments.Rsa
+import Application.StaffDocuments.RsaExtraction
 import Config (config)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Generated.Types
@@ -18,6 +20,51 @@ import Test.Support
 
 tests :: Spec
 tests = beforeAll testContext do
+    describe "RSA PDF extraction" do
+        let sampleText = Text.unlines
+                [ "Victorian Responsible Service of Alcohol Certificate"
+                , "This is to certify that Riley RSA has successfully completed RSA training"
+                , "Certificate Number: RSA-12345"
+                , "Issued by: Victorian Commission for Gambling and Liquor Regulation"
+                , "Valid from/until: 21 January 2024 - 21 January 2027"
+                ]
+
+        it "extracts candidate RSA metadata from sanitized certificate text" \_ -> do
+            let result = parseRsaCertificateText sampleText
+            result.failureReason `shouldBe` Nothing
+            result.candidate.issueDate `shouldBe` Just (fromGregorian 2024 1 21)
+            result.candidate.expiryDate `shouldBe` Just (fromGregorian 2027 1 21)
+            result.candidate.documentNumber `shouldBe` Just "RSA-12345"
+            result.candidate.issuingAuthority `shouldBe` Just "Victorian Commission for Gambling and Liquor Regulation"
+            result.candidate.recipientName `shouldBe` Just "Riley RSA"
+            result.confidence `shouldSatisfy` (>= 80)
+
+        it "parses numeric date ranges and certificate-number variants" \_ -> do
+            let result = parseRsaCertificateText (Text.unlines
+                    [ "RSA Statement of Attainment"
+                    , "Name: Jordan Worker"
+                    , "Document No: CERT/9876"
+                    , "RTO: Example Training Pty Ltd"
+                    , "10/02/2025 - 10/02/2028"
+                    ])
+            result.candidate.issueDate `shouldBe` Just (fromGregorian 2025 2 10)
+            result.candidate.expiryDate `shouldBe` Just (fromGregorian 2028 2 10)
+            result.candidate.documentNumber `shouldBe` Just "CERT/9876"
+            result.candidate.issuingAuthority `shouldBe` Just "Example Training Pty Ltd"
+            result.candidate.recipientName `shouldBe` Just "Jordan Worker"
+
+        it "reports scanned or empty PDF text as a manual-entry fallback" \_ -> do
+            let result = parseRsaCertificateText "   \n"
+            result.failureReason `shouldBe` Just RsaExtractionNoTextLayer
+            result.confidence `shouldBe` 0
+            result.warnings `shouldSatisfy` elem "No text was extracted from the PDF; manual entry is required."
+
+        it "warns when parser confidence is low" \_ -> do
+            let result = parseRsaCertificateText "Certificate\nSome unrelated training text\n"
+            result.failureReason `shouldBe` Nothing
+            result.warnings `shouldSatisfy` elem "Extracted text does not contain an obvious RSA keyword."
+            result.warnings `shouldSatisfy` elem "Expiry date was not confidently detected."
+
     describe "RSA staff documents" do
         it "calculates compliance status from the latest document state" $ withContext do
             let today = fromGregorian 2026 5 2

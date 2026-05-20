@@ -60,7 +60,7 @@
                     # production packaging or generated app-lib.cabal module discovery.
                     projectPath = projectSource;
                     packages = with pkgs; [
-                        # Native dependencies, e.g. imagemagick
+                        poppler_utils
                     ];
                     haskellPackages = p:
                         let
@@ -82,6 +82,7 @@
                             http-conduit
                             ip
                             postgresql-simple
+                            process
                             validation
                             wai
                             webauthn
@@ -114,6 +115,7 @@
                         inputs'.playwright.packages.playwright-test
                         pkgs.nodejs_22
                         pkgs.mailhog
+                        pkgs.poppler_utils
                         pkgs.k6
                         pkgs.jq
                     ];
