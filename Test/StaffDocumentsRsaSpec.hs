@@ -7,6 +7,7 @@ import Config (config)
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
+import qualified Data.Text.Lazy as LText
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (getCurrentTime, utctDay)
 import Generated.Types
@@ -15,8 +16,12 @@ import IHP.FrameworkConfig (withFrameworkConfig)
 import IHP.Job.Types
 import IHP.Prelude
 import IHP.Test.Mocking
+import qualified IHP.ViewSupport as ViewSupport
 import Test.Hspec
 import Test.Support
+import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
+import Web.View.StaffDocuments.Rsa (RsaReturnContext (..))
+import Web.View.StaffDocuments.RsaScan
 
 tests :: Spec
 tests = beforeAll testContext do
@@ -64,6 +69,36 @@ tests = beforeAll testContext do
             result.failureReason `shouldBe` Nothing
             result.warnings `shouldSatisfy` elem "Extracted text does not contain an obvious RSA keyword."
             result.warnings `shouldSatisfy` elem "Expiry date was not confidently detected."
+
+        it "renders extracted recipient mismatch as a confirmation warning" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "RSA Mismatch Venue"
+                user <- createUserRecord "rsa-mismatch@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                staff <- createStaffRecord venue (Just user) "Casey" "Certificate"
+                let baseResult = parseRsaCertificateText sampleText
+                    scanResult = baseResult { candidate = baseResult.candidate { recipientName = Just "Riley RSA" } }
+                    confirmation = RsaScanConfirmation
+                        { scanStaff = staff
+                        , scanIssueDate = scanResult.candidate.issueDate
+                        , scanExpiryDate = scanResult.candidate.expiryDate
+                        , scanIssuingAuthority = scanResult.candidate.issuingAuthority
+                        , scanDocumentNumber = scanResult.candidate.documentNumber
+                        , scanFileName = "mismatch-rsa.pdf"
+                        , scanContentType = "application/pdf"
+                        , scanFileContents = "bWlzbWF0Y2g="
+                        , scanExtractionResult = scanResult
+                        , scanReturnContext = RsaReturnContext "profile" Nothing Nothing
+                        }
+
+                rendered <- withUserAndCurrentVenue user venue.id do
+                    withCurrentControllerContext do
+                        let view = ScanView { scanConfirmation = confirmation }
+                        let ?view = view
+                        pure (LText.toStrict (HtmlRenderer.renderHtml (ViewSupport.html view)))
+
+                rendered `shouldSatisfy` Text.isInfixOf "does not exactly match selected staff member"
+                rendered `shouldSatisfy` Text.isInfixOf "Confirm RSA metadata"
 
     describe "RSA staff documents" do
         it "calculates compliance status from the latest document state" $ withContext do

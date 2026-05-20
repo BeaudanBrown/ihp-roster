@@ -14,8 +14,8 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.StaffDocuments ()
 import Web.FrontController ()
-import Web.StaffDocuments.Mutations (rsaStaffDocumentTouchedResources)
 import Web.Routes
+import Web.StaffDocuments.Mutations (rsaStaffDocumentTouchedResources)
 import Web.Types
 
 tests :: Spec
@@ -92,6 +92,59 @@ tests = beforeAll testContext do
                 staffDocument.documentNumber `shouldBe` Just "RSA-SCAN-123"
                 staffDocument.fileName `shouldBe` "scanned-rsa.pdf"
                 decodeStaffDocumentFile staffDocument `shouldBe` Right "scanned-rsa"
+
+        it "keeps manual image uploads on the existing confirmation path" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "RSA Image Venue"
+                user <- createUserRecord "rsa-image@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                staff <- createStaffRecord venue (Just user) "Iris" "Image"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams CreateStaffDocumentAction
+                        [ ("staffId", idToParam staff.id)
+                        , ("expiryDate", "2028-10-11")
+                        , ("confirmedFileName", "manual-rsa.png")
+                        , ("confirmedContentType", "image/png")
+                        , ("confirmedFileContentsBase64", "aW1hZ2UtcnNh")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                [staffDocument] <- query @StaffDocument |> filterWhere (#staffId, unpackId staff.id) |> fetch
+                staffDocument.status `shouldBe` PendingReview
+                staffDocument.expiryDate `shouldBe` fromGregorian 2028 10 11
+                staffDocument.contentType `shouldBe` "image/png"
+                staffDocument.fileName `shouldBe` "manual-rsa.png"
+                decodeStaffDocumentFile staffDocument `shouldBe` Right "image-rsa"
+
+        it "allows managers to upload a pending replacement for venue staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "RSA Manager Upload Venue"
+                manager <- createUserRecord "rsa-manager-upload@example.com" "staff" True
+                worker <- createUserRecord "rsa-worker-upload@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue worker "worker"
+                staff <- createStaffRecord venue (Just worker) "Mina" "Managed"
+                current <- createRsaDocument worker.id staff (testRsaUpload (fromGregorian 2027 5 2)) >>= updateRecord . set #status Verified
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams CreateStaffDocumentAction
+                        [ ("staffId", idToParam staff.id)
+                        , ("expiryDate", "2029-05-02")
+                        , ("issueDate", "2026-05-02")
+                        , ("issuingAuthority", "NSW RSA")
+                        , ("documentNumber", "MANAGER-RSA-1")
+                        , ("confirmedFileName", "replacement-rsa.pdf")
+                        , ("confirmedContentType", "application/pdf")
+                        , ("confirmedFileContentsBase64", "cmVwbGFjZW1lbnQ=")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                documents <- query @StaffDocument |> filterWhere (#staffId, unpackId staff.id) |> orderByDesc #createdAt |> fetch
+                length documents `shouldBe` 2
+                let state = effectiveRsaState (fromGregorian 2026 5 20) documents
+                fmap (.id) state.rsaCurrentDocument `shouldBe` Just current.id
+                fmap (.documentNumber) state.rsaPendingReplacement `shouldBe` Just (Just "MANAGER-RSA-1")
 
         it "records touched resources for RSA document changes" $ withContext do
             withCleanDb do

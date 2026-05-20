@@ -1,6 +1,6 @@
 ---
 id: ir-jmoy
-status: open
+status: closed
 deps: [ir-6k5d, ir-96hz]
 links: []
 created: 2026-05-20T07:24:35Z
@@ -28,3 +28,7 @@ Tests cover successful prefill, extraction failure fallback, manual image upload
 **2026-05-20T07:39:42Z**
 
 Refinement: docs/tests should state that RSA is presented as one current document backed by retained historical rows. Cover new-upload-as-pending-replacement behavior and manager/admin visibility for expiring/expired current RSA states.
+
+**2026-05-20T08:07:52Z**
+
+Added focused RSA coverage for confirmed scan persistence, manual image upload fallback, manager pending replacement uploads, extraction failure fallback, recipient mismatch warnings, and living SPEC documentation for deterministic no-AI PDF prefill.
