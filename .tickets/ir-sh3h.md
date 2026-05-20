@@ -1,6 +1,6 @@
 ---
 id: ir-sh3h
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-20T07:24:35Z
@@ -32,3 +32,7 @@ Planning refinement: RSA UX should behave as a single current document while ret
 **2026-05-20T08:15:37Z**
 
 All child tickets are closed. Epic acceptance verified by deterministic PDF scan/prefill flow, confirmed-save provenance, manual JPG/PNG fallback, existing RSA access/review/reminder behavior, regen-types, typecheck, and focused Hspec.
+
+**2026-05-20T08:17:28Z**
+
+All descendant tickets are closed; closing epic after ir-zkvx.
