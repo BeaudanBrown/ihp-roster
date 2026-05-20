@@ -1,6 +1,6 @@
 ---
 id: ir-qsgf
-status: open
+status: closed
 deps: [ir-lhy5, ir-l0x7, ir-8usq]
 links: []
 created: 2026-05-08T04:22:46Z
@@ -21,3 +21,9 @@ Cover application prepare states, decision application, explicit selected period
 ## Acceptance Criteria
 
 Focused Xero Hspec passes for backend readiness/orchestrator/preview/submission paths. Tests prove modal preparation can reach preview without global calendar selection, excludes different-calendar employees with warnings, blocks missing employee calendar data, blocks posted pay runs and duplicate remote timesheets, persists not-paid decisions, and rejects skip for already-mapped staff. An E2E spec exercises the single-button modal path from panel launch through decision resolution to preview, with explicit submit confirmation. Mobile/dialog fit is covered when modal layout changes are substantial.
+
+## Notes
+
+**2026-05-20T01:04:01Z**
+
+Added focused guided-preparation controller coverage for persistent not-paid decisions and rejecting run-scoped skip when staff are already mapped; enforced the skip guard in the preparation service. Verified focused Xero Hspec and the existing Xero preparation E2E spec.

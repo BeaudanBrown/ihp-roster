@@ -215,9 +215,13 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                 Just staff ->
                     case decision of
                         SkipStaffForPreparation -> do
-                            _ <- applyPreparationDecision run (Just staff) "staff_skip" Nothing Nothing Nothing
-                            dismissPendingStaffAutoMatches run staff
-                            reloadAfterLocalDecision run remoteTimesheetsFromCurrentRun
+                            hasResolvedMapping <- staffHasResolvedXeroMapping connection staff
+                            if hasResolvedMapping
+                                then pure (Left "Skip is only available for staff who are not already mapped to Xero.")
+                                else do
+                                    _ <- applyPreparationDecision run (Just staff) "staff_skip" Nothing Nothing Nothing
+                                    dismissPendingStaffAutoMatches run staff
+                                    reloadAfterLocalDecision run remoteTimesheetsFromCurrentRun
                         MarkStaffNotPaidThroughXero -> do
                             _ <- persistPreparationStaffMapping connection staff "not_applicable" Nothing
                             _ <- applyPreparationDecision run (Just staff) "staff_not_paid" Nothing Nothing Nothing
@@ -1034,6 +1038,15 @@ staffMappingResolved :: XeroStaffMapping -> Bool
 staffMappingResolved mapping =
     (mapping.mappingStatus == "verified" && isJust mapping.xeroEmployeeId)
         || (mapping.mappingStatus == "not_applicable" && isJust mapping.updatedByUserId)
+
+staffHasResolvedXeroMapping :: (?modelContext :: ModelContext) => XeroConnection -> Staff -> IO Bool
+staffHasResolvedXeroMapping connection staff = do
+    maybeMapping <-
+        query @XeroStaffMapping
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#staffId, unpackId staff.id)
+            |> fetchOneOrNothing
+    pure (maybe False staffMappingResolved maybeMapping)
 
 activePayItemRequirement :: XeroPayItemRequirement -> Bool
 activePayItemRequirement requirement =

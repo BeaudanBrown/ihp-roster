@@ -1263,6 +1263,50 @@ tests = beforeAll testContext do
                 preparationRun.remoteTimesheetsJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
                 preparationRun.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"
 
+        it "rejects run-scoped skip for staff already mapped to Xero" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                run <- createPreparationRunForFixture fixture "needs_approval"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
+                            [ ("staffId", idToParam fixture.staffA.id)
+                            , ("decision", "skip")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Skip is only available for staff who are not already mapped to Xero."
+                skipCount <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_skip" :: Text) |> fetchCount
+                skipCount `shouldBe` 0
+
+        it "persists not-paid decisions from the guided preparation modal" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                mappings <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetch
+                forM_ mappings \mapping ->
+                    mapping
+                        |> set #mappingStatus ("stale" :: Text)
+                        |> updateRecord
+                        >>= const (pure ())
+                run <- createPreparationRunForFixture fixture "needs_approval"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
+                            [ ("staffId", idToParam fixture.staffA.id)
+                            , ("decision", "not_paid")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Persistently marked as not paid through Xero."
+                mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
+                mapping.mappingStatus `shouldBe` "not_applicable"
+                mapping.xeroEmployeeId `shouldBe` Nothing
+                decision <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_not_paid" :: Text) |> fetchOne
+                decision.decisionStatus `shouldBe` "applied"
+                decision.decidedByUserId `shouldBe` Just (unpackId fixture.owner.id)
+
         it "blocks non-owner venue roles from Xero draft-timesheet page and actions" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
@@ -1907,6 +1951,24 @@ addCasualBaseAndSaturdayPenalty awardLevel baseRate saturdayRate = do
 
 fixturePeriodKey fixture =
     cs ("calendar-preview:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd :: Text)
+
+createPreparationRunForFixture ::
+    (?modelContext :: ModelContext) =>
+    Preview.PreviewFixture ->
+    Text ->
+    IO XeroTimesheetPreparationRun
+createPreparationRunForFixture fixture status =
+    newRecord @XeroTimesheetPreparationRun
+        |> set #venueId (unpackId fixture.venue.id)
+        |> set #xeroConnectionId (unpackId fixture.connection.id)
+        |> set #createdByUserId (unpackId fixture.owner.id)
+        |> set #selectedPayrollCalendarId ("calendar-preview" :: Text)
+        |> set #selectedPayrollCalendarName (Just ("Preview Calendar" :: Text))
+        |> set #selectedPeriodKey ("calendar-preview:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd :: Text)
+        |> set #payPeriodStart fixture.periodStart
+        |> set #payPeriodEnd fixture.periodEnd
+        |> set #status status
+        |> createRecord
 
 createXeroPayrollCalendarRecord ::
     (?modelContext :: ModelContext) =>
