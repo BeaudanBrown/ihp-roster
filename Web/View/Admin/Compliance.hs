@@ -75,7 +75,7 @@ renderComplianceSection rows today =
         (renderComplianceRows rows today)
 
 renderComplianceSummary :: [StaffRsaComplianceRow] -> Day -> Html
-renderComplianceSummary rows today = [hsx|
+renderComplianceSummary rows _today = [hsx|
     <div class="d-flex flex-wrap gap-2 mb-3">
         {renderAppStatusBadge AppStatusDanger (tshow missingCount <> " missing")}
         {renderAppStatusBadge AppStatusDanger (tshow expiredCount <> " expired")}
@@ -85,11 +85,11 @@ renderComplianceSummary rows today = [hsx|
     </div>
 |]
     where
-        statuses = map (effectiveRsaComplianceStatus today . (.complianceDocument)) rows
+        statuses = map (.rsaEffectiveStatus) (map (.complianceRsaState) rows)
         missingCount = length (filter (== StaffRsaMissing) statuses)
         expiredCount = length (filter (== StaffRsaExpired) statuses)
         expiringCount = length [ () | StaffRsaExpiringSoon _ <- statuses ]
-        pendingCount = length (filter (== StaffRsaPendingReview) statuses)
+        pendingCount = length [ () | status <- statuses, status == StaffRsaPendingReview || status == StaffRsaPendingReplacement ]
         verifiedCount = length (filter (== StaffRsaVerified) statuses)
 
 renderComplianceRows :: [StaffRsaComplianceRow] -> Day -> Html
@@ -102,7 +102,7 @@ renderComplianceRows rows today
     |]
 
 renderComplianceRow :: Day -> StaffRsaComplianceRow -> Html
-renderComplianceRow today StaffRsaComplianceRow { complianceStaff, complianceUser, complianceDocument } =
+renderComplianceRow today StaffRsaComplianceRow { complianceStaff, complianceUser, complianceDocument, complianceRsaState } =
     let rsaPanel =
             renderRsaDocumentPanel
                 RsaPanelConfig
@@ -124,7 +124,7 @@ renderComplianceRow today StaffRsaComplianceRow { complianceStaff, complianceUse
                     <div class="fw-semibold">{rsaStaffDisplayName complianceStaff}</div>
                     <div class="small app-muted">{maybe "No linked login" (.email) complianceUser}</div>
                 </div>
-                {renderRsaStatusBadge today complianceDocument}
+                {renderRsaStateStatusBadge complianceRsaState}
             </header>
             <div class="rsa-compliance-row__body">
                 {rsaPanel}

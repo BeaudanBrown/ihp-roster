@@ -76,6 +76,28 @@ tests = beforeAll testContext do
             effectiveRsaComplianceStatus today (Just (rsaStatusFixture Verified (addDays 20 today))) `shouldBe` StaffRsaExpiringSoon 20
             effectiveRsaComplianceStatus today (Just (rsaStatusFixture Verified (addDays 60 today))) `shouldBe` StaffRsaVerified
 
+        it "models pending RSA uploads as replacements without discarding the older current row" $ withContext do
+            let today = fromGregorian 2026 5 2
+                current = rsaStatusFixture Verified (addDays 60 today)
+                pending = rsaStatusFixture PendingReview (addDays 365 today)
+                state = effectiveRsaState today [pending, current]
+
+            state.rsaCurrentDocument `shouldBe` Just current
+            state.rsaPendingReplacement `shouldBe` Just pending
+            state.rsaRejectedReplacement `shouldBe` Nothing
+            state.rsaEffectiveStatus `shouldBe` StaffRsaPendingReplacement
+
+        it "keeps an older verified RSA current when a replacement is rejected" $ withContext do
+            let today = fromGregorian 2026 5 2
+                current = rsaStatusFixture Verified (addDays 60 today)
+                rejected = rsaStatusFixture Rejected (addDays 365 today)
+                state = effectiveRsaState today [rejected, current]
+
+            state.rsaCurrentDocument `shouldBe` Just current
+            state.rsaPendingReplacement `shouldBe` Nothing
+            state.rsaRejectedReplacement `shouldBe` Just rejected
+            state.rsaEffectiveStatus `shouldBe` StaffRsaVerified
+
         it "creates RSA document rows without storing onboarding-sensitive data" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "RSA Venue"

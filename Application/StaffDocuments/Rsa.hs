@@ -3,9 +3,11 @@ module Application.StaffDocuments.Rsa
     , RsaReminderSweepSummary (..)
     , StaffRsaComplianceRow (..)
     , StaffRsaComplianceStatus (..)
+    , StaffRsaEffectiveState (..)
     , createRsaDocument
     , decodeStaffDocumentFile
     , effectiveRsaComplianceStatus
+    , effectiveRsaState
     , enqueueDueRsaReminderJobs
     , latestRsaDocumentForStaff
     , performRsaReminderJob
@@ -48,16 +50,27 @@ data RsaDocumentUpload = RsaDocumentUpload
 data StaffRsaComplianceStatus
     = StaffRsaMissing
     | StaffRsaPendingReview
+    | StaffRsaPendingReplacement
     | StaffRsaVerified
     | StaffRsaExpiringSoon !Integer
     | StaffRsaExpired
     | StaffRsaRejected
     deriving (Eq, Show)
 
+data StaffRsaEffectiveState = StaffRsaEffectiveState
+    { rsaCurrentDocument      :: !(Maybe StaffDocument)
+    , rsaPendingDocument      :: !(Maybe StaffDocument)
+    , rsaPendingReplacement   :: !(Maybe StaffDocument)
+    , rsaRejectedReplacement  :: !(Maybe StaffDocument)
+    , rsaEffectiveStatus      :: !StaffRsaComplianceStatus
+    }
+    deriving (Eq, Show)
+
 data StaffRsaComplianceRow = StaffRsaComplianceRow
     { complianceStaff    :: !Staff
     , complianceUser     :: !(Maybe User)
     , complianceDocument :: !(Maybe StaffDocument)
+    , complianceRsaState :: !StaffRsaEffectiveState
     }
     deriving (Eq, Show)
 
@@ -84,13 +97,21 @@ rsaDocumentReminderDedupeKey staffDocumentId reminderKind =
     "staff-document-rsa-reminder:" <> tshow staffDocumentId <> ":" <> reminderKind
 
 latestRsaDocumentForStaff :: (?modelContext :: ModelContext) => Staff -> IO (Maybe StaffDocument)
-latestRsaDocumentForStaff staff =
-    query @StaffDocument
-        |> filterWhere (#venueId, staff.venueId)
-        |> filterWhere (#staffId, unpackId staff.id)
-        |> filterWhere (#documentType, RsaStatementOfAttainment)
-        |> orderByDesc #createdAt
-        |> fetchOneOrNothing
+latestRsaDocumentForStaff staff = do
+    state <- rsaEffectiveStateForStaff staff
+    pure (rsaDisplayDocument state)
+
+rsaEffectiveStateForStaff :: (?modelContext :: ModelContext) => Staff -> IO StaffRsaEffectiveState
+rsaEffectiveStateForStaff staff = do
+    today <- utctDay <$> getCurrentTime
+    documents <-
+        query @StaffDocument
+            |> filterWhere (#venueId, staff.venueId)
+            |> filterWhere (#staffId, unpackId staff.id)
+            |> filterWhere (#documentType, RsaStatementOfAttainment)
+            |> orderByDesc #createdAt
+            |> fetch
+    pure (effectiveRsaState today documents)
 
 staffRsaComplianceRowsForVenue :: (?modelContext :: ModelContext) => Id Venue -> IO [StaffRsaComplianceRow]
 staffRsaComplianceRowsForVenue venueId = do
@@ -101,15 +122,18 @@ staffRsaComplianceRowsForVenue venueId = do
             |> orderByAsc #lastName
             |> orderByAsc #firstName
             |> fetch
-    latestDocumentsByStaffId <- latestRsaDocumentsByStaffId staffMembers
+    today <- utctDay <$> getCurrentTime
+    latestDocumentsByStaffId <- latestRsaDocumentsByStaffId today staffMembers
     usersById <- linkedUsersById staffMembers
     pure
         [ StaffRsaComplianceRow
             { complianceStaff = staff
             , complianceUser = staff.userId >>= (`Map.lookup` usersById)
-            , complianceDocument = Map.lookup (unpackId staff.id) latestDocumentsByStaffId
+            , complianceDocument = rsaDisplayDocument rsaState
+            , complianceRsaState = rsaState
             }
         | staff <- staffMembers
+        , let rsaState = Map.findWithDefault emptyRsaEffectiveState (unpackId staff.id) latestDocumentsByStaffId
         ]
 
 createRsaDocument ::
@@ -177,6 +201,49 @@ effectiveRsaComplianceStatus today (Just staffDocument)
     | staffDocument.status == Verified = StaffRsaVerified
     | otherwise = StaffRsaPendingReview
 
+-- Expects RSA documents in newest-first order. Uploads stay append-only: a new
+-- pending row becomes a pending replacement when an older reviewed row exists.
+effectiveRsaState :: Day -> [StaffDocument] -> StaffRsaEffectiveState
+effectiveRsaState today documents =
+    StaffRsaEffectiveState
+        { rsaCurrentDocument = currentDocument
+        , rsaPendingDocument = pendingDocument
+        , rsaPendingReplacement = pendingReplacement
+        , rsaRejectedReplacement = rejectedReplacement
+        , rsaEffectiveStatus = stateStatus
+        }
+    where
+        latestDocument = listToMaybe documents
+        latestPending = find ((== PendingReview) . (.status)) documents
+        latestRejected = find ((== Rejected) . (.status)) documents
+        currentDocument = find (\row -> row.status == Verified || row.status == Expired) documents
+        hasReviewedHistory = isJust currentDocument || isJust latestRejected
+        pendingDocument = latestPending >>= \pending -> if hasReviewedHistory then Nothing else Just pending
+        pendingReplacement = latestPending >>= \pending -> if hasReviewedHistory then Just pending else Nothing
+        rejectedReplacement = latestRejected >>= \rejected -> case latestDocument of
+            Just latest | latest.status == Rejected && isJust currentDocument -> Just rejected
+            _ -> Nothing
+        stateStatus
+            | isJust pendingReplacement = StaffRsaPendingReplacement
+            | Just pending <- latestDocument, pending.status == PendingReview = StaffRsaPendingReview
+            | Just rejected <- latestDocument, rejected.status == Rejected, isNothing currentDocument = StaffRsaRejected
+            | Just current <- currentDocument = effectiveRsaComplianceStatus today (Just current)
+            | otherwise = maybe StaffRsaMissing (effectiveRsaComplianceStatus today . Just) latestDocument
+
+emptyRsaEffectiveState :: StaffRsaEffectiveState
+emptyRsaEffectiveState =
+    StaffRsaEffectiveState
+        { rsaCurrentDocument = Nothing
+        , rsaPendingDocument = Nothing
+        , rsaPendingReplacement = Nothing
+        , rsaRejectedReplacement = Nothing
+        , rsaEffectiveStatus = StaffRsaMissing
+        }
+
+rsaDisplayDocument :: StaffRsaEffectiveState -> Maybe StaffDocument
+rsaDisplayDocument state =
+    state.rsaPendingReplacement <|> state.rsaPendingDocument <|> state.rsaCurrentDocument <|> state.rsaRejectedReplacement
+
 decodeStaffDocumentFile :: StaffDocument -> Either Text LByteString
 decodeStaffDocumentFile staffDocument =
     case staffDocument.fileEncoding of
@@ -192,7 +259,7 @@ enqueueDueRsaReminderJobs ::
     Day ->
     IO RsaReminderSweepSummary
 enqueueDueRsaReminderJobs today = do
-    documents <- latestRsaDocumentsForAllStaff
+    documents <- latestRsaDocumentsForAllStaff today
     let dueReminders = mapMaybe (dueRsaReminder today) documents
     enqueueResults <- forM dueReminders \(staffDocument, reminderKind) ->
         enqueueAppJob (rsaReminderJobRequest staffDocument reminderKind)
@@ -230,9 +297,10 @@ rsaReminderWindowDays = 30
 
 latestRsaDocumentsByStaffId ::
     (?modelContext :: ModelContext) =>
+    Day ->
     [Staff] ->
-    IO (Map.Map UUID StaffDocument)
-latestRsaDocumentsByStaffId staffMembers = do
+    IO (Map.Map UUID StaffRsaEffectiveState)
+latestRsaDocumentsByStaffId today staffMembers = do
     documents <-
         if null staffMembers
             then pure []
@@ -241,14 +309,15 @@ latestRsaDocumentsByStaffId staffMembers = do
                 |> filterWhere (#documentType, RsaStatementOfAttainment)
                 |> orderByDesc #createdAt
                 |> fetch
+    let documentsByStaffId = foldl' insertDocument Map.empty documents
     pure
-        ( foldl'
-            (\acc staffDocument -> Map.insertWith keepExisting staffDocument.staffId staffDocument acc)
-            Map.empty
-            documents
+        ( Map.fromList
+            [ (staffId, effectiveRsaState today staffDocuments)
+            | (staffId, staffDocuments) <- Map.toList documentsByStaffId
+            ]
         )
     where
-        keepExisting existing _new = existing
+        insertDocument acc staffDocument = Map.insertWith (<>) staffDocument.staffId [staffDocument] acc
 
 linkedUsersById :: (?modelContext :: ModelContext) => [Staff] -> IO (Map.Map UUID User)
 linkedUsersById staffMembers = do
@@ -261,10 +330,11 @@ linkedUsersById staffMembers = do
                 |> fetch
     pure (Map.fromList (map (\user -> (unpackId user.id, user)) users))
 
-latestRsaDocumentsForAllStaff :: (?modelContext :: ModelContext) => IO [StaffDocument]
-latestRsaDocumentsForAllStaff = do
+latestRsaDocumentsForAllStaff :: (?modelContext :: ModelContext) => Day -> IO [StaffDocument]
+latestRsaDocumentsForAllStaff today = do
     staffMembers <- query @Staff |> filterWhere (#archivedAt, Nothing) |> fetch
-    Map.elems <$> latestRsaDocumentsByStaffId staffMembers
+    statesByStaffId <- latestRsaDocumentsByStaffId today staffMembers
+    pure (mapMaybe (.rsaCurrentDocument) (Map.elems statesByStaffId))
 
 dueRsaReminder :: Day -> StaffDocument -> Maybe (StaffDocument, RsaReminderKind)
 dueRsaReminder today staffDocument

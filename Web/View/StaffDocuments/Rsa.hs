@@ -3,6 +3,7 @@ module Web.View.StaffDocuments.Rsa
     , RsaReturnContext (..)
     , renderRsaDocumentPanel
     , renderRsaStatusBadge
+    , renderRsaStateStatusBadge
     , renderRsaUploadOnlyPanel
     , rsaStaffDisplayName
     , rsaStatusLabel
@@ -189,9 +190,14 @@ renderRsaStatusBadge :: Day -> Maybe StaffDocument -> Html
 renderRsaStatusBadge today maybeDocument =
     uncurry renderAppStatusBadge (rsaStatusBadgeParts (effectiveRsaComplianceStatus today maybeDocument))
 
+renderRsaStateStatusBadge :: StaffRsaEffectiveState -> Html
+renderRsaStateStatusBadge state =
+    uncurry renderAppStatusBadge (rsaStatusBadgeParts state.rsaEffectiveStatus)
+
 rsaStatusBadgeParts :: StaffRsaComplianceStatus -> (AppStatusTone, Text)
 rsaStatusBadgeParts StaffRsaMissing           = (AppStatusDanger, "Missing")
 rsaStatusBadgeParts StaffRsaPendingReview     = (AppStatusWarning, "Pending review")
+rsaStatusBadgeParts StaffRsaPendingReplacement = (AppStatusWarning, "Pending replacement")
 rsaStatusBadgeParts StaffRsaVerified          = (AppStatusSuccess, "Verified")
 rsaStatusBadgeParts (StaffRsaExpiringSoon daysRemaining) = (AppStatusWarning, "Expires in " <> tshow daysRemaining <> "d")
 rsaStatusBadgeParts StaffRsaExpired           = (AppStatusDanger, "Expired")
