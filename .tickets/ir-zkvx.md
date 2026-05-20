@@ -1,7 +1,7 @@
 ---
 id: ir-zkvx
 status: open
-deps: [ir-6k5d]
+deps: [ir-6k5d, ir-96hz]
 links: []
 created: 2026-05-20T07:24:35Z
 type: task
@@ -22,3 +22,9 @@ Add nullable staff_documents extraction provenance fields only if implementation
 
 Confirmed scanned-prefill uploads can be distinguished from fully manual uploads; stored provenance is minimal, venue-scoped, and does not include full certificate text; schema constraints remain parser-safe; generated types and focused schema/domain tests pass. If implementation chooses no schema change, this ticket records the rationale in notes and closes after tests confirm behavior is still auditable enough through existing audit events.
 
+
+## Notes
+
+**2026-05-20T07:39:42Z**
+
+Refinement: provenance/history should not make the user-facing UI complex. Keep append-only rows for audit/posterity; expose current document only unless a later audit/history view is explicitly requested. Consider documenting current-vs-historical row semantics rather than adding broad history UI.

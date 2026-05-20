@@ -22,3 +22,9 @@ Use the existing staff_documents RSA pipeline as the source of truth. No AI/LLM 
 
 Uploading an RSA PDF can prefill issue date, expiry date, issuing authority, and document number where confidently detected; extracted person name is surfaced as a warning/check against the selected staff member; failed/low-confidence extraction falls back to the current manual form; non-PDF JPG/PNG uploads still work manually; final saved staff_documents metadata is user-confirmed; no AI/LLM or third-party document processor is introduced; access controls, venue scoping, review status, file limits, and reminder behavior remain intact.
 
+
+## Notes
+
+**2026-05-20T07:39:42Z**
+
+Planning refinement: RSA UX should behave as a single current document while retaining append-only document rows internally. New uploads are pending replacements, not in-place edits. Current/history semantics and manager/admin expiry visibility should be explicit before extraction UX lands.

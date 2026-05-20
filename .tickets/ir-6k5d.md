@@ -1,7 +1,7 @@
 ---
 id: ir-6k5d
 status: open
-deps: [ir-q8vs]
+deps: [ir-q8vs, ir-96hz]
 links: []
 created: 2026-05-20T07:24:35Z
 type: feature
@@ -22,3 +22,9 @@ Extend the StaffDocuments controller/view flow with a deterministic prefill path
 
 Staff and managers can upload a PDF and see prefilled editable metadata before saving; confirmation creates a pending_review staff_documents row with the confirmed values and original file; extraction failure shows a clear manual-entry fallback without losing the selected context; name mismatch with the selected staff is visible and does not silently block upload; existing manual PDF/JPG/PNG upload behavior remains available; access checks and venue scoping match the current RSA document controller tests.
 
+
+## Notes
+
+**2026-05-20T07:39:42Z**
+
+Refinement: scan/confirm flow should preserve the one-current-RSA UX. A confirmed upload creates a new pending replacement. Users/managers should see the current document state clearly, with replacement pending/rejected states understandable rather than exposing a full history UI.

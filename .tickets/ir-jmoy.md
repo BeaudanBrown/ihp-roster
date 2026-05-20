@@ -1,7 +1,7 @@
 ---
 id: ir-jmoy
 status: open
-deps: [ir-6k5d]
+deps: [ir-6k5d, ir-96hz]
 links: []
 created: 2026-05-20T07:24:35Z
 type: task
@@ -22,3 +22,9 @@ Extend focused Hspec/controller coverage and update the nearest implemented-beha
 
 Tests cover successful prefill, extraction failure fallback, manual image upload unchanged, name mismatch warning, manager/staff authorization, confirmed metadata persistence, and any provenance fields. Living docs/specs describe current RSA extraction behavior and non-goals. The personal RSA.pdf sample is not committed unless explicitly sanitized/replaced.
 
+
+## Notes
+
+**2026-05-20T07:39:42Z**
+
+Refinement: docs/tests should state that RSA is presented as one current document backed by retained historical rows. Cover new-upload-as-pending-replacement behavior and manager/admin visibility for expiring/expired current RSA states.
