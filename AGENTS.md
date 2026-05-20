@@ -33,9 +33,17 @@ Before changing a subsystem:
 
 ## Framework Reference
 
-- IHP guide: `/home/beau/documents/projects/ihp/Guide/*.markdown`
-- IHP source: `/home/beau/documents/projects/ihp/ihp/IHP/`
+Prefer the sibling IHP checkout when present. Paths are relative to this
+`ihp-roster` repository so they work across hosts with different parent paths:
+
+- IHP guide: `../ihp/Guide/*.markdown`
+- IHP source: `../ihp/ihp/IHP/`
 - Generated types: `build/Generated/Types.hs`
+
+If `../ihp` is missing, use the active Nix-provided IHP source as a read-only
+fallback: run `bash ./bin/in-env env | rg '^(IHP|IHP_LIB|IHP_DEV_CHECKOUT)='`,
+then inspect symlink targets with `readlink -f "$IHP"/*` and search the
+resolved `*-source` tree. Do not edit Nix store files.
 
 Read the relevant IHP guide before implementing controller, view, form,
 database, auth, validation, or HSX changes.
@@ -123,7 +131,10 @@ the linked repo-local `ir-*` ticket for implementation details.
   founder-only.
 - Auth pages must not render the authenticated header.
 - Use Bootstrap 5.3.8 vendor assets and `assetPath` for static references.
-- App CSS starts at `static/app.css`; feature CSS lives under `static/css/`.
+- App CSS is split under `static/css/` and linked from `Web/View/Layout.hs` via
+  `assetPath`; keep new stylesheet links mirrored in `Makefile` `CSS_FILES`.
+- Keep `static/app.css` minimal and do not use production CSS `@import` for
+  app-owned files, because imports bypass IHP's `assetPath` cache busting.
 - App JavaScript is split by concern under `static/app-*.js`.
 - Static and frontend runtime rules live in `static/AGENTS.md`.
 

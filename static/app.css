@@ -1,12 +1,1 @@
-/* Compatibility stylesheet. Keep this as the app CSS manifest while split files settle. */
-@import url("css/tokens.css");
-@import url("css/bootstrap-bridge.css");
-@import url("css/layout.css");
-@import url("css/components.css");
-@import url("css/overlays.css");
-@import url("css/features/exports.css");
-@import url("css/features/compliance.css");
-@import url("css/features/leave.css");
-@import url("css/features/preferences.css");
-@import url("css/features/roster.css");
-@import url("css/features/timesheets.css");
+/* Compatibility stylesheet. Split CSS is linked directly from the layout so assetPath can version every file. */

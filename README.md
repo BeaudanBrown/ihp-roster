@@ -60,7 +60,10 @@ Runtime assets are local and loaded through `assetPath` from
 - Bootstrap Icons `1.11.3`
 - HTMX `1.9.12`
 - IHP-provided Flatpickr and Morphdom assets
-- App CSS entrypoint: `static/app.css`
+- App CSS files: split under `static/css/` and linked directly from
+  `Web/View/Layout.hs` with `assetPath`
+- Compatibility CSS: `static/app.css` is linked last but should stay minimal;
+  do not use it as an `@import` manifest for app-owned CSS
 - App JS entrypoints: `static/app-bootstrap.js`, `static/app-date-pickers.js`,
   `static/app-dialog-overlays.js`, `static/app-live-updates.js`,
   `static/app-passkeys.js`, `static/app-preferences.js`,
@@ -68,7 +71,9 @@ Runtime assets are local and loaded through `assetPath` from
   `static/app-timesheets.js`, `static/app-toasts.js`, and `static/app.js`
 
 Feature CSS is split under `static/css/`; update the narrowest matching file
-instead of growing `static/app.css`.
+and keep linked stylesheet paths mirrored in `Web/View/Layout.hs` and
+`Makefile` (`CSS_FILES`) so production cache busting and packaging stay in
+sync.
 
 ## CI
 

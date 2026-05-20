@@ -192,6 +192,17 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/vendor/bootstrap-5.3.8/bootstrap.min.css"}/>
         <link rel="stylesheet" href={assetPath "/vendor/bootstrap-icons-1.11.3/bootstrap-icons.min.css"}/>
         <link rel="stylesheet" href={assetPath "/vendor/flatpickr.min.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/tokens.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/bootstrap-bridge.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/layout.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/overlays.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/features/exports.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/features/compliance.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/features/leave.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/features/preferences.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/features/roster.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/features/timesheets.css"}/>
         <link rel="stylesheet" href={assetPath "/app.css"}/>
     |]
 

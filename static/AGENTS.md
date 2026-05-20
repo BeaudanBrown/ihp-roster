@@ -20,6 +20,12 @@ Read this before editing `static/` assets.
 - Keep CSS split by concern under `static/css/`.
 - Add feature CSS to the narrowest matching file instead of growing
   `static/app.css`.
+- Link split CSS from `Web/View/Layout.hs` with `assetPath`; mirror each linked
+  app-owned stylesheet in `Makefile` `CSS_FILES` so packaging hash inputs stay
+  complete.
+- Do not use production CSS `@import` for app-owned files because imported URLs
+  do not receive IHP's cache-busting query string.
+- Run `bash ./bin/in-env ./bin/style-audit` after stylesheet link changes.
 - Do not add a bundler as part of ordinary runtime refactors.
 
 ## Live Runtime
