@@ -1,6 +1,6 @@
 ---
 id: ir-8usq
-status: open
+status: closed
 deps: [ir-omzt, ir-mjos, ir-szt9]
 links: []
 created: 2026-05-08T04:22:39Z
@@ -24,3 +24,9 @@ Surface clear modal blockers/events and keep pay-run/duplicate snapshots on prep
 
 Posted pay runs cannot reach preview. Existing remote employee-period timesheets for included selected-calendar employees prevent create and are visible in modal blockers. Different-calendar employees are excluded with warnings before duplicate matching. Preparation/submission records keep duplicate/pay-run snapshots. Tests cover posted pay-run, existing-timesheet, different-calendar exclusion, and missing-calendar-data blocker paths.
 
+
+## Notes
+
+**2026-05-20T00:33:06Z**
+
+Verified existing preparation/readiness implementation against selected-period pay-run and duplicate blockers; added focused Hspec coverage for preparation duplicate snapshots and different-calendar duplicate exclusion.

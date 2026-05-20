@@ -199,9 +199,25 @@ tests = do
                 forM_ employees \employee ->
                     employee |> set #payrollCalendarId (Just "calendar-other") |> updateRecord >>= const (pure ())
 
-                readiness <- validateXeroTimesheetReadiness fixture.request
+                let request =
+                        fixture.request
+                            { readinessRemoteTimesheets =
+                                [ XeroTimesheetRef
+                                    { xeroTimesheetId = Just "ts-different-calendar"
+                                    , xeroTimesheetEmployeeId = "employee-ready"
+                                    , xeroTimesheetStartDate = fromGregorian 2026 4 27
+                                    , xeroTimesheetEndDate = fromGregorian 2026 5 3
+                                    , xeroTimesheetStatus = Just "DRAFT"
+                                    , xeroTimesheetHours = Nothing
+                                    , xeroTimesheetLines = []
+                                    , xeroTimesheetRaw = Aeson.Null
+                                    }
+                                ]
+                            }
+                readiness <- validateXeroTimesheetReadiness request
 
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "employee_payroll_calendar_mismatch"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "existing_xero_timesheet"
                 map (.xeroBlockerCode) readiness.xeroReadinessWarnings `shouldSatisfy` elem "employee_payroll_calendar_excluded"
                 readiness.xeroTimesheetReady `shouldBe` True
 

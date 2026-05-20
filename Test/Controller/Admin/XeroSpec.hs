@@ -1222,6 +1222,46 @@ tests = beforeAll testContext do
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
                 preparationRun.status `shouldBe` "blocked"
                 preparationRun.xeroPayRunId `shouldBe` Just "payrun-posted"
+                preparationRun.remotePayRunsJson `shouldSatisfy` Preview.jsonContainsKey "remotePayRuns"
+
+        it "blocks guided Xero preparation when a remote timesheet already exists for the included employee and period" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+                let remoteTimesheet =
+                        XeroTimesheetRef
+                            { xeroTimesheetId = Just "ts-existing"
+                            , xeroTimesheetEmployeeId = "employee-a"
+                            , xeroTimesheetStartDate = fixture.periodStart
+                            , xeroTimesheetEndDate = fixture.periodEnd
+                            , xeroTimesheetStatus = Just "APPROVED"
+                            , xeroTimesheetHours = Nothing
+                            , xeroTimesheetLines = []
+                            , xeroTimesheetRaw = Aeson.object []
+                            }
+                    client =
+                        (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] [])
+                            { fetchTimesheets = \_ _ _ -> pure (Right [remoteTimesheet])
+                            }
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest client do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams RunXeroTimesheetPreparationAction
+                                    [("periodKey", fixturePeriodKey fixture)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Xero already has a timesheet for this employee and period"
+                response `responseBodyShouldContain` "Create is blocked until update support exists"
+                preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
+                preparationRun.status `shouldBe` "blocked"
+                preparationRun.remoteTimesheetsJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
+                preparationRun.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"
 
         it "blocks non-owner venue roles from Xero draft-timesheet page and actions" $ withContext do
             withCleanDb do
