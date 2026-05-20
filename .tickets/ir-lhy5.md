@@ -1,6 +1,6 @@
 ---
 id: ir-lhy5
-status: open
+status: closed
 deps: [ir-8usq, ir-mjos, ir-l0x7]
 links: []
 created: 2026-05-08T04:22:38Z
@@ -25,3 +25,9 @@ Keep OAuth reconnect as native navigation when required. Do not add a separate s
 ## Acceptance Criteria
 
 The modal fits phone-sized viewports, uses shared overlay footer patterns, preserves owner/super-admin auth, and can resolve all preparation decisions without leaving the Xero panel except for OAuth reconnect. Users can understand why staff were included, excluded for another Xero calendar, skipped for this run, or marked not paid through Xero. Submit remains an explicit confirmation after preview, not part of the automatic Prepare advance.
+
+## Notes
+
+**2026-05-20T00:50:11Z**
+
+Implemented guided Xero preparation modal refinements: period selector handles empty/blocked periods, modal shows workflow progress and staff outcomes, submit has explicit confirmation, and tests cover stale calendar selections staying out of preparation.

@@ -192,7 +192,9 @@ createPreviewFixture calendarType entrySpecs = do
         periodLength = if calendarType == "fortnightly" then 14 else 7
         periodsElapsed = diffDays today anchorStart `div` periodLength
         periodStart = addDays (periodsElapsed * periodLength) anchorStart
-    createPreviewFixtureAtPeriod calendarType periodStart entrySpecs
+    fixture <- createPreviewFixtureAtPeriod calendarType periodStart entrySpecs
+    createPreviewPayrollCalendarSelection fixture.venue fixture.connection fixture.owner
+    pure fixture
 
 createPreviewFixtureAtPeriod :: (?modelContext :: ModelContext) => Text -> Day -> [EntrySpec] -> IO PreviewFixture
 createPreviewFixtureAtPeriod calendarType periodStart entrySpecs = do
@@ -286,6 +288,18 @@ createPreviewPayrollCalendar venue connection calendarType periodStart = do
             |> set #rawPayload (Aeson.object ["PayrollCalendarID" Aeson..= ("calendar-preview" :: Text)])
             |> createRecord
     pure calendar
+
+createPreviewPayrollCalendarSelection :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> User -> IO XeroPayrollCalendarSelection
+createPreviewPayrollCalendarSelection venue connection owner =
+    newRecord @XeroPayrollCalendarSelection
+        |> set #venueId (unpackId venue.id)
+        |> set #xeroConnectionId (unpackId connection.id)
+        |> set #xeroPayrollCalendarId (Just ("calendar-preview" :: Text))
+        |> set #xeroPayrollCalendarName (Just ("Preview Calendar" :: Text))
+        |> set #calendarStatus ("verified" :: Text)
+        |> set #createdByUserId (Just (unpackId owner.id))
+        |> set #updatedByUserId (Just (unpackId owner.id))
+        |> createRecord
 
 createPreviewMappings :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> Day -> Staff -> Staff -> [XeroLocalEarningsBucket] -> IO ()
 createPreviewMappings venue connection periodStart staffA staffB buckets = do

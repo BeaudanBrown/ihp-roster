@@ -43,6 +43,7 @@ renderPreparationButton panel = [hsx|
                 class="form-select form-select-sm"
                 aria-label="Xero pay period"
                 disabled={not (canOpenPreparation panel)}>
+            {renderEmptyPeriodOption panel}
             {forEach panel.xeroTimesheetPeriodOptions renderPeriodOption}
         </select>
         <button type="submit"
@@ -53,9 +54,14 @@ renderPreparationButton panel = [hsx|
     </form>
 |]
 
+renderEmptyPeriodOption :: XeroTimesheetPanelData -> Html
+renderEmptyPeriodOption panel
+    | null panel.xeroTimesheetPeriodOptions = [hsx|<option value="">No synced Xero pay periods available</option>|]
+    | otherwise = mempty
+
 renderPeriodOption :: XeroTimesheetPeriodOption -> Html
 renderPeriodOption option = [hsx|
-    <option value={option.periodOptionKey}>{periodOptionLabel option}</option>
+    <option value={option.periodOptionKey} disabled={option.periodOptionBlocked}>{periodOptionLabel option}</option>
 |]
 
 periodOptionLabel :: XeroTimesheetPeriodOption -> Text
@@ -66,6 +72,7 @@ periodOptionLabel option =
         <> " to "
         <> formatDateDisplay option.periodOptionEnd
         <> maybe "" (\status -> " · " <> Text.toUpper status) option.periodOptionXeroPayRunStatus
+        <> maybe "" (\reason -> " · blocked: " <> reason) option.periodOptionBlockReason
 
 renderTimesheetSubmissionIndicator :: Html
 renderTimesheetSubmissionIndicator = [hsx|

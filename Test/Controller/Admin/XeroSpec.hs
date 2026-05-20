@@ -1146,7 +1146,7 @@ tests = beforeAll testContext do
                 preparationRun.payPeriodEnd `shouldBe` fixture.periodEnd
                 (AesonTypes.parseMaybe AesonTypes.parseJSON preparationRun.eventsJson :: Maybe [Aeson.Value]) `shouldSatisfy` maybe False (not . null)
 
-        it "keeps missing Xero payroll calendar selection repair inside the guided preparation modal" $ withContext do
+        it "keeps stale Xero payroll calendar selections out of the guided preparation path" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
                 existingSelection <- query @XeroPayrollCalendarSelection |> fetchOne
@@ -1164,7 +1164,7 @@ tests = beforeAll testContext do
                     callAction XeroAction
 
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "Select and verify a Xero payroll calendar."
+                pageResponse `responseBodyShouldContain` "Draft timesheet submission"
                 pageResponse `responseBodyShouldContain` "Preview Calendar"
                 pageResponse `responseBodyShouldContain` "Prepare"
 
@@ -1181,9 +1181,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "name=\"xeroPayrollCalendarSelection\""
                 response `responseBodyShouldContain` "Preview Calendar"
                 calendarSelection <- query @XeroPayrollCalendarSelection |> fetchOne
-                calendarSelection.xeroPayrollCalendarId `shouldBe` Just "calendar-preview"
-                calendarSelection.calendarStatus `shouldBe` "verified"
+                calendarSelection.calendarStatus `shouldBe` "stale"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
+                preparationRun.selectedPayrollCalendarId `shouldBe` "calendar-preview"
                 preparationRun.status `shouldBe` "ready_for_preview"
 
         it "hard-blocks guided Xero preparation when the selected Xero pay run is posted" $ withContext do
