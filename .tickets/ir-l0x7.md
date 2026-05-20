@@ -1,6 +1,6 @@
 ---
 id: ir-l0x7
-status: open
+status: closed
 deps: [ir-mjos, ir-omzt, ir-szt9]
 links: []
 created: 2026-05-08T04:22:38Z

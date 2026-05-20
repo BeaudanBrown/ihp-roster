@@ -7,6 +7,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Text as Text
+import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.LocalTime (TimeOfDay (..))
 import qualified Data.Vector as Vector
 import Generated.Types
@@ -18,7 +19,7 @@ import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
 import Test.XeroTimesheetPreviewSpec (EntrySpec (..), PreviewFixture (..),
-                                      createPreviewFixture, fixtureStaffA,
+                                      createPreviewFixture, createPreviewFixtureAtPeriod, fixtureStaffA,
                                       fixtureStaffB)
 
 tests :: Spec
@@ -47,6 +48,8 @@ tests =
                             case submissions of
                                 [submission] -> do
                                     submission.status `shouldBe` "submitted"
+                                    run.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
+                                    run.selectedPeriodKey `shouldBe` Just ("calendar-preview:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd)
                                     submission.attemptCount `shouldBe` 1
                                     submission.idempotencyKey `shouldSatisfy` (not . null)
                                     Text.length submission.idempotencyKey `shouldSatisfy` (<= 128)
@@ -58,6 +61,28 @@ tests =
                                     entries <- query @XeroTimesheetSubmissionEntry |> filterWhere (#xeroTimesheetSubmissionId, submissionId) |> fetch
                                     map (.timesheetEntryId) entries `shouldBe` map (unpackId . (.id)) fixture.entries
                                 _ -> expectationFailure "expected one Xero timesheet submission row"
+
+            it "submits a historical selected Xero period without a global calendar selection" $ withContext do
+                withCleanDb do
+                    let historicalStart = fromGregorian 2026 1 5
+                    fixture <- createPreviewFixtureAtPeriod "weekly" historicalStart [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    prepareConnectionForStrictMock fixture.connection
+                    selectionCount <- query @XeroPayrollCalendarSelection |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchCount
+                    selectionCount `shouldBe` 0
+
+                    result <-
+                        XeroMock.withStrictXeroMock identitySpec payrollSpec \urls ->
+                            withXeroRequestBaseUrlsForTest urls do
+                                withXeroConfigForTest (Right testXeroConfig) do
+                                    submitXeroDraftTimesheets fixture.owner.id fixture.request
+
+                    case result of
+                        Left message -> expectationFailure (cs message)
+                        Right run -> do
+                            run.status `shouldBe` "submitted"
+                            run.payPeriodStart `shouldBe` historicalStart
+                            run.payPeriodEnd `shouldBe` addDays 6 historicalStart
+                            run.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
 
             it "blocks create when the immediate duplicate check finds a remote Xero timesheet for the employee and period" $ withContext do
                 withCleanDb do

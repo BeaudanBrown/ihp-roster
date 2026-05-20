@@ -136,6 +136,26 @@ tests =
                             run.readinessSnapshotJson `shouldSatisfy` jsonContainsKey "ready"
                             run.xeroDuplicateCheckJson `shouldBe` duplicateCheck
                             run.previewPayloadJson `shouldSatisfy` jsonContainsKey "requestPayload"
+                            run.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
+                            run.selectedPeriodKey `shouldBe` fixture.request.readinessSelectedPeriodKey
+
+            it "previews a historical selected Xero period without a global calendar selection" $ withContext do
+                withCleanDb do
+                    let historicalStart = fromGregorian 2026 1 5
+                    fixture <- createPreviewFixtureAtPeriod "weekly" historicalStart [EntrySpec 0 fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                    selectionCount <- query @XeroPayrollCalendarSelection |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchCount
+                    selectionCount `shouldBe` 0
+
+                    readiness <- validateXeroTimesheetReadiness fixture.request
+                    result <- createPersistedXeroTimesheetPreview fixture.owner.id fixture.request readiness (Aeson.object [])
+
+                    case result of
+                        Left err -> expectationFailure (cs err)
+                        Right run -> do
+                            run.payPeriodStart `shouldBe` historicalStart
+                            run.payPeriodEnd `shouldBe` addDays 6 historicalStart
+                            run.selectedPayrollCalendarId `shouldBe` Just "calendar-preview"
+                            run.previewPayloadJson `shouldSatisfy` jsonContainsKey "requestPayload"
 
 data FixtureStaff = FixtureStaffA | FixtureStaffB
     deriving (Eq, Show)
@@ -172,6 +192,11 @@ createPreviewFixture calendarType entrySpecs = do
         periodLength = if calendarType == "fortnightly" then 14 else 7
         periodsElapsed = diffDays today anchorStart `div` periodLength
         periodStart = addDays (periodsElapsed * periodLength) anchorStart
+    createPreviewFixtureAtPeriod calendarType periodStart entrySpecs
+
+createPreviewFixtureAtPeriod :: (?modelContext :: ModelContext) => Text -> Day -> [EntrySpec] -> IO PreviewFixture
+createPreviewFixtureAtPeriod calendarType periodStart entrySpecs = do
+    let periodLength = if calendarType == "fortnightly" then 14 else 7
         periodEnd = addDays (periodLength - 1) periodStart
     venue <- createVenueWithConfig "Xero Preview Venue"
     owner <- createUserRecord "preview-owner@example.com" "admin" True

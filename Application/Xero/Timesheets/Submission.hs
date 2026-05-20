@@ -3,6 +3,7 @@ module Application.Xero.Timesheets.Submission
     , fetchRemoteTimesheetsForDuplicateCheck
     , retryXeroDraftTimesheetSubmission
     , submitXeroDraftTimesheets
+    , submitXeroDraftTimesheetsForPreparation
     , xeroTimesheetSubmissionRequestJson
     )
 where
@@ -25,7 +26,25 @@ submitXeroDraftTimesheets ::
     Id User ->
     XeroTimesheetReadinessRequest ->
     IO (Either Text XeroSubmissionRun)
-submitXeroDraftTimesheets submittedByUserId request = do
+submitXeroDraftTimesheets submittedByUserId =
+    submitXeroDraftTimesheetsWithPreparation submittedByUserId Nothing
+
+submitXeroDraftTimesheetsForPreparation ::
+    (?modelContext :: ModelContext) =>
+    Id User ->
+    Id XeroTimesheetPreparationRun ->
+    XeroTimesheetReadinessRequest ->
+    IO (Either Text XeroSubmissionRun)
+submitXeroDraftTimesheetsForPreparation submittedByUserId preparationRunId =
+    submitXeroDraftTimesheetsWithPreparation submittedByUserId (Just preparationRunId)
+
+submitXeroDraftTimesheetsWithPreparation ::
+    (?modelContext :: ModelContext) =>
+    Id User ->
+    Maybe (Id XeroTimesheetPreparationRun) ->
+    XeroTimesheetReadinessRequest ->
+    IO (Either Text XeroSubmissionRun)
+submitXeroDraftTimesheetsWithPreparation submittedByUserId maybePreparationRunId request = do
     readXeroConfig >>= \case
         Left message -> pure (Left message)
         Right xeroConfig -> do
@@ -48,7 +67,7 @@ submitXeroDraftTimesheets submittedByUserId request = do
                                     case buildXeroTimesheetPreviewRun previewInput of
                                         Left message -> pure (Left message)
                                         Right previewRun ->
-                                            persistAndSubmitPreview submittedByUserId xeroClient accessToken refreshedConnection readinessRequest readiness duplicateSnapshot previewRun
+                                            persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient accessToken refreshedConnection readinessRequest readiness duplicateSnapshot previewRun
 
 retryXeroDraftTimesheetSubmission ::
     (?modelContext :: ModelContext) =>
@@ -85,14 +104,14 @@ retryExistingSubmission submission = do
                             let readinessRequest =
                                     XeroTimesheetReadinessRequest
                                         { readinessVenueId = Id run.venueId
-                                        , readinessPayrollCalendarId = Nothing
-                                        , readinessPayrollCalendarName = Nothing
-                                        , readinessSelectedPeriodKey = Nothing
+                                        , readinessPayrollCalendarId = run.selectedPayrollCalendarId
+                                        , readinessPayrollCalendarName = run.selectedPayrollCalendarName
+                                        , readinessSelectedPeriodKey = run.selectedPeriodKey
                                         , readinessPeriodStart = run.payPeriodStart
                                         , readinessPeriodEnd = run.payPeriodEnd
-                                        , readinessPaymentDate = Nothing
-                                        , readinessXeroPayRunId = Nothing
-                                        , readinessXeroPayRunStatus = Nothing
+                                        , readinessPaymentDate = run.paymentDate
+                                        , readinessXeroPayRunId = run.xeroPayRunId
+                                        , readinessXeroPayRunStatus = run.xeroPayRunStatus
                                         , readinessRemoteTimesheets = remoteTimesheets
                                         , readinessSkippedStaffIds = []
                                         }
@@ -113,6 +132,7 @@ retryExistingSubmission submission = do
 persistAndSubmitPreview ::
     (?modelContext :: ModelContext) =>
     Id User ->
+    Maybe (Id XeroTimesheetPreparationRun) ->
     XeroClient ->
     Text ->
     XeroConnection ->
@@ -121,7 +141,7 @@ persistAndSubmitPreview ::
     Aeson.Value ->
     XeroTimesheetPreviewRun ->
     IO (Either Text XeroSubmissionRun)
-persistAndSubmitPreview submittedByUserId xeroClient accessToken connection request readiness duplicateSnapshot previewRun = do
+persistAndSubmitPreview submittedByUserId maybePreparationRunId xeroClient accessToken connection request readiness duplicateSnapshot previewRun = do
     run <-
         newRecord @XeroSubmissionRun
             |> set #venueId (unpackId request.readinessVenueId)
@@ -129,6 +149,13 @@ persistAndSubmitPreview submittedByUserId xeroClient accessToken connection requ
             |> set #submittedByUserId (unpackId submittedByUserId)
             |> set #payPeriodStart request.readinessPeriodStart
             |> set #payPeriodEnd request.readinessPeriodEnd
+            |> set #xeroTimesheetPreparationRunId maybePreparationRunId
+            |> set #selectedPayrollCalendarId request.readinessPayrollCalendarId
+            |> set #selectedPayrollCalendarName request.readinessPayrollCalendarName
+            |> set #selectedPeriodKey request.readinessSelectedPeriodKey
+            |> set #paymentDate request.readinessPaymentDate
+            |> set #xeroPayRunId request.readinessXeroPayRunId
+            |> set #xeroPayRunStatus request.readinessXeroPayRunStatus
             |> set #status (if readiness.xeroTimesheetReady then "pending" else "blocked" :: Text)
             |> set #previewPayloadJson (xeroTimesheetPreviewRunJson previewRun)
             |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)

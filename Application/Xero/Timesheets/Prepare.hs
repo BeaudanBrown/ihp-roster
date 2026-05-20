@@ -416,7 +416,7 @@ previewXeroTimesheetPreparation runId =
                     skippedStaffIds = preparationSkippedStaffIdsForView view
                     readinessRequest = preparationReadinessRequest run remoteTimesheets skippedStaffIds
                 readiness <- validateXeroTimesheetReadiness readinessRequest
-                createPersistedXeroTimesheetPreview currentUser.id readinessRequest readiness run.remoteTimesheetsJson >>= \case
+                createPersistedXeroTimesheetPreparationPreview currentUser.id run.id readinessRequest readiness run.remoteTimesheetsJson >>= \case
                     Left message -> pure (Left message)
                     Right submissionRun -> do
                         _ <-
@@ -444,7 +444,7 @@ submitXeroTimesheetPreparation runId =
                     remoteTimesheets = remoteTimesheetsFromRun run
                     skippedStaffIds = preparationSkippedStaffIdsForView view
                     readinessRequest = preparationReadinessRequest run remoteTimesheets skippedStaffIds
-                submitXeroDraftTimesheets currentUser.id readinessRequest >>= \case
+                submitXeroDraftTimesheetsForPreparation currentUser.id run.id readinessRequest >>= \case
                     Left message -> pure (Left message)
                     Right submissionRun -> do
                         completedAt <- getCurrentTime

@@ -1221,6 +1221,13 @@ CREATE TABLE xero_submission_runs (
     submitted_by_user_id UUID NOT NULL,
     pay_period_start DATE NOT NULL,
     pay_period_end DATE NOT NULL,
+    xero_timesheet_preparation_run_id UUID DEFAULT NULL,
+    selected_payroll_calendar_id TEXT DEFAULT NULL,
+    selected_payroll_calendar_name TEXT DEFAULT NULL,
+    selected_period_key TEXT DEFAULT NULL,
+    payment_date DATE DEFAULT NULL,
+    xero_pay_run_id TEXT DEFAULT NULL,
+    xero_pay_run_status TEXT DEFAULT NULL,
     source_kind TEXT DEFAULT 'approved_timesheets' NOT NULL,
     status TEXT DEFAULT 'previewed' NOT NULL,
     preview_payload_json JSONB DEFAULT '{}'::JSONB NOT NULL,
@@ -1463,7 +1470,9 @@ CREATE INDEX idx_xero_payroll_calendar_selections_venue_status ON xero_payroll_c
 CREATE UNIQUE INDEX idx_xero_pay_item_account_code_selections_connection ON xero_pay_item_account_code_selections (xero_connection_id);
 CREATE UNIQUE INDEX idx_xero_pay_item_requirement_records_connection_key ON xero_pay_item_requirement_records (xero_connection_id, requirement_key);
 CREATE INDEX idx_xero_pay_item_requirement_records_venue_status ON xero_pay_item_requirement_records (venue_id, requirement_status);
+ALTER TABLE xero_submission_runs ADD CONSTRAINT xero_submission_runs_preparation_run_id_fk FOREIGN KEY (xero_timesheet_preparation_run_id) REFERENCES xero_timesheet_preparation_runs (id) ON DELETE RESTRICT;
 CREATE INDEX idx_xero_submission_runs_connection_period ON xero_submission_runs (xero_connection_id, pay_period_start, pay_period_end);
+CREATE INDEX idx_xero_submission_runs_preparation ON xero_submission_runs (xero_timesheet_preparation_run_id) WHERE xero_timesheet_preparation_run_id IS NOT NULL;
 CREATE INDEX idx_xero_timesheet_preparation_runs_connection_period ON xero_timesheet_preparation_runs (xero_connection_id, pay_period_start, pay_period_end);
 CREATE INDEX idx_xero_timesheet_preparation_runs_venue_created ON xero_timesheet_preparation_runs (venue_id, created_at DESC);
 CREATE INDEX idx_xero_timesheet_preparation_decisions_run_kind_status ON xero_timesheet_preparation_decisions (xero_timesheet_preparation_run_id, decision_kind, decision_status);

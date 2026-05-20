@@ -5,6 +5,7 @@ module Application.Xero.Timesheets.Preview
     , XeroTimesheetPreviewRun (..)
     , buildXeroTimesheetPreviewRun
     , createPersistedXeroTimesheetPreview
+    , createPersistedXeroTimesheetPreparationPreview
     , fetchPreviewInput
     , periodDays
     , xeroReadinessSnapshotJson
@@ -129,7 +130,29 @@ createPersistedXeroTimesheetPreview ::
     XeroTimesheetReadiness ->
     Aeson.Value ->
     IO (Either Text XeroSubmissionRun)
-createPersistedXeroTimesheetPreview submittedByUserId request readiness duplicateCheckJson
+createPersistedXeroTimesheetPreview submittedByUserId =
+    createPersistedXeroTimesheetPreviewWithPreparation submittedByUserId Nothing
+
+createPersistedXeroTimesheetPreparationPreview ::
+    (?modelContext :: ModelContext) =>
+    Id User ->
+    Id XeroTimesheetPreparationRun ->
+    XeroTimesheetReadinessRequest ->
+    XeroTimesheetReadiness ->
+    Aeson.Value ->
+    IO (Either Text XeroSubmissionRun)
+createPersistedXeroTimesheetPreparationPreview submittedByUserId preparationRunId =
+    createPersistedXeroTimesheetPreviewWithPreparation submittedByUserId (Just preparationRunId)
+
+createPersistedXeroTimesheetPreviewWithPreparation ::
+    (?modelContext :: ModelContext) =>
+    Id User ->
+    Maybe (Id XeroTimesheetPreparationRun) ->
+    XeroTimesheetReadinessRequest ->
+    XeroTimesheetReadiness ->
+    Aeson.Value ->
+    IO (Either Text XeroSubmissionRun)
+createPersistedXeroTimesheetPreviewWithPreparation submittedByUserId maybePreparationRunId request readiness duplicateCheckJson
     | not readiness.xeroTimesheetReady =
         pure (Left "Xero timesheet readiness must pass before a preview can be persisted.")
     | otherwise = do
@@ -148,6 +171,13 @@ createPersistedXeroTimesheetPreview submittedByUserId request readiness duplicat
                                 |> set #submittedByUserId (unpackId submittedByUserId)
                                 |> set #payPeriodStart request.readinessPeriodStart
                                 |> set #payPeriodEnd request.readinessPeriodEnd
+                                |> set #xeroTimesheetPreparationRunId maybePreparationRunId
+                                |> set #selectedPayrollCalendarId request.readinessPayrollCalendarId
+                                |> set #selectedPayrollCalendarName request.readinessPayrollCalendarName
+                                |> set #selectedPeriodKey request.readinessSelectedPeriodKey
+                                |> set #paymentDate request.readinessPaymentDate
+                                |> set #xeroPayRunId request.readinessXeroPayRunId
+                                |> set #xeroPayRunStatus request.readinessXeroPayRunStatus
                                 |> set #status ("previewed" :: Text)
                                 |> set #previewPayloadJson (xeroTimesheetPreviewRunJson previewRun)
                                 |> set #readinessSnapshotJson (xeroReadinessSnapshotJson readiness)
