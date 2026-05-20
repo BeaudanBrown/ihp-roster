@@ -1,5 +1,6 @@
 module Application.StaffDocuments.Rsa
     ( RsaDocumentUpload (..)
+    , RsaExtractionProvenance (..)
     , RsaReminderSweepSummary (..)
     , StaffRsaComplianceRow (..)
     , StaffRsaComplianceStatus (..)
@@ -36,6 +37,14 @@ import IHP.FrameworkConfig (ConfigProvider, FrameworkConfig)
 import IHP.Mail
 import Web.Mail.StaffDocuments.RsaReminder
 
+data RsaExtractionProvenance = RsaExtractionProvenance
+    { rsaExtractionMethod       :: !Text
+    , rsaExtractionConfidence   :: !Int
+    , rsaExtractionWarningsJson :: !Aeson.Value
+    , rsaExtractedSubjectName   :: !(Maybe Text)
+    }
+    deriving (Eq, Show)
+
 data RsaDocumentUpload = RsaDocumentUpload
     { rsaUploadIssueDate          :: !(Maybe Day)
     , rsaUploadExpiryDate         :: !Day
@@ -44,6 +53,7 @@ data RsaDocumentUpload = RsaDocumentUpload
     , rsaUploadFileName           :: !Text
     , rsaUploadContentType        :: !Text
     , rsaUploadFileContentsBase64 :: !Text
+    , rsaUploadExtraction         :: !(Maybe RsaExtractionProvenance)
     }
     deriving (Eq, Show)
 
@@ -156,8 +166,18 @@ createRsaDocument actorUserId staff upload =
         |> set #contentType upload.rsaUploadContentType
         |> set #fileEncoding "base64"
         |> set #fileContents upload.rsaUploadFileContentsBase64
+        |> applyRsaExtractionProvenance upload.rsaUploadExtraction
         |> set #uploadedByUserId (unpackId actorUserId)
         |> createRecord
+
+applyRsaExtractionProvenance :: Maybe RsaExtractionProvenance -> StaffDocument -> StaffDocument
+applyRsaExtractionProvenance Nothing staffDocument = staffDocument
+applyRsaExtractionProvenance (Just provenance) staffDocument =
+    staffDocument
+        |> set #extractionMethod (Just provenance.rsaExtractionMethod)
+        |> set #extractionConfidence (Just provenance.rsaExtractionConfidence)
+        |> set #extractionWarningsJson (Just provenance.rsaExtractionWarningsJson)
+        |> set #extractedSubjectName provenance.rsaExtractedSubjectName
 
 reviewRsaDocument ::
     (?modelContext :: ModelContext) =>

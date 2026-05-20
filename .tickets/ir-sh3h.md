@@ -28,3 +28,7 @@ Uploading an RSA PDF can prefill issue date, expiry date, issuing authority, and
 **2026-05-20T07:39:42Z**
 
 Planning refinement: RSA UX should behave as a single current document while retaining append-only document rows internally. New uploads are pending replacements, not in-place edits. Current/history semantics and manager/admin expiry visibility should be explicit before extraction UX lands.
+
+**2026-05-20T08:15:37Z**
+
+All child tickets are closed. Epic acceptance verified by deterministic PDF scan/prefill flow, confirmed-save provenance, manual JPG/PNG fallback, existing RSA access/review/reminder behavior, regen-types, typecheck, and focused Hspec.

@@ -1,6 +1,6 @@
 ---
 id: ir-zkvx
-status: open
+status: closed
 deps: [ir-6k5d, ir-96hz]
 links: []
 created: 2026-05-20T07:24:35Z
@@ -28,3 +28,7 @@ Confirmed scanned-prefill uploads can be distinguished from fully manual uploads
 **2026-05-20T07:39:42Z**
 
 Refinement: provenance/history should not make the user-facing UI complex. Keep append-only rows for audit/posterity; expose current document only unless a later audit/history view is explicitly requested. Consider documenting current-vs-historical row semantics rather than adding broad history UI.
+
+**2026-05-20T08:15:20Z**
+
+Added nullable staff_documents RSA extraction provenance columns, persisted scan confirmation metadata without raw extracted text, updated docs/tests, and verified regen-types/typecheck/focused Hspec.

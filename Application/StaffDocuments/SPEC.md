@@ -42,10 +42,16 @@ AI services.
 The scan result is only a candidate prefill for the existing upload fields:
 issue date, expiry date, issuing authority, and document number. The extracted
 recipient name is shown for confirmation and mismatch warnings against the
-selected staff member; it is not stored as authoritative staff identity. The user
-or manager must confirm or edit the metadata before `staff_documents` is written,
-and the saved row remains `pending_review` until the normal manager review flow
-verifies or rejects it.
+selected staff member; when the confirmed upload is saved it is retained only as
+minimal extraction provenance (`extracted_subject_name`), not as authoritative
+staff identity. The user or manager must confirm or edit the metadata before
+`staff_documents` is written, and the saved row remains `pending_review` until
+the normal manager review flow verifies or rejects it.
+
+Confirmed scanned-prefill uploads persist minimal provenance on `staff_documents`:
+`extraction_method`, `extraction_confidence`, `extraction_warnings_json`, and
+`extracted_subject_name`. Fully manual uploads leave those columns `NULL`. The
+app does not persist full extracted certificate text or OCR output by default.
 
 Failure and low-confidence cases fall back to manual confirmation instead of
 blocking upload. Empty/scanned PDFs, missing `pdftotext`, command failures, and

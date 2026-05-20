@@ -3,6 +3,7 @@ module Web.Controller.StaffDocuments where
 import Application.Helper.Url (appendQueryParams)
 import Application.StaffDocuments.Rsa
 import Application.StaffDocuments.RsaExtraction
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
@@ -10,6 +11,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import System.Directory (removeFile)
 import System.IO (hClose, openTempFile)
+import Text.Read (readMaybe)
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status (status200)
 import Network.Wai (responseLBS)
@@ -154,7 +156,30 @@ buildRsaUploadFromRequest = do
             , rsaUploadFileName = uploadedFile.rsaScanFileName
             , rsaUploadContentType = uploadedFile.rsaScanContentType
             , rsaUploadFileContentsBase64 = cs (Base64.encode (LBS.toStrict uploadedFile.rsaScanFileContents))
+            , rsaUploadExtraction = buildRsaExtractionProvenanceFromRequest
             }
+
+buildRsaExtractionProvenanceFromRequest :: (?request :: Request) => Maybe RsaExtractionProvenance
+buildRsaExtractionProvenanceFromRequest = do
+    method <- normalizeOptionalTextParam "extractionMethod"
+    confidence <- parseConfidenceParam =<< normalizeOptionalTextParam "extractionConfidence"
+    warningsJson <- parseWarningsJson =<< normalizeOptionalTextParam "extractionWarningsJson"
+    pure
+        RsaExtractionProvenance
+            { rsaExtractionMethod = Text.take 160 method
+            , rsaExtractionConfidence = max 0 (min 100 confidence)
+            , rsaExtractionWarningsJson = warningsJson
+            , rsaExtractedSubjectName = Text.take 160 <$> normalizeOptionalTextParam "extractedSubjectName"
+            }
+
+parseConfidenceParam :: Text -> Maybe Int
+parseConfidenceParam value = readMaybe (cs value)
+
+parseWarningsJson :: Text -> Maybe Aeson.Value
+parseWarningsJson value =
+    case Aeson.decodeStrict (encodeUtf8 value) of
+        Just json@(Aeson.Array _) -> Just json
+        _                         -> Nothing
 
 buildFileUploadFromRequest :: (?request :: Request) => Either Text RsaScanUpload
 buildFileUploadFromRequest = do

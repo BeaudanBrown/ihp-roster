@@ -4,6 +4,8 @@ module Web.View.StaffDocuments.RsaScan
     ) where
 
 import Application.StaffDocuments.RsaExtraction
+import qualified Data.Aeson as Aeson
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
 import Web.View.Prelude
 import Web.View.StaffDocuments.Rsa
@@ -56,6 +58,7 @@ renderScanConfirmation confirmation@RsaScanConfirmation { scanStaff, scanExtract
                 <input type="hidden" name="confirmedFileName" value={confirmation.scanFileName}/>
                 <input type="hidden" name="confirmedContentType" value={confirmation.scanContentType}/>
                 <input type="hidden" name="confirmedFileContentsBase64" value={confirmation.scanFileContents}/>
+                {renderExtractionProvenanceInputs scanExtractionResult}
                 <div class="row g-3">
                     <div class="col-12 col-md-6">
                         <label class="form-label" for="rsa-confirm-expiry-date">Expiry Date</label>
@@ -82,6 +85,17 @@ renderScanConfirmation confirmation@RsaScanConfirmation { scanStaff, scanExtract
         </div>
     </div>
 |]
+
+renderExtractionProvenanceInputs :: RsaExtractionResult -> Html
+renderExtractionProvenanceInputs extractionResult = [hsx|
+    <input type="hidden" name="extractionMethod" value={extractionResult.extractionMethod.methodVersion}/>
+    <input type="hidden" name="extractionConfidence" value={tshow extractionResult.confidence}/>
+    <input type="hidden" name="extractionWarningsJson" value={cs (LBS.toStrict (Aeson.encode extractionResult.warnings)) :: Text}/>
+    {forEach extractionResult.candidate.recipientName renderSubjectNameInput}
+|]
+
+renderSubjectNameInput :: Text -> Html
+renderSubjectNameInput subjectName = [hsx|<input type="hidden" name="extractedSubjectName" value={subjectName}/>|]
 
 renderNameCheck :: Staff -> Maybe Text -> Html
 renderNameCheck _ Nothing = [hsx|

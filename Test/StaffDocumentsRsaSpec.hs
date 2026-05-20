@@ -215,6 +215,7 @@ testRsaUpload expiryDate =
         , rsaUploadFileName = "rsa.pdf"
         , rsaUploadContentType = "application/pdf"
         , rsaUploadFileContentsBase64 = "cnNhLWJ5dGVz"
+        , rsaUploadExtraction = Nothing
         }
 
 createVerifiedRsaDocument :: (?modelContext :: ModelContext) => User -> Staff -> Day -> IO StaffDocument

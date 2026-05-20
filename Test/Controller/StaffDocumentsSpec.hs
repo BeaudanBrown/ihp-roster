@@ -2,6 +2,7 @@ module Test.Controller.StaffDocumentsSpec where
 
 import Application.Helper.LiveResource
 import Application.StaffDocuments.Rsa
+import qualified Data.Aeson as Aeson
 import Data.Time.Calendar (fromGregorian)
 import Generated.Types
 import IHP.ControllerPrelude
@@ -81,6 +82,10 @@ tests = beforeAll testContext do
                         , ("confirmedFileName", "scanned-rsa.pdf")
                         , ("confirmedContentType", "application/pdf")
                         , ("confirmedFileContentsBase64", "c2Nhbm5lZC1yc2E=")
+                        , ("extractionMethod", "pdftotext 24.02")
+                        , ("extractionConfidence", "82")
+                        , ("extractionWarningsJson", "[\"Confirm recipient name.\"]")
+                        , ("extractedSubjectName", "Casey Confirm")
                         ]
 
                 response `responseStatusShouldBe` status302
@@ -91,6 +96,10 @@ tests = beforeAll testContext do
                 staffDocument.issuingAuthority `shouldBe` Just "Victorian RSA"
                 staffDocument.documentNumber `shouldBe` Just "RSA-SCAN-123"
                 staffDocument.fileName `shouldBe` "scanned-rsa.pdf"
+                staffDocument.extractionMethod `shouldBe` Just "pdftotext 24.02"
+                staffDocument.extractionConfidence `shouldBe` Just 82
+                staffDocument.extractionWarningsJson `shouldBe` Just (Aeson.toJSON (["Confirm recipient name."] :: [Text]))
+                staffDocument.extractedSubjectName `shouldBe` Just "Casey Confirm"
                 decodeStaffDocumentFile staffDocument `shouldBe` Right "scanned-rsa"
 
         it "keeps manual image uploads on the existing confirmation path" $ withContext do
@@ -115,6 +124,8 @@ tests = beforeAll testContext do
                 staffDocument.expiryDate `shouldBe` fromGregorian 2028 10 11
                 staffDocument.contentType `shouldBe` "image/png"
                 staffDocument.fileName `shouldBe` "manual-rsa.png"
+                staffDocument.extractionMethod `shouldBe` Nothing
+                staffDocument.extractionWarningsJson `shouldBe` Nothing
                 decodeStaffDocumentFile staffDocument `shouldBe` Right "image-rsa"
 
         it "allows managers to upload a pending replacement for venue staff" $ withContext do
@@ -214,4 +225,5 @@ testRsaUpload expiryDate =
         , rsaUploadFileName = "rsa.pdf"
         , rsaUploadContentType = "application/pdf"
         , rsaUploadFileContentsBase64 = "cnNhLWJ5dGVz"
+        , rsaUploadExtraction = Nothing
         }

@@ -376,6 +376,9 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "file_contents TEXT NOT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "expiry_reminder_sent_at TIMESTAMP WITH TIME ZONE DEFAULT NULL"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "expired_reminder_sent_at TIMESTAMP WITH TIME ZONE DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "extraction_method TEXT DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "extraction_warnings_json JSONB DEFAULT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (extraction_confidence IS NULL OR extraction_confidence >= 0)"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE INDEX idx_staff_documents_rsa_expiry"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER prevent_hard_delete_staff_documents BEFORE DELETE ON staff_documents"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE TRIGGER enforce_staff_document_venue_integrity BEFORE INSERT OR UPDATE ON staff_documents"
@@ -384,6 +387,9 @@ tests = describe "Schema" do
         Text.toLower schemaSqlText `shouldNotSatisfy` Text.isInfixOf "superannuation"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "CREATE TABLE IF NOT EXISTS staff_documents"
         migrationSqlText `shouldSatisfy` Text.isInfixOf "staff document venue_id must match staff_id venue"
+        migrationSqlText <- TextIO.readFile "Application/Migration/1777601300.sql"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "ADD COLUMN IF NOT EXISTS extraction_method TEXT DEFAULT NULL"
+        migrationSqlText `shouldSatisfy` Text.isInfixOf "extraction_warnings_json JSONB DEFAULT NULL"
 
     describe "Leave request helpers" do
         it "validates leave date ranges as unavailable-from to available-again" do
