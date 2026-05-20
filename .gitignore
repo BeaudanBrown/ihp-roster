@@ -43,3 +43,7 @@ devenv.local.nix
 
 !.envrc
 notes
+
+# Private local RSA document samples for manual extraction checks.
+Test/Fixtures/private/rsa/*
+!Test/Fixtures/private/rsa/README.md
