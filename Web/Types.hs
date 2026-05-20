@@ -88,7 +88,8 @@ data ExportsController
     deriving (Eq, Show, Data)
 
 data StaffDocumentsController
-    = CreateStaffDocumentAction
+    = ScanStaffDocumentAction
+    | CreateStaffDocumentAction
     | DownloadStaffDocumentAction { staffDocumentId :: !(Id StaffDocument) }
     | ReviewStaffDocumentAction { staffDocumentId :: !(Id StaffDocument) }
     deriving (Eq, Show, Data)

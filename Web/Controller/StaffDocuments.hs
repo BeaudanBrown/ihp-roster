@@ -2,20 +2,57 @@ module Web.Controller.StaffDocuments where
 
 import Application.Helper.Url (appendQueryParams)
 import Application.StaffDocuments.Rsa
+import Application.StaffDocuments.RsaExtraction
 import qualified Data.ByteString.Base64 as Base64
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Text as Text
+import Data.Text.Encoding (encodeUtf8)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
+import System.Directory (removeFile)
+import System.IO (hClose, openTempFile)
 import Network.HTTP.Types.Header (hContentDisposition, hContentType)
 import Network.HTTP.Types.Status (status200)
 import Network.Wai (responseLBS)
 import Web.Controller.Prelude
 import Web.StaffDocuments.Mutations (reviewStaffDocument, uploadRsaDocument)
+import Web.View.StaffDocuments.Rsa (RsaReturnContext (..))
+import Web.View.StaffDocuments.RsaScan
 
 instance Controller StaffDocumentsController where
     beforeAction = do
         ensureIsUser
         ensureCurrentVenue
+
+    action ScanStaffDocumentAction = do
+        ensureVenueWritable
+        maybeStaff <- parseSubmittedStaff
+        case maybeStaff of
+            Nothing -> do
+                setErrorMessage "Choose a staff member from the current venue."
+                redirectToRsaReturnPath
+            Just staff -> do
+                allowed <- currentUserCanAccessStaffDocumentsFor staff
+                accessDeniedUnless allowed
+                case buildRsaScanFromRequest of
+                    Left message -> do
+                        setErrorMessage message
+                        redirectToRsaReturnPath
+                    Right scanUpload -> do
+                        extractionResult <- extractUploadedPdf scanUpload.rsaScanFileContents
+                        let candidate = extractionResult.candidate
+                        let scanConfirmation = RsaScanConfirmation
+                                { scanStaff = staff
+                                , scanIssueDate = candidate.issueDate <|> parseDateParam "issueDate"
+                                , scanExpiryDate = candidate.expiryDate <|> parseDateParam "expiryDate"
+                                , scanIssuingAuthority = candidate.issuingAuthority <|> normalizeOptionalTextParam "issuingAuthority"
+                                , scanDocumentNumber = candidate.documentNumber <|> normalizeOptionalTextParam "documentNumber"
+                                , scanFileName = scanUpload.rsaScanFileName
+                                , scanContentType = scanUpload.rsaScanContentType
+                                , scanFileContents = cs (Base64.encode (LBS.toStrict scanUpload.rsaScanFileContents))
+                                , scanExtractionResult = extractionResult
+                                , scanReturnContext = parseRsaReturnContext
+                                }
+                        render ScanView { .. }
 
     action CreateStaffDocumentAction = do
         ensureVenueWritable
@@ -88,6 +125,12 @@ currentUserCanAccessStaffDocumentsFor :: (?context :: ControllerContext) => Staf
 currentUserCanAccessStaffDocumentsFor staff =
     pure (hasRole ManagerRole' || staff.userId == Just (unpackId authenticatedCurrentUser.id))
 
+data RsaScanUpload = RsaScanUpload
+    { rsaScanFileName     :: !Text
+    , rsaScanContentType  :: !Text
+    , rsaScanFileContents :: !LBS.ByteString
+    }
+
 buildRsaUploadFromRequest :: (?request :: Request) => Either Text RsaDocumentUpload
 buildRsaUploadFromRequest = do
     expiryDate <-
@@ -98,28 +141,76 @@ buildRsaUploadFromRequest = do
     let issueDate = parseDateParam "issueDate"
     when (maybe False (> expiryDate) issueDate) do
         Left "RSA issue date cannot be after the expiry date."
-    fileInfo <-
-        maybe
-            (Left "Choose an RSA document file to upload.")
-            Right
-            (fileOrNothing "documentFile")
-    let fileSize = LBS.length fileInfo.fileContent
-    when (fileSize > rsaDocumentMaxBytes) do
-        Left "RSA document file must be 10 MB or smaller."
-    let contentType = normalizeContentType (cs fileInfo.fileContentType)
-    unless (contentType `elem` allowedRsaContentTypes) do
-        Left "RSA document must be a PDF, JPG, or PNG file."
-    let fileName = normalizeUploadFileName (cs fileInfo.fileName)
+    uploadedFile <-
+        if isJust (normalizeOptionalTextParam "confirmedFileContentsBase64")
+            then buildConfirmedUploadFromRequest
+            else buildFileUploadFromRequest
     pure
         RsaDocumentUpload
             { rsaUploadIssueDate = issueDate
             , rsaUploadExpiryDate = expiryDate
             , rsaUploadIssuingAuthority = normalizeOptionalTextParam "issuingAuthority"
             , rsaUploadDocumentNumber = normalizeOptionalTextParam "documentNumber"
-            , rsaUploadFileName = fileName
-            , rsaUploadContentType = contentType
-            , rsaUploadFileContentsBase64 = cs (Base64.encode (LBS.toStrict fileInfo.fileContent))
+            , rsaUploadFileName = uploadedFile.rsaScanFileName
+            , rsaUploadContentType = uploadedFile.rsaScanContentType
+            , rsaUploadFileContentsBase64 = cs (Base64.encode (LBS.toStrict uploadedFile.rsaScanFileContents))
             }
+
+buildFileUploadFromRequest :: (?request :: Request) => Either Text RsaScanUpload
+buildFileUploadFromRequest = do
+    fileInfo <-
+        maybe
+            (Left "Choose an RSA document file to upload.")
+            Right
+            (fileOrNothing "documentFile")
+    validateUploadedFile
+        RsaScanUpload
+            { rsaScanFileName = normalizeUploadFileName (cs fileInfo.fileName)
+            , rsaScanContentType = normalizeContentType (cs fileInfo.fileContentType)
+            , rsaScanFileContents = fileInfo.fileContent
+            }
+
+buildConfirmedUploadFromRequest :: (?request :: Request) => Either Text RsaScanUpload
+buildConfirmedUploadFromRequest = do
+    fileContentsBase64 <-
+        maybe
+            (Left "Choose an RSA document file to upload.")
+            Right
+            (normalizeOptionalTextParam "confirmedFileContentsBase64")
+    fileContents <-
+        case Base64.decode (encodeUtf8 fileContentsBase64) of
+            Left _ -> Left "RSA document file could not be read. Please upload it again."
+            Right bytes -> Right (LBS.fromStrict bytes)
+    validateUploadedFile
+        RsaScanUpload
+            { rsaScanFileName = normalizeUploadFileName (fromMaybe "rsa-document.pdf" (normalizeOptionalTextParam "confirmedFileName"))
+            , rsaScanContentType = normalizeContentType (fromMaybe "application/pdf" (normalizeOptionalTextParam "confirmedContentType"))
+            , rsaScanFileContents = fileContents
+            }
+
+buildRsaScanFromRequest :: (?request :: Request) => Either Text RsaScanUpload
+buildRsaScanFromRequest = do
+    upload <- buildFileUploadFromRequest
+    unless (upload.rsaScanContentType == "application/pdf") do
+        Left "RSA scanning is available for PDFs only. Use Upload manually for JPG or PNG files."
+    pure upload
+
+validateUploadedFile :: RsaScanUpload -> Either Text RsaScanUpload
+validateUploadedFile upload = do
+    when (LBS.length upload.rsaScanFileContents > rsaDocumentMaxBytes) do
+        Left "RSA document file must be 10 MB or smaller."
+    unless (upload.rsaScanContentType `elem` allowedRsaContentTypes) do
+        Left "RSA document must be a PDF, JPG, or PNG file."
+    pure upload
+
+extractUploadedPdf :: LBS.ByteString -> IO RsaExtractionResult
+extractUploadedPdf fileContents = do
+    (path, handle) <- openTempFile "/tmp" "rsa-scan.pdf"
+    hClose handle
+    LBS.writeFile path fileContents
+    result <- extractRsaPdfMetadata path
+    removeFile path
+    pure result
 
 parseDateParam :: (?request :: Request) => ByteString -> Maybe Day
 parseDateParam paramName = do
@@ -167,14 +258,22 @@ redirectToRsaReturnPath :: (?context :: ControllerContext, ?request :: Request) 
 redirectToRsaReturnPath =
     redirectToPath rsaReturnPath
 
+parseRsaReturnContext :: (?request :: Request) => RsaReturnContext
+parseRsaReturnContext =
+    RsaReturnContext
+        { rsaReturnTo = paramOrDefault @Text "profile" "returnTo"
+        , rsaReturnWeekOffset = paramOrNothing @Int "weekOffset"
+        , rsaReturnRosterGroupId = parseRosterGroupIdParam =<< paramOrNothing @Text "rosterGroupId"
+        }
+
 rsaReturnPath :: (?request :: Request) => Text
 rsaReturnPath =
-    case paramOrDefault @Text "profile" "returnTo" of
-        "admin" -> pathTo AdminAction <> "#compliance"
-        "staff" ->
+    case parseRsaReturnContext of
+        RsaReturnContext { rsaReturnTo = "admin" } -> pathTo AdminAction <> "#compliance"
+        RsaReturnContext { rsaReturnTo = "staff", rsaReturnWeekOffset, rsaReturnRosterGroupId } ->
             appendQueryParams
-                (pathTo ShowRosterWeekAction { weekOffset = paramOrDefault @Int 0 "weekOffset" })
-                (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) (parseRosterGroupIdParam =<< paramOrNothing @Text "rosterGroupId"))
+                (pathTo ShowRosterWeekAction { weekOffset = fromMaybe 0 rsaReturnWeekOffset })
+                (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow rosterGroupId)]) rsaReturnRosterGroupId)
         _ -> appendQueryParams (pathTo EditProfileAction) [("section", "rsa")]
 
 parseRosterGroupIdParam :: Text -> Maybe (Id RosterGroup)

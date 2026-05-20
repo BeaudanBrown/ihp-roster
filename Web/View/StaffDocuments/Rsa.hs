@@ -2,6 +2,7 @@ module Web.View.StaffDocuments.Rsa
     ( RsaPanelConfig (..)
     , RsaReturnContext (..)
     , renderRsaDocumentPanel
+    , renderRsaReturnInputs
     , renderRsaStatusBadge
     , renderRsaStateStatusBadge
     , renderRsaUploadOnlyPanel
@@ -137,8 +138,9 @@ renderRsaUploadForm staff returnContext = [hsx|
                 <div class="form-text">PDF, JPG, or PNG. Max 10 MB.</div>
             </div>
         </div>
-        <div class="d-grid d-sm-flex mt-3">
-            <button type="submit" class="btn btn-primary">Upload RSA</button>
+        <div class="d-grid d-sm-flex gap-2 mt-3">
+            <button type="submit" class="btn btn-primary">Upload manually</button>
+            <button type="submit" class="btn btn-outline-secondary" formaction={ScanStaffDocumentAction}>Scan PDF first</button>
         </div>
     </form>
 |]

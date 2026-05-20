@@ -1,6 +1,6 @@
 ---
 id: ir-6k5d
-status: open
+status: closed
 deps: [ir-q8vs, ir-96hz]
 links: []
 created: 2026-05-20T07:24:35Z
@@ -28,3 +28,7 @@ Staff and managers can upload a PDF and see prefilled editable metadata before s
 **2026-05-20T07:39:42Z**
 
 Refinement: scan/confirm flow should preserve the one-current-RSA UX. A confirmed upload creates a new pending replacement. Users/managers should see the current document state clearly, with replacement pending/rejected states understandable rather than exposing a full history UI.
+
+**2026-05-20T08:00:16Z**
+
+Implemented RSA PDF scan/confirmation path: scan action renders editable candidate metadata/name warnings, confirmation creates pending_review from original file bytes, manual upload remains available for PDF/JPG/PNG. Verified typecheck and focused StaffDocumentsController tests.

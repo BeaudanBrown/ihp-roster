@@ -23,10 +23,12 @@ tests = beforeAll testContext do
     describe "StaffDocumentsController" do
         it "redirects unauthenticated users from RSA document actions" $ withContext do
             let staffDocumentId = Id "00000000-0000-0000-0000-000000000000"
+            scanResponse <- callAction ScanStaffDocumentAction
             createResponse <- callAction CreateStaffDocumentAction
             downloadResponse <- callAction DownloadStaffDocumentAction { staffDocumentId }
             reviewResponse <- callAction ReviewStaffDocumentAction { staffDocumentId }
 
+            scanResponse `responseStatusShouldBe` status302
             createResponse `responseStatusShouldBe` status302
             downloadResponse `responseStatusShouldBe` status302
             reviewResponse `responseStatusShouldBe` status302
@@ -61,6 +63,35 @@ tests = beforeAll testContext do
                     callAction DownloadStaffDocumentAction { staffDocumentId = staffDocument.id }
 
                 response `responseStatusShouldBe` status403
+
+        it "creates an RSA document from confirmed scan metadata" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "RSA Confirm Venue"
+                user <- createUserRecord "rsa-confirm@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                staff <- createStaffRecord venue (Just user) "Casey" "Confirm"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams CreateStaffDocumentAction
+                        [ ("staffId", idToParam staff.id)
+                        , ("expiryDate", "2028-08-09")
+                        , ("issueDate", "2025-08-09")
+                        , ("issuingAuthority", "Victorian RSA")
+                        , ("documentNumber", "RSA-SCAN-123")
+                        , ("confirmedFileName", "scanned-rsa.pdf")
+                        , ("confirmedContentType", "application/pdf")
+                        , ("confirmedFileContentsBase64", "c2Nhbm5lZC1yc2E=")
+                        ]
+
+                response `responseStatusShouldBe` status302
+                [staffDocument] <- query @StaffDocument |> filterWhere (#staffId, unpackId staff.id) |> fetch
+                staffDocument.status `shouldBe` PendingReview
+                staffDocument.issueDate `shouldBe` Just (fromGregorian 2025 8 9)
+                staffDocument.expiryDate `shouldBe` fromGregorian 2028 8 9
+                staffDocument.issuingAuthority `shouldBe` Just "Victorian RSA"
+                staffDocument.documentNumber `shouldBe` Just "RSA-SCAN-123"
+                staffDocument.fileName `shouldBe` "scanned-rsa.pdf"
+                decodeStaffDocumentFile staffDocument `shouldBe` Right "scanned-rsa"
 
         it "records touched resources for RSA document changes" $ withContext do
             withCleanDb do
