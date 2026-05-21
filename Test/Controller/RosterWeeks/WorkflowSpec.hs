@@ -613,6 +613,45 @@ tests = beforeAll testContext do
                 publishedWeek <- fetch rosterWeek.id
                 publishedWeek.isLive `shouldBe` True
 
+        it "blocks publishing staffed shifts missing shift type when end times are disabled" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-publish-type-required@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled False)
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)))
+
+                blockedResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            [("isLive", "on")]
+
+                blockedResponse `responseStatusShouldBe` status200
+                blockedResponse `responseBodyShouldContain` "Roster week cannot go live until every staffed shift has a start time and shift type."
+                blockedWeek <- fetch rosterWeek.id
+                blockedWeek.isLive `shouldBe` False
+
+                _ <- updateRecord (slot |> set #shiftTypeId (Just (unpackId shiftType.id)))
+
+                publishedResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            [("isLive", "on")]
+
+                publishedResponse `responseStatusShouldBe` status200
+                publishedWeek <- fetch rosterWeek.id
+                publishedWeek.isLive `shouldBe` True
+
         it "manager slot edits can save end time and shift type with overnight duration" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

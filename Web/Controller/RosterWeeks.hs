@@ -763,32 +763,34 @@ validateRosterWeekCanGoLive :: (?context :: ControllerContext, ?modelContext :: 
 validateRosterWeekCanGoLive _ False = pure Nothing
 validateRosterWeekCanGoLive rosterWeek True = do
     venueConfig <- fetchVenueConfig
-    if not venueConfig.rosterEndTimesEnabled
-        then pure Nothing
-        else do
-            rosterDays <- query @RosterDay
-                |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+    rosterDays <- query @RosterDay
+        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        |> fetch
+    rosterSlots <-
+        if null rosterDays
+            then pure []
+            else query @RosterSlot
+                |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                |> filterWhere (#deletedAt, Nothing)
                 |> fetch
-            rosterSlots <-
-                if null rosterDays
-                    then pure []
-                    else query @RosterSlot
-                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
-                        |> filterWhere (#deletedAt, Nothing)
-                        |> fetch
-            let blockingSlots = filter rosterSlotBlocksPublish rosterSlots
-            pure
-                if null blockingSlots
-                    then Nothing
-                    else Just "Roster week cannot go live until every staffed shift has a start time, end time, and shift type."
+    let blockingSlots = filter (rosterSlotBlocksPublish venueConfig.rosterEndTimesEnabled) rosterSlots
+    pure
+        if null blockingSlots
+            then Nothing
+            else Just (publishRequiredFieldsMessage venueConfig.rosterEndTimesEnabled)
 
-rosterSlotBlocksPublish :: RosterSlot -> Bool
-rosterSlotBlocksPublish slot =
+publishRequiredFieldsMessage :: Bool -> Text
+publishRequiredFieldsMessage True = "Roster week cannot go live until every staffed shift has a start time, end time, and shift type."
+publishRequiredFieldsMessage False = "Roster week cannot go live until every staffed shift has a start time and shift type."
+
+rosterSlotBlocksPublish :: Bool -> RosterSlot -> Bool
+rosterSlotBlocksPublish endTimesEnabled slot =
     isJust slot.staffId
         && ( isNothing slot.startTime
-             || isNothing slot.endTime
              || isNothing slot.shiftTypeId
-             || maybe True (<= 0) slot.durationMinutes
+             || ( endTimesEnabled
+                    && (isNothing slot.endTime || maybe True (<= 0) slot.durationMinutes)
+                )
            )
 
 rosterSlotTimesheetSourceChanged :: RosterSlot -> RosterSlot -> Bool

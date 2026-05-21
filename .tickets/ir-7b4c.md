@@ -1,6 +1,6 @@
 ---
 id: ir-7b4c
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-21T03:35:20Z
@@ -22,3 +22,9 @@ Refactor validateRosterWeekCanGoLive so shift_type_id is always required for sta
 
 Publishing is blocked for any staffed shift missing shift type with end times enabled or disabled. End-time/duration publish blockers remain scoped to end-times-enabled venues. Focused RosterWeeks workflow tests cover both configurations.
 
+
+## Notes
+
+**2026-05-21T04:00:50Z**
+
+Implemented publish validation so staffed shifts always require start time and shift type, while end time/positive duration are enforced only when roster end times are enabled. Added focused workflow coverage for enabled and disabled configurations; focused Hspec and typecheck pass.
