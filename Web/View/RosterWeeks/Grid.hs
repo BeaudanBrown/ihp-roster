@@ -54,7 +54,7 @@ renderRosterContent =
     renderRosterGrid
 
 renderRosterGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridPanelStaff, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction } =
+renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridPanelStaff, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridShowShiftTypeHighlights, gridRosterEndTimesEnabled, gridRosterWagePrediction } =
     let dayModel =
             RosterDayRenderModel
                 { dayIsEditable = rosterWeekIsEditable gridRosterWeek
@@ -81,10 +81,11 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", hasSidePanel), ("col-xxl-10", hasSidePanel), ("mx-auto", not hasSidePanel), ("roster-layout-main", hasSidePanel)]}>
             <div class="app-panel overflow-hidden mb-5 mb-xl-0">
-                {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode}
+                {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridShowShiftTypeHighlights}
                 {renderWagePredictionPanel gridRosterWagePrediction}
                 <div class="roster-grid-frame"
                      data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
+                     data-roster-shift-type-highlights={if gridShowShiftTypeHighlights then ("true" :: Text) else "false"}
                      data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
                      data-roster-column-editor={if slotColumnsAreEditable then ("available" :: Text) else "unavailable"}
                      style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>

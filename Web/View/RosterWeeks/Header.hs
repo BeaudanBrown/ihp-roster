@@ -8,14 +8,16 @@ import Application.Helper.UserPreferences (rosterLayoutModeLabel,
 import Data.Time.Calendar (Day)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterWeekShellId)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
-                              rosterLayoutPreferenceUrl, rosterWeekUrl)
+                              rosterLayoutPreferenceUrl,
+                              rosterShiftTypeHighlightsPreferenceUrl,
+                              rosterWeekUrl)
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
                               RosterViewCapabilities (..))
 import Web.View.Prelude
 import Web.View.RosterWeeks.Overview (renderWeekOverviewDropdown)
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Html
-renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode = [hsx|
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Html
+renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode showShiftTypeHighlights = [hsx|
     <div class="app-panel-header app-surface-toolbar roster-grid-header">
         <div class="app-surface-toolbar-side roster-grid-header-side roster-grid-header-side-left">
             {renderLiveToggle maybeRosterWeek viewCapabilities}
@@ -26,7 +28,7 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
         </div>
         <div class="app-surface-toolbar-side app-surface-toolbar-side-right roster-grid-header-side roster-grid-header-side-right">
             {renderRosterWeekManagerControls weekOffset currentRosterGroup viewCapabilities}
-            {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode}
+            {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode showShiftTypeHighlights}
         </div>
     </div>
 |]
@@ -107,8 +109,8 @@ renderThisWeekButton =
             , partialNavigationPushUrl = True
             }
 
-renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> RosterViewCapabilities -> RosterLayoutModeEnum -> Html
-renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode =
+renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Html
+renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode showShiftTypeHighlights =
     let menuTriggerId = rosterWeekMoreMenuId maybeRosterWeek currentRosterGroup.id
         divider = [hsx|<div class="dropdown-divider my-1"></div>|]
      in [hsx|
@@ -128,6 +130,7 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
             </div>
             <div class="dropdown-divider my-1"></div>
             {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode}
+            {renderShiftTypeHighlightsMenuSection weekOffset currentRosterGroup.id showShiftTypeHighlights}
             {renderRosterColumnMenuSection maybeRosterWeek viewCapabilities}
             {renderRosterExportMenuSection viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
@@ -150,6 +153,32 @@ renderRosterLayoutMenuSection weekOffset rosterGroupId selectedLayoutMode = [hsx
         <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Roster layout</div>
         <div class="btn-group w-100 roster-layout-mode-group" role="group" aria-label="Roster layout">
             {forEach rosterLayoutModes (renderRosterLayoutModeOption selectedLayoutMode)}
+        </div>
+    </form>
+    <div class="dropdown-divider my-1"></div>
+|]
+
+renderShiftTypeHighlightsMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> Html
+renderShiftTypeHighlightsMenuSection weekOffset rosterGroupId showShiftTypeHighlights = [hsx|
+    <form class="px-1 py-1"
+          method="POST"
+          action={rosterShiftTypeHighlightsPreferenceUrl weekOffset rosterGroupId}
+          data-disable-javascript-submission="true"
+          hx-post={rosterShiftTypeHighlightsPreferenceUrl weekOffset rosterGroupId}
+          hx-target={"#" <> rosterContentFragmentId}
+          hx-swap="outerHTML"
+          hx-push-url="false"
+          hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+        <input type="hidden" name="showShiftTypeHighlights" value="false" />
+        <div class="form-check form-switch mb-0 px-1">
+            <input type="checkbox"
+                   id="roster-shift-type-highlights-toggle"
+                   name="showShiftTypeHighlights"
+                   value="true"
+                   class="form-check-input ms-0 me-2"
+                   checked={showShiftTypeHighlights}
+                   onchange="this.form.requestSubmit()" />
+            <label class="form-check-label small" for="roster-shift-type-highlights-toggle">Show shift type colours</label>
         </div>
     </form>
     <div class="dropdown-divider my-1"></div>

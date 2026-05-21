@@ -426,6 +426,16 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster layout preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
+    action UpdateRosterShiftTypeHighlightsPreferenceAction { weekOffset } = do
+        rosterGroup <- resolveRequestedRosterGroup
+        let showHighlights = paramOrDefault @Text "false" "showShiftTypeHighlights" == "true"
+        _ <- upsertCurrentUserShowShiftTypeHighlights showHighlights
+        if isHtmxRequest
+            then respondWithRosterContent rosterGroup.id weekOffset
+            else do
+                setSuccessMessage "Roster highlight preference saved."
+                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+
     action CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = do
         ensureManagerRole
         ensureVenueWritable
@@ -683,6 +693,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
     keepCurrentRosterWeekProjectionHot currentRosterGroup.id weekOffset
     rosterDataOrNothing <- fetchVisibleRosterRenderDataCached currentRosterGroup.id weekOffset
     passkeySetupPrompt <- passkeySetupPromptFromSession
+    showShiftTypeHighlights <- fetchCurrentShowShiftTypeHighlights
 
     case rosterDataOrNothing of
         Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } ->
@@ -712,6 +723,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
                         , liveUpdateScope = Just (RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId = unpackId currentRosterGroup.id, weekOffset })
                         , viewCapabilities = buildRosterViewCapabilities visibleRosterWeek
                         , rosterLayoutMode
+                        , showShiftTypeHighlights
                         , rosterEndTimesEnabled
                         , rosterWagePrediction
                         , passkeySetupPrompt

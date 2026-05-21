@@ -81,7 +81,7 @@ renderVisibleRosterProjectionFragment rosterGroupId weekOffset fragment =
             rosterGroups <- fetchCurrentVenueRosterGroups
             currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
             rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
-            pure (Just (renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData))
+            Just <$> renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData
         _ ->
             profileActionSpanWithDetail "roster.projection.render_fragment" do
                 let scope = buildRosterProjectionScope rosterGroupId weekOffset
@@ -102,13 +102,14 @@ renderRosterProjectionFragment rosterData fragment =
         RosterProjectionRow rosterDayId rowIndex ->
             rosterData >>= \projection -> renderRequestedRowFragmentFromProjection projection rosterDayId rowIndex
 
-renderRosterContentFromProjection :: (?context :: ControllerContext, ?request :: Request) => [RosterGroup] -> RosterGroup -> Maybe RosterRenderData -> Blaze.Html
+renderRosterContentFromProjection :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => [RosterGroup] -> RosterGroup -> Maybe RosterRenderData -> IO Blaze.Html
 renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
     case rosterData of
-        Nothing -> [hsx|<div id="roster-content"></div>|]
-        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } ->
+        Nothing -> pure [hsx|<div id="roster-content"></div>|]
+        Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } -> do
+            showShiftTypeHighlights <- fetchCurrentShowShiftTypeHighlights
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
-             in renderRosterContentFragment
+            pure $ renderRosterContentFragment
                     RosterGridRenderModel
                         { gridRosterWeek = Just rosterWeek
                         , gridRosterDays = rosterDays
@@ -128,6 +129,7 @@ renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
                         , gridRenderIndexes = renderIndexes
                         , gridViewCapabilities = viewCapabilities
                         , gridRosterLayoutMode = rosterLayoutMode
+                        , gridShowShiftTypeHighlights = showShiftTypeHighlights
                         , gridRosterEndTimesEnabled = rosterEndTimesEnabled
                         , gridRosterWagePrediction = rosterWagePrediction
                         }

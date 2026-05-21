@@ -44,6 +44,7 @@ renderRosterWeekShell ShowView { .. } =
                         , gridRenderIndexes = renderIndexes
                         , gridViewCapabilities = viewCapabilities
                         , gridRosterLayoutMode = rosterLayoutMode
+                        , gridShowShiftTypeHighlights = showShiftTypeHighlights
                         , gridRosterEndTimesEnabled = rosterEndTimesEnabled
                         , gridRosterWagePrediction = rosterWagePrediction
                         }

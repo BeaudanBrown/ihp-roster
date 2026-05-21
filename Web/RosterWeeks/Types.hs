@@ -43,12 +43,13 @@ data ShowView = ShowView
     , slotConflicts         :: [(Id RosterSlot, [RosterConflict])]
     , renderIndexes         :: RosterRenderIndexes
     , liveUpdateScope       :: Maybe LiveUpdateScope
-    , viewCapabilities      :: RosterViewCapabilities
-    , rosterLayoutMode      :: RosterLayoutModeEnum
-    , rosterEndTimesEnabled :: Bool
-    , rosterWagePrediction  :: Maybe RosterWagePrediction
-    , shiftTypes            :: [ShiftType]
-    , passkeySetupPrompt    :: Maybe PasskeySetupPromptMode
+    , viewCapabilities         :: RosterViewCapabilities
+    , rosterLayoutMode         :: RosterLayoutModeEnum
+    , showShiftTypeHighlights  :: Bool
+    , rosterEndTimesEnabled    :: Bool
+    , rosterWagePrediction     :: Maybe RosterWagePrediction
+    , shiftTypes               :: [ShiftType]
+    , passkeySetupPrompt       :: Maybe PasskeySetupPromptMode
     }
 
 data RosterViewCapabilities = RosterViewCapabilities
@@ -146,10 +147,11 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridAllSlots              :: [RosterSlot]
     , gridSlotConflicts         :: [(Id RosterSlot, [RosterConflict])]
     , gridRenderIndexes         :: RosterRenderIndexes
-    , gridViewCapabilities      :: RosterViewCapabilities
-    , gridRosterLayoutMode      :: RosterLayoutModeEnum
-    , gridRosterEndTimesEnabled :: Bool
-    , gridRosterWagePrediction  :: Maybe RosterWagePrediction
+    , gridViewCapabilities         :: RosterViewCapabilities
+    , gridRosterLayoutMode         :: RosterLayoutModeEnum
+    , gridShowShiftTypeHighlights  :: Bool
+    , gridRosterEndTimesEnabled    :: Bool
+    , gridRosterWagePrediction     :: Maybe RosterWagePrediction
     }
 
 data RosterDayRenderModel = RosterDayRenderModel
