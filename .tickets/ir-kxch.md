@@ -1,6 +1,6 @@
 ---
 id: ir-kxch
-status: open
+status: closed
 deps: [ir-cf17]
 links: []
 created: 2026-05-21T07:43:26Z
@@ -22,3 +22,9 @@ Add DB-backed reads for roster week, roster days, visible slots, ordered slot de
 
 The trial path builds manager-visible base facts equivalent to current behavior. Ordering, venue scoping, roster-group scoping, closed-day filtering, sparse slots, assigned-but-not-currently-eligible staff, slot definition ordering, and shift type ordering are covered by focused tests.
 
+
+## Notes
+
+**2026-05-21T08:06:06Z**
+
+HANDOFF: Added Web.RosterWeeks.DirectReadModel base facts and a DirectRosterReadModel seam path that can build visible RosterRenderData without using the projection cache; focused tests cover venue/group scoping, closed-day visible filtering, sparse slots, ordering, and assigned-inactive staff union; ran bash ./bin/in-env typecheck and bash ./bin/in-env hspec-test --match 'Roster direct read model'; next touchpoint is ir-uybz for direct assignment/conflict facts and ir-f16h for enabling the branch.

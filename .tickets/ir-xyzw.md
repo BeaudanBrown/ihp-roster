@@ -31,3 +31,7 @@ HANDOFF from ir-f42m: Baseline projection measurements now live in docs/workstre
 **2026-05-21T07:56:33Z**
 
 HANDOFF from ir-cf17: Roster callers now use fetchVisibleRosterReadModel/renderVisibleRosterReadModelFragment as the reversible seam; ir-kxch can add a direct backend without changing controller/fragment call sites.
+
+**2026-05-21T08:06:06Z**
+
+HANDOFF from ir-kxch: Direct roster base facts now live in Web.RosterWeeks.DirectReadModel and the read-model seam has a DirectRosterReadModel constructor, but currentRosterReadModelBackend remains projection-backed until ir-f16h integrates the trial path.
