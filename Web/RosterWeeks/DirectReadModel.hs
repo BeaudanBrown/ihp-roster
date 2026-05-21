@@ -7,7 +7,9 @@
 module Web.RosterWeeks.DirectReadModel
     ( RosterBaseFacts (..)
     , buildRosterStaffOptionStatesDirect
+    , buildRosterStaffOptionStatesForSlotsDirect
     , buildSlotConflictsDirect
+    , buildSlotConflictsForSlotsDirect
     , fetchRosterBaseFactsDirect
     ) where
 
@@ -114,51 +116,58 @@ fetchCurrentVenueRosterShiftTypesDirect =
         |> fetch
 
 buildRosterStaffOptionStatesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
-buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots staffMembers
-    | null visibleSlots || null staffMembers = pure Map.empty
+buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots =
+    buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate visibleSlots visibleSlots
+
+buildRosterStaffOptionStatesForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterAssignmentFilters -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> [Staff] -> IO (Map.Map (UUID.UUID, UUID.UUID) RosterAssignmentOptionState)
+buildRosterStaffOptionStatesForSlotsDirect assignmentFilters weekStartDate factSlots targetSlots staffMembers
+    | null targetSlots || null staffMembers = pure Map.empty
     | otherwise = do
         rows <- (sqlQuery
             "WITH params AS ( \
             \    SELECT ?::date AS week_start, ?::uuid AS venue_id, ?::boolean AS hide_ideal, ?::boolean AS hide_unavailable, ?::boolean AS hide_leave, ?::boolean AS hide_today \
-            \), visible_slots AS ( \
+            \), fact_slots AS ( \
             \    SELECT roster_slots.*, roster_days.day_offset, (params.week_start + roster_days.day_offset) AS roster_date, EXTRACT(DOW FROM (params.week_start + roster_days.day_offset))::int AS weekday_index \
             \    FROM roster_slots \
             \    JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
             \    CROSS JOIN params \
             \    WHERE roster_slots.id = ANY(?) AND roster_slots.deleted_at IS NULL \
+            \), target_slots AS ( \
+            \    SELECT * FROM fact_slots WHERE id = ANY(?) \
             \), staff_scope AS ( \
             \    SELECT staff.id, staff.ideal_shifts_per_week FROM staff CROSS JOIN params WHERE staff.id = ANY(?) AND staff.venue_id = params.venue_id \
             \), shift_counts AS ( \
-            \    SELECT staff_id, COUNT(*)::int AS assigned_count FROM visible_slots WHERE staff_id IS NOT NULL GROUP BY staff_id \
+            \    SELECT staff_id, COUNT(*)::int AS assigned_count FROM fact_slots WHERE staff_id IS NOT NULL GROUP BY staff_id \
             \), day_counts AS ( \
-            \    SELECT roster_day_id, staff_id, COUNT(*)::int AS assigned_day_count FROM visible_slots WHERE staff_id IS NOT NULL GROUP BY roster_day_id, staff_id \
+            \    SELECT roster_day_id, staff_id, COUNT(*)::int AS assigned_day_count FROM fact_slots WHERE staff_id IS NOT NULL GROUP BY roster_day_id, staff_id \
             \) \
-            \SELECT visible_slots.id, staff_scope.id, COALESCE(shift_counts.assigned_count, 0)::int, \
+            \SELECT target_slots.id, staff_scope.id, COALESCE(shift_counts.assigned_count, 0)::int, \
             \       ((CASE WHEN params.hide_ideal AND COALESCE(shift_counts.assigned_count, 0) >= staff_scope.ideal_shifts_per_week THEN 1 ELSE 0 END) + \
             \        (CASE WHEN params.hide_unavailable AND NOT EXISTS ( \
             \           SELECT 1 FROM staff_shift_preferences \
             \           WHERE staff_shift_preferences.venue_id = params.venue_id AND staff_shift_preferences.staff_id = staff_scope.id \
-            \             AND staff_shift_preferences.weekday_index = visible_slots.weekday_index AND staff_shift_preferences.deleted_at IS NULL \
+            \             AND staff_shift_preferences.weekday_index = target_slots.weekday_index AND staff_shift_preferences.deleted_at IS NULL \
             \        ) THEN 2 ELSE 0 END) + \
             \        (CASE WHEN params.hide_leave AND EXISTS ( \
             \           SELECT 1 FROM leave_requests \
             \           WHERE leave_requests.venue_id = params.venue_id AND leave_requests.staff_id = staff_scope.id AND leave_requests.status = 'approved' \
-            \             AND leave_requests.deleted_at IS NULL AND leave_requests.start_date <= visible_slots.roster_date AND leave_requests.end_date > visible_slots.roster_date \
+            \             AND leave_requests.deleted_at IS NULL AND leave_requests.start_date <= target_slots.roster_date AND leave_requests.end_date > target_slots.roster_date \
             \        ) THEN 4 ELSE 0 END) + \
-            \        (CASE WHEN params.hide_today AND (COALESCE(day_counts.assigned_day_count, 0) - CASE WHEN visible_slots.staff_id = staff_scope.id THEN 1 ELSE 0 END) > 0 THEN 8 ELSE 0 END))::int \
-            \FROM visible_slots \
+            \        (CASE WHEN params.hide_today AND (COALESCE(day_counts.assigned_day_count, 0) - CASE WHEN target_slots.staff_id = staff_scope.id THEN 1 ELSE 0 END) > 0 THEN 8 ELSE 0 END))::int \
+            \FROM target_slots \
             \CROSS JOIN staff_scope \
             \CROSS JOIN params \
             \LEFT JOIN shift_counts ON shift_counts.staff_id = staff_scope.id \
-            \LEFT JOIN day_counts ON day_counts.roster_day_id = visible_slots.roster_day_id AND day_counts.staff_id = staff_scope.id \
-            \ORDER BY visible_slots.id, staff_scope.id"
+            \LEFT JOIN day_counts ON day_counts.roster_day_id = target_slots.roster_day_id AND day_counts.staff_id = staff_scope.id \
+            \ORDER BY target_slots.id, staff_scope.id"
             ( weekStartDate
             , unpackId currentVenueId
             , assignmentFilters.hideStaffAtIdealShifts
             , assignmentFilters.hideStaffUnavailable
             , assignmentFilters.hideStaffOnApprovedLeave
             , assignmentFilters.hideStaffAlreadyAssignedToday
-            , map (coerce . (.id)) visibleSlots :: [UUID.UUID]
+            , map (coerce . (.id)) factSlots :: [UUID.UUID]
+            , map (coerce . (.id)) targetSlots :: [UUID.UUID]
             , map (coerce . (.id)) staffMembers :: [UUID.UUID]
             ) :: IO [(UUID.UUID, UUID.UUID, Int, Int)])
         pure $ Map.fromList (map optionStateEntry rows)
@@ -181,8 +190,12 @@ buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots 
                 )
 
 buildSlotConflictsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
-buildSlotConflictsDirect _rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate visibleSlots
-    | null assignedSlotIds = pure []
+buildSlotConflictsDirect rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate visibleSlots =
+    buildSlotConflictsForSlotsDirect rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate visibleSlots visibleSlots
+
+buildSlotConflictsForSlotsDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> Int -> Calendar.Day -> [RosterSlot] -> [RosterSlot] -> IO [(Id RosterSlot, [RosterConflict])]
+buildSlotConflictsForSlotsDirect _rosterGroupId lateToEarlyMinStartGapMinutes weekStartDate factSlots targetSlots
+    | null assignedSlotIds || null targetSlotIds = pure []
     | otherwise = do
         rows <- (sqlQuery
             "WITH params AS ( \
@@ -250,16 +263,18 @@ buildSlotConflictsDirect _rosterGroupId lateToEarlyMinStartGapMinutes weekStartD
             \    JOIN staff ON staff.id = assigned_slots.staff_id AND staff.venue_id = params.venue_id \
             \    WHERE week_counts.week_count > staff.ideal_shifts_per_week \
             \) \
-            \SELECT id, conflict_type FROM facts ORDER BY id, priority"
+            \SELECT id, conflict_type FROM facts WHERE id = ANY(?) ORDER BY id, priority"
             ( weekStartDate
             , unpackId currentVenueId
             , lateToEarlyMinStartGapMinutes
             , assignedSlotIds
+            , targetSlotIds
             ) :: IO [(UUID.UUID, Text)])
         let conflictsBySlot = Map.fromListWith (<>) [(Id slotId, [conflictForType conflictTypeText]) | (slotId, conflictTypeText) <- rows]
         pure (Map.toList (Map.map sort conflictsBySlot))
     where
-        assignedSlotIds = map (coerce . (.id)) (filter (isJust . (.staffId)) visibleSlots) :: [UUID.UUID]
+        assignedSlotIds = map (coerce . (.id)) (filter (isJust . (.staffId)) factSlots) :: [UUID.UUID]
+        targetSlotIds = map (coerce . (.id)) targetSlots :: [UUID.UUID]
 
 conflictForType :: Text -> RosterConflict
 conflictForType "duplicate_assignment" = rosterConflict DuplicateAssignment "Multiple shifts rostered on the same day."

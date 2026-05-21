@@ -1,6 +1,6 @@
 ---
 id: ir-bdvn
-status: open
+status: closed
 deps: [ir-6thh, ir-l089]
 links: [ir-dk24]
 created: 2026-05-21T08:31:17Z
@@ -28,3 +28,7 @@ Focused roster baseline timings compare against the restored projection baseline
 **2026-05-21T11:56:52Z**
 
 Adjusted after code review: performance tuning should wait until rollback/parity is real and multi-preference conflict semantics are aligned; this ticket now depends on ir-6thh and ir-l089.
+
+**2026-05-21T12:44:54Z**
+
+HANDOFF: Narrowed direct roster fragment reads so staff-panel skips option/conflict builders and row/day render payloads build option/conflict output only for requested slots while preserving week-wide facts; updated baseline timing coverage/docs; verification passed: typecheck, focused direct baseline, focused row conflict regression, full RosterWeeks Hspec; remaining risk is larger-roster/browser timing variance, so keep projection rollback seam until adoption decision.

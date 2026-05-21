@@ -59,6 +59,11 @@ tests = beforeAll testContext do
                     serverTiming staffPanel `shouldNotContainBS` "roster_projection_"
                     serverTiming coldPage `shouldContainBS` "roster_direct_build_staff_option_states;dur="
                     serverTiming rowFragment `shouldContainBS` "roster_direct_build_staff_option_states;dur="
+                    serverTiming rowFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
+                    serverTiming dayFragment `shouldContainBS` "roster_direct_build_staff_option_states;dur="
+                    serverTiming dayFragment `shouldContainBS` "roster_direct_build_slot_conflicts;dur="
+                    serverTiming staffPanel `shouldNotContainBS` "roster_direct_build_staff_option_states;dur="
+                    serverTiming staffPanel `shouldNotContainBS` "roster_direct_build_slot_conflicts;dur="
 
                     dumpBaselineTimings
                         [ ("cold-page", coldPage)

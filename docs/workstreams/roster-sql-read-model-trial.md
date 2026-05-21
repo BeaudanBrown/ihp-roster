@@ -1,7 +1,7 @@
 # Roster SQL Read-Model Trial
 
 Status: active
-Tickets: ir-xyzw, ir-f42m, ir-cf17, ir-kxch, ir-uybz, ir-f16h, ir-1jsi, ir-dk24
+Tickets: ir-xyzw, ir-f42m, ir-cf17, ir-kxch, ir-uybz, ir-f16h, ir-1jsi, ir-dk24, ir-bdvn
 
 ## Intent
 
@@ -75,6 +75,34 @@ place.
 Focused integration coverage now asserts that full-page, content fragment, day
 section fragment, row fragment, staff panel, and passive mutation refetch paths
 render without `roster_projection_*` `Server-Timing` spans.
+
+## Direct Fragment Tuning
+
+`ir-bdvn` narrowed the direct fragment path before projection cleanup. Staff-panel
+fragment GETs now build only panel entries and skip staff option-state and
+conflict builders. Row fragment GETs still compute staff option states and
+conflicts with week-wide facts for parity, but emit option states and conflicts
+only for the requested row. Day section fragment GETs keep week-wide assignment
+and conflict facts for parity, but emit option states and conflicts only for the
+requested day. This materially reduces the repeated direct read-model work that
+previously made warm row/day/staff-panel fragments slower than projection-cache
+hits, while keeping the rollback seam and projection code intact.
+
+Representative local post-tuning sample from the same focused fixture:
+
+| Scenario | Direct total | Relevant direct spans | Projection baseline |
+| --- | ---: | --- | ---: |
+| Row fragment | 11.9 ms | option states 1.8 ms; conflicts 2.5 ms | 2.8 ms warm hit |
+| Day fragment | 12.0 ms | option states 2.0 ms; conflicts 2.4 ms | 3.3 ms warm hit |
+| Staff-panel fragment | 8.2 ms | staff panel 0.5 ms; skips option/conflict builders | 4.4 ms warm hit |
+| Passive row refetch | 13.8 ms | option states 2.8 ms; conflicts 3.0 ms | 7.9 ms cold/miss sample |
+
+Warm row/day/staff-panel direct reads are still slower than projection-cache hits
+in this fixture, but the largest repeated builders now operate on the requested
+fragment scope instead of producing week-wide render payloads. The remaining cost
+is accepted for the trial because it preserves no cross-request cache state;
+projection rollback should remain until larger-roster measurements confirm this
+trade-off.
 
 ## Living Docs To Update If Adopted
 

@@ -63,3 +63,11 @@ HANDOFF from ir-6thh: Projection rollback is real again and direct full-page/fra
 **2026-05-21T12:38:29Z**
 
 HANDOFF from ir-l089: Shared conflict helper now treats multiple same-day preference windows as matching if any window contains the start time, matching the direct SQL predicate; docs note the current unique active staff/day preference schema.
+
+**2026-05-21T12:44:54Z**
+
+HANDOFF from ir-bdvn: Direct roster fragment costs are reduced without adding a cross-request cache; staff-panel skips option/conflict builders, row/day emit requested-scope option/conflict data with week-wide facts, but local warm fragments still trail projection-cache hits, so keep rollback seam pending adoption/large-roster validation.
+
+**2026-05-21T12:45:03Z**
+
+CLOSEOUT CHECK after ir-bdvn: All child tickets are closed and epic acceptance criteria are covered: projection baseline and direct trial timings are documented, direct read path is default through one seam with projection rollback retained, parity/focused roster coverage and typecheck passed. Recommendation: keep the SQL/direct roster path as the active trial for now, but keep the projection rollback seam until larger-roster/browser measurements validate the remaining warm-fragment cost trade-off.
