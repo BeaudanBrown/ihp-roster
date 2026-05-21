@@ -723,7 +723,7 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
     let currentStartTime = optionalTimeOfDayToStorageValue startTime
         currentEndTime = optionalTimeOfDayToStorageValue endTime
         currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel staffId renderIndexes)
-        currentShiftTypeLabel = fromMaybe "" (renderShiftTypeLabelForSlot shiftTypes shiftTypeId)
+        currentShiftType = findShiftTypeForSlot shiftTypes shiftTypeId
         rosterSlotDataId = case target of
             ExistingRosterSlotTarget slotId -> tshow slotId
             NewRosterSlotTarget {} -> ""
@@ -736,10 +736,8 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
                 |]
                 else mempty
         codeField
-            | endTimesEnabled =
-                if isEditable then renderEditableShiftTypeCell target shiftTypeId shiftTypes else renderReadOnlyCell currentShiftTypeLabel
-            | isEditable = renderEditableShiftTypeCell target shiftTypeId shiftTypes
-            | otherwise = renderReadOnlyCell currentShiftTypeLabel
+            | isEditable = renderEditableDayColumnShiftTypeBadge target staffId shiftTypeId currentShiftType shiftTypes
+            | otherwise = renderReadOnlyDayColumnShiftTypeBadge staffId currentShiftType
      in [hsx|
         <article class={classes [("roster-shift-card", True), ("roster-shift-card-create", not (targetHasExistingSlot target))]}
                  data-roster-slot-id={rosterSlotDataId}
@@ -843,7 +841,54 @@ renderShiftTypeOptionLabel shiftType =
 renderShiftTypeLabelForSlot :: [ShiftType] -> Maybe UUID -> Maybe Text
 renderShiftTypeLabelForSlot _ Nothing = Nothing
 renderShiftTypeLabelForSlot shiftTypes (Just selectedShiftTypeId) =
-    renderShiftTypeOptionLabel <$> find (\shiftType -> coerce shiftType.id == selectedShiftTypeId) shiftTypes
+    renderShiftTypeOptionLabel <$> findShiftTypeForSlot shiftTypes (Just selectedShiftTypeId)
+
+findShiftTypeForSlot :: [ShiftType] -> Maybe UUID -> Maybe ShiftType
+findShiftTypeForSlot _ Nothing = Nothing
+findShiftTypeForSlot shiftTypes (Just selectedShiftTypeId) =
+    find (\shiftType -> coerce shiftType.id == selectedShiftTypeId) shiftTypes
+
+shiftTypeBadgeColourKey :: Maybe ShiftType -> Text
+shiftTypeBadgeColourKey maybeShiftType =
+    fromMaybe "default" (fmap (.colourKey) maybeShiftType)
+
+shiftTypeBadgeLabel :: Maybe UUID -> Maybe ShiftType -> Text
+shiftTypeBadgeLabel staffId maybeShiftType =
+    fromMaybe (if isJust staffId then "Type required" else "Type") (renderShiftTypeOptionLabel <$> maybeShiftType)
+
+renderEditableDayColumnShiftTypeBadge :: RosterSlotCellTarget -> Maybe UUID -> Maybe UUID -> Maybe ShiftType -> [ShiftType] -> Html
+renderEditableDayColumnShiftTypeBadge target staffId selectedShiftTypeId selectedShiftType shiftTypes = [hsx|
+    <form class={classes [("m-0 slot-cell-form roster-shift-type-badge roster-shift-type-badge-editable", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isJust staffId && isNothing selectedShiftTypeId)]}
+          data-roster-shift-colour={shiftTypeBadgeColourKey selectedShiftType}>
+        <span class="roster-shift-type-badge-marker" aria-hidden="true"></span>
+        <select name="shiftTypeId"
+                class="form-select form-select-sm slot-cell-input slot-shift-type-input roster-shift-type-badge-select"
+                aria-label="Shift type"
+                data-roster-field-key={rosterFieldKey target "shiftTypeId"}
+                hx-post={rosterSlotTargetAction target}
+                hx-trigger="change"
+                hx-include="closest form"
+                hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
+                hx-swap="none">
+            <option value="">{shiftTypeBadgeLabel staffId Nothing}</option>
+            {forEach visibleShiftTypes (renderRosterShiftTypeOption selectedShiftTypeId)}
+        </select>
+    </form>
+|]
+    where
+        selectedOrActive shiftType =
+            let shiftTypeId = coerce (get #id shiftType)
+             in shiftType.isActive || Just shiftTypeId == selectedShiftTypeId
+        visibleShiftTypes = filter selectedOrActive shiftTypes
+
+renderReadOnlyDayColumnShiftTypeBadge :: Maybe UUID -> Maybe ShiftType -> Html
+renderReadOnlyDayColumnShiftTypeBadge staffId selectedShiftType = [hsx|
+    <div class={classes [("slot-cell-static roster-shift-type-badge roster-shift-type-badge-readonly", True), ("is-empty", isNothing selectedShiftType), ("is-required", isJust staffId && isNothing selectedShiftType)]}
+         data-roster-shift-colour={shiftTypeBadgeColourKey selectedShiftType}>
+        <span class="roster-shift-type-badge-marker" aria-hidden="true"></span>
+        <span class="roster-shift-type-badge-label">{shiftTypeBadgeLabel staffId selectedShiftType}</span>
+    </div>
+|]
 
 renderEditableTimeCell :: Text -> Text -> Text -> RosterSlotCellTarget -> Text -> Html
 renderEditableTimeCell fieldName ariaLabel emptyLabel target currentValue =

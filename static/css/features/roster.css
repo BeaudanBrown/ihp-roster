@@ -1137,6 +1137,17 @@
     padding: 0.9rem;
     cursor: grab;
     --roster-day-column-width: 30%;
+    --roster-shift-type-default: var(--app-muted);
+    --roster-shift-type-palette-1: #45c7ff;
+    --roster-shift-type-palette-2: #47d18c;
+    --roster-shift-type-palette-3: #ffd166;
+    --roster-shift-type-palette-4: #ff8a5b;
+    --roster-shift-type-palette-5: #f071a8;
+    --roster-shift-type-palette-6: #9b8cff;
+    --roster-shift-type-palette-7: #4dd8c8;
+    --roster-shift-type-palette-8: #b7dd57;
+    --roster-shift-type-palette-9: #f2a65a;
+    --roster-shift-type-palette-10: #8fb8ff;
 }
 
 .roster-grid-frame[data-roster-layout="day_columns"][data-roster-day-columns-dragging="true"] {
@@ -1209,7 +1220,7 @@
 
 .roster-shift-card-fields {
     display: grid;
-    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.45fr) minmax(0, 0.75fr);
+    grid-template-columns: minmax(5rem, 0.82fr) minmax(6.5rem, 1.35fr) minmax(5.75rem, auto);
     border-radius: calc(0.65rem - 1px);
     background: inherit;
     color: inherit;
@@ -1218,7 +1229,7 @@
 }
 
 .roster-shift-card-fields.has-end-times {
-    grid-template-columns: repeat(2, minmax(4.75rem, 1fr));
+    grid-template-columns: repeat(2, minmax(5.1rem, 1fr));
 }
 
 .roster-shift-card-field {
@@ -1244,10 +1255,13 @@
     border-left: 0;
 }
 
-.roster-shift-card-fields.has-end-times .roster-shift-card-staff,
-.roster-shift-card-fields.has-end-times .roster-shift-card-code {
-    grid-column: 1 / -1;
+.roster-shift-card-fields.has-end-times .roster-shift-card-staff {
+    grid-column: 1 / 2;
     border-left: 0;
+}
+
+.roster-shift-card-fields.has-end-times .roster-shift-card-code {
+    grid-column: 2 / 3;
 }
 
 .roster-shift-card .slot-cell-form,
@@ -1256,6 +1270,10 @@
 .roster-shift-card .slot-cell-static {
     height: 2.15rem;
     min-height: 2.15rem;
+}
+
+.roster-shift-card-time .slot-time-trigger {
+    font-weight: 800;
 }
 
 .roster-shift-card .slot-cell-form,
@@ -1302,6 +1320,67 @@
     white-space: nowrap;
     overflow: hidden;
     padding-inline: 0.16rem;
+}
+
+.roster-shift-type-badge {
+    --roster-shift-type-colour: var(--roster-shift-type-default);
+    display: inline-grid;
+    grid-template-columns: 0.48rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.35rem;
+    width: 100%;
+    padding-inline: 0.45rem;
+    border-left: 3px solid var(--roster-shift-type-colour);
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--roster-shift-type-colour) 18%, transparent), transparent 72%),
+        var(--app-white-alpha-015) !important;
+}
+
+.roster-shift-type-badge[data-roster-shift-colour="palette-1"] { --roster-shift-type-colour: var(--roster-shift-type-palette-1); }
+.roster-shift-type-badge[data-roster-shift-colour="palette-2"] { --roster-shift-type-colour: var(--roster-shift-type-palette-2); }
+.roster-shift-type-badge[data-roster-shift-colour="palette-3"] { --roster-shift-type-colour: var(--roster-shift-type-palette-3); }
+.roster-shift-type-badge[data-roster-shift-colour="palette-4"] { --roster-shift-type-colour: var(--roster-shift-type-palette-4); }
+.roster-shift-type-badge[data-roster-shift-colour="palette-5"] { --roster-shift-type-colour: var(--roster-shift-type-palette-5); }
+.roster-shift-type-badge[data-roster-shift-colour="palette-6"] { --roster-shift-type-colour: var(--roster-shift-type-palette-6); }
+.roster-shift-type-badge[data-roster-shift-colour="palette-7"] { --roster-shift-type-colour: var(--roster-shift-type-palette-7); }
+.roster-shift-type-badge[data-roster-shift-colour="palette-8"] { --roster-shift-type-colour: var(--roster-shift-type-palette-8); }
+.roster-shift-type-badge[data-roster-shift-colour="palette-9"] { --roster-shift-type-colour: var(--roster-shift-type-palette-9); }
+.roster-shift-type-badge[data-roster-shift-colour="palette-10"] { --roster-shift-type-colour: var(--roster-shift-type-palette-10); }
+
+.roster-shift-type-badge-marker {
+    width: 0.48rem;
+    height: 0.48rem;
+    border-radius: 999px;
+    background: var(--roster-shift-type-colour);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--roster-shift-type-colour) 22%, transparent);
+}
+
+.roster-shift-type-badge-select {
+    min-width: 0;
+    padding: 0 !important;
+    text-align: left !important;
+    text-align-last: left !important;
+}
+
+.roster-shift-type-badge-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.roster-shift-type-badge.is-empty {
+    color: var(--app-muted) !important;
+}
+
+.roster-shift-type-badge.is-required {
+    border-left-style: dashed;
+    color: var(--app-warning-conflict-text) !important;
+    background:
+        linear-gradient(90deg, color-mix(in srgb, var(--roster-warning) 38%, transparent), transparent 78%),
+        var(--app-white-alpha-015) !important;
 }
 
 .roster-shift-card .slot-time-trigger:focus-visible {

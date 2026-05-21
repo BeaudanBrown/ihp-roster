@@ -96,6 +96,8 @@ test.describe('Roster row controls', () => {
             const timeField = realCard.querySelector('.roster-shift-card-time');
             const staffField = realCard.querySelector('.roster-shift-card-staff');
             const codeField = realCard.querySelector('.roster-shift-card-code');
+            const typeBadge = realCard.querySelector('.roster-shift-type-badge');
+            const typeMarker = realCard.querySelector('.roster-shift-type-badge-marker');
             const timeTrigger = realCard.querySelector('.slot-time-trigger');
             const staffInput = realCard.querySelector('.slot-cell-input');
             const conflictProbe = document.createElement('div');
@@ -107,6 +109,8 @@ test.describe('Roster row controls', () => {
                 || !(timeField instanceof HTMLElement)
                 || !(staffField instanceof HTMLElement)
                 || !(codeField instanceof HTMLElement)
+                || !(typeBadge instanceof HTMLElement)
+                || !(typeMarker instanceof HTMLElement)
                 || !(timeTrigger instanceof HTMLElement)
                 || !(staffInput instanceof HTMLElement)
             ) {
@@ -128,6 +132,8 @@ test.describe('Roster row controls', () => {
             const timeStyle = getComputedStyle(timeField);
             const staffStyle = getComputedStyle(staffField);
             const codeStyle = getComputedStyle(codeField);
+            const typeBadgeStyle = getComputedStyle(typeBadge);
+            const typeMarkerStyle = getComputedStyle(typeMarker);
             const timeTriggerStyle = getComputedStyle(timeTrigger);
             const staffInputStyle = getComputedStyle(staffInput);
             const conflictProbeStyle = getComputedStyle(conflictProbe);
@@ -142,6 +148,10 @@ test.describe('Roster row controls', () => {
                 timeBackground: timeStyle.backgroundColor,
                 staffBackground: staffStyle.backgroundColor,
                 codeBackground: codeStyle.backgroundColor,
+                badgeDisplay: typeBadgeStyle.display,
+                badgeBorderLeftStyle: typeBadgeStyle.borderLeftStyle,
+                badgeBorderLeftColor: typeBadgeStyle.borderLeftColor,
+                markerBackground: typeMarkerStyle.backgroundColor,
                 staffColor: staffInputStyle.color,
                 cardHasConflictClass: realCard.classList.contains('conflict-critical'),
                 conflictBackground: conflictProbeStyle.backgroundColor,
@@ -163,6 +173,9 @@ test.describe('Roster row controls', () => {
         expect(metrics?.fieldsRadius).not.toBe('0px');
         expect(metrics?.timeBackground).toBe(metrics?.codeBackground);
         expect(metrics?.timeBackground).not.toBe(metrics?.conflictBackground);
+        expect(metrics?.badgeDisplay).toBe('inline-grid');
+        expect(metrics?.badgeBorderLeftStyle).toBe('solid');
+        expect(metrics?.badgeBorderLeftColor).toBe(metrics?.markerBackground);
         expect(metrics?.staffBackground).toBe(metrics?.conflictBackground);
         expect(metrics?.staffColor).toBe(metrics?.conflictColor);
         expect(metrics?.cardHasConflictClass).toBe(false);

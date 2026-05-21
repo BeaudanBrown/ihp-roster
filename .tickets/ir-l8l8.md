@@ -1,6 +1,6 @@
 ---
 id: ir-l8l8
-status: open
+status: closed
 deps: [ir-5653]
 links: []
 created: 2026-05-21T03:35:20Z
@@ -22,3 +22,9 @@ Create shared roster badge markup/helpers in Web/View/RosterWeeks/Grid.hs or a f
 
 Day-column draft and live views look structurally consistent. Time labels do not wrap/clamp awkwardly in normal desktop column widths. Shift type select remains autosaving and keyboard/touch accessible. Missing staffed type visibly says 'Type required'. Conflict highlight styles remain legible and dominant. Focused screenshot/e2e or manual screenshot evidence covers live/draft and end-times on/off where feasible.
 
+
+## Notes
+
+**2026-05-21T04:08:51Z**
+
+Implemented day-column shift type badges with shared editable/read-only markup, persisted colour-key accents, required missing-type label for staffed slots, and focused Playwright coverage. Verification: typecheck passed; e2e/roster-row-controls.spec.ts passed after updating badge assertions.
