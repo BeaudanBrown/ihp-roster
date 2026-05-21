@@ -1,6 +1,6 @@
 ---
 id: ir-6thh
-status: open
+status: closed
 deps: []
 links: [ir-l089, ir-dk24]
 created: 2026-05-21T11:56:52Z
@@ -22,3 +22,9 @@ Reintroduce or preserve a projection-backed render-data builder that matches the
 
 Switching currentRosterReadModelBackend to ProjectionRosterReadModel restores the old projection-backed behavior. DirectRosterReadModel full-page and fragment reads do not warm or populate the roster projection cache except where explicitly testing projection rollback. Parity coverage compares true projection-cached output with direct output for manager draft, staff hidden draft, published/day-column, and key fragments. Focused roster tests and typecheck pass.
 
+
+## Notes
+
+**2026-05-21T12:35:01Z**
+
+HANDOFF: Restored ProjectionRosterReadModel to the pre-trial projection/Haskell builder while keeping DirectRosterReadModel on direct SQL facts; gated keepCurrentRosterWeekProjectionHot under projection backend; parity tests now compare true projection cache against direct and assert direct seam does not touch projection cache stats. Tests: bash ./bin/in-env hspec-test --match 'Roster direct read model'; bash ./bin/in-env typecheck. Remaining risk: projection/direct parity still intentionally normalizes non-semantic slot/conflict ordering; ir-l089 remains the semantics follow-up.

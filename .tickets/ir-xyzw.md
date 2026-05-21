@@ -55,3 +55,7 @@ HANDOFF from ir-dk24: Direct roster trial is functionally integrated and parity-
 **2026-05-21T11:56:58Z**
 
 Code review follow-up: added ir-6thh to restore a true projection rollback/parity baseline and stop direct full-page renders from warming projection cache; added ir-l089 to align multi-preference conflict semantics before performance tuning; ir-bdvn now depends on both.
+
+**2026-05-21T12:35:01Z**
+
+HANDOFF from ir-6thh: Projection rollback is real again and direct full-page/fragment reads no longer warm roster projection cache; parity/performance follow-ups can use ProjectionRosterReadModel as the baseline, with ordering normalized in tests and ir-l089 still covering conflict semantics.

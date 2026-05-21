@@ -8,6 +8,8 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups)
+import Application.Helper.SurfaceProjection (SurfaceProjectionCacheStats (..),
+                                             readSurfaceProjectionCacheStats)
 import Application.Helper.UserPreferences (upsertCurrentUserRosterLayoutMode)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
@@ -136,6 +138,20 @@ tests = beforeAll testContext do
                     withCurrentControllerContext do
                         assertProjectionDirectParity fixture.rosterGroup.id 0 defaultRosterAssignmentFilters DayColumns
 
+        it "does not warm or populate projection cache through the direct seam" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        before <- readSurfaceProjectionCacheStats
+                        _ <- fetchVisibleRosterReadModel fixture.rosterGroup.id 0
+                        _ <- renderVisibleRosterReadModelFragment fixture.rosterGroup.id 0 RosterProjectionStaffPanel
+                        keepCurrentRosterWeekProjectionHot fixture.rosterGroup.id 0
+                        after <- readSurfaceProjectionCacheStats
+
+                        projectionCacheDelta after before `shouldBe` zeroProjectionCacheDelta
+
 addDirectReadModelConflictFacts :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => DirectReadModelFixture -> IO (RosterSlot, RosterSlot, RosterSlot)
 addDirectReadModelConflictFacts fixture = do
     initialData <- fromJust <$> fetchVisibleRosterReadModelDirect fixture.rosterGroup.id 0
@@ -192,6 +208,19 @@ assertProjectionDirectParity rosterGroupId weekOffset assignmentFilters layoutMo
 renderMaybeHtml :: Maybe Blaze.Html -> Text
 renderMaybeHtml = maybe "" (LText.toStrict . HtmlRenderer.renderHtml)
 
+zeroProjectionCacheDelta :: SurfaceProjectionCacheStats
+zeroProjectionCacheDelta = SurfaceProjectionCacheStats { hits = 0, misses = 0, loads = 0, warms = 0, evictions = 0 }
+
+projectionCacheDelta :: SurfaceProjectionCacheStats -> SurfaceProjectionCacheStats -> SurfaceProjectionCacheStats
+projectionCacheDelta after before =
+    SurfaceProjectionCacheStats
+        { hits = after.hits - before.hits
+        , misses = after.misses - before.misses
+        , loads = after.loads - before.loads
+        , warms = after.warms - before.warms
+        , evictions = after.evictions - before.evictions
+        }
+
 data RosterRenderDataSnapshot = RosterRenderDataSnapshot
     { snapshotRosterWeekId            :: UUID.UUID
     , snapshotRosterWeekIsLive        :: Bool
@@ -229,8 +258,8 @@ snapshotRosterRenderData RosterRenderData { rosterWeek, rosterDays, weekStartDat
         , snapshotSelfServiceStaffIds = fmap (map (coerce . (.id)) . (.quickToolsStaffMembers)) staffSelfServicePanel
         , snapshotOrderedSlotNames = map (\slotName -> (coerce slotName.id, slotName.name, slotName.sortOrder)) orderedSlotNames
         , snapshotShiftTypes = map (\shiftType -> (coerce shiftType.id, shiftType.name, shiftType.sortOrder)) shiftTypes
-        , snapshotAllSlots = map snapshotRosterSlot allSlots
-        , snapshotSlotConflicts = map snapshotSlotConflict slotConflicts
+        , snapshotAllSlots = sortOn (\(slotId, _, _, _, _, _, _, _, _) -> slotId) (map snapshotRosterSlot allSlots)
+        , snapshotSlotConflicts = sortOn fst (map snapshotSlotConflict slotConflicts)
         , snapshotRenderRows = Map.toAscList (Map.map (map (\(rowIndex, slots) -> (rowIndex, map (coerce . (.id)) slots))) renderIndexes.rosterDayRowsByDayId)
         , snapshotRenderSlotKeys = Map.toAscList (Map.map (coerce . (.id)) renderIndexes.rosterSlotByDayRowSlotName)
         , snapshotRenderStaffIds = Map.keys renderIndexes.rosterStaffById
