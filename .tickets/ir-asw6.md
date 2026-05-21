@@ -21,3 +21,9 @@ Decisions: shift type appears as a compact badge in day-column cards. Draft/edit
 
 Day-column draft and live cards use a shared badge treatment for shift type, remain readable with and without end times, and scan top-to-bottom by start time. Shift type colour keys are persisted, assigned automatically from the 10-key palette/default rule, and reassigned on activation when needed. Publishing a roster requires shift type on every staffed shift regardless of end-times setting. Standard day-row day boundaries render clearly across the grid. Relevant controller/helper specs and focused UI/screenshot/e2e checks cover the new behaviour. Local roster docs/spec mention the implemented contract.
 
+
+## Notes
+
+**2026-05-21T04:11:33Z**
+
+All implementation children under this epic are now closed. Epic acceptance appears documented/covered by child tickets; final verification attempted with doc-drift-check but failed on unrelated AGENTS.md nav text mismatch (expected leave vs current unavailability). Linked follow-up ir-qqgf remains open for future manual colour configuration.

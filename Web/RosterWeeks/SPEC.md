@@ -16,6 +16,8 @@ lands.
 - Managers, venue admins, venue owners, and support-mode super admins can use
   manager/admin roster controls according to the controller capability checks.
 - Publishing a roster is the visibility gate for staff-facing roster content.
+- Publishing requires every staffed shift to have a start time and shift type;
+  venues with end times enabled must also provide an end time.
 - Roster forms must submit full cell payloads so single-field edits do not
   clear sibling slot fields.
 
@@ -30,11 +32,34 @@ lands.
   slots should not be stored.
 - Slot rows use `row_index` to align early/mid/late-style visual rows in the
   default table layout.
-- Day-column layout renders actual slots compactly in column-major order and
-  ignores holes in the default table layout.
+- Day-column layout renders actual slots compactly in column-major order,
+  sorted top-to-bottom by start time within each day, and ignores holes in the
+  default table layout.
+- Day-column draft/editable and live/read-only cards use the same compact shift
+  type badge shape. Editable badges remain select controls; read-only badges do
+  not present interactive affordance.
+- Shift type badges show the assigned shift type name with a small persisted
+  colour marker. Unassigned shifts show `Type`; staffed shifts without a shift
+  type show `Type required` with warning/dashed styling.
 - Slot names and shift types are venue configuration, not free-form authority.
-- End-time and explicit shift-type pilot behavior is tracked through
-  `docs/workstreams/rooks-pilot.md` until the full contract is settled here.
+- Shift type colour keys are assigned automatically from ten distinct palette
+  keys (`palette-1` through `palette-10`) with `default` as a reusable fallback.
+  Active shift types within a venue should have unique non-default keys where a
+  palette key is available; inactive shift types use `default`, and reactivation
+  reassigns a colliding stored key to the first available palette key or
+  `default`.
+- Manual shift type colour configuration is intentionally out of scope for the
+  current admin screens; future colour editing should reuse the stored
+  `shift_types.colour_key` contract.
+
+## Standard Grid Rules
+
+- Standard day-row layout preserves clear day boundaries across the whole grid:
+  each day section ends with a strong separator, and the first row of each next
+  day gets a strong top border across all slot cells.
+- Standard day-row shift type cells retain the existing cell format; shift type
+  colour may be used only as a subtle internal accent and must not override
+  conflict or issue highlighting.
 
 ## Conflict And Availability Rules
 

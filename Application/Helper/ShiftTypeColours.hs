@@ -1,3 +1,6 @@
+-- | Central shift type colour-key policy for admin mutations and roster badges.
+-- Active shift types in a venue get unique non-default palette keys while any
+-- excess active types and all inactive types use the reusable default key.
 module Application.Helper.ShiftTypeColours
     ( defaultShiftTypeColourKey
     , shiftTypeColourPaletteKeys

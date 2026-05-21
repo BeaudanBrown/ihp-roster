@@ -1,6 +1,6 @@
 ---
 id: ir-acd3
-status: open
+status: closed
 deps: [ir-5653, ir-7b4c, ir-l8l8, ir-7o5p]
 links: []
 created: 2026-05-21T03:35:20Z
@@ -22,3 +22,9 @@ Update Web/RosterWeeks/SPEC.md with day-column badge behaviour, standard day-bou
 
 Living docs describe the implemented behaviour and non-goal of manual colour configuration. Future agents can find the colour uniqueness/default rule without reading the whole implementation.
 
+
+## Notes
+
+**2026-05-21T04:10:55Z**
+
+Updated Web/RosterWeeks/SPEC.md with shift type badge, colour assignment/default, publish validation, day-boundary, and manual-colour non-goal contract; added a helper note near the colour assignment policy. Verification: bash ./bin/in-env ./bin/doc-drift-check failed on pre-existing AGENTS.md nav text mismatch (expects leave vs current unavailability).
