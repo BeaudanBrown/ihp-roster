@@ -126,17 +126,19 @@ checkShiftPreferenceStartWindowMismatch ctx =
         (Just _, Just startTime) ->
             case shiftPreferencesForDay ctx of
                 [] -> Nothing
-                dayPreference:_ ->
+                dayPreferences ->
                     let startMinute = todHour startTime * 60 + todMin startTime
-                        preferredStartMinute = dayPreference.preferredStartHour * 60
-                        preferredEndMinute = dayPreference.preferredEndHour * 60
-                     in if startMinute < preferredStartMinute || startMinute > preferredEndMinute
-                            then Just RosterConflict
+                        isInsidePreference preference =
+                            let preferredStartMinute = preference.preferredStartHour * 60
+                                preferredEndMinute = preference.preferredEndHour * 60
+                             in startMinute >= preferredStartMinute && startMinute <= preferredEndMinute
+                     in if any isInsidePreference dayPreferences
+                            then Nothing
+                            else Just RosterConflict
                                 { conflictType = ShiftPreferenceSlotMismatch
                                 , severity = getConflictSeverity ShiftPreferenceSlotMismatch
                                 , message = "Preferred start window conflict"
                                 }
-                            else Nothing
         _ -> Nothing
 
 shiftPreferencesForDay :: ConflictContext -> [StaffShiftPreference]

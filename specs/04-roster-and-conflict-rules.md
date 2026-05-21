@@ -54,8 +54,8 @@ A slot assignment can produce conflict flags. Priority order and visual severity
 ## Staff shift preferences
 
 - Preferences are recurring weekly availability templates scoped to a staff member, not to a roster group.
-- One active preference row per weekday means the staff member is available that day.
-- Each available day stores a whole-hour preferred start window from 5 AM to 11 PM (`preferred_start_hour` to `preferred_end_hour`, inclusive).
+- The current schema enforces at most one active preference row per staff member and weekday; one active preference row means the staff member is available that day.
+- Each available row stores a whole-hour preferred start window from 5 AM to 11 PM (`preferred_start_hour` to `preferred_end_hour`, inclusive); if multiple same-day windows are supplied to conflict evaluation, a slot start matching any window is treated as preferred.
 - Slot names such as Early/Mid/Late are roster layout labels only; they are not part of staff availability preferences.
 - If a roster slot has a start time outside the preferred start window, show an advisory conflict. Slots without a start time only use the available/unavailable day signal.
 

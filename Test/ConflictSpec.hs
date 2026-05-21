@@ -193,6 +193,30 @@ tests = describe "Conflict Engine" do
         let conflicts = evaluateConflicts ctx
         conflicts `shouldBe` []
 
+    it "accepts multiple same-day preference windows when any window contains the start time" do
+        let assignedSlot =
+                (mockSlot :: RosterSlot)
+                    { staffId = Just "00000000-0000-0000-0000-0000000000aa"
+                    , startTime = Just (TimeOfDay 17 0 0)
+                    }
+        let morningPreference = mockShiftPreference
+                { preferredStartHour = 6
+                , preferredEndHour = 10
+                }
+        let eveningPreference = mockShiftPreference
+                { preferredStartHour = 16
+                , preferredEndHour = 20
+                }
+        let ctx = mkContext \base ->
+                base
+                    { slot = assignedSlot
+                    , weekSlots = [assignedSlot]
+                    , daySlots = [assignedSlot]
+                    , shiftPreferences = [morningPreference, eveningPreference]
+                    }
+        let conflicts = evaluateConflicts ctx
+        conflicts `shouldBe` []
+
     it "sorts multiple conflicts by severity/priority" do
         let ctx = mkContext \base ->
                 base

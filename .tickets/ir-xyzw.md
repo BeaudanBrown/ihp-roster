@@ -59,3 +59,7 @@ Code review follow-up: added ir-6thh to restore a true projection rollback/parit
 **2026-05-21T12:35:01Z**
 
 HANDOFF from ir-6thh: Projection rollback is real again and direct full-page/fragment reads no longer warm roster projection cache; parity/performance follow-ups can use ProjectionRosterReadModel as the baseline, with ordering normalized in tests and ir-l089 still covering conflict semantics.
+
+**2026-05-21T12:38:29Z**
+
+HANDOFF from ir-l089: Shared conflict helper now treats multiple same-day preference windows as matching if any window contains the start time, matching the direct SQL predicate; docs note the current unique active staff/day preference schema.
