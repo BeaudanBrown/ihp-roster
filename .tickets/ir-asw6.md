@@ -1,6 +1,6 @@
 ---
 id: ir-asw6
-status: open
+status: closed
 deps: []
 links: [ir-qqgf]
 created: 2026-05-21T03:34:52Z
@@ -27,3 +27,7 @@ Day-column draft and live cards use a shared badge treatment for shift type, rem
 **2026-05-21T04:11:33Z**
 
 All implementation children under this epic are now closed. Epic acceptance appears documented/covered by child tickets; final verification attempted with doc-drift-check but failed on unrelated AGENTS.md nav text mismatch (expected leave vs current unavailability). Linked follow-up ir-qqgf remains open for future manual colour configuration.
+
+**2026-05-21T04:12:08Z**
+
+All descendant tickets are closed; closing epic after ir-acd3.
