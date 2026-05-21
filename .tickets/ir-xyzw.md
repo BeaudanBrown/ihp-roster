@@ -47,3 +47,7 @@ HANDOFF from ir-f16h: Roster controllers/fragments now use the SQL/direct read-m
 **2026-05-21T08:29:31Z**
 
 HANDOFF from ir-1jsi: Projection-cache vs direct roster parity coverage now compares normalized render data plus content/staff/day/row fragments across manager draft, staff hidden draft, and published/day-column paths; ir-dk24 can proceed to measure/report the direct trial path.
+
+**2026-05-21T08:31:37Z**
+
+HANDOFF from ir-dk24: Direct roster trial is functionally integrated and parity-covered, but measured warm fragment paths regress versus projection-cache hits because direct reads rebuild staff option states/conflicts per fragment. Created ir-bdvn to tune direct fragment read costs before deleting the projection rollback; recommendation is temporary hybrid/rollback seam until that is resolved.
