@@ -1,6 +1,6 @@
 ---
 id: ir-cf17
-status: open
+status: closed
 deps: [ir-f42m]
 links: []
 created: 2026-05-21T07:43:26Z
@@ -22,3 +22,9 @@ Keep existing projection functions intact. Introduce one wrapper or selection po
 
 Roster full-page and fragment callers route through the seam. Default behavior remains projection-backed at this stage. The seam makes rollback to the projection path obvious. Focused roster tests and typecheck pass.
 
+
+## Notes
+
+**2026-05-21T07:56:33Z**
+
+HANDOFF: Added a compile-time roster read-model seam in Web.RosterWeeks.RenderData and routed full-page, content/OOB/toast, staff-panel, row, and day fragment reads through it; default backend remains ProjectionRosterReadModel over the existing projection cache; tests run: bash ./bin/in-env typecheck, bash ./bin/in-env hspec-test --match "RosterWeeks"; next touchpoint is ir-kxch adding the SQL/direct backend behind the seam.

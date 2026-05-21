@@ -672,7 +672,7 @@ respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments = do
 
 respondWithRosterPatches :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> Bool -> IO ()
 respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefreshStaffPanel = do
-    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
+    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtmlProfiled [hsx||]
         Just RosterRenderData { rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } -> do
@@ -691,7 +691,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just requestedRosterGroupId)
     _ <- ensureRosterWeekExists currentRosterGroup.id weekOffset
     keepCurrentRosterWeekProjectionHot currentRosterGroup.id weekOffset
-    rosterDataOrNothing <- fetchVisibleRosterRenderDataCached currentRosterGroup.id weekOffset
+    rosterDataOrNothing <- fetchVisibleRosterReadModel currentRosterGroup.id weekOffset
     passkeySetupPrompt <- passkeySetupPromptFromSession
     showShiftTypeHighlights <- fetchCurrentShowShiftTypeHighlights
 

@@ -16,8 +16,8 @@ import Application.Helper.View (ToastOverlayConfig,
 import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
-import Web.RosterWeeks.RenderData (fetchVisibleRosterRenderDataCached,
-                                   renderVisibleRosterProjectionFragment)
+import Web.RosterWeeks.RenderData (fetchVisibleRosterReadModel,
+                                   renderVisibleRosterReadModelFragment)
 import Web.RosterWeeks.Types (RosterGridRenderModel (..),
                               RosterProjectionFragment (RosterProjectionContent),
                               RosterRenderData (..))
@@ -26,7 +26,7 @@ import Web.View.RosterWeeks.Grid (renderRosterContentFragment,
 
 respondWithRosterContent :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContent rosterGroupId weekOffset = do
-    maybeHtml <- renderVisibleRosterProjectionFragment rosterGroupId weekOffset RosterProjectionContent
+    maybeHtml <- renderVisibleRosterReadModelFragment rosterGroupId weekOffset RosterProjectionContent
     when (isNothing maybeHtml) do
         TextIO.putStrLn ("roster_projection_miss: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
     respondHtmlProfiled (fromMaybe mempty maybeHtml)
@@ -35,7 +35,7 @@ respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: 
 respondWithRosterContentOob rosterGroupId weekOffset = do
     rosterGroups <- fetchCurrentVenueRosterGroups
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
+    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
     case rosterData of
         Nothing -> do
             TextIO.putStrLn ("roster_projection_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
@@ -81,7 +81,7 @@ respondWithRosterContentToast :: (?context :: ControllerContext, ?modelContext :
 respondWithRosterContentToast rosterGroupId weekOffset toast = do
     rosterGroups <- fetchCurrentVenueRosterGroups
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
-    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
+    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
     showShiftTypeHighlights <- fetchCurrentShowShiftTypeHighlights
     respondHtmlProfiled $
         mconcat

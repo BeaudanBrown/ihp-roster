@@ -6,6 +6,10 @@
 
 module Web.RosterWeeks.RenderData
     ( rosterProjectionDefinition
+    , RosterReadModelBackend (..)
+    , currentRosterReadModelBackend
+    , fetchVisibleRosterReadModel
+    , renderVisibleRosterReadModelFragment
     , fetchVisibleRosterRenderDataCached
     , renderVisibleRosterProjectionFragment
     , renderRosterProjectionFragment
@@ -59,11 +63,30 @@ import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
 
+-- One compile-time seam for the roster SQL/direct read-model trial. The
+-- default stays projection-backed so rollback is this constructor selection.
+data RosterReadModelBackend
+    = ProjectionRosterReadModel
+    deriving (Eq, Show)
+
+currentRosterReadModelBackend :: RosterReadModelBackend
+currentRosterReadModelBackend = ProjectionRosterReadModel
+
 rosterProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope (Maybe RosterRenderData) RosterProjectionFragment
 rosterProjectionDefinition =
     mkRosterProjectionDefinition
         (\scope -> fetchVisibleRosterRenderData scope.rosterProjectionGroupId scope.rosterProjectionWeekOffset)
         renderRosterProjectionFragment
+
+fetchVisibleRosterReadModel :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
+fetchVisibleRosterReadModel rosterGroupId weekOffset =
+    case currentRosterReadModelBackend of
+        ProjectionRosterReadModel -> fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
+
+renderVisibleRosterReadModelFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> RosterProjectionFragment -> IO (Maybe Blaze.Html)
+renderVisibleRosterReadModelFragment rosterGroupId weekOffset fragment =
+    case currentRosterReadModelBackend of
+        ProjectionRosterReadModel -> renderVisibleRosterProjectionFragment rosterGroupId weekOffset fragment
 
 fetchVisibleRosterRenderDataCached :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe RosterRenderData)
 fetchVisibleRosterRenderDataCached rosterGroupId weekOffset =
@@ -306,16 +329,16 @@ buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts =
 
 fetchVisibleRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe [RosterStaffPanelEntry])
 fetchVisibleRosterStaffPanelEntries rosterGroupId weekOffset = do
-    rosterData <- fetchVisibleRosterRenderDataCached rosterGroupId weekOffset
+    rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
     pure ((\RosterRenderData { panelStaff } -> panelStaff) <$> rosterData)
 
 fetchVisibleRosterRowFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> Int -> IO (Maybe Blaze.Html)
 fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex = do
-    renderVisibleRosterProjectionFragment rosterGroupId weekOffset (RosterProjectionRow (unpackId rosterDayId) rowIndex)
+    renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionRow (unpackId rosterDayId) rowIndex)
 
 fetchVisibleRosterDaySectionFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> IO (Maybe Blaze.Html)
 fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId = do
-    renderVisibleRosterProjectionFragment rosterGroupId weekOffset (RosterProjectionDaySection (unpackId rosterDayId))
+    renderVisibleRosterReadModelFragment rosterGroupId weekOffset (RosterProjectionDaySection (unpackId rosterDayId))
 
 keepCurrentRosterWeekProjectionHot :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 keepCurrentRosterWeekProjectionHot rosterGroupId weekOffset = do

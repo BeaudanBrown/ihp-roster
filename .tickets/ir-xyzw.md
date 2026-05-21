@@ -27,3 +27,7 @@ Baseline metrics summarize current roster projection behavior for representative
 **2026-05-21T07:52:47Z**
 
 HANDOFF from ir-f42m: Baseline projection measurements now live in docs/workstreams/roster-sql-read-model-trial.md; cold projection snapshot load and staff option state building dominate visible cold spans, warm fragments are cache hits, and mutation actor responses only enqueue fragment refresh while passive refetch may miss/load.
+
+**2026-05-21T07:56:33Z**
+
+HANDOFF from ir-cf17: Roster callers now use fetchVisibleRosterReadModel/renderVisibleRosterReadModelFragment as the reversible seam; ir-kxch can add a direct backend without changing controller/fragment call sites.
