@@ -1,6 +1,6 @@
 ---
 id: ir-umv7
-status: open
+status: closed
 deps: []
 links: [ir-jooi, ir-uir5]
 created: 2026-05-21T07:00:19Z
@@ -35,3 +35,7 @@ HANDOFF from ir-ypx3: Menu/render integration is implemented; row/day fragments 
 **2026-05-21T07:16:50Z**
 
 HANDOFF from ir-7w9p: Final child coverage is closed. Epic acceptance is represented by typed preference plumbing, roster menu/render integration, and focused RosterWeeks coverage passing with typecheck; supervisor can validate and close the epic.
+
+**2026-05-21T07:17:18Z**
+
+All descendant tickets are closed; closing epic after ir-7w9p.
