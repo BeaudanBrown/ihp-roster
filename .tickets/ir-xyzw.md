@@ -39,3 +39,7 @@ HANDOFF from ir-kxch: Direct roster base facts now live in Web.RosterWeeks.Direc
 **2026-05-21T08:18:49Z**
 
 HANDOFF from ir-uybz: Direct roster trial path now uses SQL/direct assignment option-state and conflict fact builders; ir-f16h can integrate the trial path, and ir-1jsi should compare projection-vs-direct behavior broadly.
+
+**2026-05-21T08:22:09Z**
+
+HANDOFF from ir-f16h: Roster controllers/fragments now use the SQL/direct read-model by default through the existing seam; projection rollback remains a single currentRosterReadModelBackend constructor change; focused controller/live-fragment tests and typecheck passed.

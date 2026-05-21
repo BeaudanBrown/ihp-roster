@@ -12,7 +12,7 @@ SQL/direct path, keep projections, or run a temporary hybrid.
 
 ## Baseline: Current Projection Behavior
 
-Captured by `ir-f42m` on 2026-05-21 with:
+Captured by `ir-f42m` on 2026-05-21 with the then-current projection baseline test:
 
 ```bash
 IHP_ROSTER_BASELINE_PRINT=1 bash ./bin/in-env hspec-test --match "Roster projection baseline"
@@ -63,6 +63,18 @@ passive-row-refetch: app_total;dur=7.9, roster_ensure_week_exists;dur=0.1, roste
 - The baseline fixture is intentionally medium-sized; it does not cover very large rosters, multiple roster groups, staff self-service-only viewers, or live published staff masking.
 - `Server-Timing` covers existing `profileActionSpan` spans only. HSX rendering, layout, and some controller/setup work are visible only in `app_total`.
 - Projection cache stats are process-local and viewer/scope/version keyed, so repeated focused test runs should be interpreted as shape evidence, not persistent cache-capacity evidence.
+
+## Current Trial Integration
+
+`ir-f16h` switched `currentRosterReadModelBackend` to `DirectRosterReadModel` on the
+trial branch. Controller and live-fragment call sites still use
+`fetchVisibleRosterReadModel` / `renderVisibleRosterReadModelFragment`, so rollback
+is a single seam constructor change and the projection implementation remains in
+place.
+
+Focused integration coverage now asserts that full-page, content fragment, day
+section fragment, row fragment, staff panel, and passive mutation refetch paths
+render without `roster_projection_*` `Server-Timing` spans.
 
 ## Living Docs To Update If Adopted
 

@@ -1,6 +1,6 @@
 ---
 id: ir-f16h
-status: open
+status: closed
 deps: [ir-uybz]
 links: []
 created: 2026-05-21T07:43:26Z
@@ -22,3 +22,9 @@ Switch the roster read seam to use the SQL/direct path on the branch. Keep exist
 
 Full roster page, content fragment, day section fragment, row fragment, and staff panel flows render correctly without calling loadLiveSurfaceProjection on the trial path. The projection path remains available by reverting the seam. Focused roster and live-fragment tests pass.
 
+
+## Notes
+
+**2026-05-21T08:22:09Z**
+
+HANDOFF: Switched roster read-model seam to DirectRosterReadModel and updated focused roster integration coverage to assert full-page/content/day/row/staff-panel/passive refetch paths render without roster_projection_* spans; tests run: hspec-test --match 'Roster direct read-model integration' --match 'direct read model', hspec-test --match 'RosterWeeksController', typecheck; remaining risk/next touchpoint: ir-1jsi should broaden projection-vs-direct parity and ir-dk24 should measure direct path performance.

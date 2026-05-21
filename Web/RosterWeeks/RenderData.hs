@@ -65,14 +65,14 @@ import Web.View.RosterWeeks.Grid
 import Web.View.RosterWeeks.StaffPanel
 
 -- One compile-time seam for the roster SQL/direct read-model trial. The
--- default stays projection-backed so rollback is this constructor selection.
+-- branch default is direct; projection rollback is this constructor selection.
 data RosterReadModelBackend
     = ProjectionRosterReadModel
     | DirectRosterReadModel
     deriving (Eq, Show)
 
 currentRosterReadModelBackend :: RosterReadModelBackend
-currentRosterReadModelBackend = ProjectionRosterReadModel
+currentRosterReadModelBackend = DirectRosterReadModel
 
 rosterProjectionDefinition :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ProjectionLiveSurfaceDefinition RosterLiveSurface RosterProjectionScope (Maybe RosterRenderData) RosterProjectionFragment
 rosterProjectionDefinition =

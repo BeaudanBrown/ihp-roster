@@ -21,12 +21,12 @@ import Web.FrontController ()
 import Web.Routes
 import Web.Types
 
--- These tests pin the existing profiled roster projection path at a high level.
--- Exact durations are intentionally documented separately because they are host-dependent.
+-- These tests pin the active roster read-model path at a high level.
+-- Historical projection baseline timings are documented in docs/workstreams/.
 tests :: Spec
 tests = beforeAll testContext do
-    describe "Roster projection baseline" do
-        it "emits projection cache spans for full-page and fragment roster reads" $ withContext do
+    describe "Roster direct read-model integration" do
+        it "renders full-page and fragment roster reads without projection cache spans" $ withContext do
             withEnv "IHP_ROSTER_PROFILING" (Just "1") do
                 withCleanDb do
                     BaselineRoster { brVenue, brManager, brRosterDay } <- createBaselineRoster
@@ -51,14 +51,14 @@ tests = beforeAll testContext do
                     dayFragment `responseStatusShouldBe` status200
                     staffPanel `responseStatusShouldBe` status200
 
-                    serverTiming coldPage `shouldContainBS` "roster_projection_load;dur="
-                    serverTiming warmPage `shouldContainBS` "roster_projection_load;dur="
-                    serverTiming contentFragment `shouldContainBS` "roster_projection_load;dur="
-                    serverTiming rowFragment `shouldContainBS` "roster_projection_render_fragment;dur="
-                    serverTiming dayFragment `shouldContainBS` "roster_projection_render_fragment;dur="
-                    serverTiming staffPanel `shouldContainBS` "roster_projection_load;dur="
-                    serverTiming warmPage `shouldContainBS` "desc=\"hits=1\""
-                    serverTiming rowFragment `shouldContainBS` "desc=\"hits=1\""
+                    serverTiming coldPage `shouldNotContainBS` "roster_projection_"
+                    serverTiming warmPage `shouldNotContainBS` "roster_projection_"
+                    serverTiming contentFragment `shouldNotContainBS` "roster_projection_"
+                    serverTiming rowFragment `shouldNotContainBS` "roster_projection_"
+                    serverTiming dayFragment `shouldNotContainBS` "roster_projection_"
+                    serverTiming staffPanel `shouldNotContainBS` "roster_projection_"
+                    serverTiming coldPage `shouldContainBS` "roster_direct_build_staff_option_states;dur="
+                    serverTiming rowFragment `shouldContainBS` "roster_direct_build_staff_option_states;dur="
 
                     dumpBaselineTimings
                         [ ("cold-page", coldPage)
@@ -72,7 +72,7 @@ tests = beforeAll testContext do
                     bodyText <- cs . LByteString.unpack <$> responseBody contentFragment
                     bodyText `shouldContain` "data-roster-row"
 
-        it "keeps slot mutation actor refresh separate from passive projection refetch" $ withContext do
+        it "keeps slot mutation actor refresh separate from passive direct refetch" $ withContext do
             withEnv "IHP_ROSTER_PROFILING" (Just "1") do
                 withCleanDb do
                     BaselineRoster { brVenue, brManager, brRosterDay, brMutableSlot, brAlternateStaff } <- createBaselineRoster
@@ -88,7 +88,8 @@ tests = beforeAll testContext do
                     let triggerHeader = fromJust (lookup "HX-Trigger" (responseHeaders mutationResponse))
                     triggerHeader `shouldContainBS` "app-roster-fragments-refresh"
                     serverTiming mutationResponse `shouldContainBS` "app_total;dur="
-                    serverTiming passiveRefetch `shouldContainBS` "roster_projection_render_fragment;dur="
+                    serverTiming passiveRefetch `shouldNotContainBS` "roster_projection_"
+                    serverTiming passiveRefetch `shouldContainBS` "roster_direct_build_staff_option_states;dur="
                     dumpBaselineTimings [("slot-mutation", mutationResponse), ("passive-row-refetch", passiveRefetch)]
 
 data BaselineRoster = BaselineRoster
@@ -140,6 +141,10 @@ serverTiming response =
 shouldContainBS :: HasCallStack => ByteString.ByteString -> ByteString.ByteString -> Expectation
 shouldContainBS haystack needle =
     haystack `shouldSatisfy` ByteString.isInfixOf needle
+
+shouldNotContainBS :: HasCallStack => ByteString.ByteString -> ByteString.ByteString -> Expectation
+shouldNotContainBS haystack needle =
+    haystack `shouldNotSatisfy` ByteString.isInfixOf needle
 
 dumpBaselineTimings :: [(String, Response)] -> IO ()
 dumpBaselineTimings responses = do
