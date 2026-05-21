@@ -2,7 +2,7 @@
 id: ir-dk24
 status: closed
 deps: [ir-1jsi]
-links: [ir-bdvn]
+links: [ir-bdvn, ir-l089, ir-6thh]
 created: 2026-05-21T07:43:26Z
 type: task
 priority: 2

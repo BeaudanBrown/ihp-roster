@@ -51,3 +51,7 @@ HANDOFF from ir-1jsi: Projection-cache vs direct roster parity coverage now comp
 **2026-05-21T08:31:37Z**
 
 HANDOFF from ir-dk24: Direct roster trial is functionally integrated and parity-covered, but measured warm fragment paths regress versus projection-cache hits because direct reads rebuild staff option states/conflicts per fragment. Created ir-bdvn to tune direct fragment read costs before deleting the projection rollback; recommendation is temporary hybrid/rollback seam until that is resolved.
+
+**2026-05-21T11:56:58Z**
+
+Code review follow-up: added ir-6thh to restore a true projection rollback/parity baseline and stop direct full-page renders from warming projection cache; added ir-l089 to align multi-preference conflict semantics before performance tuning; ir-bdvn now depends on both.

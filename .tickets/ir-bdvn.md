@@ -1,7 +1,7 @@
 ---
 id: ir-bdvn
 status: open
-deps: []
+deps: [ir-6thh, ir-l089]
 links: [ir-dk24]
 created: 2026-05-21T08:31:17Z
 type: task
@@ -12,13 +12,19 @@ tags: [agent-loop, area:roster, area:performance]
 ---
 # Optimize direct roster fragment read costs before projection cleanup
 
-The SQL/direct roster read path passed parity but local baseline repeats staff option-state and conflict builders on warm fragments, making row/day/staff-panel reads slower than projection-cache hits. Tune the direct path or narrow fragment reads before deleting the projection rollback.
+After the rollback/parity fixes land, the SQL/direct roster read path needs performance tuning. Local baseline repeats staff option-state and conflict builders on warm fragments, making row/day/staff-panel reads slower than projection-cache hits. Tune the direct path or narrow fragment reads before deleting the projection rollback.
 
 ## Design
 
-Profile and reduce roster_direct_build_staff_option_states and roster_direct_build_slot_conflicts for fragment GETs. Prefer set-based/narrow reads or request-local reuse, not a new cross-request cache.
+Start only after ir-6thh restores a true projection baseline and ir-l089 aligns conflict semantics. Profile and reduce roster_direct_build_staff_option_states and roster_direct_build_slot_conflicts for fragment GETs. Prefer set-based/narrow reads or request-local reuse, not a new cross-request cache.
 
 ## Acceptance Criteria
 
-Focused roster baseline timings show warm row/day/staff-panel fragment regressions are materially reduced or explicitly accepted with updated rationale; focused roster tests and typecheck pass.
+Focused roster baseline timings compare against the restored projection baseline and show warm row/day/staff-panel fragment regressions are materially reduced or explicitly accepted with updated rationale; focused roster tests and typecheck pass.
 
+
+## Notes
+
+**2026-05-21T11:56:52Z**
+
+Adjusted after code review: performance tuning should wait until rollback/parity is real and multi-preference conflict semantics are aligned; this ticket now depends on ir-6thh and ir-l089.
