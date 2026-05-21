@@ -169,15 +169,17 @@ renderShiftTypeHighlightsMenuSection weekOffset rosterGroupId showShiftTypeHighl
           hx-swap="outerHTML"
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-        <input type="hidden" name="showShiftTypeHighlights" value="false" />
+        <input type="hidden"
+               id="roster-shift-type-highlights-value"
+               name="showShiftTypeHighlights"
+               value={if showShiftTypeHighlights then ("true" :: Text) else "false"} />
         <div class="form-check form-switch mb-0 px-1">
             <input type="checkbox"
                    id="roster-shift-type-highlights-toggle"
-                   name="showShiftTypeHighlights"
                    value="true"
                    class="form-check-input ms-0 me-2"
                    checked={showShiftTypeHighlights}
-                   onchange="this.form.requestSubmit()" />
+                   onchange="document.getElementById('roster-shift-type-highlights-value').value = this.checked ? 'true' : 'false'; this.form.requestSubmit()" />
             <label class="form-check-label small" for="roster-shift-type-highlights-toggle">Show shift type colours</label>
         </div>
     </form>

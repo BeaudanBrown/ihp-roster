@@ -734,6 +734,9 @@ tests = beforeAll testContext do
                 defaultResponse `responseStatusShouldBe` status200
                 defaultResponse `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
                 defaultResponse `responseBodyShouldContain` "data-roster-shift-type-highlights=\"true\""
+                defaultResponse `responseBodyShouldContain` "id=\"roster-shift-type-highlights-value\""
+                defaultResponse `responseBodyShouldContain` "name=\"showShiftTypeHighlights\" value=\"true\""
+                defaultResponse `responseBodyShouldNotContain` "id=\"roster-shift-type-highlights-toggle\" name=\"showShiftTypeHighlights\""
 
                 layoutResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -769,6 +772,8 @@ tests = beforeAll testContext do
                 disabledShowResponse `responseStatusShouldBe` status200
                 disabledShowResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
                 disabledShowResponse `responseBodyShouldContain` "data-roster-shift-type-highlights=\"false\""
+                disabledShowResponse `responseBodyShouldContain` "name=\"showShiftTypeHighlights\" value=\"false\""
+                disabledShowResponse `responseBodyShouldNotContain` "id=\"roster-shift-type-highlights-toggle\" name=\"showShiftTypeHighlights\""
                 disabledShowResponse `responseBodyShouldContain` "roster-day-columns"
 
                 otherUserResponse <- withUserAndCurrentVenue otherManager venue.id do
