@@ -1599,7 +1599,8 @@
     background-color: color-mix(in srgb, var(--roster-empty) 68%, var(--roster-day-b));
 }
 
-.roster-grid .day-row + .day-row > [role="gridcell"] {
+.roster-grid .day-row + .day-row > [role="gridcell"],
+.roster-grid .roster-grid-day-section + .roster-grid-day-section .day-row:first-child > [role="gridcell"] {
     border-top-color: var(--app-border-strong);
 }
 

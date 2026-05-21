@@ -1,6 +1,6 @@
 ---
 id: ir-7o5p
-status: open
+status: closed
 deps: [ir-5653]
 links: []
 created: 2026-05-21T03:35:20Z
@@ -22,3 +22,9 @@ The current strong row separator selector only matches adjacent .day-row sibling
 
 Standard day-row roster view shows a clear boundary between every day across the grid body and day rail. The fix works with multiple slot columns, closed/empty rows, and end-times enabled/disabled. No broad layout regressions or page-level horizontal overflow are introduced.
 
+
+## Notes
+
+**2026-05-21T04:03:38Z**
+
+Added CSS coverage for day-section boundary rows so the first row of each subsequent standard roster day gets the same strong top separator as intra-day rows; focused Playwright styling regression passes.

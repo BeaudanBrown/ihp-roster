@@ -55,19 +55,32 @@ test.describe('Styling regression contracts', () => {
             probe.style.left = '-10000px';
             probe.innerHTML = `
                 <div class="day-row day-alt-light"><div role="gridcell">light</div><div role="gridcell" class="slot-empty-cell">empty</div></div>
-                <div class="day-row day-alt-dark"><div role="gridcell">dark</div><div role="gridcell" class="slot-empty-cell">empty</div></div>`;
+                <div class="day-row day-alt-dark"><div role="gridcell">dark</div><div role="gridcell" class="slot-empty-cell">empty</div></div>
+                <div class="roster-grid-day-section" style="--roster-day-row-count:2;">
+                    <div class="day-row day-alt-light"><div role="gridcell" class="probe-first-section-first-cell">first day first row</div></div>
+                    <div class="day-row day-alt-light"><div role="gridcell" class="probe-first-section-second-cell">first day second row</div></div>
+                </div>
+                <div class="roster-grid-day-section" style="--roster-day-row-count:1;">
+                    <div class="day-row day-alt-dark"><div role="gridcell" class="probe-second-section-first-cell">second day first row</div></div>
+                </div>`;
             document.body.appendChild(probe);
 
             const probeLightCell = probe.querySelector('.day-alt-light');
             const probeDarkCell = probe.querySelector('.day-alt-dark');
             const probeLightEmptyCell = probe.querySelector('.day-alt-light .slot-empty-cell');
             const probeDarkEmptyCell = probe.querySelector('.day-alt-dark .slot-empty-cell');
+            const probeFirstSectionFirstCell = probe.querySelector('.probe-first-section-first-cell');
+            const probeFirstSectionSecondCell = probe.querySelector('.probe-first-section-second-cell');
+            const probeSecondSectionFirstCell = probe.querySelector('.probe-second-section-first-cell');
 
             if (
                 !(probeLightCell instanceof HTMLElement)
                 || !(probeDarkCell instanceof HTMLElement)
                 || !(probeLightEmptyCell instanceof HTMLElement)
                 || !(probeDarkEmptyCell instanceof HTMLElement)
+                || !(probeFirstSectionFirstCell instanceof HTMLElement)
+                || !(probeFirstSectionSecondCell instanceof HTMLElement)
+                || !(probeSecondSectionFirstCell instanceof HTMLElement)
             ) {
                 probe.remove();
                 return null;
@@ -79,12 +92,18 @@ test.describe('Styling regression contracts', () => {
             const probeDarkStyle = getComputedStyle(probeDarkCell);
             const probeLightEmptyStyle = getComputedStyle(probeLightEmptyCell);
             const probeDarkEmptyStyle = getComputedStyle(probeDarkEmptyCell);
+            const probeFirstSectionFirstCellStyle = getComputedStyle(probeFirstSectionFirstCell);
+            const probeFirstSectionSecondCellStyle = getComputedStyle(probeFirstSectionSecondCell);
+            const probeSecondSectionFirstCellStyle = getComputedStyle(probeSecondSectionFirstCell);
 
             const probeMetrics = {
                 lightDayCellBackground: probeLightStyle.backgroundColor,
                 darkDayCellBackground: probeDarkStyle.backgroundColor,
                 lightEmptyCellBackground: probeLightEmptyStyle.backgroundColor,
                 darkEmptyCellBackground: probeDarkEmptyStyle.backgroundColor,
+                firstDayFirstRowBorderTop: probeFirstSectionFirstCellStyle.borderTopColor,
+                firstDaySecondRowBorderTop: probeFirstSectionSecondCellStyle.borderTopColor,
+                secondDayFirstRowBorderTop: probeSecondSectionFirstCellStyle.borderTopColor,
             };
             probe.remove();
 
@@ -139,6 +158,8 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.lightDayCellBackground).not.toBe('rgb(13, 17, 25)');
         expect(metrics?.lightEmptyCellBackground).toBe(metrics?.lightDayCellBackground);
         expect(metrics?.darkEmptyCellBackground).toBe(metrics?.darkDayCellBackground);
+        expect(metrics?.firstDaySecondRowBorderTop).not.toBe(metrics?.firstDayFirstRowBorderTop);
+        expect(metrics?.secondDayFirstRowBorderTop).toBe(metrics?.firstDaySecondRowBorderTop);
         expect(metrics?.sectionDeltas.every((delta) => delta <= 1)).toBe(true);
     });
 
