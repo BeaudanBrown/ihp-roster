@@ -1,6 +1,6 @@
 ---
 id: ir-f42m
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-21T07:43:26Z
@@ -22,3 +22,9 @@ Use existing profileActionSpan coverage and projection cache stats. Capture cold
 
 Baseline notes include scenarios, commands, timing/span results, projection hit/miss/load behavior, roster size dimensions, and known limitations. The notes identify which spans dominate cold and warm roster requests.
 
+
+## Notes
+
+**2026-05-21T07:52:47Z**
+
+HANDOFF: Added focused roster projection baseline coverage and docs/workstreams/roster-sql-read-model-trial.md with scenarios, Server-Timing samples, cache hit/miss/load behavior, fixture dimensions, and limitations; tests run: bash ./bin/in-env hspec-test --match 'Roster projection baseline', bash ./bin/in-env typecheck; remaining risk: timings are local Hspec/mock-controller samples and should be remeasured under larger/production-like data in ir-dk24.

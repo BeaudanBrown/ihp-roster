@@ -21,3 +21,9 @@ Run a reversible branch trial for roster only. Keep the existing roster projecti
 
 Baseline metrics summarize current roster projection behavior for representative roster full-page, fragment, and mutation-refresh paths. A no-projection roster read path can produce equivalent Maybe RosterRenderData. Roster page and fragment reads can be switched through one code seam, with projection rollback still available. Parity coverage compares projection and SQL/direct behavior across important roster states. Focused roster tests and typecheck pass. The final report recommends keeping SQL/direct, keeping projections, using a temporary hybrid, or opening a follow-up experiment. Projection code is not deleted during this epic.
 
+
+## Notes
+
+**2026-05-21T07:52:47Z**
+
+HANDOFF from ir-f42m: Baseline projection measurements now live in docs/workstreams/roster-sql-read-model-trial.md; cold projection snapshot load and staff option state building dominate visible cold spans, warm fragments are cache hits, and mutation actor responses only enqueue fragment refresh while passive refetch may miss/load.
