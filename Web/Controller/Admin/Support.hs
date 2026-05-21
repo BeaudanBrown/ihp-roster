@@ -264,6 +264,9 @@ parseIsActiveParam = paramOrDefault "true" "isActive" == ("true" :: Text)
 parseShowInactiveParam :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Bool
 parseShowInactiveParam paramName = paramOrDefault "false" paramName == ("true" :: Text)
 
+parseSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?request :: Request) => Maybe Text
+parseSubmittedShiftTypeColourKey = paramOrNothing "colourKey"
+
 parseSubmittedOverrideAwardLevelId ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO (Maybe (Maybe (Id AwardLevel)))

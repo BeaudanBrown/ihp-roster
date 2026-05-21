@@ -200,6 +200,8 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "hx-trigger=\"change\""
                 pageResponse `responseBodyShouldContain` "hx-include=\"closest form\""
                 pageResponse `responseBodyShouldContain` "data-admin-shift-type-field-key=\""
+                pageResponse `responseBodyShouldContain` "name=\"colourKey\""
+                pageResponse `responseBodyShouldContain` "Badge Colour"
                 pageResponse `responseBodyShouldContain` "hx-post=\"/CreateRosterGroup\""
                 pageResponse `responseBodyShouldContain` "admin_roster_groups"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
@@ -368,6 +370,51 @@ tests = beforeAll testContext do
                 reactivatedShiftType <- fetch inactiveShiftType.id
                 reactivatedShiftType.isActive `shouldBe` True
                 reactivatedShiftType.colourKey `shouldBe` "palette-2"
+
+        it "lets admins choose shift type colours and rejects duplicate active palette colours" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Manual Shift Colour Venue"
+                admin <- createUserRecord "admin-manual-shift-colours@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                level <- createPayLevelRecord venue "Level 1"
+                firstShiftType <-
+                    createShiftTypeRecord venue level "First Shift"
+                        >>= updateRecord . set #colourKey "palette-3"
+                secondShiftType <- createShiftTypeRecord venue level "Second Shift"
+
+                createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateShiftTypeAction
+                        [ ("name", "Manual Colour Shift")
+                        , ("isActive", "true")
+                        , ("overrideAwardLevelId", "")
+                        , ("colourKey", "palette-4")
+                        ]
+                createResponse `responseStatusShouldBe` status302
+                createdShiftType <- query @ShiftType |> filterWhere (#name, "Manual Colour Shift") |> fetchOne
+                createdShiftType.colourKey `shouldBe` "palette-4"
+
+                duplicateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (UpdateShiftTypeAction secondShiftType.id)
+                            [ ("name", "Second Shift")
+                            , ("isActive", "true")
+                            , ("overrideAwardLevelId", idToParam level.id)
+                            , ("colourKey", cs firstShiftType.colourKey)
+                            ]
+                duplicateResponse `responseStatusShouldBe` status200
+                unchangedSecondShiftType <- fetch secondShiftType.id
+                unchangedSecondShiftType.colourKey `shouldNotBe` firstShiftType.colourKey
+
+                defaultResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdateShiftTypeAction secondShiftType.id)
+                        [ ("name", "Second Shift")
+                        , ("isActive", "true")
+                        , ("overrideAwardLevelId", idToParam level.id)
+                        , ("colourKey", cs defaultShiftTypeColourKey)
+                        ]
+                defaultResponse `responseStatusShouldBe` status302
+                defaultedSecondShiftType <- fetch secondShiftType.id
+                defaultedSecondShiftType.colourKey `shouldBe` defaultShiftTypeColourKey
 
         it "rejects invalid invite emails without creating invitations or broadcasting admin changes" $ withContext do
             withCleanDb do

@@ -1,8 +1,8 @@
 ---
 id: ir-qqgf
-status: open
+status: closed
 deps: [ir-asw6]
-links: [ir-asw6]
+links: [ir-asw6, ir-pye3]
 created: 2026-05-21T03:35:31Z
 type: feature
 priority: 2
@@ -27,3 +27,7 @@ Venue admins can configure shift type badge colours from the shift type screen. 
 **2026-05-21T05:17:51Z**
 
 Current styling direction after visual review: roster no longer uses dot/gradient/pill badges. Shift type colour is a muted pastel full-cell outline on assigned shift type cells in both day-column and day-row views. Empty/unset Type cells should have no colour outline; staffed missing type may show a small corner ! indicator rather than a different outline colour. Admin colour configuration should preserve this display model: choose a colour key from the fixed muted palette or reusable default, render previews as cell outlines, and keep active non-default colours unique per venue.
+
+**2026-05-21T05:32:35Z**
+
+Implemented admin shift type colour selection with palette/default options, active non-default uniqueness validation, roster-style outline previews, and tests. Focused typecheck/admin/schema checks pass. Full hspec still fails on unrelated SupportController concurrent passkey duplicate; captured as follow-up ir-pye3.

@@ -19,7 +19,10 @@ module Web.Admin.Mutations
 
 import Application.Helper.LiveResource
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
-import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey, defaultShiftTypeColourKey)
+import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
+                                            defaultShiftTypeColourKey,
+                                            normalizeShiftTypeColourKey,
+                                            shiftTypeColourKeyIsAvailable)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
                                         syncVenueDefaultRosterGroupToTopActive)
@@ -122,10 +125,10 @@ moveRosterGroupMutation _rosterGroup direction = do
         syncVenueDefaultRosterGroupToTopActive currentVenueId
     invalidateTouchedResources "admin.roster_group.move" (liveMutationResult () [AdminRosterGroupsResource (unpackId currentVenueId)])
 
-createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> IO (LiveMutationResult AdminShiftTypeMutationResult)
-createShiftTypeMutation name isActive overrideAwardLevelId = do
+createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
+createShiftTypeMutation name isActive overrideAwardLevelId maybeSubmittedColourKey = do
     sortOrder <- nextShiftTypeSortOrder
-    colourKey <- assignShiftTypeColourKey currentVenueId Nothing isActive defaultShiftTypeColourKey
+    colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey defaultShiftTypeColourKey
     now <- getCurrentTime
     shiftType <- withTransaction do
         shiftType <- newRecord @ShiftType
@@ -141,14 +144,14 @@ createShiftTypeMutation name isActive overrideAwardLevelId = do
     let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
     invalidateTouchedResources "admin.shift_type.create" (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources shouldRefreshXero))
 
-updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> IO (LiveMutationResult AdminShiftTypeMutationResult)
-updateShiftTypeMutation shiftType name isActive overrideAwardLevelId = do
+updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
+updateShiftTypeMutation shiftType name isActive overrideAwardLevelId maybeSubmittedColourKey = do
     now <- getCurrentTime
     sortOrder <-
         if not shiftType.isActive && isActive
             then nextShiftTypeSortOrder
             else pure shiftType.sortOrder
-    colourKey <- assignShiftTypeColourKey currentVenueId (Just shiftType.id) isActive shiftType.colourKey
+    colourKey <- resolveSubmittedShiftTypeColourKey (Just shiftType.id) isActive maybeSubmittedColourKey shiftType.colourKey
     updatedShiftType <- withTransaction do
         updated <- shiftType
             |> set #name name
@@ -163,6 +166,15 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId = do
         pure updated
     let shouldRefreshXero = shiftTypeXeroPayItemScopeChanged shiftType updatedShiftType
     invalidateTouchedResources "admin.shift_type.update" (liveMutationResult (AdminShiftTypeMutationResult updatedShiftType shouldRefreshXero) (shiftTypeTouchedResources shouldRefreshXero))
+
+resolveSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id ShiftType) -> Bool -> Maybe Text -> Text -> IO Text
+resolveSubmittedShiftTypeColourKey maybeCurrentShiftTypeId isActive maybeSubmittedColourKey fallbackColourKey =
+    case maybeSubmittedColourKey of
+        Nothing -> assignShiftTypeColourKey currentVenueId maybeCurrentShiftTypeId isActive fallbackColourKey
+        Just submittedColourKey -> do
+            let colourKey = normalizeShiftTypeColourKey submittedColourKey
+            available <- shiftTypeColourKeyIsAvailable currentVenueId maybeCurrentShiftTypeId isActive colourKey
+            pure (if available then colourKey else fallbackColourKey)
 
 moveShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Int -> IO (LiveMutationResult ())
 moveShiftTypeMutation shiftType direction = do

@@ -5,6 +5,8 @@ module Application.Helper.ShiftTypeColours
     ( defaultShiftTypeColourKey
     , shiftTypeColourPaletteKeys
     , assignShiftTypeColourKey
+    , normalizeShiftTypeColourKey
+    , shiftTypeColourKeyIsAvailable
     ) where
 
 import qualified Data.List as List
@@ -37,18 +39,46 @@ assignShiftTypeColourKey ::
 assignShiftTypeColourKey venueId maybeCurrentShiftTypeId willBeActive currentColourKey
     | not willBeActive = pure defaultShiftTypeColourKey
     | otherwise = do
-        activeShiftTypes <-
-            query @ShiftType
-                |> filterWhere (#venueId, unpackId venueId)
-                |> filterWhere (#archivedAt, Nothing)
-                |> filterWhere (#isActive, True)
-                |> fetch
-        let usedColourKeys =
-                activeShiftTypes
-                    |> filter (\shiftType -> Just shiftType.id /= maybeCurrentShiftTypeId)
-                    |> map (.colourKey)
-                    |> filter (/= defaultShiftTypeColourKey)
+        usedColourKeys <- activeNonDefaultShiftTypeColourKeys venueId maybeCurrentShiftTypeId
         pure
             if currentColourKey /= defaultShiftTypeColourKey && currentColourKey `notElem` usedColourKeys
                 then currentColourKey
                 else fromMaybe defaultShiftTypeColourKey (List.find (`notElem` usedColourKeys) shiftTypeColourPaletteKeys)
+
+normalizeShiftTypeColourKey :: Text -> Text
+normalizeShiftTypeColourKey colourKey
+    | colourKey `elem` (defaultShiftTypeColourKey : shiftTypeColourPaletteKeys) = colourKey
+    | otherwise = defaultShiftTypeColourKey
+
+shiftTypeColourKeyIsAvailable ::
+    (?modelContext :: ModelContext) =>
+    Id Venue ->
+    Maybe (Id ShiftType) ->
+    Bool ->
+    Text ->
+    IO Bool
+shiftTypeColourKeyIsAvailable venueId maybeCurrentShiftTypeId willBeActive colourKey
+    | not willBeActive = pure True
+    | colourKey == defaultShiftTypeColourKey = pure True
+    | otherwise = do
+        usedColourKeys <- activeNonDefaultShiftTypeColourKeys venueId maybeCurrentShiftTypeId
+        pure (colourKey `notElem` usedColourKeys)
+
+activeNonDefaultShiftTypeColourKeys ::
+    (?modelContext :: ModelContext) =>
+    Id Venue ->
+    Maybe (Id ShiftType) ->
+    IO [Text]
+activeNonDefaultShiftTypeColourKeys venueId maybeCurrentShiftTypeId = do
+    activeShiftTypes <-
+        query @ShiftType
+            |> filterWhere (#venueId, unpackId venueId)
+            |> filterWhere (#archivedAt, Nothing)
+            |> filterWhere (#isActive, True)
+            |> fetch
+    pure
+        ( activeShiftTypes
+            |> filter (\shiftType -> Just shiftType.id /= maybeCurrentShiftTypeId)
+            |> map (.colourKey)
+            |> filter (/= defaultShiftTypeColourKey)
+        )
