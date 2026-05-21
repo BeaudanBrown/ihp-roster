@@ -5,6 +5,8 @@ import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
+import Application.Helper.ShiftTypeColours (defaultShiftTypeColourKey,
+                                            shiftTypeColourPaletteKeys)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Config
@@ -310,6 +312,7 @@ tests = beforeAll testContext do
                 createdShiftType.name `shouldBe` "Supervisor"
                 createdShiftType.overrideAwardLevelId `shouldBe` Nothing
                 createdShiftType.isActive `shouldBe` True
+                createdShiftType.colourKey `shouldBe` "palette-1"
                 createdInvitation.venueId `shouldBe` unpackId venue.id
                 createdInvitation.invitedByUserId `shouldBe` Just (unpackId admin.id)
                 createdInvitation.acceptedAt `shouldBe` Nothing
@@ -317,6 +320,54 @@ tests = beforeAll testContext do
                 inputValue createdInvitation.status `shouldBe` "pending"
                 inputValue createdInvitation.deliveryStatus `shouldSatisfy` (`elem` ["queued", "sent", "failed"])
                 inviteExpiryDeltaSeconds `shouldSatisfy` (\seconds -> seconds > 86000 && seconds < 87000)
+
+        it "assigns first-available shift type colours and defaults overflow" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Shift Colour Venue"
+                admin <- createUserRecord "admin-shift-colours@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                forM_ ([1 .. 11] :: [Int]) \index -> do
+                    response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        callActionWithParams CreateShiftTypeAction
+                            [ ("name", cs ("Type " <> tshow index :: Text))
+                            , ("isActive", "true")
+                            , ("overrideAwardLevelId", "")
+                            ]
+                    response `responseStatusShouldBe` status302
+
+                shiftTypes <-
+                    query @ShiftType
+                        |> filterWhere (#venueId, unpackId venue.id)
+                        |> orderByAsc #sortOrder
+                        |> fetch
+
+                map (.colourKey) shiftTypes `shouldBe` (shiftTypeColourPaletteKeys <> [defaultShiftTypeColourKey])
+
+        it "reassigns reactivated shift type colours that collide with active types" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Shift Reactivation Colour Venue"
+                admin <- createUserRecord "admin-reactivate-shift-colours@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                level <- createPayLevelRecord venue "Level 1"
+                activeShiftType <-
+                    createShiftTypeRecord venue level "Active Shift"
+                        >>= updateRecord . set #colourKey "palette-1"
+                inactiveShiftType <-
+                    createShiftTypeRecord venue level "Inactive Shift"
+                        >>= updateRecord . set #isActive False . set #colourKey activeShiftType.colourKey
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdateShiftTypeAction inactiveShiftType.id)
+                        [ ("name", "Inactive Shift")
+                        , ("isActive", "true")
+                        , ("overrideAwardLevelId", idToParam level.id)
+                        ]
+                response `responseStatusShouldBe` status302
+
+                reactivatedShiftType <- fetch inactiveShiftType.id
+                reactivatedShiftType.isActive `shouldBe` True
+                reactivatedShiftType.colourKey `shouldBe` "palette-2"
 
         it "rejects invalid invite emails without creating invitations or broadcasting admin changes" $ withContext do
             withCleanDb do

@@ -258,6 +258,7 @@ CREATE TABLE shift_types (
     name TEXT NOT NULL,
     sort_order INT DEFAULT 0 NOT NULL,
     override_award_level_id UUID DEFAULT NULL,
+    colour_key TEXT DEFAULT 'default' NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     archived_by_user_id UUID DEFAULT NULL,
@@ -266,7 +267,8 @@ CREATE TABLE shift_types (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120))
+    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 120)),
+    CHECK (colour_key IN ('default', 'palette-1', 'palette-2', 'palette-3', 'palette-4', 'palette-5', 'palette-6', 'palette-7', 'palette-8', 'palette-9', 'palette-10'))
 );
 
 -- schema-nav: reporting-config

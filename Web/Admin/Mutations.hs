@@ -19,6 +19,7 @@ module Web.Admin.Mutations
 
 import Application.Helper.LiveResource
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
+import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey, defaultShiftTypeColourKey)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
                                         syncVenueDefaultRosterGroupToTopActive)
@@ -124,6 +125,7 @@ moveRosterGroupMutation _rosterGroup direction = do
 createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> IO (LiveMutationResult AdminShiftTypeMutationResult)
 createShiftTypeMutation name isActive overrideAwardLevelId = do
     sortOrder <- nextShiftTypeSortOrder
+    colourKey <- assignShiftTypeColourKey currentVenueId Nothing isActive defaultShiftTypeColourKey
     now <- getCurrentTime
     shiftType <- withTransaction do
         shiftType <- newRecord @ShiftType
@@ -131,6 +133,7 @@ createShiftTypeMutation name isActive overrideAwardLevelId = do
             |> set #name name
             |> set #sortOrder sortOrder
             |> set #overrideAwardLevelId overrideAwardLevelId
+            |> set #colourKey colourKey
             |> set #isActive isActive
             |> createRecord
         _ <- ensureShiftTypePayVersionForShiftType currentUser.id shiftType (utctDay now)
@@ -145,11 +148,13 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId = do
         if not shiftType.isActive && isActive
             then nextShiftTypeSortOrder
             else pure shiftType.sortOrder
+    colourKey <- assignShiftTypeColourKey currentVenueId (Just shiftType.id) isActive shiftType.colourKey
     updatedShiftType <- withTransaction do
         updated <- shiftType
             |> set #name name
             |> set #sortOrder sortOrder
             |> set #overrideAwardLevelId overrideAwardLevelId
+            |> set #colourKey colourKey
             |> set #isActive isActive
             |> updateRecord
         when (shiftType.name /= updated.name || shiftType.overrideAwardLevelId /= updated.overrideAwardLevelId) do
