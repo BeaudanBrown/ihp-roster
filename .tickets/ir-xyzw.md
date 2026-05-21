@@ -1,6 +1,6 @@
 ---
 id: ir-xyzw
-status: open
+status: closed
 deps: []
 links: [ir-jooi, ir-uir5]
 created: 2026-05-21T07:43:26Z
@@ -71,3 +71,7 @@ HANDOFF from ir-bdvn: Direct roster fragment costs are reduced without adding a 
 **2026-05-21T12:45:03Z**
 
 CLOSEOUT CHECK after ir-bdvn: All child tickets are closed and epic acceptance criteria are covered: projection baseline and direct trial timings are documented, direct read path is default through one seam with projection rollback retained, parity/focused roster coverage and typecheck passed. Recommendation: keep the SQL/direct roster path as the active trial for now, but keep the projection rollback seam until larger-roster/browser measurements validate the remaining warm-fragment cost trade-off.
+
+**2026-05-21T12:45:29Z**
+
+All descendant tickets are closed; closing epic after ir-bdvn.
