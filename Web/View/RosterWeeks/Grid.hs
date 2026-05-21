@@ -628,7 +628,8 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
         currentEndTime = optionalTimeOfDayToStorageValue slot.endTime
         currentPrimaryConflict = primaryConflict (lookupConflicts (get #id slot) renderIndexes)
         currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel slot.staffId renderIndexes)
-        currentShiftTypeLabel = fromMaybe "" (renderShiftTypeLabelForSlot shiftTypes slot.shiftTypeId)
+        currentShiftType = findShiftTypeForSlot shiftTypes slot.shiftTypeId
+        currentShiftTypeLabel = fromMaybe "" (renderShiftTypeOptionLabel <$> currentShiftType)
     in
     if endTimesEnabled
         then [hsx|
@@ -656,7 +657,8 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
             </div>
 
             <div role="gridcell"
-                 class="slot-shift-type-cell roster-block-end"
+                 class={classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", isNothing slot.shiftTypeId), ("is-shift-type-required", isJust slot.staffId && isNothing slot.shiftTypeId)]}
+                 data-roster-shift-colour={shiftTypeBadgeColourKey currentShiftType}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableShiftTypeCell (ExistingRosterSlotTarget slot.id) slot.shiftTypeId shiftTypes else renderReadOnlyCell currentShiftTypeLabel}
@@ -680,7 +682,8 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
             </div>
 
             <div role="gridcell"
-                 class="slot-shift-type-cell roster-block-end"
+                 class={classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", isNothing slot.shiftTypeId), ("is-shift-type-required", isJust slot.staffId && isNothing slot.shiftTypeId)]}
+                 data-roster-shift-colour={shiftTypeBadgeColourKey currentShiftType}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableShiftTypeCell (ExistingRosterSlotTarget slot.id) slot.shiftTypeId shiftTypes else renderReadOnlyCell currentShiftTypeLabel}
@@ -752,7 +755,8 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
                 <div class={classes [("roster-shift-card-field roster-shift-card-staff", True), (renderConflictClass currentPrimaryConflict, True)]}>
                     {if isEditable then renderEditableStaffCell assignmentFilters target staffId staffMembers staffOptionStates currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
                 </div>
-                <div class="roster-shift-card-field roster-shift-card-code">
+                <div class="roster-shift-card-field roster-shift-card-code"
+                     data-roster-shift-colour={shiftTypeBadgeColourKey currentShiftType}>
                     {codeField}
                 </div>
             </div>
@@ -785,14 +789,14 @@ renderCreateBlockCells assignmentFilters staffMembers staffOptionStates shiftTyp
         [ [hsx|<div role="gridcell" class={classes [("slot-time-cell", True), ("slot-start-time-cell", True), ("roster-block-start", blockIndex > 0)]}>{renderEditableTimeCell "startTime" "Select roster slot start time" "Start" target ""}</div>|]
         , [hsx|<div role="gridcell" class="slot-time-cell slot-end-time-cell">{renderEditableTimeCell "endTime" "Select roster slot end time" "End" target ""}</div>|]
         , [hsx|<div role="gridcell" class="slot-staff-cell position-relative">{renderEditableStaffCell assignmentFilters target Nothing staffMembers staffOptionStates Nothing}</div>|]
-        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end">{renderEditableShiftTypeCell target Nothing shiftTypes}</div>|]
+        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end is-shift-type-empty" data-roster-shift-colour="default">{renderEditableShiftTypeCell target Nothing shiftTypes}</div>|]
         ]
 renderCreateBlockCells assignmentFilters staffMembers staffOptionStates shiftTypes False rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
      in mconcat
         [ [hsx|<div role="gridcell" class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}>{renderEditableTimeCell "startTime" "Select roster slot time" "Time" target ""}</div>|]
         , [hsx|<div role="gridcell" class="slot-staff-cell position-relative">{renderEditableStaffCell assignmentFilters target Nothing staffMembers staffOptionStates Nothing}</div>|]
-        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end">{renderEditableShiftTypeCell target Nothing shiftTypes}</div>|]
+        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end is-shift-type-empty" data-roster-shift-colour="default">{renderEditableShiftTypeCell target Nothing shiftTypes}</div>|]
         ]
 
 renderClosedBlockCells :: Bool -> Int -> Html
@@ -838,11 +842,6 @@ renderShiftTypeOptionLabel shiftType =
         then shiftType.name
         else shiftType.name <> " (inactive)"
 
-renderShiftTypeLabelForSlot :: [ShiftType] -> Maybe UUID -> Maybe Text
-renderShiftTypeLabelForSlot _ Nothing = Nothing
-renderShiftTypeLabelForSlot shiftTypes (Just selectedShiftTypeId) =
-    renderShiftTypeOptionLabel <$> findShiftTypeForSlot shiftTypes (Just selectedShiftTypeId)
-
 findShiftTypeForSlot :: [ShiftType] -> Maybe UUID -> Maybe ShiftType
 findShiftTypeForSlot _ Nothing = Nothing
 findShiftTypeForSlot shiftTypes (Just selectedShiftTypeId) =
@@ -860,7 +859,6 @@ renderEditableDayColumnShiftTypeBadge :: RosterSlotCellTarget -> Maybe UUID -> M
 renderEditableDayColumnShiftTypeBadge target staffId selectedShiftTypeId selectedShiftType shiftTypes = [hsx|
     <form class={classes [("m-0 slot-cell-form roster-shift-type-badge roster-shift-type-badge-editable", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isJust staffId && isNothing selectedShiftTypeId)]}
           data-roster-shift-colour={shiftTypeBadgeColourKey selectedShiftType}>
-        <span class="roster-shift-type-badge-marker" aria-hidden="true"></span>
         <select name="shiftTypeId"
                 class="form-select form-select-sm slot-cell-input slot-shift-type-input roster-shift-type-badge-select"
                 aria-label="Shift type"
@@ -885,7 +883,6 @@ renderReadOnlyDayColumnShiftTypeBadge :: Maybe UUID -> Maybe ShiftType -> Html
 renderReadOnlyDayColumnShiftTypeBadge staffId selectedShiftType = [hsx|
     <div class={classes [("slot-cell-static roster-shift-type-badge roster-shift-type-badge-readonly", True), ("is-empty", isNothing selectedShiftType), ("is-required", isJust staffId && isNothing selectedShiftType)]}
          data-roster-shift-colour={shiftTypeBadgeColourKey selectedShiftType}>
-        <span class="roster-shift-type-badge-marker" aria-hidden="true"></span>
         <span class="roster-shift-type-badge-label">{shiftTypeBadgeLabel staffId selectedShiftType}</span>
     </div>
 |]
