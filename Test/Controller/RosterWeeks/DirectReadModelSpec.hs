@@ -5,8 +5,13 @@ module Test.Controller.RosterWeeks.DirectReadModelSpec where
 
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup)
+import Application.Helper.Conflict
+import Application.Helper.WeekBoundaries (weekdayIndexForDay)
+import Data.Coerce (coerce)
+import qualified Data.Map.Strict as Map
 import Data.List (sortOn)
 import Data.Maybe (fromJust)
+import qualified Data.Time.Calendar as Calendar
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -59,11 +64,70 @@ tests = beforeAll testContext do
                 map (.id) rosterData.allSlots `shouldContain` [fixture.visibleSparseSlot.id, fixture.closedDaySlot.id]
                 map (.id) rosterData.orderedSlotNames `shouldBe` map (.id) (sortSlotDefinitions rosterData.orderedSlotNames)
 
+        it "derives direct assignment option hidden reasons from SQL facts" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        initialData <- fromJust <$> fetchVisibleRosterReadModelDirect fixture.rosterGroup.id 0
+                        openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
+                        _ <- fixture.eligibleStaff |> set #idealShiftsPerWeek 1 |> updateRecord
+                        _ <- createRosterSlotRecord openDay fixture.earlySlotName (Just fixture.eligibleStaff) 4
+                        _ <- createLeaveRequestRecord fixture.venue fixture.eligibleStaff initialData.weekStartDate (Calendar.addDays 1 initialData.weekStartDate) "approved"
+
+                        facts <- fromJust <$> fetchRosterBaseFactsDirect fixture.rosterGroup.id 0
+                        states <- buildRosterStaffOptionStatesDirect allAssignmentFilters initialData.weekStartDate facts.baseVisibleSlots facts.baseStaffMembers
+
+                        let targetState = fromJust (Map.lookup (coerce fixture.visibleSparseSlot.id, coerce fixture.eligibleStaff.id) states)
+                        targetState.optionHidden `shouldBe` True
+                        targetState.optionHiddenByIdeal `shouldBe` True
+                        targetState.optionHiddenByUnavailable `shouldBe` True
+                        targetState.optionHiddenByLeave `shouldBe` True
+                        targetState.optionHiddenByAssignedToday `shouldBe` True
+
+        it "derives each direct roster conflict type from SQL facts" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+
+                withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        initialData <- fromJust <$> fetchVisibleRosterReadModelDirect fixture.rosterGroup.id 0
+                        openDay <- fetch (Id fixture.visibleSparseSlot.rosterDayId) :: IO RosterDay
+                        nextDay <- query @RosterDay
+                            |> filterWhere (#rosterWeekId, unpackId fixture.rosterWeek.id)
+                            |> filterWhere (#dayOffset, 1)
+                            |> fetchOne
+                        _ <- nextDay |> set #isClosed False |> updateRecord
+                        _ <- fixture.assignedInactiveStaff |> set #idealShiftsPerWeek 1 |> updateRecord
+                        duplicateSlot <- createRosterSlotRecord openDay fixture.earlySlotName (Just fixture.assignedInactiveStaff) 5 >>= \slot ->
+                            slot |> set #startTime (Just (TimeOfDay 12 0 0)) |> updateRecord
+                        lateSlot <- createRosterSlotRecord nextDay fixture.earlySlotName (Just fixture.assignedInactiveStaff) 7 >>= \slot ->
+                            slot |> set #startTime (Just (TimeOfDay 6 0 0)) |> updateRecord
+                        _ <- fixture.visibleSparseSlot |> set #startTime (Just (TimeOfDay 23 0 0)) |> updateRecord
+                        _ <- createLeaveRequestRecord fixture.venue fixture.assignedInactiveStaff initialData.weekStartDate (Calendar.addDays 1 initialData.weekStartDate) "approved"
+                        preferenceStaff <- createStaffRecord fixture.venue Nothing "Pref" "Mismatch"
+                        preferenceSlot <- createRosterSlotRecord openDay fixture.earlySlotName (Just preferenceStaff) 6 >>= \slot ->
+                            slot |> set #startTime (Just (TimeOfDay 12 0 0)) |> updateRecord
+                        _ <- createStaffShiftPreferenceRecord fixture.venue preferenceStaff (weekdayIndexForDay initialData.weekStartDate) 9 10
+
+                        facts <- fromJust <$> fetchRosterBaseFactsDirect fixture.rosterGroup.id 0
+                        conflicts <- buildSlotConflictsDirect fixture.rosterGroup.id 480 initialData.weekStartDate facts.baseVisibleSlots
+
+                        let allTypes = sort (concatMap (map (.conflictType) . snd) conflicts)
+                        forM_ [DuplicateAssignment, LeaveConflict, LateToEarlyConflict, ShiftPreferenceDayUnavailable, ShiftPreferenceSlotMismatch, IdealShiftThresholdExceeded] $ \conflictType ->
+                            allTypes `shouldContain` [conflictType]
+                        lookup fixture.visibleSparseSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
+                        lookup duplicateSlot.id conflicts `shouldSatisfy` hasConflictType DuplicateAssignment
+                        lookup lateSlot.id conflicts `shouldSatisfy` hasConflictType LateToEarlyConflict
+                        lookup preferenceSlot.id conflicts `shouldSatisfy` hasConflictType ShiftPreferenceSlotMismatch
+
 data DirectReadModelFixture = DirectReadModelFixture
     { venue                 :: Venue
     , manager               :: User
     , rosterGroup           :: RosterGroup
     , rosterWeek            :: RosterWeek
+    , earlySlotName         :: SlotName
     , eligibleStaff         :: Staff
     , assignedInactiveStaff :: Staff
     , visibleSparseSlot     :: RosterSlot
@@ -120,7 +184,29 @@ createDirectReadModelFixture = do
     otherDay <- createRosterDayRecord otherWeek 0
     otherGroupSlot <- createRosterSlotRecord otherDay otherSlotName (Just eligibleStaff) 0
 
-    pure DirectReadModelFixture { venue, manager, rosterGroup, rosterWeek, eligibleStaff, assignedInactiveStaff = assignedInactiveStaff', visibleSparseSlot, closedDaySlot, otherGroupSlot }
+    pure DirectReadModelFixture { venue, manager, rosterGroup, earlySlotName, rosterWeek, eligibleStaff, assignedInactiveStaff = assignedInactiveStaff', visibleSparseSlot, closedDaySlot, otherGroupSlot }
 
 sortSlotDefinitions :: [RosterWeekSlotDefinition] -> [RosterWeekSlotDefinition]
 sortSlotDefinitions = sortOn (\slotDefinition -> (slotDefinition.sortOrder, slotDefinition.createdAt))
+
+allAssignmentFilters :: RosterAssignmentFilters
+allAssignmentFilters =
+    RosterAssignmentFilters
+        { hideStaffAtIdealShifts = True
+        , hideStaffUnavailable = True
+        , hideStaffOnApprovedLeave = True
+        , hideStaffAlreadyAssignedToday = True
+        }
+
+hasConflictType :: ConflictType -> Maybe [RosterConflict] -> Bool
+hasConflictType expected = maybe False (any ((== expected) . (.conflictType)))
+
+createStaffShiftPreferenceRecord :: (?modelContext :: ModelContext) => Venue -> Staff -> Int -> Int -> Int -> IO StaffShiftPreference
+createStaffShiftPreferenceRecord venue staff weekdayIndex startHour endHour =
+    newRecord @StaffShiftPreference
+        |> set #venueId (unpackId venue.id)
+        |> set #staffId (unpackId staff.id)
+        |> set #weekdayIndex weekdayIndex
+        |> set #preferredStartHour startHour
+        |> set #preferredEndHour endHour
+        |> createRecord

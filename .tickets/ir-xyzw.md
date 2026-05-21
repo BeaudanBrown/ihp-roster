@@ -35,3 +35,7 @@ HANDOFF from ir-cf17: Roster callers now use fetchVisibleRosterReadModel/renderV
 **2026-05-21T08:06:06Z**
 
 HANDOFF from ir-kxch: Direct roster base facts now live in Web.RosterWeeks.DirectReadModel and the read-model seam has a DirectRosterReadModel constructor, but currentRosterReadModelBackend remains projection-backed until ir-f16h integrates the trial path.
+
+**2026-05-21T08:18:49Z**
+
+HANDOFF from ir-uybz: Direct roster trial path now uses SQL/direct assignment option-state and conflict fact builders; ir-f16h can integrate the trial path, and ir-1jsi should compare projection-vs-direct behavior broadly.

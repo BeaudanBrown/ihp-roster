@@ -52,7 +52,6 @@ import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities
-import Web.RosterWeeks.Conflicts
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.DirectReadModel
@@ -231,11 +230,11 @@ fetchRosterRenderData rosterGroupId weekOffset = do
         Just RosterBaseFacts { baseRosterWeek = rosterWeek, baseRosterDays = rosterDays, baseAllSlots = allSlots, baseVisibleSlots = visibleSlots, baseOrderedSlotDefinitions = orderedSlotNames, baseShiftTypes = shiftTypes, baseEligibleStaff = eligibleStaffMembers, baseStaffMembers = staffMembers } -> do
             panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots)
             staffSelfServicePanel <- profileActionSpan "roster.build_staff_self_service_panel" (fetchRosterStaffSelfServicePanel venueConfig)
-            staffOptionStates <- profileActionSpan "roster.build_staff_option_states" (buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate rosterDays visibleSlots staffMembers)
+            staffOptionStates <- profileActionSpan "roster.direct.build_staff_option_states" (buildRosterStaffOptionStatesDirect assignmentFilters weekStartDate visibleSlots staffMembers)
             slotConflicts <-
                 if rosterWeek.isLive
                     then pure []
-                    else profileActionSpan "roster.build_slot_conflicts" (buildSlotConflicts rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate rosterDays visibleSlots staffMembers)
+                    else profileActionSpan "roster.direct.build_slot_conflicts" (buildSlotConflictsDirect rosterGroupId venueConfig.lateToEarlyMinStartGapMinutes weekStartDate visibleSlots)
             let renderIndexes = buildRosterRenderIndexes rosterDays visibleSlots staffMembers slotConflicts
             rosterWagePrediction <-
                 if hasRole VenueAdminRole

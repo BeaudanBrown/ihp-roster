@@ -1,6 +1,6 @@
 ---
 id: ir-uybz
-status: open
+status: closed
 deps: [ir-kxch]
 links: []
 created: 2026-05-21T07:43:26Z
@@ -22,3 +22,9 @@ Implement assignment option state rows and slot conflict rows using SQL-friendly
 
 The trial path produces assignment option states and conflict rows equivalent to existing behavior for representative fixtures. Tests cover each assignment hidden reason and each conflict type.
 
+
+## Notes
+
+**2026-05-21T08:18:49Z**
+
+HANDOFF: Added SQL/direct assignment option-state and slot-conflict fact builders in Web.RosterWeeks.DirectReadModel, routed roster render data through them, and covered all hidden reasons/conflict types in DirectReadModelSpec; tests run: bash ./bin/in-env typecheck, bash ./bin/in-env hspec-test --match "Roster direct read model"; remaining risk: broader projection-vs-direct parity still belongs to ir-1jsi.
