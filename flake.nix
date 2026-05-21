@@ -60,7 +60,7 @@
                     # production packaging or generated app-lib.cabal module discovery.
                     projectPath = projectSource;
                     packages = with pkgs; [
-                        poppler_utils
+                        poppler-utils
                     ];
                     haskellPackages = p:
                         let
@@ -115,7 +115,7 @@
                         inputs'.playwright.packages.playwright-test
                         pkgs.nodejs_22
                         pkgs.mailhog
-                        pkgs.poppler_utils
+                        pkgs.poppler-utils
                         pkgs.k6
                         pkgs.jq
                     ];
