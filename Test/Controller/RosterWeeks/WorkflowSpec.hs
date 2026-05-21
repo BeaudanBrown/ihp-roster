@@ -2,6 +2,7 @@ module Test.Controller.RosterWeeks.WorkflowSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.UserPreferences
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Config
@@ -713,6 +714,40 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 0)
                 response `responseBodyShouldContain` ">Alpha</option>"
+
+        it "persists shift-type highlight preference without changing roster layout" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-highlight-pref@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                let dayColumns = fromJust (parseRosterLayoutMode "day_columns")
+
+                defaultHighlights <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext fetchCurrentShowShiftTypeHighlights
+                defaultHighlights `shouldBe` True
+
+                disabledPreferences <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        _ <- upsertCurrentUserRosterLayoutMode dayColumns
+                        _ <- upsertCurrentUserShowShiftTypeHighlights False
+                        fetchCurrentUserRosterPreferences
+
+                inputValue disabledPreferences.userRosterLayoutMode `shouldBe` ("day_columns" :: Text)
+                disabledPreferences.userShowShiftTypeHighlights `shouldBe` False
+
+                storedDisabledPreferences <- query @UserPreference
+                    |> filterWhere (#userId, unpackId manager.id)
+                    |> fetchOne
+                inputValue storedDisabledPreferences.rosterLayoutMode `shouldBe` ("day_columns" :: Text)
+                storedDisabledPreferences.showShiftTypeHighlights `shouldBe` False
+
+                enabledPreferences <- withUserAndCurrentVenue manager venue.id do
+                    withCurrentControllerContext do
+                        _ <- upsertCurrentUserShowShiftTypeHighlights True
+                        fetchCurrentUserRosterPreferences
+
+                inputValue enabledPreferences.userRosterLayoutMode `shouldBe` ("day_columns" :: Text)
+                enabledPreferences.userShowShiftTypeHighlights `shouldBe` True
 
         it "persists roster layout preference and renders day columns" $ withContext do
             withCleanDb do

@@ -1,21 +1,41 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Application.Helper.UserPreferences
-    ( defaultRosterLayoutMode
+    ( UserRosterPreferences (..)
+    , defaultRosterLayoutMode
+    , defaultShowShiftTypeHighlights
     , fetchCurrentRosterLayoutMode
+    , fetchCurrentShowShiftTypeHighlights
+    , fetchCurrentUserRosterPreferences
     , parseRosterLayoutMode
     , rosterLayoutModeLabel
     , rosterLayoutModeValue
     , rosterLayoutModes
     , upsertCurrentUserRosterLayoutMode
+    , upsertCurrentUserShowShiftTypeHighlights
     ) where
 
 import Application.Helper.Controller (enumFromText, unsafeEnumFromText)
 import Generated.Types
 import IHP.ControllerPrelude
 
+data UserRosterPreferences = UserRosterPreferences
+    { userRosterLayoutMode :: RosterLayoutModeEnum
+    , userShowShiftTypeHighlights :: Bool
+    }
+
+normaliseUserRosterPreferences :: Maybe UserPreference -> UserRosterPreferences
+normaliseUserRosterPreferences maybePreferences =
+    UserRosterPreferences
+        { userRosterLayoutMode = maybe defaultRosterLayoutMode (.rosterLayoutMode) maybePreferences
+        , userShowShiftTypeHighlights = maybe defaultShowShiftTypeHighlights (.showShiftTypeHighlights) maybePreferences
+        }
+
 defaultRosterLayoutMode :: RosterLayoutModeEnum
 defaultRosterLayoutMode = unsafeEnumFromText @RosterLayoutModeEnum "day_rows"
+
+defaultShowShiftTypeHighlights :: Bool
+defaultShowShiftTypeHighlights = True
 
 rosterLayoutModes :: [RosterLayoutModeEnum]
 rosterLayoutModes = allEnumValues @RosterLayoutModeEnum
@@ -32,23 +52,31 @@ rosterLayoutModeLabel mode =
         "day_columns" -> "Day columns"
         _             -> "Day rows"
 
+fetchCurrentUserPreferenceRecord :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO (Maybe UserPreference)
+fetchCurrentUserPreferenceRecord =
+    query @UserPreference
+        |> filterWhere (#userId, unpackId currentUser.id)
+        |> fetchOneOrNothing
+
+fetchCurrentUserRosterPreferences :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO UserRosterPreferences
+fetchCurrentUserRosterPreferences =
+    fetchCurrentUserPreferenceRecord
+        >>= pure . normaliseUserRosterPreferences
+
 fetchCurrentRosterLayoutMode :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterLayoutModeEnum
-fetchCurrentRosterLayoutMode = do
-    maybePreferences <-
-        query @UserPreference
-            |> filterWhere (#userId, unpackId currentUser.id)
-            |> fetchOneOrNothing
-    pure (maybe defaultRosterLayoutMode (.rosterLayoutMode) maybePreferences)
+fetchCurrentRosterLayoutMode =
+    (.userRosterLayoutMode) <$> fetchCurrentUserRosterPreferences
+
+fetchCurrentShowShiftTypeHighlights :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
+fetchCurrentShowShiftTypeHighlights =
+    (.userShowShiftTypeHighlights) <$> fetchCurrentUserRosterPreferences
 
 upsertCurrentUserRosterLayoutMode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     RosterLayoutModeEnum ->
     IO UserPreference
 upsertCurrentUserRosterLayoutMode layoutMode = do
-    maybePreferences <-
-        query @UserPreference
-            |> filterWhere (#userId, unpackId currentUser.id)
-            |> fetchOneOrNothing
+    maybePreferences <- fetchCurrentUserPreferenceRecord
     case maybePreferences of
         Just preferences ->
             preferences
@@ -58,4 +86,21 @@ upsertCurrentUserRosterLayoutMode layoutMode = do
             newRecord @UserPreference
                 |> set #userId (unpackId currentUser.id)
                 |> set #rosterLayoutMode layoutMode
+                |> createRecord
+
+upsertCurrentUserShowShiftTypeHighlights ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Bool ->
+    IO UserPreference
+upsertCurrentUserShowShiftTypeHighlights showHighlights = do
+    maybePreferences <- fetchCurrentUserPreferenceRecord
+    case maybePreferences of
+        Just preferences ->
+            preferences
+                |> set #showShiftTypeHighlights showHighlights
+                |> updateRecord
+        Nothing ->
+            newRecord @UserPreference
+                |> set #userId (unpackId currentUser.id)
+                |> set #showShiftTypeHighlights showHighlights
                 |> createRecord

@@ -21,3 +21,9 @@ Extend the typed user_preferences table with an explicit boolean preference, def
 
 New/default users see shift-type colour highlights enabled. A user can disable and re-enable highlights from the roster ... menu. The setting persists across reloads/sessions for that user and does not affect another user. Day-row and day-column roster views both obey the setting. Required missing shift-type indicators and publish validation semantics remain unchanged. Focused roster tests and typecheck pass.
 
+
+## Notes
+
+**2026-05-21T07:07:23Z**
+
+HANDOFF from ir-w395: User preference plumbing is available as showShiftTypeHighlights on UserPreference plus fetchCurrentShowShiftTypeHighlights and upsertCurrentUserShowShiftTypeHighlights helpers; UI/render wiring remains in ir-ypx3.
