@@ -1,6 +1,6 @@
 ---
 id: ir-7w9p
-status: open
+status: closed
 deps: [ir-ypx3]
 links: []
 created: 2026-05-21T07:00:19Z
@@ -22,3 +22,9 @@ Add controller/Hspec coverage near the existing roster layout preference tests. 
 
 Focused tests prove default enabled, disabled persistence, re-enabled persistence, and user isolation. Tests assert roster content render attributes for the preference. bash ./bin/in-env typecheck and focused RosterWeeks Hspec pass.
 
+
+## Notes
+
+**2026-05-21T07:16:45Z**
+
+HANDOFF: Added focused RosterWeeks controller coverage for shift-type highlight defaults, HTMX disable/re-enable persistence, rendered data-roster-shift-type-highlights attributes in day-row/day-column layouts, and second-user isolation; tests run: bash ./bin/in-env hspec-test --match "shift-type highlight preference", bash ./bin/in-env hspec-test --match "RosterWeeks", bash ./bin/in-env typecheck; remaining risks: no browser/e2e added because Hspec covers the server-rendered toggle contract.

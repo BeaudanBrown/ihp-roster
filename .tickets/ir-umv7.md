@@ -31,3 +31,7 @@ HANDOFF from ir-w395: User preference plumbing is available as showShiftTypeHigh
 **2026-05-21T07:13:20Z**
 
 HANDOFF from ir-ypx3: Menu/render integration is implemented; row/day fragments still emit data-roster-shift-colour and only the parent roster content frame carries data-roster-shift-type-highlights, so ir-7w9p should focus on toggle persistence/UI behavior coverage.
+
+**2026-05-21T07:16:50Z**
+
+HANDOFF from ir-7w9p: Final child coverage is closed. Epic acceptance is represented by typed preference plumbing, roster menu/render integration, and focused RosterWeeks coverage passing with typecheck; supervisor can validate and close the epic.
