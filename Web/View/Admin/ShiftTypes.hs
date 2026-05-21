@@ -226,18 +226,16 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates activ
 renderShiftTypeColourSelect :: Text -> Text -> [Text] -> Maybe Text -> Html
 renderShiftTypeColourSelect fieldId selectedColourKey usedColourKeys maybePostPath = [hsx|
     <label class="form-label" for={fieldId}>Badge Colour</label>
-    <div class="admin-shift-colour-control">
-        <span class="admin-shift-colour-preview" data-roster-shift-colour={selectedColourKey} aria-hidden="true">Type</span>
-    </div>
     <select id={fieldId}
             class="form-select admin-shift-colour-select"
             name="colourKey"
+            data-roster-shift-colour={selectedColourKey}
             hx-post={fromMaybe "" maybePostPath}
             hx-trigger={if isJust maybePostPath then ("change" :: Text) else ("" :: Text)}
             hx-include="closest form"
             hx-target="#admin-shift-types-fragment"
             hx-swap="outerHTML">
-        <option value={defaultShiftTypeColourKey} selected={selectedColourKey == defaultShiftTypeColourKey}>Default reusable</option>
+        <option value={defaultShiftTypeColourKey} data-roster-shift-colour={defaultShiftTypeColourKey} selected={selectedColourKey == defaultShiftTypeColourKey}>Default reusable</option>
         {forEach shiftTypeColourPaletteKeys (renderShiftTypeColourOption selectedColourKey usedColourKeys)}
     </select>
 |]
@@ -245,6 +243,7 @@ renderShiftTypeColourSelect fieldId selectedColourKey usedColourKeys maybePostPa
 renderShiftTypeColourOption :: Text -> [Text] -> Text -> Html
 renderShiftTypeColourOption selectedColourKey usedColourKeys colourKey = [hsx|
     <option value={colourKey}
+            data-roster-shift-colour={colourKey}
             selected={selectedColourKey == colourKey}
             disabled={colourKey /= selectedColourKey && colourKey `elem` usedColourKeys}>
         {shiftTypeColourLabel colourKey}{if colourKey /= selectedColourKey && colourKey `elem` usedColourKeys then (" (in use)" :: Text) else ("" :: Text)}
