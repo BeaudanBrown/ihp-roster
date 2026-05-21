@@ -1,6 +1,6 @@
 ---
 id: ir-1jsi
-status: open
+status: closed
 deps: [ir-f16h]
 links: []
 created: 2026-05-21T07:43:26Z
@@ -22,3 +22,9 @@ Compare projection-backed and SQL/direct output at the data or rendered-fragment
 
 Parity tests pass or explicitly document intentional differences. The tests can still run while both implementations exist. Typecheck and focused roster Hspec pass.
 
+
+## Notes
+
+**2026-05-21T08:29:31Z**
+
+HANDOFF: Added projection-cached vs SQL/direct parity assertions over render-data snapshots and content/staff/day/row fragments for manager draft, staff hidden draft, and published/day-column states; covered sparse rows, closed-day filtering, assigned-ineligible staff, hidden option flags, leave/duplicate/late-preference/ideal conflicts, and ordering fields; verification passed: bash ./bin/in-env typecheck && bash ./bin/in-env hspec-test --match "RosterWeeks"; remaining risk: parity fixture is focused/local and broader scale measurement remains ir-dk24.

@@ -43,3 +43,7 @@ HANDOFF from ir-uybz: Direct roster trial path now uses SQL/direct assignment op
 **2026-05-21T08:22:09Z**
 
 HANDOFF from ir-f16h: Roster controllers/fragments now use the SQL/direct read-model by default through the existing seam; projection rollback remains a single currentRosterReadModelBackend constructor change; focused controller/live-fragment tests and typecheck passed.
+
+**2026-05-21T08:29:31Z**
+
+HANDOFF from ir-1jsi: Projection-cache vs direct roster parity coverage now compares normalized render data plus content/staff/day/row fragments across manager draft, staff hidden draft, and published/day-column paths; ir-dk24 can proceed to measure/report the direct trial path.
