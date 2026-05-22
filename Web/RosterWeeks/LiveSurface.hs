@@ -1,5 +1,6 @@
 {-# LANGUAGE BlockArguments      #-}
 {-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
 module Web.RosterWeeks.LiveSurface
@@ -44,21 +45,25 @@ rosterLiveSurfaceDefinition =
                         RosterContentFragment
                         rosterContentFragmentId
                         (rosterWeekContentFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
+                        |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionContent)
                 RosterProjectionStaffPanel ->
                     mkSurfaceFragmentRef
                         RosterStaffPanelFragment
                         rosterStaffPanelFragmentId
                         (rosterWeekStaffPanelFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
+                        |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionStaffPanel)
                 RosterProjectionDaySection rosterDayId ->
                     mkSurfaceFragmentRef
                         RosterDaySectionFragment { rosterDayId }
                         (rosterDaySectionDomId (coerce rosterDayId))
                         (rosterWeekDaySectionFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId))
+                        |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionDaySection rosterDayId))
                 RosterProjectionRow rosterDayId rowIndex ->
                     mkSurfaceFragmentRef
                         RosterRowFragment { rosterDayId, rowIndex }
                         (rosterRowDomIdText (coerce rosterDayId) rowIndex)
                         (rosterWeekRowFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId) rowIndex)
+                        |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionRow rosterDayId rowIndex))
         , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
         , typedSurfaceDependsOn = \scope fragment ->
             case fragment of
@@ -85,6 +90,17 @@ rosterLiveSurfaceDefinition =
                         }
                 _ ->
                     Nothing
+
+rosterFragmentContainmentPath :: RosterProjectionFragment -> [Text]
+rosterFragmentContainmentPath = \case
+    RosterProjectionContent ->
+        [rosterContentFragmentId]
+    RosterProjectionStaffPanel ->
+        [rosterContentFragmentId, rosterStaffPanelFragmentId]
+    RosterProjectionDaySection rosterDayId ->
+        [rosterContentFragmentId, rosterDaySectionDomId (coerce rosterDayId)]
+    RosterProjectionRow rosterDayId rowIndex ->
+        [rosterContentFragmentId, rosterDaySectionDomId (coerce rosterDayId), rosterRowDomIdText (coerce rosterDayId) rowIndex]
 
 mkRosterProjectionDefinition ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
