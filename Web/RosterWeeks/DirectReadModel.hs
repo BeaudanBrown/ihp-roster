@@ -136,7 +136,7 @@ fetchRosterStaffPanelEntriesDirect rosterGroupId rosterWeek = do
             RosterStaffPanelEntry
                 { staff
                 , assignedShiftCount = Map.findWithDefault 0 (coerce staff.id) assignedCountByStaffId
-                , userRole = maybe "worker" inputValue (staff.userId >>= (`Map.lookup` membershipByUserId))
+                , userRole = maybe "worker" (inputValue . (.venueRole)) (staff.userId >>= (`Map.lookup` membershipByUserId))
                 }
 
 fetchAssignedShiftCountsDirect :: (?modelContext :: ModelContext) => RosterWeek -> IO [(UUID.UUID, Int)]

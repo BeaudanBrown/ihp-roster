@@ -1,6 +1,6 @@
 ---
 id: ir-jau6
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-22T06:01:53Z
@@ -22,3 +22,9 @@ Update Web/RosterWeeks/DirectReadModel.hs to use membership.venueRole, matching 
 
 Staff-panel fragment renders role labels such as Manager/Worker instead of membership ids. Focused RosterWeeks staff-panel fragment coverage exists. Focused roster Hspec passes.
 
+
+## Notes
+
+**2026-05-22T06:07:45Z**
+
+Implemented: direct staff-panel role now reads membership.venueRole instead of the whole VenueMembership record. Discovery: existing projection/direct parity used worker memberships, so I added a manager-role regression case to make the UUID/id failure mode explicit. Verified with hspec-test --match 'Roster direct read model'.

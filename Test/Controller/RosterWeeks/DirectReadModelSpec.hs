@@ -13,7 +13,7 @@ import Application.Helper.SurfaceProjection (SurfaceProjectionCacheStats (..),
 import Application.Helper.UserPreferences (upsertCurrentUserRosterLayoutMode)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
-import Data.List (sortOn)
+import Data.List (find, sortOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust)
 import qualified Data.Text.Lazy as LText
@@ -73,6 +73,24 @@ tests = beforeAll testContext do
                 map (.id) rosterData.staffMembers `shouldContain` [fixture.eligibleStaff.id, fixture.assignedInactiveStaff.id]
                 map (.id) rosterData.allSlots `shouldContain` [fixture.visibleSparseSlot.id, fixture.closedDaySlot.id]
                 map (.id) rosterData.orderedSlotNames `shouldBe` map (.id) (sortSlotDefinitions rosterData.orderedSlotNames)
+
+        it "reads venue role values for direct staff panel entries" $ withContext do
+            withCleanDb do
+                fixture <- createDirectReadModelFixture
+                membership <- query @VenueMembership
+                    |> filterWhere (#venueId, unpackId fixture.venue.id)
+                    |> filterWhere (#userId, unpackId fixture.eligibleUser.id)
+                    |> fetchOne
+                _ <- membership
+                    |> set #venueRole Manager
+                    |> updateRecord
+
+                entries <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
+                    withCurrentControllerContext do
+                        fetchRosterStaffPanelEntriesDirect fixture.rosterGroup.id fixture.rosterWeek
+
+                let entry = fromJust (find ((== fixture.eligibleStaff.id) . (.staff.id)) entries)
+                entry.userRole `shouldBe` "manager"
 
         it "derives direct assignment option hidden reasons from SQL facts" $ withContext do
             withCleanDb do
