@@ -108,7 +108,6 @@ tests = beforeAll testContext do
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 fromJust triggerHeader `shouldContain` "app-live-fragments-refresh"
-                fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
                 fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
                 fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
@@ -185,7 +184,6 @@ tests = beforeAll testContext do
                 bodyText `shouldBe` ""
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
                 fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
                 fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
@@ -219,7 +217,6 @@ tests = beforeAll testContext do
                 bodyText `shouldBe` ""
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
                 fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
                 fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"

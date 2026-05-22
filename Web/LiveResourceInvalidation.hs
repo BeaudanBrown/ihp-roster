@@ -6,11 +6,8 @@ module Web.LiveResourceInvalidation
     , expandLiveResourcesWithoutContext
     , invalidateTouchedResources
     , invalidateTouchedResourcesWithoutContext
-    , leaveRequestsContentDependsOn
     , liveInvalidationProfile
-    , profileLeaveRequestsDependsOn
     , renderLiveInvalidationProfile
-    , rosterWeekLeaveCalendarDependsOn
     ) where
 
 import Application.Helper.LiveResource
@@ -31,18 +28,6 @@ import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
                                 performLiveSurfaceInvalidationTargetWithoutContext,
                                 planRegisteredLiveSurfaceInvalidations,
                                 planRegisteredLiveSurfaceInvalidationsWithoutContext)
-
-leaveRequestsContentDependsOn :: Id Venue -> [LiveResource]
-leaveRequestsContentDependsOn venueId =
-    [LeaveRequestsResource (unpackId venueId)]
-
-profileLeaveRequestsDependsOn :: UUID -> [LiveResource]
-profileLeaveRequestsDependsOn staffId =
-    [StaffLeaveRequestsResource staffId]
-
-rosterWeekLeaveCalendarDependsOn :: Id Venue -> Int -> [LiveResource]
-rosterWeekLeaveCalendarDependsOn venueId weekOffset =
-    [LeaveCalendarResource (unpackId venueId) weekOffset]
 
 expandLiveResources ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

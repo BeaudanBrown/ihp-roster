@@ -10,7 +10,6 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
 import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
-                             timesheetDaySectionFragmentUrl,
                              timesheetWeekResetUrl, timesheetWeekUrl)
 import Web.View.Prelude
 
@@ -235,7 +234,6 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
     <section id={timesheetDaySectionDomId dayOffset}
              class="timesheet-day-panel"
              data-timesheet-day-offset={tshow dayOffset}
-             data-live-update-url={daySectionUrl}
              hx-swap-oob={maybeSwapOob}>
         <header class="timesheet-day-header">
             <a href={newEntryUrl}
@@ -261,7 +259,6 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
         dayEntriesForDate = filter (\entry -> entry.workedOn == dayDate) dayEntries
         weekdayLabel = Text.pack (formatTime defaultTimeLocale "%A" dayDate)
         weekdayShortLabel = Text.pack (formatTime defaultTimeLocale "%a" dayDate)
-        daySectionUrl = timesheetDaySectionFragmentUrl dayWeekOffset dayOffset dayShowApproved dayShowAllStaff dayStaffFilterId
         newEntryUrl = newTimesheetEntryUrl dayWeekOffset dayDate dayShowApproved dayShowAllStaff dayStaffFilterId
 
 timesheetDaySectionDomId :: Int -> Text

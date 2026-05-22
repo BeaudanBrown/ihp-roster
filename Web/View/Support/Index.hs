@@ -89,8 +89,7 @@ instance View IndexView where
 renderAwardRatesSection :: FwcMapdAdminData -> Maybe AppJob -> Maybe AppJob -> Html
 renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, currentCoreClassifications, currentCoreAdultPayRates, rateTypeBreakdown } latestRefreshJob activeRefreshJob = [hsx|
     <div id="support-award-rates-section"
-         class="d-flex flex-column gap-3"
-         data-live-update-url={pathTo ShowFwcMapdAwardRatesSectionAction}>
+         class="d-flex flex-column gap-3">
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
                 {renderAwardRatesSummary latestSyncRun latestRefreshJob currentAwards currentCoreClassifications currentCoreAdultPayRates rateTypeBreakdown}
@@ -106,8 +105,7 @@ renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, current
 renderPublicHolidaysSection :: Int -> Maybe AppJob -> Maybe AppJob -> Html
 renderPublicHolidaysSection publicHolidayCount latestRefreshJob activeRefreshJob = [hsx|
     <div id="support-public-holidays-section"
-         class="d-flex flex-column flex-lg-row justify-content-between gap-3"
-         data-live-update-url={pathTo ShowPublicHolidaysSectionAction}>
+         class="d-flex flex-column flex-lg-row justify-content-between gap-3">
         <div class="small app-muted">
             <div>
                 Cached statewide VIC public holidays: <span class="fw-semibold">{tshow publicHolidayCount}</span>.

@@ -42,11 +42,20 @@ A surface owns:
 - feature-local fragment enum to structural fragment refs
 - request-decoration selectors
 - optional focused-field protection policies
-- semantic `LiveResource` dependencies for each rendered fragment
+- a `FragmentContract` for each feature-local fragment
+- semantic dependency intent for each rendered fragment
 - server-side fragment containment paths used to avoid overlapping DOM swaps
 
-`LiveResource` declares what business data changed. `typedSurfaceDependsOn`
-declares which fragments read those resources. The registry planner matches
+Each fragment is declared through `typedSurfaceFragmentContract`, usually by
+building a `FragmentContract` with `mkSurfaceFragmentContract`. The contract is
+the single source for the fragment ref (`targetId`, URL, protection policy, and
+containment path) and dependency intent. Use `liveFragmentDependsOn` when a
+fragment is passively invalidated by semantic `LiveResource` changes, and use
+`liveFragmentResyncOnly` only for fragments that have no passive resource
+subscription and are refreshed by resync or actor paths.
+
+`LiveResource` declares what business data changed. Contract dependencies declare
+which fragments read those resources. The registry planner matches
 changed/expanded resources against these declarations to decide which subscribed
 scope fragments are stale. Fragment containment paths then normalize the selected
 refs before transport: exact duplicates collapse, a child ref is dropped when an
@@ -60,11 +69,12 @@ describe how the browser refetches and swaps HTML.
 The wire-fragment transport boundary is internal to `Application.Helper.LiveUpdate.Internal`
 and `Application.Helper.LiveSurface.Internal`. Feature modules should keep
 fragment enums feature-local and cross the typed-to-wire boundary only through
-strict helpers such as `mkSurfaceFragmentRef`, `mkTypedDefinedLiveSurface`,
-`typedLiveSurfaceFragmentRef(s)` and projection helpers. The runtime no longer
-keeps feature-facing broadcast or typed mutation helpers; typed config,
-projection, dependency matching, and actor-refresh helpers derive directly from
-`TypedLiveSurfaceDefinition`.
+strict helpers such as `mkSurfaceFragmentRef`, `mkSurfaceFragmentContract`,
+`mkTypedDefinedLiveSurface`, `typedLiveSurfaceFragmentRef(s)`,
+`serveTypedLiveFragment`, and projection helpers. The runtime no longer keeps
+feature-facing broadcast or typed mutation helpers; typed config, projection,
+dependency matching, authorization, and actor-refresh helpers derive directly
+from `TypedLiveSurfaceDefinition`.
 
 Feature-facing code must not use compatibility/manual authoring helpers such as
 `mkLiveSurface`, `mkDefinedLiveSurface`, `mkLiveFragmentRef`, raw
@@ -124,9 +134,9 @@ the requester.
 `Web.LiveResourceInvalidation` is the planner/adapter layer. It expands indirect
 semantic resources only through active-scope-bounded rules, then asks
 `Web.LiveSurfaceRegistry` to match the touched/expanded `LiveResource` set
-against each surface's `typedSurfaceDependsOn` declarations. The registry owns
-passive broadcast emission for matched scope/fragment targets. Feature mutation
-modules must not call or recreate legacy feature refresh helpers such as
+against each surface's fragment-contract dependency declarations. The registry
+owns passive broadcast emission for matched scope/fragment targets. Feature
+mutation modules must not call or recreate legacy feature refresh helpers such as
 `refreshRosterFragments`, `refreshProfileContent`, `refreshAdminXero`,
 `refreshTimesheetFragments`, or removed `broadcastSurface*` pathways.
 
@@ -164,9 +174,8 @@ When adding or migrating a mutation flow:
   request decoration, refetch, swap, dedupe, or focused-field protection.
 - Add a live surface only when another actor, another tab, or an async job can
   make the mounted DOM stale.
-- Fragment GET actions for typed surfaces should call
-  `ensureTypedLiveSurfaceAuthorized` with the same surface key that produced the
-  fragment ref.
+- Fragment GET actions for typed surfaces should use `serveTypedLiveFragment`
+  with the same surface key and definition that produced the fragment contract.
 - Websocket subscription authorization must go through the registered typed
   surface definitions in `Web.LiveSurfaceRegistry`; unregistered wire scopes are
   denied instead of falling back to default scope authorization.

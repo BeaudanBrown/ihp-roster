@@ -63,7 +63,7 @@ tests = beforeAll testContext do
                 let contentTarget = cs rosterContentFragmentId :: String
                 let staffPanelTarget = cs rosterStaffPanelFragmentId :: String
                 let updatedRowTarget = cs (rosterRowDomIdText rosterDay.id 0) :: String
-                fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
+                fromJust triggerHeader `shouldContain` "app-live-fragments-refresh"
                 fromJust triggerHeader `shouldContain` contentTarget
                 fromJust triggerHeader `shouldContain` staffPanelTarget
                 fromJust triggerHeader `shouldNotContain` updatedRowTarget

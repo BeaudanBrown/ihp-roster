@@ -91,7 +91,7 @@ tests = beforeAll testContext do
                     passiveRefetch `responseStatusShouldBe` status200
 
                     let triggerHeader = fromJust (lookup "HX-Trigger" (responseHeaders mutationResponse))
-                    triggerHeader `shouldContainBS` "app-roster-fragments-refresh"
+                    triggerHeader `shouldContainBS` "app-live-fragments-refresh"
                     serverTiming mutationResponse `shouldContainBS` "app_total;dur="
                     serverTiming passiveRefetch `shouldNotContainBS` "roster_projection_"
                     serverTiming passiveRefetch `shouldContainBS` "roster_direct_build_staff_option_states;dur="

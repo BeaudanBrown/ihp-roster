@@ -72,13 +72,13 @@ from that typed contract.
 - Feature code renders subscribed shells through `mkTypedDefinedLiveSurface`
   and `liveSurfaceConfigJson`.
 - Feature modules own their surface key types and fragment enums locally.
-- Fragment GET actions call `ensureTypedLiveSurfaceAuthorized` with the same
-  typed surface key that produced the fragment ref.
+- Fragment GET actions use `serveTypedLiveFragment` with the same typed surface
+  key and definition that produced the fragment contract.
 - Websocket subscription authorization uses a typed surface registry. Unknown
   or unregistered live scopes are rejected.
 - Business mutations emit touched `LiveResource` values. `Web.LiveSurfaceRegistry`
-  matches those resources against `typedSurfaceDependsOn` declarations and owns
-  passive broadcast emission.
+  matches those resources against `liveFragmentDependsOn` declarations from each
+  `FragmentContract` and owns passive broadcast emission.
 - Controllers may set actor-only refresh headers, but do not broadcast passive
   invalidations directly.
 - The only raw live-update layer is internal transport/runtime plumbing:
@@ -96,9 +96,11 @@ tests:
 - raw feature-level `broadcastLiveInvalidation`
 - raw feature-level `liveFragmentsRefreshTriggerPayload`
 - fallback feature-scope authorization such as default `authorizeLiveUpdateScope`
+- direct feature/controller use of `ensureTypedLiveSurfaceAuthorized` instead of
+  `serveTypedLiveFragment`
 
-`ir-ypks` should add a guard test or lint check over `Web/` and feature
-`Application/` modules so old wiring cannot creep back in.
+`Test.LiveSurfaceGuard` covers `Web/` and feature `Application/` modules so old
+wiring cannot creep back in.
 
 ## Existing Inventory
 

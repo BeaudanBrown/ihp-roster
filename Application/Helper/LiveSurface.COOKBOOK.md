@@ -28,19 +28,22 @@ URLs, authorization, and protection policy.
 
 1. Add a feature-local fragment constructor, for example
    `RosterProjectionRow` or `TimesheetProjectionDaySection`.
-2. Map that constructor in the feature's `TypedLiveSurfaceDefinition` with a
-   stable `targetId` and canonical fragment GET URL.
-3. If the fragment target is nested inside another live fragment target, declare
-   a containment path with `surfaceFragmentRefWithPath`; otherwise the default
-   path is the target id.
-4. Add or reuse a fragment GET action that renders the exact DOM node named by
+2. Map that constructor in the feature's `typedSurfaceFragmentContract` with a
+   `FragmentContract` built by `mkSurfaceFragmentContract`.
+3. Give the contract a stable `targetId`, canonical fragment GET URL, protection
+   policy, and containment path. Use `surfaceFragmentRefWithPath` when the target
+   is nested inside another live fragment target; otherwise the default path is
+   the target id.
+4. Declare the fragment's dependency intent in the same contract with
+   `liveFragmentDependsOn` for passive `LiveResource` dependencies or
+   `liveFragmentResyncOnly` when the fragment is only refreshed by resync/actor
+   paths.
+5. Add or reuse a fragment GET action that renders the exact DOM node named by
    the `targetId` and no sibling live-fragment targets.
-5. Authorize the GET action with `ensureTypedLiveSurfaceAuthorized` and the same
-   typed surface definition that created the fragment ref.
-6. Render `data-live-update-surface={liveSurfaceConfigJson surface}` on a
+6. Serve the GET action with `serveTypedLiveFragment` and the same typed surface
+   definition that created the fragment contract.
+7. Render `data-live-update-surface={liveSurfaceConfigJson surface}` on a
    stable owner shell, where `surface` comes from `mkTypedDefinedLiveSurface`.
-7. Add `typedSurfaceDependsOn` entries that describe the semantic
-   `LiveResource` values read by each fragment.
 8. Register the surface in `Web.LiveSurfaceRegistry` so touched resources can be
    matched to subscribed scopes and fragments.
 9. Make the business mutation return touched resources and call
@@ -49,9 +52,9 @@ URLs, authorization, and protection policy.
 10. For HTMX actors, set requester-local refresh triggers with
    `setTypedLiveSurfaceActorRefresh` only when the actor response needs an extra
    client refetch.
-11. Add contract coverage for the surface config, dependencies, fragment target,
-   fragment URL, containment behavior, default resync fragments, and fragment GET
-   target.
+11. Add contract coverage for the surface config, dependency intent, fragment
+   target, fragment URL, containment behavior, default resync fragments, and
+   fragment GET target.
 
 ## Safety Rules
 
@@ -78,6 +81,7 @@ URLs, authorization, and protection policy.
 - The fragment GET action returns plain target HTML, not actor-only OOB wrappers
   or sibling live-fragment targets.
 - The actor path refreshes only the requester; passive updates are derived from
-  touched resources and `typedSurfaceDependsOn`.
+  touched resources and the `liveFragmentDependsOn` declarations in each
+  `FragmentContract`.
 - Tests cover the typed mapping, containment behavior, and the fragment endpoint
   authorization.

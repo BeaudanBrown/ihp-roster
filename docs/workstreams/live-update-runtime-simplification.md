@@ -61,7 +61,7 @@ The remaining old names are internal compatibility/runtime details:
 | Primitive | Current callers from inventory | Feature-facing? | Target |
 | --- | --- | --- | --- |
 | `LiveSurfaceDefinition` | Defined/exported only by `Application.Helper.LiveSurface.Internal`; direct use in `Test.SurfaceProjectionSpec`; projection wrapper stores it in `ProjectionLiveSurfaceDefinition.liveSurfaceDefinition`; public `Application.Helper.LiveSurface.mkTypedSurfaceProjectionDefinition` adapts typed definitions through it. | No live feature module uses it; only test/runtime bridge. | Delete the type and projection field; compute config/projection refs directly from `TypedLiveSurfaceDefinition`. |
-| `mkLiveSurface` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used only by `Test.LiveUpdateSpec` for JSON fixture construction. | No. | Delete and update tests to build config via typed definitions or record literals. |
+| `mkLiveSurface` | Removed from the live-surface facade/internal runtime; retained only as a forbidden identifier in `Test.LiveSurfaceGuard`. | No. | Keep deleted; use typed definitions for config construction. |
 | `mkDefinedLiveSurface` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used only by `mkTypedDefinedLiveSurface`. | No. | Delete; construct `LiveSurfaceConfig` directly in `mkTypedDefinedLiveSurface`. |
 | `liveSurfaceFragmentRef(s)` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used by untyped broadcasts and projection helpers. | No. | Delete; use `typedLiveSurfaceFragmentRef(s)` and stored typed projection fragment builder fields. |
 | `typedLiveSurfaceDefinition` | Defined/exported by `Application.Helper.LiveSurface.Internal`; used by `mkTypedDefinedLiveSurface` and public `mkTypedSurfaceProjectionDefinition`. | No. | Delete; reimplement those helpers from `TypedLiveSurfaceDefinition`. |
@@ -85,8 +85,8 @@ After cleanup, the layers should be explicit:
    authorization, projection, and actor-refresh helpers; it does not expose
    passive broadcast or typed mutation entrypoints.
 3. Passive planner: `Web.LiveSurfaceRegistry` matches touched/expanded
-   resources against registered `typedSurfaceDependsOn` declarations and emits
-   transport invalidations.
+   resources against registered `liveFragmentDependsOn` declarations from each
+   `FragmentContract` and emits transport invalidations.
 4. Transport runtime: internal bus, websocket JSON, versions, subscriptions, and
    transport fragment metadata.
 5. Browser adapter: generic `static/app-live-updates.js` consumes mounted typed
@@ -107,7 +107,8 @@ not expose names that read like supported authoring primitives.
    - Reimplement `mkTypedSurfaceProjectionDefinition` without
      `typedLiveSurfaceDefinition`.
    - Remove untyped surface config/ref/broadcast helpers.
-   - Update tests that currently assert `mkLiveSurface` compatibility.
+   - Keep tests on typed config construction; `mkLiveSurface` compatibility has
+     been removed.
 3. `ir-wqa4`: rename or quarantine internal wire fragment primitives.
    - Prefer names such as `LiveUpdateWireFragment` and
      `mkLiveUpdateWireFragment` if the rename is tractable.

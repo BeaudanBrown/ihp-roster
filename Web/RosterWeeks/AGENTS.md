@@ -11,7 +11,7 @@ or roster views.
 - Use the feature modules here instead of adding more orchestration to the root
   controller.
 - Keep DOM ids/selectors centralized in `Dom.hs`.
-- Keep roster live fragment refs and `typedSurfaceDependsOn` declarations in `LiveSurface.hs`; passive fanout must go through touched resources and the registry.
+- Keep roster `typedSurfaceFragmentContract` declarations in `LiveSurface.hs`; passive fanout must go through touched resources and the registry.
 - Preserve `hx-sync` on stable shells that are not replaced by the response.
 
 ## Common Changes

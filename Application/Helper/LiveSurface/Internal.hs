@@ -402,7 +402,6 @@ liveUpdateWireRefreshTriggerPayload fragments =
                 ]
      in Aeson.object
             [ "app-live-fragments-refresh" Aeson..= detail
-            , "app-roster-fragments-refresh" Aeson..= detail
             ]
 
 mkSurfaceProjectionDefinition ::
