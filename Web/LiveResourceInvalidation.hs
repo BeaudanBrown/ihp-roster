@@ -11,9 +11,9 @@ module Web.LiveResourceInvalidation
     ) where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveUpdateBroadcastResult (..),
-                                      LiveUpdateScope (..), activeLiveUpdateScopes,
-                                      activeRosterWeekScopes)
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult (..),
+                                              LiveUpdateScope (..), activeLiveUpdateScopes,
+                                              activeRosterWeekScopes)
 import Application.Helper.Profiling (profileActionSpanWithDetail)
 import Application.Helper.RosterGroups (fetchStaffRosterGroupIds)
 import GHC.Clock (getMonotonicTimeNSec)

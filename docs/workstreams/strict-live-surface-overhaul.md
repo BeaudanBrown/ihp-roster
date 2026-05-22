@@ -82,7 +82,8 @@ from that typed contract.
 - Controllers may set actor-only refresh headers, but do not broadcast passive
   invalidations directly.
 - The only raw live-update layer is internal transport/runtime plumbing:
-  JSON codecs, the websocket bus, and the browser-facing protocol.
+  JSON codecs, the websocket bus, and the browser-facing protocol exposed
+  through `Application.Helper.LiveUpdate.Runtime` for infrastructure modules.
 
 ## Forbidden Feature-Facing API
 
@@ -94,6 +95,7 @@ tests:
 - `mkLiveFragmentRef`
 - raw `LiveFragmentRef` constructors
 - raw feature-level `broadcastLiveInvalidation`
+- feature imports of `Application.Helper.LiveUpdate.Runtime`
 - raw feature-level `liveFragmentsRefreshTriggerPayload`
 - fallback feature-scope authorization such as default `authorizeLiveUpdateScope`
 - direct feature/controller use of `ensureTypedLiveSurfaceAuthorized` instead of

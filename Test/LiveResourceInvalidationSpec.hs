@@ -1,11 +1,11 @@
 module Test.LiveResourceInvalidationSpec where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveFragmentKey (..),
-                                      LiveFragmentProtection (..),
-                                      LiveUpdateBroadcastResult (..),
-                                      LiveUpdateScope (..),
-                                      LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+                                              LiveFragmentProtection (..),
+                                              LiveUpdateBroadcastResult (..),
+                                              LiveUpdateScope (..),
+                                              LiveUpdateWireFragment (..))
 import IHP.Prelude
 import qualified Data.Set as Set
 import Data.UUID (fromWords)

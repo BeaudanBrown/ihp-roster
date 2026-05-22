@@ -2,7 +2,7 @@ module Test.LiveUpdateSpec where
 
 import Application.Helper.LiveSurface
 import Application.Helper.LiveSurface.Internal (defaultLiveUpdateScopeAuthorizationRequirement)
-import Application.Helper.LiveUpdate.Internal
+import Application.Helper.LiveUpdate.Runtime
 import Application.Support.LiveUpdates
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS

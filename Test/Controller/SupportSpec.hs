@@ -6,7 +6,7 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveSurface (typedLiveSurfaceFragmentRefs,
                                        unSurfaceFragmentRefs)
 import Application.Helper.LiveUpdate (currentLiveUpdateVersion)
-import Application.Helper.LiveUpdate.Internal (LiveUpdateWireFragment)
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment)
 import Application.Support.LiveUpdates
 import Config
 import Control.Concurrent (forkIO, newEmptyMVar, putMVar, takeMVar)

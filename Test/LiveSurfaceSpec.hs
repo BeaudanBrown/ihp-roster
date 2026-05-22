@@ -2,7 +2,7 @@ module Test.LiveSurfaceSpec where
 
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..), LiveUpdateWireFragment (..))
 import Application.Support.LiveUpdates
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.UUID as UUID

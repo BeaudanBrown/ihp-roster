@@ -10,7 +10,7 @@ module Test.Support.LiveSurfaceContract
 
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey)
-import Application.Helper.LiveUpdate.Internal (LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import IHP.Prelude

@@ -50,6 +50,7 @@ forbiddenReferences =
     , ExactIdentifier "mkLiveFragmentRef"
     , ExactIdentifier "LiveFragmentRef"
     , ExactIdentifier "mkLiveUpdateWireFragment"
+    , ExactIdentifier "Application.Helper.LiveUpdate.Runtime"
     , ExactIdentifier "LiveUpdateWireFragment"
     , IdentifierPrefix "broadcastLiveInvalidation"
     , IdentifierPrefix "broadcastLiveResync"
@@ -130,8 +131,12 @@ isAllowedInfrastructureFile path =
         `elem`
             [ "Application/Helper/LiveUpdate.hs"
             , "Application/Helper/LiveUpdate/Internal.hs"
+            , "Application/Helper/LiveUpdate/Runtime.hs"
             , "Application/Helper/LiveSurface.hs"
             , "Application/Helper/LiveSurface/Internal.hs"
             , "Application/Helper/SurfaceProjection.hs"
+            , "Application/Script/ProfileLiveInvalidation.hs"
+            , "Web/Controller/LiveUpdates.hs"
+            , "Web/LiveResourceInvalidation.hs"
             , "Web/LiveSurfaceRegistry.hs"
             ]

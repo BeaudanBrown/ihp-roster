@@ -2,7 +2,8 @@ module Test.Controller.RosterWeeks.FragmentsSpec where
 
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveUpdateScope (..), LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate (LiveUpdateScope (..))
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..), LiveUpdateWireFragment (..))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Config

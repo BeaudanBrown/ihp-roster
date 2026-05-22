@@ -1,8 +1,8 @@
 module Application.Script.ProfileLiveInvalidation where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveUpdate (LiveUpdateBroadcastResult (..),
-                                      LiveUpdateScope (..))
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult (..),
+                                              LiveUpdateScope (..))
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.Set as Set

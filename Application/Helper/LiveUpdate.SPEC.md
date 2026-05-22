@@ -66,7 +66,8 @@ Containment metadata is server-only. It complements, but does not replace,
 ownership among already-selected fragments; structural fragment refs still
 describe how the browser refetches and swaps HTML.
 
-The wire-fragment transport boundary is internal to `Application.Helper.LiveUpdate.Internal`
+The wire-fragment transport boundary is isolated behind
+`Application.Helper.LiveUpdate.Runtime`, `Application.Helper.LiveUpdate.Internal`,
 and `Application.Helper.LiveSurface.Internal`. Feature modules should keep
 fragment enums feature-local and cross the typed-to-wire boundary only through
 strict helpers such as `mkSurfaceFragmentRef`, `mkSurfaceFragmentContract`,
@@ -101,14 +102,14 @@ enforces this across `Web/` and feature `Application/` modules.
 
 ## LiveBus Boundary
 
-`Application.Helper.LiveUpdate.LiveBus` is the boundary around live
+`Application.Helper.LiveUpdate.Runtime.LiveBus` is the boundary around live
 subscriptions, scope versions, active-scope discovery, and invalidation
 broadcasts. The default implementation is the single-process in-memory bus.
 
-Callers should use the existing top-level live-update helpers unless a test or a
-future runtime explicitly needs a different bus. Tests that need isolated
-version/subscription state should create a bus with `newInMemoryLiveBus` and use
-the `WithBus` helpers instead of touching global process state.
+Feature callers should use the safe `Application.Helper.LiveUpdate` facade for
+scope/key/protection types and version reads. Runtime, registry, websocket, and
+transport tests use `Application.Helper.LiveUpdate.Runtime` for raw wire
+fragments, broadcasts, subscriptions, and isolated `LiveBus` helpers.
 
 Future distributed implementations, such as Postgres `LISTEN`/`NOTIFY` or
 Redis pub/sub, must preserve the public `LiveBus` contract: structural
@@ -149,8 +150,8 @@ transport runtime, and actor-only response helpers:
 
 - `Web.LiveSurfaceRegistry` is the passive adapter that turns planned targets
   into raw transport invalidations
-- `Application.Helper.LiveUpdate` owns the transport bus and raw websocket
-  invalidation primitives
+- `Application.Helper.LiveUpdate.Runtime` owns the transport bus and raw
+  websocket invalidation primitives
 - controllers may call `setTypedLiveSurfaceActorRefresh` or helpers that only
   set actor refresh headers for the requester
 - background jobs should call a touched-resource invalidation adapter, such as

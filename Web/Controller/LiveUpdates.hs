@@ -1,9 +1,7 @@
 module Web.Controller.LiveUpdates where
 
 import Application.Helper.Controller
-import Application.Helper.LiveUpdate
-import Application.Helper.LiveUpdate.Internal (registerLiveSubscription,
-                                               unregisterLiveSubscription)
+import Application.Helper.LiveUpdate.Runtime
 import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LByteString
 import qualified Data.UUID as UUID

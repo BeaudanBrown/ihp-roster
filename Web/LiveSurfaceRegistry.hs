@@ -15,13 +15,13 @@ import Application.Helper.LiveSurface (SurfaceScope (..),
                                        typedLiveSurfaceAffectedFragments,
                                        typedLiveSurfaceFragmentRefs,
                                        unSurfaceFragmentRefs)
-import Application.Helper.LiveUpdate (LiveUpdateBroadcastResult,
-                                      LiveUpdateScope (..),
-                                      LiveUpdateWireFragment,
-                                      broadcastLiveInvalidationDetailed,
-                                      broadcastLiveInvalidationDetailedWithoutContext,
-                                      coalesceLiveUpdateWireFragments,
-                                      liveUpdateSourceClientId)
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateBroadcastResult,
+                                              LiveUpdateScope (..),
+                                              LiveUpdateWireFragment,
+                                              broadcastLiveInvalidationDetailed,
+                                              broadcastLiveInvalidationDetailedWithoutContext,
+                                              coalesceLiveUpdateWireFragments,
+                                              liveUpdateSourceClientId)
 import Application.Support.LiveUpdates (supportLiveSurfaceDefinition)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
