@@ -28,7 +28,7 @@ import Data.UUID (UUID)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.Job.Types
-import IHP.ModelSupport (ModelContext, sqlQueryScalar)
+import IHP.ModelSupport (ModelContext, sqlQuery, sqlQueryScalar)
 import Web.LiveResourceInvalidation (invalidateTouchedResourcesWithoutContext)
 
 rosterTimesheetCreationJobKind :: Text
@@ -50,30 +50,26 @@ cancelPendingRosterTimesheetCreationJobsForWeek ::
     RosterWeek ->
     IO Int
 cancelPendingRosterTimesheetCreationJobsForWeek rosterWeek = do
-    rosterDays <- query @RosterDay
-        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
-        |> fetch
-    rosterSlots <- fmap concat $
-        forM rosterDays \rosterDay ->
-            query @RosterSlot
-                |> filterWhere (#rosterDayId, unpackId rosterDay.id)
-                |> fetch
-    if null rosterSlots
-        then pure 0
-        else do
-            jobs <- query @AppJob
-                |> filterWhere (#jobKind, rosterTimesheetCreationJobKind)
-                |> filterWhere (#relatedTable, Just "roster_slots")
-                |> filterWhereIn (#relatedId, map (Just . unpackId . (.id)) rosterSlots)
-                |> filterWhereIn (#status, [JobStatusNotStarted, JobStatusRetry])
-                |> fetch
-            forM_ jobs \job ->
-                void $
-                    job
-                        |> set #status JobStatusSucceeded
-                        |> set #result rosterTimesheetCancellationResult
-                        |> updateRecord
-            pure (length jobs)
+    cancelledJobs <- (sqlQuery
+        "UPDATE app_jobs \
+        \SET status = ?, result = ?, updated_at = NOW() \
+        \FROM roster_slots \
+        \JOIN roster_days ON roster_slots.roster_day_id = roster_days.id \
+        \WHERE app_jobs.related_id = roster_slots.id \
+        \AND roster_days.roster_week_id = ? \
+        \AND app_jobs.job_kind = ? \
+        \AND app_jobs.related_table = ? \
+        \AND app_jobs.status IN (?, ?) \
+        \RETURNING app_jobs.id, app_jobs.created_at, app_jobs.updated_at, app_jobs.status, app_jobs.last_error, app_jobs.attempts_count, app_jobs.locked_at, app_jobs.locked_by, app_jobs.run_at, app_jobs.job_kind, app_jobs.payload, app_jobs.payload_schema_version, app_jobs.requested_by_user_id, app_jobs.venue_id, app_jobs.related_table, app_jobs.related_id, app_jobs.dedupe_key, app_jobs.progress, app_jobs.result"
+        ( JobStatusSucceeded
+        , rosterTimesheetCancellationResult
+        , unpackId rosterWeek.id
+        , rosterTimesheetCreationJobKind
+        , "roster_slots" :: Text
+        , JobStatusNotStarted
+        , JobStatusRetry
+        ) :: IO [AppJob])
+    pure (length cancelledJobs)
 
 enqueueRosterTimesheetCreationJobsForWeek ::
     (?modelContext :: ModelContext) =>

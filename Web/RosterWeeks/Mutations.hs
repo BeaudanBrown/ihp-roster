@@ -56,15 +56,22 @@ copyRosterWeekFromSourceMutation rosterGroupId sourceWeek targetWeekOffset = do
 
 toggleRosterWeekLiveStatusMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Bool -> IO (LiveMutationResult (RosterWeek, Int))
 toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus = do
-    updatedRosterWeek <- rosterWeek
-        |> set #isLive nextLiveStatus
-        |> updateRecord
-    queuedTimesheetJobs <-
+    (updatedRosterWeek, queuedTimesheetJobs) <-
         if nextLiveStatus
-            then enqueueRosterTimesheetCreationJobsForWeek (Just currentUser.id) updatedRosterWeek
+            then do
+                updatedRosterWeek <- rosterWeek
+                    |> set #isLive True
+                    |> updateRecord
+                queuedTimesheetJobs <- enqueueRosterTimesheetCreationJobsForWeek (Just currentUser.id) updatedRosterWeek
+                pure (updatedRosterWeek, queuedTimesheetJobs)
             else do
-                _cancelledJobCount <- cancelPendingRosterTimesheetCreationJobsForWeek updatedRosterWeek
-                pure []
+                updatedRosterWeek <- withTransaction do
+                    updatedRosterWeek <- rosterWeek
+                        |> set #isLive False
+                        |> updateRecord
+                    _cancelledJobCount <- cancelPendingRosterTimesheetCreationJobsForWeek updatedRosterWeek
+                    pure updatedRosterWeek
+                pure (updatedRosterWeek, [])
     invalidateTouchedResources "roster.week.live_status" (liveMutationResult (updatedRosterWeek, length queuedTimesheetJobs) (rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset))
 
 appendRosterWeekSlotDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Text -> IO (LiveMutationResult RosterWeekSlotDefinition)

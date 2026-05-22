@@ -27,9 +27,11 @@ lands.
 - Moving a live roster week back to draft cancels that week's not-started and
   retry `roster_timesheet_creation` jobs by marking them succeeded with result
   `{status: "cancelled", reason: "roster_week_moved_to_draft"}`. Running jobs
-  are not force-cancelled; they rely on their execution-time live-week checks.
+  are not force-cancelled; they rely on their execution-time live-week checks and
+  may remain active until the worker finishes them.
 - Republishing after draft edits creates fresh roster-timesheet jobs from the
-  current complete slot state and recalculated run times.
+  current complete slot state and recalculated run times after older active jobs
+  for those slots have been cancelled or finished.
 - Roster forms must submit full cell payloads so single-field edits do not
   clear sibling slot fields.
 

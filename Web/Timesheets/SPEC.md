@@ -44,9 +44,11 @@ lands.
   `{status: "cancelled", reason: "roster_week_moved_to_draft"}`.
 - Running roster-timesheet jobs are not force-cancelled during rollback. They
   must re-check venue opt-in, live roster-week state, slot deletion, slot
-  completeness, and existing generated timesheets when they execute.
+  completeness, and existing generated timesheets when they execute, and they may
+  remain active until the worker finishes them.
 - Republishing a draft-edited roster week queues new jobs from the current
-  complete roster slot state with recalculated run times.
+  complete roster slot state with recalculated run times after older active jobs
+  for those slots have been cancelled or finished.
 - Generated timesheet entries are authoritative timesheet records. Later roster
   draft rollbacks, edits, or republishing do not mutate or delete them; users
   must edit the timesheet entry directly when corrections are needed.
