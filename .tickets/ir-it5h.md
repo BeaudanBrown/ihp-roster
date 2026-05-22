@@ -1,6 +1,6 @@
 ---
 id: ir-it5h
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-22T06:01:53Z
@@ -21,3 +21,9 @@ Extend the existing TypedLiveSurfaceDefinition pipeline rather than creating a p
 
 Slot mutations no longer emit overlapping parent/child fragment refresh refs. Manager staff panel roles never flash membership ids/UUIDs. RosterProjectionContent no longer renders the roster staff-panel fragment. Roster main content and staff panel can refresh together as sibling fragments. Existing passive live updates and actor refreshes still use the typed surface pipeline. Focused Hspec and relevant Playwright live-fragment checks pass or any failures are documented as pre-existing.
 
+
+## Notes
+
+**2026-05-22T06:36:10Z**
+
+Implemented all child tickets. Notable discoveries: the original role flicker was the direct read model rendering VenueMembership instead of venueRole; server-only containment metadata could be added without changing browser JSON; current row refs still collapse under roster content until row/day targets are independently selected without content; and splitting the roster side panel into a sibling lets content+staff-panel refresh together safely. Verification is recorded on ir-1frh.
