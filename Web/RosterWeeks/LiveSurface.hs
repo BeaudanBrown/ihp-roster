@@ -96,7 +96,7 @@ rosterFragmentContainmentPath = \case
     RosterProjectionContent ->
         [rosterContentFragmentId]
     RosterProjectionStaffPanel ->
-        [rosterContentFragmentId, rosterStaffPanelFragmentId]
+        [rosterStaffPanelFragmentId]
     RosterProjectionDaySection rosterDayId ->
         [rosterContentFragmentId, rosterDaySectionDomId (coerce rosterDayId)]
     RosterProjectionRow rosterDayId rowIndex ->

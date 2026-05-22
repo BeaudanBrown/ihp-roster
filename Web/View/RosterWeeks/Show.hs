@@ -10,7 +10,7 @@ import Web.RosterWeeks.Projection (buildRosterProjectionScope)
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
 import Web.RosterWeeks.Types
 import Web.View.Prelude
-import Web.View.RosterWeeks.Grid (renderRosterContentFragment)
+import Web.View.RosterWeeks.Grid (renderRosterLayout)
 
 instance View ShowView where
     html = renderRosterWeekShell
@@ -25,7 +25,7 @@ renderRosterWeekShell ShowView { .. } =
             , appPageBody =
                 mconcat
                     [ renderPasskeySetupPrompt passkeySetupPrompt
-                    , renderRosterContentFragment RosterGridRenderModel
+                    , renderRosterLayout RosterGridRenderModel
                         { gridRosterWeek = rosterWeek
                         , gridRosterDays = rosterDays
                         , gridWeekOffset = weekOffset

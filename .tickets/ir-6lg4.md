@@ -1,6 +1,6 @@
 ---
 id: ir-6lg4
-status: open
+status: closed
 deps: [ir-8i4y]
 links: []
 created: 2026-05-22T06:01:53Z
@@ -22,3 +22,9 @@ Introduce a roster layout shell that owns the Bootstrap row/column structure. Ma
 
 Full roster page renders manager and staff layouts correctly. ShowRosterWeekContentFragmentAction does not include id="roster-staff-panel-fragment". ShowRosterWeekStaffPanelFragmentAction still returns the staff panel target. Week navigation does not leave side panels stale. Mobile/desktop roster layout remains consistent with specs/07-ui-bootstrap-spec.md.
 
+
+## Notes
+
+**2026-05-22T06:28:58Z**
+
+Implemented: roster full-page rendering now uses a layout shell with #roster-content as the main column and #roster-staff-panel-fragment as a sibling side panel; content fragment responses no longer include the staff panel. Roster containment paths were updated so content+staff panel survive normalization as siblings while content still owns day/row descendants. Discovery: row-level actor refs remain collapsed when content is in the same batch because rows are still inside #roster-content; the split only changes side-panel overlap. Verification: full RosterWeeksController Hspec passed after starting the local dev services for the test DB.

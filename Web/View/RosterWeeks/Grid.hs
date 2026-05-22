@@ -2,6 +2,7 @@ module Web.View.RosterWeeks.Grid
     ( lastRowIndexForRows
     , renderRosterContentFragment
     , renderRosterContentFragmentOob
+    , renderRosterLayout
     , renderRosterDaySectionFragment
     , renderRosterDaySectionFragmentOob
     , renderRowFragment
@@ -44,17 +45,34 @@ renderRosterContentFragmentOob =
 
 renderRosterContentFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
 renderRosterContentFragmentWithSwap maybeSwapOob gridModel = [hsx|
-    <div id={rosterContentFragmentId} hx-swap-oob={maybeSwapOob}>
+    <div id={rosterContentFragmentId}
+         class={rosterContentColumnClasses gridModel}
+         hx-swap-oob={maybeSwapOob}>
         {renderRosterContent gridModel}
     </div>
 |]
 
+renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
+renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridPanelStaff, gridStaffSelfServicePanel } = [hsx|
+    <div class="row g-4 align-items-start roster-layout">
+        {renderRosterContentFragment gridModel}
+        {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) gridPanelStaff)}
+        {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
+    </div>
+|]
+
+rosterContentColumnClasses :: (?context :: ControllerContext) => RosterGridRenderModel -> Text
+rosterContentColumnClasses RosterGridRenderModel { gridStaffSelfServicePanel } =
+    classes [("col-12", True), ("col-xl-8", hasSidePanel), ("col-xxl-10", hasSidePanel), ("mx-auto", not hasSidePanel), ("roster-layout-main", hasSidePanel)]
+    where
+        hasSidePanel = currentUserIsManager || isJust gridStaffSelfServicePanel
+
 renderRosterContent :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
 renderRosterContent =
-    renderRosterGrid
+    renderRosterMainPanel
 
-renderRosterGrid :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridPanelStaff, gridStaffSelfServicePanel, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridShowShiftTypeHighlights, gridRosterEndTimesEnabled, gridRosterWagePrediction } =
+renderRosterMainPanel :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
+renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridShowShiftTypeHighlights, gridRosterEndTimesEnabled, gridRosterWagePrediction } =
     let dayModel =
             RosterDayRenderModel
                 { dayIsEditable = rosterWeekIsEditable gridRosterWeek
@@ -77,24 +95,17 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
             if isDayColumnsLayout
                 then renderRosterDayColumns dayModel gridRosterDays
                 else renderRosterDayRowsGrid gridRosterEndTimesEnabled slotColumnsAreEditable gridRosterWeek gridSlotNames dayModel gridRosterDays
-        hasSidePanel = currentUserIsManager || isJust gridStaffSelfServicePanel
      in [hsx|
-    <div class="row g-4 align-items-start roster-layout">
-        <div class={classes [("col-12", True), ("col-xl-8", hasSidePanel), ("col-xxl-10", hasSidePanel), ("mx-auto", not hasSidePanel), ("roster-layout-main", hasSidePanel)]}>
-            <div class="app-panel overflow-hidden mb-5 mb-xl-0">
-                {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridShowShiftTypeHighlights gridRosterWagePrediction}
-                <div class="roster-grid-frame"
-                     data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
-                     data-roster-shift-type-highlights={if gridShowShiftTypeHighlights then ("true" :: Text) else "false"}
-                     data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
-                     data-roster-column-editor={if slotColumnsAreEditable then ("available" :: Text) else "unavailable"}
-                     style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
-                    {gridBody}
-                </div>
-            </div>
+    <div class="app-panel overflow-hidden mb-5 mb-xl-0">
+        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridShowShiftTypeHighlights gridRosterWagePrediction}
+        <div class="roster-grid-frame"
+             data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
+             data-roster-shift-type-highlights={if gridShowShiftTypeHighlights then ("true" :: Text) else "false"}
+             data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
+             data-roster-column-editor={if slotColumnsAreEditable then ("available" :: Text) else "unavailable"}
+             style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
+            {gridBody}
         </div>
-        {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) gridPanelStaff)}
-        {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
     </div>
 |]
 

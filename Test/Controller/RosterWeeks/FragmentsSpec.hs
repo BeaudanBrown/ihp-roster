@@ -65,16 +65,16 @@ tests = beforeAll testContext do
                 let updatedRowTarget = cs (rosterRowDomIdText rosterDay.id 0) :: String
                 fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
                 fromJust triggerHeader `shouldContain` contentTarget
-                fromJust triggerHeader `shouldNotContain` staffPanelTarget
+                fromJust triggerHeader `shouldContain` staffPanelTarget
                 fromJust triggerHeader `shouldNotContain` updatedRowTarget
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
-                fromJust triggerHeader `shouldNotContain` "ShowRosterWeekStaffPanelFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
                 fromJust triggerHeader `shouldNotContain` "ShowRosterWeekRowFragment"
                 fromJust triggerHeader `shouldContain` ("\"targetId\":\"" <> contentTarget <> "\"")
                 fromJust triggerHeader `shouldNotContain` ("\"targetId\":\"" <> updatedRowTarget <> "\"")
                 fromJust triggerHeader `shouldContain` "\"deferUntilBlur\":false"
 
-        it "plans non-overlapping passive roster fragments for current nested content" $ withContext do
+        it "plans non-overlapping passive roster content and staff panel fragments" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-passive-overlap@example.com" "staff" True
@@ -89,7 +89,7 @@ tests = beforeAll testContext do
                             [RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = rosterWeek.rosterGroupId, weekOffset = rosterWeek.weekOffset }]
 
                 targetFragmentKeys targets
-                    `shouldBe` [[RosterContentFragment]]
+                    `shouldBe` [[RosterContentFragment, RosterStaffPanelFragment]]
 
         it "does not include rows from other weeks when refreshing related assignment rows" $ withContext do
             withCleanDb do

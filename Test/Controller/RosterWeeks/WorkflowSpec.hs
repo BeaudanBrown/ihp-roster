@@ -110,9 +110,9 @@ tests = beforeAll testContext do
                 fromJust triggerHeader `shouldContain` "app-live-fragments-refresh"
                 fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
                 fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
-                fromJust triggerHeader `shouldNotContain` (cs rosterStaffPanelFragmentId :: String)
+                fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
-                fromJust triggerHeader `shouldNotContain` "ShowRosterWeekStaffPanelFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
 
                 updatedDay <- fetch rosterDay.id
                 updatedDay.isClosed `shouldBe` True
@@ -187,9 +187,9 @@ tests = beforeAll testContext do
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
                 fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
-                fromJust triggerHeader `shouldNotContain` (cs rosterStaffPanelFragmentId :: String)
+                fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
-                fromJust triggerHeader `shouldNotContain` "ShowRosterWeekStaffPanelFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
 
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
@@ -221,9 +221,9 @@ tests = beforeAll testContext do
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 fromJust triggerHeader `shouldContain` "app-roster-fragments-refresh"
                 fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
-                fromJust triggerHeader `shouldNotContain` (cs rosterStaffPanelFragmentId :: String)
+                fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
                 fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
-                fromJust triggerHeader `shouldNotContain` "ShowRosterWeekStaffPanelFragment"
+                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
 
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDayWithRows.id)
@@ -1088,6 +1088,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
+                response `responseBodyShouldNotContain` cs rosterStaffPanelFragmentId
                 response `responseBodyShouldContain` ">Alpha</option>"
 
         it "manager can fetch the roster staff panel fragment for the current venue" $ withContext do
