@@ -98,6 +98,19 @@
 
                 # Custom configuration that will start with `devenv up`
                 devenv.shells.default = {
+                    overlays = [
+                        (final: prev: {
+                            ghc = prev.ghc.extend (hfinal: hprev: {
+                                ihp-ide = prev.haskell.lib.overrideCabal hprev.ihp-ide (old: {
+                                    postPatch = (old.postPatch or "") + ''
+                                        substituteInPlace IHP/IDE/PortConfig.hs \
+                                            --replace "Socket.tupleToHostAddress (127, 0, 0, 1)" "Socket.tupleToHostAddress (0, 0, 0, 0)"
+                                    '';
+                                });
+                            });
+                        })
+                    ];
+
                     # Custom processes that don't appear in https://devenv.sh/reference/options/
                     processes = {
                         mailhog.exec = ''
