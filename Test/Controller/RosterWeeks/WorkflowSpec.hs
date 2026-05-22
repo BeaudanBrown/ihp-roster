@@ -1,10 +1,14 @@
 module Test.Controller.RosterWeeks.WorkflowSpec where
 
+import Application.Async.Queue (EnqueueAppJobResult (..))
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.UserPreferences
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
+import Application.RosterTimesheets.Automation (enqueueRosterTimesheetCreationJobsForWeek,
+                                                performRosterTimesheetCreationJob,
+                                                rosterTimesheetCreationJobKind)
 import Config
 import qualified Data.ByteString.Char8 as ByteString
 import Data.Coerce (coerce)
@@ -569,6 +573,85 @@ tests = beforeAll testContext do
 
                 publishedWeek <- fetch rosterWeek.id
                 publishedWeek.isLive `shouldBe` True
+
+        it "queues pending timesheet jobs when an opted-in roster week is published" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-publish-auto-timesheets@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                slotName <- fetchSlotNameRecord venue "Late"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                _ <- updateRecord
+                    ( slot
+                        |> set #startTime (Just (timeOfDay 22 0))
+                        |> set #endTime (Just (timeOfDay 2 0))
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> set #durationMinutes (Just 240)
+                    )
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            [("isLive", "on")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Pending timesheet jobs queued for 1 shifts."
+                [job] <- query @AppJob |> fetch
+                job.jobKind `shouldBe` rosterTimesheetCreationJobKind
+                job.relatedTable `shouldBe` Just "roster_slots"
+                job.relatedId `shouldBe` Just (unpackId slot.id)
+
+        it "warns and leaves an auto-created timesheet unchanged when the source roster slot is edited later" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-auto-timesheet-edit-warning@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                slotName <- fetchSlotNameRecord venue "Late"
+                alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
+                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
+                completeSlot <- updateRecord
+                    ( slot
+                        |> set #startTime (Just (timeOfDay 22 0))
+                        |> set #endTime (Just (timeOfDay 2 0))
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> set #durationMinutes (Just 240)
+                    )
+                [EnqueuedAppJob job] <- enqueueRosterTimesheetCreationJobsForWeek (Just manager.id) rosterWeek
+                performRosterTimesheetCreationJob job
+                [entry] <- query @TimesheetEntry |> fetch
+                entry.staffId `shouldBe` unpackId alpha.id
+
+                _ <- updateRecord (rosterWeek |> set #isLive False)
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterSlotAction completeSlot.id)
+                            [("staffId", idToParam bravo.id)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly."
+                [unchangedEntry] <- query @TimesheetEntry |> fetch
+                unchangedEntry.id `shouldBe` entry.id
+                unchangedEntry.staffId `shouldBe` unpackId alpha.id
+                unchangedEntry.startTime `shouldBe` timeOfDay 22 0
+                unchangedEntry.endTime `shouldBe` timeOfDay 2 0
+                unchangedEntry.shiftTypeId `shouldBe` unpackId shiftType.id
+                unchangedEntry.sourceRosterSlotId `shouldBe` Just (unpackId completeSlot.id)
 
         it "blocks publishing staffed shifts missing end times or shift types when enabled" $ withContext do
             withCleanDb do

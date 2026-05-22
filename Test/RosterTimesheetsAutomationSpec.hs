@@ -3,11 +3,14 @@ module Test.RosterTimesheetsAutomationSpec where
 import Application.Async.Queue (EnqueueAppJobResult (..))
 import Application.Helper.Controller (venueWeekStartDate)
 import Application.RosterTimesheets.Automation
+import qualified Data.Aeson as Aeson
 import Data.Maybe (fromJust)
-import Data.Time.Calendar (addDays)
+import Data.Time.Calendar (addDays, fromGregorian)
+import Data.Time.Clock (UTCTime (..), secondsToDiffTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.Job.Types
 import IHP.Test.Mocking
 import Test.Hspec
 import Test.Support
@@ -15,6 +18,21 @@ import Test.Support
 tests :: Spec
 tests = beforeAll testContext do
     describe "Roster timesheet automation" do
+        it "does not enqueue when the venue is not opted in or the roster week is draft" $ withContext do
+            withCleanDb do
+                (venue, _manager, liveWeek, _rosterDay, _slot, _shiftType) <- createCompleteLiveRosterSlotFixture
+
+                disabledJobs <- enqueueRosterTimesheetCreationJobsForWeek Nothing liveWeek
+                disabledJobs `shouldBe` []
+
+                venueConfig <- fetchVenueConfigFor venue
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                draftWeek <- liveWeek |> set #isLive False |> updateRecord
+
+                draftJobs <- enqueueRosterTimesheetCreationJobsForWeek Nothing draftWeek
+                draftJobs `shouldBe` []
+                query @AppJob |> fetchCount >>= (`shouldBe` 0)
+
         it "queues one delayed job per complete live roster slot when the venue opts in" $ withContext do
             withCleanDb do
                 (venue, manager, rosterWeek, rosterDay, slot, _shiftType) <- createCompleteLiveRosterSlotFixture
@@ -69,6 +87,75 @@ tests = beforeAll testContext do
                 performRosterTimesheetCreationJob job
 
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 1)
+
+        it "skips a queued job when the venue opt-in is disabled before execution" $ withContext do
+            withCleanDb do
+                (venue, manager, rosterWeek, _rosterDay, _slot, _shiftType) <- createCompleteLiveRosterSlotFixture
+                venueConfig <- fetchVenueConfigFor venue
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                [EnqueuedAppJob job] <- enqueueRosterTimesheetCreationJobsForWeek (Just manager.id) rosterWeek
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled False)
+
+                performRosterTimesheetCreationJob job
+
+                assertJobSkipped job "venue_opt_in_disabled"
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "skips a queued job when the roster week is moved back to draft before execution" $ withContext do
+            withCleanDb do
+                (venue, manager, rosterWeek, _rosterDay, _slot, _shiftType) <- createCompleteLiveRosterSlotFixture
+                venueConfig <- fetchVenueConfigFor venue
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                [EnqueuedAppJob job] <- enqueueRosterTimesheetCreationJobsForWeek (Just manager.id) rosterWeek
+                _ <- updateRecord (rosterWeek |> set #isLive False)
+
+                performRosterTimesheetCreationJob job
+
+                assertJobSkipped job "roster_week_not_live"
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "skips a queued job when the roster slot is deleted before execution" $ withContext do
+            withCleanDb do
+                (venue, manager, rosterWeek, _rosterDay, slot, _shiftType) <- createCompleteLiveRosterSlotFixture
+                venueConfig <- fetchVenueConfigFor venue
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                [EnqueuedAppJob job] <- enqueueRosterTimesheetCreationJobsForWeek (Just manager.id) rosterWeek
+                now <- getCurrentTime
+                _ <- updateRecord (slot |> set #deletedAt (Just now))
+
+                performRosterTimesheetCreationJob job
+
+                assertJobSkipped job "roster_slot_deleted"
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "skips a queued job when the roster slot becomes incomplete before execution" $ withContext do
+            withCleanDb do
+                (venue, manager, rosterWeek, _rosterDay, slot, _shiftType) <- createCompleteLiveRosterSlotFixture
+                venueConfig <- fetchVenueConfigFor venue
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                [EnqueuedAppJob job] <- enqueueRosterTimesheetCreationJobsForWeek (Just manager.id) rosterWeek
+                _ <- updateRecord (slot |> set #endTime Nothing)
+
+                performRosterTimesheetCreationJob job
+
+                assertJobSkipped job "roster_slot_incomplete"
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
+        it "schedules overnight shifts two hours after their actual local end time" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Automation UTC Venue"
+                venueConfig <- fetchVenueConfigFor venue
+                utcConfig <- updateRecord (venueConfig |> set #timezone "UTC")
+
+                runAt <- rosterTimesheetRunAt utcConfig (fromGregorian 2026 6 8) (timeOfDay 22 0) (timeOfDay 2 0)
+
+                runAt `shouldBe` UTCTime (fromGregorian 2026 6 9) (secondsToDiffTime (4 * 60 * 60))
+
+assertJobSkipped :: (?modelContext :: ModelContext) => AppJob -> Text -> IO ()
+assertJobSkipped job reason = do
+    updatedJob <- fetch job.id
+    updatedJob.status `shouldBe` JobStatusSucceeded
+    updatedJob.result `shouldBe` Aeson.object ["status" Aeson..= ("skipped" :: Text), "reason" Aeson..= reason]
 
 createCompleteLiveRosterSlotFixture ::
     (?modelContext :: ModelContext) =>
