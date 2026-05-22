@@ -38,7 +38,7 @@ billingLiveSurfaceDefinition =
         , typedSurfaceFragmentContract = \key fragment ->
             mkSurfaceFragmentContract
                 (billingLiveFragmentRef fragment)
-                [BillingResource key.billingSurfaceVenueId]
+                (liveFragmentDependsOn (BillingResource key.billingSurfaceVenueId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#billing-live-surface", "#billing-status-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueOwner key.billingSurfaceVenueId)
         }

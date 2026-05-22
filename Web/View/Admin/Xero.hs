@@ -20,10 +20,12 @@ module Web.View.Admin.Xero
 
 import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
+import Application.Helper.LiveSurface (FragmentDependencies,
+                                       LiveScopeAuthorizationRequirement (..),
                                        LiveSurfaceConfig (..),
                                        SurfaceFragmentRef, SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
+                                       liveFragmentDependsOn,
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
                                        mkSurfaceFragmentContract,
@@ -124,19 +126,20 @@ adminXeroLiveSurfaceDefinitionForVenue surfaceVenueId =
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner surfaceVenueId))
         }
 
-adminXeroLiveFragmentDependencies :: UUID -> AdminXeroLiveFragment -> [LiveResource]
+adminXeroLiveFragmentDependencies :: UUID -> AdminXeroLiveFragment -> FragmentDependencies
 adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroShellLiveFragment =
-    [ XeroConnectionResource surfaceVenueId
-    , XeroMappingsResource surfaceVenueId
-    , XeroPayItemsResource surfaceVenueId
-    , XeroTimesheetsResource surfaceVenueId
-    ]
+    liveFragmentDependsOn
+        (XeroConnectionResource surfaceVenueId)
+        [ XeroMappingsResource surfaceVenueId
+        , XeroPayItemsResource surfaceVenueId
+        , XeroTimesheetsResource surfaceVenueId
+        ]
 adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroStaffMappingsLiveFragment =
-    [XeroMappingsResource surfaceVenueId]
+    liveFragmentDependsOn (XeroMappingsResource surfaceVenueId) []
 adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroPayItemsLiveFragment =
-    [XeroPayItemsResource surfaceVenueId]
+    liveFragmentDependsOn (XeroPayItemsResource surfaceVenueId) []
 adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroTimesheetsLiveFragment =
-    [XeroTimesheetsResource surfaceVenueId]
+    liveFragmentDependsOn (XeroTimesheetsResource surfaceVenueId) []
 
 adminXeroLiveFragmentRef :: AdminXeroLiveFragment -> SurfaceFragmentRef AdminXeroSurface
 adminXeroLiveFragmentRef AdminXeroShellLiveFragment =

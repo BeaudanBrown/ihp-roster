@@ -80,7 +80,7 @@ leaveRequestsLiveSurfaceDefinition =
         , typedSurfaceFragmentContract = \() fragment ->
             mkSurfaceFragmentContract
                 (leaveRequestsFragmentRef fragment)
-                [LeaveRequestsResource (unpackId currentVenueId)]
+                (liveFragmentDependsOn (LeaveRequestsResource (unpackId currentVenueId)) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> leaveRequestsShellId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager (unpackId currentVenueId)))
         }

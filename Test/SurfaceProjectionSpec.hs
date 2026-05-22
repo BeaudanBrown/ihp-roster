@@ -174,7 +174,7 @@ tests = describe "SurfaceProjection helper" do
                                 ("surface-target-" <> tshow scope <> "-" <> tshow fragment)
                                 ("/surface/" <> tshow scope <> "/" <> tshow fragment)
                             )
-                            []
+                            (liveFragmentResyncOnly "surface projection test fragment has no live-resource dependency")
                     , typedSurfaceDecorateRequestsWithin = const []
                     , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
                     }

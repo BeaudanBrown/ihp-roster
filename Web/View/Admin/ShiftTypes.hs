@@ -12,6 +12,7 @@ import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
                                        SurfaceFragmentRef,
                                        SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
+                                       liveFragmentDependsOn,
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
                                        mkSurfaceFragmentContract,
@@ -73,7 +74,7 @@ adminShiftTypesLiveSurfaceDefinition =
         , typedSurfaceFragmentContract = \() fragment ->
             mkSurfaceFragmentContract
                 (adminShiftTypesLiveFragmentRef fragment)
-                [AdminShiftTypesResource currentVenueScopeId]
+                (liveFragmentDependsOn (AdminShiftTypesResource currentVenueScopeId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#admin-shift-types-fragment"]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
         }

@@ -40,7 +40,7 @@ staffComplianceLiveSurfaceDefinition =
         , typedSurfaceFragmentContract = \() fragment ->
             mkSurfaceFragmentContract
                 (staffComplianceLiveFragmentRef fragment)
-                [AdminStaffComplianceResource currentVenueScopeId]
+                (liveFragmentDependsOn (AdminStaffComplianceResource currentVenueScopeId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> staffComplianceFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager currentVenueScopeId))
         }

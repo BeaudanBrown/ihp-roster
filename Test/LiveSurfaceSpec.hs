@@ -4,6 +4,7 @@ import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveUpdateWireFragment (..))
 import Application.Support.LiveUpdates
+import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.UUID as UUID
 import Generated.Types
 import IHP.Prelude
@@ -41,6 +42,14 @@ tests = describe "LiveSurface contract helpers" do
             `shouldBe` ["billing-status-fragment"]
         typedSurfaceDependsOn billingLiveSurfaceDefinition billingKey BillingStatusLiveFragment
             `shouldBe` [BillingResource venueId]
+
+    it "requires fragment contracts to declare resource dependencies or resync-only intent" do
+        let ref = testFragmentRef BillingStatusFragment "billing-status-fragment" ["billing-status-fragment"]
+        let dependent = mkSurfaceFragmentContract ref (liveFragmentDependsOn (BillingResource (expectUuid "11111111-1111-1111-1111-111111111111")) [])
+        let resyncOnly = mkSurfaceFragmentContract ref (liveFragmentResyncOnly "no passive dependency")
+
+        fragmentContractDependencies dependent `shouldBe` DependsOnLiveResources (BillingResource (expectUuid "11111111-1111-1111-1111-111111111111") :| [])
+        fragmentContractDependencies resyncOnly `shouldBe` ResyncOnlyFragment "no passive dependency"
 
     it "verifies the typed support surface config contract" do
         liveSurfaceConfigShouldRoundTrip supportLiveSurface

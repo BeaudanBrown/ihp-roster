@@ -50,11 +50,11 @@ supportLiveFragmentRefs =
     , SupportPublicHolidaysLiveFragment
     ]
 
-supportLiveFragmentDependencies :: SupportLiveFragment -> [LiveResource]
+supportLiveFragmentDependencies :: SupportLiveFragment -> FragmentDependencies
 supportLiveFragmentDependencies SupportAwardRatesLiveFragment =
-    [SupportAwardRatesResource]
+    liveFragmentDependsOn SupportAwardRatesResource []
 supportLiveFragmentDependencies SupportPublicHolidaysLiveFragment =
-    [SupportPublicHolidaysResource]
+    liveFragmentDependsOn SupportPublicHolidaysResource []
 
 supportLiveFragmentRef :: SupportLiveFragment -> SurfaceFragmentRef SupportSurface
 supportLiveFragmentRef SupportAwardRatesLiveFragment =

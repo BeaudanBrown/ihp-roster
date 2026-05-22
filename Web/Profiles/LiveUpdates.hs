@@ -70,13 +70,13 @@ profileContentFragment :: Text -> ProfileContentFragment
 profileContentFragment =
     ProfileContentLiveFragment
 
-profileContentDependsOn :: ProfileContentSurfaceKey -> ProfileContentFragment -> [LiveResource]
+profileContentDependsOn :: ProfileContentSurfaceKey -> ProfileContentFragment -> FragmentDependencies
 profileContentDependsOn key (ProfileContentLiveFragment openSection) =
     case openSection of
-        "rsa" -> [StaffRsaDocumentsResource key.profileContentStaffId]
-        "leave" -> [StaffLeaveRequestsResource key.profileContentStaffId]
-        "security" -> []
-        _ -> [StaffProfileResource key.profileContentStaffId, StaffPreferencesResource key.profileContentStaffId]
+        "rsa" -> liveFragmentDependsOn (StaffRsaDocumentsResource key.profileContentStaffId) []
+        "leave" -> liveFragmentDependsOn (StaffLeaveRequestsResource key.profileContentStaffId) []
+        "security" -> liveFragmentResyncOnly "security profile section has no passive live-resource dependency"
+        _ -> liveFragmentDependsOn (StaffProfileResource key.profileContentStaffId) [StaffPreferencesResource key.profileContentStaffId]
 
 profileContentFragmentRef :: (?context :: ControllerContext) => ProfileContentFragment -> SurfaceFragmentRef ProfileContentSurface
 profileContentFragmentRef (ProfileContentLiveFragment openSection) =
@@ -117,7 +117,7 @@ profileLeaveRequestsLiveSurfaceDefinition =
         , typedSurfaceFragmentContract = \key fragment ->
             mkSurfaceFragmentContract
                 (profileLeaveRequestsContentFragmentRef fragment)
-                [StaffLeaveRequestsResource key.profileLeaveStaffId]
+                (liveFragmentDependsOn (StaffLeaveRequestsResource key.profileLeaveStaffId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileLeaveRequestsContentFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueStaff key.profileLeaveVenueId key.profileLeaveStaffId)
         }

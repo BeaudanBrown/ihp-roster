@@ -86,16 +86,16 @@ rosterFragmentRef scope = \case
             (rosterWeekRowFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId) rowIndex)
             |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionRow rosterDayId rowIndex))
 
-rosterFragmentDependencies :: RosterProjectionScope -> RosterProjectionFragment -> [LiveResource]
+rosterFragmentDependencies :: RosterProjectionScope -> RosterProjectionFragment -> FragmentDependencies
 rosterFragmentDependencies scope = \case
     RosterProjectionContent ->
-        [RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset]
+        liveFragmentDependsOn (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset) []
     RosterProjectionStaffPanel ->
-        [RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset]
+        liveFragmentDependsOn (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset) []
     RosterProjectionDaySection rosterDayId ->
-        [RosterDayResource rosterDayId]
+        liveFragmentDependsOn (RosterDayResource rosterDayId) []
     RosterProjectionRow rosterDayId _ ->
-        [RosterDayResource rosterDayId]
+        liveFragmentDependsOn (RosterDayResource rosterDayId) []
 
 rosterFragmentContainmentPath :: RosterProjectionFragment -> [Text]
 rosterFragmentContainmentPath = \case

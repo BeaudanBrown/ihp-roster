@@ -1,5 +1,6 @@
 module Application.Helper.LiveSurface
     ( FragmentContract (..)
+    , FragmentDependencies (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , LiveSurfaceConfig (..)
@@ -11,6 +12,8 @@ module Application.Helper.LiveSurface
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
     , ensureTypedLiveSurfaceAuthorized
+    , liveFragmentDependsOn
+    , liveFragmentResyncOnly
     , liveSurfaceAuthorizationByRequirement
     , liveSurfaceConfigJson
     , liveSurfaceProjectionFragmentRef
@@ -40,6 +43,7 @@ module Application.Helper.LiveSurface
 import qualified Application.Helper.LiveSurface.Internal as Internal
 import Application.Helper.LiveSurface.Internal
     ( FragmentContract (..)
+    , FragmentDependencies (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , LiveSurfaceConfig (..)
@@ -51,6 +55,8 @@ import Application.Helper.LiveSurface.Internal
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
     , ensureTypedLiveSurfaceAuthorized
+    , liveFragmentDependsOn
+    , liveFragmentResyncOnly
     , liveSurfaceAuthorizationByRequirement
     , liveSurfaceConfigJson
     , liveSurfaceProjectionFragmentRef

@@ -1,6 +1,7 @@
 module Application.Helper.LiveSurface.Internal
     ( LiveSurfaceConfig (..)
     , FragmentContract (..)
+    , FragmentDependencies (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , ProjectionLiveSurfaceDefinition (..)
@@ -12,6 +13,8 @@ module Application.Helper.LiveSurface.Internal
     , authorizeTypedLiveSurfaceWireScope
     , defaultLiveUpdateScopeAuthorizationRequirement
     , ensureTypedLiveSurfaceAuthorized
+    , liveFragmentDependsOn
+    , liveFragmentResyncOnly
     , liveSurfaceAuthorizationByRequirement
     , liveSurfaceProjectionFragmentRef
     , liveSurfaceConfigJson
@@ -51,6 +54,8 @@ import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce (coerce)
 import qualified Data.Dynamic as Dynamic
 import qualified Data.List as List
+import Data.List.NonEmpty (NonEmpty (..))
+import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
@@ -88,9 +93,14 @@ data LiveSurfaceAuthorization scope = LiveSurfaceAuthorization
     { authorizeLiveSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => scope -> IO Bool
     }
 
+data FragmentDependencies
+    = DependsOnLiveResources !(NonEmpty LiveResource)
+    | ResyncOnlyFragment !Text
+    deriving (Eq, Show)
+
 data FragmentContract surface = FragmentContract
     { fragmentContractRef          :: !(SurfaceFragmentRef surface)
-    , fragmentContractDependencies :: ![LiveResource]
+    , fragmentContractDependencies :: !FragmentDependencies
     }
     deriving (Eq, Show)
 
@@ -166,7 +176,15 @@ surfaceFragmentRefWithFocusedProtection :: LiveFragmentProtection -> SurfaceFrag
 surfaceFragmentRefWithFocusedProtection protection =
     surfaceFragmentRefWithDeferUntilBlur True . surfaceFragmentRefWithProtection protection
 
-mkSurfaceFragmentContract :: SurfaceFragmentRef surface -> [LiveResource] -> FragmentContract surface
+liveFragmentDependsOn :: LiveResource -> [LiveResource] -> FragmentDependencies
+liveFragmentDependsOn resource additionalResources =
+    DependsOnLiveResources (resource :| additionalResources)
+
+liveFragmentResyncOnly :: Text -> FragmentDependencies
+liveFragmentResyncOnly =
+    ResyncOnlyFragment
+
+mkSurfaceFragmentContract :: SurfaceFragmentRef surface -> FragmentDependencies -> FragmentContract surface
 mkSurfaceFragmentContract fragmentContractRef fragmentContractDependencies =
     FragmentContract { fragmentContractRef, fragmentContractDependencies }
 
@@ -199,7 +217,9 @@ typedLiveSurfaceAffectedFragments definition surfaceKey touchedResources candida
 
 typedSurfaceDependsOn :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> fragment -> [LiveResource]
 typedSurfaceDependsOn definition surfaceKey fragment =
-    (definition.typedSurfaceFragmentContract surfaceKey fragment).fragmentContractDependencies
+    case (definition.typedSurfaceFragmentContract surfaceKey fragment).fragmentContractDependencies of
+        DependsOnLiveResources resources -> NonEmpty.toList resources
+        ResyncOnlyFragment _ -> []
 
 unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveUpdateWireFragment]
 unSurfaceFragmentRefs =

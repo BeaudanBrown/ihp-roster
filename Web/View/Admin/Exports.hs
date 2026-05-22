@@ -39,7 +39,7 @@ adminExportsLiveSurfaceDefinition =
         , typedSurfaceFragmentContract = \() fragment ->
             mkSurfaceFragmentContract
                 (adminExportsLiveFragmentRef fragment)
-                [AdminExportsResource currentVenueScopeId]
+                (liveFragmentDependsOn (AdminExportsResource currentVenueScopeId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> adminExportsFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
         }

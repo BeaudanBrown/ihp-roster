@@ -330,13 +330,13 @@ timesheetFragmentRef requestKey TimesheetProjectionPage =
 timesheetFragmentRef requestKey (TimesheetProjectionDaySection dayOffset) =
     timesheetDaySectionFragmentRef requestKey dayOffset
 
-timesheetFragmentDependencies :: UUID.UUID -> TimesheetProjectionRequest -> TimesheetProjectionFragment -> [LiveResource]
+timesheetFragmentDependencies :: UUID.UUID -> TimesheetProjectionRequest -> TimesheetProjectionFragment -> FragmentDependencies
 timesheetFragmentDependencies surfaceVenueId requestKey TimesheetProjectionPage =
-    [TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset]
+    liveFragmentDependsOn (TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset) []
 timesheetFragmentDependencies surfaceVenueId requestKey (TimesheetProjectionDaySection dayOffset) =
-    [ TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset
-    , TimesheetDayResource surfaceVenueId requestKey.projectionWeekOffset dayOffset
-    ]
+    liveFragmentDependsOn
+        (TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset)
+        [TimesheetDayResource surfaceVenueId requestKey.projectionWeekOffset dayOffset]
 
 timesheetDaySectionFragmentRef :: TimesheetProjectionRequest -> Int -> SurfaceFragmentRef TimesheetLiveSurface
 timesheetDaySectionFragmentRef requestKey dayOffset =
