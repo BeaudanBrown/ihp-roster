@@ -18,11 +18,13 @@ module Application.Helper.LiveSurface
     , mkSurfaceFragmentRef
     , mkTypedDefinedLiveSurface
     , mkTypedSurfaceProjectionDefinition
+    , normalizeSurfaceFragmentRefs
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
+    , surfaceFragmentRefWithPath
     , surfaceFragmentRefWithProtection
     , typedLiveSurfaceAffectedFragments
     , typedLiveSurfaceFragmentRef
@@ -52,11 +54,13 @@ import Application.Helper.LiveSurface.Internal
     , loadLiveSurfaceProjectionFromStore
     , mkSurfaceFragmentRef
     , mkTypedDefinedLiveSurface
+    , normalizeSurfaceFragmentRefs
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
+    , surfaceFragmentRefWithPath
     , surfaceFragmentRefWithProtection
     , typedLiveSurfaceAffectedFragments
     , typedLiveSurfaceFragmentRef

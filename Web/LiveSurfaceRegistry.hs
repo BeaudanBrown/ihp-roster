@@ -11,6 +11,7 @@ import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveSurface (SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
                                        authorizeTypedLiveSurfaceWireScope,
+                                       normalizeSurfaceFragmentRefs,
                                        typedLiveSurfaceAffectedFragments,
                                        typedLiveSurfaceFragmentRefs,
                                        unSurfaceFragmentRefs)
@@ -180,7 +181,7 @@ registeredTypedLiveSurface definition candidateFragments =
                         Just
                             LiveSurfaceInvalidationTarget
                                 { targetScope = wireScope
-                                , targetFragments = unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey affectedFragments)
+                                , targetFragments = unSurfaceFragmentRefs (normalizeSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey affectedFragments))
                                 }
 
 profileContentCandidateFragments ::

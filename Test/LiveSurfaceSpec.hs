@@ -1,7 +1,7 @@
 module Test.LiveSurfaceSpec where
 
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate (LiveFragmentKey (..))
+import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveUpdateWireFragment (..))
 import Application.Support.LiveUpdates
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -15,6 +15,23 @@ import Test.Support.LiveSurfaceContract
 
 tests :: Spec
 tests = describe "LiveSurface contract helpers" do
+    it "normalizes fragment refs by containment path" do
+        let parent = testFragmentRef RosterContentFragment "roster-content" ["roster-content"]
+        let child = testFragmentRef RosterStaffPanelFragment "roster-staff-panel-fragment" ["roster-content", "staff-panel"]
+        let duplicateChild = testFragmentRef RosterStaffPanelFragment "roster-staff-panel-fragment-duplicate" ["roster-content", "staff-panel"]
+        let grandchild = testFragmentRef RosterRowFragment { rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222", rowIndex = 3 } "roster-row-3" ["roster-content", "day", "22222222", "row", "3"]
+        let day = testFragmentRef RosterDaySectionFragment { rosterDayId = expectUuid "22222222-2222-2222-2222-222222222222" } "roster-day-22222222" ["roster-content", "day", "22222222"]
+        let sibling = testFragmentRef BillingStatusFragment "billing-status-fragment" ["billing-status-fragment"]
+
+        targetIds (normalizeSurfaceFragmentRefs [child, duplicateChild])
+            `shouldBe` ["roster-staff-panel-fragment"]
+        targetIds (normalizeSurfaceFragmentRefs [child, parent])
+            `shouldBe` ["roster-content"]
+        targetIds (normalizeSurfaceFragmentRefs [grandchild, day])
+            `shouldBe` ["roster-day-22222222"]
+        targetIds (normalizeSurfaceFragmentRefs [child, sibling])
+            `shouldBe` ["roster-staff-panel-fragment", "billing-status-fragment"]
+
     it "verifies the typed support surface config contract" do
         liveSurfaceConfigShouldRoundTrip supportLiveSurface
         liveSurfaceConfigShouldExposeRefs
@@ -61,6 +78,15 @@ tests = describe "LiveSurface contract helpers" do
                 , "admin_invites:11111111-1111-1111-1111-111111111111"
                 , "admin_xero:11111111-1111-1111-1111-111111111111"
                 ]
+
+testFragmentRef :: LiveFragmentKey -> Text -> [Text] -> SurfaceFragmentRef ()
+testFragmentRef fragmentKey target path =
+    mkSurfaceFragmentRef fragmentKey target ("/" <> target)
+        |> surfaceFragmentRefWithPath path
+
+targetIds :: [SurfaceFragmentRef surface] -> [Text]
+targetIds refs =
+    map (.targetId) (unSurfaceFragmentRefs refs)
 
 expectUuid :: Text -> UUID.UUID
 expectUuid value =

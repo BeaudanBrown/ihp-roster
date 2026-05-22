@@ -1,6 +1,6 @@
 ---
 id: ir-vius
-status: open
+status: closed
 deps: [ir-jau6]
 links: []
 created: 2026-05-22T06:01:53Z
@@ -22,3 +22,9 @@ Change SurfaceFragmentRef to carry the existing LiveUpdateWireFragment plus a se
 
 Unit tests cover duplicate paths, parent/child elimination, nested parent/child elimination, and sibling preservation. Existing live-update JSON shape remains unchanged. Focused LiveSurface and LiveUpdate tests pass.
 
+
+## Notes
+
+**2026-05-22T06:11:48Z**
+
+Implemented: SurfaceFragmentRef now carries server-only containment paths; actor refreshes, default resync fragments, and passive registry planning normalize before emitting wire refs. Discovery: keeping LiveUpdateWireFragment JSON unchanged was straightforward because containment stays on the typed ref wrapper; unSurfaceFragmentRefs remains an explicit wire-boundary conversion. Verified with hspec-test --match 'LiveSurface' --match 'LiveUpdate'.

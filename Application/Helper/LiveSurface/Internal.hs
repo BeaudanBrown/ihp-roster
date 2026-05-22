@@ -19,11 +19,13 @@ module Application.Helper.LiveSurface.Internal
     , mkSurfaceFragmentRef
     , mkSurfaceProjectionDefinition
     , mkTypedDefinedLiveSurface
+    , normalizeSurfaceFragmentRefs
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
+    , surfaceFragmentRefWithPath
     , surfaceFragmentRefWithProtection
     , typedLiveSurfaceAffectedFragments
     , typedLiveSurfaceFragmentRef
@@ -45,6 +47,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce (coerce)
 import qualified Data.Dynamic as Dynamic
+import qualified Data.List as List
 import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
@@ -72,8 +75,9 @@ newtype SurfaceScope surface = SurfaceScope
     }
     deriving (Eq, Show)
 
-newtype SurfaceFragmentRef surface = SurfaceFragmentRef
-    { unSurfaceFragmentRef :: LiveUpdateWireFragment
+data SurfaceFragmentRef surface = SurfaceFragmentRef
+    { unSurfaceFragmentRef             :: !LiveUpdateWireFragment
+    , surfaceFragmentContainmentPath :: ![Text]
     }
     deriving (Eq, Show)
 
@@ -133,15 +137,22 @@ instance Aeson.FromJSON LiveSurfaceConfig where
 
 mkSurfaceFragmentRef :: LiveFragmentKey -> Text -> Text -> SurfaceFragmentRef surface
 mkSurfaceFragmentRef fragmentKey targetId url =
-    SurfaceFragmentRef (mkLiveUpdateWireFragment fragmentKey targetId url)
+    SurfaceFragmentRef
+        { unSurfaceFragmentRef = mkLiveUpdateWireFragment fragmentKey targetId url
+        , surfaceFragmentContainmentPath = [targetId]
+        }
 
 surfaceFragmentRefWithProtection :: LiveFragmentProtection -> SurfaceFragmentRef surface -> SurfaceFragmentRef surface
-surfaceFragmentRefWithProtection protection (SurfaceFragmentRef ref) =
-    SurfaceFragmentRef ref { protectionPolicy = protection }
+surfaceFragmentRefWithProtection protection ref =
+    ref { unSurfaceFragmentRef = ref.unSurfaceFragmentRef { protectionPolicy = protection } }
 
 surfaceFragmentRefWithDeferUntilBlur :: Bool -> SurfaceFragmentRef surface -> SurfaceFragmentRef surface
-surfaceFragmentRefWithDeferUntilBlur defer (SurfaceFragmentRef ref) =
-    SurfaceFragmentRef ref { deferUntilBlur = defer }
+surfaceFragmentRefWithDeferUntilBlur defer ref =
+    ref { unSurfaceFragmentRef = ref.unSurfaceFragmentRef { deferUntilBlur = defer } }
+
+surfaceFragmentRefWithPath :: [Text] -> SurfaceFragmentRef surface -> SurfaceFragmentRef surface
+surfaceFragmentRefWithPath containmentPath ref =
+    ref { surfaceFragmentContainmentPath = containmentPath }
 
 surfaceFragmentRefWithFocusedProtection :: LiveFragmentProtection -> SurfaceFragmentRef surface -> SurfaceFragmentRef surface
 surfaceFragmentRefWithFocusedProtection protection =
@@ -155,7 +166,7 @@ mkTypedDefinedLiveSurface definition surfaceKey =
             , socketPath = "/live-updates"
             , scope = surfaceScope
             , scopeKey = liveUpdateScopeKey surfaceScope
-            , resyncFragments = unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey (definition.typedSurfaceDefaultFragments surfaceKey))
+            , resyncFragments = unSurfaceFragmentRefs (normalizeSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey (definition.typedSurfaceDefaultFragments surfaceKey)))
             , decorateRequestsWithin = definition.typedSurfaceDecorateRequestsWithin surfaceKey
             }
 
@@ -177,6 +188,19 @@ typedLiveSurfaceAffectedFragments definition surfaceKey touchedResources candida
 unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveUpdateWireFragment]
 unSurfaceFragmentRefs =
     map unSurfaceFragmentRef
+
+normalizeSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [SurfaceFragmentRef surface]
+normalizeSurfaceFragmentRefs fragmentRefs =
+    filter isNotContainedByAnother uniqueRefs
+    where
+        uniqueRefs = List.nubBy sameContainmentPath fragmentRefs
+        allPaths = map surfaceFragmentContainmentPath uniqueRefs
+        sameContainmentPath left right =
+            left.surfaceFragmentContainmentPath == right.surfaceFragmentContainmentPath
+        isNotContainedByAnother ref =
+            not (any (`isProperPrefixOf` ref.surfaceFragmentContainmentPath) allPaths)
+        isProperPrefixOf prefix path =
+            length prefix < length path && prefix `List.isPrefixOf` path
 
 authorizeTypedLiveSurfaceScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -306,7 +330,7 @@ setTypedLiveSurfaceActorRefresh ::
 setTypedLiveSurfaceActorRefresh definition surfaceKey fragments =
     setHeader
         ( "HX-Trigger"
-        , cs (Aeson.encode (liveUpdateWireRefreshTriggerPayload (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey fragments))))
+        , cs (Aeson.encode (liveUpdateWireRefreshTriggerPayload (unSurfaceFragmentRefs (normalizeSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey fragments)))))
         )
 
 liveUpdateWireRefreshTriggerPayload :: [LiveUpdateWireFragment] -> Aeson.Value
