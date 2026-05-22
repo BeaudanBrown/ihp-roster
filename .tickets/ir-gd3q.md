@@ -1,6 +1,6 @@
 ---
 id: ir-gd3q
-status: open
+status: closed
 deps: []
 links: [ir-7xks]
 created: 2026-05-22T01:41:01Z
@@ -31,3 +31,7 @@ HANDOFF from ir-qcsm: Cancellation helper now exists and is wired into roster we
 **2026-05-22T02:49:03Z**
 
 HANDOFF from ir-jh3g: Final child ticket closed after documenting roster-timesheet draft-rollback cancellation semantics in roster and timesheet living specs. Epic acceptance appears covered by implementation, focused Hspec from sibling tickets, and docs; doc-drift-check currently fails on unrelated AGENTS.md navigation text mismatch.
+
+**2026-05-22T02:49:26Z**
+
+All descendant tickets are closed; closing epic after ir-jh3g.
