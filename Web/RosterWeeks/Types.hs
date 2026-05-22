@@ -167,6 +167,7 @@ data RosterDayRenderModel = RosterDayRenderModel
     , dayRenderIndexes         :: RosterRenderIndexes
     , dayRosterLayoutMode      :: RosterLayoutModeEnum
     , dayRosterEndTimesEnabled :: Bool
+    , dayRosterWagePrediction  :: Maybe RosterWagePrediction
     }
 
 data RosterRowRenderModel = RosterRowRenderModel

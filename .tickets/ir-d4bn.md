@@ -21,3 +21,9 @@ Preserve existing admin-only data fetching and permissions. Remove the full-widt
 
 Admins see week predicted wages in roster toolbar chrome and daily predicted totals in day headers/labels. Managers/staff without admin permission do not see predicted wage markup or totals. The existing full-width predicted wage panel no longer appears above the roster grid. Both roster layouts show daily totals without breaking desktop/mobile layout. Draft rosters with incomplete staffed shifts show a compact excluded-shifts warning. Live roster publishing rules remain unchanged. Existing wage calculation behavior is unchanged.
 
+
+## Notes
+
+**2026-05-22T01:48:57Z**
+
+HANDOFF from ir-ie9a: Header now accepts Maybe RosterWagePrediction; day render models carry dayRosterWagePrediction; Application.Helper.RosterWagePrediction exports lookup helpers for day totals.

@@ -69,6 +69,7 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
                 , dayRenderIndexes = gridRenderIndexes
                 , dayRosterLayoutMode = gridRosterLayoutMode
                 , dayRosterEndTimesEnabled = gridRosterEndTimesEnabled
+                , dayRosterWagePrediction = gridRosterWagePrediction
                 }
         slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
         isDayColumnsLayout = rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
@@ -81,7 +82,7 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
     <div class="row g-4 align-items-start roster-layout">
         <div class={classes [("col-12", True), ("col-xl-8", hasSidePanel), ("col-xxl-10", hasSidePanel), ("mx-auto", not hasSidePanel), ("roster-layout-main", hasSidePanel)]}>
             <div class="app-panel overflow-hidden mb-5 mb-xl-0">
-                {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridShowShiftTypeHighlights}
+                {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridShowShiftTypeHighlights gridRosterWagePrediction}
                 {renderWagePredictionPanel gridRosterWagePrediction}
                 <div class="roster-grid-frame"
                      data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}

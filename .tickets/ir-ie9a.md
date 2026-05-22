@@ -1,6 +1,6 @@
 ---
 id: ir-ie9a
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-22T01:34:04Z
@@ -22,3 +22,9 @@ Pass Maybe RosterWagePrediction to renderRosterGridHeader. Add wage prediction a
 
 Typecheck passes. Header and day render paths can access wage prediction data. No permissions or calculation behavior changes are introduced. No JavaScript or persistence is added.
 
+
+## Notes
+
+**2026-05-22T01:48:57Z**
+
+HANDOFF: Threaded Maybe RosterWagePrediction into renderRosterGridHeader and RosterDayRenderModel, including projection/direct day-section fragment render paths; added prediction day lookup helpers by offset/date. Tests: bash ./bin/in-env typecheck passed. Remaining: sibling ir-3d73 can render compact header/day totals using the threaded data and helpers.

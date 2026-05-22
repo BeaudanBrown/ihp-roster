@@ -7,6 +7,8 @@ module Application.Helper.RosterWagePrediction
     ( RosterWagePrediction (..)
     , RosterWagePredictionDay (..)
     , fetchRosterWagePrediction
+    , lookupRosterWagePredictionDay
+    , lookupRosterWagePredictionDayByDate
     , formatMoneyAmount
     ) where
 
@@ -82,6 +84,14 @@ fetchRosterWagePrediction venueConfig rosterWeek rosterDays rosterSlots = do
             }
     where
         rosterDaysById = Map.fromList [(unpackId rosterDay.id, rosterDay) | rosterDay <- rosterDays]
+
+lookupRosterWagePredictionDay :: RosterWagePrediction -> RosterDay -> Maybe RosterWagePredictionDay
+lookupRosterWagePredictionDay prediction rosterDay =
+    List.find (\day -> day.predictionDayOffset == rosterDay.dayOffset) prediction.predictionDays
+
+lookupRosterWagePredictionDayByDate :: RosterWagePrediction -> Day -> Maybe RosterWagePredictionDay
+lookupRosterWagePredictionDayByDate prediction date =
+    List.find (\day -> day.predictionDayDate == date) prediction.predictionDays
 
 predictionDay :: Day -> RosterDay -> [PredictedShift] -> RosterWagePredictionDay
 predictionDay weekStart rosterDay predictedShifts =
