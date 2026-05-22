@@ -9,7 +9,7 @@ import Data.Coerce (coerce)
 import qualified Data.Text.IO as TextIO
 import qualified Data.Time.Calendar as Calendar
 import Web.Controller.Prelude
-import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
+import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Web.LeaveRequests.Mutations
 import Web.LeaveRequests.ProfileSelfService
 import Web.LeaveRequests.Projection
@@ -30,11 +30,11 @@ instance Controller LeaveRequestsController where
     action ShowLeaveRequestsContentFragmentAction = do
         ensureProfileCompleted
         ensureManagerRole
-        ensureTypedLiveSurfaceAuthorized leaveRequestsLiveSurfaceDefinition ()
-        maybeHtml <- renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
-        when (isNothing maybeHtml) do
-            TextIO.putStrLn "leave_projection_miss: fragment=content"
-        respondHtmlProfiled (fromMaybe mempty maybeHtml)
+        serveTypedLiveFragment leaveRequestsLiveSurfaceDefinition () LeaveRequestsProjectionContent \_ -> do
+            maybeHtml <- renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
+            when (isNothing maybeHtml) do
+                TextIO.putStrLn "leave_projection_miss: fragment=content"
+            respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
     action NewLeaveRequestAction = do
         ensureStaffSelfServiceAccess

@@ -1,5 +1,6 @@
 module Application.Helper.LiveSurface
-    ( FragmentContract (..)
+    ( AuthorizedLiveFragment (..)
+    , FragmentContract (..)
     , FragmentDependencies (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
@@ -26,6 +27,7 @@ module Application.Helper.LiveSurface
     , normalizeSurfaceFragmentRefs
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
+    , serveTypedLiveFragment
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
@@ -42,7 +44,8 @@ module Application.Helper.LiveSurface
 
 import qualified Application.Helper.LiveSurface.Internal as Internal
 import Application.Helper.LiveSurface.Internal
-    ( FragmentContract (..)
+    ( AuthorizedLiveFragment (..)
+    , FragmentContract (..)
     , FragmentDependencies (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
@@ -68,6 +71,7 @@ import Application.Helper.LiveSurface.Internal
     , normalizeSurfaceFragmentRefs
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
+    , serveTypedLiveFragment
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection

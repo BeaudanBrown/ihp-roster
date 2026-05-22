@@ -5,7 +5,7 @@ import Application.Helper.LiveResource (LiveMutationResult (..))
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
-import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
+import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Web.Billing.LiveUpdates
 import Web.Billing.Mutations
 import Web.Controller.Prelude
@@ -22,10 +22,10 @@ instance Controller BillingController where
         viewModel <- fetchBillingViewModel
         render BillingView { .. }
 
-    action ShowBillingStatusFragmentAction = do
-        ensureTypedLiveSurfaceAuthorized billingLiveSurfaceDefinition currentBillingSurfaceKey
-        viewModel <- fetchBillingViewModel
-        respondHtml (renderBillingStatusFragment viewModel)
+    action ShowBillingStatusFragmentAction =
+        serveTypedLiveFragment billingLiveSurfaceDefinition currentBillingSurfaceKey BillingStatusLiveFragment \_ -> do
+            viewModel <- fetchBillingViewModel
+            respondHtml (renderBillingStatusFragment viewModel)
 
     action CreateBillingCheckoutSessionAction =
         createBillingCheckoutSessionAction

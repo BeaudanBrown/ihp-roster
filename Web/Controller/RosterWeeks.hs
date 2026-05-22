@@ -7,7 +7,7 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
-import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized,
+import Application.Helper.LiveSurface (serveTypedLiveFragment,
                                        setTypedLiveSurfaceActorRefresh,
                                        typedLiveSurfaceAffectedFragments)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
@@ -91,27 +91,27 @@ instance Controller RosterWeeksController where
 
     action ShowRosterWeekContentFragmentAction { weekOffset } = do
         rosterGroup <- resolveRequestedRosterGroup
-        ensureTypedLiveSurfaceAuthorized rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset)
-        respondWithRosterContent rosterGroup.id weekOffset
+        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionContent \_ ->
+            respondWithRosterContent rosterGroup.id weekOffset
 
     action ShowRosterWeekStaffPanelFragmentAction { weekOffset } = do
         rosterGroup <- resolveRequestedRosterGroup
-        ensureTypedLiveSurfaceAuthorized rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset)
-        panelStaff <- fetchVisibleRosterStaffPanelEntries rosterGroup.id weekOffset
-        respondHtmlProfiled $
-            maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id) panelStaff
+        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionStaffPanel \_ -> do
+            panelStaff <- fetchVisibleRosterStaffPanelEntries rosterGroup.id weekOffset
+            respondHtmlProfiled $
+                maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id) panelStaff
 
     action ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
-        ensureTypedLiveSurfaceAuthorized rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset)
-        daySectionHtml <- fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId
-        respondHtmlProfiled (fromMaybe mempty daySectionHtml)
+        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) (RosterProjectionDaySection (coerce rosterDayId)) \_ -> do
+            daySectionHtml <- fetchVisibleRosterDaySectionFragment rosterGroupId weekOffset rosterDayId
+            respondHtmlProfiled (fromMaybe mempty daySectionHtml)
 
     action ShowRosterWeekRowFragmentAction { weekOffset, rosterDayId, rowIndex } = do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
-        ensureTypedLiveSurfaceAuthorized rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset)
-        rowHtml <- fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex
-        respondHtmlProfiled (fromMaybe mempty rowHtml)
+        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) (RosterProjectionRow (coerce rosterDayId) rowIndex) \_ -> do
+            rowHtml <- fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex
+            respondHtmlProfiled (fromMaybe mempty rowHtml)
 
     action UpdateRosterAssignmentFiltersAction { weekOffset } = do
         ensureManagerRole

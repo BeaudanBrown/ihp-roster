@@ -1,7 +1,7 @@
 module Web.Controller.Timesheets where
 
 import Application.Helper.LiveResource (LiveMutationResult (..))
-import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
+import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Web.Controller.Prelude
 import Web.Timesheets.Mutations
 import Web.Timesheets.Paths (timesheetWeekUrl)
@@ -32,8 +32,11 @@ instance Controller TimesheetsController where
 
     action ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
-        ensureTypedLiveSurfaceAuthorized timesheetLiveSurfaceDefinition (TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId)
-        respondWithTimesheetDaySectionFragment weekOffset dayOffset showApproved showAllStaff selectedStaffFilterId
+        serveTypedLiveFragment
+            timesheetLiveSurfaceDefinition
+            (TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId)
+            (TimesheetProjectionDaySection dayOffset)
+            \_ -> respondWithTimesheetDaySectionFragment weekOffset dayOffset showApproved showAllStaff selectedStaffFilterId
 
     action NewTimesheetEntryAction = do
         weekOffset <- weekOffsetFromParamOrCurrent

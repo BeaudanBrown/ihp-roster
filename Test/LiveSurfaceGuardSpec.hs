@@ -50,6 +50,7 @@ forbiddenReferences =
     , ExactIdentifier "liveFragmentsRefreshTriggerPayload"
     , ExactIdentifier "liveUpdateWireRefreshTriggerPayload"
     , ExactIdentifier "authorizeLiveUpdateScope"
+    , ExactIdentifier "ensureTypedLiveSurfaceAuthorized"
     , ExactIdentifier "liveSurfaceAuthorizationByScope"
     , ExactIdentifier "typedLiveSurfaceDefinition"
     ]

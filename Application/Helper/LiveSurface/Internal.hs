@@ -2,6 +2,7 @@ module Application.Helper.LiveSurface.Internal
     ( LiveSurfaceConfig (..)
     , FragmentContract (..)
     , FragmentDependencies (..)
+    , AuthorizedLiveFragment (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , ProjectionLiveSurfaceDefinition (..)
@@ -27,6 +28,7 @@ module Application.Helper.LiveSurface.Internal
     , normalizeSurfaceFragmentRefs
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
+    , serveTypedLiveFragment
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
@@ -91,6 +93,12 @@ data SurfaceFragmentRef surface = SurfaceFragmentRef
 
 data LiveSurfaceAuthorization scope = LiveSurfaceAuthorization
     { authorizeLiveSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => scope -> IO Bool
+    }
+
+data AuthorizedLiveFragment surface scope fragment = AuthorizedLiveFragment
+    { authorizedLiveFragmentScope    :: !scope
+    , authorizedLiveFragment         :: !fragment
+    , authorizedLiveFragmentContract :: !(FragmentContract surface)
     }
 
 data FragmentDependencies
@@ -266,6 +274,23 @@ ensureTypedLiveSurfaceAuthorized ::
 ensureTypedLiveSurfaceAuthorized definition surfaceKey = do
     authorized <- authorizeTypedLiveSurfaceScope definition surfaceKey
     accessDeniedUnless authorized
+
+serveTypedLiveFragment ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    scope ->
+    fragment ->
+    (AuthorizedLiveFragment surface scope fragment -> IO ()) ->
+    IO ()
+serveTypedLiveFragment definition surfaceKey fragment serveFragment = do
+    ensureTypedLiveSurfaceAuthorized definition surfaceKey
+    let authorizedFragment =
+            AuthorizedLiveFragment
+                { authorizedLiveFragmentScope = surfaceKey
+                , authorizedLiveFragment = fragment
+                , authorizedLiveFragmentContract = definition.typedSurfaceFragmentContract surfaceKey fragment
+                }
+    serveFragment authorizedFragment
 
 liveSurfaceAuthorizationByRequirement ::
     (scope -> LiveScopeAuthorizationRequirement) ->

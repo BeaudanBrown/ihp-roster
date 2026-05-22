@@ -8,7 +8,7 @@ import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
 import Application.Helper.LiveResource (LiveResource (..), liveMutationResult)
-import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
+import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
 import Application.PublicHolidays.Job (publicHolidayRefreshJobDedupeKey,
@@ -36,15 +36,15 @@ instance Controller SupportController where
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         render IndexView { .. }
 
-    action ShowFwcMapdAwardRatesSectionAction = do
-        ensureTypedLiveSurfaceAuthorized supportLiveSurfaceDefinition ()
-        (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
-        respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
+    action ShowFwcMapdAwardRatesSectionAction =
+        serveTypedLiveFragment supportLiveSurfaceDefinition () SupportAwardRatesLiveFragment \_ -> do
+            (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
+            respondHtml (renderAwardRatesSection fwcMapdAdminData latestFwcMapdRefreshJob activeFwcMapdRefreshJob)
 
-    action ShowPublicHolidaysSectionAction = do
-        ensureTypedLiveSurfaceAuthorized supportLiveSurfaceDefinition ()
-        (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-        respondHtml (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
+    action ShowPublicHolidaysSectionAction =
+        serveTypedLiveFragment supportLiveSurfaceDefinition () SupportPublicHolidaysLiveFragment \_ -> do
+            (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+            respondHtml (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
 
     action CreateSupportVenueOnboardingInvitationAction = do
         onboardingInvitations <- fetchVenueOnboardingInvitations

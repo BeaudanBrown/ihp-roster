@@ -1,7 +1,7 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
-import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized)
+import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource (..), liveMutationResult)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -259,55 +259,55 @@ instance Controller AdminController where
 
     action ShowAdminInvitesFragmentAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
-        ensureTypedLiveSurfaceAuthorized adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just currentRosterGroup.id }
-        invitations <- fetchCurrentVenueInvitations
-        respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
+        serveTypedLiveFragment adminInvitesLiveSurfaceDefinition AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Just currentRosterGroup.id } adminInvitesFragment \_ -> do
+            invitations <- fetchCurrentVenueInvitations
+            respondHtml (renderInvitesSectionFragment invitations currentRosterGroup.id)
 
-    action ShowAdminShiftTypesFragmentAction = do
-        ensureTypedLiveSurfaceAuthorized adminShiftTypesLiveSurfaceDefinition ()
-        shiftTypes <- fetchCurrentVenueShiftTypes
-        awardLevels <- fetchActiveAwardLevels
-        awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
-        let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
-        respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)
+    action ShowAdminShiftTypesFragmentAction =
+        serveTypedLiveFragment adminShiftTypesLiveSurfaceDefinition () adminShiftTypesFragment \_ -> do
+            shiftTypes <- fetchCurrentVenueShiftTypes
+            awardLevels <- fetchActiveAwardLevels
+            awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
+            let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
+            respondHtml (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)
 
-    action ShowAdminRosterGroupsFragmentAction = do
-        ensureTypedLiveSurfaceAuthorized adminRosterGroupsLiveSurfaceDefinition ()
-        _ <- ensureAdminRosterGroupsNormalizedMutation
-        rosterGroups <- fetchCurrentVenueRosterGroups
-        let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
-        respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)
+    action ShowAdminRosterGroupsFragmentAction =
+        serveTypedLiveFragment adminRosterGroupsLiveSurfaceDefinition () adminRosterGroupsFragment \_ -> do
+            _ <- ensureAdminRosterGroupsNormalizedMutation
+            rosterGroups <- fetchCurrentVenueRosterGroups
+            let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
+            respondHtml (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)
 
-    action ShowAdminExportsFragmentAction = do
-        ensureTypedLiveSurfaceAuthorized adminExportsLiveSurfaceDefinition ()
-        currentWeekOffset <- currentReportWeekOffset
-        reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
-        let defaultRangeStart = reportWeekSelection.weekStart
-        let defaultRangeEnd = reportWeekSelection.weekEnd
-        exportJobs <- fetchCurrentVenueExportJobs
-        respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)
+    action ShowAdminExportsFragmentAction =
+        serveTypedLiveFragment adminExportsLiveSurfaceDefinition () adminExportsFragment \_ -> do
+            currentWeekOffset <- currentReportWeekOffset
+            reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
+            let defaultRangeStart = reportWeekSelection.weekStart
+            let defaultRangeEnd = reportWeekSelection.weekEnd
+            exportJobs <- fetchCurrentVenueExportJobs
+            respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)
 
-    action ShowAdminComplianceFragmentAction = do
-        ensureTypedLiveSurfaceAuthorized staffComplianceLiveSurfaceDefinition ()
-        rsaComplianceRows <- staffRsaComplianceRowsForVenue currentVenueId
-        today <- utctDay <$> getCurrentTime
-        respondHtml (renderComplianceSectionFragment rsaComplianceRows today)
+    action ShowAdminComplianceFragmentAction =
+        serveTypedLiveFragment staffComplianceLiveSurfaceDefinition () staffComplianceFragment \_ -> do
+            rsaComplianceRows <- staffRsaComplianceRowsForVenue currentVenueId
+            today <- utctDay <$> getCurrentTime
+            respondHtml (renderComplianceSectionFragment rsaComplianceRows today)
 
-    action ShowAdminXeroFragmentAction = do
-        ensureTypedLiveSurfaceAuthorized adminXeroLiveSurfaceDefinition ()
-        requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
+    action ShowAdminXeroFragmentAction =
+        serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroShellFragment \_ ->
+            requireCurrentVenueOwnerForXero respondWithXeroSectionFragment
 
-    action ShowAdminXeroStaffMappingsFragmentAction = do
-        ensureTypedLiveSurfaceAuthorized adminXeroLiveSurfaceDefinition ()
-        requireCurrentVenueOwnerForXero respondWithXeroStaffMappingsFragment
+    action ShowAdminXeroStaffMappingsFragmentAction =
+        serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroStaffMappingsFragment \_ ->
+            requireCurrentVenueOwnerForXero respondWithXeroStaffMappingsFragment
 
-    action ShowAdminXeroPayItemsFragmentAction = do
-        ensureTypedLiveSurfaceAuthorized adminXeroLiveSurfaceDefinition ()
-        requireCurrentVenueOwnerForXero respondWithXeroPayItemsFragment
+    action ShowAdminXeroPayItemsFragmentAction =
+        serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroPayItemsFragment \_ ->
+            requireCurrentVenueOwnerForXero respondWithXeroPayItemsFragment
 
-    action ShowAdminXeroTimesheetsFragmentAction = do
-        ensureTypedLiveSurfaceAuthorized adminXeroLiveSurfaceDefinition ()
-        requireCurrentVenueOwnerForXero respondWithXeroTimesheetsFragment
+    action ShowAdminXeroTimesheetsFragmentAction =
+        serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroTimesheetsFragment \_ ->
+            requireCurrentVenueOwnerForXero respondWithXeroTimesheetsFragment
 
     action CreateVenueInvitationAction = do
         ensureVenueWritable
