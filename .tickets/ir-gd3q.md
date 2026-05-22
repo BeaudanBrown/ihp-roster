@@ -1,0 +1,23 @@
+---
+id: ir-gd3q
+status: open
+deps: []
+links: [ir-7xks]
+created: 2026-05-22T01:41:01Z
+type: epic
+priority: 2
+assignee: Beaudan Brown
+tags: [area:roster, area:timesheets, area:async, agent-loop]
+---
+# Cancel stale roster timesheet jobs on draft rollback
+
+When an auto-timesheet-enabled roster week is moved from live back to draft, pending roster-timesheet jobs for that week should stop blocking fresh scheduling. Re-publishing should enqueue new jobs from current roster slot state and recalculated run times.
+
+## Design
+
+Add feature-local cancellation for roster_timesheet_creation app jobs. On live-to-draft transition, mark not_started and retry roster timesheet jobs for slots in the week as JobStatusSucceeded with result {status: cancelled, reason: roster_week_moved_to_draft}. Leave running jobs to the worker's existing live-state safety check. Do not delete jobs or mutate already generated timesheets.
+
+## Acceptance Criteria
+
+Moving a live roster week back to draft cancels pending/retry roster-timesheet jobs for that week; running jobs are not force-cancelled; republishing after draft edits creates fresh jobs with recalculated runAt; existing generated timesheets remain unchanged; focused Hspec and docs cover the state transitions.
+

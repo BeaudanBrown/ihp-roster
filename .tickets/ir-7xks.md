@@ -2,7 +2,7 @@
 id: ir-7xks
 status: closed
 deps: [ir-rob3]
-links: []
+links: [ir-gd3q]
 created: 2026-05-02T01:12:10Z
 type: feature
 priority: 1
