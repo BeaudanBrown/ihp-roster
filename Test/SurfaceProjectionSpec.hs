@@ -167,13 +167,15 @@ tests = describe "SurfaceProjection helper" do
                     , typedSurfaceScope = const (SurfaceScope SupportPlatformScope)
                     , typedSurfaceScopeFromWire = const Nothing
                     , typedSurfaceDefaultFragments = const [7]
-                    , typedSurfaceFragmentRef = \scope fragment ->
-                        mkSurfaceFragmentRef
-                            RosterContentFragment
-                            ("surface-target-" <> tshow scope <> "-" <> tshow fragment)
-                            ("/surface/" <> tshow scope <> "/" <> tshow fragment)
+                    , typedSurfaceFragmentContract = \scope fragment ->
+                        mkSurfaceFragmentContract
+                            ( mkSurfaceFragmentRef
+                                RosterContentFragment
+                                ("surface-target-" <> tshow scope <> "-" <> tshow fragment)
+                                ("/surface/" <> tshow scope <> "/" <> tshow fragment)
+                            )
+                            []
                     , typedSurfaceDecorateRequestsWithin = const []
-                    , typedSurfaceDependsOn = \_ _ -> []
                     , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
                     }
         let definition =

@@ -35,9 +35,11 @@ billingLiveSurfaceDefinition =
             BillingScope { venueId } -> Just BillingSurfaceKey { billingSurfaceVenueId = venueId }
             _ -> Nothing
         , typedSurfaceDefaultFragments = const [BillingStatusLiveFragment]
-        , typedSurfaceFragmentRef = const billingLiveFragmentRef
+        , typedSurfaceFragmentContract = \key fragment ->
+            mkSurfaceFragmentContract
+                (billingLiveFragmentRef fragment)
+                [BillingResource key.billingSurfaceVenueId]
         , typedSurfaceDecorateRequestsWithin = const ["#billing-live-surface", "#billing-status-fragment"]
-        , typedSurfaceDependsOn = \key _ -> [BillingResource key.billingSurfaceVenueId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueOwner key.billingSurfaceVenueId)
         }
 

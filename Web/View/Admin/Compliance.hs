@@ -37,9 +37,11 @@ staffComplianceLiveSurfaceDefinition =
             StaffComplianceScope { venueId } | venueId == currentVenueScopeId -> Just ()
             _ -> Nothing
         , typedSurfaceDefaultFragments = const [staffComplianceFragment]
-        , typedSurfaceFragmentRef = const staffComplianceLiveFragmentRef
+        , typedSurfaceFragmentContract = \() fragment ->
+            mkSurfaceFragmentContract
+                (staffComplianceLiveFragmentRef fragment)
+                [AdminStaffComplianceResource currentVenueScopeId]
         , typedSurfaceDecorateRequestsWithin = const ["#" <> staffComplianceFragmentId]
-        , typedSurfaceDependsOn = \_ _ -> [AdminStaffComplianceResource currentVenueScopeId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueManager currentVenueScopeId))
         }
 

@@ -189,21 +189,11 @@ timesheetLiveSurfaceDefinitionForVenue surfaceVenueId =
         , typedSurfaceScope = timesheetSurfaceScope
         , typedSurfaceScopeFromWire = timesheetSurfaceScopeFromWire
         , typedSurfaceDefaultFragments = const (timesheetDaySectionFragments [0 .. 6])
-        , typedSurfaceFragmentRef = \requestKey fragment ->
-            case fragment of
-                TimesheetProjectionPage ->
-                    timesheetWeekPageFragmentRef requestKey
-                TimesheetProjectionDaySection dayOffset ->
-                    timesheetDaySectionFragmentRef requestKey dayOffset
+        , typedSurfaceFragmentContract = \requestKey fragment ->
+            mkSurfaceFragmentContract
+                (timesheetFragmentRef requestKey fragment)
+                (timesheetFragmentDependencies surfaceVenueId requestKey fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#" <> timesheetWeekShellId, "#roster-staff-self-service-timesheet-live-surface"]
-        , typedSurfaceDependsOn = \requestKey fragment ->
-            case fragment of
-                TimesheetProjectionPage ->
-                    [TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset]
-                TimesheetProjectionDaySection dayOffset ->
-                    [ TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset
-                    , TimesheetDayResource surfaceVenueId requestKey.projectionWeekOffset dayOffset
-                    ]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenue surfaceVenueId))
         }
     where
@@ -333,6 +323,20 @@ timesheetDaySectionFragment =
 timesheetDaySectionFragments :: [Int] -> [TimesheetProjectionFragment]
 timesheetDaySectionFragments =
     map timesheetDaySectionFragment . nub
+
+timesheetFragmentRef :: TimesheetProjectionRequest -> TimesheetProjectionFragment -> SurfaceFragmentRef TimesheetLiveSurface
+timesheetFragmentRef requestKey TimesheetProjectionPage =
+    timesheetWeekPageFragmentRef requestKey
+timesheetFragmentRef requestKey (TimesheetProjectionDaySection dayOffset) =
+    timesheetDaySectionFragmentRef requestKey dayOffset
+
+timesheetFragmentDependencies :: UUID.UUID -> TimesheetProjectionRequest -> TimesheetProjectionFragment -> [LiveResource]
+timesheetFragmentDependencies surfaceVenueId requestKey TimesheetProjectionPage =
+    [TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset]
+timesheetFragmentDependencies surfaceVenueId requestKey (TimesheetProjectionDaySection dayOffset) =
+    [ TimesheetWeekResource surfaceVenueId requestKey.projectionWeekOffset
+    , TimesheetDayResource surfaceVenueId requestKey.projectionWeekOffset dayOffset
+    ]
 
 timesheetDaySectionFragmentRef :: TimesheetProjectionRequest -> Int -> SurfaceFragmentRef TimesheetLiveSurface
 timesheetDaySectionFragmentRef requestKey dayOffset =

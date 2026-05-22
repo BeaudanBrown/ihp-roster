@@ -1,5 +1,6 @@
 module Application.Helper.LiveSurface.Internal
     ( LiveSurfaceConfig (..)
+    , FragmentContract (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , ProjectionLiveSurfaceDefinition (..)
@@ -16,6 +17,7 @@ module Application.Helper.LiveSurface.Internal
     , liveSurfaceConfigJson
     , loadLiveSurfaceProjection
     , loadLiveSurfaceProjectionFromStore
+    , mkSurfaceFragmentContract
     , mkSurfaceFragmentRef
     , mkSurfaceProjectionDefinition
     , mkTypedDefinedLiveSurface
@@ -30,6 +32,7 @@ module Application.Helper.LiveSurface.Internal
     , typedLiveSurfaceAffectedFragments
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
+    , typedSurfaceDependsOn
     , unSurfaceFragmentRefs
     , warmLiveSurfaceProjection
     , warmLiveSurfaceProjectionFromStore
@@ -85,14 +88,19 @@ data LiveSurfaceAuthorization scope = LiveSurfaceAuthorization
     { authorizeLiveSurfaceScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => scope -> IO Bool
     }
 
+data FragmentContract surface = FragmentContract
+    { fragmentContractRef          :: !(SurfaceFragmentRef surface)
+    , fragmentContractDependencies :: ![LiveResource]
+    }
+    deriving (Eq, Show)
+
 data TypedLiveSurfaceDefinition surface scope fragment = TypedLiveSurfaceDefinition
     { typedSurfaceFeature                :: !Text
     , typedSurfaceScope                  :: scope -> SurfaceScope surface
     , typedSurfaceScopeFromWire          :: LiveUpdateScope -> Maybe scope
     , typedSurfaceDefaultFragments       :: scope -> [fragment]
-    , typedSurfaceFragmentRef            :: scope -> fragment -> SurfaceFragmentRef surface
+    , typedSurfaceFragmentContract       :: scope -> fragment -> FragmentContract surface
     , typedSurfaceDecorateRequestsWithin :: scope -> [Text]
-    , typedSurfaceDependsOn              :: scope -> fragment -> [LiveResource]
     , typedSurfaceAuthorize              :: !(LiveSurfaceAuthorization scope)
     }
 
@@ -158,6 +166,10 @@ surfaceFragmentRefWithFocusedProtection :: LiveFragmentProtection -> SurfaceFrag
 surfaceFragmentRefWithFocusedProtection protection =
     surfaceFragmentRefWithDeferUntilBlur True . surfaceFragmentRefWithProtection protection
 
+mkSurfaceFragmentContract :: SurfaceFragmentRef surface -> [LiveResource] -> FragmentContract surface
+mkSurfaceFragmentContract fragmentContractRef fragmentContractDependencies =
+    FragmentContract { fragmentContractRef, fragmentContractDependencies }
+
 mkTypedDefinedLiveSurface :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> LiveSurfaceConfig
 mkTypedDefinedLiveSurface definition surfaceKey =
     let surfaceScope = unSurfaceScope (definition.typedSurfaceScope surfaceKey)
@@ -172,7 +184,7 @@ mkTypedDefinedLiveSurface definition surfaceKey =
 
 typedLiveSurfaceFragmentRef :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> fragment -> SurfaceFragmentRef surface
 typedLiveSurfaceFragmentRef definition surfaceKey fragment =
-    definition.typedSurfaceFragmentRef surfaceKey fragment
+    (definition.typedSurfaceFragmentContract surfaceKey fragment).fragmentContractRef
 
 typedLiveSurfaceFragmentRefs :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> [fragment] -> [SurfaceFragmentRef surface]
 typedLiveSurfaceFragmentRefs definition surfaceKey =
@@ -183,7 +195,11 @@ typedLiveSurfaceAffectedFragments definition surfaceKey touchedResources candida
     filter dependsOnTouchedResource candidates
     where
         dependsOnTouchedResource fragment =
-            not (Set.null (Set.intersection touchedResources (Set.fromList (definition.typedSurfaceDependsOn surfaceKey fragment))))
+            not (Set.null (Set.intersection touchedResources (Set.fromList (typedSurfaceDependsOn definition surfaceKey fragment))))
+
+typedSurfaceDependsOn :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> fragment -> [LiveResource]
+typedSurfaceDependsOn definition surfaceKey fragment =
+    (definition.typedSurfaceFragmentContract surfaceKey fragment).fragmentContractDependencies
 
 unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveUpdateWireFragment]
 unSurfaceFragmentRefs =
@@ -357,7 +373,7 @@ mkSurfaceProjectionDefinition ::
 mkSurfaceProjectionDefinition typedDefinition surfaceName cachePolicy scopeKey viewerKey currentVersion loadProjection renderFragment =
     ProjectionLiveSurfaceDefinition
         { projectionSurfaceScope = typedDefinition.typedSurfaceScope
-        , projectionSurfaceFragmentRef = typedDefinition.typedSurfaceFragmentRef
+        , projectionSurfaceFragmentRef = typedLiveSurfaceFragmentRef typedDefinition
         , surfaceProjectionDefinition =
             SurfaceProjectionDefinition
                 { surfaceName
@@ -368,7 +384,7 @@ mkSurfaceProjectionDefinition typedDefinition surfaceName cachePolicy scopeKey v
                 , loadProjection
                 , renderFragment
                 , buildFragmentRef = \surfaceKey fragment ->
-                    unSurfaceFragmentRef (typedDefinition.typedSurfaceFragmentRef surfaceKey fragment)
+                    unSurfaceFragmentRef (typedLiveSurfaceFragmentRef typedDefinition surfaceKey fragment)
                 }
         }
 

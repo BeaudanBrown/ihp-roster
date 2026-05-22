@@ -1,5 +1,6 @@
 module Application.Helper.LiveSurface
-    ( LiveScopeAuthorizationRequirement (..)
+    ( FragmentContract (..)
+    , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , LiveSurfaceConfig (..)
     , ProjectionLiveSurfaceDefinition (..)
@@ -15,6 +16,7 @@ module Application.Helper.LiveSurface
     , liveSurfaceProjectionFragmentRef
     , loadLiveSurfaceProjection
     , loadLiveSurfaceProjectionFromStore
+    , mkSurfaceFragmentContract
     , mkSurfaceFragmentRef
     , mkTypedDefinedLiveSurface
     , mkTypedSurfaceProjectionDefinition
@@ -29,6 +31,7 @@ module Application.Helper.LiveSurface
     , typedLiveSurfaceAffectedFragments
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
+    , typedSurfaceDependsOn
     , unSurfaceFragmentRefs
     , warmLiveSurfaceProjection
     , warmLiveSurfaceProjectionFromStore
@@ -36,7 +39,8 @@ module Application.Helper.LiveSurface
 
 import qualified Application.Helper.LiveSurface.Internal as Internal
 import Application.Helper.LiveSurface.Internal
-    ( LiveScopeAuthorizationRequirement (..)
+    ( FragmentContract (..)
+    , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , LiveSurfaceConfig (..)
     , ProjectionLiveSurfaceDefinition (..)
@@ -52,6 +56,7 @@ import Application.Helper.LiveSurface.Internal
     , liveSurfaceProjectionFragmentRef
     , loadLiveSurfaceProjection
     , loadLiveSurfaceProjectionFromStore
+    , mkSurfaceFragmentContract
     , mkSurfaceFragmentRef
     , mkTypedDefinedLiveSurface
     , normalizeSurfaceFragmentRefs
@@ -65,6 +70,7 @@ import Application.Helper.LiveSurface.Internal
     , typedLiveSurfaceAffectedFragments
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
+    , typedSurfaceDependsOn
     , unSurfaceFragmentRefs
     , warmLiveSurfaceProjection
     , warmLiveSurfaceProjectionFromStore

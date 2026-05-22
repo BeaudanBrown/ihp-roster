@@ -13,6 +13,7 @@ import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
                                        TypedLiveSurfaceDefinition (..),
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
+                                       mkSurfaceFragmentContract,
                                        mkSurfaceFragmentRef,
                                        mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
@@ -63,9 +64,11 @@ adminRosterGroupsLiveSurfaceDefinition =
             AdminRosterGroupsScope { venueId } | venueId == currentVenueScopeId -> Just ()
             _ -> Nothing
         , typedSurfaceDefaultFragments = const [adminRosterGroupsFragment]
-        , typedSurfaceFragmentRef = const adminRosterGroupsLiveFragmentRef
+        , typedSurfaceFragmentContract = \() fragment ->
+            mkSurfaceFragmentContract
+                (adminRosterGroupsLiveFragmentRef fragment)
+                [AdminRosterGroupsResource currentVenueScopeId]
         , typedSurfaceDecorateRequestsWithin = const ["#admin-roster-groups-fragment"]
-        , typedSurfaceDependsOn = \_ _ -> [AdminRosterGroupsResource currentVenueScopeId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
         }
 

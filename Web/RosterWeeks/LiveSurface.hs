@@ -38,43 +38,11 @@ rosterLiveSurfaceDefinition =
         , typedSurfaceScope = rosterSurfaceScope
         , typedSurfaceScopeFromWire = rosterSurfaceScopeFromWire
         , typedSurfaceDefaultFragments = const [RosterProjectionContent, RosterProjectionStaffPanel]
-        , typedSurfaceFragmentRef = \scope fragment ->
-            case fragment of
-                RosterProjectionContent ->
-                    mkSurfaceFragmentRef
-                        RosterContentFragment
-                        rosterContentFragmentId
-                        (rosterWeekContentFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
-                        |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionContent)
-                RosterProjectionStaffPanel ->
-                    mkSurfaceFragmentRef
-                        RosterStaffPanelFragment
-                        rosterStaffPanelFragmentId
-                        (rosterWeekStaffPanelFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
-                        |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionStaffPanel)
-                RosterProjectionDaySection rosterDayId ->
-                    mkSurfaceFragmentRef
-                        RosterDaySectionFragment { rosterDayId }
-                        (rosterDaySectionDomId (coerce rosterDayId))
-                        (rosterWeekDaySectionFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId))
-                        |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionDaySection rosterDayId))
-                RosterProjectionRow rosterDayId rowIndex ->
-                    mkSurfaceFragmentRef
-                        RosterRowFragment { rosterDayId, rowIndex }
-                        (rosterRowDomIdText (coerce rosterDayId) rowIndex)
-                        (rosterWeekRowFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId) rowIndex)
-                        |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionRow rosterDayId rowIndex))
+        , typedSurfaceFragmentContract = \scope fragment ->
+            mkSurfaceFragmentContract
+                (rosterFragmentRef scope fragment)
+                (rosterFragmentDependencies scope fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#roster-week-shell"]
-        , typedSurfaceDependsOn = \scope fragment ->
-            case fragment of
-                RosterProjectionContent ->
-                    [RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset]
-                RosterProjectionStaffPanel ->
-                    [RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset]
-                RosterProjectionDaySection rosterDayId ->
-                    [RosterDayResource rosterDayId]
-                RosterProjectionRow rosterDayId _ ->
-                    [RosterDayResource rosterDayId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\scope -> RequireCurrentVenueRosterGroup (unpackId currentVenueId) (unpackId scope.rosterProjectionGroupId))
         }
     where
@@ -90,6 +58,44 @@ rosterLiveSurfaceDefinition =
                         }
                 _ ->
                     Nothing
+
+rosterFragmentRef :: RosterProjectionScope -> RosterProjectionFragment -> SurfaceFragmentRef RosterLiveSurface
+rosterFragmentRef scope = \case
+    RosterProjectionContent ->
+        mkSurfaceFragmentRef
+            RosterContentFragment
+            rosterContentFragmentId
+            (rosterWeekContentFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
+            |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionContent)
+    RosterProjectionStaffPanel ->
+        mkSurfaceFragmentRef
+            RosterStaffPanelFragment
+            rosterStaffPanelFragmentId
+            (rosterWeekStaffPanelFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
+            |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionStaffPanel)
+    RosterProjectionDaySection rosterDayId ->
+        mkSurfaceFragmentRef
+            RosterDaySectionFragment { rosterDayId }
+            (rosterDaySectionDomId (coerce rosterDayId))
+            (rosterWeekDaySectionFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId))
+            |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionDaySection rosterDayId))
+    RosterProjectionRow rosterDayId rowIndex ->
+        mkSurfaceFragmentRef
+            RosterRowFragment { rosterDayId, rowIndex }
+            (rosterRowDomIdText (coerce rosterDayId) rowIndex)
+            (rosterWeekRowFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId) rowIndex)
+            |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionRow rosterDayId rowIndex))
+
+rosterFragmentDependencies :: RosterProjectionScope -> RosterProjectionFragment -> [LiveResource]
+rosterFragmentDependencies scope = \case
+    RosterProjectionContent ->
+        [RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset]
+    RosterProjectionStaffPanel ->
+        [RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset]
+    RosterProjectionDaySection rosterDayId ->
+        [RosterDayResource rosterDayId]
+    RosterProjectionRow rosterDayId _ ->
+        [RosterDayResource rosterDayId]
 
 rosterFragmentContainmentPath :: RosterProjectionFragment -> [Text]
 rosterFragmentContainmentPath = \case

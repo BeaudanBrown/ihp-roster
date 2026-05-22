@@ -26,6 +26,7 @@ import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
                                        TypedLiveSurfaceDefinition (..),
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
+                                       mkSurfaceFragmentContract,
                                        mkSurfaceFragmentRef,
                                        mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
@@ -115,24 +116,27 @@ adminXeroLiveSurfaceDefinitionForVenue surfaceVenueId =
             AdminXeroScope { venueId } | venueId == surfaceVenueId -> Just ()
             _ -> Nothing
         , typedSurfaceDefaultFragments = const adminXeroDefaultFragments
-        , typedSurfaceFragmentRef = const adminXeroLiveFragmentRef
+        , typedSurfaceFragmentContract = \() fragment ->
+            mkSurfaceFragmentContract
+                (adminXeroLiveFragmentRef fragment)
+                (adminXeroLiveFragmentDependencies surfaceVenueId fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#admin-xero-fragment"]
-        , typedSurfaceDependsOn = \_ fragment ->
-            case fragment of
-                AdminXeroShellLiveFragment ->
-                    [ XeroConnectionResource surfaceVenueId
-                    , XeroMappingsResource surfaceVenueId
-                    , XeroPayItemsResource surfaceVenueId
-                    , XeroTimesheetsResource surfaceVenueId
-                    ]
-                AdminXeroStaffMappingsLiveFragment ->
-                    [XeroMappingsResource surfaceVenueId]
-                AdminXeroPayItemsLiveFragment ->
-                    [XeroPayItemsResource surfaceVenueId]
-                AdminXeroTimesheetsLiveFragment ->
-                    [XeroTimesheetsResource surfaceVenueId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueOwner surfaceVenueId))
         }
+
+adminXeroLiveFragmentDependencies :: UUID -> AdminXeroLiveFragment -> [LiveResource]
+adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroShellLiveFragment =
+    [ XeroConnectionResource surfaceVenueId
+    , XeroMappingsResource surfaceVenueId
+    , XeroPayItemsResource surfaceVenueId
+    , XeroTimesheetsResource surfaceVenueId
+    ]
+adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroStaffMappingsLiveFragment =
+    [XeroMappingsResource surfaceVenueId]
+adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroPayItemsLiveFragment =
+    [XeroPayItemsResource surfaceVenueId]
+adminXeroLiveFragmentDependencies surfaceVenueId AdminXeroTimesheetsLiveFragment =
+    [XeroTimesheetsResource surfaceVenueId]
 
 adminXeroLiveFragmentRef :: AdminXeroLiveFragment -> SurfaceFragmentRef AdminXeroSurface
 adminXeroLiveFragmentRef AdminXeroShellLiveFragment =

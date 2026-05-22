@@ -58,9 +58,11 @@ profileContentLiveSurfaceDefinition =
                 Just ProfileContentSurfaceKey { profileContentVenueId = venueId, profileContentStaffId = staffId, profileContentOpenSection = "profile" }
             _ -> Nothing
         , typedSurfaceDefaultFragments = \key -> [profileContentFragment key.profileContentOpenSection]
-        , typedSurfaceFragmentRef = const profileContentFragmentRef
+        , typedSurfaceFragmentContract = \key fragment ->
+            mkSurfaceFragmentContract
+                (profileContentFragmentRef fragment)
+                (profileContentDependsOn key fragment)
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileDetailsFormId]
-        , typedSurfaceDependsOn = profileContentDependsOn
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueStaff key.profileContentVenueId key.profileContentStaffId)
         }
 
@@ -112,9 +114,11 @@ profileLeaveRequestsLiveSurfaceDefinition =
                 Just ProfileLeaveSurfaceKey { profileLeaveVenueId = venueId, profileLeaveStaffId = staffId }
             _ -> Nothing
         , typedSurfaceDefaultFragments = const [profileLeaveRequestsFragment]
-        , typedSurfaceFragmentRef = const profileLeaveRequestsContentFragmentRef
+        , typedSurfaceFragmentContract = \key fragment ->
+            mkSurfaceFragmentContract
+                (profileLeaveRequestsContentFragmentRef fragment)
+                [StaffLeaveRequestsResource key.profileLeaveStaffId]
         , typedSurfaceDecorateRequestsWithin = const ["#" <> profileLeaveRequestsContentFragmentId]
-        , typedSurfaceDependsOn = \key _ -> [StaffLeaveRequestsResource key.profileLeaveStaffId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (\key -> RequireCurrentVenueStaff key.profileLeaveVenueId key.profileLeaveStaffId)
         }
 

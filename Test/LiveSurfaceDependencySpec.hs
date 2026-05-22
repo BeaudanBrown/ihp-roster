@@ -1,7 +1,7 @@
 module Test.LiveSurfaceDependencySpec where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveSurface (TypedLiveSurfaceDefinition (..), typedLiveSurfaceAffectedFragments)
+import Application.Helper.LiveSurface (TypedLiveSurfaceDefinition (..), typedLiveSurfaceAffectedFragments, typedSurfaceDependsOn)
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
 import IHP.Controller.Context (ControllerContext)

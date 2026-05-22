@@ -16,6 +16,7 @@ import Application.Helper.LiveSurface (LiveScopeAuthorizationRequirement (..),
                                        TypedLiveSurfaceDefinition (..),
                                        liveSurfaceAuthorizationByRequirement,
                                        liveSurfaceConfigJson,
+                                       mkSurfaceFragmentContract,
                                        mkSurfaceFragmentRef,
                                        mkTypedDefinedLiveSurface)
 import Application.Helper.LiveUpdate (LiveFragmentKey (..),
@@ -114,9 +115,11 @@ adminInvitesLiveSurfaceDefinitionForVenue surfaceVenueId =
             AdminInvitesScope { venueId } | venueId == surfaceVenueId -> Just AdminInvitesSurfaceKey { adminInvitesRosterGroupId = Nothing }
             _ -> Nothing
         , typedSurfaceDefaultFragments = const [adminInvitesFragment]
-        , typedSurfaceFragmentRef = adminInvitesLiveFragmentRef
+        , typedSurfaceFragmentContract = \key fragment ->
+            mkSurfaceFragmentContract
+                (adminInvitesLiveFragmentRef key fragment)
+                [AdminInvitesResource surfaceVenueId]
         , typedSurfaceDecorateRequestsWithin = const ["#admin-invites-fragment"]
-        , typedSurfaceDependsOn = \_ _ -> [AdminInvitesResource surfaceVenueId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
         }
 

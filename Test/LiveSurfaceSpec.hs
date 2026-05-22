@@ -1,5 +1,6 @@
 module Test.LiveSurfaceSpec where
 
+import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate (LiveFragmentKey (..), LiveUpdateWireFragment (..))
 import Application.Support.LiveUpdates
@@ -31,6 +32,15 @@ tests = describe "LiveSurface contract helpers" do
             `shouldBe` ["roster-day-22222222"]
         targetIds (normalizeSurfaceFragmentRefs [child, sibling])
             `shouldBe` ["roster-staff-panel-fragment", "billing-status-fragment"]
+
+    it "derives live fragment refs and dependencies from a single fragment contract" do
+        let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
+        let billingKey = BillingSurfaceKey { billingSurfaceVenueId = venueId }
+
+        map (.targetId) (unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs billingLiveSurfaceDefinition billingKey [BillingStatusLiveFragment]))
+            `shouldBe` ["billing-status-fragment"]
+        typedSurfaceDependsOn billingLiveSurfaceDefinition billingKey BillingStatusLiveFragment
+            `shouldBe` [BillingResource venueId]
 
     it "verifies the typed support surface config contract" do
         liveSurfaceConfigShouldRoundTrip supportLiveSurface

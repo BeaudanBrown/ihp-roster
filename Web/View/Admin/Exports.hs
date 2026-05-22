@@ -36,9 +36,11 @@ adminExportsLiveSurfaceDefinition =
             AdminExportsScope { venueId } | venueId == currentVenueScopeId -> Just ()
             _ -> Nothing
         , typedSurfaceDefaultFragments = const [adminExportsFragment]
-        , typedSurfaceFragmentRef = const adminExportsLiveFragmentRef
+        , typedSurfaceFragmentContract = \() fragment ->
+            mkSurfaceFragmentContract
+                (adminExportsLiveFragmentRef fragment)
+                [AdminExportsResource currentVenueScopeId]
         , typedSurfaceDecorateRequestsWithin = const ["#" <> adminExportsFragmentId]
-        , typedSurfaceDependsOn = \_ _ -> [AdminExportsResource currentVenueScopeId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin currentVenueScopeId))
         }
 

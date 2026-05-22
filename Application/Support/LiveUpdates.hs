@@ -31,17 +31,16 @@ supportLiveSurfaceDefinition =
             SupportPlatformScope -> Just ()
             _ -> Nothing
         , typedSurfaceDefaultFragments = const supportLiveFragmentRefs
-        , typedSurfaceFragmentRef = const supportLiveFragmentRef
+        , typedSurfaceFragmentContract = \() fragment ->
+            mkSurfaceFragmentContract
+                (supportLiveFragmentRef fragment)
+                (supportLiveFragmentDependencies fragment)
         , typedSurfaceDecorateRequestsWithin =
             const
                 [ "#support-shell"
                 , "#support-award-rates-section"
                 , "#support-public-holidays-section"
                 ]
-        , typedSurfaceDependsOn = \_ fragment ->
-            case fragment of
-                SupportAwardRatesLiveFragment -> [SupportAwardRatesResource]
-                SupportPublicHolidaysLiveFragment -> [SupportPublicHolidaysResource]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const RequireSupportSuperAdmin)
         }
 
@@ -50,6 +49,12 @@ supportLiveFragmentRefs =
     [ SupportAwardRatesLiveFragment
     , SupportPublicHolidaysLiveFragment
     ]
+
+supportLiveFragmentDependencies :: SupportLiveFragment -> [LiveResource]
+supportLiveFragmentDependencies SupportAwardRatesLiveFragment =
+    [SupportAwardRatesResource]
+supportLiveFragmentDependencies SupportPublicHolidaysLiveFragment =
+    [SupportPublicHolidaysResource]
 
 supportLiveFragmentRef :: SupportLiveFragment -> SurfaceFragmentRef SupportSurface
 supportLiveFragmentRef SupportAwardRatesLiveFragment =
