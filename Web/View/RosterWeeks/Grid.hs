@@ -83,7 +83,6 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
         <div class={classes [("col-12", True), ("col-xl-8", hasSidePanel), ("col-xxl-10", hasSidePanel), ("mx-auto", not hasSidePanel), ("roster-layout-main", hasSidePanel)]}>
             <div class="app-panel overflow-hidden mb-5 mb-xl-0">
                 {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridShowShiftTypeHighlights gridRosterWagePrediction}
-                {renderWagePredictionPanel gridRosterWagePrediction}
                 <div class="roster-grid-frame"
                      data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
                      data-roster-shift-type-highlights={if gridShowShiftTypeHighlights then ("true" :: Text) else "false"}
@@ -99,48 +98,18 @@ renderRosterGrid RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWee
     </div>
 |]
 
-renderWagePredictionPanel :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Html
-renderWagePredictionPanel Nothing = mempty
-renderWagePredictionPanel (Just prediction)
+renderDayWagePrediction :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Day -> Html
+renderDayWagePrediction Nothing _ = mempty
+renderDayWagePrediction (Just prediction) date
     | not currentUserIsAdmin = mempty
-    | otherwise = [hsx|
-        <section class="roster-wage-prediction" aria-label="Predicted roster wages">
-            <div class="roster-wage-prediction-summary">
-                <div>
-                    <div class="small text-uppercase fw-semibold app-muted">Predicted wages</div>
-                    <div class="roster-wage-prediction-total">{formatMoneyAmount prediction.predictionWeekTotal}</div>
+    | otherwise =
+        case lookupRosterWagePredictionDayByDate prediction date of
+            Nothing -> mempty
+            Just dayPrediction -> [hsx|
+                <div class="roster-day-wage-total" aria-label="Predicted wages for day">
+                    {formatMoneyAmount dayPrediction.predictionDayTotal}
                 </div>
-                <div class="small app-muted roster-wage-prediction-note">
-                    Admin estimate only. Uses rostered start/end, shift type, current pay rules, and a {tshow prediction.predictionBreakMinutes}-minute unpaid break for shifts over 6 hours.
-                </div>
-            </div>
-            <div class="roster-wage-prediction-days">
-                {forEach prediction.predictionDays renderWagePredictionDay}
-            </div>
-            {renderWagePredictionIncompleteNotice prediction}
-        </section>
-    |]
-
-renderWagePredictionDay :: RosterWagePredictionDay -> Html
-renderWagePredictionDay dayPrediction = [hsx|
-    <div class="roster-wage-prediction-day">
-        <span class="roster-wage-prediction-day-label">{formatDayShort dayPrediction.predictionDayDate}</span>
-        <span class="roster-wage-prediction-day-total">{formatMoneyAmount dayPrediction.predictionDayTotal}</span>
-    </div>
-|]
-
-renderWagePredictionIncompleteNotice :: RosterWagePrediction -> Html
-renderWagePredictionIncompleteNotice prediction
-    | prediction.predictionIncompleteShiftCount <= 0 = mempty
-    | otherwise = [hsx|
-        <div class="small text-warning-emphasis roster-wage-prediction-warning">
-            {tshow prediction.predictionIncompleteShiftCount} staffed shifts are missing start time, end time, or shift type and are excluded.
-        </div>
-    |]
-
-formatDayShort :: Day -> Text
-formatDayShort day =
-    Text.pack (formatTime defaultTimeLocale "%a" day)
+            |]
 
 renderRosterDayRowsGrid :: (?context :: ControllerContext) => Bool -> Bool -> Maybe RosterWeek -> [RosterWeekSlotDefinition] -> RosterDayRenderModel -> [RosterDay] -> Html
 renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek slotNames dayModel rosterDays = [hsx|
@@ -315,7 +284,7 @@ renderRosterDaySectionFragmentWithSwap maybeSwapOob dayModel@RosterDayRenderMode
         daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) dayAllSlots
 
 renderRosterDayRailSection :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Html
-renderRosterDayRailSection RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayAllSlots, dayRenderIndexes } rosterDay =
+renderRosterDayRailSection RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayAllSlots, dayRenderIndexes, dayRosterWagePrediction } rosterDay =
     let daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) dayAllSlots
         dayRows = Map.findWithDefault (rowsForDay rosterDay daySlots) (coerce (get #id rosterDay)) dayRenderIndexes.rosterDayRowsByDayId
         rowCount = length dayRows
@@ -326,7 +295,10 @@ renderRosterDayRailSection RosterDayRenderModel { dayIsEditable, dayWeekStartDat
              style={"--roster-day-label-rows:" <> tshow rowCount}>
             <div class="roster-day-label-stack">
                 <div class="roster-day-label-row roster-day-label-row-primary">
-                    <div class="roster-day-heading">{renderPrimaryDayLabel date}</div>
+                    <div class="roster-day-heading">
+                        {renderPrimaryDayLabel date}
+                        {renderDayWagePrediction dayRosterWagePrediction date}
+                    </div>
                 </div>
                 <div class="roster-day-label-row roster-day-label-row-controls">
                     {renderDayRowControls dayIsEditable rosterDay lastRowIndex}
@@ -348,7 +320,7 @@ renderRosterDayColumn =
     renderRosterDayColumnWithSwap Nothing
 
 renderRosterDayColumnWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterDayRenderModel -> RosterDay -> Html
-renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayAllSlots, dayRenderIndexes } rosterDay =
+renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIsEditable, dayWeekStartDate, dayAllSlots, dayRenderIndexes, dayRosterWagePrediction } rosterDay =
     let daySlots = filter (\s -> s.rosterDayId == coerce (get #id rosterDay)) dayAllSlots
         dayRows = Map.findWithDefault (rowsForDay rosterDay daySlots) (coerce (get #id rosterDay)) dayRenderIndexes.rosterDayRowsByDayId
         rowCount = length dayRows
@@ -362,7 +334,10 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
                  hx-swap-oob={maybeSwapOob}
                  class={classes [("roster-day-column", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
             <header class="roster-day-column-header">
-                <div class="roster-day-heading">{renderPrimaryDayLabel date}</div>
+                <div class="roster-day-heading">
+                    {renderPrimaryDayLabel date}
+                    {renderDayWagePrediction dayRosterWagePrediction date}
+                </div>
                 {renderDayColumnHeaderControls dayIsEditable rosterDay}
             </header>
             <div class="roster-day-column-body">

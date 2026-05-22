@@ -27,3 +27,7 @@ Admins see week predicted wages in roster toolbar chrome and daily predicted tot
 **2026-05-22T01:48:57Z**
 
 HANDOFF from ir-ie9a: Header now accepts Maybe RosterWagePrediction; day render models carry dayRosterWagePrediction; Application.Helper.RosterWagePrediction exports lookup helpers for day totals.
+
+**2026-05-22T01:55:04Z**
+
+HANDOFF from ir-3d73: Compact predicted wage markup is now in toolbar/day headers using roster-wage-summary and roster-day-wage-total; old full-width panel renderer is removed, while detailed styling/regression coverage remains for ir-xkjl.

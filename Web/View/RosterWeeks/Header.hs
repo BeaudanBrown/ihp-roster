@@ -2,7 +2,8 @@ module Web.View.RosterWeeks.Header
     ( renderRosterGridHeader
     ) where
 
-import Application.Helper.RosterWagePrediction (RosterWagePrediction)
+import Application.Helper.RosterWagePrediction (RosterWagePrediction (..),
+                                                 formatMoneyAmount)
 import Application.Helper.UserPreferences (rosterLayoutModeLabel,
                                            rosterLayoutModeValue,
                                            rosterLayoutModes)
@@ -18,11 +19,12 @@ import Web.View.Prelude
 import Web.View.RosterWeeks.Overview (renderWeekOverviewDropdown)
 
 renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Html
-renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode showShiftTypeHighlights _rosterWagePrediction = [hsx|
+renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode showShiftTypeHighlights rosterWagePrediction = [hsx|
     <div class="app-panel-header app-surface-toolbar roster-grid-header">
         <div class="app-surface-toolbar-side roster-grid-header-side roster-grid-header-side-left">
             {renderLiveToggle maybeRosterWeek viewCapabilities}
             {renderThisWeekButton}
+            {renderRosterWeekWageSummary rosterWagePrediction}
         </div>
         <div class="app-surface-toolbar-center roster-grid-header-center">
             {renderRosterWeekControls weekOffset currentRosterGroup weekStartDate}
@@ -34,6 +36,25 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
     </div>
 |]
 
+renderRosterWeekWageSummary :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Html
+renderRosterWeekWageSummary Nothing = mempty
+renderRosterWeekWageSummary (Just prediction)
+    | not currentUserIsAdmin = mempty
+    | otherwise = [hsx|
+        <div class="roster-wage-summary" aria-label="Predicted roster wages">
+            <span class="roster-wage-summary-label">Predicted wages:</span>
+            <span class="roster-wage-summary-total">{formatMoneyAmount prediction.predictionWeekTotal}</span>
+            {renderRosterWeekWageExcluded prediction}
+        </div>
+    |]
+
+renderRosterWeekWageExcluded :: RosterWagePrediction -> Html
+renderRosterWeekWageExcluded prediction
+    | prediction.predictionIncompleteShiftCount <= 0 = mempty
+    | otherwise = [hsx|
+        <span class="roster-wage-summary-warning">{tshow prediction.predictionIncompleteShiftCount} {draftShiftCopy prediction.predictionIncompleteShiftCount} excluded</span>
+    |]
+
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> Html
 renderRosterWeekControls weekOffset currentRosterGroup weekStartDate = [hsx|
     <div class="btn-group app-week-nav-group roster-week-nav-group" role="group" aria-label="Roster week navigation">
@@ -42,6 +63,10 @@ renderRosterWeekControls weekOffset currentRosterGroup weekStartDate = [hsx|
         {renderWeekNavigationLink "bi-chevron-right" "Next week" (rosterWeekUrl (weekOffset + 1) currentRosterGroup.id)}
     </div>
 |]
+
+draftShiftCopy :: Int -> Text
+draftShiftCopy 1 = "draft shift"
+draftShiftCopy _ = "draft shifts"
 
 renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|

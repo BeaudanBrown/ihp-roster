@@ -541,20 +541,41 @@ tests = beforeAll testContext do
                         |> set #shiftTypeId (Just (unpackId shiftType.id))
                         |> set #durationMinutes (Just 480)
                     )
+                incompleteSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 1
+                _ <- updateRecord (incompleteSlot |> set #startTime (Just (timeOfDay 9 0)))
 
                 adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction (ShowRosterWeekAction 0)
 
                 adminResponse `responseStatusShouldBe` status200
-                adminResponse `responseBodyShouldContain` "Predicted wages"
+                adminResponse `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
+                adminResponse `responseBodyShouldContain` "Predicted wages:"
                 adminResponse `responseBodyShouldContain` "$150.00"
-                adminResponse `responseBodyShouldContain` "Admin estimate only"
+                adminResponse `responseBodyShouldContain` "1 draft shift excluded"
+                adminResponse `responseBodyShouldContain` "roster-wage-summary"
+                adminResponse `responseBodyShouldContain` "roster-day-wage-total"
+                adminResponse `responseBodyShouldNotContain` "Admin estimate only"
+                adminResponse `responseBodyShouldNotContain` "roster-wage-prediction"
+
+                dayColumnsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterLayoutPreferenceAction 0)
+                            [("rosterLayoutMode", "day_columns")]
+
+                dayColumnsResponse `responseStatusShouldBe` status200
+                dayColumnsResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
+                dayColumnsResponse `responseBodyShouldContain` "Predicted wages:"
+                dayColumnsResponse `responseBodyShouldContain` "roster-day-wage-total"
+                dayColumnsResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
 
                 managerResponse `responseStatusShouldBe` status200
                 managerResponse `responseBodyShouldNotContain` "Predicted wages"
+                managerResponse `responseBodyShouldNotContain` "roster-wage-summary"
+                managerResponse `responseBodyShouldNotContain` "roster-day-wage-total"
                 managerResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
         it "manager can toggle a draft week live" $ withContext do

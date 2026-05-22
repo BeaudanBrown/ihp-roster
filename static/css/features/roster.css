@@ -601,6 +601,40 @@
     --roster-grid-columns: repeat(var(--roster-slot-count), minmax(4.35rem, 1.25fr) minmax(4.35rem, 1.25fr) minmax(7.3rem, 2.45fr) minmax(4.2rem, 0.95fr));
 }
 
+.roster-wage-summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.35rem 0.6rem;
+    border: 1px solid var(--app-border-subtle);
+    border-radius: 999px;
+    background: var(--app-white-alpha-03);
+    color: var(--app-text);
+    font-size: var(--roster-text-xs);
+    font-weight: 700;
+    line-height: 1.15;
+    white-space: nowrap;
+}
+
+.roster-wage-summary-label,
+.roster-wage-summary-warning {
+    color: var(--app-muted);
+    font-weight: 600;
+}
+
+.roster-wage-summary-warning {
+    color: var(--app-warning);
+}
+
+.roster-day-wage-total {
+    color: var(--app-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1.1;
+    white-space: nowrap;
+}
+
 .roster-wage-prediction {
     display: grid;
     gap: 0.8rem;
