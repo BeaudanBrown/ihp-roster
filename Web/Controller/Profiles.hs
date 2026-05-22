@@ -153,8 +153,5 @@ profilePreferenceViewDataWithSubmitted _maybeStaff submittedShiftPreferenceKeys 
     pure (preferenceWeekdays, selectedShiftPreferences)
 
 normalizeProfileOpenSection :: Text -> Text
-normalizeProfileOpenSection section
-    | section == "leave" = "leave"
-    | section == "rsa" = "rsa"
-    | section == "security" = "security"
-    | otherwise = "profile"
+normalizeProfileOpenSection =
+    profileContentFragmentSectionParam . profileContentFragment

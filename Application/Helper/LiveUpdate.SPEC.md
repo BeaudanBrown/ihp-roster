@@ -76,6 +76,10 @@ feature-facing broadcast or typed mutation helpers; typed config, projection,
 dependency matching, authorization, and actor-refresh helpers derive directly
 from `TypedLiveSurfaceDefinition`.
 
+Feature-facing fragment selectors should be closed ADTs. Route/query strings may
+be parsed into those constructors, but the typed surface contract should not be
+backed by open `Text` values because that bypasses exhaustiveness checks.
+
 Feature-facing code must not use compatibility/manual authoring helpers such as
 `mkLiveSurface`, `mkDefinedLiveSurface`, `mkLiveFragmentRef`, raw
 `LiveFragmentRef` constructors, internal `LiveUpdateWireFragment` constructors,

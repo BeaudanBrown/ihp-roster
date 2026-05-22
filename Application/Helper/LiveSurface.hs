@@ -12,7 +12,6 @@ module Application.Helper.LiveSurface
     , authorizeLiveScopeRequirement
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
-    , ensureTypedLiveSurfaceAuthorized
     , liveFragmentDependsOn
     , liveFragmentResyncOnly
     , liveSurfaceAuthorizationByRequirement
@@ -57,7 +56,6 @@ import Application.Helper.LiveSurface.Internal
     , authorizeLiveScopeRequirement
     , authorizeTypedLiveSurfaceScope
     , authorizeTypedLiveSurfaceWireScope
-    , ensureTypedLiveSurfaceAuthorized
     , liveFragmentDependsOn
     , liveFragmentResyncOnly
     , liveSurfaceAuthorizationByRequirement

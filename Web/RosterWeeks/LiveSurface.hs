@@ -2,6 +2,7 @@
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
 
 module Web.RosterWeeks.LiveSurface
     ( RosterLiveSurface

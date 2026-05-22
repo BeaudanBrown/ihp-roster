@@ -14,6 +14,11 @@ tests = describe "LiveSurface strict API guard" do
         violations <- concat <$> forM files forbiddenReferencesInFile
         violations `shouldBe` []
 
+    it "keeps feature live fragment selectors as closed constructors" do
+        files <- featureSourceFiles
+        violations <- concat <$> forM files textBackedFragmentSelectorsInFile
+        violations `shouldBe` []
+
 forbiddenReferencesInFile :: FilePath -> IO [Text]
 forbiddenReferencesInFile path = do
     source <- Text.readFile path
@@ -21,6 +26,16 @@ forbiddenReferencesInFile path = do
         [ cs path <> ": forbidden " <> forbiddenName forbidden
         | forbidden <- forbiddenReferences
         , forbiddenMatches forbidden source
+        ]
+
+textBackedFragmentSelectorsInFile :: FilePath -> IO [Text]
+textBackedFragmentSelectorsInFile path = do
+    source <- Text.readFile path
+    pure
+        [ cs path <> ":" <> tshow lineNumber <> ": live fragment selector carries Text"
+        | (lineNumber, line) <- zip [(1 :: Int)..] (Text.lines source)
+        , "Fragment" `Text.isInfixOf` line
+        , "!Text" `Text.isInfixOf` line
         ]
 
 data ForbiddenReference

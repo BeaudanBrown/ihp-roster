@@ -26,8 +26,10 @@ URLs, authorization, and protection policy.
 
 ## Add A Fragment
 
-1. Add a feature-local fragment constructor, for example
-   `RosterProjectionRow` or `TimesheetProjectionDaySection`.
+1. Add feature-local closed ADT constructors, for example
+   `RosterProjectionRow` or `TimesheetProjectionDaySection`. Do not model
+   fragment selectors as free `Text`; parse external section/query values into
+   the closed fragment type first.
 2. Map that constructor in the feature's `typedSurfaceFragmentContract` with a
    `FragmentContract` built by `mkSurfaceFragmentContract`.
 3. Give the contract a stable `targetId`, canonical fragment GET URL, protection
@@ -74,7 +76,8 @@ URLs, authorization, and protection policy.
 
 ## Review Checklist
 
-- The fragment enum is local to the feature.
+- The fragment enum is local to the feature and uses closed constructors rather
+  than free-text selectors.
 - The typed surface definition is registered in `Web.LiveSurfaceRegistry` when
   websocket authorization needs it.
 - The rendered shell has stable `data-live-update-surface` metadata.

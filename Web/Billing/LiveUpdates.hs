@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.Billing.LiveUpdates
     ( BillingLiveFragment (..)
     , BillingSurfaceKey (..)

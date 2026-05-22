@@ -93,9 +93,9 @@ tests = do
             let contentKey = ProfileContentSurfaceKey venueId staffId "profile"
             let leaveKey = ProfileLeaveSurfaceKey venueId staffId
 
-            typedSurfaceDependsOn profileContentLiveSurfaceDefinition contentKey (ProfileContentLiveFragment "profile")
+            typedSurfaceDependsOn profileContentLiveSurfaceDefinition contentKey ProfileDetailsContentFragment
                 `shouldBe` [StaffProfileResource staffId, StaffPreferencesResource staffId]
-            typedSurfaceDependsOn profileContentLiveSurfaceDefinition contentKey (ProfileContentLiveFragment "rsa")
+            typedSurfaceDependsOn profileContentLiveSurfaceDefinition contentKey ProfileRsaContentFragment
                 `shouldBe` [StaffRsaDocumentsResource staffId]
             typedSurfaceDependsOn profileLeaveRequestsLiveSurfaceDefinition leaveKey profileLeaveRequestsFragment
                 `shouldBe` [StaffLeaveRequestsResource staffId]

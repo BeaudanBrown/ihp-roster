@@ -189,9 +189,9 @@ profileContentCandidateFragments ::
     scope ->
     [ProfileContentFragment]
 profileContentCandidateFragments _ _ =
-    [ ProfileContentLiveFragment "profile"
-    , ProfileContentLiveFragment "rsa"
-    , ProfileContentLiveFragment "leave"
+    [ ProfileDetailsContentFragment
+    , ProfileRsaContentFragment
+    , ProfileLeaveContentFragment
     ]
 
 coalesceTargets :: [LiveSurfaceInvalidationTarget] -> [LiveSurfaceInvalidationTarget]

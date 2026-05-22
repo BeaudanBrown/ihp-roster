@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.Profiles.LiveUpdates
     ( ProfileContentFragment (..)
     , ProfileContentSurfaceKey (..)
@@ -6,6 +8,7 @@ module Web.Profiles.LiveUpdates
     , currentProfileContentSurfaceKey
     , currentProfileLeaveSurfaceKey
     , profileContentFragment
+    , profileContentFragmentSectionParam
     , profileContentLiveSurfaceDefinition
     , profileLeaveRequestsFragment
     , profileLeaveRequestsLiveSurfaceDefinition
@@ -37,7 +40,10 @@ data ProfileContentSurfaceKey = ProfileContentSurfaceKey
     deriving (Eq, Show)
 
 data ProfileContentFragment
-    = ProfileContentLiveFragment !Text
+    = ProfileDetailsContentFragment
+    | ProfileRsaContentFragment
+    | ProfileLeaveContentFragment
+    | ProfileSecurityContentFragment
     deriving (Eq, Show)
 
 currentProfileContentSurfaceKey :: (?context :: ControllerContext) => Staff -> Text -> ProfileContentSurfaceKey
@@ -67,23 +73,39 @@ profileContentLiveSurfaceDefinition =
         }
 
 profileContentFragment :: Text -> ProfileContentFragment
-profileContentFragment =
-    ProfileContentLiveFragment
+profileContentFragment section =
+    case section of
+        "rsa" -> ProfileRsaContentFragment
+        "leave" -> ProfileLeaveContentFragment
+        "security" -> ProfileSecurityContentFragment
+        _ -> ProfileDetailsContentFragment
+
+profileContentFragmentSectionParam :: ProfileContentFragment -> Text
+profileContentFragmentSectionParam ProfileDetailsContentFragment =
+    "profile"
+profileContentFragmentSectionParam ProfileRsaContentFragment =
+    "rsa"
+profileContentFragmentSectionParam ProfileLeaveContentFragment =
+    "leave"
+profileContentFragmentSectionParam ProfileSecurityContentFragment =
+    "security"
 
 profileContentDependsOn :: ProfileContentSurfaceKey -> ProfileContentFragment -> FragmentDependencies
-profileContentDependsOn key (ProfileContentLiveFragment openSection) =
-    case openSection of
-        "rsa" -> liveFragmentDependsOn (StaffRsaDocumentsResource key.profileContentStaffId) []
-        "leave" -> liveFragmentDependsOn (StaffLeaveRequestsResource key.profileContentStaffId) []
-        "security" -> liveFragmentResyncOnly "security profile section has no passive live-resource dependency"
-        _ -> liveFragmentDependsOn (StaffProfileResource key.profileContentStaffId) [StaffPreferencesResource key.profileContentStaffId]
+profileContentDependsOn key ProfileDetailsContentFragment =
+    liveFragmentDependsOn (StaffProfileResource key.profileContentStaffId) [StaffPreferencesResource key.profileContentStaffId]
+profileContentDependsOn key ProfileRsaContentFragment =
+    liveFragmentDependsOn (StaffRsaDocumentsResource key.profileContentStaffId) []
+profileContentDependsOn key ProfileLeaveContentFragment =
+    liveFragmentDependsOn (StaffLeaveRequestsResource key.profileContentStaffId) []
+profileContentDependsOn _ ProfileSecurityContentFragment =
+    liveFragmentResyncOnly "security profile section has no passive live-resource dependency"
 
 profileContentFragmentRef :: (?context :: ControllerContext) => ProfileContentFragment -> SurfaceFragmentRef ProfileContentSurface
-profileContentFragmentRef (ProfileContentLiveFragment openSection) =
+profileContentFragmentRef fragment =
     mkSurfaceFragmentRef
         ProfileContentFragment
         profileContentFragmentId
-        (appendQueryParams (pathTo ShowProfileContentFragmentAction) [("section", openSection)])
+        (appendQueryParams (pathTo ShowProfileContentFragmentAction) [("section", profileContentFragmentSectionParam fragment)])
 
 data ProfileLeaveSurface
 

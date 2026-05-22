@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Application.Support.LiveUpdates
     ( SupportLiveFragment (..)
     , SupportSurface
