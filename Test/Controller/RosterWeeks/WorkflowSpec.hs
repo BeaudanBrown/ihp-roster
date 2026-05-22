@@ -1,15 +1,17 @@
 module Test.Controller.RosterWeeks.WorkflowSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (..))
-import Application.Helper.Controller (PlatformRole (SuperAdminRole))
+import Application.Helper.Controller (PlatformRole (SuperAdminRole), venueWeekStartDate)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.UserPreferences
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Application.RosterTimesheets.Automation (enqueueRosterTimesheetCreationJobsForWeek,
                                                 performRosterTimesheetCreationJob,
-                                                rosterTimesheetCreationJobKind)
+                                                rosterTimesheetCreationJobKind,
+                                                rosterTimesheetRunAt)
 import Config
+import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as ByteString
 import Data.Coerce (coerce)
 import Data.List (sortOn)
@@ -21,6 +23,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
 import IHP.HaskellSupport
+import IHP.Job.Types
 import IHP.ModelSupport (inputValue)
 import IHP.Prelude
 import IHP.Test.Mocking
@@ -637,6 +640,131 @@ tests = beforeAll testContext do
                 job.relatedTable `shouldBe` Just "roster_slots"
                 job.relatedId `shouldBe` Just (unpackId slot.id)
 
+        it "cancels not-started and retry roster-timesheet jobs when a live week returns to draft without stopping running jobs" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-draft-cancels-auto-timesheets@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                slotName <- fetchSlotNameRecord venue "Late"
+                alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
+                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
+                charlie <- createStaffRecord venue Nothing "Charlie" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                notStartedSlot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
+                retrySlot <- createRosterSlotRecord rosterDay slotName (Just bravo) 1
+                runningSlot <- createRosterSlotRecord rosterDay slotName (Just charlie) 2
+                forM_ [notStartedSlot, retrySlot, runningSlot] \slot ->
+                    updateRecord
+                        ( slot
+                            |> set #startTime (Just (timeOfDay 22 0))
+                            |> set #endTime (Just (timeOfDay 2 0))
+                            |> set #shiftTypeId (Just (unpackId shiftType.id))
+                            |> set #durationMinutes (Just 240)
+                        )
+
+                publishResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            [("isLive", "on")]
+                publishResponse `responseStatusShouldBe` status200
+
+                notStartedJob <- fetchRosterTimesheetJobForSlot notStartedSlot
+                retryJob <- fetchRosterTimesheetJobForSlot retrySlot
+                runningJob <- fetchRosterTimesheetJobForSlot runningSlot
+                _ <- updateRecord (retryJob |> set #status JobStatusRetry)
+                _ <- updateRecord (runningJob |> set #status JobStatusRunning)
+
+                draftResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+
+                draftResponse `responseStatusShouldBe` status200
+                draftWeek <- fetch rosterWeek.id
+                draftWeek.isLive `shouldBe` False
+                assertRosterTimesheetJobCancelled notStartedJob
+                assertRosterTimesheetJobCancelled retryJob
+                stillRunningJob <- fetch runningJob.id
+                stillRunningJob.status `shouldBe` JobStatusRunning
+
+        it "republishes draft-edited roster slots with recalculated timesheet run times and preserves generated timesheets" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-republish-auto-timesheets@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                slotName <- fetchSlotNameRecord venue "Late"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Bar"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                completeSlot <- updateRecord
+                    ( slot
+                        |> set #startTime (Just (timeOfDay 22 0))
+                        |> set #endTime (Just (timeOfDay 2 0))
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> set #durationMinutes (Just 240)
+                    )
+
+                firstPublishResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            [("isLive", "on")]
+                firstPublishResponse `responseStatusShouldBe` status200
+                firstJob <- fetchRosterTimesheetJobForSlot completeSlot
+                let firstRunAt = firstJob.runAt
+                performRosterTimesheetCreationJob firstJob
+                [generatedEntry] <- query @TimesheetEntry |> fetch
+                generatedEntry.startTime `shouldBe` timeOfDay 22 0
+                generatedEntry.endTime `shouldBe` timeOfDay 2 0
+
+                draftResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                draftResponse `responseStatusShouldBe` status200
+
+                editResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterSlotAction completeSlot.id)
+                            [("endTime", "03:00")]
+                editResponse `responseStatusShouldBe` status200
+                [entryAfterDraftEdit] <- query @TimesheetEntry |> fetch
+                entryAfterDraftEdit.id `shouldBe` generatedEntry.id
+                entryAfterDraftEdit.startTime `shouldBe` timeOfDay 22 0
+                entryAfterDraftEdit.endTime `shouldBe` timeOfDay 2 0
+
+                secondPublishResponse <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (ToggleRosterWeekLiveStatusAction rosterWeek.id)
+                            [("isLive", "on")]
+                secondPublishResponse `responseStatusShouldBe` status200
+                secondPublishResponse `responseBodyShouldContain` "Pending timesheet jobs queued for 1 shifts."
+                jobs <- fetchRosterTimesheetJobsForSlot completeSlot
+                length jobs `shouldBe` 2
+                let secondJob = fromJust (last jobs)
+                expectedSecondRunAt <- rosterTimesheetRunAt venueConfig (addDays 0 (venueWeekStartDate venueConfig rosterWeek.weekOffset)) (timeOfDay 22 0) (timeOfDay 3 0)
+                firstRunAt `shouldNotBe` expectedSecondRunAt
+                secondJob.runAt `shouldBe` expectedSecondRunAt
+
+                performRosterTimesheetCreationJob secondJob
+                [entryAfterRepublishJob] <- query @TimesheetEntry |> fetch
+                entryAfterRepublishJob.id `shouldBe` generatedEntry.id
+                entryAfterRepublishJob.startTime `shouldBe` timeOfDay 22 0
+                entryAfterRepublishJob.endTime `shouldBe` timeOfDay 2 0
+                completedSecondJob <- fetch secondJob.id
+                completedSecondJob.result `shouldBe` Aeson.object ["status" Aeson..= ("already_exists" :: Text), "timesheetEntryId" Aeson..= Just (tshow generatedEntry.id)]
+
         it "warns and leaves an auto-created timesheet unchanged when the source roster slot is edited later" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
@@ -1177,6 +1305,34 @@ tests = beforeAll testContext do
                     |> fetchOneOrNothing
                 targetWeek `shouldBe` Nothing
 
+
+fetchRosterTimesheetJobForSlot :: (?modelContext :: ModelContext) => RosterSlot -> IO AppJob
+fetchRosterTimesheetJobForSlot rosterSlot = do
+    jobs <- fetchRosterTimesheetJobsForSlot rosterSlot
+    case jobs of
+        [job] -> pure job
+        _ -> do
+            expectationFailure ("Expected one roster timesheet job for slot, got " <> cs (tshow (length jobs)))
+            error "unreachable"
+
+fetchRosterTimesheetJobsForSlot :: (?modelContext :: ModelContext) => RosterSlot -> IO [AppJob]
+fetchRosterTimesheetJobsForSlot rosterSlot =
+    query @AppJob
+        |> filterWhere (#jobKind, rosterTimesheetCreationJobKind)
+        |> filterWhere (#relatedTable, Just "roster_slots")
+        |> filterWhere (#relatedId, Just (unpackId rosterSlot.id))
+        |> orderByAsc #createdAt
+        |> fetch
+
+assertRosterTimesheetJobCancelled :: (?modelContext :: ModelContext) => AppJob -> IO ()
+assertRosterTimesheetJobCancelled job = do
+    updatedJob <- fetch job.id
+    updatedJob.status `shouldBe` JobStatusSucceeded
+    updatedJob.result
+        `shouldBe` Aeson.object
+            [ "status" Aeson..= ("cancelled" :: Text)
+            , "reason" Aeson..= ("roster_week_moved_to_draft" :: Text)
+            ]
 
 timeOfDay :: Int -> Int -> TimeOfDay
 timeOfDay hour minute = TimeOfDay hour minute 0
