@@ -8,7 +8,8 @@ module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
 import Application.Helper.LiveSurface (ensureTypedLiveSurfaceAuthorized,
-                                       setTypedLiveSurfaceActorRefresh)
+                                       setTypedLiveSurfaceActorRefresh,
+                                       typedLiveSurfaceAffectedFragments)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
@@ -18,9 +19,10 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
                                 renderDialogOverlay, renderToastOob)
-import Application.Helper.LiveResource (LiveMutationResult (..))
+import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource)
 import Data.Coerce (coerce)
 import Data.List (nub)
+import qualified Data.Set as Set
 import Data.Maybe (catMaybes, fromMaybe, isJust, mapMaybe)
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime, utctDay)
@@ -496,22 +498,28 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             else do
-                LiveMutationResult { liveMutationValue = RosterSlotMutationResult { rosterSlotMutationSlot = createdSlot } } <-
-                    saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot
+                mutationResult <- saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot
+                let RosterSlotMutationResult { rosterSlotMutationSlot = createdSlot } = mutationResult.liveMutationValue
                 layoutMode <- fetchCurrentRosterLayoutMode
-                let actorFragments =
+                let actorFragmentCandidates =
                         case rosterLayoutModeValue layoutMode of
                             "day_columns" ->
                                 rosterContentAndStaffPanelFragments
                             _ ->
-                                maybe
-                                    [rosterRowFragment (unpackId rosterDay.id) rowIndex]
-                                    (\slot ->
-                                        actorRosterRowFragments maybeStaffParam [(slot.rosterDayId, slot.rowIndex)]
-                                            <> assignmentRefreshFragments maybeStaffParam
-                                            <> [rosterStaffPanelFragment]
-                                    )
-                                    createdSlot
+                                rosterContentAndStaffPanelFragments
+                                    <> maybe
+                                        [rosterRowFragment (unpackId rosterDay.id) rowIndex]
+                                        (\slot ->
+                                            actorRosterRowFragments maybeStaffParam [(slot.rosterDayId, slot.rowIndex)]
+                                                <> assignmentRefreshFragments maybeStaffParam
+                                        )
+                                        createdSlot
+                let actorFragments =
+                        rosterActorFragmentsForTouchedResources
+                            rosterGroupId
+                            rosterWeek.weekOffset
+                            mutationResult.liveMutationTouchedResources
+                            actorFragmentCandidates
                 if isHtmxRequest
                     then respondWithRosterActorRefresh rosterGroupId rosterWeek.weekOffset actorFragments
                     else do
@@ -560,20 +568,26 @@ instance Controller RosterWeeksController where
                         setErrorMessage errorMessage
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
             else do
-                LiveMutationResult { liveMutationValue = RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } } <-
-                    updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
+                mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
+                let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
 
                 relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, updatedSlot.staffId])
                 let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
                 layoutMode <- fetchCurrentRosterLayoutMode
-                let actorFragments =
+                let actorFragmentCandidates =
                         case rosterLayoutModeValue layoutMode of
                             "day_columns" ->
                                 rosterContentAndStaffPanelFragments
                             _ ->
-                                actorRosterRowFragments maybeStaffParam impactedRowKeys
+                                rosterContentAndStaffPanelFragments
+                                    <> actorRosterRowFragments maybeStaffParam impactedRowKeys
                                     <> assignmentRefreshFragments maybeStaffParam
-                                    <> [rosterStaffPanelFragment]
+                let actorFragments =
+                        rosterActorFragmentsForTouchedResources
+                            rosterGroupId
+                            rosterWeek.weekOffset
+                            mutationResult.liveMutationTouchedResources
+                            actorFragmentCandidates
                 respondWithRosterActorRefreshWithToast
                     rosterGroupId
                     rosterWeek.weekOffset
@@ -654,6 +668,13 @@ respondWithRemoveRosterRowConfirmation rosterDay preview =
 respondWithRosterRows :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [(UUID.UUID, Int)] -> IO ()
 respondWithRosterRows rosterGroupId weekOffset requestedRowKeys =
     respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys False
+
+rosterActorFragmentsForTouchedResources :: (?context :: ControllerContext) => Id RosterGroup -> Int -> Set.Set LiveResource -> [RosterProjectionFragment] -> [RosterProjectionFragment]
+rosterActorFragmentsForTouchedResources rosterGroupId weekOffset touchedResources =
+    typedLiveSurfaceAffectedFragments
+        rosterLiveSurfaceDefinition
+        (buildRosterProjectionScope rosterGroupId weekOffset)
+        touchedResources
 
 respondWithRosterActorRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
 respondWithRosterActorRefresh rosterGroupId weekOffset fragments =

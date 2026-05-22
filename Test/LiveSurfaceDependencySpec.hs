@@ -1,7 +1,7 @@
 module Test.LiveSurfaceDependencySpec where
 
 import Application.Helper.LiveResource
-import Application.Helper.LiveSurface (TypedLiveSurfaceDefinition (..))
+import Application.Helper.LiveSurface (TypedLiveSurfaceDefinition (..), typedLiveSurfaceAffectedFragments)
 import qualified Data.Set as Set
 import Data.UUID (fromWords)
 import IHP.Controller.Context (ControllerContext)
@@ -42,6 +42,17 @@ tests = do
                 `shouldBe` [TimesheetWeekResource venueId 2]
             typedSurfaceDependsOn definition request (TimesheetProjectionDaySection 4)
                 `shouldBe` [TimesheetWeekResource venueId 2, TimesheetDayResource venueId 2 4]
+
+        it "selects affected fragments from typed dependencies" do
+            let venueId = fromWords 1 0 0 0
+            let definition = timesheetLiveSurfaceDefinitionForVenue venueId
+            let request = TimesheetProjectionRequest 2 True True Nothing
+            let candidates = [TimesheetProjectionPage, TimesheetProjectionDaySection 4, TimesheetProjectionDaySection 5]
+
+            typedLiveSurfaceAffectedFragments definition request (Set.fromList [TimesheetDayResource venueId 2 4]) candidates
+                `shouldBe` [TimesheetProjectionDaySection 4]
+            typedLiveSurfaceAffectedFragments definition request (Set.fromList [TimesheetWeekResource venueId 2]) candidates
+                `shouldBe` candidates
 
         it "declares support dependencies by support fragment" do
             typedSurfaceDependsOn supportLiveSurfaceDefinition () SupportAwardRatesLiveFragment

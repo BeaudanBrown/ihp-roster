@@ -11,6 +11,7 @@ import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveSurface (SurfaceScope (..),
                                        TypedLiveSurfaceDefinition (..),
                                        authorizeTypedLiveSurfaceWireScope,
+                                       typedLiveSurfaceAffectedFragments,
                                        typedLiveSurfaceFragmentRefs,
                                        unSurfaceFragmentRefs)
 import Application.Helper.LiveUpdate (LiveUpdateBroadcastResult,
@@ -168,8 +169,10 @@ registeredTypedLiveSurface definition candidateFragments =
             then Nothing
             else do
                 let affectedFragments =
-                        filter
-                            (\fragment -> fragmentDependsOnAny resources (definition.typedSurfaceDependsOn surfaceKey fragment))
+                        typedLiveSurfaceAffectedFragments
+                            definition
+                            surfaceKey
+                            resources
                             (candidateFragments definition surfaceKey)
                 if null affectedFragments
                     then Nothing
@@ -179,10 +182,6 @@ registeredTypedLiveSurface definition candidateFragments =
                                 { targetScope = wireScope
                                 , targetFragments = unSurfaceFragmentRefs (typedLiveSurfaceFragmentRefs definition surfaceKey affectedFragments)
                                 }
-
-fragmentDependsOnAny :: Set.Set LiveResource -> [LiveResource] -> Bool
-fragmentDependsOnAny touched dependencies =
-    not (Set.null (Set.intersection touched (Set.fromList dependencies)))
 
 profileContentCandidateFragments ::
     TypedLiveSurfaceDefinition surface scope ProfileContentFragment ->

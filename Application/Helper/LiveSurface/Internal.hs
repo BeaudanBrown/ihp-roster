@@ -25,6 +25,7 @@ module Application.Helper.LiveSurface.Internal
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
     , surfaceFragmentRefWithProtection
+    , typedLiveSurfaceAffectedFragments
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
     , unSurfaceFragmentRefs
@@ -44,6 +45,7 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Lazy as LBS
 import Data.Coerce (coerce)
 import qualified Data.Dynamic as Dynamic
+import qualified Data.Set as Set
 import qualified Data.Text.Encoding as Text
 import qualified Data.UUID as UUID
 import Generated.Types
@@ -164,6 +166,13 @@ typedLiveSurfaceFragmentRef definition surfaceKey fragment =
 typedLiveSurfaceFragmentRefs :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> [fragment] -> [SurfaceFragmentRef surface]
 typedLiveSurfaceFragmentRefs definition surfaceKey =
     map (typedLiveSurfaceFragmentRef definition surfaceKey)
+
+typedLiveSurfaceAffectedFragments :: TypedLiveSurfaceDefinition surface scope fragment -> scope -> Set.Set LiveResource -> [fragment] -> [fragment]
+typedLiveSurfaceAffectedFragments definition surfaceKey touchedResources candidates =
+    filter dependsOnTouchedResource candidates
+    where
+        dependsOnTouchedResource fragment =
+            not (Set.null (Set.intersection touchedResources (Set.fromList (definition.typedSurfaceDependsOn surfaceKey fragment))))
 
 unSurfaceFragmentRefs :: [SurfaceFragmentRef surface] -> [LiveUpdateWireFragment]
 unSurfaceFragmentRefs =

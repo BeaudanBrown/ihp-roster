@@ -24,6 +24,7 @@ module Application.Helper.LiveSurface
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
     , surfaceFragmentRefWithProtection
+    , typedLiveSurfaceAffectedFragments
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
     , unSurfaceFragmentRefs
@@ -57,6 +58,7 @@ import Application.Helper.LiveSurface.Internal
     , surfaceFragmentRefWithDeferUntilBlur
     , surfaceFragmentRefWithFocusedProtection
     , surfaceFragmentRefWithProtection
+    , typedLiveSurfaceAffectedFragments
     , typedLiveSurfaceFragmentRef
     , typedLiveSurfaceFragmentRefs
     , unSurfaceFragmentRefs
