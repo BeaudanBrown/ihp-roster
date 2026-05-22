@@ -43,10 +43,19 @@ A surface owns:
 - request-decoration selectors
 - optional focused-field protection policies
 - semantic `LiveResource` dependencies for each rendered fragment
+- server-side fragment containment paths used to avoid overlapping DOM swaps
 
-`typedSurfaceDependsOn` declares the semantic resources a fragment reads. The
-registry planner matches touched/expanded resources against these declarations
-to decide which subscribed scope fragments receive passive invalidations.
+`LiveResource` declares what business data changed. `typedSurfaceDependsOn`
+declares which fragments read those resources. The registry planner matches
+changed/expanded resources against these declarations to decide which subscribed
+scope fragments are stale. Fragment containment paths then normalize the selected
+refs before transport: exact duplicates collapse, a child ref is dropped when an
+ancestor ref is present, and sibling refs are preserved.
+
+Containment metadata is server-only. It complements, but does not replace,
+`LiveResource`: resources describe data semantics; containment paths describe DOM
+ownership among already-selected fragments; structural fragment refs still
+describe how the browser refetches and swaps HTML.
 
 The wire-fragment transport boundary is internal to `Application.Helper.LiveUpdate.Internal`
 and `Application.Helper.LiveSurface.Internal`. Feature modules should keep
@@ -68,6 +77,10 @@ enforces this across `Web/` and feature `Application/` modules.
 
 - Clients refetch only mounted invalidated fragments.
 - Same-scope surface declarations should merge rather than clobber each other.
+- Fragment renderers should return exactly the DOM target owned by the fragment,
+  not sibling live fragments. If a broad parent and a child are both selected,
+  the typed surface should rely on containment normalization instead of emitting
+  overlapping swaps.
 - Focused-field protection is policy-driven. Do not hard-code feature selectors
   in the shared runtime.
 - Reconnect/version gaps should trigger configured resync fragments.
@@ -201,7 +214,9 @@ Interpret results by separating layers:
   resource dependencies, websocket lifetime, and transport fanout
 - missing own invalidations after failed mutations are downstream symptoms, not
   proof that the live bus lost a message
-- high fragment counts indicate a surface dependency may be too broad
+- high fragment counts indicate a surface dependency may be too broad, or that
+  sibling fragments could safely be decomposed while parent/child overlaps remain
+  normalized at the typed-surface boundary
 
 Recommended local commands:
 

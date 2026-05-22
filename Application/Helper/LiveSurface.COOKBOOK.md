@@ -12,6 +12,9 @@ URLs, authorization, and protection policy.
   timesheet week. A scope is not a page name.
 - **Fragment**: a feature-local enum value that maps to one refreshable DOM
   target and one GET URL.
+- **Containment path**: server-only metadata that describes DOM ownership among
+  selected fragments. Parent/child overlaps collapse to the parent; siblings are
+  preserved.
 - **Wire fragment**: the self-describing transport payload derived from a typed
   fragment. Feature code should not construct it directly.
 - **Actor response**: the immediate HTMX response for the browser that made the
@@ -27,24 +30,28 @@ URLs, authorization, and protection policy.
    `RosterProjectionRow` or `TimesheetProjectionDaySection`.
 2. Map that constructor in the feature's `TypedLiveSurfaceDefinition` with a
    stable `targetId` and canonical fragment GET URL.
-3. Add or reuse a fragment GET action that renders the exact DOM node named by
-   the `targetId`.
-4. Authorize the GET action with `ensureTypedLiveSurfaceAuthorized` and the same
+3. If the fragment target is nested inside another live fragment target, declare
+   a containment path with `surfaceFragmentRefWithPath`; otherwise the default
+   path is the target id.
+4. Add or reuse a fragment GET action that renders the exact DOM node named by
+   the `targetId` and no sibling live-fragment targets.
+5. Authorize the GET action with `ensureTypedLiveSurfaceAuthorized` and the same
    typed surface definition that created the fragment ref.
-5. Render `data-live-update-surface={liveSurfaceConfigJson surface}` on a
+6. Render `data-live-update-surface={liveSurfaceConfigJson surface}` on a
    stable owner shell, where `surface` comes from `mkTypedDefinedLiveSurface`.
-6. Add `typedSurfaceDependsOn` entries that describe the semantic
+7. Add `typedSurfaceDependsOn` entries that describe the semantic
    `LiveResource` values read by each fragment.
-7. Register the surface in `Web.LiveSurfaceRegistry` so touched resources can be
+8. Register the surface in `Web.LiveSurfaceRegistry` so touched resources can be
    matched to subscribed scopes and fragments.
-8. Make the business mutation return touched resources and call
+9. Make the business mutation return touched resources and call
    `invalidateTouchedResources` or `invalidateTouchedResourcesWithoutContext`
    after the write commits.
-9. For HTMX actors, set requester-local refresh triggers with
+10. For HTMX actors, set requester-local refresh triggers with
    `setTypedLiveSurfaceActorRefresh` only when the actor response needs an extra
    client refetch.
-10. Add contract coverage for the surface config, dependencies, fragment target,
-   fragment URL, default resync fragments, and fragment GET target.
+11. Add contract coverage for the surface config, dependencies, fragment target,
+   fragment URL, containment behavior, default resync fragments, and fragment GET
+   target.
 
 ## Safety Rules
 
@@ -54,8 +61,9 @@ URLs, authorization, and protection policy.
   protection policies from compact fragment keys.
 - Do not add feature-specific JavaScript for generic subscribe, reconnect,
   resync, refetch, dedupe, swap, or focused-field protection behavior.
-- Prefer broad but safe fragments over stale DOM. Let the registry/live
-  transport coalesce duplicate fragment targets during invalidation planning.
+- Prefer broad but safe fragments over stale DOM. Let typed-surface containment
+  normalization remove duplicate and parent/child refs during actor and passive
+  invalidation planning.
 - Use active-scope discovery for indirect fanout mutations so closed historical
   pages do not force unnecessary database work.
 - Do not add feature-level passive broadcast or refresh helpers. Passive viewer
@@ -67,7 +75,9 @@ URLs, authorization, and protection policy.
 - The typed surface definition is registered in `Web.LiveSurfaceRegistry` when
   websocket authorization needs it.
 - The rendered shell has stable `data-live-update-surface` metadata.
-- The fragment GET action returns plain target HTML, not actor-only OOB wrappers.
+- The fragment GET action returns plain target HTML, not actor-only OOB wrappers
+  or sibling live-fragment targets.
 - The actor path refreshes only the requester; passive updates are derived from
   touched resources and `typedSurfaceDependsOn`.
-- Tests cover the typed mapping and the fragment endpoint authorization.
+- Tests cover the typed mapping, containment behavior, and the fragment endpoint
+  authorization.

@@ -93,6 +93,14 @@ lands.
   page.
 - Roster live fragments refresh immediately; discrete autosaved controls should
   commit on change instead of relying on blur-deferred protection.
+- `#roster-content` owns only the main roster column, header, and grid. It does
+  not render `#roster-staff-panel-fragment`.
+- `#roster-staff-panel-fragment` is a sibling side-panel fragment. Broad roster
+  week refreshes may request content and staff panel together because their
+  containment paths are siblings.
+- Day and row fragments remain descendants of `#roster-content`; when a parent
+  content refresh is selected, actor/passive planning drops overlapping day or
+  row refs.
 
 ## Extension Rules
 
