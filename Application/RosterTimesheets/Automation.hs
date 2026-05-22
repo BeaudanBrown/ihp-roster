@@ -4,7 +4,8 @@
 {-# LANGUAGE TypeApplications    #-}
 
 module Application.RosterTimesheets.Automation
-    ( enqueueRosterTimesheetCreationJobsForWeek
+    ( cancelPendingRosterTimesheetCreationJobsForWeek
+    , enqueueRosterTimesheetCreationJobsForWeek
     , performRosterTimesheetCreationJob
     , rosterSlotHasGeneratedTimesheet
     , rosterTimesheetCreationJobKind
@@ -17,7 +18,7 @@ import Application.Helper.Audit
 import Application.Helper.Controller (shiftDurationMinutes, unsafeEnumFromText,
                                       venueWeekOffsetForDay, venueWeekStartDate)
 import Application.Helper.LiveResource
-import Control.Monad (guard, void)
+import Control.Monad (forM, guard, void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import Data.Time.Calendar (Day, addDays, diffDays)
@@ -36,6 +37,43 @@ rosterTimesheetCreationJobKind = "roster_timesheet_creation"
 rosterTimesheetDedupeKey :: Id RosterSlot -> Text
 rosterTimesheetDedupeKey rosterSlotId =
     "roster-timesheet-creation:" <> tshow rosterSlotId
+
+rosterTimesheetCancellationResult :: Aeson.Value
+rosterTimesheetCancellationResult =
+    Aeson.object
+        [ "status" Aeson..= ("cancelled" :: Text)
+        , "reason" Aeson..= ("roster_week_moved_to_draft" :: Text)
+        ]
+
+cancelPendingRosterTimesheetCreationJobsForWeek ::
+    (?modelContext :: ModelContext) =>
+    RosterWeek ->
+    IO Int
+cancelPendingRosterTimesheetCreationJobsForWeek rosterWeek = do
+    rosterDays <- query @RosterDay
+        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        |> fetch
+    rosterSlots <- fmap concat $
+        forM rosterDays \rosterDay ->
+            query @RosterSlot
+                |> filterWhere (#rosterDayId, unpackId rosterDay.id)
+                |> fetch
+    if null rosterSlots
+        then pure 0
+        else do
+            jobs <- query @AppJob
+                |> filterWhere (#jobKind, rosterTimesheetCreationJobKind)
+                |> filterWhere (#relatedTable, Just "roster_slots")
+                |> filterWhereIn (#relatedId, map (Just . unpackId . (.id)) rosterSlots)
+                |> filterWhereIn (#status, [JobStatusNotStarted, JobStatusRetry])
+                |> fetch
+            forM_ jobs \job ->
+                void $
+                    job
+                        |> set #status JobStatusSucceeded
+                        |> set #result rosterTimesheetCancellationResult
+                        |> updateRecord
+            pure (length jobs)
 
 enqueueRosterTimesheetCreationJobsForWeek ::
     (?modelContext :: ModelContext) =>

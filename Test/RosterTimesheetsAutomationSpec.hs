@@ -1,6 +1,6 @@
 module Test.RosterTimesheetsAutomationSpec where
 
-import Application.Async.Queue (EnqueueAppJobResult (..))
+import Application.Async.Queue (AppJobRequest (..), EnqueueAppJobResult (..), enqueueAppJob)
 import Application.Helper.Controller (venueWeekStartDate)
 import Application.RosterTimesheets.Automation
 import qualified Data.Aeson as Aeson
@@ -101,6 +101,25 @@ tests = beforeAll testContext do
                 assertJobSkipped job "venue_opt_in_disabled"
                 query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
 
+        it "cancels pending and retry jobs for a roster week without touching terminal or running jobs" $ withContext do
+            withCleanDb do
+                (venue, _manager, rosterWeek, _rosterDay, slot, _shiftType) <- createCompleteLiveRosterSlotFixture
+                notStartedJob <- createRosterTimesheetJobForSlot venue slot JobStatusNotStarted
+                retryJob <- createRosterTimesheetJobForSlot venue slot JobStatusRetry
+                runningJob <- createRosterTimesheetJobForSlot venue slot JobStatusRunning
+                succeededJob <- createRosterTimesheetJobForSlot venue slot JobStatusSucceeded
+                failedJob <- createRosterTimesheetJobForSlot venue slot JobStatusFailed
+
+                cancelledCount <- cancelPendingRosterTimesheetCreationJobsForWeek rosterWeek
+
+                cancelledCount `shouldBe` 2
+                assertJobCancelled notStartedJob
+                assertJobCancelled retryJob
+                assertJobStatusAndResult runningJob JobStatusRunning (Aeson.object [])
+                assertJobStatusAndResult succeededJob JobStatusSucceeded (Aeson.object [])
+                assertJobStatusAndResult failedJob JobStatusFailed (Aeson.object [])
+                query @TimesheetEntry |> fetchCount >>= (`shouldBe` 0)
+
         it "skips a queued job when the roster week is moved back to draft before execution" $ withContext do
             withCleanDb do
                 (venue, manager, rosterWeek, _rosterDay, _slot, _shiftType) <- createCompleteLiveRosterSlotFixture
@@ -151,11 +170,47 @@ tests = beforeAll testContext do
 
                 runAt `shouldBe` UTCTime (fromGregorian 2026 6 9) (secondsToDiffTime (4 * 60 * 60))
 
+assertJobCancelled :: (?modelContext :: ModelContext) => AppJob -> IO ()
+assertJobCancelled job =
+    assertJobStatusAndResult
+        job
+        JobStatusSucceeded
+        (Aeson.object
+            [ "status" Aeson..= ("cancelled" :: Text)
+            , "reason" Aeson..= ("roster_week_moved_to_draft" :: Text)
+            ]
+        )
+
 assertJobSkipped :: (?modelContext :: ModelContext) => AppJob -> Text -> IO ()
 assertJobSkipped job reason = do
     updatedJob <- fetch job.id
     updatedJob.status `shouldBe` JobStatusSucceeded
     updatedJob.result `shouldBe` Aeson.object ["status" Aeson..= ("skipped" :: Text), "reason" Aeson..= reason]
+
+assertJobStatusAndResult :: (?modelContext :: ModelContext) => AppJob -> JobStatus -> Aeson.Value -> IO ()
+assertJobStatusAndResult job expectedStatus expectedResult = do
+    updatedJob <- fetch job.id
+    updatedJob.status `shouldBe` expectedStatus
+    updatedJob.result `shouldBe` expectedResult
+
+createRosterTimesheetJobForSlot :: (?modelContext :: ModelContext) => Venue -> RosterSlot -> JobStatus -> IO AppJob
+createRosterTimesheetJobForSlot venue rosterSlot status = do
+    result <- enqueueAppJob
+        AppJobRequest
+            { jobKind = rosterTimesheetCreationJobKind
+            , payload = Aeson.object []
+            , payloadSchemaVersion = 1
+            , requestedByUserId = Nothing
+            , venueId = Just (unpackId venue.id)
+            , relatedTable = Just "roster_slots"
+            , relatedId = Just (unpackId rosterSlot.id)
+            , dedupeKey = Nothing
+            , runAt = Nothing
+            }
+    job <- case result of
+        EnqueuedAppJob appJob -> pure appJob
+        ExistingActiveAppJob _ -> error "Unexpected duplicate roster timesheet job"
+    updateRecord (job |> set #status status)
 
 createCompleteLiveRosterSlotFixture ::
     (?modelContext :: ModelContext) =>

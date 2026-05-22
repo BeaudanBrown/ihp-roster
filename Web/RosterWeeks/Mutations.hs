@@ -18,7 +18,8 @@ module Web.RosterWeeks.Mutations
     ) where
 
 import Application.Helper.LiveResource
-import Application.RosterTimesheets.Automation (enqueueRosterTimesheetCreationJobsForWeek,
+import Application.RosterTimesheets.Automation (cancelPendingRosterTimesheetCreationJobsForWeek,
+                                                enqueueRosterTimesheetCreationJobsForWeek,
                                                 rosterSlotHasGeneratedTimesheet)
 import Data.Coerce (coerce)
 import Data.Time (getCurrentTime)
@@ -61,7 +62,9 @@ toggleRosterWeekLiveStatusMutation rosterGroupId rosterWeek nextLiveStatus = do
     queuedTimesheetJobs <-
         if nextLiveStatus
             then enqueueRosterTimesheetCreationJobsForWeek (Just currentUser.id) updatedRosterWeek
-            else pure []
+            else do
+                _cancelledJobCount <- cancelPendingRosterTimesheetCreationJobsForWeek updatedRosterWeek
+                pure []
     invalidateTouchedResources "roster.week.live_status" (liveMutationResult (updatedRosterWeek, length queuedTimesheetJobs) (rosterWeekTouchedResources rosterGroupId rosterWeek.weekOffset))
 
 appendRosterWeekSlotDefinitionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Text -> IO (LiveMutationResult RosterWeekSlotDefinition)
