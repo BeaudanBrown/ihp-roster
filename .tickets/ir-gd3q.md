@@ -27,3 +27,7 @@ Moving a live roster week back to draft cancels pending/retry roster-timesheet j
 **2026-05-22T02:40:06Z**
 
 HANDOFF from ir-qcsm: Cancellation helper now exists and is wired into roster week live-to-draft mutation; ir-i3tv can focus on controller/state-transition coverage including republish recalculated jobs, while ir-jh3g can document result {status: cancelled, reason: roster_week_moved_to_draft}.
+
+**2026-05-22T02:49:03Z**
+
+HANDOFF from ir-jh3g: Final child ticket closed after documenting roster-timesheet draft-rollback cancellation semantics in roster and timesheet living specs. Epic acceptance appears covered by implementation, focused Hspec from sibling tickets, and docs; doc-drift-check currently fails on unrelated AGENTS.md navigation text mismatch.

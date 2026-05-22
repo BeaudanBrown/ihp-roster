@@ -1,6 +1,6 @@
 ---
 id: ir-jh3g
-status: open
+status: closed
 deps: [ir-qcsm]
 links: []
 created: 2026-05-22T01:41:01Z
@@ -22,3 +22,9 @@ Update the living roster/timesheet specs to state that pending/retry roster-to-t
 
 Web/RosterWeeks/SPEC.md and/or Web/Timesheets/SPEC.md describe the cancellation and race-safety contract without implying a generic app-job cancellation feature.
 
+
+## Notes
+
+**2026-05-22T02:48:59Z**
+
+HANDOFF: Documented roster-timesheet cancellation semantics in Web/RosterWeeks/SPEC.md and Web/Timesheets/SPEC.md, including pending/retry cancellation result, running-job safety checks, republish behavior, and generated-timesheet authority; verification: bash ./bin/in-env ./bin/doc-drift-check failed on pre-existing AGENTS.md nav text mismatch (expects leave vs current unavailability wording); remaining risk: doc-drift gate still needs separate cleanup.

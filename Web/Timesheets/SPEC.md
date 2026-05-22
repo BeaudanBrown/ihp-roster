@@ -34,11 +34,25 @@ lands.
 - Date moves must refresh both old and new day/week fragments when both can be
   mounted.
 
+## Roster Automation
+
+- Roster-to-timesheet automation is venue opt-in and job-backed through
+  `roster_timesheet_creation`; it is not a generic app-job cancellation feature
+  or a normal form shortcut.
+- A live-to-draft roster rollback cancels only not-started and retry
+  roster-timesheet creation jobs for slots in that week, recording result
+  `{status: "cancelled", reason: "roster_week_moved_to_draft"}`.
+- Running roster-timesheet jobs are not force-cancelled during rollback. They
+  must re-check venue opt-in, live roster-week state, slot deletion, slot
+  completeness, and existing generated timesheets when they execute.
+- Republishing a draft-edited roster week queues new jobs from the current
+  complete roster slot state with recalculated run times.
+- Generated timesheet entries are authoritative timesheet records. Later roster
+  draft rollbacks, edits, or republishing do not mutate or delete them; users
+  must edit the timesheet entry directly when corrections are needed.
+
 ## Extension Rules
 
-- Roster-to-timesheet automation is not a normal form shortcut. Treat it as an
-  async/job-backed feature with idempotency, auditability, and explicit venue
-  opt-in.
 - Xero submission must use approved, locked timesheet facts; do not introduce a
   parallel payroll calculation path.
 - Keep detailed payroll correctness in Hspec/golden tests, not only browser

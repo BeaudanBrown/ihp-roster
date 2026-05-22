@@ -21,6 +21,15 @@ lands.
 - Publishing a roster is the visibility gate for staff-facing roster content.
 - Publishing requires every staffed shift to have a start time and shift type;
   venues with end times enabled must also provide an end time.
+- Publishing an auto-timesheet-enabled roster queues `roster_timesheet_creation`
+  app jobs for complete slots using the slot state and calculated run time at
+  the moment of publishing.
+- Moving a live roster week back to draft cancels that week's not-started and
+  retry `roster_timesheet_creation` jobs by marking them succeeded with result
+  `{status: "cancelled", reason: "roster_week_moved_to_draft"}`. Running jobs
+  are not force-cancelled; they rely on their execution-time live-week checks.
+- Republishing after draft edits creates fresh roster-timesheet jobs from the
+  current complete slot state and recalculated run times.
 - Roster forms must submit full cell payloads so single-field edits do not
   clear sibling slot fields.
 
