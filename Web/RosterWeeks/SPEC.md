@@ -15,6 +15,9 @@ lands.
 - Staff users cannot edit unpublished roster weeks.
 - Managers, venue admins, venue owners, and support-mode super admins can use
   manager/admin roster controls according to the controller capability checks.
+- Admin-and-up users see compact predicted wage totals in roster chrome: the
+  week total in the toolbar and per-day totals in day labels or day-column
+  headers. Managers and staff do not receive predicted wage markup.
 - Publishing a roster is the visibility gate for staff-facing roster content.
 - Publishing requires every staffed shift to have a start time and shift type;
   venues with end times enabled must also provide an end time.

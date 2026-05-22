@@ -31,3 +31,11 @@ HANDOFF from ir-ie9a: Header now accepts Maybe RosterWagePrediction; day render 
 **2026-05-22T01:55:04Z**
 
 HANDOFF from ir-3d73: Compact predicted wage markup is now in toolbar/day headers using roster-wage-summary and roster-day-wage-total; old full-width panel renderer is removed, while detailed styling/regression coverage remains for ir-xkjl.
+
+**2026-05-22T02:01:37Z**
+
+HANDOFF from ir-xkjl: Predicted wage chrome now has focused toolbar/day-label styling, obsolete full-width panel CSS is removed, roster Hspec covers admin/non-admin row and day-column markup, and Web/RosterWeeks/SPEC.md documents the admin-only chrome contract.
+
+**2026-05-22T02:01:47Z**
+
+CLOSEOUT CHECK: All descendants are closed. Epic acceptance verified by focused Hspec covering admin-only toolbar/day totals, excluded draft warning, manager markup absence, and day-column rendering; typecheck passes; screenshots for day_rows/day_columns show compact chrome without obvious crowding. Supervisor can validate and close the epic.

@@ -553,7 +553,10 @@ tests = beforeAll testContext do
                 adminResponse `responseBodyShouldContain` "$150.00"
                 adminResponse `responseBodyShouldContain` "1 draft shift excluded"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary"
+                adminResponse `responseBodyShouldContain` "roster-wage-summary-total"
+                adminResponse `responseBodyShouldContain` "roster-wage-summary-warning"
                 adminResponse `responseBodyShouldContain` "roster-day-wage-total"
+                adminResponse `responseBodyShouldContain` "aria-label=\"Predicted wages for day\""
                 adminResponse `responseBodyShouldNotContain` "Admin estimate only"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
@@ -566,7 +569,9 @@ tests = beforeAll testContext do
                 dayColumnsResponse `responseStatusShouldBe` status200
                 dayColumnsResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
                 dayColumnsResponse `responseBodyShouldContain` "Predicted wages:"
+                dayColumnsResponse `responseBodyShouldContain` "roster-wage-summary-total"
                 dayColumnsResponse `responseBodyShouldContain` "roster-day-wage-total"
+                dayColumnsResponse `responseBodyShouldContain` "aria-label=\"Predicted wages for day\""
                 dayColumnsResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
                 managerResponse <- withUserAndCurrentVenue manager venue.id do
@@ -575,7 +580,9 @@ tests = beforeAll testContext do
                 managerResponse `responseStatusShouldBe` status200
                 managerResponse `responseBodyShouldNotContain` "Predicted wages"
                 managerResponse `responseBodyShouldNotContain` "roster-wage-summary"
+                managerResponse `responseBodyShouldNotContain` "roster-wage-summary-total"
                 managerResponse `responseBodyShouldNotContain` "roster-day-wage-total"
+                managerResponse `responseBodyShouldNotContain` "aria-label=\"Predicted wages for day\""
                 managerResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
         it "manager can toggle a draft week live" $ withContext do
