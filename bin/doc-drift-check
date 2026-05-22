@@ -20,11 +20,17 @@ reject_text() {
     fi
 }
 
-nav_order='`roster`, `profile`, `timesheets`, `leave`, `xero`, `admin`, `support`, `logout`'
+nav_labels=(roster profile timesheets unavailability xero admin support logout)
 
-require_text AGENTS.md "$nav_order"
-require_text Web/View/AGENTS.md "$nav_order"
+for label in "${nav_labels[@]}"; do
+    require_text AGENTS.md "\`$label\`"
+    require_text Web/View/AGENTS.md "\`$label\`"
+done
+require_text Web/View/Layout.hs 'renderDesktopNavLink "unavailability"'
 require_text Web/View/Layout.hs 'renderWhenAudience XeroAudience (renderDesktopNavLink "xero"'
+
+require_text AGENTS.md 'static/app-*.js'
+require_text AGENTS.md 'static/AGENTS.md'
 
 for script in \
     app-bootstrap.js \
@@ -39,7 +45,6 @@ for script in \
     app-preferences.js \
     app.js
 do
-    require_text AGENTS.md "static/$script"
     require_text Web/View/Layout.hs "assetPath \"/$script\""
 done
 
