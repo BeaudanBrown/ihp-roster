@@ -428,6 +428,17 @@ instance Controller RosterWeeksController where
                         setSuccessMessage "Roster layout preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
+    action UpdateRosterWageEstimatePreferenceAction { weekOffset } = do
+        accessDeniedUnless (hasRole VenueAdminRole)
+        rosterGroup <- resolveRequestedRosterGroup
+        let showWageEstimates = paramOrDefault @Text "false" "showWageEstimates" == "true"
+        _ <- upsertCurrentUserShowWageEstimates showWageEstimates
+        if isHtmxRequest
+            then respondWithRosterContent rosterGroup.id weekOffset
+            else do
+                setSuccessMessage "Roster wage estimate preference saved."
+                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+
     action CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = do
         ensureManagerRole
         ensureVenueWritable
@@ -706,7 +717,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
     passkeySetupPrompt <- passkeySetupPromptFromSession
 
     case rosterDataOrNothing of
-        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } ->
+        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates } ->
             let visibleRosterWeek =
                     if rosterWeek.isLive || hasRole ManagerRole'
                         then Just rosterWeek
@@ -735,6 +746,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
                         , rosterLayoutMode
                         , rosterEndTimesEnabled
                         , rosterWagePrediction
+                        , showWageEstimates
                         , passkeySetupPrompt
                         }
         Nothing ->

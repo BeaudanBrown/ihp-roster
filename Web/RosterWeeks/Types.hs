@@ -47,6 +47,7 @@ data ShowView = ShowView
     , rosterLayoutMode         :: RosterLayoutModeEnum
     , rosterEndTimesEnabled    :: Bool
     , rosterWagePrediction     :: Maybe RosterWagePrediction
+    , showWageEstimates        :: Bool
     , shiftTypes               :: [ShiftType]
     , passkeySetupPrompt       :: Maybe PasskeySetupPromptMode
     }
@@ -58,6 +59,7 @@ data RosterViewCapabilities = RosterViewCapabilities
     , canManageAssignmentFilter :: Bool
     , canManageRosterColumns    :: Bool
     , canViewLeaveMetrics       :: Bool
+    , canViewWageEstimates      :: Bool
     }
 
 data RosterRenderIndexes = RosterRenderIndexes
@@ -127,6 +129,7 @@ data RosterRenderData = RosterRenderData
     , rosterLayoutMode      :: RosterLayoutModeEnum
     , rosterEndTimesEnabled :: Bool
     , rosterWagePrediction  :: Maybe RosterWagePrediction
+    , showWageEstimates     :: Bool
 }
 
 data RosterGridRenderModel = RosterGridRenderModel
@@ -150,6 +153,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridRosterLayoutMode         :: RosterLayoutModeEnum
     , gridRosterEndTimesEnabled    :: Bool
     , gridRosterWagePrediction     :: Maybe RosterWagePrediction
+    , gridShowWageEstimates        :: Bool
     }
 
 data RosterDayRenderModel = RosterDayRenderModel
@@ -166,6 +170,7 @@ data RosterDayRenderModel = RosterDayRenderModel
     , dayRosterLayoutMode      :: RosterLayoutModeEnum
     , dayRosterEndTimesEnabled :: Bool
     , dayRosterWagePrediction  :: Maybe RosterWagePrediction
+    , dayShowWageEstimates     :: Bool
     }
 
 data RosterRowRenderModel = RosterRowRenderModel

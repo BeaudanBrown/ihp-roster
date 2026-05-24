@@ -123,7 +123,8 @@ mkRosterProjectionDefinition =
         do
             filters <- fetchRosterAssignmentFilters
             layoutMode <- fetchCurrentRosterLayoutMode
-            pure (tshow currentUser.id <> ":" <> encodeRosterAssignmentFilters filters <> ":" <> rosterLayoutModeValue layoutMode)
+            showWageEstimates <- fetchCurrentUserShowWageEstimates
+            pure (tshow currentUser.id <> ":" <> encodeRosterAssignmentFilters filters <> ":" <> rosterLayoutModeValue layoutMode <> ":" <> (if showWageEstimates then "wages" else "no-wages"))
         rosterProjectionVersion
 
 rosterProjectionVersion :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterProjectionScope -> IO Int

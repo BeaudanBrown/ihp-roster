@@ -114,6 +114,7 @@ CREATE TABLE user_preferences (
     user_id UUID NOT NULL,
     roster_layout_mode roster_layout_mode_enum DEFAULT 'day_rows' NOT NULL,
     show_shift_type_highlights BOOLEAN DEFAULT TRUE NOT NULL,
+    show_wage_estimates BOOLEAN DEFAULT TRUE NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
     UNIQUE(user_id),

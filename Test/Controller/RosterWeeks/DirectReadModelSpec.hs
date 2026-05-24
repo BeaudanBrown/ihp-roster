@@ -260,10 +260,11 @@ data RosterRenderDataSnapshot = RosterRenderDataSnapshot
     , snapshotRosterLayoutMode        :: RosterLayoutModeEnum
     , snapshotRosterEndTimesEnabled   :: Bool
     , snapshotRosterWagePredictionSet :: Bool
+    , snapshotShowWageEstimates       :: Bool
     } deriving (Eq, Show)
 
 snapshotRosterRenderData :: RosterRenderData -> RosterRenderDataSnapshot
-snapshotRosterRenderData RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } =
+snapshotRosterRenderData RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates } =
     RosterRenderDataSnapshot
         { snapshotRosterWeekId = coerce rosterWeek.id
         , snapshotRosterWeekIsLive = rosterWeek.isLive
@@ -285,6 +286,7 @@ snapshotRosterRenderData RosterRenderData { rosterWeek, rosterDays, weekStartDat
         , snapshotRosterLayoutMode = rosterLayoutMode
         , snapshotRosterEndTimesEnabled = rosterEndTimesEnabled
         , snapshotRosterWagePredictionSet = isJust rosterWagePrediction
+        , snapshotShowWageEstimates = showWageEstimates
         }
 
 snapshotRosterDay :: RosterDay -> (UUID.UUID, Int, Bool)

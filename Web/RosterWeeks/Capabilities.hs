@@ -3,6 +3,7 @@ module Web.RosterWeeks.Capabilities
     ) where
 
 import Application.Helper.View (ViewAudience (ManagerAudience),
+                                currentUserIsAdmin,
                                 currentUserMatchesAudience)
 import Generated.Types
 import IHP.Controller.Context (ControllerContext)
@@ -20,4 +21,5 @@ buildRosterViewCapabilities maybeRosterWeek =
             , canManageAssignmentFilter = managerAudience
             , canManageRosterColumns = managerAudience && draftWeek
             , canViewLeaveMetrics = managerAudience
+            , canViewWageEstimates = currentUserIsAdmin
             }

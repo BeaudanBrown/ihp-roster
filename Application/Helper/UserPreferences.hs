@@ -5,11 +5,13 @@ module Application.Helper.UserPreferences
     , defaultRosterLayoutMode
     , fetchCurrentRosterLayoutMode
     , fetchCurrentUserRosterPreferences
+    , fetchCurrentUserShowWageEstimates
     , parseRosterLayoutMode
     , rosterLayoutModeLabel
     , rosterLayoutModeValue
     , rosterLayoutModes
     , upsertCurrentUserRosterLayoutMode
+    , upsertCurrentUserShowWageEstimates
     ) where
 
 import Application.Helper.Controller (enumFromText, unsafeEnumFromText)
@@ -17,13 +19,15 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 data UserRosterPreferences = UserRosterPreferences
-    { userRosterLayoutMode :: RosterLayoutModeEnum
+    { userRosterLayoutMode   :: RosterLayoutModeEnum
+    , userShowWageEstimates :: Bool
     }
 
 normaliseUserRosterPreferences :: Maybe UserPreference -> UserRosterPreferences
 normaliseUserRosterPreferences maybePreferences =
     UserRosterPreferences
         { userRosterLayoutMode = maybe defaultRosterLayoutMode (.rosterLayoutMode) maybePreferences
+        , userShowWageEstimates = maybe True (.showWageEstimates) maybePreferences
         }
 
 defaultRosterLayoutMode :: RosterLayoutModeEnum
@@ -59,6 +63,10 @@ fetchCurrentRosterLayoutMode :: (?context :: ControllerContext, ?modelContext ::
 fetchCurrentRosterLayoutMode =
     (.userRosterLayoutMode) <$> fetchCurrentUserRosterPreferences
 
+fetchCurrentUserShowWageEstimates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
+fetchCurrentUserShowWageEstimates =
+    (.userShowWageEstimates) <$> fetchCurrentUserRosterPreferences
+
 upsertCurrentUserRosterLayoutMode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     RosterLayoutModeEnum ->
@@ -74,4 +82,21 @@ upsertCurrentUserRosterLayoutMode layoutMode = do
             newRecord @UserPreference
                 |> set #userId (unpackId currentUser.id)
                 |> set #rosterLayoutMode layoutMode
+                |> createRecord
+
+upsertCurrentUserShowWageEstimates ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Bool ->
+    IO UserPreference
+upsertCurrentUserShowWageEstimates showWageEstimates = do
+    maybePreferences <- fetchCurrentUserPreferenceRecord
+    case maybePreferences of
+        Just preferences ->
+            preferences
+                |> set #showWageEstimates showWageEstimates
+                |> updateRecord
+        Nothing ->
+            newRecord @UserPreference
+                |> set #userId (unpackId currentUser.id)
+                |> set #showWageEstimates showWageEstimates
                 |> createRecord

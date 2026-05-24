@@ -10,14 +10,15 @@ import Application.Helper.UserPreferences (rosterLayoutModeLabel,
 import Data.Time.Calendar (Day)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterWeekShellId)
 import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
-                              rosterLayoutPreferenceUrl, rosterWeekUrl)
+                              rosterLayoutPreferenceUrl,
+                              rosterWageEstimatePreferenceUrl, rosterWeekUrl)
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
                               RosterViewCapabilities (..))
 import Web.View.Prelude
 import Web.View.RosterWeeks.Overview (renderWeekOverviewDropdown)
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Maybe RosterWagePrediction -> Html
-renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterWagePrediction = [hsx|
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Maybe RosterWagePrediction -> Bool -> Html
+renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterWagePrediction showWageEstimates = [hsx|
     <div class="app-panel-header app-surface-toolbar roster-grid-header">
         <div class="app-surface-toolbar-side roster-grid-header-side roster-grid-header-side-left">
             {renderLiveToggle maybeRosterWeek viewCapabilities}
@@ -29,7 +30,7 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
         </div>
         <div class="app-surface-toolbar-side app-surface-toolbar-side-right roster-grid-header-side roster-grid-header-side-right">
             {renderRosterWeekManagerControls weekOffset currentRosterGroup viewCapabilities}
-            {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode}
+            {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode showWageEstimates}
         </div>
     </div>
 |]
@@ -133,8 +134,8 @@ renderThisWeekButton =
             , partialNavigationPushUrl = True
             }
 
-renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> RosterViewCapabilities -> RosterLayoutModeEnum -> Html
-renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode =
+renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Html
+renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode showWageEstimates =
     let menuTriggerId = rosterWeekMoreMenuId maybeRosterWeek currentRosterGroup.id
         divider = [hsx|<div class="dropdown-divider my-1"></div>|]
      in [hsx|
@@ -154,6 +155,7 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
             </div>
             <div class="dropdown-divider my-1"></div>
             {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode}
+            {renderRosterWageEstimatePreferenceMenuSection weekOffset currentRosterGroup.id viewCapabilities showWageEstimates}
             {renderRosterColumnMenuSection maybeRosterWeek viewCapabilities}
             {renderRosterExportMenuSection viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
@@ -194,6 +196,33 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
                onchange="this.form.requestSubmit()" />
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
+
+renderRosterWageEstimatePreferenceMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Html
+renderRosterWageEstimatePreferenceMenuSection weekOffset rosterGroupId viewCapabilities showWageEstimates
+    | not viewCapabilities.canViewWageEstimates = mempty
+    | otherwise = [hsx|
+        <form class="px-1 pb-1"
+              method="POST"
+              action={rosterWageEstimatePreferenceUrl weekOffset rosterGroupId}
+              data-disable-javascript-submission="true"
+              hx-post={rosterWageEstimatePreferenceUrl weekOffset rosterGroupId}
+              hx-target={"#" <> rosterContentFragmentId}
+              hx-swap="outerHTML"
+              hx-push-url="false"
+              hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
+            <div class="form-check form-switch mb-0 px-1 roster-display-toggle">
+                <input type="checkbox"
+                       id="show-wage-estimates"
+                       name="showWageEstimates"
+                       value="true"
+                       class="form-check-input ms-0 me-2"
+                       checked={showWageEstimates}
+                       onchange="this.form.requestSubmit()" />
+                <label class="form-check-label small" for="show-wage-estimates">Show wage estimates</label>
+            </div>
+        </form>
+        <div class="dropdown-divider my-1"></div>
+|]
 
 renderRosterColumnMenuSection :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities -> Html
 renderRosterColumnMenuSection maybeRosterWeek viewCapabilities
