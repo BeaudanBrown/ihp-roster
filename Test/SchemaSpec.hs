@@ -298,6 +298,8 @@ tests = describe "Schema" do
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_timesheet_entries_source_roster_slot ON timesheet_entries (source_roster_slot_id) WHERE source_roster_slot_id IS NOT NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_roster_groups_one_active_default ON roster_groups (venue_id) WHERE is_default = TRUE AND is_active = TRUE AND archived_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "colour_key TEXT DEFAULT '' NOT NULL"
+        schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK (colour_key = '' OR colour_key = 'palette-1'"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CREATE UNIQUE INDEX idx_staff_shift_preferences_active_unique ON staff_shift_preferences (staff_id, weekday_index) WHERE deleted_at IS NULL;"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((preferred_start_hour >= 5) AND (preferred_start_hour <= 23))"
         schemaSqlText `shouldSatisfy` Text.isInfixOf "CHECK ((preferred_end_hour >= 5) AND (preferred_end_hour <= 23))"

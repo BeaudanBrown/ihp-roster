@@ -1,6 +1,7 @@
 module Application.Script.SeedDev where
 
 import Application.Helper.Controller (unsafeEnumFromText)
+import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Script.Prelude
 import Application.Support (defaultWeekEpoch)
 import Application.Support.DevFixtures (DevSeedFixture (..),
@@ -111,7 +112,13 @@ run = do
 
 shiftTypeSummary :: ShiftType -> Text
 shiftTypeSummary shiftType =
-    shiftType.name <> " (" <> shiftType.colourKey <> ")"
+    shiftType.name <> " (" <> displayShiftTypeColourKey shiftType.colourKey <> ")"
+
+displayShiftTypeColourKey :: Text -> Text
+displayShiftTypeColourKey colourKey
+    | colourKey == blankShiftTypeColourKey = "no colour"
+    | colourKey == "default" = "no colour"
+    | otherwise = colourKey
 
 data SeedDevOptions = SeedDevOptions
     { selectedScenario  :: !SeedScenarioName

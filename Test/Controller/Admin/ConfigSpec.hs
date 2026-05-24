@@ -5,7 +5,7 @@ import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
-import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
+import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Config
@@ -313,7 +313,7 @@ tests = beforeAll testContext do
                 createdShiftType.name `shouldBe` "Supervisor"
                 createdShiftType.overrideAwardLevelId `shouldBe` Nothing
                 createdShiftType.isActive `shouldBe` True
-                createdShiftType.colourKey `shouldBe` "palette-1"
+                createdShiftType.colourKey `shouldBe` blankShiftTypeColourKey
                 createdInvitation.venueId `shouldBe` unpackId venue.id
                 createdInvitation.invitedByUserId `shouldBe` Just (unpackId admin.id)
                 createdInvitation.acceptedAt `shouldBe` Nothing
@@ -322,31 +322,26 @@ tests = beforeAll testContext do
                 inputValue createdInvitation.deliveryStatus `shouldSatisfy` (`elem` ["queued", "sent", "failed"])
                 inviteExpiryDeltaSeconds `shouldSatisfy` (\seconds -> seconds > 86000 && seconds < 87000)
 
-        it "assigns first-available shift type colours and wraps when the palette is used" $ withContext do
+        it "defaults shift type colours to blank and renders a no-colour option" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Shift Colour Venue"
                 admin <- createUserRecord "admin-shift-colours@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
 
-                forM_ ([1 .. 11] :: [Int]) \index -> do
-                    response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                        callActionWithParams CreateShiftTypeAction
-                            [ ("name", cs ("Type " <> tshow index :: Text))
-                            , ("isActive", "true")
-                            , ("overrideAwardLevelId", "")
-                            ]
-                    response `responseStatusShouldBe` status302
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateShiftTypeAction
+                        [ ("name", "Unhighlighted Shift")
+                        , ("isActive", "true")
+                        , ("overrideAwardLevelId", "")
+                        ]
+                response `responseStatusShouldBe` status302
 
-                shiftTypes <-
-                    query @ShiftType
-                        |> filterWhere (#venueId, unpackId venue.id)
-                        |> orderByAsc #sortOrder
-                        |> fetch
-
-                map (.colourKey) shiftTypes `shouldBe` (shiftTypeColourPaletteKeys <> ["palette-1"])
+                createdShiftType <- query @ShiftType |> filterWhere (#name, "Unhighlighted Shift") |> fetchOne
+                createdShiftType.colourKey `shouldBe` blankShiftTypeColourKey
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction AdminAction
+                pageResponse `responseBodyShouldContain` "No colour"
                 pageResponse `responseBodyShouldNotContain` "Default overflow"
                 pageResponse `responseBodyShouldNotContain` "Default reusable"
                 pageResponse `responseBodyShouldNotContain` "(in use)"

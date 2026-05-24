@@ -7,7 +7,6 @@ module Web.RosterWeeks.Responses
     ) where
 
 import Application.Helper.Profiling (respondHtmlProfiled)
-import Application.Helper.UserPreferences (fetchCurrentShowShiftTypeHighlights)
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups)
 import Application.Helper.View (ToastOverlayConfig,
@@ -41,7 +40,6 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
             TextIO.putStrLn ("roster_projection_miss_oob: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
             respondHtmlProfiled [hsx|<div id="roster-content" hx-swap-oob="outerHTML"></div>|]
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } -> do
-            showShiftTypeHighlights <- fetchCurrentShowShiftTypeHighlights
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
             respondHtmlProfiled $
                     renderRosterContentFragmentOob
@@ -64,7 +62,6 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridRenderIndexes = renderIndexes
                             , gridViewCapabilities = viewCapabilities
                             , gridRosterLayoutMode = rosterLayoutMode
-                            , gridShowShiftTypeHighlights = showShiftTypeHighlights
                             , gridRosterEndTimesEnabled = rosterEndTimesEnabled
                             , gridRosterWagePrediction = rosterWagePrediction
                             }
@@ -82,7 +79,6 @@ respondWithRosterContentToast rosterGroupId weekOffset toast = do
     rosterGroups <- fetchCurrentVenueRosterGroups
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
     rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
-    showShiftTypeHighlights <- fetchCurrentShowShiftTypeHighlights
     respondHtmlProfiled $
         mconcat
             [ case rosterData of
@@ -109,7 +105,6 @@ respondWithRosterContentToast rosterGroupId weekOffset toast = do
                                 , gridRenderIndexes = renderIndexes
                                 , gridViewCapabilities = viewCapabilities
                                 , gridRosterLayoutMode = rosterLayoutMode
-                                , gridShowShiftTypeHighlights = showShiftTypeHighlights
                                 , gridRosterEndTimesEnabled = rosterEndTimesEnabled
                                 , gridRosterWagePrediction = rosterWagePrediction
                                 }

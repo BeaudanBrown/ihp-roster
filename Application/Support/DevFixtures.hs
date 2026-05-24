@@ -8,6 +8,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
                                         fetchActiveRosterGroupSlotNames,
                                         syncStaffRosterGroupAssignments)
+import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.StaffShiftPreferences (ShiftPreferenceSelection (..))
 import Application.Helper.VenueBootstrap (provisionVenueUser)
 import Application.Support
@@ -169,14 +170,14 @@ createSeedShiftTypeRecord venue actorUser effectiveFrom shiftTypeName sortOrder 
 
 seedExtraShiftTypeSpecs :: [(Text, Int, Text, Id AwardLevel)]
 seedExtraShiftTypeSpecs =
-    [ ("Bar", 30, "palette-3", seededFloorAwardLevelId)
-    , ("Gaming", 40, "palette-4", seededFloorAwardLevelId)
-    , ("Glassy", 50, "palette-5", seededFloorAwardLevelId)
-    , ("Cellar", 60, "palette-6", seededFloorAwardLevelId)
-    , ("Functions", 70, "palette-7", seededFloorAwardLevelId)
-    , ("Runner", 80, "palette-8", seededFloorAwardLevelId)
-    , ("Door", 90, "palette-9", seededKitchenAwardLevelId)
-    , ("Supervisor", 100, "palette-10", seededKitchenAwardLevelId)
+    [ ("Bar", 30, blankShiftTypeColourKey, seededFloorAwardLevelId)
+    , ("Gaming", 40, blankShiftTypeColourKey, seededFloorAwardLevelId)
+    , ("Glassy", 50, blankShiftTypeColourKey, seededFloorAwardLevelId)
+    , ("Cellar", 60, blankShiftTypeColourKey, seededFloorAwardLevelId)
+    , ("Functions", 70, blankShiftTypeColourKey, seededFloorAwardLevelId)
+    , ("Runner", 80, blankShiftTypeColourKey, seededFloorAwardLevelId)
+    , ("Door", 90, blankShiftTypeColourKey, seededKitchenAwardLevelId)
+    , ("Supervisor", 100, blankShiftTypeColourKey, seededKitchenAwardLevelId)
     ]
 
 seededFloorAwardLevelId :: Id AwardLevel

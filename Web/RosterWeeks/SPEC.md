@@ -52,19 +52,17 @@ lands.
 - Day-column draft/editable and live/read-only cards use the same compact shift
   type badge shape. Editable badges remain select controls; read-only badges do
   not present interactive affordance.
-- Shift type badges show the assigned shift type name with a small persisted
-  colour marker. Unassigned shifts show `Type`; staffed shifts without a shift
-  type show `Type required` with warning/dashed styling.
+- Shift type badges show the assigned shift type name. Shift types with a
+  palette colour key render a small persisted colour marker; blank colour keys
+  render without a colour highlight. Unassigned shifts show `Type`; staffed
+  shifts without a shift type show `Type required` with warning/dashed styling.
 - Slot names and shift types are venue configuration, not free-form authority.
-- Shift type colour keys are assigned automatically from ten distinct palette
-  keys (`palette-1` through `palette-10`) with `default` as a reusable fallback.
-  Active shift types within a venue should have unique non-default keys where a
-  palette key is available; inactive shift types use `default`, and reactivation
-  reassigns a colliding stored key to the first available palette key or
-  `default`.
-- Manual shift type colour configuration is intentionally out of scope for the
-  current admin screens; future colour editing should reuse the stored
-  `shift_types.colour_key` contract.
+- Shift type colour keys are optional reusable labels. Blank (`''`) means no
+  roster colour highlight; palette keys (`palette-1` through `palette-10`) opt a
+  shift type into highlighting. Multiple shift types may share the same palette
+  key.
+- Admin shift type configuration exposes the optional colour directly. New shift
+  types default to blank, so using colours is an opt-in highlighting workflow.
 
 ## Standard Grid Rules
 

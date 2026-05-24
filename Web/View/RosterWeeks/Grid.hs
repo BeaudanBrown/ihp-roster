@@ -12,6 +12,7 @@ module Web.View.RosterWeeks.Grid
     ) where
 
 import Application.Helper.RosterWagePrediction
+import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
 import Application.Helper.UserPreferences (rosterLayoutModeValue)
 import Application.Helper.View (staffDisplayName)
 import Data.Coerce (coerce)
@@ -72,7 +73,7 @@ renderRosterContent =
     renderRosterMainPanel
 
 renderRosterMainPanel :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridShowShiftTypeHighlights, gridRosterEndTimesEnabled, gridRosterWagePrediction } =
+renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction } =
     let dayModel =
             RosterDayRenderModel
                 { dayIsEditable = rosterWeekIsEditable gridRosterWeek
@@ -97,10 +98,9 @@ renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gr
                 else renderRosterDayRowsGrid gridRosterEndTimesEnabled slotColumnsAreEditable gridRosterWeek gridSlotNames dayModel gridRosterDays
      in [hsx|
     <div class="app-panel overflow-hidden mb-5 mb-xl-0">
-        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridShowShiftTypeHighlights gridRosterWagePrediction}
+        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterWagePrediction}
         <div class="roster-grid-frame"
              data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
-             data-roster-shift-type-highlights={if gridShowShiftTypeHighlights then ("true" :: Text) else "false"}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
              data-roster-column-editor={if slotColumnsAreEditable then ("available" :: Text) else "unavailable"}
              style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
@@ -777,14 +777,14 @@ renderCreateBlockCells assignmentFilters staffMembers staffOptionStates shiftTyp
         [ [hsx|<div role="gridcell" class={classes [("slot-time-cell", True), ("slot-start-time-cell", True), ("roster-block-start", blockIndex > 0)]}>{renderEditableTimeCell "startTime" "Select roster slot start time" "Start" target ""}</div>|]
         , [hsx|<div role="gridcell" class="slot-time-cell slot-end-time-cell">{renderEditableTimeCell "endTime" "Select roster slot end time" "End" target ""}</div>|]
         , [hsx|<div role="gridcell" class="slot-staff-cell position-relative">{renderEditableStaffCell assignmentFilters target Nothing staffMembers staffOptionStates Nothing}</div>|]
-        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end is-shift-type-empty" data-roster-shift-colour="default">{renderEditableShiftTypeCell target Nothing shiftTypes}</div>|]
+        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end is-shift-type-empty" data-roster-shift-colour="">{renderEditableShiftTypeCell target Nothing shiftTypes}</div>|]
         ]
 renderCreateBlockCells assignmentFilters staffMembers staffOptionStates shiftTypes False rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
      in mconcat
         [ [hsx|<div role="gridcell" class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}>{renderEditableTimeCell "startTime" "Select roster slot time" "Time" target ""}</div>|]
         , [hsx|<div role="gridcell" class="slot-staff-cell position-relative">{renderEditableStaffCell assignmentFilters target Nothing staffMembers staffOptionStates Nothing}</div>|]
-        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end is-shift-type-empty" data-roster-shift-colour="default">{renderEditableShiftTypeCell target Nothing shiftTypes}</div>|]
+        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end is-shift-type-empty" data-roster-shift-colour="">{renderEditableShiftTypeCell target Nothing shiftTypes}</div>|]
         ]
 
 renderClosedBlockCells :: Bool -> Int -> Html
@@ -837,7 +837,12 @@ findShiftTypeForSlot shiftTypes (Just selectedShiftTypeId) =
 
 shiftTypeBadgeColourKey :: Maybe ShiftType -> Text
 shiftTypeBadgeColourKey maybeShiftType =
-    fromMaybe "default" (fmap (.colourKey) maybeShiftType)
+    maybe "" normaliseShiftTypeBadgeColourKey maybeShiftType
+
+normaliseShiftTypeBadgeColourKey :: ShiftType -> Text
+normaliseShiftTypeBadgeColourKey shiftType
+    | shiftType.colourKey `elem` shiftTypeColourPaletteKeys = shiftType.colourKey
+    | otherwise = ""
 
 shiftTypeBadgeLabel :: Maybe UUID -> Maybe ShiftType -> Text
 shiftTypeBadgeLabel staffId maybeShiftType =

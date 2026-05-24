@@ -20,6 +20,7 @@ module Web.Admin.Mutations
 import Application.Helper.LiveResource
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
 import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
+                                            blankShiftTypeColourKey,
                                             normalizeShiftTypeColourKey)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
@@ -126,7 +127,7 @@ moveRosterGroupMutation _rosterGroup direction = do
 createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
 createShiftTypeMutation name isActive overrideAwardLevelId maybeSubmittedColourKey = do
     sortOrder <- nextShiftTypeSortOrder
-    colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey ""
+    colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey blankShiftTypeColourKey
     now <- getCurrentTime
     shiftType <- withTransaction do
         shiftType <- newRecord @ShiftType

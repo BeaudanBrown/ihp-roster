@@ -492,14 +492,14 @@ expectedSeedShiftTypesBySortOrder :: [(Text, Text, Maybe Text)]
 expectedSeedShiftTypesBySortOrder =
     [ ("Floor", "palette-1", Just floorAwardLevelIdText)
     , ("Kitchen", "palette-2", Just kitchenAwardLevelIdText)
-    , ("Bar", "palette-3", Just floorAwardLevelIdText)
-    , ("Gaming", "palette-4", Just floorAwardLevelIdText)
-    , ("Glassy", "palette-5", Just floorAwardLevelIdText)
-    , ("Cellar", "palette-6", Just floorAwardLevelIdText)
-    , ("Functions", "palette-7", Just floorAwardLevelIdText)
-    , ("Runner", "palette-8", Just floorAwardLevelIdText)
-    , ("Door", "palette-9", Just kitchenAwardLevelIdText)
-    , ("Supervisor", "palette-10", Just kitchenAwardLevelIdText)
+    , ("Bar", "", Just floorAwardLevelIdText)
+    , ("Gaming", "", Just floorAwardLevelIdText)
+    , ("Glassy", "", Just floorAwardLevelIdText)
+    , ("Cellar", "", Just floorAwardLevelIdText)
+    , ("Functions", "", Just floorAwardLevelIdText)
+    , ("Runner", "", Just floorAwardLevelIdText)
+    , ("Door", "", Just kitchenAwardLevelIdText)
+    , ("Supervisor", "", Just kitchenAwardLevelIdText)
     ]
 
 expectedSeedShiftTypeVersionsByLabel :: [(Text, Maybe Text)]

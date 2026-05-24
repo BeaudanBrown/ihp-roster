@@ -951,90 +951,28 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 0)
                 response `responseBodyShouldContain` ">Alpha</option>"
 
-        it "persists shift-type highlight preference and renders the content attribute" $ withContext do
+        it "renders shift type colours without a roster highlight toggle" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-highlight-pref@example.com" "staff" True
-                otherManager <- createUserRecord "roster-manager-highlight-pref-other@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
-                _ <- createVenueMembershipRecord venue otherManager "manager"
                 slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor" >>= updateRecord . set #colourKey "palette-3"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
-                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0 >>= updateRecord . set #shiftTypeId (Just (unpackId shiftType.id))
 
-                defaultResponse <- withUserAndCurrentVenue manager venue.id do
+                response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
 
-                defaultResponse `responseStatusShouldBe` status200
-                defaultResponse `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
-                defaultResponse `responseBodyShouldContain` "data-roster-shift-type-highlights=\"true\""
-                defaultResponse `responseBodyShouldContain` "id=\"roster-shift-type-highlights-value\""
-                defaultResponse `responseBodyShouldContain` "name=\"showShiftTypeHighlights\" value=\"true\""
-                defaultResponse `responseBodyShouldNotContain` "id=\"roster-shift-type-highlights-toggle\" name=\"showShiftTypeHighlights\""
-
-                layoutResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (UpdateRosterLayoutPreferenceAction 0)
-                            [("rosterLayoutMode", "day_columns")]
-
-                layoutResponse `responseStatusShouldBe` status200
-                layoutResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
-                layoutResponse `responseBodyShouldContain` "data-roster-shift-type-highlights=\"true\""
-                layoutResponse `responseBodyShouldContain` "roster-day-columns"
-
-                disabledResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (UpdateRosterShiftTypeHighlightsPreferenceAction 0)
-                            [("showShiftTypeHighlights", "false")]
-
-                disabledResponse `responseStatusShouldBe` status200
-                disabledResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
-                disabledResponse `responseBodyShouldContain` "data-roster-shift-type-highlights=\"false\""
-                disabledResponse `responseBodyShouldContain` "roster-day-columns"
-
-                storedDisabledPreferences <- query @UserPreference
-                    |> filterWhere (#userId, unpackId manager.id)
-                    |> fetchOne
-                inputValue storedDisabledPreferences.rosterLayoutMode `shouldBe` ("day_columns" :: Text)
-                storedDisabledPreferences.showShiftTypeHighlights `shouldBe` False
-
-                disabledShowResponse <- withUserAndCurrentVenue manager venue.id do
-                    callAction (ShowRosterWeekAction 0)
-
-                disabledShowResponse `responseStatusShouldBe` status200
-                disabledShowResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
-                disabledShowResponse `responseBodyShouldContain` "data-roster-shift-type-highlights=\"false\""
-                disabledShowResponse `responseBodyShouldContain` "name=\"showShiftTypeHighlights\" value=\"false\""
-                disabledShowResponse `responseBodyShouldNotContain` "id=\"roster-shift-type-highlights-toggle\" name=\"showShiftTypeHighlights\""
-                disabledShowResponse `responseBodyShouldContain` "roster-day-columns"
-
-                otherUserResponse <- withUserAndCurrentVenue otherManager venue.id do
-                    callAction (ShowRosterWeekAction 0)
-
-                otherUserResponse `responseStatusShouldBe` status200
-                otherUserResponse `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
-                otherUserResponse `responseBodyShouldContain` "data-roster-shift-type-highlights=\"true\""
-
-                enabledResponse <- withUserAndCurrentVenue manager venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams
-                            (UpdateRosterShiftTypeHighlightsPreferenceAction 0)
-                            [("showShiftTypeHighlights", "true")]
-
-                enabledResponse `responseStatusShouldBe` status200
-                enabledResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
-                enabledResponse `responseBodyShouldContain` "data-roster-shift-type-highlights=\"true\""
-                enabledResponse `responseBodyShouldContain` "roster-day-columns"
-
-                storedEnabledPreferences <- query @UserPreference
-                    |> filterWhere (#userId, unpackId manager.id)
-                    |> fetchOne
-                inputValue storedEnabledPreferences.rosterLayoutMode `shouldBe` ("day_columns" :: Text)
-                storedEnabledPreferences.showShiftTypeHighlights `shouldBe` True
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
+                response `responseBodyShouldContain` "data-roster-shift-colour=\"palette-3\""
+                response `responseBodyShouldNotContain` "data-roster-shift-type-highlights"
+                response `responseBodyShouldNotContain` "showShiftTypeHighlights"
+                response `responseBodyShouldNotContain` "roster-shift-type-highlights-toggle"
 
         it "persists roster layout preference and renders day columns" $ withContext do
             withCleanDb do

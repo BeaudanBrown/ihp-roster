@@ -3,16 +3,13 @@
 module Application.Helper.UserPreferences
     ( UserRosterPreferences (..)
     , defaultRosterLayoutMode
-    , defaultShowShiftTypeHighlights
     , fetchCurrentRosterLayoutMode
-    , fetchCurrentShowShiftTypeHighlights
     , fetchCurrentUserRosterPreferences
     , parseRosterLayoutMode
     , rosterLayoutModeLabel
     , rosterLayoutModeValue
     , rosterLayoutModes
     , upsertCurrentUserRosterLayoutMode
-    , upsertCurrentUserShowShiftTypeHighlights
     ) where
 
 import Application.Helper.Controller (enumFromText, unsafeEnumFromText)
@@ -21,21 +18,16 @@ import IHP.ControllerPrelude
 
 data UserRosterPreferences = UserRosterPreferences
     { userRosterLayoutMode :: RosterLayoutModeEnum
-    , userShowShiftTypeHighlights :: Bool
     }
 
 normaliseUserRosterPreferences :: Maybe UserPreference -> UserRosterPreferences
 normaliseUserRosterPreferences maybePreferences =
     UserRosterPreferences
         { userRosterLayoutMode = maybe defaultRosterLayoutMode (.rosterLayoutMode) maybePreferences
-        , userShowShiftTypeHighlights = maybe defaultShowShiftTypeHighlights (.showShiftTypeHighlights) maybePreferences
         }
 
 defaultRosterLayoutMode :: RosterLayoutModeEnum
 defaultRosterLayoutMode = unsafeEnumFromText @RosterLayoutModeEnum "day_rows"
-
-defaultShowShiftTypeHighlights :: Bool
-defaultShowShiftTypeHighlights = True
 
 rosterLayoutModes :: [RosterLayoutModeEnum]
 rosterLayoutModes = allEnumValues @RosterLayoutModeEnum
@@ -67,10 +59,6 @@ fetchCurrentRosterLayoutMode :: (?context :: ControllerContext, ?modelContext ::
 fetchCurrentRosterLayoutMode =
     (.userRosterLayoutMode) <$> fetchCurrentUserRosterPreferences
 
-fetchCurrentShowShiftTypeHighlights :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO Bool
-fetchCurrentShowShiftTypeHighlights =
-    (.userShowShiftTypeHighlights) <$> fetchCurrentUserRosterPreferences
-
 upsertCurrentUserRosterLayoutMode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     RosterLayoutModeEnum ->
@@ -86,21 +74,4 @@ upsertCurrentUserRosterLayoutMode layoutMode = do
             newRecord @UserPreference
                 |> set #userId (unpackId currentUser.id)
                 |> set #rosterLayoutMode layoutMode
-                |> createRecord
-
-upsertCurrentUserShowShiftTypeHighlights ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Bool ->
-    IO UserPreference
-upsertCurrentUserShowShiftTypeHighlights showHighlights = do
-    maybePreferences <- fetchCurrentUserPreferenceRecord
-    case maybePreferences of
-        Just preferences ->
-            preferences
-                |> set #showShiftTypeHighlights showHighlights
-                |> updateRecord
-        Nothing ->
-            newRecord @UserPreference
-                |> set #userId (unpackId currentUser.id)
-                |> set #showShiftTypeHighlights showHighlights
                 |> createRecord

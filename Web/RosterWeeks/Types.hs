@@ -45,7 +45,6 @@ data ShowView = ShowView
     , liveUpdateScope       :: Maybe LiveUpdateScope
     , viewCapabilities         :: RosterViewCapabilities
     , rosterLayoutMode         :: RosterLayoutModeEnum
-    , showShiftTypeHighlights  :: Bool
     , rosterEndTimesEnabled    :: Bool
     , rosterWagePrediction     :: Maybe RosterWagePrediction
     , shiftTypes               :: [ShiftType]
@@ -149,7 +148,6 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridRenderIndexes         :: RosterRenderIndexes
     , gridViewCapabilities         :: RosterViewCapabilities
     , gridRosterLayoutMode         :: RosterLayoutModeEnum
-    , gridShowShiftTypeHighlights  :: Bool
     , gridRosterEndTimesEnabled    :: Bool
     , gridRosterWagePrediction     :: Maybe RosterWagePrediction
     }

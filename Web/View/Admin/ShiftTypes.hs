@@ -25,8 +25,9 @@ import Application.Helper.LiveUpdate (FocusedFieldProtectionConfig (..),
                                       LiveFragmentKey (..),
                                       LiveFragmentProtection (..),
                                       LiveUpdateScope (..))
-import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
-import qualified Data.List as List
+import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey,
+                                            normalizeShiftTypeColourKey,
+                                            shiftTypeColourPaletteKeys)
 import qualified Data.Text as Text
 import Web.View.Admin.Common
 import Web.View.Prelude
@@ -36,7 +37,7 @@ renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates 
     renderConfigSection
         "shift-types"
         "Shift Types"
-        "Configure venue shift types. Choose an override only when a shift should pay a different award level from the staff member's default."
+        "Configure venue shift types. Colours are optional highlights for shifts that should stand out on the roster."
         (renderInactiveToggleSummary "showInactiveShiftTypes" (pathTo ShowAdminShiftTypesFragmentAction) "admin-shift-types-fragment" shiftTypes showInactive)
         (renderShiftTypeCreateForm shiftTypes showInactive awardLevels awardLevelBaseRates)
         (renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates)
@@ -110,7 +111,7 @@ adminShiftTypesFocusProtection =
             }
 
 renderShiftTypeCreateForm :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderShiftTypeCreateForm shiftTypes showInactive awardLevels awardLevelBaseRates = [hsx|
+renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRates = [hsx|
     <form method="POST"
           action={CreateShiftTypeAction}
           class={appSurfaceClasses "p-3"}
@@ -148,8 +149,7 @@ renderShiftTypeCreateForm shiftTypes showInactive awardLevels awardLevelBaseRate
     </form>
 |]
     where
-        activeShiftTypeColourKeys = activeColourKeys Nothing shiftTypes
-        defaultCreateColourKey = fromMaybe firstShiftTypeColourKey (List.find (`notElem` activeShiftTypeColourKeys) shiftTypeColourPaletteKeys)
+        defaultCreateColourKey = blankShiftTypeColourKey
 
 renderShiftTypeRows :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
 renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates
@@ -232,7 +232,7 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates activ
 
 renderShiftTypeColourSelect :: Text -> Text -> Maybe Text -> Html
 renderShiftTypeColourSelect fieldId selectedColourKey maybePostPath = [hsx|
-    <label class="form-label" for={fieldId}>Badge Colour</label>
+    <label class="form-label" for={fieldId}>Optional Colour</label>
     <select id={fieldId}
             class="form-select admin-shift-colour-select"
             name="colourKey"
@@ -242,11 +242,21 @@ renderShiftTypeColourSelect fieldId selectedColourKey maybePostPath = [hsx|
             hx-include="closest form"
             hx-target="#admin-shift-types-fragment"
             hx-swap="outerHTML">
+        {renderBlankShiftTypeColourOption effectiveSelectedColourKey}
         {forEach shiftTypeColourPaletteKeys (renderShiftTypeColourOption effectiveSelectedColourKey)}
     </select>
 |]
     where
         effectiveSelectedColourKey = normalizeRenderableColourKey selectedColourKey
+
+renderBlankShiftTypeColourOption :: Text -> Html
+renderBlankShiftTypeColourOption selectedColourKey = [hsx|
+    <option value={blankShiftTypeColourKey}
+            data-roster-shift-colour={blankShiftTypeColourKey}
+            selected={selectedColourKey == blankShiftTypeColourKey}>
+        No colour
+    </option>
+|]
 
 renderShiftTypeColourOption :: Text -> Text -> Html
 renderShiftTypeColourOption selectedColourKey colourKey = [hsx|
@@ -257,21 +267,8 @@ renderShiftTypeColourOption selectedColourKey colourKey = [hsx|
     </option>
 |]
 
-activeColourKeys :: Maybe (Id ShiftType) -> [ShiftType] -> [Text]
-activeColourKeys maybeCurrentShiftTypeId shiftTypes =
-    shiftTypes
-        |> filter (\shiftType -> shiftType.isActive && Just shiftType.id /= maybeCurrentShiftTypeId)
-        |> map (.colourKey)
-        |> filter (`elem` shiftTypeColourPaletteKeys)
-
 normalizeRenderableColourKey :: Text -> Text
-normalizeRenderableColourKey colourKey
-    | colourKey `elem` shiftTypeColourPaletteKeys = colourKey
-    | otherwise = firstShiftTypeColourKey
-
-firstShiftTypeColourKey :: Text
-firstShiftTypeColourKey =
-    fromMaybe "palette-1" (listToMaybe shiftTypeColourPaletteKeys)
+normalizeRenderableColourKey = normalizeShiftTypeColourKey
 
 shiftTypeColourLabel :: Text -> Text
 shiftTypeColourLabel colourKey =

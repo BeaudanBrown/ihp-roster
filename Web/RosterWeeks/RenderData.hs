@@ -142,7 +142,6 @@ renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
     case rosterData of
         Nothing -> pure [hsx|<div id="roster-content"></div>|]
         Just RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction } -> do
-            showShiftTypeHighlights <- fetchCurrentShowShiftTypeHighlights
             let viewCapabilities = buildRosterViewCapabilities (Just rosterWeek)
             pure $ renderRosterContentFragment
                     RosterGridRenderModel
@@ -164,7 +163,6 @@ renderRosterContentFromProjection rosterGroups currentRosterGroup rosterData =
                         , gridRenderIndexes = renderIndexes
                         , gridViewCapabilities = viewCapabilities
                         , gridRosterLayoutMode = rosterLayoutMode
-                        , gridShowShiftTypeHighlights = showShiftTypeHighlights
                         , gridRosterEndTimesEnabled = rosterEndTimesEnabled
                         , gridRosterWagePrediction = rosterWagePrediction
                         }
