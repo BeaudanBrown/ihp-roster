@@ -1,19 +1,14 @@
 -- | Central shift type colour-key policy for admin mutations and roster badges.
--- Active shift types in a venue get unique non-default palette keys while any
--- excess active types and all inactive types use the reusable default key.
+-- Shift type colours are reusable visual labels. New shift types prefer the
+-- first unused palette colour, then wrap to the first palette colour.
 module Application.Helper.ShiftTypeColours
-    ( defaultShiftTypeColourKey
-    , shiftTypeColourPaletteKeys
+    ( shiftTypeColourPaletteKeys
     , assignShiftTypeColourKey
     , normalizeShiftTypeColourKey
-    , shiftTypeColourKeyIsAvailable
     ) where
 
 import qualified Data.List as List
 import Web.Controller.Prelude
-
-defaultShiftTypeColourKey :: Text
-defaultShiftTypeColourKey = "default"
 
 shiftTypeColourPaletteKeys :: [Text]
 shiftTypeColourPaletteKeys =
@@ -36,40 +31,30 @@ assignShiftTypeColourKey ::
     Bool ->
     Text ->
     IO Text
-assignShiftTypeColourKey venueId maybeCurrentShiftTypeId willBeActive currentColourKey
-    | not willBeActive = pure defaultShiftTypeColourKey
-    | otherwise = do
-        usedColourKeys <- activeNonDefaultShiftTypeColourKeys venueId maybeCurrentShiftTypeId
-        pure
-            if currentColourKey /= defaultShiftTypeColourKey && currentColourKey `notElem` usedColourKeys
-                then currentColourKey
-                else fromMaybe defaultShiftTypeColourKey (List.find (`notElem` usedColourKeys) shiftTypeColourPaletteKeys)
+assignShiftTypeColourKey venueId maybeCurrentShiftTypeId _willBeActive currentColourKey
+    | currentColourKey `elem` shiftTypeColourPaletteKeys = pure currentColourKey
+    | otherwise = suggestShiftTypeColourKey venueId maybeCurrentShiftTypeId
 
 normalizeShiftTypeColourKey :: Text -> Text
 normalizeShiftTypeColourKey colourKey
-    | colourKey `elem` (defaultShiftTypeColourKey : shiftTypeColourPaletteKeys) = colourKey
-    | otherwise = defaultShiftTypeColourKey
+    | colourKey `elem` shiftTypeColourPaletteKeys = colourKey
+    | otherwise = firstShiftTypeColourKey
 
-shiftTypeColourKeyIsAvailable ::
+suggestShiftTypeColourKey ::
     (?modelContext :: ModelContext) =>
     Id Venue ->
     Maybe (Id ShiftType) ->
-    Bool ->
-    Text ->
-    IO Bool
-shiftTypeColourKeyIsAvailable venueId maybeCurrentShiftTypeId willBeActive colourKey
-    | not willBeActive = pure True
-    | colourKey == defaultShiftTypeColourKey = pure True
-    | otherwise = do
-        usedColourKeys <- activeNonDefaultShiftTypeColourKeys venueId maybeCurrentShiftTypeId
-        pure (colourKey `notElem` usedColourKeys)
+    IO Text
+suggestShiftTypeColourKey venueId maybeCurrentShiftTypeId = do
+    usedColourKeys <- activeShiftTypeColourKeys venueId maybeCurrentShiftTypeId
+    pure (fromMaybe firstShiftTypeColourKey (List.find (`notElem` usedColourKeys) shiftTypeColourPaletteKeys))
 
-activeNonDefaultShiftTypeColourKeys ::
+activeShiftTypeColourKeys ::
     (?modelContext :: ModelContext) =>
     Id Venue ->
     Maybe (Id ShiftType) ->
     IO [Text]
-activeNonDefaultShiftTypeColourKeys venueId maybeCurrentShiftTypeId = do
+activeShiftTypeColourKeys venueId maybeCurrentShiftTypeId = do
     activeShiftTypes <-
         query @ShiftType
             |> filterWhere (#venueId, unpackId venueId)
@@ -80,5 +65,9 @@ activeNonDefaultShiftTypeColourKeys venueId maybeCurrentShiftTypeId = do
         ( activeShiftTypes
             |> filter (\shiftType -> Just shiftType.id /= maybeCurrentShiftTypeId)
             |> map (.colourKey)
-            |> filter (/= defaultShiftTypeColourKey)
+            |> filter (`elem` shiftTypeColourPaletteKeys)
         )
+
+firstShiftTypeColourKey :: Text
+firstShiftTypeColourKey =
+    fromMaybe "palette-1" (listToMaybe shiftTypeColourPaletteKeys)

@@ -5,8 +5,7 @@ import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
-import Application.Helper.ShiftTypeColours (defaultShiftTypeColourKey,
-                                            shiftTypeColourPaletteKeys)
+import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
 import Config
@@ -323,7 +322,7 @@ tests = beforeAll testContext do
                 inputValue createdInvitation.deliveryStatus `shouldSatisfy` (`elem` ["queued", "sent", "failed"])
                 inviteExpiryDeltaSeconds `shouldSatisfy` (\seconds -> seconds > 86000 && seconds < 87000)
 
-        it "assigns first-available shift type colours and defaults overflow" $ withContext do
+        it "assigns first-available shift type colours and wraps when the palette is used" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Shift Colour Venue"
                 admin <- createUserRecord "admin-shift-colours@example.com" "staff" True
@@ -344,9 +343,15 @@ tests = beforeAll testContext do
                         |> orderByAsc #sortOrder
                         |> fetch
 
-                map (.colourKey) shiftTypes `shouldBe` (shiftTypeColourPaletteKeys <> [defaultShiftTypeColourKey])
+                map (.colourKey) shiftTypes `shouldBe` (shiftTypeColourPaletteKeys <> ["palette-1"])
 
-        it "reassigns reactivated shift type colours that collide with active types" $ withContext do
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction AdminAction
+                pageResponse `responseBodyShouldNotContain` "Default overflow"
+                pageResponse `responseBodyShouldNotContain` "Default reusable"
+                pageResponse `responseBodyShouldNotContain` "(in use)"
+
+        it "keeps colours when reactivated shift types collide with active types" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Shift Reactivation Colour Venue"
                 admin <- createUserRecord "admin-reactivate-shift-colours@example.com" "staff" True
@@ -369,9 +374,9 @@ tests = beforeAll testContext do
 
                 reactivatedShiftType <- fetch inactiveShiftType.id
                 reactivatedShiftType.isActive `shouldBe` True
-                reactivatedShiftType.colourKey `shouldBe` "palette-2"
+                reactivatedShiftType.colourKey `shouldBe` activeShiftType.colourKey
 
-        it "lets admins choose shift type colours and rejects duplicate active palette colours" $ withContext do
+        it "lets admins intentionally reuse shift type colours" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Manual Shift Colour Venue"
                 admin <- createUserRecord "admin-manual-shift-colours@example.com" "staff" True
@@ -380,7 +385,9 @@ tests = beforeAll testContext do
                 firstShiftType <-
                     createShiftTypeRecord venue level "First Shift"
                         >>= updateRecord . set #colourKey "palette-3"
-                secondShiftType <- createShiftTypeRecord venue level "Second Shift"
+                secondShiftType <-
+                    createShiftTypeRecord venue level "Second Shift"
+                        >>= updateRecord . set #colourKey "palette-2"
 
                 createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callActionWithParams CreateShiftTypeAction
@@ -402,19 +409,19 @@ tests = beforeAll testContext do
                             , ("colourKey", cs firstShiftType.colourKey)
                             ]
                 duplicateResponse `responseStatusShouldBe` status200
-                unchangedSecondShiftType <- fetch secondShiftType.id
-                unchangedSecondShiftType.colourKey `shouldNotBe` firstShiftType.colourKey
+                duplicatedSecondShiftType <- fetch secondShiftType.id
+                duplicatedSecondShiftType.colourKey `shouldBe` firstShiftType.colourKey
 
-                defaultResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callActionWithParams (UpdateShiftTypeAction secondShiftType.id)
-                        [ ("name", "Second Shift")
+                duplicateCreateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateShiftTypeAction
+                        [ ("name", "Another Manual Colour Shift")
                         , ("isActive", "true")
-                        , ("overrideAwardLevelId", idToParam level.id)
-                        , ("colourKey", cs defaultShiftTypeColourKey)
+                        , ("overrideAwardLevelId", "")
+                        , ("colourKey", cs firstShiftType.colourKey)
                         ]
-                defaultResponse `responseStatusShouldBe` status302
-                defaultedSecondShiftType <- fetch secondShiftType.id
-                defaultedSecondShiftType.colourKey `shouldBe` defaultShiftTypeColourKey
+                duplicateCreateResponse `responseStatusShouldBe` status302
+                duplicateCreatedShiftType <- query @ShiftType |> filterWhere (#name, "Another Manual Colour Shift") |> fetchOne
+                duplicateCreatedShiftType.colourKey `shouldBe` firstShiftType.colourKey
 
         it "rejects invalid invite emails without creating invitations or broadcasting admin changes" $ withContext do
             withCleanDb do

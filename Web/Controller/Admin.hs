@@ -5,9 +5,6 @@ import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource (..), liveMutationResult)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
-import Application.Helper.ShiftTypeColours (defaultShiftTypeColourKey,
-                                            normalizeShiftTypeColourKey,
-                                            shiftTypeColourKeyIsAvailable)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays,
                                           weekdayIndexLabel)
 import Application.Helper.Xero
@@ -398,15 +395,9 @@ instance Controller AdminController where
                     Nothing -> respondToShiftTypesSectionMutation
                     Just overrideAwardLevelId -> do
                         let maybeColourKey = parseSubmittedShiftTypeColourKey
-                        colourKeyIsAvailable <- submittedShiftTypeColourKeyIsAvailable Nothing isActive maybeColourKey defaultCreateShiftTypeColourKey
-                        if not colourKeyIsAvailable
-                            then do
-                                setErrorMessage "Choose an unused shift type colour, or use the reusable default."
-                                respondToShiftTypesSectionMutation
-                            else do
-                                LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- createShiftTypeMutation name isActive overrideAwardLevelId maybeColourKey
-                                setSuccessMessage "Shift type added"
-                                respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
+                        LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- createShiftTypeMutation name isActive overrideAwardLevelId maybeColourKey
+                        setSuccessMessage "Shift type added"
+                        respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
 
     action UpdateShiftTypeAction { shiftTypeId } = do
         ensureVenueWritable
@@ -422,16 +413,10 @@ instance Controller AdminController where
                     Nothing -> respondToShiftTypesSectionMutation
                     Just overrideAwardLevelId -> do
                         let maybeColourKey = parseSubmittedShiftTypeColourKey
-                        colourKeyIsAvailable <- submittedShiftTypeColourKeyIsAvailable (Just shiftType.id) isActive maybeColourKey shiftType.colourKey
-                        if not colourKeyIsAvailable
-                            then do
-                                setErrorMessage "Choose an unused shift type colour, or use the reusable default."
-                                respondToShiftTypesSectionMutation
-                            else do
-                                LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- updateShiftTypeMutation shiftType name isActive overrideAwardLevelId maybeColourKey
-                                unless isHtmxRequest do
-                                    setSuccessMessage "Shift type updated"
-                                respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
+                        LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- updateShiftTypeMutation shiftType name isActive overrideAwardLevelId maybeColourKey
+                        unless isHtmxRequest do
+                            setSuccessMessage "Shift type updated"
+                        respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
 
     action MoveShiftTypeUpAction { shiftTypeId } = do
         ensureVenueWritable
@@ -448,12 +433,3 @@ instance Controller AdminController where
         _ <- moveShiftTypeMutation shiftType 1
         setSuccessMessage "Shift type order updated"
         redirectToAdminFor (paramOrNothing "rosterGroupId")
-
-submittedShiftTypeColourKeyIsAvailable :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe (Id ShiftType) -> Bool -> Maybe Text -> Text -> IO Bool
-submittedShiftTypeColourKeyIsAvailable maybeShiftTypeId isActive maybeColourKey _fallbackColourKey =
-    case maybeColourKey of
-        Nothing -> pure True
-        Just colourKey -> shiftTypeColourKeyIsAvailable currentVenueId maybeShiftTypeId isActive (normalizeShiftTypeColourKey colourKey)
-
-defaultCreateShiftTypeColourKey :: Text
-defaultCreateShiftTypeColourKey = defaultShiftTypeColourKey

@@ -20,9 +20,7 @@ module Web.Admin.Mutations
 import Application.Helper.LiveResource
 import Application.Helper.Pay (ensureShiftTypePayVersionForShiftType)
 import Application.Helper.ShiftTypeColours (assignShiftTypeColourKey,
-                                            defaultShiftTypeColourKey,
-                                            normalizeShiftTypeColourKey,
-                                            shiftTypeColourKeyIsAvailable)
+                                            normalizeShiftTypeColourKey)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureDefaultRosterSlots,
                                         syncVenueDefaultRosterGroupToTopActive)
@@ -128,7 +126,7 @@ moveRosterGroupMutation _rosterGroup direction = do
 createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
 createShiftTypeMutation name isActive overrideAwardLevelId maybeSubmittedColourKey = do
     sortOrder <- nextShiftTypeSortOrder
-    colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey defaultShiftTypeColourKey
+    colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey ""
     now <- getCurrentTime
     shiftType <- withTransaction do
         shiftType <- newRecord @ShiftType
@@ -171,10 +169,7 @@ resolveSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?modelCont
 resolveSubmittedShiftTypeColourKey maybeCurrentShiftTypeId isActive maybeSubmittedColourKey fallbackColourKey =
     case maybeSubmittedColourKey of
         Nothing -> assignShiftTypeColourKey currentVenueId maybeCurrentShiftTypeId isActive fallbackColourKey
-        Just submittedColourKey -> do
-            let colourKey = normalizeShiftTypeColourKey submittedColourKey
-            available <- shiftTypeColourKeyIsAvailable currentVenueId maybeCurrentShiftTypeId isActive colourKey
-            pure (if available then colourKey else fallbackColourKey)
+        Just submittedColourKey -> pure (normalizeShiftTypeColourKey submittedColourKey)
 
 moveShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Int -> IO (LiveMutationResult ())
 moveShiftTypeMutation shiftType direction = do
