@@ -2,6 +2,7 @@ module Application.Support.DevFixtures where
 
 import Application.Helper.Controller (PlatformRole (..))
 import Application.Helper.Pay (ensurePayVersionsForTimesheetApproval,
+                               ensureShiftTypePayVersionForShiftType,
                                lockPayVersionsForApproval)
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         ensureVenueDefaultRosterGroup,
@@ -28,8 +29,9 @@ import IHP.ModelSupport.Types (CanCreate (createMany))
 import IHP.Prelude
 
 data DevRosterSlotSeed = DevRosterSlotSeed
-    { slotStaff     :: !(Maybe Staff)
-    , slotStartTime :: !(Maybe TimeOfDay)
+    { slotStaff       :: !(Maybe Staff)
+    , slotStartTime   :: !(Maybe TimeOfDay)
+    , slotShiftTypeId :: !(Maybe UUID)
     }
 
 data DevSeedFixture = DevSeedFixture
@@ -80,8 +82,11 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
     frontSlots <- fetchActiveRosterGroupSlotNames (get #id frontGroup)
     backSlots <- fetchActiveRosterGroupSlotNames (get #id backGroup)
 
-    floorShift <- createSeedShiftTypeRecord venue "Floor" 10 seededFloorAwardLevelId
-    kitchenShift <- createSeedShiftTypeRecord venue "Kitchen" 20 seededKitchenAwardLevelId
+    floorShift <- createSeedShiftTypeRecord venue admin fixtureWeekStart "Floor" 10 "palette-1" seededFloorAwardLevelId
+    kitchenShift <- createSeedShiftTypeRecord venue admin fixtureWeekStart "Kitchen" 20 "palette-2" seededKitchenAwardLevelId
+    extraShiftTypes <- forM seedExtraShiftTypeSpecs \(shiftTypeName, sortOrder, colourKey, awardLevelId) ->
+        createSeedShiftTypeRecord venue admin fixtureWeekStart shiftTypeName sortOrder colourKey awardLevelId
+    let seedShiftTypes = [floorShift, kitchenShift] <> extraShiftTypes
     managerStaffs <- mapM (createManagerStaff venue) (zip [0 ..] managerUsers)
     workerStaff <- seededWorkerStaff |> set #idealShiftsPerWeek 3 |> updateRecord
     seededStaff <- createGeneratedStaff venue scenario.scenarioSeed scenario.staffCount
@@ -124,6 +129,7 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
         backSlots
         allFrontCandidates
         allBackCandidates
+        seedShiftTypes
 
     let allOperationalStaff = managerStaffs <> [workerStaff] <> seededStaff <> trialStaffs
 
@@ -147,15 +153,31 @@ seedDevelopmentFixtureWithScenarioForWeekAndLeaveMonth scenario fixtureWeekStart
             , scenario = scenario
             }
 
-createSeedShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> Text -> Int -> Id AwardLevel -> IO ShiftType
-createSeedShiftTypeRecord venue shiftTypeName sortOrder awardLevelId =
-    newRecord @ShiftType
-        |> set #venueId (unpackId (get #id venue))
-        |> set #name shiftTypeName
-        |> set #sortOrder sortOrder
-        |> set #overrideAwardLevelId (Just awardLevelId)
-        |> set #isActive True
-        |> createRecord
+createSeedShiftTypeRecord :: (?modelContext :: ModelContext) => Venue -> User -> Day -> Text -> Int -> Text -> Id AwardLevel -> IO ShiftType
+createSeedShiftTypeRecord venue actorUser effectiveFrom shiftTypeName sortOrder colourKey awardLevelId = do
+    shiftType <-
+        newRecord @ShiftType
+            |> set #venueId (unpackId (get #id venue))
+            |> set #name shiftTypeName
+            |> set #sortOrder sortOrder
+            |> set #colourKey colourKey
+            |> set #overrideAwardLevelId (Just awardLevelId)
+            |> set #isActive True
+            |> createRecord
+    _ <- ensureShiftTypePayVersionForShiftType actorUser.id shiftType effectiveFrom
+    pure shiftType
+
+seedExtraShiftTypeSpecs :: [(Text, Int, Text, Id AwardLevel)]
+seedExtraShiftTypeSpecs =
+    [ ("Bar", 30, "palette-3", seededFloorAwardLevelId)
+    , ("Gaming", 40, "palette-4", seededFloorAwardLevelId)
+    , ("Glassy", 50, "palette-5", seededFloorAwardLevelId)
+    , ("Cellar", 60, "palette-6", seededFloorAwardLevelId)
+    , ("Functions", 70, "palette-7", seededFloorAwardLevelId)
+    , ("Runner", 80, "palette-8", seededFloorAwardLevelId)
+    , ("Door", 90, "palette-9", seededKitchenAwardLevelId)
+    , ("Supervisor", 100, "palette-10", seededKitchenAwardLevelId)
+    ]
 
 seededFloorAwardLevelId :: Id AwardLevel
 seededFloorAwardLevelId =
@@ -390,8 +412,9 @@ seedRosterGroup ::
     [RosterDay] ->
     [SlotName] ->
     [Staff] ->
+    [ShiftType] ->
     IO ()
-seedRosterGroup seedValue fillPercent fixtureWeekStart rosterGroup rosterDays slotNames staffPool = do
+seedRosterGroup seedValue fillPercent fixtureWeekStart rosterGroup rosterDays slotNames staffPool shiftTypes = do
     forM_ (zip [0 :: Int ..] rosterDays) \(dayIndex, rosterDay) -> do
         let rowCount = 2
         _ <- rosterDay
@@ -400,7 +423,7 @@ seedRosterGroup seedValue fillPercent fixtureWeekStart rosterGroup rosterDays sl
         let seedRows _ [] = pure ()
             seedRows usedStaffIds (rowIndex:remainingRowIndexes) = do
                 let (assignments, nextUsedStaffIds) =
-                        buildRowAssignments seedValue fillPercent dayIndex rowIndex slotNames staffPool usedStaffIds
+                        buildRowAssignments seedValue fillPercent dayIndex rowIndex slotNames staffPool shiftTypes usedStaffIds
                 createRosterRow rosterDay slotNames rowIndex assignments
                 seedRows nextUsedStaffIds remainingRowIndexes
         seedRows [] [0 .. rowCount - 1]
@@ -417,8 +440,9 @@ seedRosterWindow ::
     [SlotName] ->
     [Staff] ->
     [Staff] ->
+    [ShiftType] ->
     IO ()
-seedRosterWindow scenario currentWeekStart venue frontGroup backGroup frontSlots backSlots frontCandidates backCandidates =
+seedRosterWindow scenario currentWeekStart venue frontGroup backGroup frontSlots backSlots frontCandidates backCandidates shiftTypes =
     forM_ devSeedWeekStarts \(weekIndex, weekStart) -> do
         let weekOffset = weekOffsetFor weekStart
         frontWeek <- createRosterWeekRecordForRosterGroup venue frontGroup weekOffset (weekIndex == 0)
@@ -426,8 +450,8 @@ seedRosterWindow scenario currentWeekStart venue frontGroup backGroup frontSlots
         frontDays <- createRosterDayRecords frontWeek [0 .. 6]
         backDays <- createRosterDayRecords backWeek [0 .. 6]
         let weekSeed = scenario.scenarioSeed + (weekIndex * 1009)
-        seedRosterGroup weekSeed (rosterFillForWeek scenario.rosterFillPercent weekIndex) weekStart frontGroup frontDays frontSlots frontCandidates
-        seedRosterGroup (weekSeed + 97) (max 40 (rosterFillForWeek scenario.rosterFillPercent weekIndex - 8)) weekStart backGroup backDays backSlots backCandidates
+        seedRosterGroup weekSeed (rosterFillForWeek scenario.rosterFillPercent weekIndex) weekStart frontGroup frontDays frontSlots frontCandidates shiftTypes
+        seedRosterGroup (weekSeed + 97) (max 40 (rosterFillForWeek scenario.rosterFillPercent weekIndex - 8)) weekStart backGroup backDays backSlots backCandidates shiftTypes
     where
         devSeedWeekStarts =
             [ (-1, addDays (-7) currentWeekStart)
@@ -449,15 +473,16 @@ buildRowAssignments ::
     Int ->
     [SlotName] ->
     [Staff] ->
+    [ShiftType] ->
     [UUID] ->
     ([(Text, DevRosterSlotSeed)], [UUID])
-buildRowAssignments seedValue fillPercent dayIndex rowIndex slotNames staffPool initialUsedStaffIds =
+buildRowAssignments seedValue fillPercent dayIndex rowIndex slotNames staffPool shiftTypes initialUsedStaffIds =
     ensureMinimumStaffedRow (rowAssignments, rowUsedStaffIds)
     where
         (rowAssignments, rowUsedStaffIds) =
             foldl'
                 (\(assignments, usedStaffIds) (slotIndex, slotName) ->
-                    case seedAssignment seedValue fillPercent dayIndex rowIndex slotIndex slotName staffPool usedStaffIds of
+                    case seedAssignment seedValue fillPercent dayIndex rowIndex slotIndex slotName staffPool shiftTypes usedStaffIds of
                         Just (assignment, selectedStaffId) -> (assignments <> [assignment], usedStaffIds <> [selectedStaffId])
                         Nothing -> (assignments, usedStaffIds)
                 )
@@ -468,7 +493,7 @@ buildRowAssignments seedValue fillPercent dayIndex rowIndex slotNames staffPool 
             | null slotNames = result
             | any (isJust . (.slotStaff) . snd) assignments = result
             | otherwise =
-                case forceAssignmentForRow seedValue dayIndex rowIndex slotNames staffPool usedStaffIds of
+                case forceAssignmentForRow seedValue dayIndex rowIndex slotNames staffPool shiftTypes usedStaffIds of
                     Just (assignment, selectedStaffId) -> ([assignment], usedStaffIds <> [selectedStaffId])
                     Nothing -> result
 
@@ -478,9 +503,10 @@ forceAssignmentForRow ::
     Int ->
     [SlotName] ->
     [Staff] ->
+    [ShiftType] ->
     [UUID] ->
     Maybe ((Text, DevRosterSlotSeed), UUID)
-forceAssignmentForRow seedValue dayIndex rowIndex slotNames staffPool usedStaffIds = do
+forceAssignmentForRow seedValue dayIndex rowIndex slotNames staffPool shiftTypes usedStaffIds = do
     let slotIndex = deterministicIndex seedValue [dayIndex, rowIndex, 991] (length slotNames)
     let slotName = slotNames !! slotIndex
     staff <- chooseAvailableStaff seedValue [dayIndex, rowIndex, slotIndex, 992, textHash (get #name slotName)] staffPool usedStaffIds
@@ -489,13 +515,14 @@ forceAssignmentForRow seedValue dayIndex rowIndex slotNames staffPool usedStaffI
           , seededRosterSlot
                 (Just staff)
                 (slotStartTimeFor slotIndex dayIndex)
+                (slotShiftTypeIdFor seedValue [dayIndex, rowIndex, slotIndex, 993] shiftTypes)
           )
         , unpackId (get #id staff)
         )
 
-seedAssignment :: Int -> Int -> Int -> Int -> Int -> SlotName -> [Staff] -> [UUID] -> Maybe ((Text, DevRosterSlotSeed), UUID)
-seedAssignment _ _ _ _ _ _ [] _ = Nothing
-seedAssignment seedValue fillPercent dayIndex rowIndex slotIndex slotName staffPool usedStaffIds
+seedAssignment :: Int -> Int -> Int -> Int -> Int -> SlotName -> [Staff] -> [ShiftType] -> [UUID] -> Maybe ((Text, DevRosterSlotSeed), UUID)
+seedAssignment _ _ _ _ _ _ [] _ _ = Nothing
+seedAssignment seedValue fillPercent dayIndex rowIndex slotIndex slotName staffPool shiftTypes usedStaffIds
     | deterministicPercent seedValue [dayIndex, rowIndex, slotIndex] >= fillPercent = Nothing
     | otherwise =
         selectedStaff >>= \staff ->
@@ -504,6 +531,7 @@ seedAssignment seedValue fillPercent dayIndex rowIndex slotIndex slotName staffP
                   , seededRosterSlot
                         (Just staff)
                         (slotStartTimeFor slotIndex dayIndex)
+                        (slotShiftTypeIdFor seedValue [dayIndex, rowIndex, slotIndex, textHash (get #name slotName)] shiftTypes)
                   )
                 , unpackId (get #id staff)
                 )
@@ -1024,17 +1052,24 @@ createRosterRow rosterDay slotNames rowIndex assignments = do
                     |> set #rosterWeekSlotDefinitionId (unpackId (get #id slotDefinition))
                     |> set #slotSortOrder slotDefinition.sortOrder
                     |> set #staffId (fmap (unpackId . get #id) slotSeed.slotStaff)
+                    |> set #shiftTypeId slotSeed.slotShiftTypeId
                     |> set #rowIndex rowIndex
                     |> set #startTime slotSeed.slotStartTime
                     |> set #createdAt now
                     |> set #updatedAt now
 
-seededRosterSlot :: Maybe Staff -> TimeOfDay -> DevRosterSlotSeed
-seededRosterSlot maybeStaff startTime =
+seededRosterSlot :: Maybe Staff -> TimeOfDay -> Maybe UUID -> DevRosterSlotSeed
+seededRosterSlot maybeStaff startTime maybeShiftTypeId =
     DevRosterSlotSeed
         { slotStaff = maybeStaff
         , slotStartTime = Just startTime
+        , slotShiftTypeId = maybeShiftTypeId
         }
+
+slotShiftTypeIdFor :: Int -> [Int] -> [ShiftType] -> Maybe UUID
+slotShiftTypeIdFor _ _ [] = Nothing
+slotShiftTypeIdFor seedValue keys shiftTypes =
+    Just (unpackId (get #id (shiftTypes !! deterministicIndex seedValue keys (length shiftTypes))))
 
 slotStartTimeFor :: Int -> Int -> TimeOfDay
 slotStartTimeFor slotIndex dayIndex =

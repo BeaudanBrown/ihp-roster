@@ -55,6 +55,12 @@ run = do
         query @LeaveRequest
             |> filterWhere (#venueId, unpackId (get #id sandboxVenue))
             |> fetch
+    shiftTypes <-
+        query @ShiftType
+            |> filterWhere (#venueId, unpackId (get #id sandboxVenue))
+            |> filterWhere (#isActive, True)
+            |> orderByAsc #sortOrder
+            |> fetch
     timesheetEntries <-
         query @TimesheetEntry
             |> filterWhere (#venueId, unpackId (get #id sandboxVenue))
@@ -94,6 +100,7 @@ run = do
     TextIO.putStrLn ("Pending invitation email: " <> get #email sandboxInvitation)
     TextIO.putStrLn ("Current week start: " <> tshow fixtureWeekStart)
     TextIO.putStrLn ("Roster groups: " <> get #name frontOfHouseGroup <> ", " <> get #name backOfHouseGroup)
+    TextIO.putStrLn ("Shift types: " <> Text.intercalate ", " (map shiftTypeSummary shiftTypes))
     TextIO.putStrLn ("Seeded staff count: " <> tshow actualStaffCount)
     TextIO.putStrLn ("Seeded manager count: " <> tshow actualManagerCount)
     TextIO.putStrLn ("Target roster fill: " <> tshow scenario.rosterFillPercent <> "%")
@@ -101,6 +108,10 @@ run = do
     TextIO.putStrLn ("Leave requests: approved=" <> tshow approvedLeaveCount <> ", pending=" <> tshow pendingLeaveCount <> ", denied=" <> tshow deniedLeaveCount)
     TextIO.putStrLn ("Sandbox timesheets: approved=" <> tshow approvedTimesheetCount <> ", pending=" <> tshow pendingTimesheetCount)
     TextIO.putStrLn "Manual testing surface now includes multi-group roster data, support switching, invitation/bootstrap state, leave, and timesheet activity."
+
+shiftTypeSummary :: ShiftType -> Text
+shiftTypeSummary shiftType =
+    shiftType.name <> " (" <> shiftType.colourKey <> ")"
 
 data SeedDevOptions = SeedDevOptions
     { selectedScenario  :: !SeedScenarioName

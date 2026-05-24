@@ -307,16 +307,32 @@ tests = beforeAll testContext do
                         |> orderByAsc #payrollLabel
                         |> fetch
 
-                map (\shiftType -> (shiftType.name, tshow <$> shiftType.overrideAwardLevelId)) shiftTypes
-                    `shouldBe`
-                        [ ("Floor", Just "2cba4998-4691-4eeb-9bd3-e79263c54769")
-                        , ("Kitchen", Just "8a53b7c8-574c-49f8-abd4-0caf3b46a22f")
-                        ]
+                map (\shiftType -> (shiftType.name, shiftType.colourKey, tshow <$> shiftType.overrideAwardLevelId)) shiftTypes
+                    `shouldBe` expectedSeedShiftTypesBySortOrder
                 map (\version -> (version.payrollLabel, tshow <$> version.overrideAwardLevelId)) shiftTypeVersions
-                    `shouldBe`
-                        [ ("Floor", Just "2cba4998-4691-4eeb-9bd3-e79263c54769")
-                        , ("Kitchen", Just "8a53b7c8-574c-49f8-abd4-0caf3b46a22f")
-                        ]
+                    `shouldBe` expectedSeedShiftTypeVersionsByLabel
+
+                rosterWeeks <-
+                    query @RosterWeek
+                        |> filterWhere (#venueId, unpackId (get #id fixture.sandboxVenue))
+                        |> filterWhere (#weekOffset, fixture.currentWeekOffset)
+                        |> fetch
+                rosterDays <-
+                    query @RosterDay
+                        |> filterWhereIn (#rosterWeekId, map (unpackId . (.id)) rosterWeeks)
+                        |> fetch
+                rosterSlots <-
+                    query @RosterSlot
+                        |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                        |> fetch
+                let staffedRosterSlots = filter (isJust . (.staffId)) rosterSlots
+                let seededShiftTypeIds = map (unpackId . (.id)) shiftTypes
+                let assignedShiftTypeIds = mapMaybe (.shiftTypeId) staffedRosterSlots
+
+                length staffedRosterSlots `shouldSatisfy` (> 0)
+                assignedShiftTypeIds `shouldSatisfy` all (`elem` seededShiftTypeIds)
+                length assignedShiftTypeIds `shouldBe` length staffedRosterSlots
+                length (nub assignedShiftTypeIds) `shouldSatisfy` (> 2)
 
         it "seeds three times as many sandbox timesheets with break coverage on most entries" $ withContext do
             withCleanDb do
@@ -471,6 +487,30 @@ tests = beforeAll testContext do
 
                 length assignedPreferenceKeys `shouldSatisfy` (> 0)
                 matchedAssignedCount `shouldSatisfy` (>= requiredPreferredCount)
+
+expectedSeedShiftTypesBySortOrder :: [(Text, Text, Maybe Text)]
+expectedSeedShiftTypesBySortOrder =
+    [ ("Floor", "palette-1", Just floorAwardLevelIdText)
+    , ("Kitchen", "palette-2", Just kitchenAwardLevelIdText)
+    , ("Bar", "palette-3", Just floorAwardLevelIdText)
+    , ("Gaming", "palette-4", Just floorAwardLevelIdText)
+    , ("Glassy", "palette-5", Just floorAwardLevelIdText)
+    , ("Cellar", "palette-6", Just floorAwardLevelIdText)
+    , ("Functions", "palette-7", Just floorAwardLevelIdText)
+    , ("Runner", "palette-8", Just floorAwardLevelIdText)
+    , ("Door", "palette-9", Just kitchenAwardLevelIdText)
+    , ("Supervisor", "palette-10", Just kitchenAwardLevelIdText)
+    ]
+
+expectedSeedShiftTypeVersionsByLabel :: [(Text, Maybe Text)]
+expectedSeedShiftTypeVersionsByLabel =
+    sort (map (\(name, _colourKey, awardLevelId) -> (name, awardLevelId)) expectedSeedShiftTypesBySortOrder)
+
+floorAwardLevelIdText :: Text
+floorAwardLevelIdText = "2cba4998-4691-4eeb-9bd3-e79263c54769"
+
+kitchenAwardLevelIdText :: Text
+kitchenAwardLevelIdText = "8a53b7c8-574c-49f8-abd4-0caf3b46a22f"
 
 weekdayIndexForDayOffset :: Int -> Int
 weekdayIndexForDayOffset dayOffset =
