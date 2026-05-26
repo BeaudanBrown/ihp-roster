@@ -104,6 +104,20 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyRegistration\""
                 response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyRegistration\""
 
+        it "prompts mandatory-passkey users to add a backup passkey" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Backup Passkey Prompt Venue"
+                user <- createUserRecord "backup-passkey-prompt@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createTestPasskeyRecord user "Only admin passkey"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams EditProfileAction [("section", "security")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Add a backup passkey."
+                response `responseBodyShouldContain` "should keep at least two passkeys"
+
         it "requires venue admins without passkeys to finish security setup before operational pages" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Mandatory Admin Passkey Venue"

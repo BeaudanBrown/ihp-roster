@@ -4,6 +4,7 @@ module Web.View.Passkeys.Management
     )
 where
 
+import Application.Helper.Controller (currentUserRequiresMandatoryPasskey)
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
@@ -17,6 +18,7 @@ renderPasskeyManagementWithAddButton canAddPasskey passkeys successRedirect = [h
     <div class="app-form-width" data-passkey-management="true">
         {renderPasskeyRegistrationAction canAddPasskey successRedirect}
         {renderNewDevicePasskeyAction passkeys}
+        {renderBackupPasskeyPrompt canAddPasskey passkeys}
         <div class="mt-4">
             {renderPasskeyTable passkeys}
         </div>
@@ -48,6 +50,25 @@ renderNewDevicePasskeyAction _ = [hsx|
         <button type="submit" class="btn btn-outline-secondary btn-sm">Email setup link for another device</button>
         <div class="form-text app-muted">Use this when you are passkey-verified here and want to add a passkey on another device.</div>
     </form>
+|]
+
+renderBackupPasskeyPrompt :: Bool -> [Passkey] -> Html
+renderBackupPasskeyPrompt canAddPasskey passkeys
+    | currentUserRequiresMandatoryPasskey && length passkeys == 1 = [hsx|
+        <div class="alert alert-warning mt-3 mb-0">
+            <strong>Add a backup passkey.</strong>
+            Venue admins, owners, and support admins should keep at least two passkeys so a lost device does not block privileged access.
+            {renderBackupPasskeyPromptAction canAddPasskey}
+        </div>
+    |]
+    | otherwise = mempty
+
+renderBackupPasskeyPromptAction :: Bool -> Html
+renderBackupPasskeyPromptAction True = [hsx|
+    <div class="small mt-2">Use the add-passkey form on this page, or email yourself a setup link for another device.</div>
+|]
+renderBackupPasskeyPromptAction False = [hsx|
+    <div class="small mt-2">Email yourself a setup link for another device, then open it there to add a backup passkey.</div>
 |]
 
 renderPasskeyTable :: [Passkey] -> Html
