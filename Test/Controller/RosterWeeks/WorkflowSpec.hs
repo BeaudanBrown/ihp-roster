@@ -519,13 +519,15 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` ">Alpha<"
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 
-        it "shows predicted roster wages to admins only" $ withContext do
+        it "shows week wage estimates to admins only when end times are enabled" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 admin <- createUserRecord "roster-admin-wage-prediction@example.com" "staff" True
                 manager <- createUserRecord "roster-manager-wage-prediction@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
                 _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled True)
                 slotName <- fetchSlotNameRecord venue "Early"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 _ <- updateRecord (staffMember |> set #employmentBasis Permanent)
@@ -549,16 +551,16 @@ tests = beforeAll testContext do
 
                 adminResponse `responseStatusShouldBe` status200
                 adminResponse `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
-                adminResponse `responseBodyShouldContain` "Predicted wages:"
+                adminResponse `responseBodyShouldContain` "Week wage estimate:"
                 adminResponse `responseBodyShouldContain` "$150.00"
-                adminResponse `responseBodyShouldContain` "1 draft shift excluded"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary-total"
-                adminResponse `responseBodyShouldContain` "roster-wage-summary-warning"
+                adminResponse `responseBodyShouldNotContain` "draft shift excluded"
+                adminResponse `responseBodyShouldNotContain` "roster-wage-summary-warning"
                 adminResponse `responseBodyShouldContain` "roster-wage-rail-head"
                 adminResponse `responseBodyShouldContain` ">Wages<"
                 adminResponse `responseBodyShouldContain` "roster-day-wage-total"
-                adminResponse `responseBodyShouldContain` "aria-label=\"Predicted wages for day\""
+                adminResponse `responseBodyShouldContain` "aria-label=\"Wage estimate for day\""
                 adminResponse `responseBodyShouldContain` "Show wage estimates"
                 adminResponse `responseBodyShouldNotContain` "Admin estimate only"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-prediction"
@@ -571,11 +573,11 @@ tests = beforeAll testContext do
 
                 dayColumnsResponse `responseStatusShouldBe` status200
                 dayColumnsResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
-                dayColumnsResponse `responseBodyShouldContain` "Predicted wages:"
+                dayColumnsResponse `responseBodyShouldContain` "Week wage estimate:"
                 dayColumnsResponse `responseBodyShouldContain` "roster-wage-summary-total"
                 dayColumnsResponse `responseBodyShouldContain` "roster-day-wage-total-labeled"
                 dayColumnsResponse `responseBodyShouldContain` "Wage estimate"
-                dayColumnsResponse `responseBodyShouldContain` "aria-label=\"Predicted wages for day\""
+                dayColumnsResponse `responseBodyShouldContain` "aria-label=\"Wage estimate for day\""
                 dayColumnsResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
                 hiddenWagesResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -587,7 +589,7 @@ tests = beforeAll testContext do
                 hiddenWagesResponse `responseStatusShouldBe` status200
                 hiddenWagesResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
                 hiddenWagesResponse `responseBodyShouldContain` "Show wage estimates"
-                hiddenWagesResponse `responseBodyShouldNotContain` "Predicted wages:"
+                hiddenWagesResponse `responseBodyShouldNotContain` "Week wage estimate:"
                 hiddenWagesResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 hiddenWagesResponse `responseBodyShouldNotContain` "roster-day-wage-total"
                 hiddenPreferences <- query @UserPreference
@@ -599,13 +601,60 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 managerResponse `responseStatusShouldBe` status200
-                managerResponse `responseBodyShouldNotContain` "Predicted wages"
+                managerResponse `responseBodyShouldNotContain` "Week wage estimate"
                 managerResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 managerResponse `responseBodyShouldNotContain` "roster-wage-summary-total"
                 managerResponse `responseBodyShouldNotContain` "roster-day-wage-total"
-                managerResponse `responseBodyShouldNotContain` "aria-label=\"Predicted wages for day\""
+                managerResponse `responseBodyShouldNotContain` "aria-label=\"Wage estimate for day\""
                 managerResponse `responseBodyShouldNotContain` "roster-wage-prediction"
                 managerResponse `responseBodyShouldNotContain` "Show wage estimates"
+
+        it "hides wage estimate controls when roster end times are disabled" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                admin <- createUserRecord "roster-admin-wage-end-times-disabled@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                _ <- updateRecord (staffMember |> set #employmentBasis Permanent)
+                level <- createPayLevelRecordWithRates venue "Level 1" 20 5 10 1 1.5 2
+                shiftType <- createShiftTypeRecord venue level "Floor"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                _ <- updateRecord
+                    ( slot
+                        |> set #startTime (Just (timeOfDay 9 0))
+                        |> set #endTime (Just (timeOfDay 17 0))
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> set #durationMinutes (Just 480)
+                    )
+
+                adminResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                adminResponse `responseStatusShouldBe` status200
+                adminResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
+                adminResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
+                adminResponse `responseBodyShouldNotContain` "Show wage estimates"
+                adminResponse `responseBodyShouldNotContain` "Week wage estimate:"
+                adminResponse `responseBodyShouldNotContain` "roster-wage-summary"
+                adminResponse `responseBodyShouldNotContain` "roster-day-wage-total"
+                adminResponse `responseBodyShouldNotContain` "roster-wage-rail-head"
+
+                toggleResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams
+                            (UpdateRosterWageEstimatePreferenceAction 0)
+                            [("showWageEstimates", "true")]
+
+                toggleResponse `responseStatusShouldBe` status200
+                toggleResponse `responseBodyShouldNotContain` "Show wage estimates"
+                toggleResponse `responseBodyShouldNotContain` "Week wage estimate:"
+                hiddenPreferences <- query @UserPreference
+                    |> filterWhere (#userId, unpackId admin.id)
+                    |> fetchOneOrNothing
+                hiddenPreferences `shouldBe` Nothing
 
         it "manager can toggle a draft week live" $ withContext do
             withCleanDb do

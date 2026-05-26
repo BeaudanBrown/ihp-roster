@@ -123,7 +123,9 @@ mkRosterProjectionDefinition =
         do
             filters <- fetchRosterAssignmentFilters
             layoutMode <- fetchCurrentRosterLayoutMode
-            showWageEstimates <- fetchCurrentUserShowWageEstimates
+            userShowWageEstimates <- fetchCurrentUserShowWageEstimates
+            venueConfig <- fetchVenueConfig
+            let showWageEstimates = venueConfig.rosterEndTimesEnabled && userShowWageEstimates
             pure (tshow currentUser.id <> ":" <> encodeRosterAssignmentFilters filters <> ":" <> rosterLayoutModeValue layoutMode <> ":" <> (if showWageEstimates then "wages" else "no-wages"))
         rosterProjectionVersion
 

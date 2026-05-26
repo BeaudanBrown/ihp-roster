@@ -17,8 +17,8 @@ import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
 import Web.View.Prelude
 import Web.View.RosterWeeks.Overview (renderWeekOverviewDropdown)
 
-renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Maybe RosterWagePrediction -> Bool -> Html
-renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterWagePrediction showWageEstimates = [hsx|
+renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Html
+renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates = [hsx|
     <div class="app-panel-header app-surface-toolbar roster-grid-header">
         <div class="app-surface-toolbar-side roster-grid-header-side roster-grid-header-side-left">
             {renderLiveToggle maybeRosterWeek viewCapabilities}
@@ -30,7 +30,7 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
         </div>
         <div class="app-surface-toolbar-side app-surface-toolbar-side-right roster-grid-header-side roster-grid-header-side-right">
             {renderRosterWeekManagerControls weekOffset currentRosterGroup viewCapabilities}
-            {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode showWageEstimates}
+            {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates}
         </div>
     </div>
 |]
@@ -40,18 +40,10 @@ renderRosterWeekWageSummary Nothing = mempty
 renderRosterWeekWageSummary (Just prediction)
     | not currentUserIsAdmin = mempty
     | otherwise = [hsx|
-        <div class="roster-wage-summary" aria-label="Predicted roster wages">
-            <span class="roster-wage-summary-label">Predicted wages:</span>
+        <div class="roster-wage-summary" aria-label="Week wage estimate">
+            <span class="roster-wage-summary-label">Week wage estimate:</span>
             <span class="roster-wage-summary-total">{formatMoneyAmount prediction.predictionWeekTotal}</span>
-            {renderRosterWeekWageExcluded prediction}
         </div>
-    |]
-
-renderRosterWeekWageExcluded :: RosterWagePrediction -> Html
-renderRosterWeekWageExcluded prediction
-    | prediction.predictionIncompleteShiftCount <= 0 = mempty
-    | otherwise = [hsx|
-        <span class="roster-wage-summary-warning">{tshow prediction.predictionIncompleteShiftCount} {draftShiftCopy prediction.predictionIncompleteShiftCount} excluded</span>
     |]
 
 renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGroup -> Day -> Html
@@ -62,10 +54,6 @@ renderRosterWeekControls weekOffset currentRosterGroup weekStartDate = [hsx|
         {renderWeekNavigationLink "bi-chevron-right" "Next week" (rosterWeekUrl (weekOffset + 1) currentRosterGroup.id)}
     </div>
 |]
-
-draftShiftCopy :: Int -> Text
-draftShiftCopy 1 = "draft shift"
-draftShiftCopy _ = "draft shifts"
 
 renderRosterGroupSwitcher :: Int -> [RosterGroup] -> RosterGroup -> Html
 renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup = [hsx|
@@ -134,8 +122,8 @@ renderThisWeekButton =
             , partialNavigationPushUrl = True
             }
 
-renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Html
-renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode showWageEstimates =
+renderRosterWeekMoreMenu :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Bool -> Html
+renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates =
     let menuTriggerId = rosterWeekMoreMenuId maybeRosterWeek currentRosterGroup.id
         divider = [hsx|<div class="dropdown-divider my-1"></div>|]
      in [hsx|
@@ -155,7 +143,7 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
             </div>
             <div class="dropdown-divider my-1"></div>
             {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode}
-            {renderRosterWageEstimatePreferenceMenuSection weekOffset currentRosterGroup.id viewCapabilities showWageEstimates}
+            {renderRosterWageEstimatePreferenceMenuSection weekOffset currentRosterGroup.id viewCapabilities rosterEndTimesEnabled showWageEstimates}
             {renderRosterColumnMenuSection maybeRosterWeek viewCapabilities}
             {renderRosterExportMenuSection viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
@@ -197,9 +185,9 @@ renderRosterLayoutModeOption selectedLayoutMode layoutMode =
         <label class="btn btn-outline-secondary btn-sm" for={inputId}>{rosterLayoutModeLabel layoutMode}</label>
     |]
 
-renderRosterWageEstimatePreferenceMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Html
-renderRosterWageEstimatePreferenceMenuSection weekOffset rosterGroupId viewCapabilities showWageEstimates
-    | not viewCapabilities.canViewWageEstimates = mempty
+renderRosterWageEstimatePreferenceMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Bool -> Bool -> Html
+renderRosterWageEstimatePreferenceMenuSection weekOffset rosterGroupId viewCapabilities rosterEndTimesEnabled showWageEstimates
+    | not viewCapabilities.canViewWageEstimates || not rosterEndTimesEnabled = mempty
     | otherwise = [hsx|
         <form class="px-1 pb-1"
               method="POST"

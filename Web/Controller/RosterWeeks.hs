@@ -431,13 +431,22 @@ instance Controller RosterWeeksController where
     action UpdateRosterWageEstimatePreferenceAction { weekOffset } = do
         accessDeniedUnless (hasRole VenueAdminRole)
         rosterGroup <- resolveRequestedRosterGroup
-        let showWageEstimates = paramOrDefault @Text "false" "showWageEstimates" == "true"
-        _ <- upsertCurrentUserShowWageEstimates showWageEstimates
-        if isHtmxRequest
-            then respondWithRosterContent rosterGroup.id weekOffset
-            else do
-                setSuccessMessage "Roster wage estimate preference saved."
-                redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+        venueConfig <- fetchVenueConfig
+        if venueConfig.rosterEndTimesEnabled
+            then do
+                let showWageEstimates = paramOrDefault @Text "false" "showWageEstimates" == "true"
+                _ <- upsertCurrentUserShowWageEstimates showWageEstimates
+                if isHtmxRequest
+                    then respondWithRosterContent rosterGroup.id weekOffset
+                    else do
+                        setSuccessMessage "Roster wage estimate preference saved."
+                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
+            else
+                if isHtmxRequest
+                    then respondWithRosterContent rosterGroup.id weekOffset
+                    else do
+                        setErrorMessage "Enable roster end times before showing wage estimates."
+                        redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
     action CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = do
         ensureManagerRole

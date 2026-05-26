@@ -99,7 +99,7 @@ renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gr
                 else renderRosterDayRowsGrid gridRosterEndTimesEnabled slotColumnsAreEditable gridRosterWeek gridSlotNames dayModel gridRosterDays
      in [hsx|
     <div class="app-panel overflow-hidden mb-5 mb-xl-0">
-        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterWagePrediction gridShowWageEstimates}
+        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates}
         <div class="roster-grid-frame"
              data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
@@ -117,7 +117,7 @@ renderDayRowsWageAmount (Just prediction) date =
     case lookupRosterWagePredictionDayByDate prediction date of
         Nothing -> mempty
         Just dayPrediction -> [hsx|
-            <div class="roster-day-wage-total" aria-label="Predicted wages for day">
+            <div class="roster-day-wage-total" aria-label="Wage estimate for day">
                 {formatMoneyAmount dayPrediction.predictionDayTotal}
             </div>
         |]
@@ -128,7 +128,7 @@ renderDayColumnWageEstimate (Just prediction) date =
     case lookupRosterWagePredictionDayByDate prediction date of
         Nothing -> mempty
         Just dayPrediction -> [hsx|
-            <div class="roster-day-wage-total roster-day-wage-total-labeled" aria-label="Predicted wages for day">
+            <div class="roster-day-wage-total roster-day-wage-total-labeled" aria-label="Wage estimate for day">
                 <span class="roster-day-wage-label">Wage estimate</span>
                 <span>{formatMoneyAmount dayPrediction.predictionDayTotal}</span>
             </div>
