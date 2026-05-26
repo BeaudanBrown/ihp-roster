@@ -105,7 +105,7 @@ renderXeroConnectionNotice connection =
     case connection.connectionStatus of
         "reauthorization_required" -> [hsx|
             <div class="alert alert-warning mb-0" role="alert">
-                Xero needs to be reconnected before sync can continue. Use Reconnect to authorize the same organisation again; existing staff mappings will be kept.
+                Xero needs to be reconnected before sync can continue. Use Reconnect to authorize {fromMaybe connection.tenantId connection.tenantName} again; existing staff mappings will be kept. To switch organisations, disconnect first and then connect Xero again.
             </div>
         |]
         "error" -> [hsx|

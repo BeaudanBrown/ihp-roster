@@ -1586,6 +1586,38 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "hx-push-url=\"/Xero\""
                 pageResponse `responseBodyShouldContain` "hx-indicator=\"#xero-reference-sync-indicator\""
 
+        it "rejects reconnect callbacks when Xero returns a different tenant" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Wrong Tenant Reconnect Venue"
+                owner <- createUserRecord "xero-wrong-tenant-reconnect@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                connection <- createSyncableXeroConnection venue owner >>= \record ->
+                    record
+                        |> set #connectionStatus "reauthorization_required"
+                        |> set #lastError (Just "Expired refresh token")
+                        |> updateRecord
+                oauthState <- createTestXeroOauthState venue owner "wrong-tenant-state" 600 Nothing
+                let tokenResponse = XeroTokenResponse "wrong-tenant-access-token" "wrong-tenant-refresh-token" 1800 (Just requiredXeroScopesText)
+                let tenant = XeroTenant "connection-other" "tenant-other" (Just "Other Demo Company")
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (successfulXeroClient tokenResponse [tenant]) do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callActionWithParams XeroOAuthCallbackAction [("state", cs oauthState.stateToken), ("code", "wrong-tenant-code")]
+
+                response `responseStatusShouldBe` status302
+                retainedConnection <- fetch connection.id
+                retainedConnection.connectionStatus `shouldBe` "reauthorization_required"
+                retainedConnection.tenantId `shouldBe` "tenant-existing"
+                retainedConnection.tenantName `shouldBe` Just "Existing Demo Company"
+                retainedConnection.lastError `shouldBe` Just "Expired refresh token"
+                decryptXeroToken testXeroConfig.tokenEncryptionKey retainedConnection.encryptedRefreshToken `shouldBe` Right "existing-refresh-token"
+                updatedState <- fetch oauthState.id
+                updatedState.consumedAt `shouldSatisfy` isJust
+                [auditEvent] <- query @AuditEvent |> filterWhere (#eventType, "xero_connection_failed" :: Text) |> fetch
+                let failure = AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "failure")) auditEvent.payload
+                failure `shouldSatisfy` maybe False ("Reconnect must authorize Existing Demo Company" `Text.isInfixOf`)
+
         it "repairs an existing same-tenant Xero connection during reconnect" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Reconnect Repair Venue"

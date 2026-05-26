@@ -221,10 +221,15 @@ completeXeroOAuthCallback now actorUserId oauthState code =
                             _ <- consumeXeroOAuthStateMutation oauthState now
                             failXeroConnectionAttempt "Xero returned no connected tenants." (Just oauthState)
                         Right tenants -> do
-                            tenant <- chooseXeroTenantForOAuth tenants
-                            connection <- liveMutationValue <$> completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenResponse tenant
-                            setSuccessMessage ("Connected Xero tenant " <> fromMaybe connection.tenantId connection.tenantName <> ".")
-                            redirectAfterCompletedXeroConnection oauthState
+                            tenantResult <- chooseXeroTenantForOAuth tenants
+                            case tenantResult of
+                                Left message -> do
+                                    _ <- consumeXeroOAuthStateMutation oauthState now
+                                    failXeroConnectionAttempt message (Just oauthState)
+                                Right tenant -> do
+                                    connection <- liveMutationValue <$> completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenResponse tenant
+                                    setSuccessMessage ("Connected Xero tenant " <> fromMaybe connection.tenantId connection.tenantName <> ".")
+                                    redirectAfterCompletedXeroConnection oauthState
 
 referenceSyncOAuthStatePrefix :: Text
 referenceSyncOAuthStatePrefix = "payroll-reference-sync:"
@@ -249,13 +254,18 @@ redirectAfterCompletedXeroConnection oauthState =
 chooseXeroTenantForOAuth ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
     [XeroTenant] ->
-    IO XeroTenant
+    IO (Either Text XeroTenant)
 chooseXeroTenantForOAuth tenants = do
     existingConnection <- fetchCurrentVenueXeroConnection
-    pure case (existingConnection >>= \connection -> List.find (\tenant -> tenant.tenantId == connection.tenantId) tenants, tenants) of
-        (Just tenant, _) -> tenant
-        (Nothing, tenant : _) -> tenant
-        (Nothing, []) -> error "chooseXeroTenantForOAuth called without tenants"
+    pure case existingConnection of
+        Just connection ->
+            case List.find (\tenant -> tenant.tenantId == connection.tenantId) tenants of
+                Just tenant -> Right tenant
+                Nothing -> Left ("Reconnect must authorize " <> fromMaybe connection.tenantId connection.tenantName <> ". Xero returned a different organisation; switch Xero account or disconnect locally first.")
+        Nothing ->
+            case tenants of
+                tenant : _ -> Right tenant
+                [] -> Left "Xero returned no connected tenants."
 
 failXeroConnectionAttempt ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
