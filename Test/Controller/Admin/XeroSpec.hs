@@ -724,8 +724,8 @@ tests = beforeAll testContext do
                 connection <- createActiveXeroConnection venue admin
                 awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
                 _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
-                _ <- createXeroEarningsRateRecord connection "Bepis - HIGA - PERM - Undated - Level 2 - Ordinary" "earnings-ordinary"
-                _ <- createXeroEarningsRateRecord connection "Bepis - HIGA - PERM - Undated - Level 2 - Saturday Penalty" "earnings-saturday"
+                _ <- createXeroEarningsRateRecord connection "Ordinary - Level 2 - PERM - Bepis - Undated" "earnings-ordinary"
+                _ <- createXeroEarningsRateRecord connection "Saturday Penalty - Level 2 - PERM - Bepis - Undated" "earnings-saturday"
                 payrollCalendar <- createXeroPayrollCalendarRecord connection "Weekly" "calendar-weekly"
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -734,7 +734,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "Pay item requirements"
                 pageResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
                 pageResponse `responseBodyShouldContain` "admin_xero_pay_items"
-                pageResponse `responseBodyShouldContain` "HIGA - PERM - Undated - Level 2 - Saturday Penalty"
+                pageResponse `responseBodyShouldContain` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
                 pageResponse `responseBodyShouldContain` "$39.3750/hr"
                 pageResponse `responseBodyShouldContain` "Evening After 7pm Loading"
                 pageResponse `responseBodyShouldContain` "$3.1500/hr"
@@ -744,7 +744,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "$55.1250/hr"
                 pageResponse `responseBodyShouldContain` "matched"
                 pageResponse `responseBodyShouldContain` "proposed"
-                pageResponse `responseBodyShouldContain` "HIGA - PERM - Undated - Level 2 - Ordinary"
+                pageResponse `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - Undated"
                 pageResponse `responseBodyShouldNotContain` "Earnings-rate mappings"
                 pageResponse `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
                 pageResponse `responseBodyShouldContain` "Pay item account code"
@@ -763,14 +763,14 @@ tests = beforeAll testContext do
                 payItemsFragmentResponse `responseBodyShouldContain` "hx-target=\"#xero-pay-items-data\""
                 payItemsFragmentResponse `responseBodyShouldContain` "hx-indicator=\"#xero-pay-items-sync-indicator\""
                 payItemsFragmentResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
-                saturdayRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "Bepis - HIGA - PERM - Undated - Level 2 - Saturday Penalty") |> fetchOne
+                saturdayRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "Saturday Penalty - Level 2 - PERM - Bepis - Undated") |> fetchOne
                 saturdayRequirement.requirementStatus `shouldBe` "matched"
-                saturdayRequirement.xeroEarningsRateName `shouldBe` Just "Bepis - HIGA - PERM - Undated - Level 2 - Saturday Penalty"
+                saturdayRequirement.xeroEarningsRateName `shouldBe` Just "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
                 saturdayRequirement.ratePerUnit `shouldBe` Just 39.375
-                eveningRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "Bepis - HIGA - PERM - Undated - Level 2 - Evening After 7pm Loading") |> fetchOne
+                eveningRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "Evening After 7pm Loading - Level 2 - PERM - Bepis - Undated") |> fetchOne
                 eveningRequirement.requirementStatus `shouldBe` "proposed"
                 eveningRequirement.ratePerUnit `shouldBe` Just 3.15
-                delayedRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "Bepis - HIGA - PERM - Undated - Level 2 - M-F Delayed Meal Break") |> fetchOne
+                delayedRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "M-F Delayed Meal Break - Level 2 - PERM - Bepis - Undated") |> fetchOne
                 delayedRequirement.requirementStatus `shouldBe` "proposed"
                 delayedRequirement.ratePerUnit `shouldBe` Just 47.25
 
@@ -829,7 +829,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 requests <- IORef.readIORef requestsRef
                 length requests `shouldBe` 8
-                let ordinaryName = "Bepis - HIGA - PERM - Undated - Level 2 - Ordinary"
+                let ordinaryName = "Ordinary - Level 2 - PERM - Bepis - Undated"
                 let ordinaryKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:ordinary"
                 map fst requests `shouldSatisfy` all (Text.isPrefixOf "bepis-pay-item-")
                 map fst requests `shouldSatisfy` \keys -> length (List.nub keys) == length keys
@@ -839,7 +839,7 @@ tests = beforeAll testContext do
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
                     |> filterWhere (#name, ordinaryName)
                     |> fetchOne
-                createdRate.xeroEarningsRateId `shouldBe` "created-Bepis - HIGA - PERM - Undated - Level 2 - Ordinary"
+                createdRate.xeroEarningsRateId `shouldBe` "created-Ordinary - Level 2 - PERM - Bepis - Undated"
                 createdRate.accountCode `shouldBe` Just "477"
                 mapping <- query @XeroEarningsRateMapping
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
@@ -966,10 +966,10 @@ tests = beforeAll testContext do
 
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Create 6 missing pay items in Xero"
-                pageResponse `responseBodyShouldContain` "Bepis - HIGA - PERM - 1-July-2025 - Level 2 - Ordinary"
+                pageResponse `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - 1-July-2025"
                 pageResponse `responseBodyShouldContain` "Archived pay item requirements (2)"
-                pageResponse `responseBodyShouldContain` "Bepis - HIGA - PERM - 1-July-2024 - Level 2 - Ordinary"
-                pageResponse `responseBodyShouldContain` "Bepis - HIGA - PERM - 1-July-2024 - Level 2 - M-F Delayed Meal Break"
+                pageResponse `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - 1-July-2024"
+                pageResponse `responseBodyShouldContain` "M-F Delayed Meal Break - Level 2 - PERM - Bepis - 1-July-2024"
 
         it "keeps Xero pay item requirement keys unique across employment bases" $ withContext do
             withCleanDb do
@@ -986,8 +986,8 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "HIGA - PERM - Undated - Level 2 - Saturday Penalty"
-                pageResponse `responseBodyShouldContain` "HIGA - CAS - Undated - Level 2 - Saturday Penalty"
+                pageResponse `responseBodyShouldContain` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
+                pageResponse `responseBodyShouldContain` "Saturday Penalty - Level 2 - CAS - Bepis - Undated"
 
                 let permanentKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:penalty:saturday_penalty"
                 let casualKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:casual:effective:undated:penalty:saturday_penalty"
@@ -1010,7 +1010,7 @@ tests = beforeAll testContext do
                 connection <- createActiveXeroConnection venue admin
                 awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
                 _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
-                _ <- createXeroEarningsRateRecord connection "HIGA - PERM - Undated - Level 2 - Ordinary" "earnings-unmanaged-ordinary"
+                _ <- createXeroEarningsRateRecord connection "Ordinary - Level 2 - PERM - Undated" "earnings-unmanaged-ordinary"
 
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
@@ -1020,9 +1020,32 @@ tests = beforeAll testContext do
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
                     |> filterWhere (#requirementKey, ordinaryKey)
                     |> fetchOne
-                ordinaryRequirement.displayName `shouldBe` "Bepis - HIGA - PERM - Undated - Level 2 - Ordinary"
+                ordinaryRequirement.displayName `shouldBe` "Ordinary - Level 2 - PERM - Bepis - Undated"
                 ordinaryRequirement.requirementStatus `shouldBe` "proposed"
                 ordinaryRequirement.xeroEarningsRateId `shouldBe` Nothing
+
+        it "matches legacy managed Xero earnings rate names to the new human-first names" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Pay Item Legacy Name Venue"
+                admin <- createUserRecord "xero-pay-item-legacy-name@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_owner"
+                connection <- createActiveXeroConnection venue admin
+                awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
+                _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
+                _ <- createXeroEarningsRateRecord connection "Bepis - HIGA - PERM - Undated - Level 2 - Saturday Penalty" "earnings-legacy-saturday"
+
+                _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminXeroFragmentAction
+
+                let saturdayKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:penalty:saturday_penalty"
+                saturdayRequirement <- query @XeroPayItemRequirementRecord
+                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                    |> filterWhere (#requirementKey, saturdayKey)
+                    |> fetchOne
+                saturdayRequirement.displayName `shouldBe` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
+                saturdayRequirement.requirementStatus `shouldBe` "matched"
+                saturdayRequirement.xeroEarningsRateId `shouldBe` Just "earnings-legacy-saturday"
+                saturdayRequirement.xeroEarningsRateName `shouldBe` Just "Bepis - HIGA - PERM - Undated - Level 2 - Saturday Penalty"
 
         it "limits Xero pay item requirements to award levels and bases used by venue staff and shift types" $ withContext do
             withCleanDb do
@@ -1043,10 +1066,10 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "HIGA - PERM - Undated - Floor Level - Ordinary"
-                pageResponse `responseBodyShouldContain` "HIGA - CAS - Undated - Floor Level - Ordinary"
-                pageResponse `responseBodyShouldContain` "HIGA - PERM - Undated - Kitchen Level - Ordinary"
-                pageResponse `responseBodyShouldContain` "HIGA - CAS - Undated - Kitchen Level - Ordinary"
+                pageResponse `responseBodyShouldContain` "Ordinary - Floor Level - PERM - Bepis - Undated"
+                pageResponse `responseBodyShouldContain` "Ordinary - Floor Level - CAS - Bepis - Undated"
+                pageResponse `responseBodyShouldContain` "Ordinary - Kitchen Level - PERM - Bepis - Undated"
+                pageResponse `responseBodyShouldContain` "Ordinary - Kitchen Level - CAS - Bepis - Undated"
                 pageResponse `responseBodyShouldNotContain` "Unused Level"
 
                 let unusedKey = "xero:pay-item:classification:" <> tshow unusedLevel.classificationFixedId <> ":basis:permanent:effective:undated:ordinary"
@@ -1071,7 +1094,7 @@ tests = beforeAll testContext do
                 connection <- createActiveXeroConnection venue admin
                 awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
                 _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
-                _ <- createXeroEarningsRateRecord connection "Bepis - HIGA - PERM - Undated - Level 2 - Saturday Penalty" "earnings-saturday"
+                _ <- createXeroEarningsRateRecord connection "Saturday Penalty - Level 2 - PERM - Bepis - Undated" "earnings-saturday"
 
                 _ <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
@@ -1234,8 +1257,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Staff mappings"
                 response `responseBodyShouldContain` "Show matched"
                 response `responseBodyShouldContain` "Xero employee"
-                response `responseBodyShouldContain` "name=\"xeroEmployeeSelection\""
-                response `responseBodyShouldContain` "Choose Xero employee"
+                response `responseBodyShouldNotContain` "name=\"xeroEmployeeSelection\""
                 response `responseBodyShouldNotContain` "value=\"employee-a\" selected"
                 response `responseBodyShouldNotContain` "value=\"employee-b\" selected"
                 pendingStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
@@ -1253,7 +1275,7 @@ tests = beforeAll testContext do
                 matchedResponse `responseBodyShouldContain` "value=\"not_applicable\""
                 matchedResponse `responseBodyShouldContain` "Not paid through Xero"
                 matchedResponse `responseBodyShouldNotContain` ">Approve</button>"
-                matchedResponse `responseBodyShouldContain` "Skip this time"
+                matchedResponse `responseBodyShouldNotContain` "Skip this time"
                 matchedResponse `responseBodyShouldNotContain` "Suggested match"
                 matchedResponse `responseBodyShouldNotContain` "Manual employee"
                 matchedResponse `responseBodyShouldNotContain` "name=\"xeroEmployeeId\""
@@ -1325,7 +1347,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Managed pay items"
                 response `responseBodyShouldContain` "will be created on submit"
-                response `responseBodyShouldContain` "Bepis - HIGA - PERM - Undated - Level 2 - Ordinary"
+                response `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - Undated"
                 response `responseBodyShouldContain` "Ordinary Hours - earnings-account-code"
                 response `responseBodyShouldNotContain` "Approve creation"
                 response `responseBodyShouldNotContain` "Earnings-rate mappings"
@@ -1496,23 +1518,6 @@ tests = beforeAll testContext do
                 preparationRun.remoteTimesheetsJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
                 preparationRun.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"
 
-        it "rejects run-scoped skip for staff already mapped to Xero" $ withContext do
-            withCleanDb do
-                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                run <- createPreparationRunForFixture fixture "needs_approval"
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
-                            [ ("staffId", idToParam fixture.staffA.id)
-                            , ("decision", "skip")
-                            ]
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Skip is only available for staff who are not already mapped to Xero."
-                skipCount <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_skip" :: Text) |> fetchCount
-                skipCount `shouldBe` 0
-
         it "persists not-paid decisions from the guided preparation modal" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
@@ -1539,7 +1544,8 @@ tests = beforeAll testContext do
                         callActionWithParams (ShowXeroTimesheetPreparationStaffMappingsFragmentAction run.id)
                             [("showMatched", "true")]
                 matchedResponse `responseStatusShouldBe` status200
-                matchedResponse `responseBodyShouldContain` "Persistently marked as not paid through Xero."
+                matchedResponse `responseBodyShouldContain` "Not paid through Xero"
+                matchedResponse `responseBodyShouldContain` "value=\"not_applicable\" selected"
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` "not_applicable"
                 mapping.xeroEmployeeId `shouldBe` Nothing

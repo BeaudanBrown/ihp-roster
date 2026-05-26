@@ -159,7 +159,6 @@ parseStaffDecision =
                 "not_applicable" -> Right MarkStaffNotPaidThroughXero
                 employeeId -> Right (SelectXeroEmployee employeeId)
         "not_paid" -> Right MarkStaffNotPaidThroughXero
-        "skip" -> Right SkipStaffForPreparation
         _ -> Left "Choose a supported Xero preparation decision."
 
 respondWithPreparationDialog ::

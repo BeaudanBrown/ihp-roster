@@ -1361,7 +1361,7 @@ CREATE TABLE xero_timesheet_preparation_decisions (
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
     FOREIGN KEY (staff_id) REFERENCES staff (id) ON DELETE RESTRICT,
     FOREIGN KEY (decided_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK (decision_kind = 'staff_auto_match' OR decision_kind = 'staff_manual_mapping' OR decision_kind = 'staff_not_paid' OR decision_kind = 'staff_skip' OR decision_kind = 'pay_item_create' OR decision_kind = 'account_code' OR decision_kind = 'calendar_selection'),
+    CHECK (decision_kind = 'staff_auto_match' OR decision_kind = 'staff_manual_mapping' OR decision_kind = 'staff_not_paid' OR decision_kind = 'pay_item_create' OR decision_kind = 'account_code' OR decision_kind = 'calendar_selection'),
     CHECK (decision_status = 'pending' OR decision_status = 'proposed' OR decision_status = 'applied' OR decision_status = 'blocked' OR decision_status = 'resolved' OR decision_status = 'dismissed')
 );
 CREATE TABLE xero_timesheet_submissions (

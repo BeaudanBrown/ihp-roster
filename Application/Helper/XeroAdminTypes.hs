@@ -198,7 +198,6 @@ data XeroTimesheetPeriodOption = XeroTimesheetPeriodOption
 data XeroPreparationStaffRow = XeroPreparationStaffRow
     { preparationStaffMappingRow    :: XeroStaffMappingRow
     , preparationStaffDecision      :: Maybe XeroTimesheetPreparationDecision
-    , preparationStaffSkipped       :: Bool
     , preparationStaffNeedsDecision :: Bool
     }
 

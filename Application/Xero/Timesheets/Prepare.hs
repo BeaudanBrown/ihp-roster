@@ -30,7 +30,6 @@ import IHP.ControllerPrelude
 data XeroPreparationStaffDecision
     = SelectXeroEmployee !Text
     | MarkStaffNotPaidThroughXero
-    | SkipStaffForPreparation
     deriving (Eq, Show)
 
 startXeroTimesheetPreparation ::
@@ -126,13 +125,12 @@ loadXeroTimesheetPreparationView runId = do
         Just run -> do
             connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
             decisions <- fetchPreparationDecisions run
-            let skippedStaffIds = preparationSkippedStaffIds decisions
-                remoteTimesheets = remoteTimesheetsFromRun run
-                readinessRequest = preparationReadinessRequest run remoteTimesheets skippedStaffIds
+            let remoteTimesheets = remoteTimesheetsFromRun run
+                readinessRequest = preparationReadinessRequest run remoteTimesheets
             readiness <- validateXeroTimesheetReadiness readinessRequest
             let readinessView = preparationReadinessView run readiness
             staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
-            approvedStaffIds <- fetchApprovedPreparationStaffIds run skippedStaffIds
+            approvedStaffIds <- fetchApprovedPreparationStaffIds run
             xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
             xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
             payItemRequirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
@@ -148,7 +146,10 @@ loadXeroTimesheetPreparationView runId = do
                 case maybeSubmissionRun of
                     Nothing -> pure Nothing
                     Just submissionRun -> Just <$> buildXeroTimesheetRunView connection submissionRun
-            let staffDecisionRows = map (preparationStaffRow approvedStaffIds skippedStaffIds decisions) staffRows
+            let staffDecisionRows =
+                    staffRows
+                        |> filter (staffRowHasApprovedEntry approvedStaffIds)
+                        |> map (preparationStaffRow decisions)
                 payItemRows = map (preparationPayItemRow decisions) (filter activePayItemRequirement payItemRequirements)
                 pendingDecisionCount = length (filter pendingManualPreparationDecision decisions)
                 manualStaffDecisionCount = length (filter (.preparationStaffNeedsDecision) staffDecisionRows)
@@ -211,14 +212,6 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                 Nothing -> pure (Left "Choose a staff member from the current venue.")
                 Just staff ->
                     case decision of
-                        SkipStaffForPreparation -> do
-                            hasResolvedMapping <- staffHasResolvedXeroMapping connection staff
-                            if hasResolvedMapping
-                                then pure (Left "Skip is only available for staff who are not already mapped to Xero.")
-                                else do
-                                    _ <- applyPreparationDecision run (Just staff) "staff_skip" Nothing Nothing Nothing
-                                    dismissPendingStaffAutoMatches run staff
-                                    reloadAfterLocalDecision run remoteTimesheetsFromCurrentRun
                         MarkStaffNotPaidThroughXero -> do
                             _ <- persistPreparationStaffMapping connection staff "not_applicable" Nothing
                             _ <- applyPreparationDecision run (Just staff) "staff_not_paid" Nothing Nothing Nothing
@@ -425,8 +418,7 @@ previewXeroTimesheetPreparation runId =
             | otherwise -> do
                 let run = view.preparationRun
                     remoteTimesheets = remoteTimesheetsFromRun run
-                    skippedStaffIds = preparationSkippedStaffIdsForView view
-                    readinessRequest = preparationReadinessRequest run remoteTimesheets skippedStaffIds
+                    readinessRequest = preparationReadinessRequest run remoteTimesheets
                 readiness <- validateXeroTimesheetReadiness readinessRequest
                 createPersistedXeroTimesheetPreparationPreview currentUser.id run.id readinessRequest readiness run.remoteTimesheetsJson >>= \case
                     Left message -> pure (Left message)
@@ -459,8 +451,7 @@ submitXeroTimesheetPreparation runId maybeAccountCode =
                         refreshedRun <- fetch view.preparationRun.id
                         latestDecisions <- fetchPreparationDecisions refreshedRun
                         let remoteTimesheets = remoteTimesheetsFromRun refreshedRun
-                            skippedStaffIds = preparationSkippedStaffIds latestDecisions
-                            readinessRequest = preparationReadinessRequest refreshedRun remoteTimesheets skippedStaffIds
+                            readinessRequest = preparationReadinessRequest refreshedRun remoteTimesheets
                         readiness <- validateXeroTimesheetReadiness readinessRequest
                         if not readiness.xeroTimesheetReady
                             then pure (Left (readinessErrorSummary readiness))
@@ -503,9 +494,8 @@ fetchPreparationDecisions run =
 fetchApprovedPreparationStaffIds ::
     (?modelContext :: ModelContext) =>
     XeroTimesheetPreparationRun ->
-    [UUID] ->
     IO [UUID]
-fetchApprovedPreparationStaffIds run skippedStaffIds = do
+fetchApprovedPreparationStaffIds run = do
     entries <-
         query @TimesheetEntry
             |> filterWhere (#venueId, run.venueId)
@@ -516,7 +506,6 @@ fetchApprovedPreparationStaffIds run skippedStaffIds = do
             |> fetch
     pure $
         entries
-            |> filter (\entry -> entry.staffId `notElem` skippedStaffIds)
             |> map (.staffId)
             |> List.nub
 
@@ -525,14 +514,12 @@ ensurePreparationDecisionProposals ::
     XeroTimesheetPreparationRun ->
     IO ()
 ensurePreparationDecisionProposals run = do
-    decisions <- fetchPreparationDecisions run
-    let skippedStaffIds = preparationSkippedStaffIds decisions
-    approvedStaffIds <- fetchApprovedPreparationStaffIds run skippedStaffIds
+    approvedStaffIds <- fetchApprovedPreparationStaffIds run
     connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
     staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
-    forM_ staffRows \row ->
+    forM_ (filter (staffRowHasApprovedEntry approvedStaffIds) staffRows) \row ->
         case row.mappingRowSuggestedEmployee of
-            Just employee | staffNeedsXeroDecision approvedStaffIds skippedStaffIds row ->
+            Just employee | staffNeedsXeroDecision row ->
                 void $
                     ensurePendingPreparationDecision
                         run
@@ -911,14 +898,13 @@ refreshPreparationRunStatus ::
     IO XeroTimesheetPreparationRun
 refreshPreparationRunStatus run remoteTimesheets = do
     decisions <- fetchPreparationDecisions run
-    let skippedStaffIds = preparationSkippedStaffIds decisions
-        readinessRequest = preparationReadinessRequest run remoteTimesheets skippedStaffIds
+    let readinessRequest = preparationReadinessRequest run remoteTimesheets
     readiness <- validateXeroTimesheetReadiness readinessRequest
     connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
     staffRows <- fetchCurrentVenueXeroStaffMappingRows (Just connection)
-    approvedStaffIds <- fetchApprovedPreparationStaffIds run skippedStaffIds
+    approvedStaffIds <- fetchApprovedPreparationStaffIds run
     let pendingDecisionCount = length (filter pendingManualPreparationDecision decisions)
-        manualStaffCount = length (filter (staffNeedsXeroDecision approvedStaffIds skippedStaffIds) staffRows)
+        manualStaffCount = length (filter staffNeedsXeroDecision (filter (staffRowHasApprovedEntry approvedStaffIds) staffRows))
         postedBlocked = preparationRunPosted run
         (status, errorSummary)
             | postedBlocked = ("blocked", Just "The selected Xero pay run is posted. Draft timesheet creation is blocked.")
@@ -966,8 +952,8 @@ findSelectedPayRun run =
             && payRun.xeroPayRunPeriodStart == run.payPeriodStart
             && payRun.xeroPayRunPeriodEnd == run.payPeriodEnd
 
-preparationReadinessRequest :: XeroTimesheetPreparationRun -> [XeroTimesheetRef] -> [UUID] -> XeroTimesheetReadinessRequest
-preparationReadinessRequest run remoteTimesheets skippedStaffIds =
+preparationReadinessRequest :: XeroTimesheetPreparationRun -> [XeroTimesheetRef] -> XeroTimesheetReadinessRequest
+preparationReadinessRequest run remoteTimesheets =
     XeroTimesheetReadinessRequest
         { readinessVenueId = Id run.venueId
         , readinessPayrollCalendarId = Just run.selectedPayrollCalendarId
@@ -979,7 +965,7 @@ preparationReadinessRequest run remoteTimesheets skippedStaffIds =
         , readinessXeroPayRunId = run.xeroPayRunId
         , readinessXeroPayRunStatus = run.xeroPayRunStatus
         , readinessRemoteTimesheets = remoteTimesheets
-        , readinessSkippedStaffIds = skippedStaffIds
+        , readinessSkippedStaffIds = []
         }
 
 preparationReadinessView :: XeroTimesheetPreparationRun -> XeroTimesheetReadiness -> XeroTimesheetReadinessView
@@ -999,22 +985,20 @@ preparationReadinessView run readiness =
                     }
             else baseView
 
-preparationStaffRow :: [UUID] -> [UUID] -> [XeroTimesheetPreparationDecision] -> XeroStaffMappingRow -> XeroPreparationStaffRow
-preparationStaffRow approvedStaffIds skippedStaffIds decisions row =
+preparationStaffRow :: [XeroTimesheetPreparationDecision] -> XeroStaffMappingRow -> XeroPreparationStaffRow
+preparationStaffRow decisions row =
     let maybeDecision =
             decisions
                 |> List.find
                     ( \decision ->
                         decision.staffId == Just (unpackId row.mappingRowStaff.id)
                             && decision.decisionStatus == "pending"
-                            && decision.decisionKind `elem` ["staff_auto_match", "staff_manual_mapping", "staff_not_paid", "staff_skip"]
+                            && decision.decisionKind `elem` ["staff_auto_match", "staff_manual_mapping", "staff_not_paid"]
                     )
-        skipped = unpackId row.mappingRowStaff.id `elem` skippedStaffIds
-        needsDecision = staffNeedsXeroDecision approvedStaffIds skippedStaffIds row && isNothing maybeDecision
+        needsDecision = staffNeedsXeroDecision row && isNothing maybeDecision
      in XeroPreparationStaffRow
             { preparationStaffMappingRow = row
             , preparationStaffDecision = maybeDecision
-            , preparationStaffSkipped = skipped
             , preparationStaffNeedsDecision = needsDecision
             }
 
@@ -1032,48 +1016,22 @@ preparationPayItemRow decisions requirement =
                     )
         }
 
-staffNeedsXeroDecision :: [UUID] -> [UUID] -> XeroStaffMappingRow -> Bool
-staffNeedsXeroDecision approvedStaffIds skippedStaffIds row =
-    let staffId = unpackId row.mappingRowStaff.id
-     in staffId `elem` approvedStaffIds
-            && staffId `notElem` skippedStaffIds
-            && not (staffMappingResolved row.mappingRowMapping)
+staffRowHasApprovedEntry :: [UUID] -> XeroStaffMappingRow -> Bool
+staffRowHasApprovedEntry approvedStaffIds row =
+    unpackId row.mappingRowStaff.id `elem` approvedStaffIds
+
+staffNeedsXeroDecision :: XeroStaffMappingRow -> Bool
+staffNeedsXeroDecision row =
+    not (staffMappingResolved row.mappingRowMapping)
 
 staffMappingResolved :: XeroStaffMapping -> Bool
 staffMappingResolved mapping =
     (mapping.mappingStatus == "verified" && isJust mapping.xeroEmployeeId)
         || (mapping.mappingStatus == "not_applicable" && isJust mapping.updatedByUserId)
 
-staffHasResolvedXeroMapping :: (?modelContext :: ModelContext) => XeroConnection -> Staff -> IO Bool
-staffHasResolvedXeroMapping connection staff = do
-    maybeMapping <-
-        query @XeroStaffMapping
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#staffId, unpackId staff.id)
-            |> fetchOneOrNothing
-    pure (maybe False staffMappingResolved maybeMapping)
-
 activePayItemRequirement :: XeroPayItemRequirement -> Bool
 activePayItemRequirement requirement =
     requirement.payItemRequirementStatus /= "ignored"
-
-preparationSkippedStaffIds :: [XeroTimesheetPreparationDecision] -> [UUID]
-preparationSkippedStaffIds decisions =
-    (decisions
-        |> mapMaybe \decision ->
-            if decision.decisionKind == "staff_skip" && decision.decisionStatus == "applied"
-                then decision.staffId
-                else Nothing
-    )
-        |> List.nub
-
-preparationSkippedStaffIdsForView :: XeroTimesheetPreparationView -> [UUID]
-preparationSkippedStaffIdsForView view =
-    view.preparationStaffRows
-        |> mapMaybe \row ->
-            if row.preparationStaffSkipped
-                then Just (unpackId row.preparationStaffMappingRow.mappingRowStaff.id)
-                else Nothing
 
 preparationRunPosted :: XeroTimesheetPreparationRun -> Bool
 preparationRunPosted run =

@@ -13,7 +13,6 @@ import qualified Data.List as List
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
-import Web.View.Admin.Common (formatTimestamp)
 import Web.View.Prelude
 
 renderXeroTimesheetPreparationDialog :: XeroTimesheetPreparationView -> Html
@@ -79,7 +78,6 @@ renderPreparationBody :: XeroTimesheetPreparationView -> Html
 renderPreparationBody view = [hsx|
     <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
         {renderRunSummary view}
-        {renderWorkflowProgress view}
         {renderConnectionNotice view}
         {renderStaffMappings view}
         {renderPayItemDecisions view}
@@ -91,17 +89,11 @@ renderPreparationBody view = [hsx|
 
 renderRunSummary :: XeroTimesheetPreparationView -> Html
 renderRunSummary view = [hsx|
-    <div class="d-flex flex-column flex-lg-row justify-content-between gap-2">
-        <div>
-            <div class="fw-semibold">{view.preparationPeriodOption.periodOptionPayrollCalendarName}</div>
-            <div class="small app-muted">
-                {formatDateDisplay view.preparationRun.payPeriodStart} to {formatDateDisplay view.preparationRun.payPeriodEnd}
-                {renderPaymentDate view.preparationRun.paymentDate}
-            </div>
-        </div>
-        <div class="text-lg-end">
-            {renderStatusBadge view.preparationRun.status}
-            <div class="small app-muted mt-1">Started {formatTimestamp view.preparationRun.createdAt}</div>
+    <div>
+        <div class="fw-semibold">Pay Period</div>
+        <div class="small app-muted">
+            {formatDateDisplay view.preparationRun.payPeriodStart} to {formatDateDisplay view.preparationRun.payPeriodEnd}
+            {renderPaymentDate view.preparationRun.paymentDate}
         </div>
     </div>
 |]
@@ -144,7 +136,7 @@ workflowDetail view =
     case view.preparationState of
         XeroPreparationNeedsReconnect -> "OAuth reconnect opens as a normal Xero navigation, then return here to continue."
         XeroPreparationPreparing -> "Connection, reference data, pay runs, duplicate timesheets, mappings, pay items, and readiness checks are run automatically."
-        XeroPreparationNeedsDecision -> "Choose Xero employees, mark staff as not paid through Xero, skip unmapped staff for this run, or choose the account code needed for automatic pay item creation."
+        XeroPreparationNeedsDecision -> "Choose Xero employees, mark staff as not paid through Xero, or choose the account code needed for automatic pay item creation."
         XeroPreparationBlocked -> "Resolve the blockers shown in readiness validation before submitting."
         XeroPreparationReadyForPreview -> "All required decisions are resolved. Submit will create any missing managed pay items and then create the Xero draft timesheets."
         XeroPreparationPreviewed -> "Review the preview rows, then submit only when you are ready to create Xero draft timesheets."
@@ -173,19 +165,21 @@ renderXeroTimesheetPreparationStaffMappingsFragment showMatched view
             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                 <h6 class="mb-0">Staff mappings</h6>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
-                    <span class="small app-muted">{staffMappingSummary view}</span>
                     {renderStaffShowMatchedToggle showMatched view}
                 </div>
             </div>
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0 xero-staff-mappings-table">
+                <table class="table table-sm align-middle mb-0 xero-staff-mappings-table" style="table-layout: fixed;">
+                    <colgroup>
+                        <col style="width: 32%;" />
+                        <col style="width: 28%;" />
+                        <col style="width: 40%;" />
+                    </colgroup>
                     <thead>
                         <tr>
                             <th>Staff</th>
                             <th>Email</th>
                             <th>Xero employee</th>
-                            <th>Status</th>
-                            <th class="text-end">Run action</th>
                         </tr>
                     </thead>
                     <tbody>{forEach visibleRows (renderStaffMappingRow view)}</tbody>
@@ -217,26 +211,15 @@ renderStaffShowMatchedToggle showMatched view = [hsx|
     </form>
 |]
 
-staffMappingSummary :: XeroTimesheetPreparationView -> Text
-staffMappingSummary view =
-    tshow matchedCount <> " matched · " <> tshow needsDecisionCount <> " need attention"
-    where
-        matchedCount = length (filter staffRowHasSelection view.preparationStaffRows)
-        needsDecisionCount = length (filter staffRowNeedsAttention view.preparationStaffRows)
-
 renderStaffMappingRow :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
 renderStaffMappingRow view row = [hsx|
     <tr class={classes [("xero-staff-mapping-row-matched", staffRowIsMatched row)]}
         data-xero-staff-mapping-status={staffMappingStatus row}>
         <td>
-            <div class="fw-semibold">{staffName staff}</div>
+            <div class="fw-semibold text-truncate">{staffName staff}</div>
         </td>
-        <td class="small">{staffSecondaryLabel row}</td>
+        <td class="small text-truncate">{staffSecondaryLabel row}</td>
         <td>{renderStaffEmployeeSelectionForm view row}</td>
-        <td>{renderStatusBadge (staffOutcomeStatus row)}</td>
-        <td class="text-end">
-            {renderStaffDecisionButton view row "skip" "Skip this time" "btn btn-sm btn-outline-secondary"}
-        </td>
     </tr>
 |]
     where
@@ -246,7 +229,7 @@ renderStaffEmployeeSelectionForm :: XeroTimesheetPreparationView -> XeroPreparat
 renderStaffEmployeeSelectionForm view row = [hsx|
     <form method="POST"
           action={ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id}
-          class="d-flex gap-2"
+          class="d-inline-flex gap-2"
           data-disable-javascript-submission="true"
           hx-post={pathTo (ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id)}
           hx-trigger="change"
@@ -254,7 +237,7 @@ renderStaffEmployeeSelectionForm view row = [hsx|
           hx-swap="innerHTML">
         <input type="hidden" name="staffId" value={tshow staff.id} />
         <input type="hidden" name="decision" value="select_employee" />
-        <select name="xeroEmployeeSelection" class="form-select form-select-sm" aria-label={"Xero employee for " <> staffName staff}>
+        <select name="xeroEmployeeSelection" class="form-select form-select-sm w-auto" style="min-width: 12rem; max-width: 16rem;" aria-label={"Xero employee for " <> staffName staff}>
             <option value="" selected={Text.null currentSelection}>Choose Xero employee</option>
             {forEach selectableEmployees (renderEmployeeOption currentSelection)}
             <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
@@ -283,7 +266,6 @@ currentStaffEmployeeSelection row =
             decision <- row.preparationStaffDecision
             case decision.decisionKind of
                 "staff_not_paid" -> Just "not_applicable"
-                "staff_skip" -> Nothing
                 _ -> decision.xeroEmployeeId
         verifiedMappingSelection = do
             guard (mapping.mappingStatus == "verified")
@@ -317,24 +299,7 @@ selectableEmployeesForStaffDecision view row =
 
 xeroEmployeeLabel :: XeroEmployee -> Text
 xeroEmployeeLabel employee =
-    case employee.email of
-        Nothing -> employee.displayName
-        Just email -> employee.displayName <> " - " <> email
-
-renderStaffDecisionButton :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Text -> Text -> Text -> Html
-renderStaffDecisionButton view row decision label buttonClass = [hsx|
-    <form method="POST"
-          action={ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id}
-          hx-post={pathTo (ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id)}
-          hx-target={"#" <> dialogOverlayMountId}
-          hx-swap="innerHTML">
-        <input type="hidden" name="staffId" value={tshow staff.id} />
-        <input type="hidden" name="decision" value={decision} />
-        <button type="submit" class={buttonClass}>{label}</button>
-    </form>
-|]
-    where
-        staff = row.preparationStaffMappingRow.mappingRowStaff
+    employee.displayName
 
 renderStaffOutcomes :: XeroTimesheetPreparationView -> Html
 renderStaffOutcomes view
@@ -343,7 +308,7 @@ renderStaffOutcomes view
         <section>
             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                 <h6 class="mb-0">Staff outcomes</h6>
-                <span class="small app-muted">Who will be included, skipped, or excluded</span>
+                <span class="small app-muted">Who will be included or excluded</span>
             </div>
             <div class="table-responsive">
                 <table class="table table-sm align-middle mb-0">
@@ -380,21 +345,19 @@ renderStaffOutcomeRow row = [hsx|
 
 staffOutcomeStatus :: XeroPreparationStaffRow -> Text
 staffOutcomeStatus row
-    | row.preparationStaffSkipped = "skipped"
-    | row.preparationStaffMappingRow.mappingRowMapping.mappingStatus == "not_applicable" = "not paid"
+    | staffMarkedNotPaidThroughXero row = "not paid"
     | staffHasVerifiedXeroEmployee row = "included"
     | otherwise = "excluded"
 
 staffOutcomeReason :: XeroPreparationStaffRow -> Text
 staffOutcomeReason row
-    | row.preparationStaffSkipped = "Skipped for this preparation run only."
-    | row.preparationStaffMappingRow.mappingRowMapping.mappingStatus == "not_applicable" = "Persistently marked as not paid through Xero."
+    | staffMarkedNotPaidThroughXero row = "Persistently marked as not paid through Xero."
     | staffHasVerifiedXeroEmployee row = "Mapped to Xero employee " <> fromMaybe "" row.preparationStaffMappingRow.mappingRowMapping.xeroEmployeeName <> "."
     | otherwise = "No Xero employee is selected for this staff member."
 
 staffRowIsMatched :: XeroPreparationStaffRow -> Bool
 staffRowIsMatched row =
-    staffHasVerifiedXeroEmployee row
+    staffRowHasSelection row
 
 staffRowHasSelection :: XeroPreparationStaffRow -> Bool
 staffRowHasSelection row =
@@ -404,12 +367,11 @@ staffRowNeedsAttention :: XeroPreparationStaffRow -> Bool
 staffRowNeedsAttention row =
     row.preparationStaffNeedsDecision
         || maybe False ((== "pending") . (.decisionStatus)) row.preparationStaffDecision
-        || (not row.preparationStaffSkipped && not (staffHasVerifiedXeroEmployee row) && row.preparationStaffMappingRow.mappingRowMapping.mappingStatus /= "not_applicable")
+        || Text.null (currentStaffEmployeeSelection row)
 
 staffMappingStatus :: XeroPreparationStaffRow -> Text
 staffMappingStatus row
-    | row.preparationStaffSkipped = "skipped"
-    | row.preparationStaffMappingRow.mappingRowMapping.mappingStatus == "not_applicable" = "not_applicable"
+    | staffMarkedNotPaidThroughXero row = "not_applicable"
     | staffHasVerifiedXeroEmployee row = "verified"
     | otherwise = "unmapped"
 
@@ -417,6 +379,11 @@ staffHasVerifiedXeroEmployee :: XeroPreparationStaffRow -> Bool
 staffHasVerifiedXeroEmployee row =
     row.preparationStaffMappingRow.mappingRowMapping.mappingStatus == "verified"
         && isJust row.preparationStaffMappingRow.mappingRowMapping.xeroEmployeeId
+
+staffMarkedNotPaidThroughXero :: XeroPreparationStaffRow -> Bool
+staffMarkedNotPaidThroughXero row =
+    row.preparationStaffMappingRow.mappingRowMapping.mappingStatus == "not_applicable"
+        && isJust row.preparationStaffMappingRow.mappingRowMapping.updatedByUserId
 
 renderPayItemDecisions :: XeroTimesheetPreparationView -> Html
 renderPayItemDecisions view
@@ -596,7 +563,6 @@ statusTone "previewed"         = AppStatusInfo
 statusTone "submitted"         = AppStatusSuccess
 statusTone "included"          = AppStatusSuccess
 statusTone "not paid"          = AppStatusInfo
-statusTone "skipped"           = AppStatusWarning
 statusTone "needs_approval"    = AppStatusWarning
 statusTone "needs_reconnect"   = AppStatusWarning
 statusTone "blocked"           = AppStatusDanger
