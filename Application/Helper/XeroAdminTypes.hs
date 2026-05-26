@@ -50,20 +50,25 @@ data XeroPayItemAccountCodeOption = XeroPayItemAccountCodeOption
     }
     deriving (Eq, Show)
 
-xeroPayItemAccountCodeOptionsFromRates :: [XeroEarningsRate] -> [XeroPayItemAccountCodeOption]
-xeroPayItemAccountCodeOptionsFromRates xeroEarningsRates =
-    xeroEarningsRates
-        |> filter (.isActive)
+xeroPayItemAccountCodeOptionsFromAccounts :: [XeroAccount] -> [XeroPayItemAccountCodeOption]
+xeroPayItemAccountCodeOptionsFromAccounts xeroAccounts =
+    xeroAccounts
+        |> filter isSelectableExpenseAccount
         |> mapMaybe accountCodePair
         |> List.sortOn (\(accountCode, name) -> (accountCode, name))
         |> List.groupBy (\(leftCode, _) (rightCode, _) -> leftCode == rightCode)
         |> mapMaybe accountCodeOptionFromGroup
     where
-        accountCodePair earningsRate = do
-            accountCode <- Text.strip <$> earningsRate.accountCode
+        accountCodePair account = do
+            accountCode <- Text.strip <$> account.code
             guard (not (Text.null accountCode))
-            let name = Text.strip earningsRate.name
+            let name = Text.strip account.name
             pure (accountCode, name)
+
+isSelectableExpenseAccount :: XeroAccount -> Bool
+isSelectableExpenseAccount account =
+    account.accountType == Just "EXPENSE"
+        && maybe False ((== "ACTIVE") . Text.toUpper . Text.strip) account.status
 
 accountCodeOptionFromGroup :: [(Text, Text)] -> Maybe XeroPayItemAccountCodeOption
 accountCodeOptionFromGroup [] = Nothing
@@ -74,7 +79,7 @@ accountCodeOptionFromGroup ((accountCode, name) : _) =
             , accountCodeOptionLabel =
                 if Text.null name
                     then accountCode
-                    else name <> " - " <> accountCode
+                    else accountCode <> ": " <> name
             }
 
 xeroPayItemAccountCodeOptionValues :: [XeroPayItemAccountCodeOption] -> [Text]
@@ -262,6 +267,7 @@ data XeroAdminSectionData = XeroAdminSectionData
     , xeroStaffMappingCounts          :: XeroStaffMappingCounts
     , xeroEarningsRates               :: [XeroEarningsRate]
     , xeroPayItemRequirements         :: [XeroPayItemRequirement]
+    , xeroPayItemAccountCodeOptions   :: [XeroPayItemAccountCodeOption]
     , xeroPayrollCalendars            :: [XeroPayrollCalendar]
     , xeroPayrollCalendarSelection    :: Maybe XeroPayrollCalendarSelection
     , xeroPayItemAccountCodeSelection :: Maybe XeroPayItemAccountCodeSelection

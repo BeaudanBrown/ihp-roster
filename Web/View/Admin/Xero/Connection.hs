@@ -23,8 +23,8 @@ renderXeroDisconnectedConnectionDetails connectionActionsAllowed = [hsx|
     </div>
 |]
 
-renderXeroConnectionDetails :: XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEarningsRate] -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> Html
-renderXeroConnectionDetails connection _ maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEarningsRates xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed = [hsx|
+renderXeroConnectionDetails :: XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroPayItemAccountCodeOption] -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> Html
+renderXeroConnectionDetails connection _ maybeSyncRun employeeCount earningsRateCount payrollCalendarCount accountCodeOptions xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
         <dl class="row mb-0">
             <dt class="col-sm-3">Tenant</dt>
@@ -50,7 +50,7 @@ renderXeroConnectionDetails connection _ maybeSyncRun employeeCount earningsRate
         {renderXeroReferenceSyncIndicator maybeSyncRun}
         <div class="row g-3">
             <div class="col-12 col-xl-6">
-                {renderXeroPayItemAccountCodeSelection xeroEarningsRates maybePayItemAccountCodeSelection connectionActionsAllowed}
+                {renderXeroPayItemAccountCodeSelection accountCodeOptions maybePayItemAccountCodeSelection connectionActionsAllowed}
             </div>
             <div class="col-12 col-xl-6">
                 {renderXeroPayrollCalendarSelection xeroPayrollCalendars maybePayrollCalendarSelection}

@@ -52,6 +52,7 @@ tests =
                 [ ("/Employees", buildFetchPayrollEmployeesRequest "access-token" "tenant-id")
                 , ("/PayItems", buildFetchEarningsRatesRequest "access-token" "tenant-id")
                 , ("/PayrollCalendars", buildFetchPayrollCalendarsRequest "access-token" "tenant-id")
+                , ("/Settings", buildFetchPayrollSettingsAccountsRequest "access-token" "tenant-id")
                 , ("/PayRuns", buildFetchPayRunsRequest "access-token" "tenant-id" XeroMock.samplePayRunQuery)
                 , ("/Timesheets/{TimesheetID}", buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id")
                 ]
@@ -66,7 +67,17 @@ tests =
             assertRequest (buildFetchPayrollEmployeesRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/Employees"
             assertRequest (buildFetchEarningsRatesRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/PayItems"
             assertRequest (buildFetchPayrollCalendarsRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/PayrollCalendars"
+            assertRequest (buildFetchPayrollSettingsAccountsRequest "access-token" "tenant-id") "GET" XeroMock.xeroPayrollServer "/Settings"
             assertRequest (buildFetchPayRunsRequest "access-token" "tenant-id" XeroMock.samplePayRunQuery) "GET" XeroMock.xeroPayrollServer "/PayRuns"
+
+        it "constructs Accounting accounts read requests with tenant header" do
+            let request = buildFetchAccountsRequest "access-token" "tenant-id"
+            request.xeroRequestMethod `shouldBe` "GET"
+            assertRequest request "GET" "https://api.xero.com/api.xro/2.0" "/Accounts"
+            XeroMock.headerValue "Authorization" request `shouldBe` Just "Bearer access-token"
+            XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
+            XeroMock.headerValue "Accept" request `shouldBe` Just "application/json"
+            request.xeroRequestBody `shouldBe` Nothing
             assertRequest (buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id") "GET" XeroMock.xeroPayrollServer "/Timesheets/timesheet-id"
 
         it "constructs PayRuns list query parameters and If-Modified-Since header in documented locations" do
@@ -143,6 +154,12 @@ tests =
                     calendarsResult <- client.fetchPayrollCalendars "access-token" "tenant-id"
                     fmap (map (.xeroPayrollCalendarId)) calendarsResult `shouldBe` Right ["calendar-id"]
 
+                    accountsResult <- client.fetchAccounts "access-token" "tenant-id"
+                    fmap (map (.xeroAccountCode)) accountsResult `shouldBe` Right [Just "477"]
+
+                    settingsAccountsResult <- client.fetchPayrollSettingsAccounts "access-token" "tenant-id"
+                    fmap (map (.xeroAccountType)) settingsAccountsResult `shouldBe` Right [Just "WAGESEXPENSE"]
+
                     payRunsResult <- client.fetchPayRuns "access-token" "tenant-id" XeroMock.samplePayRunQuery
                     fmap (map (.xeroPayRunId)) payRunsResult `shouldBe` Right ["pay-run-id"]
 
@@ -196,11 +213,13 @@ expectedBuildRequestExports =
     , "buildCreateTimesheetRequest"
     , "buildDeleteXeroConnectionRequest"
     , "buildExchangeCodeForTokenRequest"
+    , "buildFetchAccountsRequest"
     , "buildFetchConnectedTenantsRequest"
     , "buildFetchEarningsRatesRequest"
     , "buildFetchPayRunsRequest"
     , "buildFetchPayrollCalendarsRequest"
     , "buildFetchPayrollEmployeesRequest"
+    , "buildFetchPayrollSettingsAccountsRequest"
     , "buildFetchTimesheetRequest"
     , "buildFetchTimesheetsRequest"
     , "buildRefreshXeroTokenRequest"
@@ -216,6 +235,7 @@ expectedContractCaseNames =
     , "employees list"
     , "pay items list"
     , "payroll calendars list"
+    , "payroll settings accounts"
     , "pay runs list"
     , "timesheets list"
     , "timesheet show"

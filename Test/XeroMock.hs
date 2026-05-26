@@ -89,6 +89,7 @@ xeroRequestContractCases identitySpec payrollSpec =
     , (payrollSpec, payrollReadContract "employees list" "/Employees" "/Employees" [], buildFetchPayrollEmployeesRequest "access-token" "tenant-id")
     , (payrollSpec, payrollReadContract "pay items list" "/PayItems" "/PayItems" [], buildFetchEarningsRatesRequest "access-token" "tenant-id")
     , (payrollSpec, payrollReadContract "payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], buildFetchPayrollCalendarsRequest "access-token" "tenant-id")
+    , (payrollSpec, payrollReadContract "payroll settings accounts" "/Settings" "/Settings" [], buildFetchPayrollSettingsAccountsRequest "access-token" "tenant-id")
     , ( payrollSpec
       , (payrollReadContract "pay runs list" "/PayRuns" "/PayRuns" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }
       , buildFetchPayRunsRequest "access-token" "tenant-id" samplePayRunQuery
@@ -319,6 +320,7 @@ xeroRequestBaseUrlsFor baseUrl =
         { xeroIdentityTokenUrl = baseUrl <> "/connect/token"
         , xeroConnectionsUrl = baseUrl <> "/connections"
         , xeroPayrollBaseUrl = baseUrl <> "/payroll.xro/1.0"
+        , xeroAccountingBaseUrl = baseUrl <> "/api.xro/2.0"
         }
 
 malformedMockRequests :: [(Text, Int, Text -> IO Request)]
@@ -420,6 +422,10 @@ xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef request re
                     | method == methodPost -> pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock pay item create" "/PayItems" "/PayItems" (JsonObjectWithArrayField "EarningsRates"), jsonResponse status200 payItemsFixture))
                 (method, "/payroll.xro/1.0/PayrollCalendars")
                     | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], jsonResponse status200 calendarsFixture))
+                (method, "/payroll.xro/1.0/Settings")
+                    | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock payroll settings" "/Settings" "/Settings" [], jsonResponse status200 payrollSettingsFixture))
+                (method, "/api.xro/2.0/Accounts")
+                    | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock accounts list" "/Settings" "/Accounts" []) { contractRequestServer = baseUrl <> "/api.xro/2.0" }, jsonResponse status200 accountsFixture))
                 (method, "/payroll.xro/1.0/PayRuns")
                     | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock pay runs list" "/PayRuns" "/PayRuns" ["where", "order", "page", "If-Modified-Since"]) { contractAllowedQueries = ["where", "order", "page"] }, jsonResponse status200 payRunsFixture))
                 (method, "/payroll.xro/1.0/Timesheets")
@@ -536,6 +542,36 @@ payItemsFixture =
                         , "EarningsType" Aeson..= ("ORDINARYTIMEEARNINGS" :: Text)
                         , "RateType" Aeson..= ("RATEPERUNIT" :: Text)
                         , "IsActive" Aeson..= True
+                        ]
+                    ]
+                ]
+        ]
+
+accountsFixture :: Aeson.Value
+accountsFixture =
+    Aeson.object
+        [ "Accounts" Aeson..=
+            [ Aeson.object
+                [ "AccountID" Aeson..= ("account-id" :: Text)
+                , "Code" Aeson..= ("477" :: Text)
+                , "Name" Aeson..= ("Wages and Salaries" :: Text)
+                , "Type" Aeson..= ("EXPENSE" :: Text)
+                , "Status" Aeson..= ("ACTIVE" :: Text)
+                ]
+            ]
+        ]
+
+payrollSettingsFixture :: Aeson.Value
+payrollSettingsFixture =
+    Aeson.object
+        [ "Settings" Aeson..=
+            Aeson.object
+                [ "Accounts" Aeson..=
+                    [ Aeson.object
+                        [ "AccountID" Aeson..= ("account-id" :: Text)
+                        , "Code" Aeson..= ("477" :: Text)
+                        , "Name" Aeson..= ("Wages and Salaries" :: Text)
+                        , "Type" Aeson..= ("WAGESEXPENSE" :: Text)
                         ]
                     ]
                 ]

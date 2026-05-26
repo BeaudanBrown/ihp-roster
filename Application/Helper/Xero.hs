@@ -2,11 +2,13 @@ module Application.Helper.Xero
     ( XeroClient (..)
     , XeroClientError (..)
     , XeroConfig (..)
+    , XeroAccountRef (..)
     , XeroEarningsRateRef (..)
     , XeroHttpRequest (..)
     , XeroEmployeeRef (..)
     , XeroPayRunQuery (..)
     , XeroPayRunRef (..)
+    , XeroPayrollSettingsAccountsResponse (..)
     , XeroPayRunsResponse (..)
     , XeroPayrollCalendarRef (..)
     , XeroRequestBody (..)
@@ -24,9 +26,11 @@ module Application.Helper.Xero
     , buildDeleteXeroConnectionRequest
     , buildExchangeCodeForTokenRequest
     , buildFetchConnectedTenantsRequest
+    , buildFetchAccountsRequest
     , buildFetchEarningsRatesRequest
     , buildFetchPayRunsRequest
     , buildFetchPayrollCalendarsRequest
+    , buildFetchPayrollSettingsAccountsRequest
     , buildFetchPayrollEmployeesRequest
     , buildFetchTimesheetRequest
     , buildFetchTimesheetsRequest
@@ -165,6 +169,27 @@ instance Aeson.FromJSON XeroEarningsRateRef where
             <*> pure value
     parseJSON _ = fail "Expected Xero earnings rate object"
 
+data XeroAccountRef = XeroAccountRef
+    { xeroAccountId     :: !Text
+    , xeroAccountCode   :: !(Maybe Text)
+    , xeroAccountName   :: !Text
+    , xeroAccountType   :: !(Maybe Text)
+    , xeroAccountStatus :: !(Maybe Text)
+    , xeroAccountRaw    :: !Aeson.Value
+    }
+    deriving (Eq, Show)
+
+instance Aeson.FromJSON XeroAccountRef where
+    parseJSON value@(Aeson.Object object) =
+        XeroAccountRef
+            <$> requiredText object ["AccountID", "accountID", "accountId"]
+            <*> optionalText object ["Code", "code"]
+            <*> requiredText object ["Name", "name"]
+            <*> optionalText object ["Type", "type"]
+            <*> optionalText object ["Status", "status"]
+            <*> pure value
+    parseJSON _ = fail "Expected Xero account object"
+
 data XeroPayrollCalendarRef = XeroPayrollCalendarRef
     { xeroPayrollCalendarId          :: !Text
     , xeroPayrollCalendarName        :: !Text
@@ -281,9 +306,10 @@ data XeroHttpRequest = XeroHttpRequest
     deriving (Eq, Show)
 
 data XeroRequestBaseUrls = XeroRequestBaseUrls
-    { xeroIdentityTokenUrl :: !Text
-    , xeroConnectionsUrl   :: !Text
-    , xeroPayrollBaseUrl   :: !Text
+    { xeroIdentityTokenUrl   :: !Text
+    , xeroConnectionsUrl     :: !Text
+    , xeroPayrollBaseUrl     :: !Text
+    , xeroAccountingBaseUrl  :: !Text
     }
     deriving (Eq, Show)
 
@@ -301,6 +327,8 @@ data XeroClient = XeroClient
     , fetchPayrollEmployees :: Text -> Text -> IO (Either XeroClientError [XeroEmployeeRef])
     , fetchEarningsRates :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
     , fetchPayrollCalendars :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
+    , fetchAccounts :: Text -> Text -> IO (Either XeroClientError [XeroAccountRef])
+    , fetchPayrollSettingsAccounts :: Text -> Text -> IO (Either XeroClientError [XeroAccountRef])
     , fetchPayRuns :: Text -> Text -> XeroPayRunQuery -> IO (Either XeroClientError [XeroPayRunRef])
     , createPayItem :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
     , fetchTimesheets :: Text -> Text -> XeroTimesheetQuery -> IO (Either XeroClientError [XeroTimesheetRef])
@@ -316,6 +344,7 @@ requiredXeroScopes =
     , "payroll.payruns.read"
     , "payroll.settings"
     , "payroll.timesheets"
+    , "accounting.settings.read"
     ]
 
 requiredXeroScopesText :: Text
@@ -430,6 +459,8 @@ defaultXeroClient =
         , fetchPayrollEmployees = fetchPayrollEmployeesRequest
         , fetchEarningsRates = fetchEarningsRatesRequest
         , fetchPayrollCalendars = fetchPayrollCalendarsRequest
+        , fetchAccounts = fetchAccountsRequest
+        , fetchPayrollSettingsAccounts = fetchPayrollSettingsAccountsRequest
         , fetchPayRuns = fetchPayRunsRequest
         , createPayItem = createPayItemRequest
         , fetchTimesheets = fetchTimesheetsRequest
@@ -459,6 +490,7 @@ defaultXeroRequestBaseUrls =
         { xeroIdentityTokenUrl = "https://identity.xero.com/connect/token"
         , xeroConnectionsUrl = "https://api.xero.com/connections"
         , xeroPayrollBaseUrl = "https://api.xero.com/payroll.xro/1.0"
+        , xeroAccountingBaseUrl = "https://api.xero.com/api.xro/2.0"
         }
 
 currentXeroRequestBaseUrls :: IO XeroRequestBaseUrls
@@ -523,6 +555,18 @@ fetchPayrollCalendarsRequest accessToken tenantId = do
     urls <- currentXeroRequestBaseUrls
     fmap unXeroPayrollCalendarsResponse <$>
         sendXeroJsonRequest "Xero payroll calendars request" (buildFetchPayrollCalendarsRequestWith urls accessToken tenantId)
+
+fetchAccountsRequest :: Text -> Text -> IO (Either XeroClientError [XeroAccountRef])
+fetchAccountsRequest accessToken tenantId = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroAccountsResponse <$>
+        sendXeroJsonRequest "Xero accounts request" (buildFetchAccountsRequestWith urls accessToken tenantId)
+
+fetchPayrollSettingsAccountsRequest :: Text -> Text -> IO (Either XeroClientError [XeroAccountRef])
+fetchPayrollSettingsAccountsRequest accessToken tenantId = do
+    urls <- currentXeroRequestBaseUrls
+    fmap unXeroPayrollSettingsAccountsResponse <$>
+        sendXeroJsonRequest "Xero payroll settings request" (buildFetchPayrollSettingsAccountsRequestWith urls accessToken tenantId)
 
 fetchPayRunsRequest :: Text -> Text -> XeroPayRunQuery -> IO (Either XeroClientError [XeroPayRunRef])
 fetchPayRunsRequest accessToken tenantId query = do
@@ -649,6 +693,22 @@ buildFetchPayrollCalendarsRequest =
 buildFetchPayrollCalendarsRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroHttpRequest
 buildFetchPayrollCalendarsRequestWith urls accessToken tenantId =
     buildXeroPayrollGetRequest accessToken tenantId (urls.xeroPayrollBaseUrl <> "/PayrollCalendars") []
+
+buildFetchAccountsRequest :: Text -> Text -> XeroHttpRequest
+buildFetchAccountsRequest =
+    buildFetchAccountsRequestWith defaultXeroRequestBaseUrls
+
+buildFetchAccountsRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroHttpRequest
+buildFetchAccountsRequestWith urls accessToken tenantId =
+    buildXeroPayrollGetRequest accessToken tenantId (urls.xeroAccountingBaseUrl <> "/Accounts") []
+
+buildFetchPayrollSettingsAccountsRequest :: Text -> Text -> XeroHttpRequest
+buildFetchPayrollSettingsAccountsRequest =
+    buildFetchPayrollSettingsAccountsRequestWith defaultXeroRequestBaseUrls
+
+buildFetchPayrollSettingsAccountsRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroHttpRequest
+buildFetchPayrollSettingsAccountsRequestWith urls accessToken tenantId =
+    buildXeroPayrollGetRequest accessToken tenantId (urls.xeroPayrollBaseUrl <> "/Settings") []
 
 buildFetchPayRunsRequest :: Text -> Text -> XeroPayRunQuery -> XeroHttpRequest
 buildFetchPayRunsRequest =
@@ -884,6 +944,25 @@ newtype XeroPayrollCalendarsResponse = XeroPayrollCalendarsResponse { unXeroPayr
 
 instance Aeson.FromJSON XeroPayrollCalendarsResponse where
     parseJSON = parseXeroListResponse XeroPayrollCalendarsResponse "PayrollCalendars"
+
+newtype XeroAccountsResponse = XeroAccountsResponse { unXeroAccountsResponse :: [XeroAccountRef] }
+
+instance Aeson.FromJSON XeroAccountsResponse where
+    parseJSON = parseXeroListResponse XeroAccountsResponse "Accounts"
+
+newtype XeroPayrollSettingsAccountsResponse = XeroPayrollSettingsAccountsResponse { unXeroPayrollSettingsAccountsResponse :: [XeroAccountRef] }
+
+instance Aeson.FromJSON XeroPayrollSettingsAccountsResponse where
+    parseJSON = Aeson.withObject "XeroPayrollSettingsAccountsResponse" \object -> do
+        settingsValue <- case firstPresent object ["Settings", "settings"] of
+            Just value -> pure value
+            Nothing -> fail "Missing Xero payroll settings"
+        accounts <- Aeson.withObject "Xero payroll settings" (\settingsObject -> do
+            accountsValue <- case firstPresent settingsObject ["Accounts", "accounts"] of
+                Just value -> pure value
+                Nothing -> fail "Missing Xero payroll settings accounts"
+            Aeson.parseJSON accountsValue) settingsValue
+        pure (XeroPayrollSettingsAccountsResponse accounts)
 
 newtype XeroPayRunsResponse = XeroPayRunsResponse { unXeroPayRunsResponse :: [XeroPayRunRef] }
 

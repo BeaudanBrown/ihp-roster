@@ -150,10 +150,21 @@ fetchCurrentVenueXeroEarningsRates maybeConnection =
                 |> orderBy #name
                 |> fetch
 
+fetchCurrentVenueXeroAccounts :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroAccount]
+fetchCurrentVenueXeroAccounts maybeConnection =
+    case maybeConnection of
+        Nothing -> pure []
+        Just connection ->
+            query @XeroAccount
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> orderBy #code
+                |> fetch
+
 fetchCurrentVenueXeroPayItemAccountCodeOptions :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroPayItemAccountCodeOption]
 fetchCurrentVenueXeroPayItemAccountCodeOptions maybeConnection = do
-    xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates maybeConnection
-    pure (xeroPayItemAccountCodeOptionsFromRates xeroEarningsRates)
+    xeroAccounts <- fetchCurrentVenueXeroAccounts maybeConnection
+    pure (xeroPayItemAccountCodeOptionsFromAccounts xeroAccounts)
 
 fetchCurrentVenueXeroPayrollCalendars :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroPayrollCalendar]
 fetchCurrentVenueXeroPayrollCalendars maybeConnection =
@@ -386,6 +397,7 @@ fetchCurrentVenueXeroAdminSectionData xeroConnectionActionsAllowed = do
     xeroEarningsRates <- profileActionSpan "admin.xero.earnings_mapping.fetch_rates" (fetchCurrentVenueXeroEarningsRates xeroConnection)
     xeroEarningsBucketRows <- profileActionSpan "admin.xero.earnings_mapping.fetch_rows" (fetchCurrentVenueXeroEarningsBucketRows xeroConnection)
     xeroPayItemRequirements <- profileActionSpan "admin.xero.pay_items.fetch_requirements" (fetchCurrentVenueXeroPayItemRequirements xeroConnection xeroEarningsRates)
+    xeroPayItemAccountCodeOptions <- profileActionSpan "admin.xero.pay_item_account_code.fetch_options" (fetchCurrentVenueXeroPayItemAccountCodeOptions xeroConnection)
     xeroPayrollCalendars <- profileActionSpan "admin.xero.calendar.fetch_calendars" (fetchCurrentVenueXeroPayrollCalendars xeroConnection)
     xeroPayrollCalendarSelection <- profileActionSpan "admin.xero.calendar.fetch_selection" (fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection)
     xeroPayItemAccountCodeSelection <- profileActionSpan "admin.xero.pay_item_account_code.fetch_selection" (fetchCurrentVenueXeroPayItemAccountCodeSelection xeroConnection)

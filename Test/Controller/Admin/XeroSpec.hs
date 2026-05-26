@@ -445,7 +445,7 @@ tests = beforeAll testContext do
                 updatedConnection.lastSyncAt `shouldSatisfy` isJust
                 decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "new-refresh-token"
 
-        it "does not auto-select Xero setup defaults when sync returns multiple options" $ withContext do
+        it "preselects the Xero wages expense account but not ambiguous payroll calendars" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Multiple Defaults Venue"
                 admin <- createUserRecord "xero-multiple-defaults@example.com" "staff" True
@@ -494,8 +494,9 @@ tests = beforeAll testContext do
                             callAction SyncXeroPayrollReferenceDataAction
 
                 response `responseStatusShouldBe` status302
-                accountCodeSelectionCount <- query @XeroPayItemAccountCodeSelection |> fetchCount
-                accountCodeSelectionCount `shouldBe` 0
+                accountCodeSelection <- query @XeroPayItemAccountCodeSelection |> fetchOne
+                accountCodeSelection.selectionStatus `shouldBe` "verified"
+                accountCodeSelection.accountCode `shouldBe` Just "477"
                 calendarSelectionCount <- query @XeroPayrollCalendarSelection |> fetchCount
                 calendarSelectionCount `shouldBe` 0
 
@@ -748,6 +749,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
                 pageResponse `responseBodyShouldContain` "Pay item account code"
                 pageResponse `responseBodyShouldContain` "name=\"xeroPayItemAccountCodeSelection\""
+                pageResponse `responseBodyShouldContain` "477: Wages and Salaries"
                 pageResponse `responseBodyShouldNotContain` "xeroPayItemAccountCodeManual"
                 pageResponse `responseBodyShouldContain` "Payroll calendar"
                 pageResponse `responseBodyShouldContain` "Weekly - WEEKLY"
@@ -1354,7 +1356,7 @@ tests = beforeAll testContext do
                         withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                             withRequestHeaders [("HX-Request", "true")] do
                                 callActionWithParams (SubmitXeroTimesheetPreparationAction run.id)
-                                    [("accountCode", "earnings-account-code")]
+                                    [("accountCode", "477")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Draft timesheets submitted"
@@ -1896,6 +1898,8 @@ successfulXeroClient tokenResponse tenants =
         , fetchPayrollEmployees = \_ _ -> pure (Right [])
         , fetchEarningsRates = \_ _ -> pure (Right [])
         , fetchPayrollCalendars = \_ _ -> pure (Right [])
+        , fetchAccounts = \_ _ -> pure (Right [])
+        , fetchPayrollSettingsAccounts = \_ _ -> pure (Right [])
         , fetchPayRuns = \_ _ _ -> pure (Right [])
         , createPayItem = \_ _ _ _ -> pure (Right [])
         , fetchTimesheets = \_ _ _ -> pure (Right [])
@@ -1914,6 +1918,8 @@ referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars =
         , fetchPayrollEmployees = \_ _ -> pure (Right employees)
         , fetchEarningsRates = \_ _ -> pure (Right earningsRates)
         , fetchPayrollCalendars = \_ _ -> pure (Right payrollCalendars)
+        , fetchAccounts = \_ _ -> pure (Right (accountRefsFromEarningsRates earningsRates))
+        , fetchPayrollSettingsAccounts = \_ _ -> pure (Right (wagesExpenseAccountRefsFromEarningsRates earningsRates))
         , fetchPayRuns = \_ _ _ -> pure (Right [])
         , createPayItem = \_ _ _ _ -> pure (Right [])
         , fetchTimesheets = \_ _ _ -> pure (Right [])
@@ -1921,6 +1927,22 @@ referenceSyncXeroClient tokenResponse employees earningsRates payrollCalendars =
         , createTimesheet = \_ _ _ _ -> pure (Right [])
         , updateTimesheet = \_ _ _ _ _ -> pure (Right [])
         }
+
+accountRefsFromEarningsRates :: [XeroEarningsRateRef] -> [XeroAccountRef]
+accountRefsFromEarningsRates earningsRates =
+    earningsRates
+        |> map (.xeroEarningsRateAccountCode)
+        |> catMaybes
+        |> map Text.strip
+        |> filter (not . Text.null)
+        |> List.nub
+        |> map (\accountCode -> XeroAccountRef ("account-" <> accountCode) (Just accountCode) "Wages and Salaries" (Just "EXPENSE") (Just "ACTIVE") (Aeson.object ["Code" Aeson..= accountCode]))
+
+wagesExpenseAccountRefsFromEarningsRates :: [XeroEarningsRateRef] -> [XeroAccountRef]
+wagesExpenseAccountRefsFromEarningsRates earningsRates =
+    case accountRefsFromEarningsRates earningsRates of
+        account : _ -> [account { xeroAccountType = Just "WAGESEXPENSE" }]
+        [] -> []
 
 payItemCreateXeroClient :: XeroTokenResponse -> IORef.IORef [(Text, Aeson.Value)] -> XeroClient
 payItemCreateXeroClient tokenResponse requestsRef =
@@ -2031,6 +2053,8 @@ failingRefreshXeroClient message =
         , fetchPayrollEmployees = \_ _ -> pure (Left (XeroHttpError message))
         , fetchEarningsRates = \_ _ -> pure (Left (XeroHttpError message))
         , fetchPayrollCalendars = \_ _ -> pure (Left (XeroHttpError message))
+        , fetchAccounts = \_ _ -> pure (Left (XeroHttpError message))
+        , fetchPayrollSettingsAccounts = \_ _ -> pure (Left (XeroHttpError message))
         , fetchPayRuns = \_ _ _ -> pure (Left (XeroHttpError message))
         , createPayItem = \_ _ _ _ -> pure (Left (XeroHttpError message))
         , fetchTimesheets = \_ _ _ -> pure (Left (XeroHttpError message))
@@ -2118,6 +2142,34 @@ createXeroEmployeeRecord connection displayName maybeEmail employeeId = do
         |> set #syncedAt now
         |> createRecord
 
+ensureXeroAccountRecord ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    Text ->
+    Text ->
+    IO XeroAccount
+ensureXeroAccountRecord connection accountCode name = do
+    now <- getCurrentTime
+    existing <-
+        query @XeroAccount
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#xeroAccountId, "account-" <> accountCode)
+            |> fetchOneOrNothing
+    let fillRecord record =
+            record
+                |> set #venueId connection.venueId
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #xeroAccountId ("account-" <> accountCode)
+                |> set #code (Just accountCode)
+                |> set #name name
+                |> set #accountType (Just "EXPENSE")
+                |> set #status (Just "ACTIVE")
+                |> set #rawPayload (Aeson.object ["Code" Aeson..= accountCode, "Name" Aeson..= name])
+                |> set #syncedAt now
+    case existing of
+        Just account -> fillRecord account |> updateRecord
+        Nothing -> fillRecord (newRecord @XeroAccount) |> createRecord
+
 createXeroEarningsRateRecord ::
     (?modelContext :: ModelContext) =>
     XeroConnection ->
@@ -2126,6 +2178,7 @@ createXeroEarningsRateRecord ::
     IO XeroEarningsRate
 createXeroEarningsRateRecord connection name earningsRateId = do
     now <- getCurrentTime
+    _ <- ensureXeroAccountRecord connection "477" "Wages and Salaries"
     newRecord @XeroEarningsRate
         |> set #venueId connection.venueId
         |> set #xeroConnectionId (unpackId connection.id)

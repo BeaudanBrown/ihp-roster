@@ -10,15 +10,15 @@ import qualified Data.List as List
 import qualified Data.Text as Text
 import Web.View.Prelude
 
-renderXeroPayItems :: [XeroEarningsRate] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
-renderXeroPayItems xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection maybePayItemSyncRun connectionActionsAllowed = [hsx|
+renderXeroPayItems :: [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
+renderXeroPayItems accountCodeOptions payItemRequirements maybePayItemAccountCodeSelection maybePayItemSyncRun connectionActionsAllowed = [hsx|
     <div class="d-flex flex-column gap-3">
-        {renderXeroPayItemsData xeroEarningsRates payItemRequirements maybePayItemAccountCodeSelection maybePayItemSyncRun connectionActionsAllowed}
+        {renderXeroPayItemsData accountCodeOptions payItemRequirements maybePayItemAccountCodeSelection maybePayItemSyncRun connectionActionsAllowed}
     </div>
 |]
 
-renderXeroPayItemAccountCodeSelection :: [XeroEarningsRate] -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
-renderXeroPayItemAccountCodeSelection xeroEarningsRates maybeSelection canManagePayItems = [hsx|
+renderXeroPayItemAccountCodeSelection :: [XeroPayItemAccountCodeOption] -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
+renderXeroPayItemAccountCodeSelection accountCodeOptions maybeSelection canManagePayItems = [hsx|
     <div>
         <h3 class="h6 mb-2">Account code</h3>
         <form method="POST"
@@ -40,7 +40,6 @@ renderXeroPayItemAccountCodeSelection xeroEarningsRates maybeSelection canManage
             case maybeSelection of
                 Just selection | selection.selectionStatus == "verified" -> Text.strip <$> selection.accountCode
                 _ -> Nothing
-        accountCodeOptions = xeroPayItemAccountCodeOptionsFromRates xeroEarningsRates
         accountCodeOptionValues = xeroPayItemAccountCodeOptionValues accountCodeOptions
         selectedIsObserved = maybe False (`elem` accountCodeOptionValues) selectedAccountCode
         currentSelection =
@@ -56,8 +55,8 @@ renderXeroPayItemAccountCodeOption currentSelection option = [hsx|
     <option value={option.accountCodeOptionValue} selected={currentSelection == option.accountCodeOptionValue}>{option.accountCodeOptionLabel}</option>
 |]
 
-renderXeroPayItemsData :: [XeroEarningsRate] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
-renderXeroPayItemsData xeroEarningsRates requirements maybePayItemAccountCodeSelection maybePayItemSyncRun canManagePayItems
+renderXeroPayItemsData :: [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
+renderXeroPayItemsData accountCodeOptions requirements maybePayItemAccountCodeSelection maybePayItemSyncRun canManagePayItems
     | null requirements = [hsx|
         <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"}>
             <h3 class="h6 mb-2">Pay item requirements</h3>
@@ -107,7 +106,6 @@ renderXeroPayItemsData xeroEarningsRates requirements maybePayItemAccountCodeSel
         rateChangedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "rate_changed") activeRequirements)
         staleCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "stale") activeRequirements)
         archivedCount = length archivedRequirements
-        accountCodeOptions = xeroPayItemAccountCodeOptionsFromRates xeroEarningsRates
         accountCodeOptionValues = xeroPayItemAccountCodeOptionValues accountCodeOptions
         hasAccountCode =
             case maybePayItemAccountCodeSelection of

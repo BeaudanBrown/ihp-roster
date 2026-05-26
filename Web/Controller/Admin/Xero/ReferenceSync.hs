@@ -44,15 +44,21 @@ syncXeroPayrollReferenceData connection = do
                     employeesResult <- fetchPayrollEmployees xeroClient accessToken refreshedConnection.tenantId
                     earningsRatesResult <- fetchEarningsRates xeroClient accessToken refreshedConnection.tenantId
                     payrollCalendarsResult <- fetchPayrollCalendars xeroClient accessToken refreshedConnection.tenantId
-                    case (employeesResult, earningsRatesResult, payrollCalendarsResult) of
-                        (Right employees, Right earningsRates, Right payrollCalendars) -> do
-                            completeXeroReferenceSync syncRun refreshedConnection employees earningsRates payrollCalendars
-                        (Left err, _, _) ->
+                    accountsResult <- fetchAccounts xeroClient accessToken refreshedConnection.tenantId
+                    payrollSettingsAccountsResult <- fetchPayrollSettingsAccounts xeroClient accessToken refreshedConnection.tenantId
+                    case (employeesResult, earningsRatesResult, payrollCalendarsResult, accountsResult, payrollSettingsAccountsResult) of
+                        (Right employees, Right earningsRates, Right payrollCalendars, Right accounts, Right payrollSettingsAccounts) -> do
+                            completeXeroReferenceSync syncRun refreshedConnection employees earningsRates payrollCalendars accounts payrollSettingsAccounts
+                        (Left err, _, _, _, _) ->
                             failXeroReferenceSync syncRun refreshedConnection ("Xero employee sync failed: " <> xeroClientErrorText err)
-                        (_, Left err, _) ->
+                        (_, Left err, _, _, _) ->
                             failXeroReferenceSync syncRun refreshedConnection ("Xero earnings-rate sync failed: " <> xeroClientErrorText err)
-                        (_, _, Left err) ->
+                        (_, _, Left err, _, _) ->
                             failXeroReferenceSync syncRun refreshedConnection ("Xero payroll-calendar sync failed: " <> xeroClientErrorText err)
+                        (_, _, _, Left err, _) ->
+                            failXeroReferenceSync syncRun refreshedConnection ("Xero account sync failed: " <> xeroClientErrorText err)
+                        (_, _, _, _, Left err) ->
+                            failXeroReferenceSync syncRun refreshedConnection ("Xero payroll-settings sync failed: " <> xeroClientErrorText err)
 
 completeXeroReferenceSync ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -61,10 +67,12 @@ completeXeroReferenceSync ::
     [XeroEmployeeRef] ->
     [XeroEarningsRateRef] ->
     [XeroPayrollCalendarRef] ->
+    [XeroAccountRef] ->
+    [XeroAccountRef] ->
     IO ()
-completeXeroReferenceSync syncRun connection employees earningsRates payrollCalendars = do
-    _ <- completeXeroReferenceSyncMutation syncRun connection employees earningsRates payrollCalendars
-    setSuccessMessage ("Synced Xero payroll reference data: " <> tshow (length employees) <> " employees, " <> tshow (length earningsRates) <> " earnings rates, " <> tshow (length payrollCalendars) <> " payroll calendars.")
+completeXeroReferenceSync syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
+    _ <- completeXeroReferenceSyncMutation syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts
+    setSuccessMessage ("Synced Xero payroll reference data: " <> tshow (length employees) <> " employees, " <> tshow (length earningsRates) <> " earnings rates, " <> tshow (length payrollCalendars) <> " payroll calendars, " <> tshow (length accounts) <> " accounts.")
     if isHtmxRequest
         then respondWithXeroSectionFragment
         else redirectTo XeroAction

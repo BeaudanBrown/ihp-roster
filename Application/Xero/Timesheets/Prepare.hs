@@ -342,16 +342,22 @@ syncXeroPreparationReferenceData runId =
                                     employeesResult <- fetchPayrollEmployees xeroClient accessToken refreshedConnection.tenantId
                                     earningsRatesResult <- fetchEarningsRates xeroClient accessToken refreshedConnection.tenantId
                                     payrollCalendarsResult <- fetchPayrollCalendars xeroClient accessToken refreshedConnection.tenantId
-                                    case (employeesResult, earningsRatesResult, payrollCalendarsResult) of
-                                        (Right employees, Right earningsRates, Right payrollCalendars) -> do
-                                            completePreparationReferenceSync syncRun refreshedConnection employees earningsRates payrollCalendars
+                                    accountsResult <- fetchAccounts xeroClient accessToken refreshedConnection.tenantId
+                                    payrollSettingsAccountsResult <- fetchPayrollSettingsAccounts xeroClient accessToken refreshedConnection.tenantId
+                                    case (employeesResult, earningsRatesResult, payrollCalendarsResult, accountsResult, payrollSettingsAccountsResult) of
+                                        (Right employees, Right earningsRates, Right payrollCalendars, Right accounts, Right payrollSettingsAccounts) -> do
+                                            completePreparationReferenceSync syncRun refreshedConnection employees earningsRates payrollCalendars accounts payrollSettingsAccounts
                                             refreshXeroTimesheetPreparation run.id
-                                        (Left err, _, _) ->
+                                        (Left err, _, _, _, _) ->
                                             failPreparationReferenceSync run syncRun refreshedConnection ("Xero employee sync failed: " <> xeroClientErrorText err)
-                                        (_, Left err, _) ->
+                                        (_, Left err, _, _, _) ->
                                             failPreparationReferenceSync run syncRun refreshedConnection ("Xero earnings-rate sync failed: " <> xeroClientErrorText err)
-                                        (_, _, Left err) ->
+                                        (_, _, Left err, _, _) ->
                                             failPreparationReferenceSync run syncRun refreshedConnection ("Xero payroll-calendar sync failed: " <> xeroClientErrorText err)
+                                        (_, _, _, Left err, _) ->
+                                            failPreparationReferenceSync run syncRun refreshedConnection ("Xero account sync failed: " <> xeroClientErrorText err)
+                                        (_, _, _, _, Left err) ->
+                                            failPreparationReferenceSync run syncRun refreshedConnection ("Xero payroll-settings sync failed: " <> xeroClientErrorText err)
 
 saveXeroPreparationPayrollCalendar ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -731,16 +737,19 @@ completePreparationReferenceSync ::
     [XeroEmployeeRef] ->
     [XeroEarningsRateRef] ->
     [XeroPayrollCalendarRef] ->
+    [XeroAccountRef] ->
+    [XeroAccountRef] ->
     IO ()
-completePreparationReferenceSync syncRun connection employees earningsRates payrollCalendars = do
+completePreparationReferenceSync syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
     now <- getCurrentTime
     withTransaction do
         mapM_ (upsertXeroEmployee connection now) employees
         mapM_ (upsertXeroEarningsRate connection now) earningsRates
         mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
+        mapM_ (upsertXeroAccount connection now) accounts
         markStaleXeroStaffMappings connection employees
         markStaleXeroEarningsRateMappings connection earningsRates
-        reconcileXeroPayItemAccountCodeSelection connection earningsRates
+        reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAccounts
         reconcileXeroPayrollCalendarSelection connection payrollCalendars
         _ <-
             syncRun

@@ -3,6 +3,7 @@ module Application.Xero.Admin.ReferenceData
     , reconcileXeroPayItemAccountCodeSelection
     , reconcileXeroPayrollCalendarSelection
     , markStaleXeroStaffMappings
+    , upsertXeroAccount
     , upsertXeroEarningsRate
     , upsertXeroEmployee
     , upsertXeroPayRun
@@ -13,6 +14,7 @@ import Application.Helper.ControllerContext
 import Application.Helper.Xero
 import Control.Monad (void)
 import qualified Data.List as List
+import Data.Functor ((<&>))
 import qualified Data.Text as Text
 import Generated.Types
 import IHP.ControllerPrelude
@@ -66,18 +68,17 @@ markStaleXeroEarningsRateMappings connection earningsRates = do
 reconcileXeroPayItemAccountCodeSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
-    [XeroEarningsRateRef] ->
+    [XeroAccountRef] ->
+    [XeroAccountRef] ->
     IO ()
-reconcileXeroPayItemAccountCodeSelection connection earningsRates = do
-    let activeAccountCodes =
-            earningsRates
-                |> filter (.xeroEarningsRateIsActive)
-                |> map (.xeroEarningsRateAccountCode)
-                |> catMaybes
-                |> map Text.strip
-                |> filter (not . Text.null)
-                |> List.nub
-                |> List.sort
+reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAccounts = do
+    let activeAccountCodes = activeExpenseAccountCodes accounts
+        maybeWagesExpenseCode =
+            payrollSettingsAccounts
+                |> find (\account -> account.xeroAccountType == Just "WAGESEXPENSE")
+                >>= (.xeroAccountCode)
+                <&> Text.strip
+                >>= \accountCode -> if Text.null accountCode then Nothing else Just accountCode
     maybeSelection <-
         query @XeroPayItemAccountCodeSelection
             |> filterWhere (#venueId, unpackId currentVenueId)
@@ -88,6 +89,10 @@ reconcileXeroPayItemAccountCodeSelection connection earningsRates = do
             | selection.selectionStatus == "verified"
             , maybe False (\accountCode -> Text.strip accountCode `elem` activeAccountCodes) selection.accountCode ->
                 pure ()
+        (_, _)
+            | Just accountCode <- maybeWagesExpenseCode
+            , accountCode `elem` activeAccountCodes ->
+                upsertXeroPayItemAccountCodeSelection connection "verified" (Just accountCode)
         (_, [accountCode]) ->
             upsertXeroPayItemAccountCodeSelection connection "verified" (Just accountCode)
         (Just selection, _)
@@ -99,6 +104,18 @@ reconcileXeroPayItemAccountCodeSelection connection earningsRates = do
                     |> updateRecord
                     |> void
         _ -> pure ()
+
+activeExpenseAccountCodes :: [XeroAccountRef] -> [Text]
+activeExpenseAccountCodes accounts =
+    accounts
+        |> filter (\account -> account.xeroAccountType == Just "EXPENSE")
+        |> filter (\account -> maybe False ((== "ACTIVE") . Text.toUpper . Text.strip) account.xeroAccountStatus)
+        |> map (.xeroAccountCode)
+        |> catMaybes
+        |> map Text.strip
+        |> filter (not . Text.null)
+        |> List.nub
+        |> List.sort
 
 reconcileXeroPayrollCalendarSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -208,6 +225,28 @@ upsertXeroEmployee connection syncedAt employee = do
     case existing of
         Just record -> fillRecord record |> updateRecord
         Nothing     -> fillRecord (newRecord @XeroEmployee) |> createRecord
+
+upsertXeroAccount :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroAccountRef -> IO XeroAccount
+upsertXeroAccount connection syncedAt account = do
+    existing <-
+        query @XeroAccount
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#xeroAccountId, account.xeroAccountId)
+            |> fetchOneOrNothing
+    let fillRecord record =
+            record
+                |> set #venueId (unpackId currentVenueId)
+                |> set #xeroConnectionId (unpackId connection.id)
+                |> set #xeroAccountId account.xeroAccountId
+                |> set #code account.xeroAccountCode
+                |> set #name account.xeroAccountName
+                |> set #accountType account.xeroAccountType
+                |> set #status account.xeroAccountStatus
+                |> set #rawPayload account.xeroAccountRaw
+                |> set #syncedAt syncedAt
+    case existing of
+        Just record -> fillRecord record |> updateRecord
+        Nothing     -> fillRecord (newRecord @XeroAccount) |> createRecord
 
 upsertXeroEarningsRate :: (?context :: ControllerContext, ?modelContext :: ModelContext) => XeroConnection -> UTCTime -> XeroEarningsRateRef -> IO XeroEarningsRate
 upsertXeroEarningsRate connection syncedAt earningsRate = do

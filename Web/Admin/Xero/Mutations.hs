@@ -260,16 +260,17 @@ startXeroReferenceSyncMutation connection now = do
     invalidateTouchedResources "xero.reference_sync.start" $
         liveMutationResult syncRun (xeroReferenceSyncTouchedResources (Id connection.venueId))
 
-completeXeroReferenceSyncMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroSyncRun -> XeroConnection -> [XeroEmployeeRef] -> [XeroEarningsRateRef] -> [XeroPayrollCalendarRef] -> IO (LiveMutationResult XeroSyncRun)
-completeXeroReferenceSyncMutation syncRun connection employees earningsRates payrollCalendars = do
+completeXeroReferenceSyncMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroSyncRun -> XeroConnection -> [XeroEmployeeRef] -> [XeroEarningsRateRef] -> [XeroPayrollCalendarRef] -> [XeroAccountRef] -> [XeroAccountRef] -> IO (LiveMutationResult XeroSyncRun)
+completeXeroReferenceSyncMutation syncRun connection employees earningsRates payrollCalendars accounts payrollSettingsAccounts = do
     now <- getCurrentTime
     updated <- withTransaction do
         mapM_ (upsertXeroEmployee connection now) employees
         mapM_ (upsertXeroEarningsRate connection now) earningsRates
         mapM_ (upsertXeroPayrollCalendar connection now) payrollCalendars
+        mapM_ (upsertXeroAccount connection now) accounts
         markStaleXeroStaffMappings connection employees
         markStaleXeroEarningsRateMappings connection earningsRates
-        reconcileXeroPayItemAccountCodeSelection connection earningsRates
+        reconcileXeroPayItemAccountCodeSelection connection accounts payrollSettingsAccounts
         reconcileXeroPayrollCalendarSelection connection payrollCalendars
         updatedSyncRun <-
             syncRun
@@ -294,6 +295,7 @@ completeXeroReferenceSyncMutation syncRun connection employees earningsRates pay
                     , "employeesCount" Aeson..= length employees
                     , "earningsRatesCount" Aeson..= length earningsRates
                     , "payrollCalendarsCount" Aeson..= length payrollCalendars
+                    , "accountsCount" Aeson..= length accounts
                     ]
                 )
         pure updatedSyncRun
