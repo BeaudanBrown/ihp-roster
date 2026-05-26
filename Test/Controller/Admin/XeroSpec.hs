@@ -1235,24 +1235,35 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Show matched"
                 response `responseBodyShouldContain` "Xero employee"
                 response `responseBodyShouldContain` "name=\"xeroEmployeeSelection\""
-                response `responseBodyShouldContain` "value=\"not_applicable\""
-                response `responseBodyShouldContain` "Not paid through Xero"
-                response `responseBodyShouldNotContain` ">Approve</button>"
-                response `responseBodyShouldContain` "Skip this time"
-                response `responseBodyShouldNotContain` "Suggested match"
-                response `responseBodyShouldNotContain` "Manual employee"
-                response `responseBodyShouldNotContain` "name=\"xeroEmployeeId\""
-                response `responseBodyShouldNotContain` "value=\"approve_suggestion\""
-                response `responseBodyShouldNotContain` "value=\"manual\""
-                body <- responseBody response
-                let bodyText = cs body
-                Text.count "value=\"employee-a\"" bodyText `shouldBe` 1
-                Text.count "value=\"employee-b\"" bodyText `shouldBe` 1
-                bodyText `shouldSatisfy` Text.isInfixOf "value=\"employee-a\" selected"
+                response `responseBodyShouldContain` "Choose Xero employee"
+                response `responseBodyShouldNotContain` "value=\"employee-a\" selected"
+                response `responseBodyShouldNotContain` "value=\"employee-b\" selected"
                 pendingStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
                 pendingStaffDecisions `shouldBe` 2
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
                 preparationRun.status `shouldBe` "needs_approval"
+
+                matchedResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ShowXeroTimesheetPreparationStaffMappingsFragmentAction preparationRun.id)
+                            [("showMatched", "true")]
+
+                matchedResponse `responseStatusShouldBe` status200
+                matchedResponse `responseBodyShouldContain` "name=\"xeroEmployeeSelection\""
+                matchedResponse `responseBodyShouldContain` "value=\"not_applicable\""
+                matchedResponse `responseBodyShouldContain` "Not paid through Xero"
+                matchedResponse `responseBodyShouldNotContain` ">Approve</button>"
+                matchedResponse `responseBodyShouldContain` "Skip this time"
+                matchedResponse `responseBodyShouldNotContain` "Suggested match"
+                matchedResponse `responseBodyShouldNotContain` "Manual employee"
+                matchedResponse `responseBodyShouldNotContain` "name=\"xeroEmployeeId\""
+                matchedResponse `responseBodyShouldNotContain` "value=\"approve_suggestion\""
+                matchedResponse `responseBodyShouldNotContain` "value=\"manual\""
+                body <- responseBody matchedResponse
+                let bodyText = cs body
+                Text.count "value=\"employee-a\"" bodyText `shouldBe` 1
+                Text.count "value=\"employee-b\"" bodyText `shouldBe` 1
+                bodyText `shouldSatisfy` Text.isInfixOf "value=\"employee-a\" selected"
 
         it "applies the selected suggested employee through the unified preparation dropdown" $ withContext do
             withCleanDb do
@@ -1522,7 +1533,13 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Persistently marked as not paid through Xero."
+                response `responseBodyShouldNotContain` "Persistently marked as not paid through Xero."
+                matchedResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ShowXeroTimesheetPreparationStaffMappingsFragmentAction run.id)
+                            [("showMatched", "true")]
+                matchedResponse `responseStatusShouldBe` status200
+                matchedResponse `responseBodyShouldContain` "Persistently marked as not paid through Xero."
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` "not_applicable"
                 mapping.xeroEmployeeId `shouldBe` Nothing

@@ -194,8 +194,8 @@ renderXeroTimesheetPreparationStaffMappingsFragment showMatched view
         </section>
     |]
     where
-        (matchedRows, unmatchedRows) = List.partition staffRowIsMatched view.preparationStaffRows
-        visibleRows = unmatchedRows <> if showMatched then matchedRows else []
+        (selectedRows, unselectedRows) = List.partition staffRowHasSelection view.preparationStaffRows
+        visibleRows = unselectedRows <> if showMatched then selectedRows else []
 
 renderStaffShowMatchedToggle :: Bool -> XeroTimesheetPreparationView -> Html
 renderStaffShowMatchedToggle showMatched view = [hsx|
@@ -221,7 +221,7 @@ staffMappingSummary :: XeroTimesheetPreparationView -> Text
 staffMappingSummary view =
     tshow matchedCount <> " matched · " <> tshow needsDecisionCount <> " need attention"
     where
-        matchedCount = length (filter staffRowIsMatched view.preparationStaffRows)
+        matchedCount = length (filter staffRowHasSelection view.preparationStaffRows)
         needsDecisionCount = length (filter staffRowNeedsAttention view.preparationStaffRows)
 
 renderStaffMappingRow :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
@@ -395,6 +395,10 @@ staffOutcomeReason row
 staffRowIsMatched :: XeroPreparationStaffRow -> Bool
 staffRowIsMatched row =
     staffHasVerifiedXeroEmployee row
+
+staffRowHasSelection :: XeroPreparationStaffRow -> Bool
+staffRowHasSelection row =
+    not (Text.null (currentStaffEmployeeSelection row))
 
 staffRowNeedsAttention :: XeroPreparationStaffRow -> Bool
 staffRowNeedsAttention row =
