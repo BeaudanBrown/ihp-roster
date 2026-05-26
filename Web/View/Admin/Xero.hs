@@ -220,10 +220,10 @@ renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActio
         {renderXeroAccordionItem "connection" "Connection" True (renderXeroDisconnectedConnectionDetails connectionActionsAllowed)}
     </div>
 |]
-renderXeroConnectionBody (Just connection) maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount xeroEmployees mappingRows mappingCounts xeroEarningsRates payItemRequirements accountCodeOptions maybePayItemSyncRun xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
+renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _employeeCount _earningsRateCount _payrollCalendarCount xeroEmployees mappingRows mappingCounts _xeroEarningsRates payItemRequirements accountCodeOptions maybePayItemSyncRun _xeroPayrollCalendars _maybePayrollCalendarSelection maybePayItemAccountCodeSelection _readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
     <div class="d-flex flex-column gap-3">
         <div class="accordion admin-config-accordion" id="admin-xero-sections">
-            {renderXeroAccordionItem "connection" "Connection" True (renderXeroConnectionDetails connection maybeConnectedByUser maybeSyncRun employeeCount earningsRateCount payrollCalendarCount accountCodeOptions xeroPayrollCalendars maybePayrollCalendarSelection maybePayItemAccountCodeSelection readyChecklist connectionActionsAllowed)}
+            {renderXeroAccordionItem "connection" "Connection" True (renderXeroConnectionDetails connection connectionActionsAllowed)}
             {renderXeroAccordionItem "staff-mappings" "Staff mappings" False (renderXeroStaffMappings xeroEmployees mappingRows mappingCounts)}
             {renderXeroAccordionItem "pay-items" "Pay items" False (renderXeroPayItems accountCodeOptions payItemRequirements maybePayItemAccountCodeSelection maybePayItemSyncRun connectionActionsAllowed)}
             {renderXeroAccordionItem "draft-timesheets" "Draft timesheets" False (renderXeroTimesheetPanel timesheetPanel)}
