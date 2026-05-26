@@ -2,6 +2,7 @@ module Web.View.Admin.Xero.TimesheetPreparation
     ( renderXeroTimesheetPreparationDialog
     , renderXeroTimesheetPreparationErrorDialog
     , renderXeroTimesheetPreparationLoadingDialog
+    , renderXeroTimesheetPreparationStaffMappingsFragment
     ) where
 
 import Application.Helper.View.Overlay
@@ -161,15 +162,19 @@ renderConnectionNotice view
     |]
 
 renderStaffMappings :: XeroTimesheetPreparationView -> Html
-renderStaffMappings view
+renderStaffMappings =
+    renderXeroTimesheetPreparationStaffMappingsFragment False
+
+renderXeroTimesheetPreparationStaffMappingsFragment :: Bool -> XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationStaffMappingsFragment showMatched view
     | null view.preparationStaffRows = mempty
     | otherwise = [hsx|
-        <section>
+        <section id="xero-preparation-staff-mappings">
             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                 <h6 class="mb-0">Staff mappings</h6>
                 <div class="d-flex flex-wrap gap-2 align-items-center">
                     <span class="small app-muted">{staffMappingSummary view}</span>
-                    {renderStaffShowMatchedToggle}
+                    {renderStaffShowMatchedToggle showMatched view}
                 </div>
             </div>
             <div class="table-responsive">
@@ -183,23 +188,33 @@ renderStaffMappings view
                             <th class="text-end">Run action</th>
                         </tr>
                     </thead>
-                    <tbody>{forEach orderedRows (renderStaffMappingRow view)}</tbody>
+                    <tbody>{forEach visibleRows (renderStaffMappingRow view)}</tbody>
                 </table>
             </div>
         </section>
     |]
     where
         (matchedRows, unmatchedRows) = List.partition staffRowIsMatched view.preparationStaffRows
-        orderedRows = unmatchedRows <> matchedRows
+        visibleRows = unmatchedRows <> if showMatched then matchedRows else []
 
-renderStaffShowMatchedToggle :: Html
-renderStaffShowMatchedToggle = [hsx|
-    <div class="form-check form-switch mb-0">
-        <input id="xero-preparation-show-matched-staff-toggle"
-               class="form-check-input xero-staff-mapping-show-matched-toggle"
-               type="checkbox" />
-        <label class="form-check-label small" for="xero-preparation-show-matched-staff-toggle">Show matched</label>
-    </div>
+renderStaffShowMatchedToggle :: Bool -> XeroTimesheetPreparationView -> Html
+renderStaffShowMatchedToggle showMatched view = [hsx|
+    <form method="GET"
+          action={ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id}
+          hx-get={pathTo (ShowXeroTimesheetPreparationStaffMappingsFragmentAction view.preparationRun.id)}
+          hx-trigger="change"
+          hx-target="#xero-preparation-staff-mappings"
+          hx-swap="outerHTML">
+        <div class="form-check form-switch mb-0">
+            <input id="xero-preparation-show-matched-staff-toggle"
+                   class="form-check-input xero-staff-mapping-show-matched-toggle"
+                   name="showMatched"
+                   value="true"
+                   type="checkbox"
+                   checked={showMatched} />
+            <label class="form-check-label small" for="xero-preparation-show-matched-staff-toggle">Show matched</label>
+        </div>
+    </form>
 |]
 
 staffMappingSummary :: XeroTimesheetPreparationView -> Text

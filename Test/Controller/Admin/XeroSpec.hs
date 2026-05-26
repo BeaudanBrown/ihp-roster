@@ -1182,6 +1182,10 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Prepare Xero draft timesheets"
                 response `responseBodyShouldContain` "Staff mappings"
+                response `responseBodyShouldContain` "Show matched"
+                response `responseBodyShouldContain` "hx-get=\"/ShowXeroTimesheetPreparationStaffMappingsFragment"
+                response `responseBodyShouldContain` "id=\"xero-preparation-staff-mappings\""
+                response `responseBodyShouldNotContain` "Ada Lovelace"
                 response `responseBodyShouldContain` "Readiness validation"
                 response `responseBodyShouldContain` "Submit to Xero"
                 response `responseBodyShouldNotContain` "Setup"
@@ -1189,6 +1193,13 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Earnings-rate mappings"
                 response `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
+                matchedResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ShowXeroTimesheetPreparationStaffMappingsFragmentAction preparationRun.id)
+                            [("showMatched", "true")]
+                matchedResponse `responseStatusShouldBe` status200
+                matchedResponse `responseBodyShouldContain` "Ada Lovelace"
+                matchedResponse `responseBodyShouldContain` "checked"
                 preparationRun.status `shouldBe` "ready_for_preview"
                 preparationRun.payPeriodStart `shouldBe` fixture.periodStart
                 preparationRun.payPeriodEnd `shouldBe` fixture.periodEnd

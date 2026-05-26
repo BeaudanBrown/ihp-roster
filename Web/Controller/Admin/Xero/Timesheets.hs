@@ -5,6 +5,7 @@ module Web.Controller.Admin.Xero.Timesheets
     , refreshXeroTimesheetPreparationAction
     , retryXeroDraftTimesheetSubmissionAction
     , runXeroTimesheetPreparationAction
+    , showXeroTimesheetPreparationStaffMappingsFragmentAction
     , submitXeroDraftTimesheetsAction
     , submitXeroTimesheetPreparationAction
     ) where
@@ -13,7 +14,7 @@ import Application.Helper.LiveResource (LiveMutationResult (..))
 import Application.Helper.XeroTimesheetReadiness
 import Application.Helper.XeroAdminTypes (XeroTimesheetPreparationView)
 import Application.Xero.Admin.ReadModel
-import Application.Xero.Timesheets.Prepare (XeroPreparationStaffDecision (..))
+import Application.Xero.Timesheets.Prepare (XeroPreparationStaffDecision (..), loadXeroTimesheetPreparationView)
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutation,
@@ -53,6 +54,18 @@ refreshXeroTimesheetPreparationAction ::
 refreshXeroTimesheetPreparationAction runId = do
     result <- liveMutationValue <$> refreshXeroTimesheetPreparationMutation runId
     respondWithPreparationDialog result
+
+showXeroTimesheetPreparationStaffMappingsFragmentAction ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    IO ()
+showXeroTimesheetPreparationStaffMappingsFragmentAction runId = do
+    result <- loadXeroTimesheetPreparationView runId
+    let showMatched = paramOrDefault @Bool False "showMatched"
+    respondHtml $
+        case result of
+            Left message -> [hsx|<section id="xero-preparation-staff-mappings"><div class="alert alert-danger mb-0">{message}</div></section>|]
+            Right view -> renderXeroTimesheetPreparationStaffMappingsFragment showMatched view
 
 applyXeroTimesheetPreparationStaffDecisionAction ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
