@@ -9,7 +9,7 @@ module Application.Xero.Admin.PayItems
 
 import Application.Helper.ControllerContext
 import Application.Helper.Xero
-import Application.Helper.XeroAdminTypes (XeroPayItemRequirement (..))
+import Application.Helper.XeroAdminTypes (XeroPayItemAccountCodeOption (..), XeroPayItemRequirement (..), xeroPayItemAccountCodeOptionValues)
 import Application.Helper.XeroPayItems (xeroManagedPayItemNamePrefix)
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection (xeroClientErrorText)
@@ -24,12 +24,12 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Generated.Types
 import IHP.ControllerPrelude
 
-selectedXeroPayItemAccountCode :: [Text] -> Maybe XeroPayItemAccountCodeSelection -> Maybe Text
+selectedXeroPayItemAccountCode :: [XeroPayItemAccountCodeOption] -> Maybe XeroPayItemAccountCodeSelection -> Maybe Text
 selectedXeroPayItemAccountCode accountCodeOptions maybeSelection =
     case maybeSelection of
         Just selection | selection.selectionStatus == "verified" -> do
             accountCode <- Text.strip <$> selection.accountCode
-            if Text.null accountCode || accountCode `List.notElem` accountCodeOptions then Nothing else Just accountCode
+            if Text.null accountCode || accountCode `List.notElem` xeroPayItemAccountCodeOptionValues accountCodeOptions then Nothing else Just accountCode
         _ -> Nothing
 
 data CreatePayItemsVerificationResult = CreatePayItemsVerificationResult

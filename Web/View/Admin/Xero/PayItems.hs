@@ -40,30 +40,20 @@ renderXeroPayItemAccountCodeSelection xeroEarningsRates maybeSelection canManage
             case maybeSelection of
                 Just selection | selection.selectionStatus == "verified" -> Text.strip <$> selection.accountCode
                 _ -> Nothing
-        accountCodeOptions = xeroPayItemAccountCodeOptions xeroEarningsRates
-        selectedIsObserved = maybe False (`elem` accountCodeOptions) selectedAccountCode
+        accountCodeOptions = xeroPayItemAccountCodeOptionsFromRates xeroEarningsRates
+        accountCodeOptionValues = xeroPayItemAccountCodeOptionValues accountCodeOptions
+        selectedIsObserved = maybe False (`elem` accountCodeOptionValues) selectedAccountCode
         currentSelection =
             case selectedAccountCode of
                 Just accountCode | selectedIsObserved -> accountCode
                 _ ->
                     case accountCodeOptions of
-                        [accountCode] -> accountCode
-                        _             -> ""
+                        [option] -> option.accountCodeOptionValue
+                        _        -> ""
 
-xeroPayItemAccountCodeOptions :: [XeroEarningsRate] -> [Text]
-xeroPayItemAccountCodeOptions xeroEarningsRates =
-    xeroEarningsRates
-        |> filter (.isActive)
-        |> map (.accountCode)
-        |> catMaybes
-        |> map Text.strip
-        |> filter (not . Text.null)
-        |> List.nub
-        |> List.sort
-
-renderXeroPayItemAccountCodeOption :: Text -> Text -> Html
-renderXeroPayItemAccountCodeOption currentSelection accountCode = [hsx|
-    <option value={accountCode} selected={currentSelection == accountCode}>{accountCode}</option>
+renderXeroPayItemAccountCodeOption :: Text -> XeroPayItemAccountCodeOption -> Html
+renderXeroPayItemAccountCodeOption currentSelection option = [hsx|
+    <option value={option.accountCodeOptionValue} selected={currentSelection == option.accountCodeOptionValue}>{option.accountCodeOptionLabel}</option>
 |]
 
 renderXeroPayItemsData :: [XeroEarningsRate] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
@@ -117,10 +107,11 @@ renderXeroPayItemsData xeroEarningsRates requirements maybePayItemAccountCodeSel
         rateChangedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "rate_changed") activeRequirements)
         staleCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "stale") activeRequirements)
         archivedCount = length archivedRequirements
-        accountCodeOptions = xeroPayItemAccountCodeOptions xeroEarningsRates
+        accountCodeOptions = xeroPayItemAccountCodeOptionsFromRates xeroEarningsRates
+        accountCodeOptionValues = xeroPayItemAccountCodeOptionValues accountCodeOptions
         hasAccountCode =
             case maybePayItemAccountCodeSelection of
-                Just selection -> selection.selectionStatus == "verified" && maybe False (\accountCode -> Text.strip accountCode `elem` accountCodeOptions) selection.accountCode
+                Just selection -> selection.selectionStatus == "verified" && maybe False (\accountCode -> Text.strip accountCode `elem` accountCodeOptionValues) selection.accountCode
                 Nothing -> False
 
 sortPayItemRequirementsByName :: [XeroPayItemRequirement] -> [XeroPayItemRequirement]

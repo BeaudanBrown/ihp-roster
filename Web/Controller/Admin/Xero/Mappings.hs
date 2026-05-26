@@ -243,7 +243,7 @@ saveXeroPayItemAccountCodeSelection connection selection = do
         accountCode
             | Text.length accountCode > 32 ->
                 respondWithXeroMappingMutationError "Use a Xero account code up to 32 characters."
-            | accountCode `List.notElem` activeAccountCodes ->
+            | accountCode `List.notElem` xeroPayItemAccountCodeOptionValues activeAccountCodes ->
                 respondWithXeroMappingMutationError "Choose a synced Xero account code from the dropdown."
             | otherwise ->
                 persistXeroPayItemAccountCodeSelection connection "verified" (Just accountCode)

@@ -1,6 +1,9 @@
 module Application.Helper.XeroAdminTypes where
 
+import Control.Monad (guard)
+import qualified Data.List as List
 import Data.Scientific (Scientific)
+import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Generated.Types
 import IHP.Prelude
@@ -40,6 +43,43 @@ data XeroUsedAwardPayScope = XeroUsedAwardPayScope
     , usedEmploymentBasis :: StaffEmploymentBasisEnum
     }
     deriving (Eq)
+
+data XeroPayItemAccountCodeOption = XeroPayItemAccountCodeOption
+    { accountCodeOptionValue :: Text
+    , accountCodeOptionLabel :: Text
+    }
+    deriving (Eq, Show)
+
+xeroPayItemAccountCodeOptionsFromRates :: [XeroEarningsRate] -> [XeroPayItemAccountCodeOption]
+xeroPayItemAccountCodeOptionsFromRates xeroEarningsRates =
+    xeroEarningsRates
+        |> filter (.isActive)
+        |> mapMaybe accountCodePair
+        |> List.sortOn (\(accountCode, name) -> (accountCode, name))
+        |> List.groupBy (\(leftCode, _) (rightCode, _) -> leftCode == rightCode)
+        |> mapMaybe accountCodeOptionFromGroup
+    where
+        accountCodePair earningsRate = do
+            accountCode <- Text.strip <$> earningsRate.accountCode
+            guard (not (Text.null accountCode))
+            let name = Text.strip earningsRate.name
+            pure (accountCode, name)
+
+accountCodeOptionFromGroup :: [(Text, Text)] -> Maybe XeroPayItemAccountCodeOption
+accountCodeOptionFromGroup [] = Nothing
+accountCodeOptionFromGroup ((accountCode, name) : _) =
+    Just
+        XeroPayItemAccountCodeOption
+            { accountCodeOptionValue = accountCode
+            , accountCodeOptionLabel =
+                if Text.null name
+                    then accountCode
+                    else name <> " - " <> accountCode
+            }
+
+xeroPayItemAccountCodeOptionValues :: [XeroPayItemAccountCodeOption] -> [Text]
+xeroPayItemAccountCodeOptionValues =
+    map (.accountCodeOptionValue)
 
 data XeroPayItemRequirement = XeroPayItemRequirement
     { payItemRequirementKey           :: Text
@@ -198,7 +238,7 @@ data XeroTimesheetPreparationView = XeroTimesheetPreparationView
     , preparationStaffRows                   :: [XeroPreparationStaffRow]
     , preparationEmployees                   :: [XeroEmployee]
     , preparationPayItemRows                 :: [XeroPreparationPayItemRow]
-    , preparationPayItemAccountCodeOptions   :: [Text]
+    , preparationPayItemAccountCodeOptions   :: [XeroPayItemAccountCodeOption]
     , preparationPayItemAccountCodeSelection :: Maybe XeroPayItemAccountCodeSelection
     , preparationPendingDecisionCount        :: Int
     , preparationManualStaffDecisionCount    :: Int

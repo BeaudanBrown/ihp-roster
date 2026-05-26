@@ -150,17 +150,10 @@ fetchCurrentVenueXeroEarningsRates maybeConnection =
                 |> orderBy #name
                 |> fetch
 
-fetchCurrentVenueXeroPayItemAccountCodeOptions :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [Text]
+fetchCurrentVenueXeroPayItemAccountCodeOptions :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroPayItemAccountCodeOption]
 fetchCurrentVenueXeroPayItemAccountCodeOptions maybeConnection = do
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates maybeConnection
-    pure
-        (xeroEarningsRates
-            |> map (.accountCode)
-            |> catMaybes
-            |> map Text.strip
-            |> filter (not . Text.null)
-            |> List.nub
-            |> List.sort)
+    pure (xeroPayItemAccountCodeOptionsFromRates xeroEarningsRates)
 
 fetchCurrentVenueXeroPayrollCalendars :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroPayrollCalendar]
 fetchCurrentVenueXeroPayrollCalendars maybeConnection =

@@ -544,8 +544,10 @@ renderPayItemDecisions view
                     row.preparationPayItemRequirement.payItemRequirementStatus == "proposed"
         requirementName row = row.preparationPayItemRequirement.payItemRequirementName
 
-renderAccountCodeOption :: Text -> Text -> Html
-renderAccountCodeOption currentSelection accountCode = [hsx|<option value={accountCode} selected={currentSelection == accountCode}>{accountCode}</option>|]
+renderAccountCodeOption :: Text -> XeroPayItemAccountCodeOption -> Html
+renderAccountCodeOption currentSelection option = [hsx|
+    <option value={option.accountCodeOptionValue} selected={currentSelection == option.accountCodeOptionValue}>{option.accountCodeOptionLabel}</option>
+|]
 
 selectedAccountCode :: XeroTimesheetPreparationView -> Maybe Text
 selectedAccountCode view = do

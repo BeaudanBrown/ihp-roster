@@ -360,7 +360,7 @@ saveXeroPreparationAccountCode runId accountCode =
             case Text.strip accountCode of
                 "" -> pure (Left "Choose a Xero account code.")
                 selectedAccountCode
-                    | selectedAccountCode `notElem` accountCodeOptions ->
+                    | selectedAccountCode `notElem` xeroPayItemAccountCodeOptionValues accountCodeOptions ->
                         pure (Left "Choose a synced Xero account code from the dropdown.")
                     | otherwise -> do
                         persistPreparationAccountCodeSelection connection accountCodeOptions selectedAccountCode
@@ -760,11 +760,11 @@ failPreparationReferenceSync run syncRun connection message = do
 persistPreparationAccountCodeSelection ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
-    [Text] ->
+    [XeroPayItemAccountCodeOption] ->
     Text ->
     IO ()
 persistPreparationAccountCodeSelection connection accountCodeOptions accountCode =
-    when (accountCode `elem` accountCodeOptions) do
+    when (accountCode `elem` xeroPayItemAccountCodeOptionValues accountCodeOptions) do
         now <- getCurrentTime
         existingSelection <-
             query @XeroPayItemAccountCodeSelection
