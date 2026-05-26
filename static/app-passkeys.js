@@ -112,7 +112,7 @@
 
             const finishResponse = await postJson(
                 container.dataset.finishUrl,
-                serializeRegistrationCredential(credential)
+                registrationPayload(container, credential)
             );
 
             markPasskeySeen(finishResponse.userId);
@@ -299,6 +299,15 @@
             .replace(/\+/g, '-')
             .replace(/\//g, '_')
             .replace(/=+$/g, '');
+    }
+
+    function registrationPayload(container, credential) {
+        const payload = serializeRegistrationCredential(credential);
+        const nameInput = container.querySelector('.js-passkey-name');
+        if (nameInput && nameInput.value.trim()) {
+            payload.name = nameInput.value.trim();
+        }
+        return payload;
     }
 
     function serializeRegistrationCredential(credential) {

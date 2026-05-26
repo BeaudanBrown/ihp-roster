@@ -55,8 +55,9 @@ instance Controller AuthController where
             clearRegistrationSession
             jsonError status422 "The pending passkey registration is invalid."
 
-        credentialPayload <- parseWebAuthnJsonBody @WebAuthnJson.WJCredentialRegistration
-        credential <- case WebAuthnJson.wjDecodeCredentialRegistration credentialPayload of
+        registrationRequest <- parseWebAuthnJsonBody @PasskeyRegistrationRequest
+        passkeyName <- normalizeSubmittedPasskeyName registrationRequest.passkeyRegistrationName
+        credential <- case WebAuthnJson.wjDecodeCredentialRegistration registrationRequest.passkeyRegistrationCredential of
             Left errorMessage -> do
                 clearRegistrationSession
                 jsonError status422 errorMessage
@@ -97,7 +98,7 @@ instance Controller AuthController where
         when credentialAlreadyExists do
             jsonError status409 "This passkey is already registered."
 
-        _ <- createPasskeyRecord (get #id currentUser) entry
+        _ <- createPasskeyRecord (get #id currentUser) passkeyName entry
         markCurrentUserPasskeyVerified
         renderJson
             ( Aeson.object
@@ -301,17 +302,38 @@ sessionUserId sessionKey =
                 Nothing -> jsonError status422 "The pending passkey registration is invalid."
         Nothing -> jsonError status422 "This passkey request has expired. Please try again."
 
+data PasskeyRegistrationRequest = PasskeyRegistrationRequest
+    { passkeyRegistrationCredential :: WebAuthnJson.WJCredentialRegistration
+    , passkeyRegistrationName       :: Maybe Text
+    }
+
+instance Aeson.FromJSON PasskeyRegistrationRequest where
+    parseJSON value =
+        PasskeyRegistrationRequest
+            <$> Aeson.parseJSON value
+            <*> Aeson.withObject "PasskeyRegistrationRequest" (\object -> object Aeson..:? "name") value
+
+normalizeSubmittedPasskeyName :: (?request :: Request) => Maybe Text -> IO Text
+normalizeSubmittedPasskeyName maybeName = do
+    let submittedName = maybe "Passkey" Text.strip maybeName
+        normalizedName = if Text.null submittedName then "Passkey" else submittedName
+    when (Text.length normalizedName > 120) do
+        jsonError status422 "Passkey name must be 120 characters or fewer."
+    pure normalizedName
+
 createPasskeyRecord ::
     (?modelContext :: ModelContext) =>
     Id User ->
+    Text ->
     CredentialEntry ->
     IO Passkey
-createPasskeyRecord userId entry =
+createPasskeyRecord userId passkeyName entry =
     newRecord @Passkey
         |> set #userId (unpackId userId)
         |> set #credentialId (Binary (unCredentialId entry.ceCredentialId))
         |> set #publicKey (Binary (unPublicKeyBytes entry.cePublicKeyBytes))
         |> set #signCount (fromIntegral (unSignatureCounter entry.ceSignCounter))
+        |> set #name passkeyName
         |> createRecord
 
 clearRegistrationSession :: (?request :: Request) => IO ()

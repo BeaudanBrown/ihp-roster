@@ -78,7 +78,11 @@ renderPasskeySetupPrompt (Just promptMode) = [hsx|
                 <strong>{passkeyPromptTitle promptMode}</strong>
                 <div class="small mt-1">{passkeyPromptBody promptMode}</div>
             </div>
-            <div class="d-flex gap-2 flex-shrink-0">
+            <div class="d-flex flex-column flex-md-row gap-2 flex-shrink-0 align-items-md-end">
+                <div>
+                    <label class="form-label small mb-1" for="passkey-setup-prompt-name">Passkey name</label>
+                    <input id="passkey-setup-prompt-name" type="text" class="form-control form-control-sm js-passkey-name" maxlength="120" placeholder="This device" autocomplete="off"/>
+                </div>
                 <button type="button" class="btn btn-primary btn-sm js-passkey-setup-button">Set up faster sign-in</button>
                 <button type="button" class="btn btn-outline-secondary btn-sm js-passkey-setup-dismiss">Not now</button>
             </div>
