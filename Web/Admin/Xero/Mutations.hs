@@ -94,6 +94,21 @@ completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDis
                 |> set #xeroConnectionRemoteId retainedRemoteConnectionId
                 |> set #lastError Nothing
                 |> updateRecord
+        staleConnections <-
+            query @XeroConnection
+                |> filterWhere (#venueId, updated.venueId)
+                |> filterWhereIn (#connectionStatus, ["active" :: Text, "reauthorization_required", "error"])
+                |> filterWhereNot (#id, updated.id)
+                |> fetch
+        forM_ staleConnections \staleConnection ->
+            staleConnection
+                |> set #connectionStatus "disconnected"
+                |> set #disconnectedByUserId (Just (unpackId currentUser.id))
+                |> set #disconnectedAt (Just now)
+                |> set #encryptedAccessToken Nothing
+                |> set #lastError (Just "Superseded by local disconnect")
+                |> updateRecord
+                |> void
         void $
             recordCurrentUserAuditEvent
                 "xero_connection_disconnected"
@@ -138,12 +153,12 @@ completeXeroConnectionMutation now actorUserId xeroConfig oauthState tokenRespon
                 |> filterWhere (#tenantId, tenant.tenantId)
                 |> orderByDesc #connectedAt
                 |> fetchOneOrNothing
-        activeConnections <-
+        currentConnections <-
             query @XeroConnection
                 |> filterWhere (#venueId, unpackId currentVenueId)
-                |> filterWhere (#connectionStatus, "active" :: Text)
+                |> filterWhereIn (#connectionStatus, ["active" :: Text, "reauthorization_required", "error"])
                 |> fetch
-        forM_ activeConnections \connection ->
+        forM_ currentConnections \connection ->
             when (Just connection.id /= ((.id) <$> existingSameTenant)) do
                 connection
                     |> set #connectionStatus "disconnected"

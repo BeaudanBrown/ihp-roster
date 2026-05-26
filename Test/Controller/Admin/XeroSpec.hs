@@ -275,6 +275,11 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Xero Disconnect Venue"
                 admin <- createUserRecord "xero-disconnect@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_owner"
+                staleConnection <- createSyncableXeroConnection venue admin >>= \record ->
+                    record
+                        |> set #connectionStatus "reauthorization_required"
+                        |> set #lastError (Just "Earlier expired refresh token")
+                        |> updateRecord
                 connection <- createSyncableXeroConnection venue admin
                 let tokenResponse = XeroTokenResponse "disconnect-access-token" "disconnect-refresh-token" 1800 (Just requiredXeroScopesText)
 
@@ -290,8 +295,13 @@ tests = beforeAll testContext do
                 updatedConnection.disconnectedAt `shouldSatisfy` isJust
                 updatedConnection.encryptedAccessToken `shouldBe` Nothing
                 updatedConnection.xeroConnectionRemoteId `shouldBe` Just "connection-existing"
+                updatedStaleConnection <- fetch staleConnection.id
+                updatedStaleConnection.connectionStatus `shouldBe` "disconnected"
+                updatedStaleConnection.lastError `shouldBe` Just "Superseded by local disconnect"
                 connectionCount <- query @XeroConnection |> fetchCount
-                connectionCount `shouldBe` 1
+                connectionCount `shouldBe` 2
+                currentConnectionCount <- query @XeroConnection |> filterWhereIn (#connectionStatus, ["active" :: Text, "reauthorization_required", "error"]) |> fetchCount
+                currentConnectionCount `shouldBe` 0
                 [auditEvent] <- query @AuditEvent |> filterWhere (#eventType, "xero_connection_disconnected" :: Text) |> fetch
                 let remoteDisconnect = AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "remoteDisconnect")) auditEvent.payload
                 remoteDisconnect `shouldBe` Just ("succeeded" :: Text)
