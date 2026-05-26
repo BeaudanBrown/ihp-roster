@@ -16,6 +16,7 @@ renderPasskeyManagementWithAddButton :: Bool -> [Passkey] -> Text -> Html
 renderPasskeyManagementWithAddButton canAddPasskey passkeys successRedirect = [hsx|
     <div class="app-form-width" data-passkey-management="true">
         {renderPasskeyRegistrationAction canAddPasskey successRedirect}
+        {renderNewDevicePasskeyAction passkeys}
         <div class="mt-4">
             {renderPasskeyTable passkeys}
         </div>
@@ -38,6 +39,15 @@ renderPasskeyRegistrationAction True successRedirect = [hsx|
         <button type="button" class="btn btn-outline-primary js-passkey-register-button">Add passkey</button>
     </div>
     <div id="passkey-management-status" class="alert d-none mt-3"></div>
+|]
+
+renderNewDevicePasskeyAction :: [Passkey] -> Html
+renderNewDevicePasskeyAction [] = mempty
+renderNewDevicePasskeyAction _ = [hsx|
+    <form method="POST" action={SendNewDevicePasskeySetupEmailAction} class="mt-3">
+        <button type="submit" class="btn btn-outline-secondary btn-sm">Email setup link for another device</button>
+        <div class="form-text app-muted">Use this when you are passkey-verified here and want to add a passkey on another device.</div>
+    </form>
 |]
 
 renderPasskeyTable :: [Passkey] -> Html

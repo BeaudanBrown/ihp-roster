@@ -5,6 +5,7 @@ import Application.Helper.Controller (currentVenueSessionKey,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey,
                                       unsafeEnumFromText)
+import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (SelfNewDevicePasskeySetup), issuePasskeySetupToken)
 import Application.Helper.Passkeys (allowedOrigins, rpIdTextFromRequest)
 import Config
 import Crypto.WebAuthn.Model.Types (Origin (..))
@@ -24,6 +25,7 @@ import qualified Network.HTTP.Types as HTTP
 import Network.HTTP.Types.Status
 import Network.Wai (responseHeaders)
 import qualified Network.Wai as Wai
+import System.Environment (setEnv)
 import Test.Hspec
 import Test.Support
 import Web.Controller.Auth (authenticationChallengeSessionKey,
@@ -289,6 +291,37 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status403
                 response `responseBodyShouldContain` "Verify with your passkey before adding another passkey."
                 response `responseBodyShouldContain` "\"redirectTo\":\"/PasskeyStepUp\""
+
+        it "sends a new-device passkey setup link after fresh passkey verification" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "New Device Setup Venue"
+                user <- createUserRecord "new-device-passkey@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createTestPasskeyRecord user "Existing admin passkey"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
+                    callAction SendNewDevicePasskeySetupEmailAction
+
+                response `responseStatusShouldBe` status302
+                setupToken <- query @PasskeySetupToken |> fetchOne
+                setupToken.userId `shouldBe` unpackId user.id
+                setupToken.requestedByUserId `shouldBe` Just (unpackId user.id)
+                setupToken.venueId `shouldBe` Just (unpackId venue.id)
+                setupToken.purpose `shouldBe` "self_new_device"
+
+        it "renders an active passkey setup link" $ withContext do
+            withCleanDb do
+                user <- createUserRecord "setup-link@example.com" "staff" True
+                (_setupToken, rawToken) <- issuePasskeySetupToken SelfNewDevicePasskeySetup user (Just user.id) Nothing
+
+                response <- callActionWithParams NewPasskeySetupAction [("token", cs rawToken)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Set Up New Passkey"
+                response `responseBodyShouldContain` "setup-link@example.com"
+                response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeySetupRegistration?token="
+                response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeySetupRegistration\""
 
         it "rejects passkey registration finishes if the pending user changes" $ withContext do
             withCleanDb do

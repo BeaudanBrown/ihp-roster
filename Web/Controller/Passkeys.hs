@@ -1,5 +1,6 @@
 module Web.Controller.Passkeys where
 
+import Application.Helper.PasskeySetupTokens
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Web.Controller.Prelude
@@ -18,6 +19,24 @@ instance Controller PasskeysController where
         rawStepUpRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
         let stepUpRedirectTo = rawStepUpRedirectTo >>= nonEmptyText
         render StepUpView { .. }
+
+    action SendNewDevicePasskeySetupEmailAction = do
+        passkeys <- fetchCurrentUserPasskeys
+        when (null passkeys) do
+            setErrorMessage "Add your first passkey before sending a new-device setup link."
+            redirectToPath profileSecurityPath
+        verified <- isCurrentUserPasskeyVerified
+        unless verified do
+            setSession passkeyStepUpRedirectSessionKey profileSecurityPath
+            setErrorMessage "Verify with your passkey before sending a new-device setup link."
+            if currentUserRequiresMandatoryPasskey
+                then redirectTo PasskeyStepUpAction
+                else redirectToPath profileSecurityPath
+        let venueId = (.id) <$> currentVenueOrNothing
+        (_, rawToken) <- issuePasskeySetupToken SelfNewDevicePasskeySetup currentUser (Just currentUser.id) venueId
+        sendPasskeySetupTokenEmail currentUser SelfNewDevicePasskeySetup rawToken
+        setSuccessMessage "New-device passkey setup email sent. Open it on the device you want to add."
+        redirectToPath profileSecurityPath
 
     action UpdatePasskeyNameAction { passkeyId } = do
         passkey <- fetch passkeyId

@@ -2,7 +2,9 @@ module Web.Controller.Auth where
 
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
 import Application.Helper.PasskeyRecoveryCodes (issueInitialRecoveryCodeIfMissing)
+import Application.Helper.PasskeySetupTokens
 import Application.Helper.Passkeys
+import Application.Helper.Url (appendQueryParams)
 import Control.Monad (void)
 import qualified Crypto.WebAuthn.Encoding.WebAuthnJson as WebAuthnJson
 import Crypto.WebAuthn.Model.Types
@@ -23,6 +25,7 @@ import Network.HTTP.Types.Status (Status, status400, status403, status409,
                                   status422)
 import Web.Controller.Prelude
 import Web.Controller.Sessions ()
+import Web.View.Passkeys.NewSetup
 
 instance Controller AuthController where
     action BeginPasskeyRegistrationAction = do
@@ -272,6 +275,88 @@ instance Controller AuthController where
                 ]
             )
 
+    action NewPasskeySetupAction = do
+        rawToken <- setupTokenParamOrRedirect
+        setupToken <- findActivePasskeySetupToken rawToken >>= maybe invalidSetupLink pure
+        targetUser <- fetch (Id setupToken.userId :: Id User)
+        let targetEmail = targetUser.email
+        let beginUrl = appendQueryParams (pathTo BeginPasskeySetupRegistrationAction) [("token", rawToken)]
+        render NewSetupView { .. }
+
+    action BeginPasskeySetupRegistrationAction = do
+        rawToken <- setupTokenParamOrJsonError
+        setupToken <- findActivePasskeySetupToken rawToken >>= maybe (jsonError status422 "This passkey setup link is invalid or has expired.") pure
+        targetUser <- fetch (Id setupToken.userId :: Id User)
+        existingPasskeys <- fetchPasskeysForUser targetUser.id
+        challenge <- liftIO generateChallenge
+        setSession setupRegistrationChallengeSessionKey (unChallenge challenge)
+        setSession setupRegistrationTokenIdSessionKey (inputValue setupToken.id)
+        setSession setupRegistrationUserIdSessionKey (inputValue targetUser.id)
+
+        renderJson $
+            WebAuthnJson.wjEncodeCredentialOptionsRegistration $
+                registrationCredentialOptions
+                    challenge
+                    targetUser.id
+                    targetUser.email
+                    (map passkeyCredentialDescriptor existingPasskeys)
+
+    action FinishPasskeySetupRegistrationAction = do
+        challenge <- sessionChallenge setupRegistrationChallengeSessionKey
+        setupTokenId <- sessionPasskeySetupTokenId setupRegistrationTokenIdSessionKey
+        pendingUserId <- sessionUserId setupRegistrationUserIdSessionKey
+        setupToken <- activeSetupTokenById setupTokenId >>= maybe (jsonError status422 "This passkey setup link is invalid or has expired.") pure
+        when (pendingUserId /= Id setupToken.userId) do
+            clearSetupRegistrationSession
+            jsonError status422 "The pending passkey setup is invalid."
+
+        targetUser <- fetch (Id setupToken.userId :: Id User)
+        registrationRequest <- parseWebAuthnJsonBody @PasskeyRegistrationRequest
+        passkeyName <- normalizeSubmittedPasskeyName registrationRequest.passkeyRegistrationName
+        credential <- case WebAuthnJson.wjDecodeCredentialRegistration registrationRequest.passkeyRegistrationCredential of
+            Left errorMessage -> do
+                clearSetupRegistrationSession
+                jsonError status422 errorMessage
+            Right credential -> pure credential
+        existingPasskeys <- fetchPasskeysForUser targetUser.id
+        currentDateTime <- liftIO (timeConvert <$> getCurrentTime)
+        let verification =
+                verifyRegistrationResponse
+                    allowedOrigins
+                    rpIdHashFromRequest
+                    mempty
+                    currentDateTime
+                    (registrationCredentialOptions challenge targetUser.id targetUser.email (map passkeyCredentialDescriptor existingPasskeys))
+                    credential
+
+        clearSetupRegistrationSession
+        registrationResult <- case verification of
+            Validation.Failure errors -> jsonError status422 (validationErrors errors)
+            Validation.Success result -> pure result
+
+        let entry = rrEntry registrationResult
+            credentialId = unCredentialId (get #ceCredentialId entry)
+        credentialAlreadyExists <-
+            query @Passkey
+                |> filterWhere (#credentialId, Binary credentialId)
+                |> fetchExists
+        when credentialAlreadyExists do
+            jsonError status409 "This passkey is already registered."
+
+        _ <- createPasskeyRecord targetUser.id passkeyName entry
+        now <- getCurrentTime
+        setupToken
+            |> set #consumedAt (Just now)
+            |> updateRecordDiscardResult
+        renderJson
+            ( Aeson.object
+                [ "ok" Aeson..= True
+                , "message" Aeson..= ("Passkey added. Sign in with it on this device." :: Text)
+                , "redirectTo" Aeson..= pathTo NewSessionAction
+                , "userId" Aeson..= inputValue targetUser.id
+                ]
+            )
+
 registrationChallengeSessionKey :: ByteString
 registrationChallengeSessionKey = "passkey-registration-challenge"
 
@@ -283,6 +368,15 @@ authenticationChallengeSessionKey = "passkey-authentication-challenge"
 
 stepUpAuthenticationChallengeSessionKey :: ByteString
 stepUpAuthenticationChallengeSessionKey = "passkey-step-up-authentication-challenge"
+
+setupRegistrationChallengeSessionKey :: ByteString
+setupRegistrationChallengeSessionKey = "passkey-setup-registration-challenge"
+
+setupRegistrationTokenIdSessionKey :: ByteString
+setupRegistrationTokenIdSessionKey = "passkey-setup-registration-token-id"
+
+setupRegistrationUserIdSessionKey :: ByteString
+setupRegistrationUserIdSessionKey = "passkey-setup-registration-user-id"
 
 parseWebAuthnJsonBody ::
     (?request :: Request, Aeson.FromJSON payload) =>
@@ -307,6 +401,43 @@ sessionUserId sessionKey =
                 Just userId -> pure (Id userId)
                 Nothing -> jsonError status422 "The pending passkey registration is invalid."
         Nothing -> jsonError status422 "This passkey request has expired. Please try again."
+
+sessionPasskeySetupTokenId :: (?request :: Request) => ByteString -> IO (Id PasskeySetupToken)
+sessionPasskeySetupTokenId sessionKey =
+    getSession @Text sessionKey >>= \case
+        Just tokenIdText ->
+            case UUID.fromText tokenIdText of
+                Just tokenId -> pure (Id tokenId)
+                Nothing -> jsonError status422 "The pending passkey setup is invalid."
+        Nothing -> jsonError status422 "This passkey setup request has expired. Please try again."
+
+setupTokenParamOrRedirect :: (?request :: Request) => IO Text
+setupTokenParamOrRedirect =
+    maybe invalidSetupLink pure (paramOrNothing @Text "token")
+
+setupTokenParamOrJsonError :: (?request :: Request) => IO Text
+setupTokenParamOrJsonError =
+    maybe (jsonError status422 "This passkey setup link is invalid or has expired.") pure (paramOrNothing @Text "token")
+
+invalidSetupLink :: (?request :: Request) => IO a
+invalidSetupLink = do
+    setErrorMessage "This passkey setup link is invalid or has expired."
+    redirectTo NewSessionAction
+    error "unreachable"
+
+fetchPasskeysForUser :: (?modelContext :: ModelContext) => Id User -> IO [Passkey]
+fetchPasskeysForUser userId =
+    query @Passkey
+        |> filterWhere (#userId, unpackId userId)
+        |> fetch
+
+activeSetupTokenById :: (?modelContext :: ModelContext) => Id PasskeySetupToken -> IO (Maybe PasskeySetupToken)
+activeSetupTokenById setupTokenId =
+    query @PasskeySetupToken
+        |> filterWhere (#id, setupTokenId)
+        |> filterWhere (#consumedAt, Nothing)
+        |> filterWhereFuture #expiresAt
+        |> fetchOneOrNothing
 
 data PasskeyRegistrationRequest = PasskeyRegistrationRequest
     { passkeyRegistrationCredential :: WebAuthnJson.WJCredentialRegistration
@@ -354,6 +485,12 @@ clearAuthenticationSession =
 clearStepUpAuthenticationSession :: (?request :: Request) => IO ()
 clearStepUpAuthenticationSession =
     deleteSession stepUpAuthenticationChallengeSessionKey
+
+clearSetupRegistrationSession :: (?request :: Request) => IO ()
+clearSetupRegistrationSession = do
+    deleteSession setupRegistrationChallengeSessionKey
+    deleteSession setupRegistrationTokenIdSessionKey
+    deleteSession setupRegistrationUserIdSessionKey
 
 jsonError :: (?request :: Request) => Status -> Text -> IO a
 jsonError statusCode errorMessage =

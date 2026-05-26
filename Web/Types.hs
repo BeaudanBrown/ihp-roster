@@ -36,10 +36,14 @@ data AuthController
     | FinishPasskeyAuthenticationAction
     | BeginPasskeyStepUpAuthenticationAction
     | FinishPasskeyStepUpAuthenticationAction
+    | NewPasskeySetupAction
+    | BeginPasskeySetupRegistrationAction
+    | FinishPasskeySetupRegistrationAction
     deriving (Eq, Show, Data)
 
 data PasskeysController
     = PasskeyStepUpAction
+    | SendNewDevicePasskeySetupEmailAction
     | UpdatePasskeyNameAction { passkeyId :: !(Id Passkey) }
     | DeletePasskeyAction { passkeyId :: !(Id Passkey) }
     deriving (Eq, Show, Data)
