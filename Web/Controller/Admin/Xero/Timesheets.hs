@@ -124,7 +124,8 @@ submitXeroTimesheetPreparationAction ::
     Id XeroTimesheetPreparationRun ->
     IO ()
 submitXeroTimesheetPreparationAction runId = do
-    result <- liveMutationValue <$> submitXeroTimesheetPreparationMutation runId
+    let maybeAccountCode = Text.strip <$> paramOrNothing @Text "accountCode"
+    result <- liveMutationValue <$> submitXeroTimesheetPreparationMutation runId maybeAccountCode
     respondWithPreparationDialog result
 
 previewXeroDraftTimesheetsAction ::

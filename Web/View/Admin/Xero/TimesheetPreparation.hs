@@ -80,7 +80,6 @@ renderPreparationBody view = [hsx|
         {renderRunSummary view}
         {renderWorkflowProgress view}
         {renderConnectionNotice view}
-        {renderSetupActions view}
         {renderStaffMappings view}
         {renderPayItemDecisions view}
         {renderReadiness view.preparationReadiness}
@@ -134,8 +133,8 @@ workflowHeadline view =
         XeroPreparationPreparing -> "Checking Xero readiness"
         XeroPreparationNeedsDecision -> "Resolve the next preparation decision"
         XeroPreparationBlocked -> "Preparation is blocked"
-        XeroPreparationReadyForPreview -> "Ready to preview draft timesheets"
-        XeroPreparationPreviewed -> "Preview ready for explicit submission"
+        XeroPreparationReadyForPreview -> "Ready to submit draft timesheets"
+        XeroPreparationPreviewed -> "Draft timesheet preview is ready"
         XeroPreparationSubmitted -> "Draft timesheets submitted"
         XeroPreparationFailed -> "Preparation needs attention"
 
@@ -144,9 +143,9 @@ workflowDetail view =
     case view.preparationState of
         XeroPreparationNeedsReconnect -> "OAuth reconnect opens as a normal Xero navigation, then return here to continue."
         XeroPreparationPreparing -> "Connection, reference data, pay runs, duplicate timesheets, mappings, pay items, and readiness checks are run automatically."
-        XeroPreparationNeedsDecision -> "Approve proposed matches, choose manual Xero employees, mark staff as not paid through Xero, skip unmapped staff for this run, or approve managed pay items."
-        XeroPreparationBlocked -> "Resolve the blockers shown in readiness validation before previewing."
-        XeroPreparationReadyForPreview -> "All required decisions are resolved. Preview the generated Xero draft-timesheet rows before submission."
+        XeroPreparationNeedsDecision -> "Choose Xero employees, mark staff as not paid through Xero, skip unmapped staff for this run, or choose the account code needed for automatic pay item creation."
+        XeroPreparationBlocked -> "Resolve the blockers shown in readiness validation before submitting."
+        XeroPreparationReadyForPreview -> "All required decisions are resolved. Submit will create any missing managed pay items and then create the Xero draft timesheets."
         XeroPreparationPreviewed -> "Review the preview rows, then submit only when you are ready to create Xero draft timesheets."
         XeroPreparationSubmitted -> "The latest submission status is recorded below and in the Xero panel."
         XeroPreparationFailed -> "Refresh checks or close the dialog and retry after fixing the reported issue."
@@ -518,22 +517,31 @@ renderPayItemDecisions view
         <section>
             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
                 <h6 class="mb-0">Managed pay items</h6>
-                <span class="small app-muted">{tshow (length proposedRows)} pending creation</span>
+                <span class="small app-muted">{tshow (length proposedRows)} will be created on submit</span>
             </div>
             <div class={appSurfaceClasses "p-3"}>
-                <div class="small mb-2">{Text.intercalate ", " (map requirementName proposedRows)}</div>
-                <form method="POST"
-                      action={ApproveXeroTimesheetPreparationPayItemsAction view.preparationRun.id}
-                      class="d-flex flex-column flex-md-row gap-2"
-                      hx-post={pathTo (ApproveXeroTimesheetPreparationPayItemsAction view.preparationRun.id)}
-                      hx-target={"#" <> dialogOverlayMountId}
-                      hx-swap="innerHTML">
-                    <select name="accountCode" class="form-select form-select-sm" aria-label="Xero account code">
-                        <option value="">Choose account code</option>
-                        {forEach view.preparationPayItemAccountCodeOptions (renderAccountCodeOption (fromMaybe "" (selectedAccountCode view)))}
-                    </select>
-                    <button type="submit" class="btn btn-sm btn-primary">Approve creation</button>
-                </form>
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Pay item</th>
+                                <th>Value</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>{forEach proposedRows renderPayItemCreationRow}</tbody>
+                    </table>
+                </div>
+                <label class="form-label small fw-semibold" for="xero-preparation-submit-account-code">Account code for created pay items</label>
+                <select id="xero-preparation-submit-account-code"
+                        form="xero-preparation-submit-form"
+                        name="accountCode"
+                        class="form-select form-select-sm"
+                        aria-label="Xero account code"
+                        required={isNothing (selectedAccountCode view)}>
+                    <option value="">Choose account code</option>
+                    {forEach view.preparationPayItemAccountCodeOptions (renderAccountCodeOption (fromMaybe "" (selectedAccountCode view)))}
+                </select>
             </div>
         </section>
     |]
@@ -542,7 +550,17 @@ renderPayItemDecisions view
             view.preparationPayItemRows
                 |> filter \row ->
                     row.preparationPayItemRequirement.payItemRequirementStatus == "proposed"
-        requirementName row = row.preparationPayItemRequirement.payItemRequirementName
+
+renderPayItemCreationRow :: XeroPreparationPayItemRow -> Html
+renderPayItemCreationRow row = [hsx|
+    <tr>
+        <td>{requirement.payItemRequirementName}</td>
+        <td>{fromMaybe "per employee ordinary rate" requirement.payItemRequirementValue}</td>
+        <td>{renderStatusBadge "will be created"}</td>
+    </tr>
+|]
+    where
+        requirement = row.preparationPayItemRequirement
 
 renderAccountCodeOption :: Text -> XeroPayItemAccountCodeOption -> Html
 renderAccountCodeOption currentSelection option = [hsx|
@@ -624,7 +642,6 @@ renderFooterActions :: XeroTimesheetPreparationView -> Html
 renderFooterActions view = [hsx|
     <div class="d-flex flex-column flex-md-row justify-content-end gap-2 border-top pt-3">
         {renderRefreshForm view}
-        {renderPreviewForm view}
         {renderSubmitForm view}
     </div>
 |]
@@ -653,7 +670,8 @@ renderPreviewForm view = [hsx|
 
 renderSubmitForm :: XeroTimesheetPreparationView -> Html
 renderSubmitForm view = [hsx|
-    <form method="POST"
+    <form id="xero-preparation-submit-form"
+          method="POST"
           action={SubmitXeroTimesheetPreparationAction view.preparationRun.id}
           hx-post={pathTo (SubmitXeroTimesheetPreparationAction view.preparationRun.id)}
           hx-target={"#" <> dialogOverlayMountId}
@@ -661,7 +679,7 @@ renderSubmitForm view = [hsx|
         <button type="submit"
                 class="btn btn-primary"
                 disabled={not view.preparationCanSubmit}
-                hx-confirm="Submit these previewed rows to Xero as draft timesheets?">
+                hx-confirm="Submit to Xero? This will create any listed managed pay items first, then create Xero draft timesheets.">
             Submit to Xero
         </button>
     </form>

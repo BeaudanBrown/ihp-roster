@@ -532,9 +532,9 @@ previewXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?mode
 previewXeroTimesheetPreparationMutation runId =
     XeroPrepare.previewXeroTimesheetPreparation runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.preview"
 
-submitXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
-submitXeroTimesheetPreparationMutation runId =
-    XeroPrepare.submitXeroTimesheetPreparation runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.submit"
+submitXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Maybe Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+submitXeroTimesheetPreparationMutation runId maybeAccountCode =
+    XeroPrepare.submitXeroTimesheetPreparation runId maybeAccountCode >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.submit"
 
 createPersistedXeroTimesheetPreviewMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id User -> XeroTimesheetReadinessRequest -> XeroTimesheetReadiness -> Aeson.Value -> IO (LiveMutationResult (Either Text XeroSubmissionRun))
 createPersistedXeroTimesheetPreviewMutation userId readinessRequest readiness duplicateCheckJson =

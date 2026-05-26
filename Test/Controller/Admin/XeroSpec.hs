@@ -1181,10 +1181,11 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Prepare Xero draft timesheets"
-                response `responseBodyShouldContain` "Setup"
-                response `responseBodyShouldContain` "Sync reference data"
+                response `responseBodyShouldContain` "Staff mappings"
                 response `responseBodyShouldContain` "Readiness validation"
-                response `responseBodyShouldContain` "Preview"
+                response `responseBodyShouldContain` "Submit to Xero"
+                response `responseBodyShouldNotContain` "Setup"
+                response `responseBodyShouldNotContain` "Sync reference data"
                 response `responseBodyShouldNotContain` "Earnings-rate mappings"
                 response `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
@@ -1217,12 +1218,13 @@ tests = beforeAll testContext do
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Staff mapping decisions"
+                response `responseBodyShouldContain` "Staff mappings"
+                response `responseBodyShouldContain` "Show matched"
                 response `responseBodyShouldContain` "Xero employee"
                 response `responseBodyShouldContain` "name=\"xeroEmployeeSelection\""
                 response `responseBodyShouldContain` "value=\"not_applicable\""
                 response `responseBodyShouldContain` "Not paid through Xero"
-                response `responseBodyShouldContain` ">Approve</button>"
+                response `responseBodyShouldNotContain` ">Approve</button>"
                 response `responseBodyShouldContain` "Skip this time"
                 response `responseBodyShouldNotContain` "Suggested match"
                 response `responseBodyShouldNotContain` "Manual employee"
@@ -1265,7 +1267,7 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Mapped to Xero employee"
+                response `responseBodyShouldContain` "included"
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` "verified"
                 mapping.xeroEmployeeId `shouldBe` Just "employee-a"
@@ -1298,9 +1300,10 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Managed pay items"
-                response `responseBodyShouldContain` "pending creation"
-                response `responseBodyShouldContain` "Approve creation"
+                response `responseBodyShouldContain` "will be created on submit"
                 response `responseBodyShouldContain` "Bepis - HIGA - PERM - Undated - Level 2 - Ordinary"
+                response `responseBodyShouldContain` "Ordinary Hours - earnings-account-code"
+                response `responseBodyShouldNotContain` "Approve creation"
                 response `responseBodyShouldNotContain` "Earnings-rate mappings"
                 response `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
                 pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
@@ -1338,9 +1341,8 @@ tests = beforeAll testContext do
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Setup"
-                response `responseBodyShouldContain` "Payroll calendar"
-                response `responseBodyShouldContain` "name=\"xeroPayrollCalendarSelection\""
+                response `responseBodyShouldNotContain` "Setup"
+                response `responseBodyShouldNotContain` "name=\"xeroPayrollCalendarSelection\""
                 response `responseBodyShouldContain` "Preview Calendar"
                 calendarSelection <- query @XeroPayrollCalendarSelection |> fetchOne
                 calendarSelection.calendarStatus `shouldBe` "stale"
