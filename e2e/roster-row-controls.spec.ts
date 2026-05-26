@@ -97,7 +97,6 @@ test.describe('Roster row controls', () => {
             const staffField = realCard.querySelector('.roster-shift-card-staff');
             const codeField = realCard.querySelector('.roster-shift-card-code');
             const typeBadge = realCard.querySelector('.roster-shift-type-badge');
-            const typeMarker = realCard.querySelector('.roster-shift-type-badge-marker');
             const timeTrigger = realCard.querySelector('.slot-time-trigger');
             const staffInput = realCard.querySelector('.slot-cell-input');
             const conflictProbe = document.createElement('div');
@@ -110,7 +109,6 @@ test.describe('Roster row controls', () => {
                 || !(staffField instanceof HTMLElement)
                 || !(codeField instanceof HTMLElement)
                 || !(typeBadge instanceof HTMLElement)
-                || !(typeMarker instanceof HTMLElement)
                 || !(timeTrigger instanceof HTMLElement)
                 || !(staffInput instanceof HTMLElement)
             ) {
@@ -133,7 +131,6 @@ test.describe('Roster row controls', () => {
             const staffStyle = getComputedStyle(staffField);
             const codeStyle = getComputedStyle(codeField);
             const typeBadgeStyle = getComputedStyle(typeBadge);
-            const typeMarkerStyle = getComputedStyle(typeMarker);
             const timeTriggerStyle = getComputedStyle(timeTrigger);
             const staffInputStyle = getComputedStyle(staffInput);
             const conflictProbeStyle = getComputedStyle(conflictProbe);
@@ -149,9 +146,6 @@ test.describe('Roster row controls', () => {
                 staffBackground: staffStyle.backgroundColor,
                 codeBackground: codeStyle.backgroundColor,
                 badgeDisplay: typeBadgeStyle.display,
-                badgeBorderLeftStyle: typeBadgeStyle.borderLeftStyle,
-                badgeBorderLeftColor: typeBadgeStyle.borderLeftColor,
-                markerBackground: typeMarkerStyle.backgroundColor,
                 staffColor: staffInputStyle.color,
                 cardHasConflictClass: realCard.classList.contains('conflict-critical'),
                 conflictBackground: conflictProbeStyle.backgroundColor,
@@ -173,13 +167,86 @@ test.describe('Roster row controls', () => {
         expect(metrics?.fieldsRadius).not.toBe('0px');
         expect(metrics?.timeBackground).toBe(metrics?.codeBackground);
         expect(metrics?.timeBackground).not.toBe(metrics?.conflictBackground);
-        expect(metrics?.badgeDisplay).toBe('inline-grid');
-        expect(metrics?.badgeBorderLeftStyle).toBe('solid');
-        expect(metrics?.badgeBorderLeftColor).toBe(metrics?.markerBackground);
+        expect(metrics?.badgeDisplay).toBe('flex');
         expect(metrics?.staffBackground).toBe(metrics?.conflictBackground);
         expect(metrics?.staffColor).toBe(metrics?.conflictColor);
         expect(metrics?.cardHasConflictClass).toBe(false);
         expect(metrics?.timeTriggerBorderWidth).toBe('0px');
         expect(metrics?.staffInputBorderWidth).toBe('0px');
+    });
+
+    test('centres read-only day-column names and keeps times on one line', async ({ page }) => {
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await loginAndOpenRoster(page);
+
+        await page.getByRole('button', { name: 'Roster actions' }).click();
+        await page.locator('label[for="roster-layout-mode-day_columns"]').click();
+        await expect(page.locator('.roster-day-columns')).toBeVisible();
+
+        const metrics = await page.evaluate(() => {
+            const frame = document.querySelector('.roster-grid-frame[data-roster-layout="day_columns"]');
+            if (!(frame instanceof HTMLElement)) {
+                return null;
+            }
+
+            const probe = document.createElement('article');
+            probe.className = 'roster-shift-card';
+            probe.style.position = 'absolute';
+            probe.style.left = '-10000px';
+            probe.innerHTML = `
+                <div class="roster-shift-card-fields">
+                    <div class="roster-shift-card-field roster-shift-card-time">
+                        <div class="slot-cell-static">12:00 PM</div>
+                    </div>
+                    <div class="roster-shift-card-field roster-shift-card-staff">
+                        <div class="slot-cell-static">Sonia</div>
+                    </div>
+                    <div class="roster-shift-card-field roster-shift-card-code">
+                        <div class="slot-cell-static roster-shift-type-badge roster-shift-type-badge-readonly">
+                            <span class="roster-shift-type-badge-label">Kitchen</span>
+                        </div>
+                    </div>
+                </div>`;
+            frame.appendChild(probe);
+
+            const timeCell = probe.querySelector('.roster-shift-card-time .slot-cell-static');
+            const staffCell = probe.querySelector('.roster-shift-card-staff .slot-cell-static');
+            if (!(timeCell instanceof HTMLElement) || !(staffCell instanceof HTMLElement)) {
+                probe.remove();
+                return null;
+            }
+
+            const timeStyle = getComputedStyle(timeCell);
+            const staffStyle = getComputedStyle(staffCell);
+
+            const metrics = {
+                timeText: timeCell.textContent?.trim() ?? '',
+                timeDisplay: timeStyle.display,
+                timeAlignItems: timeStyle.alignItems,
+                timeJustifyContent: timeStyle.justifyContent,
+                timeWhiteSpace: timeStyle.whiteSpace,
+                timeScrollWidth: timeCell.scrollWidth,
+                timeClientWidth: timeCell.clientWidth,
+                staffDisplay: staffStyle.display,
+                staffAlignItems: staffStyle.alignItems,
+                staffJustifyContent: staffStyle.justifyContent,
+                staffWhiteSpace: staffStyle.whiteSpace,
+            };
+
+            probe.remove();
+            return metrics;
+        });
+
+        expect(metrics).not.toBeNull();
+        expect(metrics?.timeText).not.toBe('');
+        expect(metrics?.timeDisplay).toBe('flex');
+        expect(metrics?.timeAlignItems).toBe('center');
+        expect(metrics?.timeJustifyContent).toBe('center');
+        expect(metrics?.timeWhiteSpace).toBe('nowrap');
+        expect(metrics?.timeScrollWidth ?? 0).toBeLessThanOrEqual((metrics?.timeClientWidth ?? 0) + 1);
+        expect(metrics?.staffDisplay).toBe('flex');
+        expect(metrics?.staffAlignItems).toBe('center');
+        expect(metrics?.staffJustifyContent).toBe('center');
+        expect(metrics?.staffWhiteSpace).toBe('nowrap');
     });
 });

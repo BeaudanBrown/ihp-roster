@@ -1268,7 +1268,7 @@
 
 .roster-shift-card-fields {
     display: grid;
-    grid-template-columns: minmax(5rem, 0.82fr) minmax(6.5rem, 1.35fr) minmax(5.75rem, auto);
+    grid-template-columns: minmax(5.75rem, 0.9fr) minmax(6.5rem, 1.35fr) minmax(5.75rem, auto);
     border-radius: calc(0.65rem - 1px);
     background: inherit;
     color: inherit;
@@ -1365,6 +1365,24 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.roster-shift-card .slot-cell-static {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding-inline: 0.16rem;
+    text-align: center;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.roster-shift-card-time .slot-cell-static {
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
 }
 
 .roster-shift-card .slot-staff-input,
