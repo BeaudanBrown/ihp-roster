@@ -217,7 +217,7 @@ buildRsaScanFromRequest :: (?request :: Request) => Either Text RsaScanUpload
 buildRsaScanFromRequest = do
     upload <- buildFileUploadFromRequest
     unless (upload.rsaScanContentType == "application/pdf") do
-        Left "RSA scanning is available for PDFs only. Use Upload manually for JPG or PNG files."
+        Left "RSA scanning is available for PDFs only. Please upload a PDF file."
     pure upload
 
 validateUploadedFile :: RsaScanUpload -> Either Text RsaScanUpload

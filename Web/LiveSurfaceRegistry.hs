@@ -34,7 +34,6 @@ import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
 import Web.Timesheets.Projection (timesheetLiveSurfaceDefinition,
                                   timesheetLiveSurfaceDefinitionForVenue)
-import Web.View.Admin.Compliance (staffComplianceLiveSurfaceDefinition)
 import Web.View.Admin.Exports (adminExportsLiveSurfaceDefinition)
 import Web.View.Admin.Invites (adminInvitesLiveSurfaceDefinition,
                                adminInvitesLiveSurfaceDefinitionForVenue)
@@ -68,7 +67,6 @@ authorizeRegisteredLiveSurfaceScope scope = do
                 , authorizeTypedLiveSurfaceWireScope adminRosterGroupsLiveSurfaceDefinition scope
                 , authorizeTypedLiveSurfaceWireScope adminXeroLiveSurfaceDefinition scope
                 , authorizeTypedLiveSurfaceWireScope billingLiveSurfaceDefinition scope
-                , authorizeTypedLiveSurfaceWireScope staffComplianceLiveSurfaceDefinition scope
                 , authorizeTypedLiveSurfaceWireScope leaveRequestsLiveSurfaceDefinition scope
                 , authorizeTypedLiveSurfaceWireScope profileContentLiveSurfaceDefinition scope
                 , authorizeTypedLiveSurfaceWireScope profileLeaveRequestsLiveSurfaceDefinition scope
@@ -128,7 +126,6 @@ currentVenueRegisteredLiveSurfacesForScope scope =
                 AdminExportsScope {} -> [registeredTypedLiveSurface adminExportsLiveSurfaceDefinition defaultCandidateFragments]
                 AdminShiftTypesScope {} -> [registeredTypedLiveSurface adminShiftTypesLiveSurfaceDefinition defaultCandidateFragments]
                 AdminRosterGroupsScope {} -> [registeredTypedLiveSurface adminRosterGroupsLiveSurfaceDefinition defaultCandidateFragments]
-                StaffComplianceScope {} -> [registeredTypedLiveSurface staffComplianceLiveSurfaceDefinition defaultCandidateFragments]
                 LeaveRequestsScope {} -> [registeredTypedLiveSurface leaveRequestsLiveSurfaceDefinition defaultCandidateFragments]
                 ProfileScope {} ->
                     [ registeredTypedLiveSurface profileContentLiveSurfaceDefinition profileContentCandidateFragments

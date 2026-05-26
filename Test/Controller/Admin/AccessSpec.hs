@@ -91,6 +91,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "admin-invites-fragment"
                 body <- responseBody response
                 (cs body :: String) `shouldContainInOrder` ["Invites", "Exports", "Shift Types", "Roster Groups"]
+                response `responseBodyShouldNotContain` "Compliance"
                 response `responseBodyShouldNotContain` "Venue Config"
                 response `responseBodyShouldNotContain` "Award Levels"
                 response `responseBodyShouldNotContain` "Pay Levels"

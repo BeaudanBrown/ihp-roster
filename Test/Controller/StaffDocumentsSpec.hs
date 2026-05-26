@@ -167,7 +167,6 @@ tests = beforeAll testContext do
 
                 rsaStaffDocumentTouchedResources staffDocument
                     `shouldBe` [ StaffRsaDocumentsResource (unpackId staff.id)
-                               , AdminStaffComplianceResource (unpackId venue.id)
                                ]
 
         it "allows managers to review RSA documents in their venue" $ withContext do

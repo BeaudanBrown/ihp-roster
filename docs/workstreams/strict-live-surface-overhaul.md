@@ -161,7 +161,6 @@ tests, and whether browser coverage is required.
 | `ShowAdminShiftTypesFragmentAction` / shift types shell | typed live surface | `AdminShiftTypesScope` | current venue admin | `admin-shift-types-fragment` |
 | `ShowAdminRosterGroupsFragmentAction` / roster groups shell | typed live surface | `AdminRosterGroupsScope` | current venue admin | `admin-roster-groups-fragment` |
 | `ShowAdminExportsFragmentAction` / exports shell | typed live surface | `AdminExportsScope` | current venue admin | `admin-exports-fragment` |
-| `ShowAdminComplianceFragmentAction` / compliance shell | typed live surface | `StaffComplianceScope` | current venue manager | `staff-compliance-fragment` |
 | `ShowAdminXeroFragmentAction` / Xero shell | typed live surface | `AdminXeroScope` | current venue owner or support super-admin | `admin-xero-fragment` |
 | `ShowAdminXeroStaffMappingsFragmentAction` | typed sub-fragment | `AdminXeroScope` | current venue owner or support super-admin | `xero-staff-mappings-data` |
 | `ShowAdminXeroPayItemsFragmentAction` | typed sub-fragment | `AdminXeroScope` | current venue owner or support super-admin | `xero-pay-items-data` |

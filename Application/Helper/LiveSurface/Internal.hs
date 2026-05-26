@@ -321,8 +321,6 @@ defaultLiveUpdateScopeAuthorizationRequirement TimesheetWeekScope { venueId } =
     RequireCurrentVenue venueId
 defaultLiveUpdateScopeAuthorizationRequirement ProfileScope { venueId, staffId } =
     RequireCurrentVenueStaff venueId staffId
-defaultLiveUpdateScopeAuthorizationRequirement StaffComplianceScope { venueId } =
-    RequireCurrentVenueManager venueId
 defaultLiveUpdateScopeAuthorizationRequirement SupportPlatformScope =
     RequireSupportSuperAdmin
 

@@ -30,7 +30,6 @@ data LiveResource
     | AdminRosterGroupsResource !UUID
     | AdminShiftTypesResource !UUID
     | AdminInvitesResource !UUID
-    | AdminStaffComplianceResource !UUID
     | AdminExportsResource !UUID
     | BillingResource !UUID
     | SupportAwardRatesResource

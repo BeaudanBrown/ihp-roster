@@ -252,8 +252,6 @@ candidateLiveScopesForResources resources =
             pure [AdminRosterGroupsScope { venueId }]
         candidateScopesForResource (AdminShiftTypesResource venueId) =
             pure [AdminShiftTypesScope { venueId }]
-        candidateScopesForResource (AdminStaffComplianceResource venueId) =
-            pure [StaffComplianceScope { venueId }]
         candidateScopesForResource (AdminExportsResource venueId) =
             pure [AdminExportsScope { venueId }]
         candidateScopesForResource (BillingResource venueId) =

@@ -87,9 +87,6 @@ data LiveUpdateScope
         { venueId  :: !UUID.UUID
         , staffId  :: !UUID.UUID
         }
-    | StaffComplianceScope
-        { venueId :: !UUID.UUID
-        }
     | SupportPlatformScope
     deriving (Eq, Ord, Show)
 
@@ -118,7 +115,6 @@ data LiveFragmentKey
     | BillingStatusFragment
     | ProfileContentFragment
     | ProfileLeaveRequestsContentFragment
-    | StaffComplianceFragment
     | SupportAwardRatesSectionFragment
     | SupportPublicHolidaysSectionFragment
     deriving (Eq, Ord, Show)
@@ -216,8 +212,6 @@ liveUpdateScopeKey TimesheetWeekScope { venueId, weekOffset } =
     Text.intercalate ":" ["timesheet_week", UUID.toText venueId, tshow weekOffset]
 liveUpdateScopeKey ProfileScope { venueId, staffId } =
     Text.intercalate ":" ["profile", UUID.toText venueId, UUID.toText staffId]
-liveUpdateScopeKey StaffComplianceScope { venueId } =
-    Text.intercalate ":" ["staff_compliance", UUID.toText venueId]
 liveUpdateScopeKey SupportPlatformScope =
     "support_platform"
 
@@ -280,11 +274,6 @@ instance Aeson.ToJSON LiveUpdateScope where
             , "venueId" Aeson..= UUID.toText venueId
             , "staffId" Aeson..= UUID.toText staffId
             ]
-    toJSON StaffComplianceScope { venueId } =
-        Aeson.object
-            [ "kind" Aeson..= ("staff_compliance" :: Text)
-            , "venueId" Aeson..= UUID.toText venueId
-            ]
     toJSON SupportPlatformScope =
         Aeson.object
             [ "kind" Aeson..= ("support_platform" :: Text)
@@ -328,9 +317,6 @@ instance Aeson.FromJSON LiveUpdateScope where
                 ProfileScope
                     <$> (parseUuid =<< object Aeson..: "venueId")
                     <*> (parseUuid =<< object Aeson..: "staffId")
-            "staff_compliance" ->
-                StaffComplianceScope
-                    <$> (parseUuid =<< object Aeson..: "venueId")
             "support_platform" -> pure SupportPlatformScope
             _ -> fail ("Unknown live update scope kind: " <> cs kind)
 
@@ -379,8 +365,6 @@ instance Aeson.ToJSON LiveFragmentKey where
         Aeson.object ["kind" Aeson..= ("profile_content" :: Text)]
     toJSON ProfileLeaveRequestsContentFragment =
         Aeson.object ["kind" Aeson..= ("profile_leave_requests_content" :: Text)]
-    toJSON StaffComplianceFragment =
-        Aeson.object ["kind" Aeson..= ("staff_compliance" :: Text)]
     toJSON SupportAwardRatesSectionFragment =
         Aeson.object ["kind" Aeson..= ("support_award_rates_section" :: Text)]
     toJSON SupportPublicHolidaysSectionFragment =
@@ -414,7 +398,6 @@ instance Aeson.FromJSON LiveFragmentKey where
             "billing_status" -> pure BillingStatusFragment
             "profile_content" -> pure ProfileContentFragment
             "profile_leave_requests_content" -> pure ProfileLeaveRequestsContentFragment
-            "staff_compliance" -> pure StaffComplianceFragment
             "support_award_rates_section" -> pure SupportAwardRatesSectionFragment
             "support_public_holidays_section" -> pure SupportPublicHolidaysSectionFragment
             _ -> fail ("Unknown live fragment kind: " <> cs kind)

@@ -28,7 +28,6 @@ tests = describe "LiveUpdate runtime types" do
                 , LeaveRequestsScope { venueId }
                 , TimesheetWeekScope { venueId, weekOffset = 2 }
                 , ProfileScope { venueId, staffId }
-                , StaffComplianceScope { venueId }
                 , SupportPlatformScope
                 ]
 
@@ -54,7 +53,6 @@ tests = describe "LiveUpdate runtime types" do
                 , BillingStatusFragment
                 , ProfileContentFragment
                 , ProfileLeaveRequestsContentFragment
-                , StaffComplianceFragment
                 , SupportAwardRatesSectionFragment
                 , SupportPublicHolidaysSectionFragment
                 ]
@@ -112,8 +110,6 @@ tests = describe "LiveUpdate runtime types" do
             `shouldBe` "timesheet_week:11111111-1111-1111-1111-111111111111:2"
         liveUpdateScopeKey ProfileScope { venueId, staffId }
             `shouldBe` "profile:11111111-1111-1111-1111-111111111111:44444444-4444-4444-4444-444444444444"
-        liveUpdateScopeKey StaffComplianceScope { venueId }
-            `shouldBe` "staff_compliance:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey SupportPlatformScope
             `shouldBe` "support_platform"
 

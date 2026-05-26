@@ -6,12 +6,12 @@ import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource (..), liveMutationResult)
 import Application.Helper.Profiling
 import Application.Helper.RosterGroups
+import Application.Helper.Url (appendQueryParams)
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays,
                                           weekdayIndexLabel)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
-import Application.StaffDocuments.Rsa (staffRsaComplianceRowsForVenue)
 import Application.Xero.Connection
 import qualified Data.Aeson as Aeson
 import qualified Data.List as List
@@ -24,7 +24,6 @@ import Web.Controller.Admin.Xero
 import Web.Controller.Admin.Xero.Responses
 import Web.Controller.Prelude
 import Web.LiveResourceInvalidation (invalidateTouchedResources)
-import Web.View.Admin.Compliance
 import Web.View.Admin.Exports
 import Web.View.Admin.Index
 import Web.View.Admin.Invites
@@ -48,7 +47,6 @@ profileLiveResourcesFor resourceName = do
         "admin-roster-groups" -> [AdminRosterGroupsResource venueUuid]
         "admin-shift-types" -> [AdminShiftTypesResource venueUuid]
         "admin-exports" -> [AdminExportsResource venueUuid]
-        "admin-compliance" -> [AdminStaffComplianceResource venueUuid]
         "xero-connection" -> [XeroConnectionResource venueUuid]
         "xero-mappings" -> [XeroMappingsResource venueUuid]
         "xero-pay-items" -> [XeroPayItemsResource venueUuid]
@@ -102,7 +100,16 @@ sendStaffPasskeySetupLink staffId purpose successMessage = do
             (_, rawToken) <- issuePasskeySetupToken purpose targetUser (Just currentUser.id) (Just currentVenueId)
             sendPasskeySetupTokenEmail targetUser purpose rawToken
             setSuccessMessage successMessage
-            redirectTo AdminAction
+            redirectToPath staffPasskeyReturnPath
+
+staffPasskeyReturnPath :: (?request :: Request) => Text
+staffPasskeyReturnPath =
+    case paramOrDefault @Text "admin" "returnTo" of
+        "staff" ->
+            appendQueryParams
+                (pathTo ShowRosterWeekAction { weekOffset = paramOrDefault @Int 0 "weekOffset" })
+                (maybe [] (\rosterGroupId -> [("rosterGroupId", tshow (rosterGroupId :: Id RosterGroup))]) (paramOrNothing "rosterGroupId"))
+        _ -> pathTo AdminAction
 
 fetchCurrentVenueStaffUser :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe User)
 fetchCurrentVenueStaffUser staffId = do
@@ -138,7 +145,6 @@ instance Controller AdminController where
         let showInactiveRosterGroups = parseShowInactiveParam "showInactiveRosterGroups"
         let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
         invitations <- fetchCurrentVenueInvitations
-        rsaComplianceRows <- staffRsaComplianceRowsForVenue currentVenueId
         today <- utctDay <$> getCurrentTime
         render IndexView { .. }
 
@@ -302,12 +308,6 @@ instance Controller AdminController where
             let defaultRangeEnd = reportWeekSelection.weekEnd
             exportJobs <- fetchCurrentVenueExportJobs
             respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)
-
-    action ShowAdminComplianceFragmentAction =
-        serveTypedLiveFragment staffComplianceLiveSurfaceDefinition () staffComplianceFragment \_ -> do
-            rsaComplianceRows <- staffRsaComplianceRowsForVenue currentVenueId
-            today <- utctDay <$> getCurrentTime
-            respondHtml (renderComplianceSectionFragment rsaComplianceRows today)
 
     action ShowAdminXeroFragmentAction =
         serveTypedLiveFragment adminXeroLiveSurfaceDefinition () adminXeroShellFragment \_ ->

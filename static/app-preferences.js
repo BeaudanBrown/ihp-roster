@@ -87,14 +87,42 @@
         });
     }
 
+    function syncToggleButton(input) {
+        const button = input.closest('[data-toggle-button]');
+        if (!button) return;
+
+        const variant = button.dataset.toggleButton || 'success';
+        const checkedClass = `btn-${variant}`;
+        const uncheckedClass = `btn-outline-${variant}`;
+        button.classList.toggle(checkedClass, input.checked);
+        button.classList.toggle(uncheckedClass, !input.checked);
+    }
+
+    function initToggleButtons(target) {
+        const root = target instanceof HTMLElement ? target : document;
+        root.querySelectorAll('[data-toggle-button-input]').forEach(function (input) {
+            if (input.dataset.toggleButtonReady === 'true') return;
+            input.dataset.toggleButtonReady = 'true';
+            input.addEventListener('change', function () {
+                syncToggleButton(input);
+            });
+            syncToggleButton(input);
+        });
+    }
+
+    function initPreferenceControls(target) {
+        initShiftPreferenceWindows(target);
+        initToggleButtons(target);
+    }
+
     document.addEventListener('app:page-ready', function (event) {
-        initShiftPreferenceWindows(event.detail && event.detail.target);
+        initPreferenceControls(event.detail && event.detail.target);
     });
     document.addEventListener('htmx:load', function (event) {
-        initShiftPreferenceWindows(event.detail && event.detail.elt);
+        initPreferenceControls(event.detail && event.detail.elt);
     });
 
     if (document.readyState !== 'loading') {
-        initShiftPreferenceWindows(document.body);
+        initPreferenceControls(document.body);
     }
 })();

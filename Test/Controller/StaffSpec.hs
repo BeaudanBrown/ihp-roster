@@ -83,7 +83,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"roster-content\""
                 response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
-                response `responseBodyShouldContain` "data-roster-staff-name=\"Updated\""
+                response `responseBodyShouldContain` "roster-grid"
 
         it "updates explicit roster-group applicability from the staff edit form" $ withContext do
             withCleanDb do
@@ -191,6 +191,28 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Default Award Level"
                 response `responseBodyShouldContain` "Level 3 (perm $32.75/hr)"
                 response `responseBodyShouldContain` "Not assigned"
+
+        it "renders staff login access and scan-first RSA upload in the staff edit modal" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Access Modal Venue"
+                owner <- createUserRecord "staff-access-owner@example.com" "admin" True
+                worker <- createUserRecord "staff-access-worker@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue worker "worker"
+                staff <- createStaffRecord venue (Just worker) "Access" "Worker"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Sign-in access"
+                response `responseBodyShouldContain` "staff-access-worker@example.com"
+                response `responseBodyShouldContain` "Email passkey setup"
+                response `responseBodyShouldContain` "Email recovery link"
+                response `responseBodyShouldContain` "Upload and scan PDF"
+                response `responseBodyShouldContain` "action=\"/ScanStaffDocument\""
+                response `responseBodyShouldNotContain` "Upload manually"
+                response `responseBodyShouldNotContain` "Expiry Date"
 
         it "ignores staff pay fields submitted by non-admin managers" $ withContext do
             withCleanDb do

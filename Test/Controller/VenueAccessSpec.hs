@@ -170,15 +170,10 @@ tests = beforeAll testContext do
                     authorizeRegisteredLiveSurfaceScope AdminExportsScope
                         { venueId = unpackId venue.id
                         }
-                complianceAuthorized <- withAuthenticatedControllerContext admin venue.id do
-                    authorizeRegisteredLiveSurfaceScope StaffComplianceScope
-                        { venueId = unpackId venue.id
-                        }
 
                 rosterGroupsAuthorized `shouldBe` True
                 invitesAuthorized `shouldBe` True
                 exportsAuthorized `shouldBe` True
-                complianceAuthorized `shouldBe` True
 
         it "lets current-venue users subscribe to ordinary live scopes for their venue" $ withContext do
             withCleanDb do

@@ -198,7 +198,7 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/components.css"}/>
         <link rel="stylesheet" href={assetPath "/css/overlays.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/exports.css"}/>
-        <link rel="stylesheet" href={assetPath "/css/features/compliance.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/features/staff-documents.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/leave.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/preferences.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster.css"}/>

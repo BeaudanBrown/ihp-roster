@@ -141,7 +141,6 @@ data AdminController
     | ShowAdminShiftTypesFragmentAction
     | ShowAdminRosterGroupsFragmentAction
     | ShowAdminExportsFragmentAction
-    | ShowAdminComplianceFragmentAction
     | ShowAdminXeroFragmentAction
     | ShowAdminXeroStaffMappingsFragmentAction
     | ShowAdminXeroPayItemsFragmentAction

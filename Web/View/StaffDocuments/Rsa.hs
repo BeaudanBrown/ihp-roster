@@ -109,38 +109,21 @@ renderRejectionReason staffDocument =
 renderRsaUploadForm :: Staff -> RsaReturnContext -> Html
 renderRsaUploadForm staff returnContext = [hsx|
     <form method="POST"
-          action={CreateStaffDocumentAction}
+          action={ScanStaffDocumentAction}
           enctype="multipart/form-data"
           class="rsa-upload-form"
           data-disable-javascript-submission="true">
         <input type="hidden" name="staffId" value={tshow staff.id}/>
         {renderRsaReturnInputs returnContext}
         <div class="row g-3">
-            <div class="col-12 col-md-6">
-                <label class="form-label" for={rsaInputId staff "expiryDate"}>Expiry Date</label>
-                <input id={rsaInputId staff "expiryDate"} class="form-control" type="date" name="expiryDate" required="required"/>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-label" for={rsaInputId staff "issueDate"}>Issue Date</label>
-                <input id={rsaInputId staff "issueDate"} class="form-control" type="date" name="issueDate"/>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-label" for={rsaInputId staff "issuingAuthority"}>Issuer</label>
-                <input id={rsaInputId staff "issuingAuthority"} class="form-control" type="text" name="issuingAuthority" maxlength="160" placeholder="Optional"/>
-            </div>
-            <div class="col-12 col-md-6">
-                <label class="form-label" for={rsaInputId staff "documentNumber"}>Document Number</label>
-                <input id={rsaInputId staff "documentNumber"} class="form-control" type="text" name="documentNumber" maxlength="80" placeholder="Optional"/>
-            </div>
             <div class="col-12">
-                <label class="form-label" for={rsaInputId staff "documentFile"}>Document</label>
-                <input id={rsaInputId staff "documentFile"} class="form-control" type="file" name="documentFile" accept="application/pdf,image/jpeg,image/png" required="required"/>
-                <div class="form-text">PDF, JPG, or PNG. Max 10 MB.</div>
+                <label class="form-label" for={rsaInputId staff "documentFile"}>RSA PDF</label>
+                <input id={rsaInputId staff "documentFile"} class="form-control" type="file" name="documentFile" accept="application/pdf" required="required"/>
+                <div class="form-text">Upload a PDF first. We will scan it for candidate dates and details before you confirm.</div>
             </div>
         </div>
         <div class="d-grid d-sm-flex gap-2 mt-3">
-            <button type="submit" class="btn btn-primary">Upload manually</button>
-            <button type="submit" class="btn btn-outline-secondary" formaction={ScanStaffDocumentAction}>Scan PDF first</button>
+            <button type="submit" class="btn btn-primary">Upload and scan PDF</button>
         </div>
     </form>
 |]

@@ -462,9 +462,13 @@ tests = beforeAll testContext do
                     |> fetchOne
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                    callAction (SendStaffPasskeyRecoveryEmailAction targetStaff.id)
+                    callActionWithParams (SendStaffPasskeyRecoveryEmailAction targetStaff.id)
+                        [ ("returnTo", "staff")
+                        , ("weekOffset", "3")
+                        ]
 
                 response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/ShowRosterWeek?weekOffset=3"
                 setupToken <- query @PasskeySetupToken |> fetchOne
                 setupToken.userId `shouldBe` unpackId target.id
                 setupToken.requestedByUserId `shouldBe` Just (unpackId owner.id)

@@ -52,7 +52,6 @@ tests = do
                         , AdminInvitesResource venueId
                         , AdminRosterGroupsResource venueId
                         , AdminShiftTypesResource venueId
-                        , AdminStaffComplianceResource venueId
                         , AdminExportsResource venueId
                         , BillingResource venueId
                         , SupportAwardRatesResource

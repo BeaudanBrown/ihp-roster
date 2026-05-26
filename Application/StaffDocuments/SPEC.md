@@ -26,10 +26,10 @@ for current-vs-history presentation:
   reviewed document; reminder jobs target that effective current row, not a
   pending replacement.
 
-`staffRsaComplianceRowsForVenue` uses this read model for manager/admin
-compliance views so those surfaces can distinguish missing, pending review,
-pending replacement, verified, expiring, expired, and rejected states without a
-separate full history UI.
+Manager edit-staff and staff self-profile RSA panels use this read model so
+those surfaces can distinguish missing, pending review, pending replacement,
+verified, expiring, expired, and rejected states without a separate full history
+UI.
 
 ## RSA PDF Metadata Prefill
 
@@ -53,14 +53,13 @@ Confirmed scanned-prefill uploads persist minimal provenance on `staff_documents
 `extracted_subject_name`. Fully manual uploads leave those columns `NULL`. The
 app does not persist full extracted certificate text or OCR output by default.
 
-Failure and low-confidence cases fall back to manual confirmation instead of
-blocking upload. Empty/scanned PDFs, missing `pdftotext`, command failures, and
-uncertain parser output produce warnings and blank or partial fields for the user
-to complete. JPG and PNG uploads are manual-only and continue through the normal
-upload path without scanning.
+Failure and low-confidence cases fall back to manual confirmation after the PDF
+has been uploaded for scanning instead of blocking upload. Empty/scanned PDFs,
+missing `pdftotext`, command failures, and uncertain parser output produce
+warnings and blank or partial fields for the user to complete.
 
-Supported upload file types are PDF, JPEG, and PNG, with the existing 10 MB file
-limit, venue scoping, role checks, live invalidation, review status transitions,
-and reminder behavior unchanged. OCR for image-only PDFs is out of V1 scope and
-should be added only behind a future ticket with explicit privacy and dependency
-review.
+The profile and edit-staff RSA panels are scan-first and accept PDFs for the
+initial upload step. Confirmed upload limits, venue scoping, role checks, live
+invalidation, review status transitions, and reminder behavior remain unchanged.
+OCR for image-only PDFs is out of V1 scope and should be added only behind a
+future ticket with explicit privacy and dependency review.
