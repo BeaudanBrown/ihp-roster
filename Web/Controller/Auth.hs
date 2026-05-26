@@ -1,6 +1,7 @@
 module Web.Controller.Auth where
 
 import Application.Helper.Audit (recordUserAuthenticationAuditEvent)
+import Application.Helper.PasskeyRecoveryCodes (issueInitialRecoveryCodeIfMissing)
 import Application.Helper.Passkeys
 import Control.Monad (void)
 import qualified Crypto.WebAuthn.Encoding.WebAuthnJson as WebAuthnJson
@@ -99,12 +100,17 @@ instance Controller AuthController where
             jsonError status409 "This passkey is already registered."
 
         _ <- createPasskeyRecord (get #id currentUser) passkeyName entry
+        recoveryCode <-
+            if currentUserRequiresMandatoryPasskey && null existingPasskeys
+                then issueInitialRecoveryCodeIfMissing (get #id currentUser)
+                else pure Nothing
         markCurrentUserPasskeyVerified
         renderJson
             ( Aeson.object
                 [ "ok" Aeson..= True
                 , "message" Aeson..= ("Passkey added." :: Text)
                 , "userId" Aeson..= inputValue (get #id currentUser)
+                , "recoveryCode" Aeson..= recoveryCode
                 ]
             )
 

@@ -116,8 +116,12 @@
             );
 
             markPasskeySeen(finishResponse.userId);
-            setPasskeyStatus(container, 'success', finishResponse.message || 'Passkey added.');
-            redirectAfterPasskeySuccess(container, finishResponse);
+            if (finishResponse.recoveryCode) {
+                setRecoveryCodeStatus(container, finishResponse.recoveryCode, container.dataset.successRedirect);
+            } else {
+                setPasskeyStatus(container, 'success', finishResponse.message || 'Passkey added.');
+                redirectAfterPasskeySuccess(container, finishResponse);
+            }
         });
     }
 
@@ -202,14 +206,44 @@
     }
 
     function setPasskeyStatus(container, tone, message) {
-        if (!container) return;
-        const targetId = container.dataset.statusId;
-        if (!targetId) return;
-        const element = document.getElementById(targetId);
+        const element = passkeyStatusElement(container);
         if (!element) return;
 
         element.className = `alert alert-${tone} mt-3`;
         element.textContent = message;
+    }
+
+    function setRecoveryCodeStatus(container, recoveryCode, successRedirect) {
+        const element = passkeyStatusElement(container);
+        if (!element) return;
+
+        element.className = 'alert alert-warning mt-3';
+        element.textContent = '';
+
+        const title = document.createElement('strong');
+        title.textContent = 'Save this recovery code now.';
+        const body = document.createElement('p');
+        body.className = 'mb-2';
+        body.textContent = 'This code is shown once and can be used if you lose access to your passkey.';
+        const code = document.createElement('code');
+        code.className = 'd-block fs-5 my-2 user-select-all';
+        code.textContent = recoveryCode;
+
+        element.append(title, body, code);
+        if (successRedirect) {
+            const link = document.createElement('a');
+            link.className = 'btn btn-sm btn-primary mt-2';
+            link.href = successRedirect;
+            link.textContent = 'I have saved it';
+            element.append(link);
+        }
+    }
+
+    function passkeyStatusElement(container) {
+        if (!container) return null;
+        const targetId = container.dataset.statusId;
+        if (!targetId) return null;
+        return document.getElementById(targetId);
     }
 
     function redirectAfterPasskeySuccess(container, response) {
