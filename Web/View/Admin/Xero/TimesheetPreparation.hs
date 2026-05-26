@@ -79,7 +79,6 @@ renderPreparationBody view = [hsx|
         {renderWorkflowProgress view}
         {renderConnectionNotice view}
         {renderSetupActions view}
-        {renderEarningsMappingDecisions view}
         {renderStaffDecisions view}
         {renderStaffOutcomes view}
         {renderPayItemDecisions view}
@@ -493,98 +492,6 @@ selectedAccountCode view = do
     selection <- view.preparationPayItemAccountCodeSelection
     guard (selection.selectionStatus == "verified")
     Text.strip <$> selection.accountCode
-
-renderEarningsMappingDecisions :: XeroTimesheetPreparationView -> Html
-renderEarningsMappingDecisions view
-    | null rows = mempty
-    | null view.preparationEarningsRates = [hsx|
-        <section>
-            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <h6 class="mb-0">Earnings-rate mappings</h6>
-                <span class="small app-muted">{tshow (length rows)} to resolve</span>
-            </div>
-            <div class={appSurfaceClasses "p-3 small app-muted"}>Sync reference data before mapping local earnings buckets to Xero earnings rates.</div>
-        </section>
-    |]
-    | otherwise = [hsx|
-        <section>
-            <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <h6 class="mb-0">Earnings-rate mappings</h6>
-                <span class="small app-muted">{tshow (length rows)} to resolve</span>
-            </div>
-            <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Local bucket</th>
-                            <th>Xero earnings rate</th>
-                            <th class="text-end">Decision</th>
-                        </tr>
-                    </thead>
-                    <tbody>{forEach rows (renderEarningsMappingRow view)}</tbody>
-                </table>
-            </div>
-        </section>
-    |]
-    where
-        rows = filter (earningsBucketNeedsMapping view) view.preparationEarningsBucketRows
-
-renderEarningsMappingRow :: XeroTimesheetPreparationView -> XeroEarningsBucketRow -> Html
-renderEarningsMappingRow view row = [hsx|
-    <tr>
-        <td>{row.earningsBucketRowBucket.localBucketLabel}</td>
-        <td>
-            <form method="POST"
-                  action={SaveXeroTimesheetPreparationEarningsRateAction view.preparationRun.id}
-                  class="d-flex gap-2"
-                  hx-post={pathTo (SaveXeroTimesheetPreparationEarningsRateAction view.preparationRun.id)}
-                  hx-target={"#" <> dialogOverlayMountId}
-                  hx-swap="innerHTML">
-                <input type="hidden" name="localBucketKey" value={row.earningsBucketRowBucket.localBucketKey} />
-                <select name="xeroEarningsRateSelection" class="form-select form-select-sm" aria-label="Xero earnings rate">
-                    <option value="">Choose earnings rate</option>
-                    {forEach view.preparationEarningsRates (renderEarningsRateOption (currentEarningsRateId row))}
-                </select>
-                <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
-            </form>
-        </td>
-        <td class="text-end">
-            <span class="small app-muted">Required</span>
-        </td>
-    </tr>
-|]
-
-renderEarningsRateOption :: Text -> XeroEarningsRate -> Html
-renderEarningsRateOption currentSelection earningsRate = [hsx|
-    <option value={earningsRate.xeroEarningsRateId} selected={currentSelection == earningsRate.xeroEarningsRateId}>
-        {earningsRate.name}
-    </option>
-|]
-
-currentEarningsRateId :: XeroEarningsBucketRow -> Text
-currentEarningsRateId row =
-    fromMaybe "" do
-        mapping <- row.earningsBucketRowMapping
-        guard (mapping.mappingStatus == "verified")
-        mapping.xeroEarningsRateId
-
-earningsBucketNeedsMapping :: XeroTimesheetPreparationView -> XeroEarningsBucketRow -> Bool
-earningsBucketNeedsMapping view row =
-    not (bucketHasVerifiedMapping row)
-        && not (bucketHasReadyPayItem view row.earningsBucketRowBucket.localBucketKey)
-
-bucketHasVerifiedMapping :: XeroEarningsBucketRow -> Bool
-bucketHasVerifiedMapping row =
-    maybe False (\mapping -> mapping.mappingStatus == "verified" && isJust mapping.xeroEarningsRateId) row.earningsBucketRowMapping
-
-bucketHasReadyPayItem :: XeroTimesheetPreparationView -> Text -> Bool
-bucketHasReadyPayItem view localBucketKey =
-    any
-        ( \row ->
-            row.preparationPayItemRequirement.payItemRequirementKey == localBucketKey
-                && row.preparationPayItemRequirement.payItemRequirementStatus `elem` ["matched", "created"]
-        )
-        view.preparationPayItemRows
 
 renderReadiness :: XeroTimesheetReadinessView -> Html
 renderReadiness readiness = [hsx|

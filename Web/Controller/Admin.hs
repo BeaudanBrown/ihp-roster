@@ -225,10 +225,6 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (saveXeroTimesheetPreparationAccountCodeAction xeroTimesheetPreparationRunId)
 
-    action SaveXeroTimesheetPreparationEarningsRateAction { xeroTimesheetPreparationRunId } = do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero (saveXeroTimesheetPreparationEarningsRateAction xeroTimesheetPreparationRunId)
-
     action ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId } = do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (applyXeroTimesheetPreparationStaffDecisionAction xeroTimesheetPreparationRunId)

@@ -9,7 +9,6 @@ module Web.Controller.Admin.Xero.Timesheets
     , runXeroTimesheetPreparationAction
     , saveXeroTimesheetPreparationAccountCodeAction
     , saveXeroTimesheetPreparationCalendarAction
-    , saveXeroTimesheetPreparationEarningsRateAction
     , submitXeroDraftTimesheetsAction
     , submitXeroTimesheetPreparationAction
     , syncXeroTimesheetPreparationReferenceDataAction
@@ -31,7 +30,6 @@ import Web.Admin.Xero.Mutations (applyXeroTimesheetPreparationStaffDecisionMutat
                                  runXeroTimesheetPreparationMutation,
                                  saveXeroTimesheetPreparationAccountCodeMutation,
                                  saveXeroTimesheetPreparationCalendarMutation,
-                                 saveXeroTimesheetPreparationEarningsRateMutation,
                                  submitXeroDraftTimesheetsMutation,
                                  submitXeroTimesheetPreparationMutation,
                                  syncXeroTimesheetPreparationReferenceDataMutation)
@@ -90,16 +88,6 @@ saveXeroTimesheetPreparationAccountCodeAction ::
 saveXeroTimesheetPreparationAccountCodeAction runId = do
     let accountCode = Text.strip (paramOrDefault @Text "" "xeroPayItemAccountCodeSelection")
     result <- liveMutationValue <$> saveXeroTimesheetPreparationAccountCodeMutation runId accountCode
-    respondWithPreparationDialog result
-
-saveXeroTimesheetPreparationEarningsRateAction ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id XeroTimesheetPreparationRun ->
-    IO ()
-saveXeroTimesheetPreparationEarningsRateAction runId = do
-    let localBucketKey = Text.strip (paramOrDefault @Text "" "localBucketKey")
-    let earningsRateId = Text.strip (paramOrDefault @Text "" "xeroEarningsRateSelection")
-    result <- liveMutationValue <$> saveXeroTimesheetPreparationEarningsRateMutation runId localBucketKey earningsRateId
     respondWithPreparationDialog result
 
 applyXeroTimesheetPreparationStaffDecisionAction ::

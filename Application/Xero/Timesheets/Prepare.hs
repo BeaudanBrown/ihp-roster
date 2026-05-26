@@ -6,7 +6,6 @@ module Application.Xero.Timesheets.Prepare
     , previewXeroTimesheetPreparation
     , refreshXeroTimesheetPreparation
     , saveXeroPreparationAccountCode
-    , saveXeroPreparationEarningsRateMapping
     , saveXeroPreparationPayrollCalendar
     , startXeroTimesheetPreparation
     , submitXeroTimesheetPreparation
@@ -142,7 +141,6 @@ loadXeroTimesheetPreparationView runId = do
             approvedStaffIds <- fetchApprovedPreparationStaffIds run skippedStaffIds
             xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
             xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-            earningsBucketRows <- fetchCurrentVenueXeroEarningsBucketRows (Just connection)
             payItemRequirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
             payrollCalendars <- fetchCurrentVenueXeroPayrollCalendars (Just connection)
             payrollCalendarSelection <- fetchCurrentVenueXeroPayrollCalendarSelection (Just connection)
@@ -180,8 +178,6 @@ loadXeroTimesheetPreparationView runId = do
                         , preparationPayrollCalendarSelection = payrollCalendarSelection
                         , preparationStaffRows = staffDecisionRows
                         , preparationEmployees = xeroEmployees
-                        , preparationEarningsBucketRows = earningsBucketRows
-                        , preparationEarningsRates = xeroEarningsRates
                         , preparationPayItemRows = payItemRows
                         , preparationPayItemAccountCodeOptions = accountCodeOptions
                         , preparationPayItemAccountCodeSelection = accountCodeSelection
@@ -372,37 +368,6 @@ saveXeroPreparationAccountCode runId accountCode =
                     | otherwise -> do
                         persistPreparationAccountCodeSelection connection accountCodeOptions selectedAccountCode
                         reloadAfterLocalDecision run remoteTimesheetsFromRun
-
-saveXeroPreparationEarningsRateMapping ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    Id XeroTimesheetPreparationRun ->
-    Text ->
-    Text ->
-    IO (Either Text XeroTimesheetPreparationView)
-saveXeroPreparationEarningsRateMapping runId localBucketKey earningsRateId =
-    fetchPreparationRunForCurrentVenue runId >>= \case
-        Nothing -> pure (Left "Xero preparation run was not found for this venue.")
-        Just run -> do
-            connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
-            buckets <- currentVenueLocalXeroEarningsBuckets
-            case List.find (\bucket -> bucket.localBucketKey == Text.strip localBucketKey) buckets of
-                Nothing -> pure (Left "Choose a local earning bucket from the current venue.")
-                Just bucket ->
-                    case Text.strip earningsRateId of
-                        "" -> pure (Left "Choose a Xero earnings rate.")
-                        selectedEarningsRateId -> do
-                            maybeEarningsRate <-
-                                query @XeroEarningsRate
-                                    |> filterWhere (#venueId, unpackId currentVenueId)
-                                    |> filterWhere (#xeroConnectionId, unpackId connection.id)
-                                    |> filterWhere (#xeroEarningsRateId, selectedEarningsRateId)
-                                    |> filterWhere (#isActive, True)
-                                    |> fetchOneOrNothing
-                            case maybeEarningsRate of
-                                Nothing -> pure (Left "Choose a synced active Xero earnings rate from this venue.")
-                                Just earningsRate -> do
-                                    persistPreparationEarningsRateMapping connection bucket earningsRate
-                                    reloadAfterLocalDecision run remoteTimesheetsFromRun
 
 previewXeroTimesheetPreparation ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
@@ -823,37 +788,6 @@ persistPreparationAccountCodeSelection connection accountCodeOptions accountCode
                     |> set #createdByUserId (Just (unpackId currentUser.id))
                     |> createRecord
                     |> void
-
-persistPreparationEarningsRateMapping ::
-    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
-    XeroConnection ->
-    XeroLocalEarningsBucket ->
-    XeroEarningsRate ->
-    IO XeroEarningsRateMapping
-persistPreparationEarningsRateMapping connection bucket earningsRate = do
-    now <- getCurrentTime
-    existingMapping <-
-        query @XeroEarningsRateMapping
-            |> filterWhere (#xeroConnectionId, unpackId connection.id)
-            |> filterWhere (#localBucketKey, bucket.localBucketKey)
-            |> fetchOneOrNothing
-    let prepared record =
-            record
-                |> set #venueId (unpackId currentVenueId)
-                |> set #xeroConnectionId (unpackId connection.id)
-                |> set #localBucketKey bucket.localBucketKey
-                |> set #localBucketLabel bucket.localBucketLabel
-                |> set #xeroEarningsRateId (Just earningsRate.xeroEarningsRateId)
-                |> set #xeroEarningsRateName (Just earningsRate.name)
-                |> set #mappingStatus ("verified" :: Text)
-                |> set #lastVerifiedAt (Just now)
-                |> set #updatedByUserId (Just (unpackId currentUser.id))
-    case existingMapping of
-        Just existing -> prepared existing |> updateRecord
-        Nothing ->
-            prepared (newRecord @XeroEarningsRateMapping)
-                |> set #createdByUserId (Just (unpackId currentUser.id))
-                |> createRecord
 
 markPayItemCreateDecisionsApplied ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

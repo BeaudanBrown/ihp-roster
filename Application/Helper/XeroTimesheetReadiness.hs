@@ -460,7 +460,7 @@ earningsMappingBlockers buckets mappings requirements =
                     Just
                         ( blockerWith
                             "earnings_mapping_not_verified"
-                            "Every local Xero earnings bucket must be mapped to a verified Xero earnings rate."
+                            "Every pay bucket must have a managed Xero pay item matched or created, or be imported from Xero in admin settings."
                         )
                             { xeroBlockerLocalBucketKey = Just bucket.localBucketKey
                             }

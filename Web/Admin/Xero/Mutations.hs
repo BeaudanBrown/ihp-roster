@@ -24,7 +24,6 @@ module Web.Admin.Xero.Mutations
     , runXeroTimesheetPreparationMutation
     , saveXeroTimesheetPreparationAccountCodeMutation
     , saveXeroTimesheetPreparationCalendarMutation
-    , saveXeroTimesheetPreparationEarningsRateMutation
     , startXeroReferenceSyncMutation
     , submitXeroDraftTimesheetsMutation
     , submitXeroTimesheetPreparationMutation
@@ -520,10 +519,6 @@ saveXeroTimesheetPreparationCalendarMutation runId calendarId =
 saveXeroTimesheetPreparationAccountCodeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 saveXeroTimesheetPreparationAccountCodeMutation runId accountCode =
     XeroPrepare.saveXeroPreparationAccountCode runId accountCode >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.account_code"
-
-saveXeroTimesheetPreparationEarningsRateMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Text -> Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
-saveXeroTimesheetPreparationEarningsRateMutation runId localBucketKey earningsRateId =
-    XeroPrepare.saveXeroPreparationEarningsRateMapping runId localBucketKey earningsRateId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.earnings_rate"
 
 applyXeroTimesheetPreparationStaffDecisionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Id Staff -> XeroPrepare.XeroPreparationStaffDecision -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision =
