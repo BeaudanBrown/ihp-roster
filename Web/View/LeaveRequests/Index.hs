@@ -44,7 +44,7 @@ renderLeaveRequestsShell IndexView { .. } =
         page = renderAppPage (AppPageConfig
             { appPageTitle = "Unavailability"
             , appPageDescription = Nothing
-            , appPageActions = if currentUserIsSupportAdmin then mempty else renderNewLeaveRequestAction
+            , appPageActions = mempty
             , appPageWidthClass = ""
             , appPageBody = leaveRequestsPanel
             })
@@ -54,19 +54,6 @@ renderLeaveRequestsShell IndexView { .. } =
             {page}
         </section>
     |]
-
-renderNewLeaveRequestAction :: Html
-renderNewLeaveRequestAction = [hsx|
-    <a href={pathTo NewLeaveRequestAction}
-       class="btn btn-primary"
-       data-disable-javascript-submission="true"
-       hx-get={pathTo NewLeaveRequestAction}
-       hx-target={"#" <> dialogOverlayMountId}
-       hx-swap="innerHTML"
-       hx-push-url="false">
-        Add unavailable time
-    </a>
-|]
 
 renderLeaveRequestsContentFragment :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Html
 renderLeaveRequestsContentFragment =

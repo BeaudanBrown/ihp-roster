@@ -68,11 +68,9 @@ renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeE
 |]
 
 renderExportsSection :: ReportWeekSelection -> Day -> Day -> [ExportJob] -> Html
-renderExportsSection reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs =
+renderExportsSection _reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs =
     renderConfigSection
         "exports"
-        "Exports"
-        ("Generate venue exports for approved shifts. The date range defaults to the current roster week: " <> tshow reportWeekSelection.weekStart <> " to " <> tshow reportWeekSelection.weekEnd <> ".")
         (renderExportSummary exportJobs)
         mempty
         [hsx|

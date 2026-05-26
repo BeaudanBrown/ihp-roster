@@ -28,8 +28,6 @@ renderRosterGroupsSection :: [RosterGroup] -> Bool -> Html
 renderRosterGroupsSection rosterGroups showInactive =
     renderConfigSection
         "roster-groups"
-        "Roster Groups"
-        "Define the roster lanes inside this venue. Roster columns are managed directly from each draft roster week."
         (renderInactiveToggleSummary "showInactiveRosterGroups" (pathTo ShowAdminRosterGroupsFragmentAction) "admin-roster-groups-fragment" rosterGroups showInactive)
         [hsx|
             {renderRosterGroupCreateForm showInactive}

@@ -31,29 +31,11 @@ renderInvitesSection :: [VenueInvitation] -> Id RosterGroup -> Html
 renderInvitesSection invitations rosterGroupId =
     renderConfigSection
         "invites"
-        "Invites"
-        "Queue an invitation immediately, track delivery status, revoke pending invites, and see when they are accepted."
-        (renderInviteSummary invitations)
+        mempty
         (renderInviteCreateForm rosterGroupId)
         [hsx|
             {if null invitations then renderEmptyState "No invites yet." else renderInviteTable invitations rosterGroupId}
         |]
-
-renderInviteSummary :: [VenueInvitation] -> Html
-renderInviteSummary invitations = [hsx|
-    <p class="small app-muted mb-3">
-        {tshow activePendingCount} active pending {inviteLabel}; {tshow sentCount} sent and {tshow acceptedCount} accepted.
-    </p>
-|]
-    where
-        activePendingCount = length (filter invitationIsActivePending invitations)
-        sentCount = length (filter invitationWasSent invitations)
-        acceptedCount = length (filter invitationWasAccepted invitations)
-        inviteLabel :: Text
-        inviteLabel =
-            if activePendingCount == 1
-                then "invite"
-                else "invites"
 
 renderInviteCreateForm :: Id RosterGroup -> Html
 renderInviteCreateForm rosterGroupId = [hsx|
@@ -146,7 +128,6 @@ renderInviteTable invitations rosterGroupId = [hsx|
             <thead>
                 <tr>
                     <th>Email</th>
-                    <th>Role</th>
                     <th>Status</th>
                     <th>Expires</th>
                     <th class="text-end">Actions</th>
@@ -163,7 +144,6 @@ renderInviteRow :: Id RosterGroup -> VenueInvitation -> Html
 renderInviteRow rosterGroupId invitation = [hsx|
     <tr id={inviteRowId invitation.id}>
         <td>{invitation.email}</td>
-        <td>{invitationRoleLabel invitation.inviteRole}</td>
         <td>{renderInvitationStatusBadge invitation}</td>
         <td>{formatTimestamp (fromMaybe invitation.createdAt invitation.expiresAt)}</td>
         <td class="text-end">{renderInviteRowActions rosterGroupId invitation}</td>
@@ -172,16 +152,6 @@ renderInviteRow rosterGroupId invitation = [hsx|
 
 inviteRowId :: Id VenueInvitation -> Text
 inviteRowId invitationId = "invite-row-" <> tshow invitationId
-
-invitationIsActivePending :: VenueInvitation -> Bool
-invitationIsActivePending invitation =
-    inputValue invitation.status == "pending" && not (invitationWasAccepted invitation)
-
-invitationWasAccepted :: VenueInvitation -> Bool
-invitationWasAccepted invitation = inputValue invitation.status == "accepted"
-
-invitationWasSent :: VenueInvitation -> Bool
-invitationWasSent invitation = inputValue invitation.deliveryStatus == "sent"
 
 renderInvitationStatusBadge :: VenueInvitation -> Html
 renderInvitationStatusBadge invitation =
@@ -203,11 +173,3 @@ renderInviteRowActions rosterGroupId invitation
             <button class="btn btn-sm btn-outline-danger" type="submit">Revoke</button>
         </form>
     |]
-
-invitationRoleLabel :: InputValue value => value -> Text
-invitationRoleLabel value =
-    case inputValue value of
-        "venue_owner" -> "Venue Owner"
-        "venue_admin" -> "Venue Admin"
-        "manager"     -> "Manager"
-        _             -> "Worker"

@@ -36,8 +36,6 @@ renderShiftTypesSection :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBas
 renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates =
     renderConfigSection
         "shift-types"
-        "Shift Types"
-        "Configure venue shift types. Colours are optional highlights for shifts that should stand out on the roster."
         (renderInactiveToggleSummary "showInactiveShiftTypes" (pathTo ShowAdminShiftTypesFragmentAction) "admin-shift-types-fragment" shiftTypes showInactive)
         (renderShiftTypeCreateForm shiftTypes showInactive awardLevels awardLevelBaseRates)
         (renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates)

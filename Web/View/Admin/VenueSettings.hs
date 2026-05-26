@@ -10,8 +10,6 @@ renderVenueSettingsSection :: VenueConfig -> Html
 renderVenueSettingsSection venueConfig =
     renderConfigSection
         "admin-venue-settings"
-        "Venue Settings"
-        "Roster-wide defaults and opt-in scheduling controls."
         mempty
         mempty
         [hsx|

@@ -2,14 +2,10 @@ module Web.View.Admin.Common where
 
 import Web.View.Prelude
 
-renderConfigSection :: Text -> Text -> Text -> Html -> Html -> Html -> Html
-renderConfigSection anchorId title description summary createForm rows = [hsx|
+renderConfigSection :: Text -> Html -> Html -> Html -> Html
+renderConfigSection anchorId summary createForm rows = [hsx|
     <div class="app-accordion-section" id={anchorId}>
-        <header class="app-accordion-section-header">
-            <h2 class="app-panel-title h5">{title}</h2>
-            <p class="app-panel-description">{description}</p>
-        </header>
-        <div class="app-accordion-section-body">
+        <div class="app-accordion-section-body pt-0">
             {summary}
             {createForm}
             <div class="mt-3">
