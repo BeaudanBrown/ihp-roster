@@ -192,10 +192,10 @@ currentTimesheetReadinessRequestForAction = do
 parseStaffDecision :: (?context :: ControllerContext, ?request :: Request) => Either Text XeroPreparationStaffDecision
 parseStaffDecision =
     case Text.strip (paramOrDefault @Text "" "decision") of
-        "approve_suggestion" -> Right ApproveSuggestedXeroEmployee
-        "manual" ->
-            case Text.strip (paramOrDefault @Text "" "xeroEmployeeId") of
-                "" -> Left "Choose a Xero employee before saving the manual mapping."
+        "select_employee" ->
+            case Text.strip (paramOrDefault @Text "" "xeroEmployeeSelection") of
+                "" -> Left "Choose a Xero employee or Not paid through Xero before approving."
+                "not_applicable" -> Right MarkStaffNotPaidThroughXero
                 employeeId -> Right (SelectXeroEmployee employeeId)
         "not_paid" -> Right MarkStaffNotPaidThroughXero
         "skip" -> Right SkipStaffForPreparation

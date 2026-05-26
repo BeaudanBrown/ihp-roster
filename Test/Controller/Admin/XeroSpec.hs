@@ -1193,6 +1193,86 @@ tests = beforeAll testContext do
                 preparationRun.payPeriodEnd `shouldBe` fixture.periodEnd
                 (AesonTypes.parseMaybe AesonTypes.parseJSON preparationRun.eventsJson :: Maybe [Aeson.Value]) `shouldSatisfy` maybe False (not . null)
 
+        it "uses a single staff employee dropdown with the suggested match preselected in guided preparation" $ withContext do
+            withCleanDb do
+                fixture <-
+                    Preview.createPreviewFixture
+                        "weekly"
+                        [ Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+                        , Preview.EntrySpec 1 Preview.fixtureStaffB (TimeOfDay 9 0 0) (TimeOfDay 12 0 0)
+                        ]
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+                resetXeroStaffMappingForPreparation fixture.staffA
+                resetXeroStaffMappingForPreparation fixture.staffB
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams RunXeroTimesheetPreparationAction
+                                    [("periodKey", fixturePeriodKey fixture)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Staff mapping decisions"
+                response `responseBodyShouldContain` "Xero employee"
+                response `responseBodyShouldContain` "name=\"xeroEmployeeSelection\""
+                response `responseBodyShouldContain` "value=\"not_applicable\""
+                response `responseBodyShouldContain` "Not paid through Xero"
+                response `responseBodyShouldContain` ">Approve</button>"
+                response `responseBodyShouldContain` "Skip this time"
+                response `responseBodyShouldNotContain` "Suggested match"
+                response `responseBodyShouldNotContain` "Manual employee"
+                response `responseBodyShouldNotContain` "name=\"xeroEmployeeId\""
+                response `responseBodyShouldNotContain` "value=\"approve_suggestion\""
+                response `responseBodyShouldNotContain` "value=\"manual\""
+                body <- responseBody response
+                let bodyText = cs body
+                Text.count "value=\"employee-a\"" bodyText `shouldBe` 1
+                Text.count "value=\"employee-b\"" bodyText `shouldBe` 1
+                bodyText `shouldSatisfy` Text.isInfixOf "value=\"employee-a\" selected"
+                pendingStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
+                pendingStaffDecisions `shouldBe` 2
+                preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
+                preparationRun.status `shouldBe` "needs_approval"
+
+        it "applies the selected suggested employee through the unified preparation dropdown" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+                resetXeroStaffMappingForPreparation fixture.staffA
+                _ <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams RunXeroTimesheetPreparationAction
+                                    [("periodKey", fixturePeriodKey fixture)]
+                run <- query @XeroTimesheetPreparationRun |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
+                            [ ("staffId", idToParam fixture.staffA.id)
+                            , ("decision", "select_employee")
+                            , ("xeroEmployeeSelection", "employee-a")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Mapped to Xero employee"
+                mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
+                mapping.mappingStatus `shouldBe` "verified"
+                mapping.xeroEmployeeId `shouldBe` Just "employee-a"
+                decision <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> fetchOne
+                decision.decisionStatus `shouldBe` "applied"
+                decision.xeroEmployeeId `shouldBe` Just "employee-a"
+
         it "shows proposed managed pay item creation instead of manual earnings-rate mapping in the preparation modal" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
@@ -1377,7 +1457,8 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (ApplyXeroTimesheetPreparationStaffDecisionAction run.id)
                             [ ("staffId", idToParam fixture.staffA.id)
-                            , ("decision", "not_paid")
+                            , ("decision", "select_employee")
+                            , ("xeroEmployeeSelection", "not_applicable")
                             ]
 
                 response `responseStatusShouldBe` status200
@@ -2100,6 +2181,22 @@ createXeroPayrollCalendarRecord connection name payrollCalendarId = do
         |> set #rawPayload (Aeson.object ["PayrollCalendarID" Aeson..= payrollCalendarId])
         |> set #syncedAt now
         |> createRecord
+
+resetXeroStaffMappingForPreparation ::
+    (?modelContext :: ModelContext) =>
+    Staff ->
+    IO ()
+resetXeroStaffMappingForPreparation staff = do
+    mappings <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId staff.id) |> fetch
+    forM_ mappings \mapping ->
+        mapping
+            |> set #mappingStatus ("not_applicable" :: Text)
+            |> set #xeroEmployeeId Nothing
+            |> set #xeroEmployeeName Nothing
+            |> set #xeroEmployeeEmail Nothing
+            |> set #updatedByUserId Nothing
+            |> updateRecord
+            >>= const (pure ())
 
 createXeroPayItemAccountCodeSelectionRecord ::
     (?modelContext :: ModelContext) =>

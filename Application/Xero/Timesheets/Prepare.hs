@@ -33,8 +33,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 data XeroPreparationStaffDecision
-    = ApproveSuggestedXeroEmployee
-    | SelectXeroEmployee !Text
+    = SelectXeroEmployee !Text
     | MarkStaffNotPaidThroughXero
     | SkipStaffForPreparation
     deriving (Eq, Show)
@@ -223,15 +222,13 @@ applyXeroPreparationStaffDecision runId staffId decision = do
                             _ <- applyPreparationDecision run (Just staff) "staff_not_paid" Nothing Nothing Nothing
                             dismissPendingStaffAutoMatches run staff
                             reloadAfterLocalDecision run remoteTimesheetsFromCurrentRun
-                        ApproveSuggestedXeroEmployee -> do
-                            fetchPendingStaffAutoMatch run staff >>= \case
-                                Nothing -> pure (Left "No pending Xero employee suggestion was found for this staff member.")
-                                Just pending ->
-                                    case pending.xeroEmployeeId of
-                                        Nothing -> pure (Left "The pending suggestion does not include a Xero employee.")
-                                        Just employeeId -> applyEmployeeMappingDecision run connection staff "staff_auto_match" employeeId
-                        SelectXeroEmployee employeeId ->
-                            applyEmployeeMappingDecision run connection staff "staff_manual_mapping" employeeId
+                        SelectXeroEmployee employeeId -> do
+                            pendingSuggestion <- fetchPendingStaffAutoMatch run staff
+                            let decisionKind =
+                                    case pendingSuggestion >>= (.xeroEmployeeId) of
+                                        Just suggestedEmployeeId | suggestedEmployeeId == employeeId -> "staff_auto_match"
+                                        _ -> "staff_manual_mapping"
+                            applyEmployeeMappingDecision run connection staff decisionKind employeeId
     where
         remoteTimesheetsFromCurrentRun updatedRun = remoteTimesheetsFromRun updatedRun
 

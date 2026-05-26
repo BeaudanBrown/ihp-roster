@@ -6,6 +6,7 @@ module Web.View.Admin.Xero.TimesheetPreparation
 
 import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
+import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
 import Control.Monad (guard)
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
@@ -285,8 +286,7 @@ renderStaffDecisions view
                     <thead>
                         <tr>
                             <th>Staff</th>
-                            <th>Suggested match</th>
-                            <th>Manual employee</th>
+                            <th>Xero employee</th>
                             <th class="text-end">Decision</th>
                         </tr>
                     </thead>
@@ -309,49 +309,17 @@ renderStaffDecisionRow view row = [hsx|
             <div class="fw-semibold">{staffName staff}</div>
             <div class="small app-muted">{staffSecondaryLabel row}</div>
         </td>
-        <td>{renderSuggestedEmployee view row}</td>
-        <td>{renderManualEmployeeForm view row}</td>
+        <td>{renderStaffEmployeeSelectionForm view row}</td>
         <td class="text-end">
-            <div class="d-inline-flex flex-wrap gap-2 justify-content-end">
-                {renderApproveSuggestionForm view row}
-                {renderStaffDecisionButton view row "not_paid" "Not paid through Xero" "btn btn-sm btn-outline-secondary"}
-                {renderStaffDecisionButton view row "skip" "Skip this time" "btn btn-sm btn-outline-secondary"}
-            </div>
+            {renderStaffDecisionButton view row "skip" "Skip this time" "btn btn-sm btn-outline-secondary"}
         </td>
     </tr>
 |]
     where
         staff = row.preparationStaffMappingRow.mappingRowStaff
 
-renderSuggestedEmployee :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
-renderSuggestedEmployee _ row =
-    case (row.preparationStaffDecision >>= (.xeroEmployeeName)) <|> ((.displayName) <$> row.preparationStaffMappingRow.mappingRowSuggestedEmployee) of
-        Nothing -> [hsx|<span class="small app-muted">No confident match</span>|]
-        Just name -> [hsx|<span>{name}</span>|]
-
-renderApproveSuggestionForm :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
-renderApproveSuggestionForm view row =
-    if hasAutoSuggestion
-        then [hsx|
-            <form method="POST"
-                  action={ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id}
-                  hx-post={pathTo (ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id)}
-                  hx-target={"#" <> dialogOverlayMountId}
-                  hx-swap="innerHTML">
-                <input type="hidden" name="staffId" value={tshow staff.id} />
-                <input type="hidden" name="decision" value="approve_suggestion" />
-                <button type="submit" class="btn btn-sm btn-primary">Approve</button>
-            </form>
-        |]
-        else mempty
-    where
-        staff = row.preparationStaffMappingRow.mappingRowStaff
-        hasAutoSuggestion =
-            maybe False ((== "staff_auto_match") . (.decisionKind)) row.preparationStaffDecision
-                || isJust row.preparationStaffMappingRow.mappingRowSuggestedEmployee
-
-renderManualEmployeeForm :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
-renderManualEmployeeForm view row = [hsx|
+renderStaffEmployeeSelectionForm :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
+renderStaffEmployeeSelectionForm view row = [hsx|
     <form method="POST"
           action={ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id}
           class="d-flex gap-2"
@@ -359,21 +327,74 @@ renderManualEmployeeForm view row = [hsx|
           hx-target={"#" <> dialogOverlayMountId}
           hx-swap="innerHTML">
         <input type="hidden" name="staffId" value={tshow staff.id} />
-        <input type="hidden" name="decision" value="manual" />
-        <select name="xeroEmployeeId" class="form-select form-select-sm" aria-label="Xero employee">
-            <option value="">Choose employee</option>
-            {forEach view.preparationEmployees renderEmployeeOption}
+        <input type="hidden" name="decision" value="select_employee" />
+        <select name="xeroEmployeeSelection" class="form-select form-select-sm" aria-label={"Xero employee for " <> staffName staff}>
+            <option value="" selected={Text.null currentSelection}>Choose Xero employee</option>
+            {forEach selectableEmployees (renderEmployeeOption currentSelection)}
+            <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
         </select>
-        <button type="submit" class="btn btn-sm btn-outline-primary">Save</button>
+        <button type="submit" class="btn btn-sm btn-primary">Approve</button>
     </form>
 |]
     where
         staff = row.preparationStaffMappingRow.mappingRowStaff
+        currentSelection = currentStaffEmployeeSelection row
+        selectableEmployees = selectableEmployeesForStaffDecision view row
 
-renderEmployeeOption :: XeroEmployee -> Html
-renderEmployeeOption employee = [hsx|
-    <option value={employee.xeroEmployeeId}>{employee.displayName}</option>
+renderEmployeeOption :: Text -> XeroEmployee -> Html
+renderEmployeeOption currentSelection employee = [hsx|
+    <option value={employee.xeroEmployeeId} selected={currentSelection == employee.xeroEmployeeId}>{xeroEmployeeLabel employee}</option>
 |]
+
+currentStaffEmployeeSelection :: XeroPreparationStaffRow -> Text
+currentStaffEmployeeSelection row =
+    fromMaybe "" $
+        pendingDecisionSelection
+            <|> verifiedMappingSelection
+            <|> notApplicableSelection
+    where
+        mapping = row.preparationStaffMappingRow.mappingRowMapping
+        pendingDecisionSelection = do
+            decision <- row.preparationStaffDecision
+            case decision.decisionKind of
+                "staff_not_paid" -> Just "not_applicable"
+                "staff_skip" -> Nothing
+                _ -> decision.xeroEmployeeId
+        verifiedMappingSelection = do
+            guard (mapping.mappingStatus == "verified")
+            mapping.xeroEmployeeId
+        notApplicableSelection = do
+            guard (mapping.mappingStatus == "not_applicable" && isJust mapping.updatedByUserId)
+            Just "not_applicable"
+
+selectedStaffEmployeeId :: XeroPreparationStaffRow -> Maybe Text
+selectedStaffEmployeeId row = do
+    let selection = currentStaffEmployeeSelection row
+    guard (selection /= "" && selection /= "not_applicable")
+    Just selection
+
+selectableEmployeesForStaffDecision :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> [XeroEmployee]
+selectableEmployeesForStaffDecision view row =
+    filter employeeAvailable view.preparationEmployees
+    where
+        staff = row.preparationStaffMappingRow.mappingRowStaff
+        currentSelection = currentStaffEmployeeSelection row
+        mappingRows = map (.preparationStaffMappingRow) view.preparationStaffRows
+        selectedByOtherRows =
+            view.preparationStaffRows
+                |> filter (\otherRow -> otherRow.preparationStaffMappingRow.mappingRowStaff.id /= staff.id)
+                |> mapMaybe selectedStaffEmployeeId
+        employeeAvailable employee =
+            employee.xeroEmployeeId == currentSelection
+                || ( xeroEmployeeAvailableForStaff staff mappingRows employee
+                        && employee.xeroEmployeeId `notElem` selectedByOtherRows
+                   )
+
+xeroEmployeeLabel :: XeroEmployee -> Text
+xeroEmployeeLabel employee =
+    case employee.email of
+        Nothing -> employee.displayName
+        Just email -> employee.displayName <> " - " <> email
 
 renderStaffDecisionButton :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Text -> Text -> Text -> Html
 renderStaffDecisionButton view row decision label buttonClass = [hsx|
