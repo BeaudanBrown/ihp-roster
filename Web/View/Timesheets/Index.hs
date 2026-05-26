@@ -10,6 +10,7 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
 import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
+                             timesheetDaySectionFragmentUrl,
                              timesheetWeekResetUrl, timesheetWeekUrl)
 import Web.View.Prelude
 
@@ -234,6 +235,7 @@ renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries
     <section id={timesheetDaySectionDomId dayOffset}
              class="timesheet-day-panel"
              data-timesheet-day-offset={tshow dayOffset}
+             data-live-update-url={timesheetDaySectionFragmentUrl dayWeekOffset dayOffset dayShowApproved dayShowAllStaff dayStaffFilterId}
              hx-swap-oob={maybeSwapOob}>
         <header class="timesheet-day-header">
             <a href={newEntryUrl}

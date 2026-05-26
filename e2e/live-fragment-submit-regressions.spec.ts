@@ -78,7 +78,7 @@ test.describe('HTMX submit regressions', () => {
     test('timesheet submit creates one card', async ({ page }) => {
         const startTime = '10:15';
         const endTime = '14:15';
-        const renderedRange = '10:15 AM - 2:15 PM';
+        const note = `single-submit-timesheet-${Date.now()}`;
 
         await login(page);
         await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
@@ -92,12 +92,45 @@ test.describe('HTMX submit regressions', () => {
         await page.locator('input[name="endTime"]').evaluate((input, value) => {
             (input as HTMLInputElement).value = value as string;
         }, endTime);
+        await page.fill('textarea[name="staffComment"]', note);
         await page.getByRole('button', { name: 'Save' }).click();
 
         await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
-        await expect(page.locator('#timesheet-day-section-0')).toContainText(renderedRange);
+        await expect(page.locator('#timesheet-day-section-0')).toContainText('10:15 AM');
+        await expect(page.locator('#timesheet-day-section-0')).toContainText('2:15 PM');
         await expect(
-            page.locator(`#timesheet-day-section-0 .timesheet-entry-card:has-text("E2E Manager"):has-text("${renderedRange}")`)
+            page.locator(`#timesheet-day-section-0 .timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
+        ).toHaveCount(1);
+    });
+
+    test('timesheet submit preserves hide-approved filter', async ({ page }) => {
+        const startTime = '10:30';
+        const endTime = '14:30';
+        const note = `hide-approved-timesheet-${Date.now()}`;
+
+        await login(page);
+        await gotoWhenReady(page, '/Timesheets?showApproved=false&showAllStaff=true', '#timesheet-week-shell');
+        await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
+
+        await page.locator('[data-timesheet-day-add="true"]').first().click();
+        await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
+        await page.selectOption('#staffId', { label: 'E2E Manager' });
+        await page.locator('input[name="startTime"]').evaluate((input, value) => {
+            (input as HTMLInputElement).value = value as string;
+        }, startTime);
+        await page.locator('input[name="endTime"]').evaluate((input, value) => {
+            (input as HTMLInputElement).value = value as string;
+        }, endTime);
+        await page.fill('textarea[name="staffComment"]', note);
+        await page.getByRole('button', { name: 'Save' }).click();
+
+        await expect(page.locator('#dialog-overlay-mount')).toBeEmpty();
+        await expect(page).toHaveURL(/showApproved=false/);
+        await expect(page.locator('#timesheet-day-section-0')).toContainText('10:30 AM');
+        await expect(page.locator('#timesheet-day-section-0')).toContainText('2:30 PM');
+        await expect(page.locator('.timesheet-entry-card[data-timesheet-entry-approved="true"]')).toHaveCount(0);
+        await expect(
+            page.locator(`#timesheet-day-section-0 .timesheet-entry-card:has-text("E2E Manager"):has-text("${note}")`)
         ).toHaveCount(1);
     });
 

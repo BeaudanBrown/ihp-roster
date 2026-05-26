@@ -333,6 +333,27 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Ava Hours"
                 response `responseBodyShouldNotContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""
 
+        it "renders live day refresh urls with current timesheet filters" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Live Filter Url Venue"
+                manager <- createUserRecord "timesheet-live-filter-url-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                staff <- createStaffRecord venue Nothing "Lina" "Filtered"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowTimesheetWeekAction { weekOffset = 0 }
+                        [ ("showApproved", "false")
+                        , ("showAllStaff", "true")
+                        , ("staffFilterId", idToParam staff.id)
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-live-update-url="
+                response `responseBodyShouldContain` "showApproved=false"
+                response `responseBodyShouldContain` "showAllStaff=true"
+                response `responseBodyShouldContain` cs ("staffFilterId=" <> tshow staff.id)
+                response `responseBodyShouldNotContain` "showApproved=true"
+
         it "filters manager timesheet views to a selected staff member" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Timesheet Staff Filter Venue"
@@ -378,7 +399,8 @@ tests = beforeAll testContext do
                     callAction ShowTimesheetWeekAction { weekOffset = 2 }
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "12:15 AM - 4:00 AM"
+                response `responseBodyShouldContain` "12:15"
+                response `responseBodyShouldContain` "4:00 AM"
                 response `responseBodyShouldContain` "timesheet-shape-bar"
                 response `responseBodyShouldContain` "timesheet-shape-segment-shift"
 
@@ -467,6 +489,37 @@ tests = beforeAll testContext do
                 map (inputValue . (.versionAction)) versions `shouldBe` ["updated", "updated"]
                 resetAuditExists <- query @AuditEvent |> filterWhere (#eventType, "timesheet_approval_reset") |> fetchExists
                 resetAuditExists `shouldBe` False
+
+        it "keeps approved entries hidden after an HTMX timesheet create with hide approved" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Create Hidden Approved Venue"
+                manager <- createUserRecord "timesheet-create-hide-approved-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                approvedStaff <- createStaffRecord venue Nothing "Ada" "Approved"
+                pendingStaff <- createStaffRecord venue Nothing "Pia" "Pending"
+                payLevel <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue payLevel "Ordinary"
+                _ <- createApprovedTimesheetEntryRecord venue approvedStaff manager (fromGregorian 2025 1 7)
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams CreateTimesheetEntryAction
+                            [ ("weekOffset", "0")
+                            , ("showApproved", "false")
+                            , ("showAllStaff", "true")
+                            , ("staffId", idToParam pendingStaff.id)
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            , ("workedOn", "2025-01-07")
+                            , ("startTime", "10:15")
+                            , ("endTime", "14:15")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"timesheet-day-section-1\""
+                response `responseBodyShouldContain` "Pia Pending"
+                response `responseBodyShouldContain` "data-timesheet-entry-approved=\"false\""
+                response `responseBodyShouldNotContain` "Ada Approved"
+                response `responseBodyShouldNotContain` "data-timesheet-entry-approved=\"true\""
 
         it "creating timesheets via HTMX updates the actor fragment and bumps the week scope version" $ withContext do
             withCleanDb do

@@ -205,6 +205,10 @@ timesheetLiveSurfaceDefinitionForVenue surfaceVenueId =
         timesheetSurfaceScopeFromWire scope =
             case scope of
                 TimesheetWeekScope { venueId, weekOffset } | venueId == surfaceVenueId ->
+                    -- The wire scope carries only the venue/week identity used for
+                    -- authorization and fan-out. Mounted day-section targets render
+                    -- data-live-update-url with the active query filters, and the
+                    -- browser live-update runtime prefers that URL when refetching.
                     Just (TimesheetProjectionRequest weekOffset True True Nothing)
                 _ ->
                     Nothing
