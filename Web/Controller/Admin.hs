@@ -144,7 +144,7 @@ instance Controller AdminController where
 
     action XeroAction = do
         redirectPermissionDeniedUnless currentUserCanManageXeroIntegration "Only the venue owner or a super admin can manage Xero for this venue."
-        let xeroAutoSyncAfterReconnect = paramOrDefault @Text "false" "syncAfterReconnect" == "true"
+        let xeroAutoSyncAfterConnect = paramOrDefault @Text "false" "syncAfterConnect" == "true"
         xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
         render XeroView { .. }
 

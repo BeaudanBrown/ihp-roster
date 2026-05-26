@@ -12,7 +12,6 @@ import Application.Helper.Xero
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Connection
 import qualified Data.List as List
-import qualified Data.Text as Text
 import Web.Admin.Xero.Mutations (assignXeroRemoteConnectionIdMutation,
                                  completeLocalXeroDisconnectMutation,
                                  completeXeroConnectionMutation,
@@ -34,7 +33,7 @@ redirectToXeroAuthorization =
 
 redirectToXeroAuthorizationForReferenceSync :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 redirectToXeroAuthorizationForReferenceSync =
-    redirectToXeroAuthorizationWithStateToken referenceSyncOAuthStateToken
+    redirectToXeroAuthorization
 
 redirectToXeroAuthorizationWithStateToken :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => (Text -> Text) -> IO ()
 redirectToXeroAuthorizationWithStateToken stateTokenTransform =
@@ -231,25 +230,12 @@ completeXeroOAuthCallback now actorUserId oauthState code =
                                     setSuccessMessage ("Connected Xero tenant " <> fromMaybe connection.tenantId connection.tenantName <> ".")
                                     redirectAfterCompletedXeroConnection oauthState
 
-referenceSyncOAuthStatePrefix :: Text
-referenceSyncOAuthStatePrefix = "payroll-reference-sync:"
-
-referenceSyncOAuthStateToken :: Text -> Text
-referenceSyncOAuthStateToken stateToken =
-    referenceSyncOAuthStatePrefix <> stateToken
-
-shouldResumeReferenceSyncAfterOAuth :: XeroOauthState -> Bool
-shouldResumeReferenceSyncAfterOAuth oauthState =
-    referenceSyncOAuthStatePrefix `Text.isPrefixOf` oauthState.stateToken
-
 redirectAfterCompletedXeroConnection ::
     (?context :: ControllerContext, ?request :: Request) =>
     XeroOauthState ->
     IO ()
-redirectAfterCompletedXeroConnection oauthState =
-    if shouldResumeReferenceSyncAfterOAuth oauthState
-        then redirectToPath (appendQueryParams (pathTo XeroAction) [("syncAfterReconnect", "true")])
-        else redirectTo XeroAction
+redirectAfterCompletedXeroConnection _oauthState =
+    redirectToPath (appendQueryParams (pathTo XeroAction) [("syncAfterConnect", "true")])
 
 chooseXeroTenantForOAuth ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>

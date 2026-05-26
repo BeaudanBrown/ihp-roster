@@ -226,7 +226,7 @@ tests = beforeAll testContext do
                                 ]
 
                 response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Xero"
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Xero?syncAfterConnect=true"
                 connection <- query @XeroConnection |> fetchOne
                 connection.venueId `shouldBe` unpackId venue.id
                 connection.tenantId `shouldBe` "tenant-123"
@@ -1566,18 +1566,15 @@ tests = beforeAll testContext do
                 syncRun.syncStatus `shouldBe` "failed"
                 stateCount <- query @XeroOauthState |> fetchCount
                 stateCount `shouldBe` 1
-                [oauthState] <- query @XeroOauthState |> fetch
-                oauthState.stateToken `shouldSatisfy` Text.isPrefixOf "payroll-reference-sync:"
 
-        it "returns from reconnect with an automatic Xero reference sync trigger" $ withContext do
+        it "returns from successful Xero OAuth with an automatic reference sync trigger" $ withContext do
             withCleanDb do
-                venue <- createVenueWithConfig "Xero Auto Sync After Reconnect Venue"
-                owner <- createUserRecord "xero-auto-sync-after-reconnect@example.com" "staff" True
+                venue <- createVenueWithConfig "Xero Auto Sync After Connect Venue"
+                owner <- createUserRecord "xero-auto-sync-after-connect@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue owner "venue_owner"
-                _connection <- createSyncableXeroConnection venue owner
-                oauthState <- createTestXeroOauthState venue owner "payroll-reference-sync:auto-sync-state" 600 Nothing
+                oauthState <- createTestXeroOauthState venue owner "auto-sync-state" 600 Nothing
                 let tokenResponse = XeroTokenResponse "auto-sync-access-token" "auto-sync-refresh-token" 1800 (Just requiredXeroScopesText)
-                let tenant = XeroTenant "connection-auto-sync" "tenant-existing" (Just "Existing Demo Company")
+                let tenant = XeroTenant "connection-auto-sync" "tenant-auto-sync" (Just "Auto Sync Demo Company")
 
                 callbackResponse <- withXeroConfigForTest (Right testXeroConfig) do
                     withXeroClientForTest (successfulXeroClient tokenResponse [tenant]) do
@@ -1585,9 +1582,9 @@ tests = beforeAll testContext do
                             callActionWithParams XeroOAuthCallbackAction [("state", cs oauthState.stateToken), ("code", "auto-sync-code")]
 
                 callbackResponse `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders callbackResponse) `shouldSatisfy` maybe False (Text.isInfixOf "/Xero?syncAfterReconnect=true" . cs)
+                lookup "Location" (responseHeaders callbackResponse) `shouldSatisfy` maybe False (Text.isInfixOf "/Xero?syncAfterConnect=true" . cs)
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
-                    callActionWithParams XeroAction [("syncAfterReconnect", "true")]
+                    callActionWithParams XeroAction [("syncAfterConnect", "true")]
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "id=\"xero-auto-reference-sync\""
                 pageResponse `responseBodyShouldContain` "hx-trigger=\"load\""
@@ -1657,7 +1654,7 @@ tests = beforeAll testContext do
                             callActionWithParams XeroOAuthCallbackAction [("state", cs oauthState.stateToken), ("code", "repair-code")]
 
                 response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Xero"
+                lookup "Location" (responseHeaders response) `shouldBe` Just "http://localhost/Xero?syncAfterConnect=true"
                 connectionCount <- query @XeroConnection |> fetchCount
                 connectionCount `shouldBe` 1
                 repaired <- fetch staleConnection.id

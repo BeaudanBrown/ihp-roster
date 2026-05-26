@@ -44,8 +44,8 @@ import Web.View.Admin.Xero.Timesheets
 import Web.View.Prelude
 
 data XeroView = XeroView
-    { xeroSectionData            :: XeroAdminSectionData
-    , xeroAutoSyncAfterReconnect :: Bool
+    { xeroSectionData             :: XeroAdminSectionData
+    , xeroAutoSyncAfterConnect    :: Bool
     }
 
 instance View XeroView where
@@ -60,7 +60,7 @@ instance View XeroView where
                     , appPanelCustomHeader = mempty
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
-                    , appPanelBody = renderXeroSectionFragmentWithAutoSync xeroAutoSyncAfterReconnect xeroSectionData
+                    , appPanelBody = renderXeroSectionFragmentWithAutoSync xeroAutoSyncAfterConnect xeroSectionData
                     }
          in renderAppPage AppPageConfig
             { appPageTitle = "Xero"
