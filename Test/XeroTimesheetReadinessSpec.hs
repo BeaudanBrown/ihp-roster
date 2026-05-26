@@ -109,6 +109,27 @@ tests = do
                 readinessBlockerCodes readiness `shouldNotSatisfy` elem "earnings_mapping_not_verified"
                 readiness.xeroTimesheetReady `shouldBe` True
 
+        it "accepts admin-imported Xero mappings without requiring managed pay item creation" $ withContext do
+            withCleanDb do
+                fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)
+                requirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ requirements \requirement ->
+                    requirement
+                        |> set #requirementStatus ("proposed" :: Text)
+                        |> set #xeroEarningsRateId Nothing
+                        |> updateRecord
+                        >>= const (pure ())
+                selections <- query @XeroPayItemAccountCodeSelection |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ selections \selection ->
+                    selection |> set #selectionStatus ("stale" :: Text) |> updateRecord >>= const (pure ())
+
+                readiness <- validateXeroTimesheetReadiness fixture.request
+
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "earnings_mapping_not_verified"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "managed_pay_item_not_ready"
+                readinessBlockerCodes readiness `shouldNotSatisfy` elem "missing_pay_item_account_code"
+                readiness.xeroTimesheetReady `shouldBe` True
+
         it "allows a Xero period to include multiple relational pay versions" $ withContext do
             withCleanDb do
                 fixture <- createReadyMappedFixture "weekly" (fromGregorian 2026 4 27) (fromGregorian 2026 5 3)

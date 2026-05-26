@@ -98,7 +98,7 @@ validateXeroTimesheetReadiness request = do
                 , employeePayrollCalendarBlockers request maybeConnection maybeCalendar staffMappings syncedEmployees
                 , entryBlockers entries
                 , earningsMappingBlockers buckets earningsMappings payItemRequirements
-                , payItemRequirementBlockers payItemRequirements maybeAccountCodeSelection
+                , payItemRequirementBlockers earningsMappings payItemRequirements maybeAccountCodeSelection
                 , duplicateBlockers request entries selectedCalendarStaffMappings request.readinessRemoteTimesheets
                 ]
     let warnings =
@@ -476,11 +476,11 @@ earningsMappingBlockers buckets mappings requirements =
                 )
                 requirements
 
-payItemRequirementBlockers :: [XeroPayItemRequirementRecord] -> Maybe XeroPayItemAccountCodeSelection -> [XeroReadinessBlocker]
-payItemRequirementBlockers requirements maybeAccountCodeSelection =
+payItemRequirementBlockers :: [XeroEarningsRateMapping] -> [XeroPayItemRequirementRecord] -> Maybe XeroPayItemAccountCodeSelection -> [XeroReadinessBlocker]
+payItemRequirementBlockers earningsMappings requirements maybeAccountCodeSelection =
     accountCodeBlockers <> requirementBlockers
     where
-        activeRequirements = filter (\record -> record.requirementStatus /= "ignored") requirements
+        activeRequirements = filter (\record -> record.requirementStatus /= "ignored" && not (requirementHasImportedMapping record)) requirements
         proposedRequirements = filter (\record -> record.requirementStatus == "proposed") activeRequirements
         accountCodeReady =
             maybe False (\selection -> selection.selectionStatus == "verified" && maybe False (not . Text.null . Text.strip) selection.accountCode) maybeAccountCodeSelection
@@ -502,6 +502,10 @@ payItemRequirementBlockers requirements maybeAccountCodeSelection =
                                     { xeroBlockerLocalBucketKey = Just record.requirementKey
                                     , xeroBlockerXeroObjectId = record.xeroEarningsRateId
                                     }
+        requirementHasImportedMapping record =
+            any
+                (\mapping -> mapping.localBucketKey == record.requirementKey && isJust mapping.xeroEarningsRateId)
+                earningsMappings
 
 duplicateBlockers :: XeroTimesheetReadinessRequest -> [TimesheetEntry] -> [XeroStaffMapping] -> [XeroTimesheetRef] -> [XeroReadinessBlocker]
 duplicateBlockers request entries mappings remoteTimesheets =

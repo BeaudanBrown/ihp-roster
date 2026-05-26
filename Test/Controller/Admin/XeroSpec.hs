@@ -8,6 +8,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         fetchActiveRosterGroupSlotNames)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
 import Application.Helper.Xero
+import Application.Helper.XeroAdminTypes (XeroLocalEarningsBucket (..))
 import Application.Helper.XeroTimesheetReadiness (readinessBlockerCodes,
                                                  validateXeroTimesheetReadiness)
 import Config
@@ -1053,6 +1054,12 @@ tests = beforeAll testContext do
                         |> filterWhere (#requirementKey, unusedKey)
                         |> fetchCount
                 unusedCount `shouldBe` 0
+                today <- utctDay <$> getCurrentTime
+                buckets <- Preview.currentVenueBuckets venue today
+                requirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId connection.id) |> fetch
+                let bucketKeys = Set.fromList (map (\bucket -> bucket.localBucketKey) buckets)
+                let requirementKeys = Set.fromList (map (\requirement -> requirement.requirementKey) requirements)
+                bucketKeys `Set.isSubsetOf` requirementKeys `shouldBe` True
 
         it "flags matched Xero pay item requirements when the expected FWC rate changes" $ withContext do
             withCleanDb do
@@ -1178,11 +1185,48 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Sync reference data"
                 response `responseBodyShouldContain` "Readiness validation"
                 response `responseBodyShouldContain` "Preview"
+                response `responseBodyShouldNotContain` "Earnings-rate mappings"
+                response `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
                 preparationRun.status `shouldBe` "ready_for_preview"
                 preparationRun.payPeriodStart `shouldBe` fixture.periodStart
                 preparationRun.payPeriodEnd `shouldBe` fixture.periodEnd
                 (AesonTypes.parseMaybe AesonTypes.parseJSON preparationRun.eventsJson :: Maybe [Aeson.Value]) `shouldSatisfy` maybe False (not . null)
+
+        it "shows proposed managed pay item creation instead of manual earnings-rate mapping in the preparation modal" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+                existingRates <- query @XeroEarningsRate |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ existingRates \rate ->
+                    rate
+                        |> set #isActive False
+                        |> updateRecord
+                        >>= const (pure ())
+                _ <- createXeroEarningsRateRecord fixture.connection "Ordinary Hours" "earnings-account-code"
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (referenceSyncXeroClient (XeroTokenResponse "prepare-access-token" "prepare-refresh-token" 1800 (Just requiredXeroScopesText)) [] [] []) do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams RunXeroTimesheetPreparationAction
+                                    [("periodKey", fixturePeriodKey fixture)]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Managed pay items"
+                response `responseBodyShouldContain` "pending creation"
+                response `responseBodyShouldContain` "Approve creation"
+                response `responseBodyShouldContain` "Bepis - HIGA - PERM - Undated - Level 2 - Ordinary"
+                response `responseBodyShouldNotContain` "Earnings-rate mappings"
+                response `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
+                pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
+                pendingPayItemDecisions `shouldSatisfy` (> 0)
+                preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
+                preparationRun.status `shouldBe` "needs_approval"
 
         it "keeps stale Xero payroll calendar selections out of the guided preparation path" $ withContext do
             withCleanDb do
