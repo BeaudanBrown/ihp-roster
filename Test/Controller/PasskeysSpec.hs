@@ -385,6 +385,21 @@ tests = beforeAll testContext do
                 lookup HTTP.hContentType (responseHeaders response) `shouldBe` Just "application/json"
                 response `responseBodyShouldContain` "\"challenge\""
 
+        it "requires fresh passkey verification before sending a new-device setup link" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Unverified New Device Setup Venue"
+                user <- createUserRecord "unverified-new-device-passkey@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createTestPasskeyRecord user "Existing admin passkey"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction SendNewDevicePasskeySetupEmailAction
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                setupTokenExists <- query @PasskeySetupToken |> fetchExists
+                setupTokenExists `shouldBe` False
+
         it "sends a new-device passkey setup link after fresh passkey verification" $ withContext do
             withCleanDb do
                 setEnv "DISABLE_EMAIL_DELIVERY" "1"
@@ -415,6 +430,30 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "setup-link@example.com"
                 response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeySetupRegistration?token="
                 response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeySetupRegistration\""
+
+        it "rejects consumed and expired passkey setup links" $ withContext do
+            withCleanDb do
+                user <- createUserRecord "inactive-setup-link@example.com" "staff" True
+                (consumedSetupToken, consumedRawToken) <- issuePasskeySetupToken SelfNewDevicePasskeySetup user (Just user.id) Nothing
+                now <- getCurrentTime
+                consumedSetupToken
+                    |> set #consumedAt (Just now)
+                    |> updateRecordDiscardResult
+
+                consumedResponse <- callActionWithParams NewPasskeySetupAction [("token", cs consumedRawToken)]
+
+                consumedResponse `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders consumedResponse) `shouldBe` Just "http://localhost/NewSession"
+
+                (expiredSetupToken, expiredRawToken) <- issuePasskeySetupToken SelfNewDevicePasskeySetup user (Just user.id) Nothing
+                expiredSetupToken
+                    |> set #expiresAt (addUTCTime (-60) now)
+                    |> updateRecordDiscardResult
+
+                expiredResponse <- callActionWithParams NewPasskeySetupAction [("token", cs expiredRawToken)]
+
+                expiredResponse `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders expiredResponse) `shouldBe` Just "http://localhost/NewSession"
 
         it "lets venue owners send staff passkey recovery links" $ withContext do
             withCleanDb do
