@@ -5,6 +5,7 @@ module Application.Helper.PasskeyRecoveryCodes
     , hashRecoveryCode
     , issueInitialRecoveryCodeIfMissing
     , normalizeRecoveryCode
+    , verifyAndConsumeRecoveryCode
     ) where
 
 import qualified "crypton" Crypto.Hash as Hash
@@ -46,6 +47,23 @@ issueInitialRecoveryCodeIfMissing userId = do
                 |> set #codeHash (hashRecoveryCode recoveryCode)
                 |> createRecord
             pure (Just recoveryCode)
+
+verifyAndConsumeRecoveryCode :: (?modelContext :: ModelContext) => Id User -> Text -> IO Bool
+verifyAndConsumeRecoveryCode userId submittedCode = do
+    recoveryCode <-
+        query @PasskeyRecoveryCode
+            |> filterWhere (#userId, unpackId userId)
+            |> filterWhere (#codeHash, hashRecoveryCode submittedCode)
+            |> filterWhere (#usedAt, Nothing)
+            |> fetchOneOrNothing
+    case recoveryCode of
+        Nothing -> pure False
+        Just code -> do
+            now <- getCurrentTime
+            code
+                |> set #usedAt (Just now)
+                |> updateRecordDiscardResult
+            pure True
 
 groupCode :: Text -> Text
 groupCode value =

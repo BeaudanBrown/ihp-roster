@@ -30,6 +30,12 @@ passkeyVerifiedAtSessionKey = "passkeyVerifiedAt"
 passkeyStepUpRedirectSessionKey :: ByteString
 passkeyStepUpRedirectSessionKey = "passkeyStepUpRedirect"
 
+passkeyRecoveryVerifiedUserSessionKey :: ByteString
+passkeyRecoveryVerifiedUserSessionKey = "passkeyRecoveryVerifiedUserId"
+
+passkeyRecoveryVerifiedAtSessionKey :: ByteString
+passkeyRecoveryVerifiedAtSessionKey = "passkeyRecoveryVerifiedAt"
+
 passkeyVerificationWindowSeconds :: NominalDiffTime
 passkeyVerificationWindowSeconds = 30 * 60
 
@@ -152,9 +158,17 @@ ensurePrivilegedPasskeySetupComplete = do
 
 isCurrentUserPasskeyVerified :: (?context :: ControllerContext) => IO Bool
 isCurrentUserPasskeyVerified =
+    sessionHasFreshPasskeyMarker passkeyVerifiedUserSessionKey passkeyVerifiedAtSessionKey
+
+isCurrentUserPasskeyRecoveryVerified :: (?context :: ControllerContext) => IO Bool
+isCurrentUserPasskeyRecoveryVerified =
+    sessionHasFreshPasskeyMarker passkeyRecoveryVerifiedUserSessionKey passkeyRecoveryVerifiedAtSessionKey
+
+sessionHasFreshPasskeyMarker :: (?context :: ControllerContext) => ByteString -> ByteString -> IO Bool
+sessionHasFreshPasskeyMarker userSessionKey atSessionKey =
     withRequestContext do
-        verifiedUserId <- getSession @Text passkeyVerifiedUserSessionKey
-        verifiedAtText <- getSession @Text passkeyVerifiedAtSessionKey
+        verifiedUserId <- getSession @Text userSessionKey
+        verifiedAtText <- getSession @Text atSessionKey
         now <- liftIO getCurrentTime
         pure
             ( verifiedUserId == Just (inputValue authenticatedCurrentUser.id)
@@ -172,10 +186,23 @@ markUserPasskeyVerified userId =
         setSession passkeyVerifiedUserSessionKey (inputValue userId)
         setSession passkeyVerifiedAtSessionKey (formatPasskeyVerifiedAt now)
 
+markCurrentUserPasskeyRecoveryVerified :: (?context :: ControllerContext) => IO ()
+markCurrentUserPasskeyRecoveryVerified =
+    withRequestContext do
+        now <- liftIO getCurrentTime
+        setSession passkeyRecoveryVerifiedUserSessionKey (inputValue authenticatedCurrentUser.id)
+        setSession passkeyRecoveryVerifiedAtSessionKey (formatPasskeyVerifiedAt now)
+
+clearCurrentUserPasskeyRecoveryVerification :: (?request :: Request) => IO ()
+clearCurrentUserPasskeyRecoveryVerification = do
+    deleteSession passkeyRecoveryVerifiedUserSessionKey
+    deleteSession passkeyRecoveryVerifiedAtSessionKey
+
 clearCurrentUserPasskeyVerification :: (?request :: Request) => IO ()
 clearCurrentUserPasskeyVerification = do
     deleteSession passkeyVerifiedUserSessionKey
     deleteSession passkeyVerifiedAtSessionKey
+    clearCurrentUserPasskeyRecoveryVerification
 
 ensurePrivilegedPasskeyVerified :: (?context :: ControllerContext) => IO ()
 ensurePrivilegedPasskeyVerified = do

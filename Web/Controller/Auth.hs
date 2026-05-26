@@ -36,7 +36,8 @@ instance Controller AuthController where
                 |> fetch
         when (currentUserRequiresMandatoryPasskey && not (null existingPasskeys)) do
             verified <- isCurrentUserPasskeyVerified
-            unless verified do
+            recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
+            unless (verified || recoveryVerified) do
                 setSession passkeyStepUpRedirectSessionKey profileSecurityPath
                 jsonRedirectError status403 "Verify with your passkey before adding another passkey." (pathTo PasskeyStepUpAction)
         challenge <- liftIO generateChallenge
@@ -73,7 +74,8 @@ instance Controller AuthController where
                 |> fetch
         when (currentUserRequiresMandatoryPasskey && not (null existingPasskeys)) do
             verified <- isCurrentUserPasskeyVerified
-            unless verified do
+            recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
+            unless (verified || recoveryVerified) do
                 clearRegistrationSession
                 setSession passkeyStepUpRedirectSessionKey profileSecurityPath
                 jsonRedirectError status403 "Verify with your passkey before adding another passkey." (pathTo PasskeyStepUpAction)
@@ -107,6 +109,7 @@ instance Controller AuthController where
             if currentUserRequiresMandatoryPasskey && null existingPasskeys
                 then issueInitialRecoveryCodeIfMissing (get #id currentUser)
                 else pure Nothing
+        clearCurrentUserPasskeyRecoveryVerification
         markCurrentUserPasskeyVerified
         renderJson
             ( Aeson.object

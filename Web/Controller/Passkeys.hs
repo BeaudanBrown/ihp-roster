@@ -1,5 +1,6 @@
 module Web.Controller.Passkeys where
 
+import Application.Helper.PasskeyRecoveryCodes (verifyAndConsumeRecoveryCode)
 import Application.Helper.PasskeySetupTokens
 import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
@@ -19,6 +20,24 @@ instance Controller PasskeysController where
         rawStepUpRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
         let stepUpRedirectTo = rawStepUpRedirectTo >>= nonEmptyText
         render StepUpView { .. }
+
+    action UsePasskeyRecoveryCodeAction = do
+        unless currentUserRequiresMandatoryPasskey do
+            redirectTo RosterWeeksAction
+        passkeys <- fetchCurrentUserPasskeys
+        when (null passkeys) do
+            setErrorMessage "Add your first passkey from your profile security settings."
+            redirectToPath profileSecurityPath
+        let submittedCode = param @Text "recoveryCode"
+        verified <- verifyAndConsumeRecoveryCode currentUser.id submittedCode
+        if verified
+            then do
+                markCurrentUserPasskeyRecoveryVerified
+                setSuccessMessage "Recovery code accepted. Add a new passkey now to restore access."
+                redirectToPath profileSecurityPath
+            else do
+                setErrorMessage "That recovery code was not valid or has already been used."
+                redirectTo PasskeyStepUpAction
 
     action SendNewDevicePasskeySetupEmailAction = do
         passkeys <- fetchCurrentUserPasskeys

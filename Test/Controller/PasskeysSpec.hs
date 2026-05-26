@@ -2,9 +2,12 @@ module Test.Controller.PasskeysSpec where
 
 import Application.Helper.Controller (currentVenueSessionKey,
                                       formatPasskeyVerifiedAt,
+                                      passkeyRecoveryVerifiedAtSessionKey,
+                                      passkeyRecoveryVerifiedUserSessionKey,
                                       passkeyVerifiedAtSessionKey,
                                       passkeyVerifiedUserSessionKey,
                                       unsafeEnumFromText)
+import Application.Helper.PasskeyRecoveryCodes (hashRecoveryCode)
 import Application.Helper.PasskeySetupTokens (PasskeySetupTokenPurpose (SelfNewDevicePasskeySetup), issuePasskeySetupToken)
 import Application.Helper.Passkeys (allowedOrigins, rpIdTextFromRequest)
 import Config
@@ -156,6 +159,8 @@ tests = beforeAll testContext do
                     stepUpResponse `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeyStepUpAuthentication\""
                     stepUpResponse `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyStepUpAuthentication\""
                     stepUpResponse `responseBodyShouldContain` "data-success-redirect=\"/RosterWeeks\""
+                    stepUpResponse `responseBodyShouldContain` "Can't access your passkey?"
+                    stepUpResponse `responseBodyShouldContain` "Use recovery code"
 
         it "audits failed passkey step-up attempts" $ withContext do
             withCleanDb do
@@ -291,6 +296,52 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status403
                 response `responseBodyShouldContain` "Verify with your passkey before adding another passkey."
                 response `responseBodyShouldContain` "\"redirectTo\":\"/PasskeyStepUp\""
+
+        it "accepts and consumes a one-time passkey recovery code" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Recovery Code Venue"
+                user <- createUserRecord "recovery-code@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createTestPasskeyRecord user "Existing admin passkey"
+                recoveryCode <- newRecord @PasskeyRecoveryCode
+                    |> set #userId (unpackId user.id)
+                    |> set #codeHash (hashRecoveryCode "abcd-efgh-ijkl-mnop")
+                    |> createRecord
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams UsePasskeyRecoveryCodeAction [("recoveryCode", "ABCD EFGH IJKL MNOP")]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/EditProfile?section=security"
+                consumedCode <- fetch recoveryCode.id
+                consumedCode.usedAt `shouldSatisfy` isJust
+
+                reuseResponse <- withUserAndCurrentVenue user venue.id do
+                    callActionWithParams UsePasskeyRecoveryCodeAction [("recoveryCode", "ABCD-EFGH-IJKL-MNOP")]
+
+                reuseResponse `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders reuseResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
+
+        it "allows recovery-code verified admins to begin replacement passkey registration" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Recovery Registration Venue"
+                user <- createUserRecord "recovery-registration@example.com" "admin" True
+                _ <- createVenueMembershipRecord venue user "venue_admin"
+                _ <- createTestPasskeyRecord user "Existing admin passkey"
+                now <- getCurrentTime
+
+                response <- withSessionValues
+                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode user.id)
+                    , (currentVenueSessionKey, Serialize.encode venue.id)
+                    , (passkeyRecoveryVerifiedUserSessionKey, Serialize.encode (inputValue user.id :: Text))
+                    , (passkeyRecoveryVerifiedAtSessionKey, Serialize.encode (formatPasskeyVerifiedAt now))
+                    ]
+                    do
+                        callAction BeginPasskeyRegistrationAction
+
+                response `responseStatusShouldBe` status200
+                lookup HTTP.hContentType (responseHeaders response) `shouldBe` Just "application/json"
+                response `responseBodyShouldContain` "\"challenge\""
 
         it "sends a new-device passkey setup link after fresh passkey verification" $ withContext do
             withCleanDb do
