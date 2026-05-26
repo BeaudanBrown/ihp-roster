@@ -8,6 +8,7 @@ import Application.Helper.View.Overlay
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel (xeroEmployeeAvailableForStaff)
 import Control.Monad (guard)
+import qualified Data.List as List
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -80,8 +81,7 @@ renderPreparationBody view = [hsx|
         {renderWorkflowProgress view}
         {renderConnectionNotice view}
         {renderSetupActions view}
-        {renderStaffDecisions view}
-        {renderStaffOutcomes view}
+        {renderStaffMappings view}
         {renderPayItemDecisions view}
         {renderReadiness view.preparationReadiness}
         {renderPreview view}
@@ -272,44 +272,65 @@ renderAccountCodeForm view = [hsx|
     </form>
 |]
 
-renderStaffDecisions :: XeroTimesheetPreparationView -> Html
-renderStaffDecisions view
-    | null actionableRows = mempty
+renderStaffMappings :: XeroTimesheetPreparationView -> Html
+renderStaffMappings view
+    | null view.preparationStaffRows = mempty
     | otherwise = [hsx|
         <section>
             <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-                <h6 class="mb-0">Staff mapping decisions</h6>
-                <span class="small app-muted">{tshow (length actionableRows)} to resolve</span>
+                <h6 class="mb-0">Staff mappings</h6>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                    <span class="small app-muted">{staffMappingSummary view}</span>
+                    {renderStaffShowMatchedToggle}
+                </div>
             </div>
             <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
+                <table class="table table-sm align-middle mb-0 xero-staff-mappings-table">
                     <thead>
                         <tr>
                             <th>Staff</th>
+                            <th>Email</th>
                             <th>Xero employee</th>
-                            <th class="text-end">Decision</th>
+                            <th>Status</th>
+                            <th class="text-end">Run action</th>
                         </tr>
                     </thead>
-                    <tbody>{forEach actionableRows (renderStaffDecisionRow view)}</tbody>
+                    <tbody>{forEach orderedRows (renderStaffMappingRow view)}</tbody>
                 </table>
             </div>
         </section>
     |]
     where
-        actionableRows =
-            view.preparationStaffRows
-                |> filter \row ->
-                    row.preparationStaffNeedsDecision
-                        || maybe False ((== "pending") . (.decisionStatus)) row.preparationStaffDecision
+        (matchedRows, unmatchedRows) = List.partition staffRowIsMatched view.preparationStaffRows
+        orderedRows = unmatchedRows <> matchedRows
 
-renderStaffDecisionRow :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
-renderStaffDecisionRow view row = [hsx|
-    <tr>
+renderStaffShowMatchedToggle :: Html
+renderStaffShowMatchedToggle = [hsx|
+    <div class="form-check form-switch mb-0">
+        <input id="xero-preparation-show-matched-staff-toggle"
+               class="form-check-input xero-staff-mapping-show-matched-toggle"
+               type="checkbox" />
+        <label class="form-check-label small" for="xero-preparation-show-matched-staff-toggle">Show matched</label>
+    </div>
+|]
+
+staffMappingSummary :: XeroTimesheetPreparationView -> Text
+staffMappingSummary view =
+    tshow matchedCount <> " matched · " <> tshow needsDecisionCount <> " need attention"
+    where
+        matchedCount = length (filter staffRowIsMatched view.preparationStaffRows)
+        needsDecisionCount = length (filter staffRowNeedsAttention view.preparationStaffRows)
+
+renderStaffMappingRow :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
+renderStaffMappingRow view row = [hsx|
+    <tr class={classes [("xero-staff-mapping-row-matched", staffRowIsMatched row)]}
+        data-xero-staff-mapping-status={staffMappingStatus row}>
         <td>
             <div class="fw-semibold">{staffName staff}</div>
-            <div class="small app-muted">{staffSecondaryLabel row}</div>
         </td>
+        <td class="small">{staffSecondaryLabel row}</td>
         <td>{renderStaffEmployeeSelectionForm view row}</td>
+        <td>{renderStatusBadge (staffOutcomeStatus row)}</td>
         <td class="text-end">
             {renderStaffDecisionButton view row "skip" "Skip this time" "btn btn-sm btn-outline-secondary"}
         </td>
@@ -323,7 +344,9 @@ renderStaffEmployeeSelectionForm view row = [hsx|
     <form method="POST"
           action={ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id}
           class="d-flex gap-2"
+          data-disable-javascript-submission="true"
           hx-post={pathTo (ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id)}
+          hx-trigger="change"
           hx-target={"#" <> dialogOverlayMountId}
           hx-swap="innerHTML">
         <input type="hidden" name="staffId" value={tshow staff.id} />
@@ -333,7 +356,6 @@ renderStaffEmployeeSelectionForm view row = [hsx|
             {forEach selectableEmployees (renderEmployeeOption currentSelection)}
             <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
         </select>
-        <button type="submit" class="btn btn-sm btn-primary">Approve</button>
     </form>
 |]
     where
@@ -466,6 +488,23 @@ staffOutcomeReason row
     | row.preparationStaffMappingRow.mappingRowMapping.mappingStatus == "not_applicable" = "Persistently marked as not paid through Xero."
     | staffHasVerifiedXeroEmployee row = "Mapped to Xero employee " <> fromMaybe "" row.preparationStaffMappingRow.mappingRowMapping.xeroEmployeeName <> "."
     | otherwise = "No Xero employee is selected for this staff member."
+
+staffRowIsMatched :: XeroPreparationStaffRow -> Bool
+staffRowIsMatched row =
+    staffHasVerifiedXeroEmployee row
+
+staffRowNeedsAttention :: XeroPreparationStaffRow -> Bool
+staffRowNeedsAttention row =
+    row.preparationStaffNeedsDecision
+        || maybe False ((== "pending") . (.decisionStatus)) row.preparationStaffDecision
+        || (not row.preparationStaffSkipped && not (staffHasVerifiedXeroEmployee row) && row.preparationStaffMappingRow.mappingRowMapping.mappingStatus /= "not_applicable")
+
+staffMappingStatus :: XeroPreparationStaffRow -> Text
+staffMappingStatus row
+    | row.preparationStaffSkipped = "skipped"
+    | row.preparationStaffMappingRow.mappingRowMapping.mappingStatus == "not_applicable" = "not_applicable"
+    | staffHasVerifiedXeroEmployee row = "verified"
+    | otherwise = "unmapped"
 
 staffHasVerifiedXeroEmployee :: XeroPreparationStaffRow -> Bool
 staffHasVerifiedXeroEmployee row =
