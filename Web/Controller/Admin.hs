@@ -213,29 +213,9 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (refreshXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
 
-    action SyncXeroTimesheetPreparationReferenceDataAction { xeroTimesheetPreparationRunId } = do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero (syncXeroTimesheetPreparationReferenceDataAction xeroTimesheetPreparationRunId)
-
-    action SaveXeroTimesheetPreparationCalendarAction { xeroTimesheetPreparationRunId } = do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero (saveXeroTimesheetPreparationCalendarAction xeroTimesheetPreparationRunId)
-
-    action SaveXeroTimesheetPreparationAccountCodeAction { xeroTimesheetPreparationRunId } = do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero (saveXeroTimesheetPreparationAccountCodeAction xeroTimesheetPreparationRunId)
-
     action ApplyXeroTimesheetPreparationStaffDecisionAction { xeroTimesheetPreparationRunId } = do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero (applyXeroTimesheetPreparationStaffDecisionAction xeroTimesheetPreparationRunId)
-
-    action ApproveXeroTimesheetPreparationPayItemsAction { xeroTimesheetPreparationRunId } = do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero (approveXeroTimesheetPreparationPayItemsAction xeroTimesheetPreparationRunId)
-
-    action PreviewXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = do
-        ensureVenueWritable
-        requireCurrentVenueOwnerForXero (previewXeroTimesheetPreparationAction xeroTimesheetPreparationRunId)
 
     action SubmitXeroTimesheetPreparationAction { xeroTimesheetPreparationRunId } = do
         ensureVenueWritable

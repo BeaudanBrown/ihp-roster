@@ -160,117 +160,6 @@ renderConnectionNotice view
         </div>
     |]
 
-renderSetupActions :: XeroTimesheetPreparationView -> Html
-renderSetupActions view = [hsx|
-    <section>
-        <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
-            <h6 class="mb-0">Setup</h6>
-            {renderStatusBadge (if setupLooksComplete view then "ready" else "needs_approval")}
-        </div>
-        <div class={appSurfaceClasses "p-3"}>
-            <div class="row g-3 align-items-end">
-                <div class="col-12 col-lg-4">
-                    {renderReferenceSyncForm view}
-                </div>
-                <div class="col-12 col-lg-4">
-                    {renderPayrollCalendarForm view}
-                </div>
-                <div class="col-12 col-lg-4">
-                    {renderAccountCodeForm view}
-                </div>
-            </div>
-        </div>
-    </section>
-|]
-
-setupLooksComplete :: XeroTimesheetPreparationView -> Bool
-setupLooksComplete view =
-    view.preparationConnection.connectionStatus == "active"
-        && not (null view.preparationPayrollCalendars)
-        && selectedPreparationPayrollCalendarId view /= ""
-        && (not (preparationNeedsAccountCode view) || isJust (selectedAccountCode view))
-
-preparationNeedsAccountCode :: XeroTimesheetPreparationView -> Bool
-preparationNeedsAccountCode view =
-    any
-        ((== "proposed") . (.payItemRequirementStatus) . (.preparationPayItemRequirement))
-        view.preparationPayItemRows
-
-renderReferenceSyncForm :: XeroTimesheetPreparationView -> Html
-renderReferenceSyncForm view
-    | view.preparationConnection.connectionStatus /= "active" = [hsx|
-        <div>
-            <label class="form-label small fw-semibold">Reference data</label>
-            <button type="button" class="btn btn-sm btn-outline-secondary w-100" disabled>Sync reference data</button>
-        </div>
-    |]
-    | otherwise = [hsx|
-        <form method="POST"
-              action={SyncXeroTimesheetPreparationReferenceDataAction view.preparationRun.id}
-              hx-post={pathTo (SyncXeroTimesheetPreparationReferenceDataAction view.preparationRun.id)}
-              hx-target={"#" <> dialogOverlayMountId}
-              hx-swap="innerHTML">
-            <label class="form-label small fw-semibold">Reference data</label>
-            <button type="submit" class="btn btn-sm btn-outline-primary w-100">Sync reference data</button>
-        </form>
-    |]
-
-renderPayrollCalendarForm :: XeroTimesheetPreparationView -> Html
-renderPayrollCalendarForm view = [hsx|
-    <form method="POST"
-          action={SaveXeroTimesheetPreparationCalendarAction view.preparationRun.id}
-          hx-post={pathTo (SaveXeroTimesheetPreparationCalendarAction view.preparationRun.id)}
-          hx-target={"#" <> dialogOverlayMountId}
-          hx-swap="innerHTML">
-        <label class="form-label small fw-semibold" for="xero-preparation-payroll-calendar">Payroll calendar</label>
-        <div class="d-flex gap-2">
-            <select id="xero-preparation-payroll-calendar"
-                    name="xeroPayrollCalendarSelection"
-                    class="form-select form-select-sm"
-                    disabled={null view.preparationPayrollCalendars}>
-                <option value="">Choose calendar</option>
-                {forEach view.preparationPayrollCalendars (renderPayrollCalendarOption (selectedPreparationPayrollCalendarId view))}
-            </select>
-            <button type="submit" class="btn btn-sm btn-outline-primary" disabled={null view.preparationPayrollCalendars}>Save</button>
-        </div>
-    </form>
-|]
-
-renderPayrollCalendarOption :: Text -> XeroPayrollCalendar -> Html
-renderPayrollCalendarOption currentSelection payrollCalendar = [hsx|
-    <option value={payrollCalendar.xeroPayrollCalendarId} selected={currentSelection == payrollCalendar.xeroPayrollCalendarId}>
-        {payrollCalendar.name}
-    </option>
-|]
-
-selectedPreparationPayrollCalendarId :: XeroTimesheetPreparationView -> Text
-selectedPreparationPayrollCalendarId view =
-    fromMaybe view.preparationRun.selectedPayrollCalendarId do
-        selection <- view.preparationPayrollCalendarSelection
-        guard (selection.calendarStatus == "verified")
-        selection.xeroPayrollCalendarId
-
-renderAccountCodeForm :: XeroTimesheetPreparationView -> Html
-renderAccountCodeForm view = [hsx|
-    <form method="POST"
-          action={SaveXeroTimesheetPreparationAccountCodeAction view.preparationRun.id}
-          hx-post={pathTo (SaveXeroTimesheetPreparationAccountCodeAction view.preparationRun.id)}
-          hx-target={"#" <> dialogOverlayMountId}
-          hx-swap="innerHTML">
-        <label class="form-label small fw-semibold" for="xero-preparation-account-code">Pay item account code</label>
-        <div class="d-flex gap-2">
-            <select id="xero-preparation-account-code"
-                    name="xeroPayItemAccountCodeSelection"
-                    class="form-select form-select-sm"
-                    disabled={null view.preparationPayItemAccountCodeOptions}>
-                <option value="">Choose account code</option>
-                {forEach view.preparationPayItemAccountCodeOptions (renderAccountCodeOption (fromMaybe "" (selectedAccountCode view)))}
-            </select>
-            <button type="submit" class="btn btn-sm btn-outline-primary" disabled={null view.preparationPayItemAccountCodeOptions}>Save</button>
-        </div>
-    </form>
-|]
-
 renderStaffMappings :: XeroTimesheetPreparationView -> Html
 renderStaffMappings view
     | null view.preparationStaffRows = mempty
@@ -654,17 +543,6 @@ renderRefreshForm view = [hsx|
           hx-target={"#" <> dialogOverlayMountId}
           hx-swap="innerHTML">
         <button type="submit" class="btn btn-outline-secondary">Refresh checks</button>
-    </form>
-|]
-
-renderPreviewForm :: XeroTimesheetPreparationView -> Html
-renderPreviewForm view = [hsx|
-    <form method="POST"
-          action={PreviewXeroTimesheetPreparationAction view.preparationRun.id}
-          hx-post={pathTo (PreviewXeroTimesheetPreparationAction view.preparationRun.id)}
-          hx-target={"#" <> dialogOverlayMountId}
-          hx-swap="innerHTML">
-        <button type="submit" class="btn btn-outline-primary" disabled={not view.preparationCanPreview}>Preview</button>
     </form>
 |]
 
