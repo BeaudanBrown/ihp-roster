@@ -309,7 +309,7 @@ createPreviewMappings venue connection periodStart staffA staffB buckets = do
     createXeroEmployee staffB "employee-b"
     forM_ buckets \bucket -> do
         let earningsRateId = "earnings-" <> bucket.localBucketKey
-        let earningsRateName = xeroManagedPayItemNamePrefix <> bucket.localBucketLabel
+        let earningsRateName = bucket.localBucketLabel
         _ <-
             newRecord @XeroEarningsRate
                 |> set #venueId (unpackId venue.id)

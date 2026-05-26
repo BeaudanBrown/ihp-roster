@@ -90,12 +90,12 @@ DO UPDATE SET
 
 WITH desired_mappings(requirement_key, display_name, penalty_kind) AS (
     VALUES
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:ordinary', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Ordinary', NULL),
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:evening_after_7pm', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Evening After 7pm Loading', 'evening_after_7pm'),
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:late_night_after_midnight', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Late Night After Midnight Loading', 'late_night_after_midnight'),
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:public_holiday_penalty', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Public Holiday Penalty', 'public_holiday_penalty'),
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:saturday_penalty', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Saturday Penalty', 'saturday_penalty'),
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:sunday_penalty', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Sunday Penalty', 'sunday_penalty')
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:ordinary', 'Ordinary - Level 2 - CAS - Bepis - 1-July-2025', NULL),
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:evening_after_7pm', 'Evening After 7pm Loading - Level 2 - CAS - Bepis - 1-July-2025', 'evening_after_7pm'),
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:late_night_after_midnight', 'Late Night After Midnight Loading - Level 2 - CAS - Bepis - 1-July-2025', 'late_night_after_midnight'),
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:public_holiday_penalty', 'Public Holiday Penalty - Level 2 - CAS - Bepis - 1-July-2025', 'public_holiday_penalty'),
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:saturday_penalty', 'Saturday Penalty - Level 2 - CAS - Bepis - 1-July-2025', 'saturday_penalty'),
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:sunday_penalty', 'Sunday Penalty - Level 2 - CAS - Bepis - 1-July-2025', 'sunday_penalty')
 ),
 matched_rates AS (
     SELECT
@@ -160,19 +160,19 @@ DO UPDATE SET
 
 WITH desired_mappings(requirement_key, display_name) AS (
     VALUES
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:ordinary', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Ordinary'),
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:evening_after_7pm', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Evening After 7pm Loading'),
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:late_night_after_midnight', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Late Night After Midnight Loading'),
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:public_holiday_penalty', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Public Holiday Penalty'),
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:saturday_penalty', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Saturday Penalty'),
-        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:sunday_penalty', 'Bepis - HIGA - CAS - 1-July-2025 - Level 2 - Sunday Penalty')
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:ordinary', 'Ordinary - Level 2 - CAS - Bepis - 1-July-2025'),
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:evening_after_7pm', 'Evening After 7pm Loading - Level 2 - CAS - Bepis - 1-July-2025'),
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:late_night_after_midnight', 'Late Night After Midnight Loading - Level 2 - CAS - Bepis - 1-July-2025'),
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:public_holiday_penalty', 'Public Holiday Penalty - Level 2 - CAS - Bepis - 1-July-2025'),
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:saturday_penalty', 'Saturday Penalty - Level 2 - CAS - Bepis - 1-July-2025'),
+        ('xero:pay-item:classification:246:basis:casual:effective:2025-07-01:penalty:sunday_penalty', 'Sunday Penalty - Level 2 - CAS - Bepis - 1-July-2025')
 ),
 matched_rates AS (
     SELECT
         connection.venue_id,
         connection.id AS xero_connection_id,
         desired.requirement_key,
-        regexp_replace(desired.display_name, '^Bepis - ', '') AS local_bucket_label,
+        desired.display_name AS local_bucket_label,
         rate.xero_earnings_rate_id,
         rate.name AS xero_earnings_rate_name
     FROM desired_mappings desired

@@ -5,7 +5,6 @@ module Web.View.Admin.Xero.PayItems
     ) where
 
 import Application.Helper.XeroAdminTypes
-import Application.Helper.XeroPayItems (xeroManagedPayItemNamePrefix)
 import qualified Data.List as List
 import qualified Data.Text as Text
 import Web.View.Prelude
@@ -68,7 +67,7 @@ renderXeroPayItemsData accountCodeOptions requirements maybePayItemAccountCodeSe
             <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
                 <div>
                     <h3 class="h6 mb-1">Pay item requirements</h3>
-                    <p class="small app-muted mb-0">Review the managed Xero earnings-rate pay items this venue needs before timesheet export mapping. Managed names use the {xeroManagedPayItemNamePrefix} prefix.</p>
+                    <p class="small app-muted mb-0">Review the managed Xero earnings-rate pay items this venue needs before timesheet export mapping. Managed names include Bepis and put the pay condition first.</p>
                 </div>
                 <div class="d-flex flex-wrap gap-2">
                     {renderAppStatusBadge AppStatusSuccess (tshow matchedCount <> " matched")}

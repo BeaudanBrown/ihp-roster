@@ -345,31 +345,32 @@ requiredPayItemName row =
     xeroManagedPayItemName (localPayItemLabel row)
 
 xeroManagedPayItemNamePrefix :: Text
-xeroManagedPayItemNamePrefix = "Bepis - "
+xeroManagedPayItemNamePrefix = xeroManagedPayItemNameBrand <> " - "
+
+xeroManagedPayItemNameBrand :: Text
+xeroManagedPayItemNameBrand = "Bepis"
 
 xeroManagedPayItemName :: Text -> Text
-xeroManagedPayItemName label =
-    xeroManagedPayItemNamePrefix <> label
+xeroManagedPayItemName label = label
 
 isXeroManagedPayItemName :: Text -> Bool
-isXeroManagedPayItemName =
-    Text.isPrefixOf (Text.toCaseFold xeroManagedPayItemNamePrefix) . Text.toCaseFold
+isXeroManagedPayItemName name =
+    let foldedName = Text.toCaseFold name
+        foldedLegacyPrefix = Text.toCaseFold xeroManagedPayItemNamePrefix
+        foldedBrandSegment = Text.toCaseFold (" - " <> xeroManagedPayItemNameBrand <> " - ")
+     in Text.isPrefixOf foldedLegacyPrefix foldedName || foldedBrandSegment `Text.isInfixOf` foldedName
 
 localPayItemLabel :: AwardPayItemRow -> Text
 localPayItemLabel row =
-    awardLabel row.awardFixedId
-        <> " - "
-        <> employmentBasisLabel row.employmentBasis
-        <> " - "
-        <> effectiveDateLabel row.operativeFrom
+    conditionLabel row.condition
         <> " - "
         <> row.classification
         <> " - "
-        <> conditionLabel row.condition
-
-awardLabel :: Int -> Text
-awardLabel 9            = "HIGA"
-awardLabel awardFixedId = "Award " <> tshow awardFixedId
+        <> employmentBasisLabel row.employmentBasis
+        <> " - "
+        <> xeroManagedPayItemNameBrand
+        <> " - "
+        <> effectiveDateLabel row.operativeFrom
 
 employmentBasisLabel :: StaffEmploymentBasisEnum -> Text
 employmentBasisLabel Permanent = "PERM"
@@ -585,9 +586,28 @@ findMatchingEarningsRate requirementName
         List.find
             (\earningsRate ->
                 isXeroManagedPayItemName earningsRate.name
-                    && Text.toCaseFold earningsRate.name == Text.toCaseFold requirementName
+                    && Text.toCaseFold earningsRate.name `elem` candidateNames
             )
     | otherwise = const Nothing
+    where
+        candidateNames = map Text.toCaseFold (requirementName : legacyManagedPayItemNames requirementName)
+
+legacyManagedPayItemNames :: Text -> [Text]
+legacyManagedPayItemNames requirementName =
+    case Text.splitOn " - " requirementName of
+        [condition, classification, basis, brand, effectiveDate]
+            | Text.toCaseFold brand == Text.toCaseFold xeroManagedPayItemNameBrand ->
+                [ xeroManagedPayItemNamePrefix
+                    <> "HIGA - "
+                    <> basis
+                    <> " - "
+                    <> effectiveDate
+                    <> " - "
+                    <> classification
+                    <> " - "
+                    <> condition
+                ]
+        _ -> []
 
 dedupeRequirementsByKey :: [XeroPayItemRequirement] -> [XeroPayItemRequirement]
 dedupeRequirementsByKey =
