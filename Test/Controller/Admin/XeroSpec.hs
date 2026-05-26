@@ -1176,6 +1176,62 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-indicator=\"#xero-timesheet-submission-indicator\""
                 response `responseBodyShouldContain` "Selected Xero payroll period"
 
+        it "only shows Xero pay periods that contain approved local entries" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "name=\"periodKey\""
+                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+                response `responseBodyShouldNotContain` "No synced Xero pay periods available"
+
+        it "does not show Xero pay periods that only have unapproved local entries" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                forM_ fixture.entries \entry ->
+                    entry
+                        |> set #isApproved False
+                        |> set #approvedAt Nothing
+                        |> set #approvedByUserId Nothing
+                        |> set #staffPayVersionId Nothing
+                        |> set #shiftTypePayVersionId Nothing
+                        |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "No synced Xero pay periods available"
+                response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+
+        it "does not show posted Xero pay-run periods in the draft-timesheet dropdown" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                _ <- createXeroPayRunForFixture fixture "POSTED"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "No synced Xero pay periods available"
+                response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+
+        it "shows historical unposted Xero periods when they contain approved local entries" $ withContext do
+            withCleanDb do
+                let historicalStart = fromGregorian 2025 1 6
+                fixture <- Preview.createPreviewFixtureAtPeriod "weekly" historicalStart [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                _ <- createXeroPayRunForFixture fixture "DRAFT"
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+                response `responseBodyShouldContain` "DRAFT"
+
         it "opens the guided Xero preparation modal for a selected pay period" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
@@ -1434,7 +1490,6 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "Setup"
                 response `responseBodyShouldNotContain` "name=\"xeroPayrollCalendarSelection\""
-                response `responseBodyShouldContain` "Preview Calendar"
                 calendarSelection <- query @XeroPayrollCalendarSelection |> fetchOne
                 calendarSelection.calendarStatus `shouldBe` "stale"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
@@ -2294,6 +2349,25 @@ createPreparationRunForFixture fixture status =
         |> set #payPeriodStart fixture.periodStart
         |> set #payPeriodEnd fixture.periodEnd
         |> set #status status
+        |> createRecord
+
+createXeroPayRunForFixture ::
+    (?modelContext :: ModelContext) =>
+    Preview.PreviewFixture ->
+    Text ->
+    IO XeroPayRun
+createXeroPayRunForFixture fixture status = do
+    now <- getCurrentTime
+    newRecord @XeroPayRun
+        |> set #venueId (unpackId fixture.venue.id)
+        |> set #xeroConnectionId (unpackId fixture.connection.id)
+        |> set #xeroPayRunId ("pay-run-" <> Text.toLower status)
+        |> set #xeroPayrollCalendarId ("calendar-preview" :: Text)
+        |> set #payPeriodStart fixture.periodStart
+        |> set #payPeriodEnd fixture.periodEnd
+        |> set #payRunStatus (Just status)
+        |> set #rawPayload (Aeson.object ["PayRunID" Aeson..= ("pay-run-" <> Text.toLower status)])
+        |> set #syncedAt now
         |> createRecord
 
 createXeroPayrollCalendarRecord ::

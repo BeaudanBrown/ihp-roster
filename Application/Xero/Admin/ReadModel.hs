@@ -38,6 +38,7 @@ import Application.Helper.VenueScopedQueries
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
 import Application.Helper.XeroTimesheetReadiness
+import Control.Monad (guard)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.Char as Char
@@ -446,33 +447,46 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
             |> orderByDesc #payPeriodStart
             |> fetch
+    approvedEntries <-
+        query @TimesheetEntry
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> filterWhere (#isApproved, True)
+            |> filterWhere (#deletedAt, Nothing)
+            |> orderByDesc #workedOn
+            |> fetch
     today <- utctDay <$> getCurrentTime
-    let derivedOptions = concatMap (derivedPeriodOptions today payRuns) calendars
-        payRunOnlyOptions = mapMaybe (payRunOnlyPeriodOption calendars) payRuns
+    let approvedWorkedOnDates = List.nub (map (.workedOn) approvedEntries)
+        derivedOptions = concatMap (derivedPeriodOptions today payRuns approvedWorkedOnDates) calendars
+        payRunOnlyOptions = mapMaybe (payRunOnlyPeriodOption calendars approvedWorkedOnDates) payRuns
     pure $
         (derivedOptions <> payRunOnlyOptions)
             |> List.nubBy samePeriodOption
             |> List.sortOn (Down . (.periodOptionStart))
 
-derivedPeriodOptions :: Day -> [XeroPayRun] -> XeroPayrollCalendar -> [XeroTimesheetPeriodOption]
-derivedPeriodOptions today payRuns calendar =
-    case deriveXeroPayrollCalendarPeriod calendar today of
-        Nothing -> []
-        Just (currentStart, currentEnd) ->
-            let periodLength = max 1 (diffDays currentEnd currentStart + 1)
-                offsets = [-6 .. 4] :: [Integer]
-             in map (optionForOffset periodLength currentStart currentEnd) offsets
+derivedPeriodOptions :: Day -> [XeroPayRun] -> [Day] -> XeroPayrollCalendar -> [XeroTimesheetPeriodOption]
+derivedPeriodOptions today payRuns approvedWorkedOnDates calendar =
+    mapMaybe optionForWorkedOn approvedWorkedOnDates
     where
-        optionForOffset periodLength currentStart currentEnd offset =
-            let periodStart = addDays (offset * periodLength) currentStart
-                periodEnd = addDays (offset * periodLength) currentEnd
+        optionForWorkedOn workedOn = do
+            (currentStart, currentEnd) <- deriveXeroPayrollCalendarPeriod calendar today
+            let periodLength = max 1 (diffDays currentEnd currentStart + 1)
+                offset = diffDays workedOn currentStart `div` periodLength
+                periodStart = addDays (offset * periodLength) currentStart
+                periodEnd = addDays (periodLength - 1) periodStart
                 maybePayRun = findPayRun calendar periodStart periodEnd payRuns
-             in periodOptionFrom calendar periodStart periodEnd maybePayRun True
+            guard (not (maybe False isPostedPayRun maybePayRun))
+            pure (periodOptionFrom calendar periodStart periodEnd maybePayRun True)
 
-payRunOnlyPeriodOption :: [XeroPayrollCalendar] -> XeroPayRun -> Maybe XeroTimesheetPeriodOption
-payRunOnlyPeriodOption calendars payRun = do
+payRunOnlyPeriodOption :: [XeroPayrollCalendar] -> [Day] -> XeroPayRun -> Maybe XeroTimesheetPeriodOption
+payRunOnlyPeriodOption calendars approvedWorkedOnDates payRun = do
+    guard (not (isPostedPayRun payRun))
+    guard (periodContainsApprovedEntry approvedWorkedOnDates payRun.payPeriodStart payRun.payPeriodEnd)
     calendar <- List.find (\candidate -> candidate.xeroPayrollCalendarId == payRun.xeroPayrollCalendarId) calendars
     pure (periodOptionFrom calendar payRun.payPeriodStart payRun.payPeriodEnd (Just payRun) False)
+
+periodContainsApprovedEntry :: [Day] -> Day -> Day -> Bool
+periodContainsApprovedEntry approvedWorkedOnDates periodStart periodEnd =
+    any (\workedOn -> workedOn >= periodStart && workedOn <= periodEnd) approvedWorkedOnDates
 
 periodOptionFrom :: XeroPayrollCalendar -> Day -> Day -> Maybe XeroPayRun -> Bool -> XeroTimesheetPeriodOption
 periodOptionFrom calendar periodStart periodEnd maybePayRun derivedFromSyncedXero =
