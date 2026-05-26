@@ -31,6 +31,7 @@ instance Controller SupportController where
     action SupportAction = do
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
+        canAddPasskey <- supportCanAddPasskey passkeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
@@ -49,6 +50,7 @@ instance Controller SupportController where
     action CreateSupportVenueOnboardingInvitationAction = do
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
+        canAddPasskey <- supportCanAddPasskey passkeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
         now <- getCurrentTime
@@ -170,6 +172,11 @@ fetchPublicHolidaySectionData = do
     latestPublicHolidayRefreshJob <- fetchLatestAppJobByKind publicHolidayRefreshJobKind
     activePublicHolidayRefreshJob <- fetchActiveAppJobByDedupeKey publicHolidayRefreshJobDedupeKey
     pure (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob)
+
+supportCanAddPasskey :: (?context :: ControllerContext) => [Passkey] -> IO Bool
+supportCanAddPasskey passkeys = do
+    recoveryVerified <- isCurrentUserPasskeyRecoveryVerified
+    pure (null passkeys || recoveryVerified)
 
 respondToAwardRatesRefresh :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO ()
 respondToAwardRatesRefresh =

@@ -1,6 +1,7 @@
 module Test.Controller.PasskeysSpec where
 
-import Application.Helper.Controller (currentVenueSessionKey,
+import Application.Helper.Controller (PlatformRole (SuperAdminRole),
+                                      currentVenueSessionKey,
                                       formatPasskeyVerifiedAt,
                                       passkeyRecoveryVerifiedAtSessionKey,
                                       passkeyRecoveryVerifiedUserSessionKey,
@@ -335,6 +336,33 @@ tests = beforeAll testContext do
 
                 reuseResponse `responseStatusShouldBe` status302
                 lookup HTTP.hLocation (responseHeaders reuseResponse) `shouldBe` Just "http://localhost/PasskeyStepUp"
+
+        it "routes super-admin recovery code users back to support passkey setup" $ withContext do
+            withCleanDb do
+                founder <- createUserRecordWithPlatformRole "support-recovery-code@example.com" "staff" (Just SuperAdminRole) True
+                _ <- createTestPasskeyRecord founder "Existing support passkey"
+                _ <- newRecord @PasskeyRecoveryCode
+                    |> set #userId (unpackId founder.id)
+                    |> set #codeHash (hashRecoveryCode "support-recovery-code")
+                    |> createRecord
+
+                response <- withUser founder do
+                    callActionWithParams UsePasskeyRecoveryCodeAction [("recoveryCode", "support recovery code")]
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/Support"
+                now <- getCurrentTime
+                supportResponse <- withSessionValues
+                    [ (cs (LoginSupport.sessionKey @User), Serialize.encode founder.id)
+                    , (passkeyRecoveryVerifiedUserSessionKey, Serialize.encode (inputValue founder.id :: Text))
+                    , (passkeyRecoveryVerifiedAtSessionKey, Serialize.encode (formatPasskeyVerifiedAt now))
+                    ]
+                    do
+                        callAction SupportAction
+
+                supportResponse `responseStatusShouldBe` status200
+                supportResponse `responseBodyShouldContain` "Add passkey"
+                supportResponse `responseBodyShouldContain` "data-success-redirect=\"/Support\""
 
         it "allows recovery-code verified admins to begin replacement passkey registration" $ withContext do
             withCleanDb do

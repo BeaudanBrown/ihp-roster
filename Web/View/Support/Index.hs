@@ -14,6 +14,7 @@ data IndexView = IndexView
     { onboardingInvitation          :: VenueOnboardingInvitation
     , onboardingInvitations         :: [VenueOnboardingInvitation]
     , passkeys                      :: [Passkey]
+    , canAddPasskey                 :: Bool
     , fwcMapdAdminData              :: FwcMapdAdminData
     , latestFwcMapdRefreshJob       :: Maybe AppJob
     , activeFwcMapdRefreshJob       :: Maybe AppJob
@@ -52,7 +53,7 @@ instance View IndexView where
                 simpleAppPanel
                     "Sign-In Methods"
                     Nothing
-                    (renderPasskeyManagementWithAddButton (null passkeys) passkeys (pathTo SupportAction))
+                    (renderPasskeyManagementWithAddButton canAddPasskey passkeys (pathTo SupportAction))
             awardRatesPanel =
                 simpleAppPanel
                     "Award Rates"
