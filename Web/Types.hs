@@ -151,6 +151,8 @@ data AdminController
     | ShowAdminXeroTimesheetsFragmentAction
     | CreateVenueInvitationAction
     | RevokeVenueInvitationAction { venueInvitationId :: !(Id VenueInvitation) }
+    | SendStaffPasskeySetupEmailAction { staffId :: !(Id Staff) }
+    | SendStaffPasskeyRecoveryEmailAction { staffId :: !(Id Staff) }
     | CreateRosterGroupAction
     | UpdateRosterGroupAction { rosterGroupId :: !(Id RosterGroup) }
     | MoveRosterGroupUpAction { rosterGroupId :: !(Id RosterGroup) }

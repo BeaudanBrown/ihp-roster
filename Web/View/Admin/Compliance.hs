@@ -8,7 +8,7 @@ module Web.View.Admin.Compliance
     , renderComplianceSectionFragment
     ) where
 
-import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.Controller (VenueRole (VenueOwnerRole), currentVenueOrNothing, currentUserIsSuperAdmin, hasRole)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
@@ -127,6 +127,7 @@ renderComplianceRow today StaffRsaComplianceRow { complianceStaff, complianceUse
                 <div>
                     <div class="fw-semibold">{rsaStaffDisplayName complianceStaff}</div>
                     <div class="small app-muted">{maybe "No linked login" (.email) complianceUser}</div>
+                    {renderPasskeySetupControls complianceStaff complianceUser}
                 </div>
                 {renderRsaStateStatusBadge complianceRsaState}
             </header>
@@ -135,3 +136,17 @@ renderComplianceRow today StaffRsaComplianceRow { complianceStaff, complianceUse
             </div>
         </section>
     |]
+
+renderPasskeySetupControls :: (?context :: ControllerContext) => Staff -> Maybe User -> Html
+renderPasskeySetupControls staff (Just _user)
+    | currentUserIsSuperAdmin || hasRole VenueOwnerRole = [hsx|
+        <div class="d-flex flex-wrap gap-2 mt-2">
+            <form method="POST" action={SendStaffPasskeySetupEmailAction staff.id} class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Email passkey setup</button>
+            </form>
+            <form method="POST" action={SendStaffPasskeyRecoveryEmailAction staff.id} class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-warning">Email recovery link</button>
+            </form>
+        </div>
+    |]
+renderPasskeySetupControls _ _ = mempty

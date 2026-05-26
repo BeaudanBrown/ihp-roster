@@ -323,6 +323,29 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-begin-url=\"/BeginPasskeySetupRegistration?token="
                 response `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeySetupRegistration\""
 
+        it "lets venue owners send staff passkey recovery links" $ withContext do
+            withCleanDb do
+                setEnv "DISABLE_EMAIL_DELIVERY" "1"
+                venue <- createVenueWithConfig "Staff Recovery Venue"
+                owner <- createUserRecord "staff-recovery-owner@example.com" "admin" True
+                target <- createUserRecord "staff-recovery-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                _ <- createVenueMembershipRecord venue target "worker"
+                targetStaff <- query @Staff
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#userId, Just (unpackId target.id))
+                    |> fetchOne
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                    callAction (SendStaffPasskeyRecoveryEmailAction targetStaff.id)
+
+                response `responseStatusShouldBe` status302
+                setupToken <- query @PasskeySetupToken |> fetchOne
+                setupToken.userId `shouldBe` unpackId target.id
+                setupToken.requestedByUserId `shouldBe` Just (unpackId owner.id)
+                setupToken.venueId `shouldBe` Just (unpackId venue.id)
+                setupToken.purpose `shouldBe` "staff_recovery"
+
         it "rejects passkey registration finishes if the pending user changes" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Pending Registration User Venue"

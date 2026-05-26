@@ -1,6 +1,7 @@
 module Web.Controller.Admin where
 
 import Application.Helper.Export
+import Application.Helper.PasskeySetupTokens
 import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource (..), liveMutationResult)
 import Application.Helper.Profiling
@@ -82,6 +83,38 @@ respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero =
                     ]
         else redirectToAdminFor (paramOrNothing "rosterGroupId")
 
+sendStaffPasskeySetupLink ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id Staff ->
+    PasskeySetupTokenPurpose ->
+    Text ->
+    IO ()
+sendStaffPasskeySetupLink staffId purpose successMessage = do
+    redirectPermissionDeniedUnless
+        (currentUserIsSuperAdmin || hasRole VenueOwnerRole)
+        "Only the venue owner or a super admin can send passkey setup links."
+    maybeTarget <- fetchCurrentVenueStaffUser staffId
+    case maybeTarget of
+        Nothing -> do
+            setErrorMessage "Choose a linked staff login from this venue."
+            redirectTo AdminAction
+        Just targetUser -> do
+            (_, rawToken) <- issuePasskeySetupToken purpose targetUser (Just currentUser.id) (Just currentVenueId)
+            sendPasskeySetupTokenEmail targetUser purpose rawToken
+            setSuccessMessage successMessage
+            redirectTo AdminAction
+
+fetchCurrentVenueStaffUser :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id Staff -> IO (Maybe User)
+fetchCurrentVenueStaffUser staffId = do
+    maybeStaff <-
+        query @Staff
+            |> filterWhere (#id, staffId)
+            |> filterWhere (#venueId, unpackId currentVenueId)
+            |> fetchOneOrNothing
+    case maybeStaff >>= (.userId) of
+        Nothing -> pure Nothing
+        Just userId -> Just <$> fetch (Id userId :: Id User)
+
 instance Controller AdminController where
     beforeAction = do
         ensureIsUser
@@ -122,6 +155,12 @@ instance Controller AdminController where
         resources <- profileLiveResourcesFor resourceName
         _ <- invalidateTouchedResources ("profile.live." <> resourceName) (liveMutationResult () resources)
         respondHtml "ok"
+
+    action SendStaffPasskeySetupEmailAction { staffId } = do
+        sendStaffPasskeySetupLink staffId StaffNewDevicePasskeySetup "Passkey setup email sent."
+
+    action SendStaffPasskeyRecoveryEmailAction { staffId } = do
+        sendStaffPasskeySetupLink staffId StaffPasskeyRecovery "Passkey recovery email sent."
 
     action StartXeroConnectionAction = do
         ensureVenueWritable
