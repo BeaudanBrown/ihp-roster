@@ -43,6 +43,7 @@ data AuthController
 
 data PasskeysController
     = PasskeyStepUpAction
+    | ShowPasskeyRecoveryCodeDialogAction
     | UsePasskeyRecoveryCodeAction
     | SendNewDevicePasskeySetupEmailAction
     | UpdatePasskeyNameAction { passkeyId :: !(Id Passkey) }

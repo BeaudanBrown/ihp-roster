@@ -21,6 +21,15 @@ instance Controller PasskeysController where
         let stepUpRedirectTo = rawStepUpRedirectTo >>= nonEmptyText
         render StepUpView { .. }
 
+    action ShowPasskeyRecoveryCodeDialogAction = do
+        unless currentUserRequiresMandatoryPasskey do
+            redirectTo RosterWeeksAction
+        passkeys <- fetchCurrentUserPasskeys
+        when (null passkeys) do
+            setErrorMessage "Add your first passkey before using a recovery code."
+            redirectToPath mandatoryPasskeySetupPath
+        respondHtml renderPasskeyRecoveryCodeDialog
+
     action UsePasskeyRecoveryCodeAction = do
         unless currentUserRequiresMandatoryPasskey do
             redirectTo RosterWeeksAction

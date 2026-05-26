@@ -175,7 +175,14 @@ tests = beforeAll testContext do
                     stepUpResponse `responseBodyShouldContain` "data-finish-url=\"/FinishPasskeyStepUpAuthentication\""
                     stepUpResponse `responseBodyShouldContain` "data-success-redirect=\"/RosterWeeks\""
                     stepUpResponse `responseBodyShouldContain` "Can't access your passkey?"
-                    stepUpResponse `responseBodyShouldContain` "Use recovery code"
+                    stepUpResponse `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
+                    stepUpResponse `responseBodyShouldNotContain` "Recovery code"
+
+                    dialogResponse <- callAction ShowPasskeyRecoveryCodeDialogAction
+                    dialogResponse `responseStatusShouldBe` status200
+                    dialogResponse `responseBodyShouldContain` "Recover Passkey Access"
+                    dialogResponse `responseBodyShouldContain` "Use recovery code"
+                    dialogResponse `responseBodyShouldContain` "action=\"/UsePasskeyRecoveryCode\""
 
         it "audits failed passkey step-up attempts" $ withContext do
             withCleanDb do
