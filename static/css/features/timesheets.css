@@ -198,6 +198,10 @@
     font-variant-numeric: tabular-nums;
 }
 
+.timesheet-entry-break-summary {
+    white-space: nowrap;
+}
+
 .timesheet-entry-actions {
     position: relative;
     z-index: 2;
@@ -264,10 +268,13 @@
     white-space: pre-wrap;
 }
 
+.timesheet-shape {
+    margin-top: 0.55rem;
+}
+
 .timesheet-shape-bar {
     position: relative;
     height: 0.7rem;
-    margin-top: 0.55rem;
     border-radius: 999px;
 }
 
@@ -279,15 +286,46 @@
     background: var(--app-timesheet-track-bg);
 }
 
-.timesheet-shape-midnight-marker {
+.timesheet-shape-marker-line {
     position: absolute;
     top: -0.12rem;
     bottom: -0.12rem;
+    width: 1px;
+    margin-left: -0.5px;
+    background: var(--app-slate-alpha-45);
+    border-radius: 999px;
+    z-index: 2;
+}
+
+.timesheet-shape-marker-line.timesheet-shape-marker-midnight {
     width: 2px;
     margin-left: -1px;
     background: var(--app-white-alpha-42);
-    border-radius: 999px;
-    z-index: 2;
+}
+
+.timesheet-shape-labels {
+    position: relative;
+    height: 0.75rem;
+    margin-top: 0.2rem;
+    color: var(--app-muted);
+    font-size: 0.64rem;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+
+.timesheet-shape-marker-label {
+    position: absolute;
+    top: 0;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+.timesheet-shape-marker-start {
+    transform: none;
+}
+
+.timesheet-shape-marker-end {
+    transform: translateX(-100%);
 }
 
 .timesheet-shape-segment {

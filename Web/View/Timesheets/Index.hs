@@ -285,10 +285,10 @@ renderEntryCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayTod
 
             <div class="timesheet-entry-time">
                 <div class="timesheet-entry-time-range">
-                    {storageTimeToDisplayLabel (timeOfDayToStorageValue entry.startTime)} - {storageTimeToDisplayLabel (timeOfDayToStorageValue entry.endTime)}
+                    {renderCompactTimeRange entry.startTime entry.endTime}
                 </div>
                 <div class="timesheet-entry-meta">Shift: {renderDuration entry}</div>
-                <div class="timesheet-entry-meta">Break: {renderBreakSummary entry}</div>
+                <div class="timesheet-entry-meta">Break: <span class="timesheet-entry-break-summary">{renderBreakSummary entry}</span></div>
             </div>
 
             <div class="timesheet-entry-actions">
@@ -393,11 +393,26 @@ renderBreakSummary entry
     | not entry.hadBreak = "None"
     | otherwise =
         case (entry.breakStartTime, entry.breakEndTime) of
-            (Just breakStart, Just breakEnd) ->
-                storageTimeToDisplayLabel (timeOfDayToStorageValue breakStart)
-                    <> " - "
-                    <> storageTimeToDisplayLabel (timeOfDayToStorageValue breakEnd)
+            (Just breakStart, Just breakEnd) -> renderCompactTimeRange breakStart breakEnd
             _ -> "Invalid"
+
+renderCompactTimeRange :: TimeOfDay -> TimeOfDay -> Text
+renderCompactTimeRange startTime endTime =
+    case (stripMeridiem startLabel, stripMeridiem endLabel) of
+        (Just (startClock, startMeridiem), Just (endClock, endMeridiem))
+            | startMeridiem == endMeridiem -> startClock <> "–" <> endClock <> " " <> endMeridiem
+        _ -> startLabel <> "–" <> endLabel
+    where
+        startLabel = storageTimeToDisplayLabel (timeOfDayToStorageValue startTime)
+        endLabel = storageTimeToDisplayLabel (timeOfDayToStorageValue endTime)
+
+stripMeridiem :: Text -> Maybe (Text, Text)
+stripMeridiem label =
+    case Text.stripSuffix " AM" label of
+        Just clock -> Just (clock, "AM")
+        Nothing -> case Text.stripSuffix " PM" label of
+            Just clock -> Just (clock, "PM")
+            Nothing -> Nothing
 
 renderDuration :: TimesheetEntry -> Html
 renderDuration entry =
@@ -422,6 +437,13 @@ data TimesheetShapeSegment = TimesheetShapeSegment
     , segmentClass :: Text
     }
 
+data TimesheetShapeMarker = TimesheetShapeMarker
+    { markerLabel   :: Text
+    , markerMinutes :: Int
+    , markerClass   :: Text
+    , markerHasLine :: Bool
+    }
+
 defaultTimesheetTimelineScale :: TimesheetTimelineScale
 defaultTimesheetTimelineScale =
     TimesheetTimelineScale
@@ -433,15 +455,29 @@ defaultTimesheetTimelineScale =
 renderTimesheetShapeBar :: TimesheetTimelineScale -> TimesheetEntry -> Html
 renderTimesheetShapeBar scale entry =
     let segments = timesheetShapeSegments scale entry
+        markers = timesheetShapeMarkers scale
     in if null segments
         then mempty
         else [hsx|
-            <div class="timesheet-shape-bar">
-                <div class="timesheet-shape-track"></div>
-                <div class="timesheet-shape-midnight-marker" style={timesheetMidnightStyle scale}></div>
-                {forEach segments renderTimesheetShapeSegment}
+            <div class="timesheet-shape">
+                <div class="timesheet-shape-bar">
+                    <div class="timesheet-shape-track"></div>
+                    {forEach (filter markerHasLine markers) (renderTimesheetShapeMarkerLine scale)}
+                    {forEach segments renderTimesheetShapeSegment}
+                </div>
+                <div class="timesheet-shape-labels">
+                    {forEach markers (renderTimesheetShapeMarkerLabel scale)}
+                </div>
             </div>
         |]
+
+timesheetShapeMarkers :: TimesheetTimelineScale -> [TimesheetShapeMarker]
+timesheetShapeMarkers scale =
+    [ TimesheetShapeMarker "6am" (scaleStartMinutes scale) "timesheet-shape-marker-start" False
+    , TimesheetShapeMarker "7pm" (19 * 60) "timesheet-shape-marker-pay-crossover" True
+    , TimesheetShapeMarker "12am" (midnightOffset scale) "timesheet-shape-marker-midnight" True
+    , TimesheetShapeMarker "6am" (scaleEndMinutes scale) "timesheet-shape-marker-end" False
+    ]
 
 timesheetShapeSegments :: TimesheetTimelineScale -> TimesheetEntry -> [TimesheetShapeSegment]
 timesheetShapeSegments scale entry =
@@ -488,11 +524,25 @@ timeOfDayToMinutes :: TimeOfDay -> Int
 timeOfDayToMinutes TimeOfDay { todHour, todMin, todSec } =
     todHour * 60 + todMin + floor (realToFrac todSec :: Pico) `div` 60
 
-timesheetMidnightStyle :: TimesheetTimelineScale -> Text
-timesheetMidnightStyle scale =
+timesheetMarkerLeft :: TimesheetTimelineScale -> Int -> Double
+timesheetMarkerLeft scale minutes =
     let total = fromIntegral (scaleEndMinutes scale - scaleStartMinutes scale) :: Double
-        left = (fromIntegral (midnightOffset scale - scaleStartMinutes scale) / total) * 100
-    in "left:" <> tshow left <> "%;"
+    in (fromIntegral (minutes - scaleStartMinutes scale) / total) * 100
+
+timesheetMarkerStyle :: TimesheetTimelineScale -> Int -> Text
+timesheetMarkerStyle scale minutes = "left:" <> tshow (timesheetMarkerLeft scale minutes) <> "%;"
+
+renderTimesheetShapeMarkerLine :: TimesheetTimelineScale -> TimesheetShapeMarker -> Html
+renderTimesheetShapeMarkerLine scale marker = [hsx|
+    <div class={"timesheet-shape-marker-line " <> markerClass marker}
+         style={timesheetMarkerStyle scale (markerMinutes marker)}></div>
+|]
+
+renderTimesheetShapeMarkerLabel :: TimesheetTimelineScale -> TimesheetShapeMarker -> Html
+renderTimesheetShapeMarkerLabel scale marker = [hsx|
+    <span class={"timesheet-shape-marker-label " <> markerClass marker}
+          style={timesheetMarkerStyle scale (markerMinutes marker)}>{markerLabel marker}</span>
+|]
 
 renderTimesheetShapeSegment :: TimesheetShapeSegment -> Html
 renderTimesheetShapeSegment segment = [hsx|
