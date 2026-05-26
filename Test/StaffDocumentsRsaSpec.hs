@@ -44,6 +44,27 @@ tests = beforeAll testContext do
             result.candidate.recipientName `shouldBe` Just "Riley RSA"
             result.confidence `shouldSatisfy` (>= 80)
 
+        it "extracts recipient names that appear after a certify marker line" \_ -> do
+            let result = parseRsaCertificateText (Text.unlines
+                    [ "Certificate of Completion"
+                    , "this is to certify that"
+                    , "Beaudan Campbell-Brown"
+                    , "has completed to satisfaction the"
+                    , "Responsible Service of Alcohol Program"
+                    , "(online refresher course)"
+                    , "approved by Liquor Control Victoria for the"
+                    , "Victorian Liquor Commission"
+                    , "valid from"
+                    , "21 January 2024 - 21 January 2027"
+                    , "Chris Carter"
+                    , "Chief Operating Officer"
+                    , "Certificate No: gsp0130044"
+                    ])
+            result.candidate.issueDate `shouldBe` Just (fromGregorian 2024 1 21)
+            result.candidate.expiryDate `shouldBe` Just (fromGregorian 2027 1 21)
+            result.candidate.documentNumber `shouldBe` Just "gsp0130044"
+            result.candidate.recipientName `shouldBe` Just "Beaudan Campbell-Brown"
+
         it "parses numeric date ranges and certificate-number variants" \_ -> do
             let result = parseRsaCertificateText (Text.unlines
                     [ "RSA Statement of Attainment"

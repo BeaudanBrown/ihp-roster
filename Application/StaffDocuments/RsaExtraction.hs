@@ -208,7 +208,7 @@ authorityFromLine line
 
 findRecipientName :: [Text] -> Maybe Text
 findRecipientName lines =
-    labelledRecipientName lines <|> certifyRecipientName lines
+    labelledRecipientName lines <|> certifyRecipientName lines <|> recipientNameAfterMarker lines
 
 labelledRecipientName :: [Text] -> Maybe Text
 labelledRecipientName lines =
@@ -224,10 +224,35 @@ labelledRecipientName lines =
 certifyRecipientName :: [Text] -> Maybe Text
 certifyRecipientName lines =
     lines
-        |> mapMaybe (valueAfterPhrase ["this is to certify that", "certify that"])
+        |> mapMaybe (valueAfterPhrase recipientMarkerPhrases)
         |> map cleanName
         |> filter plausibleName
         |> listToMaybe
+
+recipientNameAfterMarker :: [Text] -> Maybe Text
+recipientNameAfterMarker lines =
+    lines
+        |> List.tails
+        |> mapMaybe recipientNameFromMarkerTail
+        |> listToMaybe
+
+recipientNameFromMarkerTail :: [Text] -> Maybe Text
+recipientNameFromMarkerTail [] = Nothing
+recipientNameFromMarkerTail (line:followingLines)
+    | containsAny recipientMarkerPhrases line =
+        followingLines
+            |> take 4
+            |> map cleanName
+            |> filter plausibleRecipientLine
+            |> listToMaybe
+    | otherwise = Nothing
+
+recipientMarkerPhrases :: [Text]
+recipientMarkerPhrases =
+    [ "this is to certify that"
+    , "certify that"
+    , "awarded to"
+    ]
 
 parserWarnings :: Text -> [Text] -> RsaExtractionCandidate -> [Day] -> [Text]
 parserWarnings rawText lines candidate dates =
@@ -308,6 +333,26 @@ plausibleName :: Text -> Bool
 plausibleName name =
     let wordsCount = length (Text.words name)
      in wordsCount >= 2 && wordsCount <= 5 && not (Text.any isDigit name)
+
+plausibleRecipientLine :: Text -> Bool
+plausibleRecipientLine name =
+    plausibleName name && not (containsAny nonRecipientLineKeywords name)
+
+nonRecipientLineKeywords :: [Text]
+nonRecipientLineKeywords =
+    [ "certificate"
+    , "completion"
+    , "responsible service"
+    , "alcohol"
+    , "program"
+    , "course"
+    , "approved"
+    , "commission"
+    , "licence"
+    , "license"
+    , "valid"
+    , "officer"
+    ]
 
 windows :: Int -> [a] -> [[a]]
 windows size values
