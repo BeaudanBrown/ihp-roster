@@ -292,8 +292,36 @@ tests = beforeAll testContext do
                 updatedConnection.xeroConnectionRemoteId `shouldBe` Just "connection-existing"
                 connectionCount <- query @XeroConnection |> fetchCount
                 connectionCount `shouldBe` 1
-                auditEvents <- query @AuditEvent |> filterWhere (#eventType, "xero_connection_disconnected" :: Text) |> fetch
-                length auditEvents `shouldBe` 1
+                [auditEvent] <- query @AuditEvent |> filterWhere (#eventType, "xero_connection_disconnected" :: Text) |> fetch
+                let remoteDisconnect = AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "remoteDisconnect")) auditEvent.payload
+                remoteDisconnect `shouldBe` Just ("succeeded" :: Text)
+
+        it "disconnects locally when the Xero refresh token has expired" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Xero Expired Disconnect Venue"
+                owner <- createUserRecord "xero-expired-disconnect@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue owner "venue_owner"
+                connection <- createSyncableXeroConnection venue owner >>= \record ->
+                    record
+                        |> set #xeroConnectionRemoteId Nothing
+                        |> updateRecord
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest (failingRefreshXeroClient "{\"error\":\"invalid_grant\",\"error_description\":\"Refresh token not found\"}") do
+                        withPasskeyVerifiedUserAndCurrentVenue owner venue.id do
+                            callAction DisconnectXeroConnectionAction
+
+                response `responseStatusShouldBe` status302
+                updatedConnection <- fetch connection.id
+                updatedConnection.connectionStatus `shouldBe` "disconnected"
+                updatedConnection.disconnectedByUserId `shouldBe` Just (unpackId owner.id)
+                updatedConnection.disconnectedAt `shouldSatisfy` isJust
+                updatedConnection.encryptedAccessToken `shouldBe` Nothing
+                updatedConnection.xeroConnectionRemoteId `shouldBe` Nothing
+                updatedConnection.lastError `shouldBe` Nothing
+                [auditEvent] <- query @AuditEvent |> filterWhere (#eventType, "xero_connection_disconnected" :: Text) |> fetch
+                let remoteDisconnect = AesonTypes.parseMaybe (Aeson.withObject "payload" (Aeson..: "remoteDisconnect")) auditEvent.payload
+                remoteDisconnect `shouldBe` Just ("skipped_token_invalid" :: Text)
 
         it "rejects venue admins from Xero connection management actions" $ withContext do
             withCleanDb do

@@ -97,43 +97,56 @@ disconnectXeroConnection ::
     IO ()
 disconnectXeroConnection connection = do
     readXeroConfig >>= \case
-        Left message -> do
-            setErrorMessage message
-            redirectTo XeroAction
+        Left _message ->
+            completeLocalXeroDisconnect connection connection.xeroConnectionRemoteId "skipped_not_configured"
         Right xeroConfig -> do
             refreshResult <- refreshXeroConnectionAccessWithoutBroadcast xeroConfig connection
             case refreshResult of
                 Left message -> do
-                    setErrorMessage message
-                    redirectTo XeroAction
+                    latestConnection <- fetch connection.id
+                    if latestConnection.connectionStatus == "reauthorization_required"
+                        then completeLocalXeroDisconnect latestConnection latestConnection.xeroConnectionRemoteId "skipped_token_invalid"
+                        else do
+                            setErrorMessage message
+                            redirectTo XeroAction
                 Right (refreshedConnection, accessToken) -> do
                     xeroClient <- currentXeroClient
                     remoteIdResult <- resolveXeroRemoteConnectionId xeroClient refreshedConnection accessToken
                     case remoteIdResult of
                         Left message -> do
                             _ <- markXeroConnectionErrorMutation refreshedConnection message
-                            setErrorMessage message
-                            redirectTo XeroAction
+                            completeLocalXeroDisconnect refreshedConnection refreshedConnection.xeroConnectionRemoteId "skipped_remote_id_missing"
                         Right remoteConnectionId -> do
                             deleteResult <- deleteXeroConnection xeroClient accessToken remoteConnectionId
                             case deleteResult of
                                 Left err -> do
                                     let message = "Xero disconnect failed: " <> xeroClientErrorText err
                                     _ <- markXeroConnectionErrorMutation refreshedConnection message
-                                    setErrorMessage message
-                                    redirectTo XeroAction
-                                Right () -> completeLocalXeroDisconnect refreshedConnection remoteConnectionId
+                                    completeLocalXeroDisconnect refreshedConnection (Just remoteConnectionId) "failed"
+                                Right () -> completeLocalXeroDisconnect refreshedConnection (Just remoteConnectionId) "succeeded"
 
 completeLocalXeroDisconnect ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroConnection ->
+    Maybe Text ->
     Text ->
     IO ()
-completeLocalXeroDisconnect connection remoteConnectionId = do
+completeLocalXeroDisconnect connection maybeRemoteConnectionId remoteDisconnectStatus = do
     now <- getCurrentTime
-    updatedConnection <- liveMutationValue <$> completeLocalXeroDisconnectMutation connection remoteConnectionId now
-    setSuccessMessage ("Disconnected Xero tenant " <> fromMaybe updatedConnection.tenantId updatedConnection.tenantName <> ".")
+    updatedConnection <- liveMutationValue <$> completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDisconnectStatus now
+    setSuccessMessage (localDisconnectMessage updatedConnection remoteDisconnectStatus)
     redirectTo XeroAction
+
+localDisconnectMessage :: XeroConnection -> Text -> Text
+localDisconnectMessage connection remoteDisconnectStatus =
+    let tenantLabel = fromMaybe connection.tenantId connection.tenantName
+     in case remoteDisconnectStatus of
+            "succeeded" -> "Disconnected Xero tenant " <> tenantLabel <> "."
+            "skipped_token_invalid" -> "Disconnected Xero tenant " <> tenantLabel <> " locally. Xero token was already expired or invalid, so the remote Xero disconnect could not be called."
+            "skipped_remote_id_missing" -> "Disconnected Xero tenant " <> tenantLabel <> " locally. The Xero connection identifier was unavailable, so the remote Xero disconnect could not be called."
+            "skipped_not_configured" -> "Disconnected Xero tenant " <> tenantLabel <> " locally. Xero is not configured, so the remote Xero disconnect could not be called."
+            "failed" -> "Disconnected Xero tenant " <> tenantLabel <> " locally. Xero-side revocation was not confirmed."
+            _ -> "Disconnected Xero tenant " <> tenantLabel <> " locally."
 
 resolveXeroRemoteConnectionId ::
     (?modelContext :: ModelContext) =>

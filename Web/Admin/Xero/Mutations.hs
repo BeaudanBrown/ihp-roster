@@ -79,8 +79,11 @@ consumeXeroOAuthStateMutation oauthState now =
         |> set #consumedAt (Just now)
         |> updateRecord
 
-completeLocalXeroDisconnectMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> Text -> UTCTime -> IO (LiveMutationResult XeroConnection)
-completeLocalXeroDisconnectMutation connection remoteConnectionId now = do
+completeLocalXeroDisconnectMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => XeroConnection -> Maybe Text -> Text -> UTCTime -> IO (LiveMutationResult XeroConnection)
+completeLocalXeroDisconnectMutation connection maybeRemoteConnectionId remoteDisconnectStatus now = do
+    let retainedRemoteConnectionId = case maybeRemoteConnectionId of
+            Just remoteConnectionId -> Just remoteConnectionId
+            Nothing                 -> connection.xeroConnectionRemoteId
     updated <- withTransaction do
         updated <-
             connection
@@ -88,7 +91,7 @@ completeLocalXeroDisconnectMutation connection remoteConnectionId now = do
                 |> set #disconnectedByUserId (Just (unpackId currentUser.id))
                 |> set #disconnectedAt (Just now)
                 |> set #encryptedAccessToken Nothing
-                |> set #xeroConnectionRemoteId (Just remoteConnectionId)
+                |> set #xeroConnectionRemoteId retainedRemoteConnectionId
                 |> set #lastError Nothing
                 |> updateRecord
         void $
@@ -99,7 +102,8 @@ completeLocalXeroDisconnectMutation connection remoteConnectionId now = do
                 ( Aeson.object
                     [ "tenantId" Aeson..= updated.tenantId
                     , "tenantName" Aeson..= updated.tenantName
-                    , "xeroConnectionId" Aeson..= remoteConnectionId
+                    , "xeroConnectionId" Aeson..= retainedRemoteConnectionId
+                    , "remoteDisconnect" Aeson..= remoteDisconnectStatus
                     ]
                 )
         pure updated
