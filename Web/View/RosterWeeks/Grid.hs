@@ -657,11 +657,13 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
         currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel slot.staffId renderIndexes)
         currentShiftType = findShiftTypeForSlot shiftTypes slot.shiftTypeId
         currentShiftTypeLabel = fromMaybe "" (renderShiftTypeOptionLabel <$> currentShiftType)
+        currentShiftTypeColourKey = shiftTypeBadgeColourKey currentShiftType
     in
     if endTimesEnabled
         then [hsx|
             <div role="gridcell"
                  class={classes [("slot-time-cell", True), ("slot-start-time-cell", True), ("roster-block-start", blockIndex > 0)]}
+                 data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableTimeCell "startTime" "Select roster slot start time" "Start" (ExistingRosterSlotTarget slot.id) currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
@@ -669,6 +671,7 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
 
             <div role="gridcell"
                  class="slot-time-cell slot-end-time-cell"
+                 data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableTimeCell "endTime" "Select roster slot end time" "End" (ExistingRosterSlotTarget slot.id) currentEndTime else renderReadOnlyCell (renderTimePickerDisplayLabel "End" currentEndTime)}
@@ -678,6 +681,7 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
                  class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}
                  title={renderConflictMessage currentPrimaryConflict}
                  data-conflict-message={renderConflictMessage currentPrimaryConflict}
+                 data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableStaffCell assignmentFilters (ExistingRosterSlotTarget slot.id) slot.staffId staffMembers staffOptionStates currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
@@ -685,7 +689,7 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
 
             <div role="gridcell"
                  class={classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", isNothing slot.shiftTypeId), ("is-shift-type-required", isJust slot.staffId && isNothing slot.shiftTypeId)]}
-                 data-roster-shift-colour={shiftTypeBadgeColourKey currentShiftType}
+                 data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableShiftTypeCell (ExistingRosterSlotTarget slot.id) slot.shiftTypeId shiftTypes else renderReadOnlyCell currentShiftTypeLabel}
@@ -694,6 +698,7 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
         else [hsx|
             <div role="gridcell"
                  class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}
+                 data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableTimeCell "startTime" "Select roster slot time" "Time" (ExistingRosterSlotTarget slot.id) currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Time" currentStartTime)}
@@ -703,6 +708,7 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
                  class={classes [("slot-staff-cell position-relative", True), (renderConflictClass currentPrimaryConflict, True)]}
                  title={renderConflictMessage currentPrimaryConflict}
                  data-conflict-message={renderConflictMessage currentPrimaryConflict}
+                 data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableStaffCell assignmentFilters (ExistingRosterSlotTarget slot.id) slot.staffId staffMembers staffOptionStates currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
@@ -710,7 +716,7 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
 
             <div role="gridcell"
                  class={classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", isNothing slot.shiftTypeId), ("is-shift-type-required", isJust slot.staffId && isNothing slot.shiftTypeId)]}
-                 data-roster-shift-colour={shiftTypeBadgeColourKey currentShiftType}
+                 data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
                 {if isEditable then renderEditableShiftTypeCell (ExistingRosterSlotTarget slot.id) slot.shiftTypeId shiftTypes else renderReadOnlyCell currentShiftTypeLabel}
@@ -757,6 +763,7 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
         rosterSlotDataId = case target of
             ExistingRosterSlotTarget slotId -> tshow slotId
             NewRosterSlotTarget {} -> ""
+        currentShiftTypeColourKey = shiftTypeBadgeColourKey currentShiftType
         endTimeField =
             if endTimesEnabled
                 then [hsx|
@@ -772,6 +779,7 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
         <article class={classes [("roster-shift-card", True), ("roster-shift-card-create", not (targetHasExistingSlot target))]}
                  data-roster-slot-id={rosterSlotDataId}
                  data-roster-staff-id={maybe "" tshow staffId}
+                 data-roster-shift-colour={currentShiftTypeColourKey}
                  title={renderConflictMessage currentPrimaryConflict}
                  data-conflict-message={renderConflictMessage currentPrimaryConflict}>
             <div class={classes [("roster-shift-card-fields", True), ("has-end-times", endTimesEnabled)]}>
@@ -783,7 +791,7 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
                     {if isEditable then renderEditableStaffCell assignmentFilters target staffId staffMembers staffOptionStates currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
                 </div>
                 <div class="roster-shift-card-field roster-shift-card-code"
-                     data-roster-shift-colour={shiftTypeBadgeColourKey currentShiftType}>
+                     data-roster-shift-colour={currentShiftTypeColourKey}>
                     {codeField}
                 </div>
             </div>

@@ -1258,6 +1258,7 @@
 }
 
 .roster-shift-card {
+    position: relative;
     min-width: 0;
     border: 1px solid var(--app-border-alpha-70);
     border-radius: 0.65rem;
@@ -1316,18 +1317,25 @@
     position: relative;
 }
 
-.roster-shift-card-code[data-roster-shift-colour^="palette-"]:not(:has(.roster-shift-type-badge.is-empty))::after {
+.roster-shift-card[data-roster-shift-colour="palette-1"] { --roster-shift-type-colour: var(--roster-shift-type-palette-1); }
+.roster-shift-card[data-roster-shift-colour="palette-2"] { --roster-shift-type-colour: var(--roster-shift-type-palette-2); }
+.roster-shift-card[data-roster-shift-colour="palette-3"] { --roster-shift-type-colour: var(--roster-shift-type-palette-3); }
+.roster-shift-card[data-roster-shift-colour="palette-4"] { --roster-shift-type-colour: var(--roster-shift-type-palette-4); }
+.roster-shift-card[data-roster-shift-colour="palette-5"] { --roster-shift-type-colour: var(--roster-shift-type-palette-5); }
+.roster-shift-card[data-roster-shift-colour="palette-6"] { --roster-shift-type-colour: var(--roster-shift-type-palette-6); }
+.roster-shift-card[data-roster-shift-colour="palette-7"] { --roster-shift-type-colour: var(--roster-shift-type-palette-7); }
+.roster-shift-card[data-roster-shift-colour="palette-8"] { --roster-shift-type-colour: var(--roster-shift-type-palette-8); }
+.roster-shift-card[data-roster-shift-colour="palette-9"] { --roster-shift-type-colour: var(--roster-shift-type-palette-9); }
+.roster-shift-card[data-roster-shift-colour="palette-10"] { --roster-shift-type-colour: var(--roster-shift-type-palette-10); }
+
+.roster-shift-card[data-roster-shift-colour^="palette-"]::after {
     content: "";
     position: absolute;
     inset: 0;
     z-index: 2;
     pointer-events: none;
     border: 3px solid var(--roster-shift-type-colour);
-    border-radius: 0 calc(0.65rem - 1px) calc(0.65rem - 1px) 0;
-}
-
-.roster-shift-card-fields.has-end-times .roster-shift-card-code[data-roster-shift-colour^="palette-"]::after {
-    border-radius: 0 0 calc(0.65rem - 1px) 0;
+    border-radius: calc(0.65rem - 1px);
 }
 
 .roster-shift-card .slot-cell-form,
@@ -1799,8 +1807,18 @@
     color: inherit !important;
 }
 
+.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"],
+.roster-grid .slot-staff-cell[data-roster-shift-colour^="palette-"],
 .roster-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty) {
-    box-shadow: inset 0 0 0 3px var(--roster-shift-type-colour);
+    box-shadow: inset 0 3px 0 var(--roster-shift-type-colour), inset 0 -3px 0 var(--roster-shift-type-colour);
+}
+
+.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.slot-end-time-cell) {
+    box-shadow: inset 3px 0 0 var(--roster-shift-type-colour), inset 0 3px 0 var(--roster-shift-type-colour), inset 0 -3px 0 var(--roster-shift-type-colour);
+}
+
+.roster-grid .roster-block-end[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty) {
+    box-shadow: inset -3px 0 0 var(--roster-shift-type-colour), inset 0 3px 0 var(--roster-shift-type-colour), inset 0 -3px 0 var(--roster-shift-type-colour);
 }
 
 .roster-grid .slot-shift-type-cell.is-shift-type-required {
