@@ -337,10 +337,15 @@
 
 .roster-staff-panel-header {
     display: flex;
-    align-items: flex-end;
+    align-items: flex-start;
     justify-content: space-between;
     gap: 0.75rem;
     margin-bottom: 0.7rem;
+}
+
+.roster-staff-scope-toggle {
+    flex: 0 0 auto;
+    margin-top: 0.05rem;
 }
 
 .roster-staff-panel-summary {
@@ -546,9 +551,12 @@
     }
 
     .roster-staff-panel-list {
+        --roster-staff-scrollbar-gutter-width: 1rem;
         flex: 1 1 auto;
         overflow-y: auto;
-        padding-right: 0.35rem;
+        scrollbar-gutter: stable;
+        margin-right: calc(-1 * var(--roster-staff-scrollbar-gutter-width));
+        padding-right: 0;
     }
 }
 
