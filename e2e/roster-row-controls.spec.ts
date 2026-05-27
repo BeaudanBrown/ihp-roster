@@ -100,6 +100,9 @@ test.describe('Roster row controls', () => {
             const timeTrigger = realCard.querySelector('.slot-time-trigger');
             const staffInput = realCard.querySelector('.slot-cell-input');
             const conflictProbe = document.createElement('div');
+            const emptyStaffInput = createCard?.querySelector('.slot-staff-input');
+            const emptyShiftTypeInput = createCard?.querySelector('.slot-shift-type-input');
+            const emptyTimeLabel = createCard?.querySelector('.roster-shift-card-time .js-time-picker-label');
 
             if (
                 !(column instanceof HTMLElement)
@@ -111,6 +114,9 @@ test.describe('Roster row controls', () => {
                 || !(typeBadge instanceof HTMLElement)
                 || !(timeTrigger instanceof HTMLElement)
                 || !(staffInput instanceof HTMLElement)
+                || !(emptyStaffInput instanceof HTMLSelectElement)
+                || !(emptyShiftTypeInput instanceof HTMLSelectElement)
+                || !(emptyTimeLabel instanceof HTMLElement)
             ) {
                 return null;
             }
@@ -134,6 +140,9 @@ test.describe('Roster row controls', () => {
             const timeTriggerStyle = getComputedStyle(timeTrigger);
             const staffInputStyle = getComputedStyle(staffInput);
             const conflictProbeStyle = getComputedStyle(conflictProbe);
+            const emptyStaffInputStyle = getComputedStyle(emptyStaffInput);
+            const emptyShiftTypeInputStyle = getComputedStyle(emptyShiftTypeInput);
+            const emptyTimeLabelStyle = getComputedStyle(emptyTimeLabel);
 
             const metrics = {
                 columnOverflow: columnStyle.overflow,
@@ -152,6 +161,13 @@ test.describe('Roster row controls', () => {
                 conflictColor: conflictProbeStyle.color,
                 timeTriggerBorderWidth: timeTriggerStyle.borderTopWidth,
                 staffInputBorderWidth: staffInputStyle.borderTopWidth,
+                emptyStaffText: emptyStaffInput.selectedOptions[0]?.textContent?.trim() ?? '',
+                emptyShiftTypeText: emptyShiftTypeInput.selectedOptions[0]?.textContent?.trim() ?? '',
+                emptyStaffColor: emptyStaffInputStyle.color,
+                emptyShiftTypeColor: emptyShiftTypeInputStyle.color,
+                emptyTimeColor: emptyTimeLabelStyle.color,
+                emptyShiftTypeTextAlign: emptyShiftTypeInputStyle.textAlign,
+                emptyShiftTypeTextAlignLast: emptyShiftTypeInputStyle.textAlignLast,
             };
 
             conflictProbe.remove();
@@ -173,6 +189,12 @@ test.describe('Roster row controls', () => {
         expect(metrics?.cardHasConflictClass).toBe(false);
         expect(metrics?.timeTriggerBorderWidth).toBe('0px');
         expect(metrics?.staffInputBorderWidth).toBe('0px');
+        expect(metrics?.emptyStaffText).toBe('Staff');
+        expect(metrics?.emptyShiftTypeText).toBe('Type');
+        expect(metrics?.emptyStaffColor).toBe(metrics?.emptyTimeColor);
+        expect(metrics?.emptyShiftTypeColor).toBe(metrics?.emptyTimeColor);
+        expect(metrics?.emptyShiftTypeTextAlign).toBe('center');
+        expect(metrics?.emptyShiftTypeTextAlignLast).toBe('center');
     });
 
     test('centres read-only day-column names and keeps times on one line', async ({ page }) => {
