@@ -400,8 +400,6 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
                 pageResponse `responseBodyShouldContain` "admin_xero"
                 pageResponse `responseBodyShouldContain` "admin_xero_timesheets"
-                pageResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
-                pageResponse `responseBodyShouldContain` "hx-indicator=\"#xero-reference-sync-indicator\""
                 pageResponse `responseBodyShouldContain` "id=\"xero-reference-sync-indicator\""
                 pageResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
                 pageResponse `responseBodyShouldContain` "id=\"xero-timesheet-submission-indicator\""
@@ -747,14 +745,10 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - Undated"
                 pageResponse `responseBodyShouldNotContain` "Earnings-rate mappings"
                 pageResponse `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
-                pageResponse `responseBodyShouldContain` "Pay item account code"
-                pageResponse `responseBodyShouldContain` "name=\"xeroPayItemAccountCodeSelection\""
-                pageResponse `responseBodyShouldContain` "477: Wages and Salaries"
+                pageResponse `responseBodyShouldNotContain` "name=\"xeroPayItemAccountCodeSelection\""
                 pageResponse `responseBodyShouldNotContain` "xeroPayItemAccountCodeManual"
-                pageResponse `responseBodyShouldContain` "Payroll calendar"
-                pageResponse `responseBodyShouldContain` "Weekly - WEEKLY"
-                pageResponse `responseBodyShouldContain` "name=\"xeroPayrollCalendarSelection\""
-                pageResponse `responseBodyShouldContain` "Ready to submit checklist"
+                pageResponse `responseBodyShouldNotContain` "name=\"xeroPayrollCalendarSelection\""
+                pageResponse `responseBodyShouldNotContain` "Ready to submit checklist"
                 payItemsFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroPayItemsFragmentAction
                 payItemsFragmentResponse `responseStatusShouldBe` status200

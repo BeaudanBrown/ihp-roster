@@ -228,10 +228,11 @@ test.describe('Xero timesheet preparation', () => {
 
         await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
         await expect(page.getByRole('heading', { name: 'Prepare Xero draft timesheets' })).toBeVisible();
-        await expect(preparationDialog).toContainText('E2E Weekly Payroll');
-        await expect(preparationDialog).toContainText('Setup');
-        await expect(preparationDialog).toContainText('needs reconnect');
+        await expect(preparationDialog).toContainText('Pay Period');
+        await expect(preparationDialog).toContainText(/\d{2}\/\d{2}\/\d{4} to \d{2}\/\d{2}\/\d{4} · payment \d{2}\/\d{2}\/\d{4}/);
         await expect(preparationDialog).toContainText('Reconnect Xero before continuing this preparation run.');
+        await expect(preparationDialog).toContainText('Staff mappings');
+        await expect(preparationDialog).toContainText('Managed pay items');
         await expect(preparationDialog.locator('a[href="/StartXeroConnection"]')).toBeVisible();
     });
 });
