@@ -1350,6 +1350,13 @@
 }
 
 .roster-shift-card .slot-cell-input,
+.roster-shift-card .slot-time-trigger,
+.roster-shift-card .slot-cell-static,
+.roster-shift-card .roster-shift-type-badge-label {
+    font-size: var(--roster-text-sm);
+}
+
+.roster-shift-card .slot-cell-input,
 .roster-shift-card .slot-time-trigger {
     border: 0 !important;
     border-radius: 0 !important;
@@ -1451,7 +1458,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.82rem;
     font-weight: 800;
 }
 

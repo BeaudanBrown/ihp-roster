@@ -272,7 +272,7 @@ renderSlotSubHeaders True _ =
         ]
 renderSlotSubHeaders False _ =
     mconcat
-        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time">Time</div>|]
+        [ [hsx|<div role="columnheader" class="roster-subhead roster-col-time">Start</div>|]
         , [hsx|<div role="columnheader" class="roster-subhead roster-col-staff">Staff</div>|]
         , [hsx|<div role="columnheader" class="roster-subhead roster-col-code roster-block-end">Type</div>|]
         ]
