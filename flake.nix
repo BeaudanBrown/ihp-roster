@@ -1818,6 +1818,7 @@ EOF
                             export TEST_DB_SOCKET="''${TEST_DB_SOCKET:-''${PGHOST:-$PWD/build/db}}"
                             export DATABASE_URL="postgresql:///$TEST_DATABASE_NAME?host=$TEST_DB_SOCKET"
                             export IHP_BROWSER="echo"
+                            export IHP_ROSTER_E2E=1
                             exec RunDevServer
                         '';
 
@@ -1829,6 +1830,8 @@ EOF
                             export MAILHOG_BASE_URL="''${MAILHOG_BASE_URL:-http://127.0.0.1:8025}"
                             BASE_E2E_DATABASE_NAME="''${TEST_DATABASE_NAME:-app_e2e}"
                             export E2E_RUN_ID="''${E2E_RUN_ID:-$(date +%s)-$$-$RANDOM}"
+                            export IHP_ROSTER_E2E=1
+                            export E2E_TEST_TOKEN="''${E2E_TEST_TOKEN:-e2e-$E2E_RUN_ID-$RANDOM}"
 
                             detect_cpu_count() {
                                 if command -v getconf >/dev/null 2>&1; then

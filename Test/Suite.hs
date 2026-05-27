@@ -19,6 +19,7 @@ import qualified Test.BillingWebhookSpec
 import qualified Test.ConflictSpec
 import qualified Test.Controller.AdminSpec
 import qualified Test.Controller.BillingSpec
+import qualified Test.Controller.E2ETestSpec
 import qualified Test.Controller.ExportsSpec
 import qualified Test.Controller.LeaveRequestsSpec
 import qualified Test.Controller.PasskeysSpec
@@ -146,6 +147,7 @@ allSuites =
     , TestSuite "BillingReadOnly" Test.BillingReadOnlySpec.tests
     , TestSuite "BillingController" Test.Controller.BillingSpec.tests
     , TestSuite "BillingWebhook" Test.BillingWebhookSpec.tests
+    , TestSuite "E2ETestController" Test.Controller.E2ETestSpec.tests
     , TestSuite "StripeBilling" Test.StripeBillingSpec.tests
     , TestSuite "StripeContract" Test.StripeContractSpec.tests
     , TestSuite "AdminController" Test.Controller.AdminSpec.tests

@@ -114,6 +114,10 @@ data StripeWebhooksController
     = StripeWebhookAction
     deriving (Eq, Show, Data)
 
+data E2ETestController
+    = MarkE2EPasskeyVerifiedAction
+    deriving (Eq, Show, Data)
+
 data AdminController
     = AdminAction
     | XeroAction

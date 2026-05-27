@@ -16,6 +16,14 @@ instance AutoRoute ExportsController
 instance AutoRoute StaffDocumentsController
 instance AutoRoute BillingController
 instance AutoRoute StripeWebhooksController
+instance AutoRoute E2ETestController where
+    customRoutes = do
+        string "/__e2e/mark-passkey-verified"
+        endOfInput
+        onlyAllowMethods [POST]
+        pure MarkE2EPasskeyVerifiedAction
+
+    customPathTo MarkE2EPasskeyVerifiedAction = Just "/__e2e/mark-passkey-verified"
 instance AutoRoute AdminController
 instance AutoRoute SupportController
 instance AutoRoute StaffController

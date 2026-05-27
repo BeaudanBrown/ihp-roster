@@ -147,6 +147,40 @@ ON CONFLICT (id) DO UPDATE SET
     failed_login_attempts = EXCLUDED.failed_login_attempts,
     locked_at = NULL;
 
+-- Deterministic passkey rows for non-passkey E2E specs. These satisfy the
+-- app's "has a passkey" gate; real WebAuthn registration/step-up coverage lives
+-- in e2e/passkeys.spec.ts, which clears these rows before exercising that flow.
+INSERT INTO passkeys (id, user_id, credential_id, public_key, sign_count, name, created_at, updated_at)
+VALUES
+    (
+        'a0000000-0000-0000-0000-000000000031',
+        'a0000000-0000-0000-0000-000000000003',
+        decode('6532652d61646d696e2d7365656465642d706173736b6579', 'hex'),
+        decode('6532652d61646d696e2d7365656465642d7075626c69632d6b6579', 'hex'),
+        0,
+        'Seeded E2E passkey',
+        '2025-01-01 00:00:00+00',
+        '2025-01-01 00:00:00+00'
+    ),
+    (
+        'a0000000-0000-0000-0000-000000000032',
+        'a0000000-0000-0000-0000-000000000004',
+        decode('6532652d73757065722d61646d696e2d7365656465642d706173736b6579', 'hex'),
+        decode('6532652d73757065722d61646d696e2d7365656465642d7075626c69632d6b6579', 'hex'),
+        0,
+        'Seeded E2E passkey',
+        '2025-01-01 00:00:00+00',
+        '2025-01-01 00:00:00+00'
+    )
+ON CONFLICT (id) DO UPDATE SET
+    user_id = EXCLUDED.user_id,
+    credential_id = EXCLUDED.credential_id,
+    public_key = EXCLUDED.public_key,
+    sign_count = EXCLUDED.sign_count,
+    name = EXCLUDED.name,
+    created_at = EXCLUDED.created_at,
+    updated_at = EXCLUDED.updated_at;
+
 INSERT INTO venue_memberships (id, venue_id, user_id, venue_role, is_active, created_at, updated_at)
 VALUES
     (
