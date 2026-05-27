@@ -674,16 +674,18 @@
     --roster-wage-column-width: 5.7rem;
     --roster-grid-header-height: 3rem;
     --roster-grid-row-height: calc(var(--roster-row-height) + 0.65rem);
-    --roster-shift-type-palette-1: rgba(125, 180, 196, 0.82);
-    --roster-shift-type-palette-2: rgba(132, 190, 158, 0.82);
-    --roster-shift-type-palette-3: rgba(214, 184, 118, 0.82);
-    --roster-shift-type-palette-4: rgba(207, 151, 126, 0.82);
-    --roster-shift-type-palette-5: rgba(203, 137, 164, 0.82);
-    --roster-shift-type-palette-6: rgba(158, 149, 207, 0.82);
-    --roster-shift-type-palette-7: rgba(119, 190, 184, 0.82);
-    --roster-shift-type-palette-8: rgba(174, 195, 126, 0.82);
-    --roster-shift-type-palette-9: rgba(210, 165, 119, 0.82);
-    --roster-shift-type-palette-10: rgba(138, 165, 205, 0.82);
+    --roster-shift-type-palette-1: rgb(125, 180, 196);
+    --roster-shift-type-palette-2: rgb(132, 190, 158);
+    --roster-shift-type-palette-3: rgb(214, 184, 118);
+    --roster-shift-type-palette-4: rgb(207, 151, 126);
+    --roster-shift-type-palette-5: rgb(203, 137, 164);
+    --roster-shift-type-palette-6: rgb(158, 149, 207);
+    --roster-shift-type-palette-7: rgb(119, 190, 184);
+    --roster-shift-type-palette-8: rgb(174, 195, 126);
+    --roster-shift-type-palette-9: rgb(210, 165, 119);
+    --roster-shift-type-palette-10: rgb(138, 165, 205);
+    --roster-staff-highlight-fill: color-mix(in srgb, var(--app-accent) 32%, var(--app-surface));
+    --roster-staff-highlight-cell-fill: color-mix(in srgb, var(--app-accent) 36%, var(--app-panel-bg));
     display: grid;
     grid-template-columns: minmax(0, var(--roster-day-column-width)) minmax(0, calc(100% - var(--roster-day-column-width)));
     width: calc(100% + 1px);
@@ -1009,11 +1011,11 @@
 .roster-shift-card.is-roster-staff-slot-highlighted,
 .roster-shift-card.is-roster-staff-slot-highlighted-start,
 .roster-shift-card.is-roster-staff-slot-highlighted-end {
-    background: color-mix(in srgb, var(--app-accent) 14%, var(--app-surface));
+    background: var(--roster-staff-highlight-fill) !important;
 }
 
 .roster-grid [role="gridcell"].is-roster-staff-slot-highlighted {
-    background-color: color-mix(in srgb, var(--app-accent) 13%, transparent);
+    background-color: var(--roster-staff-highlight-cell-fill) !important;
 }
 
 .roster-grid .slot-staff-cell {
@@ -1517,9 +1519,15 @@
     }
 
     .roster-grid-header {
+        position: relative;
+        z-index: 30;
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
         align-items: center;
+    }
+
+    .roster-grid-header .dropdown-menu {
+        z-index: 31;
     }
 
     .roster-grid-header-center {
@@ -1830,11 +1838,11 @@
     content: "";
     position: absolute;
     pointer-events: none;
-    z-index: 4;
-    top: -1px;
-    right: -1px;
-    bottom: -1px;
-    left: -1px;
+    z-index: 3;
+    top: -2px;
+    right: -2px;
+    bottom: -2px;
+    left: -2px;
     border-top: 3px solid var(--roster-shift-type-colour);
     border-bottom: 3px solid var(--roster-shift-type-colour);
 }
