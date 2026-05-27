@@ -400,7 +400,8 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
                 pageResponse `responseBodyShouldContain` "admin_xero"
                 pageResponse `responseBodyShouldContain` "admin_xero_timesheets"
-                pageResponse `responseBodyShouldContain` "id=\"xero-reference-sync-indicator\""
+                pageResponse `responseBodyShouldContain` "id=\"xero-connection-status-badge\""
+                pageResponse `responseBodyShouldContain` "xero-connection-sync-label"
                 pageResponse `responseBodyShouldContain` "id=\"xero-timesheets-data\""
                 pageResponse `responseBodyShouldContain` "id=\"xero-timesheet-submission-indicator\""
                 pageResponse `responseBodyShouldContain` "hx-post=\"/OpenXeroTimesheetPreparation\""
@@ -527,7 +528,7 @@ tests = beforeAll testContext do
                 updatedConnection.lastSyncAt `shouldSatisfy` isJust
                 decryptXeroToken testXeroConfig.tokenEncryptionKey updatedConnection.encryptedRefreshToken `shouldBe` Right "refresh-token"
 
-        it "shows Xero staff mapping only after employees have synced" $ withContext do
+        it "serves Xero staff mappings through the dedicated fragment" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Staff Mapping Visibility Venue"
                 admin <- createUserRecord "xero-staff-mapping-visibility@example.com" "staff" True
@@ -535,24 +536,28 @@ tests = beforeAll testContext do
                 connection <- createActiveXeroConnection venue admin
                 _ <- createStaffRecord venue Nothing "Local" "Worker"
 
-                unsyncedResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
+                pageResponse `responseStatusShouldBe` status200
+                pageResponse `responseBodyShouldNotContain` "Staff mappings"
+                pageResponse `responseBodyShouldNotContain` "id=\"xero-staff-mappings-data\""
+
+                unsyncedResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminXeroStaffMappingsFragmentAction
                 unsyncedResponse `responseStatusShouldBe` status200
-                unsyncedResponse `responseBodyShouldContain` "Staff mappings"
                 unsyncedResponse `responseBodyShouldContain` "Sync payroll reference data before mapping staff to Xero employees."
                 unsyncedResponse `responseBodyShouldNotContain` "name=\"xeroEmployeeSelection\""
 
                 _ <- createXeroEmployeeRecord connection "Local Worker" (Just "local@example.com") "employee-local"
                 syncedResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowAdminXeroStaffMappingsFragmentAction
                 syncedResponse `responseStatusShouldBe` status200
-                syncedResponse `responseBodyShouldContain` "Staff mappings"
                 syncedResponse `responseBodyShouldContain` "Local Worker - local@example.com"
                 syncedResponse `responseBodyShouldNotContain` "Possible Xero match: Local Worker"
                 syncedResponse `responseBodyShouldContain` "name=\"xeroEmployeeSelection\""
-                syncedResponse `responseBodyShouldContain` "Show matched"
-                syncedResponse `responseBodyShouldContain` "xero-staff-mapping-show-matched-toggle"
-                syncedResponse `responseBodyShouldContain` "id=\"xero-staff-mappings\""
+                syncedResponse `responseBodyShouldNotContain` "Show matched"
+                syncedResponse `responseBodyShouldNotContain` "xero-staff-mapping-show-matched-toggle"
+                syncedResponse `responseBodyShouldNotContain` "id=\"xero-staff-mappings\""
                 syncedResponse `responseBodyShouldContain` "id=\"xero-staff-mappings-data\""
                 syncedResponse `responseBodyShouldContain` ">Match</button>"
                 syncedResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
@@ -621,11 +626,8 @@ tests = beforeAll testContext do
                 beforeMatchedAdaInMutation `shouldSatisfy` Text.isInfixOf "Trial Worker"
                 fullFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
-                fullFragmentResponse `responseBodyShouldContain` "xero-staff-mapping-row-matched"
-                fullFragmentBody <- responseBody fullFragmentResponse
-                let fullFragmentText = cs fullFragmentBody
-                let beforeMatchedAda = fst (Text.breakOn "Ada Lovelace" fullFragmentText)
-                beforeMatchedAda `shouldSatisfy` Text.isInfixOf "Trial Worker"
+                fullFragmentResponse `responseBodyShouldNotContain` "xero-staff-mapping-row-matched"
+                fullFragmentResponse `responseBodyShouldNotContain` "id=\"xero-staff-mappings-data\""
 
                 duplicateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -729,30 +731,26 @@ tests = beforeAll testContext do
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "Pay item requirements"
-                pageResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
-                pageResponse `responseBodyShouldContain` "admin_xero_pay_items"
-                pageResponse `responseBodyShouldContain` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
-                pageResponse `responseBodyShouldContain` "$39.3750/hr"
-                pageResponse `responseBodyShouldContain` "Evening After 7pm Loading"
-                pageResponse `responseBodyShouldContain` "$3.1500/hr"
-                pageResponse `responseBodyShouldContain` "M-F Delayed Meal Break"
-                pageResponse `responseBodyShouldContain` "$47.2500/hr"
-                pageResponse `responseBodyShouldContain` "Saturday Delayed Meal Break"
-                pageResponse `responseBodyShouldContain` "$55.1250/hr"
-                pageResponse `responseBodyShouldContain` "matched"
-                pageResponse `responseBodyShouldContain` "proposed"
-                pageResponse `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - Undated"
-                pageResponse `responseBodyShouldNotContain` "Earnings-rate mappings"
-                pageResponse `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
+                pageResponse `responseBodyShouldNotContain` "Pay item requirements"
+                pageResponse `responseBodyShouldNotContain` "id=\"xero-pay-items-data\""
+                pageResponse `responseBodyShouldNotContain` "admin_xero_pay_items"
                 pageResponse `responseBodyShouldNotContain` "name=\"xeroPayItemAccountCodeSelection\""
-                pageResponse `responseBodyShouldNotContain` "xeroPayItemAccountCodeManual"
-                pageResponse `responseBodyShouldNotContain` "name=\"xeroPayrollCalendarSelection\""
-                pageResponse `responseBodyShouldNotContain` "Ready to submit checklist"
                 payItemsFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroPayItemsFragmentAction
                 payItemsFragmentResponse `responseStatusShouldBe` status200
                 payItemsFragmentResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
+                payItemsFragmentResponse `responseBodyShouldContain` "Pay item requirements"
+                payItemsFragmentResponse `responseBodyShouldContain` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
+                payItemsFragmentResponse `responseBodyShouldContain` "$39.3750/hr"
+                payItemsFragmentResponse `responseBodyShouldContain` "Evening After 7pm Loading"
+                payItemsFragmentResponse `responseBodyShouldContain` "$3.1500/hr"
+                payItemsFragmentResponse `responseBodyShouldContain` "M-F Delayed Meal Break"
+                payItemsFragmentResponse `responseBodyShouldContain` "$47.2500/hr"
+                payItemsFragmentResponse `responseBodyShouldContain` "Saturday Delayed Meal Break"
+                payItemsFragmentResponse `responseBodyShouldContain` "$55.1250/hr"
+                payItemsFragmentResponse `responseBodyShouldContain` "matched"
+                payItemsFragmentResponse `responseBodyShouldContain` "proposed"
+                payItemsFragmentResponse `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - Undated"
                 payItemsFragmentResponse `responseBodyShouldContain` "Create 6 missing pay items in Xero"
                 payItemsFragmentResponse `responseBodyShouldContain` "hx-target=\"#xero-pay-items-data\""
                 payItemsFragmentResponse `responseBodyShouldContain` "hx-indicator=\"#xero-pay-items-sync-indicator\""
@@ -956,7 +954,7 @@ tests = beforeAll testContext do
                     |> createRecord
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowAdminXeroPayItemsFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Create 6 missing pay items in Xero"
@@ -977,7 +975,7 @@ tests = beforeAll testContext do
                 _ <- createStaffUsingAwardLevel venue "Casual" "Worker" awardLevel Casual
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowAdminXeroPayItemsFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
@@ -1057,7 +1055,7 @@ tests = beforeAll testContext do
                 _ <- createShiftTypeRecord venue kitchenLevel "Kitchen"
 
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowAdminXeroPayItemsFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
                 pageResponse `responseBodyShouldContain` "Ordinary - Floor Level - PERM - Bepis - Undated"
@@ -1110,7 +1108,7 @@ tests = beforeAll testContext do
                     |> updateRecord
 
                 rateChangedResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
-                    callAction ShowAdminXeroFragmentAction
+                    callAction ShowAdminXeroPayItemsFragmentAction
 
                 rateChangedResponse `responseStatusShouldBe` status200
                 rateChangedResponse `responseBodyShouldContain` "rate changed"
@@ -1160,7 +1158,7 @@ tests = beforeAll testContext do
                     callAction XeroAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Draft timesheets"
+                response `responseBodyShouldContain` "Draft timesheet submission"
                 response `responseBodyShouldContain` "Prepare"
                 response `responseBodyShouldContain` "name=\"periodKey\""
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
@@ -1851,7 +1849,7 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "hx-post=\"/SyncXeroPayrollReferenceData\""
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-xero-fragment\""
                 pageResponse `responseBodyShouldContain` "hx-push-url=\"/Xero\""
-                pageResponse `responseBodyShouldContain` "hx-indicator=\"#xero-reference-sync-indicator\""
+                pageResponse `responseBodyShouldContain` "hx-indicator=\"#xero-connection-status-badge\""
 
         it "rejects reconnect callbacks when Xero returns a different tenant" $ withContext do
             withCleanDb do

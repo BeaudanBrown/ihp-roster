@@ -37,7 +37,7 @@ tests = do
             let scopes = [AdminXeroScope venueId]
 
             targetSummary (planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.singleton (XeroPayItemsResource venueId)) scopes)
-                `shouldBe` Set.singleton (AdminXeroScope venueId, [AdminXeroFragment, AdminXeroPayItemsFragment])
+                `shouldBe` Set.singleton (AdminXeroScope venueId, [AdminXeroFragment])
 
             targetSummary (planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.singleton (XeroTimesheetsResource venueId)) scopes)
                 `shouldBe` Set.singleton (AdminXeroScope venueId, [AdminXeroFragment, AdminXeroTimesheetsFragment])

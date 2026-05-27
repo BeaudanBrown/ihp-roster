@@ -1,0 +1,19 @@
+.xero-connection-sync-label {
+    display: none;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.xero-connection-status-badge.htmx-request .xero-connection-status-label {
+    display: none;
+}
+
+.xero-connection-status-badge.htmx-request .xero-connection-sync-label {
+    display: inline-flex;
+}
+
+.xero-connection-status-badge .spinner-border {
+    width: 0.75rem;
+    height: 0.75rem;
+    border-width: 0.12em;
+}

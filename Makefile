@@ -12,6 +12,7 @@ CSS_FILES += static/css/features/leave.css
 CSS_FILES += static/css/features/preferences.css
 CSS_FILES += static/css/features/roster.css
 CSS_FILES += static/css/features/timesheets.css
+CSS_FILES += static/css/features/xero.css
 CSS_FILES += static/app.css
 
 JS_FILES += static/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js

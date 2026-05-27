@@ -29,10 +29,6 @@ renderXeroConnectionDetails connection connectionActionsAllowed = [hsx|
             {renderXeroConnectionError connection}
         </div>
         {renderXeroConnectionNotice connection}
-        <div id="xero-reference-sync-indicator" class="htmx-indicator small app-muted d-inline-flex align-items-center gap-2" aria-live="polite">
-            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            <span>Syncing Xero payroll reference data...</span>
-        </div>
         <div class="d-flex flex-wrap gap-2">
             {renderXeroReconnectControls connectionActionsAllowed}
         </div>
@@ -65,7 +61,15 @@ renderXeroReconnectControls False = [hsx|
 renderXeroConnectionStatus :: XeroConnection -> Html
 renderXeroConnectionStatus connection =
     case connection.connectionStatus of
-        "active" -> renderAppStatusBadge AppStatusSuccess "connected"
+        "active" -> [hsx|
+            <span id="xero-connection-status-badge" class="badge app-status-badge app-status-success xero-connection-status-badge" role="status" aria-live="polite">
+                <span class="xero-connection-status-label">connected</span>
+                <span class="xero-connection-sync-label">
+                    <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                    <span>syncing</span>
+                </span>
+            </span>
+        |]
         "reauthorization_required" -> renderAppStatusBadge AppStatusWarning "reconnect required"
         "error" -> renderAppStatusBadge AppStatusDanger "attention needed"
         "disconnected" -> renderAppStatusBadge AppStatusNeutral "disconnected"

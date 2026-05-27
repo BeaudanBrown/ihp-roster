@@ -98,8 +98,6 @@ adminXeroTimesheetsFragment =
 adminXeroDefaultFragments :: [AdminXeroLiveFragment]
 adminXeroDefaultFragments =
     [ adminXeroShellFragment
-    , adminXeroStaffMappingsFragment
-    , adminXeroPayItemsFragment
     , adminXeroTimesheetsFragment
     ]
 
@@ -209,25 +207,30 @@ renderXeroAutoSyncTrigger True (Just connection)
               hx-target="#admin-xero-fragment"
               hx-swap="outerHTML"
               hx-push-url={pathTo XeroAction}
-              hx-indicator="#xero-reference-sync-indicator"></form>
+              hx-indicator="#xero-connection-status-badge"></form>
     |]
 renderXeroAutoSyncTrigger _ _ =
     mempty
 
 renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroPayItemAccountCodeOption] -> Maybe XeroSyncRun -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> XeroTimesheetPanelData -> Html
-renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed _ = [hsx|
-    <div class="accordion admin-config-accordion" id="admin-xero-sections">
-        {renderXeroAccordionItem "connection" "Connection" True (renderXeroDisconnectedConnectionDetails connectionActionsAllowed)}
+renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed timesheetPanel = [hsx|
+    <div class="d-flex flex-column gap-4">
+        <section class={appSurfaceClasses "p-3"}>
+            {renderXeroDisconnectedConnectionDetails connectionActionsAllowed}
+        </section>
+        <section class={appSurfaceClasses "p-3"}>
+            {renderXeroTimesheetPanel timesheetPanel}
+        </section>
     </div>
 |]
-renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _employeeCount _earningsRateCount _payrollCalendarCount xeroEmployees mappingRows mappingCounts _xeroEarningsRates payItemRequirements accountCodeOptions maybePayItemSyncRun _xeroPayrollCalendars _maybePayrollCalendarSelection maybePayItemAccountCodeSelection _readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
-    <div class="d-flex flex-column gap-3">
-        <div class="accordion admin-config-accordion" id="admin-xero-sections">
-            {renderXeroAccordionItem "connection" "Connection" True (renderXeroConnectionDetails connection connectionActionsAllowed)}
-            {renderXeroAccordionItem "staff-mappings" "Staff mappings" False (renderXeroStaffMappings xeroEmployees mappingRows mappingCounts)}
-            {renderXeroAccordionItem "pay-items" "Pay items" False (renderXeroPayItems accountCodeOptions payItemRequirements maybePayItemAccountCodeSelection maybePayItemSyncRun connectionActionsAllowed)}
-            {renderXeroAccordionItem "draft-timesheets" "Draft timesheets" False (renderXeroTimesheetPanel timesheetPanel)}
-        </div>
+renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _employeeCount _earningsRateCount _payrollCalendarCount _xeroEmployees _mappingRows _mappingCounts _xeroEarningsRates _payItemRequirements _accountCodeOptions _maybePayItemSyncRun _xeroPayrollCalendars _maybePayrollCalendarSelection _maybePayItemAccountCodeSelection _readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
+    <div class="d-flex flex-column gap-4">
+        <section class={appSurfaceClasses "p-3"}>
+            {renderXeroConnectionDetails connection connectionActionsAllowed}
+        </section>
+        <section class={appSurfaceClasses "p-3"}>
+            {renderXeroTimesheetPanel timesheetPanel}
+        </section>
     </div>
 |]
 
@@ -242,16 +245,3 @@ renderXeroPayItemsFragment =
 renderXeroTimesheetsFragment :: XeroTimesheetPanelData -> Html
 renderXeroTimesheetsFragment =
     renderXeroTimesheetPanel
-
-renderXeroAccordionItem :: Text -> Text -> Bool -> Html -> Html
-renderXeroAccordionItem sectionId title isOpen content =
-    renderAppAccordionItem AppAccordionItemConfig
-        { appAccordionItemId = "xero-" <> sectionId
-        , appAccordionItemParentId = "admin-xero-sections"
-        , appAccordionItemTitle = title
-        , appAccordionItemIsOpen = isOpen
-        , appAccordionItemClass = ""
-        , appAccordionItemBodyClass = ""
-        , appAccordionItemButtonContent = [hsx|<span class="fw-semibold">{title}</span>|]
-        , appAccordionItemBody = content
-        }

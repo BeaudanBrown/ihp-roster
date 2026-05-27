@@ -203,6 +203,7 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/features/preferences.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/timesheets.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/features/xero.css"}/>
         <link rel="stylesheet" href={assetPath "/app.css"}/>
     |]
 
