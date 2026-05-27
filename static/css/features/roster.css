@@ -1403,6 +1403,22 @@
     padding-inline: 0.16rem;
 }
 
+.roster-grid .slot-cell-input.is-empty,
+.roster-grid .slot-cell-form.is-empty .slot-cell-input,
+.roster-shift-card .slot-cell-input.is-empty,
+.roster-shift-card .slot-cell-form.is-empty .slot-cell-input,
+.roster-shift-card .roster-shift-type-badge.is-empty .slot-cell-input {
+    color: var(--app-muted) !important;
+}
+
+.roster-grid .slot-cell-input.is-required,
+.roster-grid .slot-cell-form.is-required .slot-cell-input,
+.roster-shift-card .slot-cell-input.is-required,
+.roster-shift-card .slot-cell-form.is-required .slot-cell-input,
+.roster-shift-card .roster-shift-type-badge.is-required .slot-cell-input {
+    color: var(--app-warning-conflict-text) !important;
+}
+
 .roster-grid-frame [data-roster-shift-colour="palette-1"] { --roster-shift-type-colour: var(--roster-shift-type-palette-1); }
 .roster-grid-frame [data-roster-shift-colour="palette-2"] { --roster-shift-type-colour: var(--roster-shift-type-palette-2); }
 .roster-grid-frame [data-roster-shift-colour="palette-3"] { --roster-shift-type-colour: var(--roster-shift-type-palette-3); }
@@ -1426,8 +1442,8 @@
 .roster-shift-type-badge-select {
     min-width: 0;
     padding: 0 !important;
-    text-align: left !important;
-    text-align-last: left !important;
+    text-align: center !important;
+    text-align-last: center !important;
 }
 
 .roster-shift-type-badge-label {

@@ -900,7 +900,7 @@ renderEditableDayColumnShiftTypeBadge target staffId selectedShiftTypeId selecte
     <form class={classes [("m-0 slot-cell-form roster-shift-type-badge roster-shift-type-badge-editable", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isJust staffId && isNothing selectedShiftTypeId)]}
           data-roster-shift-colour={shiftTypeBadgeColourKey selectedShiftType}>
         <select name="shiftTypeId"
-                class="form-select form-select-sm slot-cell-input slot-shift-type-input roster-shift-type-badge-select"
+                class={classes [("form-select form-select-sm slot-cell-input slot-shift-type-input roster-shift-type-badge-select", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isJust staffId && isNothing selectedShiftTypeId)]}
                 aria-label="Shift type"
                 data-roster-field-key={rosterFieldKey target "shiftTypeId"}
                 hx-post={rosterSlotTargetAction target}
@@ -958,16 +958,16 @@ renderEditableTimeCell fieldName ariaLabel emptyLabel target currentValue =
 
 renderEditableStaffCell :: RosterAssignmentFilters -> RosterSlotCellTarget -> Maybe UUID -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> Maybe RosterConflict -> Html
 renderEditableStaffCell _ target selectedStaffId staffMembers staffOptionStates currentPrimaryConflict = [hsx|
-    <form class="m-0 slot-cell-form">
+    <form class={classes [("m-0 slot-cell-form", True), ("is-empty", isNothing selectedStaffId)]}>
         <select name="staffId"
-                class="form-select form-select-sm slot-cell-input slot-staff-input"
+                class={classes [("form-select form-select-sm slot-cell-input slot-staff-input", True), ("is-empty", isNothing selectedStaffId)]}
                 data-roster-field-key={rosterFieldKey target "staffId"}
                 hx-post={rosterSlotTargetAction target}
                 hx-trigger="change"
                 hx-include="closest form"
                 hx-sync={"#" <> rosterWeekShellId <> ":queue last"}
                 hx-swap="none">
-            <option value=""></option>
+            <option value="">Staff</option>
             {forEach visibleStaffMembers (\staff -> renderStaffOption staffMembers selectedStaffId (optionStateForStaff staff) staff)}
         </select>
     </form>
@@ -987,9 +987,9 @@ renderEditableStaffCell _ target selectedStaffId staffMembers staffOptionStates 
 
 renderEditableShiftTypeCell :: RosterSlotCellTarget -> Maybe UUID -> [ShiftType] -> Html
 renderEditableShiftTypeCell target selectedShiftTypeId shiftTypes = [hsx|
-    <form class="m-0 slot-cell-form">
+    <form class={classes [("m-0 slot-cell-form", True), ("is-empty", isNothing selectedShiftTypeId)]}>
         <select name="shiftTypeId"
-                class="form-select form-select-sm slot-cell-input slot-shift-type-input"
+                class={classes [("form-select form-select-sm slot-cell-input slot-shift-type-input", True), ("is-empty", isNothing selectedShiftTypeId)]}
                 data-roster-field-key={rosterFieldKey target "shiftTypeId"}
                 hx-post={rosterSlotTargetAction target}
                 hx-trigger="change"
