@@ -691,9 +691,11 @@
             .filter(function (columnEl) { return columnEl instanceof HTMLElement; });
         if (columns.length === 0) return;
 
-        const frameCenter = frameEl.scrollLeft + (frameEl.clientWidth / 2);
+        const frameRect = frameEl.getBoundingClientRect();
+        const frameCenter = frameRect.left + (frameRect.width / 2);
         const nearestColumn = columns.reduce(function (nearest, columnEl) {
-            const columnCenter = columnEl.offsetLeft + (columnEl.offsetWidth / 2);
+            const columnRect = columnEl.getBoundingClientRect();
+            const columnCenter = columnRect.left + (columnRect.width / 2);
             const distance = Math.abs(columnCenter - frameCenter);
             if (!nearest || distance < nearest.distance) {
                 return { columnEl, distance };
@@ -703,7 +705,8 @@
 
         if (!nearestColumn) return;
 
-        const targetLeft = nearestColumn.columnEl.offsetLeft + (nearestColumn.columnEl.offsetWidth / 2) - (frameEl.clientWidth / 2);
+        const columnRect = nearestColumn.columnEl.getBoundingClientRect();
+        const targetLeft = frameEl.scrollLeft + (columnRect.left + (columnRect.width / 2)) - frameCenter;
         smoothScrollTo(frameEl, targetLeft);
     }
 

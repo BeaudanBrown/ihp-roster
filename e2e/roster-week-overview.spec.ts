@@ -47,7 +47,7 @@ test.describe('Roster week overview', () => {
     test('exports the live roster as a jpg from the roster actions menu', async ({ page }) => {
         await openRoster(page);
 
-        await page.getByRole('button', { name: 'Roster actions' }).click();
+        await page.getByRole('button', { name: 'Roster settings' }).click();
         const exportButton = page.getByRole('button', { name: 'Export JPG' });
         await expect(exportButton).toBeVisible();
 

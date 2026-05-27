@@ -1,12 +1,42 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import {
     editableRosterRows,
+    ensureRosterLayout,
     expectContainerToManageHorizontalOverflow,
     expectNoHorizontalViewportOverflow,
     firstRosterDayAddButton,
     firstRosterDayRemoveButton,
     openRoster,
 } from './test-helpers';
+
+async function ensureAtLeastTwoRosterColumns(page: Page) {
+    const frame = page.locator('.roster-grid-frame').first();
+    const slotCount = await frame.evaluate((element) => {
+        if (!(element instanceof HTMLElement)) {
+            throw new Error('Expected roster frame to be an HTMLElement');
+        }
+        return Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
+    });
+
+    if (slotCount > 1) return;
+
+    await page.getByRole('button', { name: 'Edit roster columns' }).click();
+    await expect(page.getByRole('button', { name: 'Add roster column' })).toBeVisible();
+
+    const createResponsePromise = page.waitForResponse((response) => {
+        return response.request().method() === 'POST' && response.url().includes('/CreateRosterWeekSlotDefinition');
+    });
+    await page.getByRole('button', { name: 'Add roster column' }).click();
+    const createResponse = await createResponsePromise;
+    expect(createResponse.status(), await createResponse.text()).toBe(200);
+
+    await expect.poll(async () => {
+        return frame.evaluate((element) => {
+            if (!(element instanceof HTMLElement)) return 1;
+            return Number.parseInt(getComputedStyle(element).getPropertyValue('--roster-slot-count'), 10) || 1;
+        });
+    }).toBeGreaterThan(1);
+}
 
 test.describe('Roster mobile baseline', () => {
     test.beforeEach(async ({ page }) => {
@@ -104,6 +134,134 @@ test.describe('Roster mobile baseline', () => {
         expect(metrics?.sidePosition).toBe('static');
         expect(metrics?.panelOverflowY).not.toBe('hidden');
         expect(metrics?.listOverflowY).not.toBe('auto');
+    });
+
+    test('snaps horizontal day-row scrolling to one slot group on phone widths', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await ensureAtLeastTwoRosterColumns(page);
+
+        const snapMetrics = await page.locator('.roster-slots-scroller').first().evaluate(async (scroller) => {
+            if (!(scroller instanceof HTMLElement)) {
+                throw new Error('Expected roster slot scroller to be an HTMLElement');
+            }
+
+            const frame = scroller.closest('.roster-grid-frame');
+            if (!(frame instanceof HTMLElement)) {
+                throw new Error('Expected roster slot scroller to live in a roster frame');
+            }
+
+            const slotCount = Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 1;
+            const maxScrollLeft = Math.max(0, scroller.scrollWidth - scroller.clientWidth);
+            const groupWidth = scroller.scrollWidth / slotCount;
+            const rawScrollLeft = groupWidth * 1.45;
+            const expectedScrollLeft = Math.min(Math.max(0, Math.round(rawScrollLeft / groupWidth) * groupWidth), maxScrollLeft);
+
+            scroller.scrollLeft = rawScrollLeft;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: false }));
+
+            await new Promise((resolve) => window.setTimeout(resolve, 260));
+
+            return {
+                slotCount,
+                clientWidth: scroller.clientWidth,
+                scrollWidth: scroller.scrollWidth,
+                groupWidth,
+                expectedScrollLeft,
+                actualScrollLeft: scroller.scrollLeft,
+                snapType: getComputedStyle(scroller).scrollSnapType,
+                dayRailRight: Math.round(frame.querySelector('.roster-day-rail')?.getBoundingClientRect().right ?? 0),
+                scrollerLeft: Math.round(scroller.getBoundingClientRect().left),
+            };
+        });
+
+        expect(snapMetrics.slotCount).toBeGreaterThan(1);
+        expect(snapMetrics.scrollWidth).toBeGreaterThan(snapMetrics.clientWidth);
+        expect(snapMetrics.snapType).toContain('mandatory');
+        expect(Math.abs(snapMetrics.actualScrollLeft - snapMetrics.expectedScrollLeft)).toBeLessThanOrEqual(2);
+        expect(snapMetrics.scrollerLeft).toBeGreaterThanOrEqual(snapMetrics.dayRailRight - 1);
+    });
+
+    test('snaps horizontal day-column scrolling to the nearest centered day on phone widths', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await ensureRosterLayout(page, 'day_columns');
+        await expect(page.locator('.roster-day-columns')).toBeVisible();
+
+        const snapMetrics = await page.locator('.roster-grid-frame[data-roster-layout="day_columns"]').first().evaluate(async (frame) => {
+            if (!(frame instanceof HTMLElement)) {
+                throw new Error('Expected day-column roster frame to be an HTMLElement');
+            }
+
+            const columnsContainer = frame.querySelector('.roster-day-columns');
+            if (!(columnsContainer instanceof HTMLElement)) {
+                throw new Error('Expected day-column roster frame to contain day columns');
+            }
+
+            while (columnsContainer.querySelectorAll('.roster-day-column').length < 3) {
+                const firstColumn = columnsContainer.querySelector('.roster-day-column');
+                if (!(firstColumn instanceof HTMLElement)) {
+                    throw new Error('Expected at least one rendered day column');
+                }
+                columnsContainer.appendChild(firstColumn.cloneNode(true));
+            }
+            columnsContainer.style.setProperty('--roster-day-count', String(columnsContainer.querySelectorAll('.roster-day-column').length));
+
+            const columns = Array.from(frame.querySelectorAll('.roster-day-column')).filter((column): column is HTMLElement => column instanceof HTMLElement);
+            const maxScrollLeft = Math.max(0, frame.scrollWidth - frame.clientWidth);
+            const secondColumnTarget = columns[1].offsetLeft + (columns[1].offsetWidth / 2) - (frame.clientWidth / 2);
+            const rawScrollLeft = Math.min(Math.max(0, secondColumnTarget - (columns[1].offsetWidth * 0.32)), maxScrollLeft);
+
+            frame.scrollLeft = rawScrollLeft;
+            const frameRectBeforeSnap = frame.getBoundingClientRect();
+            const secondColumnRectBeforeSnap = columns[1].getBoundingClientRect();
+            const expectedScrollLeft = Math.min(
+                Math.max(
+                    0,
+                    frame.scrollLeft
+                        + (secondColumnRectBeforeSnap.left + (secondColumnRectBeforeSnap.width / 2))
+                        - (frameRectBeforeSnap.left + (frameRectBeforeSnap.width / 2)),
+                ),
+                maxScrollLeft,
+            );
+            frame.dispatchEvent(new Event('scroll', { bubbles: false }));
+
+            await new Promise((resolve) => window.setTimeout(resolve, 260));
+
+            const frameRect = frame.getBoundingClientRect();
+            const frameCenter = frameRect.left + (frameRect.width / 2);
+            const nearestColumn = columns.reduce((nearest, column) => {
+                const columnRect = column.getBoundingClientRect();
+                const columnCenter = columnRect.left + (columnRect.width / 2);
+                const distance = Math.abs(columnCenter - frameCenter);
+                if (!nearest || distance < nearest.distance) {
+                    return { index: columns.indexOf(column), distance, centerOffset: columnCenter - frameCenter };
+                }
+                return nearest;
+            }, null as null | { index: number; distance: number; centerOffset: number });
+
+            return {
+                columnCount: columns.length,
+                clientWidth: frame.clientWidth,
+                scrollWidth: frame.scrollWidth,
+                maxScrollLeft,
+                expectedScrollLeft,
+                actualScrollLeft: frame.scrollLeft,
+                nearestIndex: nearestColumn?.index ?? -1,
+                nearestCenterOffset: nearestColumn?.centerOffset ?? Number.NaN,
+                snapType: getComputedStyle(frame).scrollSnapType,
+                columnSnapAlign: getComputedStyle(columns[1]).scrollSnapAlign,
+            };
+        });
+
+        expect(snapMetrics).not.toBeNull();
+        expect(snapMetrics?.columnCount).toBeGreaterThan(1);
+        expect(snapMetrics?.scrollWidth).toBeGreaterThan(snapMetrics?.clientWidth ?? 0);
+        expect(snapMetrics?.snapType).toContain('mandatory');
+        expect(snapMetrics?.columnSnapAlign).toBe('center');
+        expect(snapMetrics?.nearestIndex).toBe(1);
+        expect(Math.abs((snapMetrics?.actualScrollLeft ?? 0) - (snapMetrics?.expectedScrollLeft ?? 0))).toBeLessThanOrEqual(2);
+        expect(Math.abs(snapMetrics?.nearestCenterOffset ?? 0)).toBeLessThanOrEqual(2);
     });
 
     test('preserves core week navigation and row controls on a narrow viewport', async ({ page }) => {

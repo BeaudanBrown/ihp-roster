@@ -392,7 +392,8 @@ export async function ensureRosterLayout(page: Page, layoutMode: RosterLayoutMod
     if ((await frame.getAttribute('data-roster-layout')) !== layoutMode) {
         const menu = page.locator('.app-action-menu').filter({ has: page.locator('.roster-layout-mode-group') }).first();
         if (!(await menu.isVisible().catch(() => false))) {
-            await page.getByRole('button', { name: 'Roster actions' }).click();
+            const rosterMenuButton = page.getByLabel('Roster settings').or(page.getByRole('button', { name: 'Roster actions' })).first();
+            await rosterMenuButton.click();
         }
         await expect(menu).toBeVisible({ timeout: E2E_TIMEOUT.action });
         await menu.locator(`label[for="roster-layout-mode-${layoutMode}"]`).click();

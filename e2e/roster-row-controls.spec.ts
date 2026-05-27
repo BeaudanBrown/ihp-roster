@@ -79,7 +79,7 @@ test.describe('Roster row controls', () => {
         await loginAndOpenRoster(page);
         await page.setViewportSize({ width: 1280, height: 900 });
 
-        await page.getByRole('button', { name: 'Roster actions' }).click();
+        await page.getByRole('button', { name: 'Roster settings' }).click();
         await page.locator('label[for="roster-layout-mode-day_columns"]').click();
         await expect(page.locator('.roster-day-columns')).toBeVisible();
 
@@ -179,7 +179,7 @@ test.describe('Roster row controls', () => {
         await page.setViewportSize({ width: 1280, height: 900 });
         await loginAndOpenRoster(page);
 
-        await page.getByRole('button', { name: 'Roster actions' }).click();
+        await page.getByRole('button', { name: 'Roster settings' }).click();
         await page.locator('label[for="roster-layout-mode-day_columns"]').click();
         await expect(page.locator('.roster-day-columns')).toBeVisible();
 

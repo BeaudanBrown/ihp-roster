@@ -22,7 +22,7 @@ test.describe('Roster assignment filters', () => {
     test('updates other staff dropdowns immediately when already-assigned-today filtering is active', async ({ page }) => {
         await loginAndOpenRoster(page);
 
-        await page.getByLabel('Roster actions').click();
+        await page.getByLabel('Roster settings').click();
         await page.getByLabel('Already assigned that day').check();
         await expect(page.locator('#roster-content')).toBeVisible();
 
