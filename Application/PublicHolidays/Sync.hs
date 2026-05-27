@@ -5,14 +5,17 @@ module Application.PublicHolidays.Sync
     , dataVicImportantDatesResourceId
     , fetchDataVicPublicHolidayRecords
     , importDataVicPublicHolidayRecords
-    , importDataVicPublicHolidayRecordsForYear
+    , importDataVicPublicHolidayRecordsForYears
     , parseDataVicDate
     , publicHolidayImportFromDataVic
     , runDataVicPublicHolidaySync
+    , runDataVicPublicHolidaySyncForYears
     ) where
 
+import Application.PublicHolidays.Policy (targetPublicHolidayYears)
+import qualified Application.PublicHolidays.Policy as PublicHolidayPolicy
 import qualified Control.Exception as Exception
-import Control.Monad (guard)
+import Control.Monad (guard, void)
 import qualified Data.Aeson as Aeson
 import Data.Aeson.Key (Key)
 import Data.Aeson.Types (Parser)
@@ -20,10 +23,10 @@ import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Text as Text
 import qualified Data.Text.IO as TextIO
 import Data.Time.Calendar (Day, fromGregorianValid, toGregorian)
-import Data.Time.LocalTime (getZonedTime, localDay, zonedTimeToLocalTime)
 import Data.Traversable (traverse)
 import Generated.Types
 import IHP.ControllerPrelude
+import IHP.ModelSupport (withTransaction)
 import Network.HTTP.Simple
 import Text.Read (readMaybe)
 
@@ -52,7 +55,7 @@ data PublicHolidayImport = PublicHolidayImport
     deriving (Eq, Show)
 
 data PublicHolidaySyncSummary = PublicHolidaySyncSummary
-    { targetYear    :: !Integer
+    { targetYears   :: ![Integer]
     , fetchedCount  :: !Int
     , importedCount :: !Int
     , insertedCount :: !Int
@@ -103,8 +106,16 @@ runDataVicPublicHolidaySync ::
     (?modelContext :: ModelContext) =>
     IO PublicHolidaySyncSummary
 runDataVicPublicHolidaySync = do
+    today <- utctDay <$> getCurrentTime
+    runDataVicPublicHolidaySyncForYears (targetPublicHolidayYears today)
+
+runDataVicPublicHolidaySyncForYears ::
+    (?modelContext :: ModelContext) =>
+    [Integer] ->
+    IO PublicHolidaySyncSummary
+runDataVicPublicHolidaySyncForYears years = do
     records <- fetchDataVicPublicHolidayRecords
-    importDataVicPublicHolidayRecords records
+    importDataVicPublicHolidayRecordsForYears years records
 
 fetchDataVicPublicHolidayRecords :: IO [DataVicHolidayRecord]
 fetchDataVicPublicHolidayRecords = do
@@ -133,37 +144,47 @@ importDataVicPublicHolidayRecords ::
     [DataVicHolidayRecord] ->
     IO PublicHolidaySyncSummary
 importDataVicPublicHolidayRecords records = do
-    currentYear <- currentLocalYear
-    importDataVicPublicHolidayRecordsForYear currentYear records
+    today <- utctDay <$> getCurrentTime
+    importDataVicPublicHolidayRecordsForYears (targetPublicHolidayYears today) records
 
-importDataVicPublicHolidayRecordsForYear ::
+importDataVicPublicHolidayRecordsForYears ::
     (?modelContext :: ModelContext) =>
-    Integer ->
+    [Integer] ->
     [DataVicHolidayRecord] ->
     IO PublicHolidaySyncSummary
-importDataVicPublicHolidayRecordsForYear targetYear records = do
+importDataVicPublicHolidayRecordsForYears years records = do
     now <- getCurrentTime
-    prunedCount <- prunePublicHolidaysOutsideYear targetYear
-    results <- forM records \record ->
+    let targetYears = nub (sort years)
+    parsedImports <- forM records \record ->
         case publicHolidayImportFromDataVic record of
             Left reason -> do
                 TextIO.putStrLn ("public_holiday_sync_invalid_record: " <> reason)
                 pure (Left reason)
-            Right holidayImport
-                | dayYear holidayImport.holidayDate == targetYear ->
-                    Right . Just <$> upsertPublicHoliday now holidayImport
-                | otherwise -> pure (Right Nothing)
-    let invalidCount = length [reason | Left reason <- results]
-    let importedResults = catMaybes [maybeResult | Right maybeResult <- results]
+            Right holidayImport -> pure (Right holidayImport)
+    let invalidReasons = [reason | Left reason <- parsedImports]
+    unless (null invalidReasons) do
+        Exception.throwIO (userError (cs ("DataVic public holiday import contains invalid records: " <> Text.intercalate "; " invalidReasons)))
+
+    let validImports = [holidayImport | Right holidayImport <- parsedImports]
+    let targetImports = filter (\holidayImport -> dayYear holidayImport.holidayDate `elem` targetYears) validImports
+    prunedCount <- withTransaction do
+        deletedCount <- deleteTargetPublicHolidays targetYears
+        forM_ targetImports \holidayImport ->
+            void
+                ( newRecord @PublicHoliday
+                    |> applyPublicHolidayImport now holidayImport
+                    |> createRecord
+                )
+        pure deletedCount
     pure
         PublicHolidaySyncSummary
-            { targetYear
+            { targetYears
             , fetchedCount = length records
-            , importedCount = length importedResults
-            , insertedCount = length (filter (== InsertedHoliday) importedResults)
-            , updatedCount = length (filter (== UpdatedHoliday) importedResults)
-            , skippedCount = length records - length importedResults
-            , invalidCount
+            , importedCount = length targetImports
+            , insertedCount = length targetImports
+            , updatedCount = 0
+            , skippedCount = length records - length targetImports
+            , invalidCount = length invalidReasons
             , prunedCount
             }
 
@@ -199,37 +220,6 @@ parseDataVicDate rawDate =
                 Nothing  -> Left ("Invalid DataVic date: " <> rawDate)
         _ -> Left ("Expected DataVic date in D/MM/YYYY format, got: " <> rawDate)
 
-data UpsertResult = InsertedHoliday | UpdatedHoliday
-    deriving (Eq, Show)
-
-upsertPublicHoliday ::
-    (?modelContext :: ModelContext) =>
-    UTCTime ->
-    PublicHolidayImport ->
-    IO UpsertResult
-upsertPublicHoliday importedAt holidayImport = do
-    existingHoliday <-
-        query @PublicHoliday
-            |> filterWhere (#jurisdiction, holidayImport.jurisdiction)
-            |> filterWhere (#holidayDate, holidayImport.holidayDate)
-            |> filterWhere (#name, holidayImport.name)
-            |> filterWhere (#region, holidayImport.region)
-            |> fetchOneOrNothing
-
-    case existingHoliday of
-        Nothing -> do
-            _ <-
-                newRecord @PublicHoliday
-                    |> applyPublicHolidayImport importedAt holidayImport
-                    |> createRecord
-            pure InsertedHoliday
-        Just publicHoliday -> do
-            _ <-
-                publicHoliday
-                    |> applyPublicHolidayImport importedAt holidayImport
-                    |> updateRecord
-            pure UpdatedHoliday
-
 applyPublicHolidayImport :: UTCTime -> PublicHolidayImport -> PublicHoliday -> PublicHoliday
 applyPublicHolidayImport importedAt holidayImport publicHoliday =
     publicHoliday
@@ -244,24 +234,22 @@ applyPublicHolidayImport importedAt holidayImport publicHoliday =
         |> set #description holidayImport.description
         |> set #importedAt (Just importedAt)
 
-prunePublicHolidaysOutsideYear ::
+deleteTargetPublicHolidays ::
     (?modelContext :: ModelContext) =>
-    Integer ->
+    [Integer] ->
     IO Int
-prunePublicHolidaysOutsideYear targetYear = do
-    staleHolidays <-
+deleteTargetPublicHolidays targetYears = do
+    existingHolidays <-
         query @PublicHoliday
-            |> filterWhere (#jurisdiction, "VIC" :: Text)
+            |> filterWhere (#jurisdiction, PublicHolidayPolicy.publicHolidayJurisdiction)
+            |> filterWhere (#isRegional, False)
             |> fetch
     let holidaysToDelete =
             filter
-                (\publicHoliday -> dayYear publicHoliday.holidayDate /= targetYear)
-                staleHolidays
+                (\publicHoliday -> dayYear publicHoliday.holidayDate `elem` targetYears)
+                existingHolidays
     mapM_ deleteRecord holidaysToDelete
     pure (length holidaysToDelete)
-
-currentLocalYear :: IO Integer
-currentLocalYear = dayYear . localDay . zonedTimeToLocalTime <$> getZonedTime
 
 dayYear :: Day -> Integer
 dayYear day =

@@ -3,6 +3,9 @@ module Web.View.Support.Index where
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
 import Application.Helper.LiveSurface (liveSurfaceConfigJson)
+import Application.PublicHolidays.Coverage (PublicHolidayCoverageStatus (..),
+                                            PublicHolidayCoverageYear (..),
+                                            publicHolidayCoverageHasWarning)
 import Application.Support.LiveUpdates (supportLiveSurface)
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
@@ -18,7 +21,7 @@ data IndexView = IndexView
     , fwcMapdAdminData              :: FwcMapdAdminData
     , latestFwcMapdRefreshJob       :: Maybe AppJob
     , activeFwcMapdRefreshJob       :: Maybe AppJob
-    , publicHolidayCount            :: Int
+    , publicHolidayCoverage         :: [PublicHolidayCoverageYear]
     , latestPublicHolidayRefreshJob :: Maybe AppJob
     , activePublicHolidayRefreshJob :: Maybe AppJob
     }
@@ -63,7 +66,7 @@ instance View IndexView where
                 simpleAppPanel
                     "Public Holidays"
                     (Just "Victorian public holiday cache used by payroll penalty calculations.")
-                    (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
+                    (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
             page =
                 renderAppPage (AppPageConfig
                     { appPageTitle = "Support"
@@ -103,21 +106,68 @@ renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, current
     </div>
 |]
 
-renderPublicHolidaysSection :: Int -> Maybe AppJob -> Maybe AppJob -> Html
-renderPublicHolidaysSection publicHolidayCount latestRefreshJob activeRefreshJob = [hsx|
+renderPublicHolidaysSection :: [PublicHolidayCoverageYear] -> Maybe AppJob -> Maybe AppJob -> Html
+renderPublicHolidaysSection publicHolidayCoverage latestRefreshJob activeRefreshJob = [hsx|
     <div id="support-public-holidays-section"
-         class="d-flex flex-column flex-lg-row justify-content-between gap-3">
-        <div class="small app-muted">
-            <div>
-                Cached statewide VIC public holidays: <span class="fw-semibold">{tshow publicHolidayCount}</span>.
+         class="d-flex flex-column gap-3">
+        <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
+            <div class="small app-muted">
+                <div>Cached statewide VIC public holidays for previous, current, and next year.</div>
+                <div>{renderPublicHolidayRefreshJobStatus latestRefreshJob}</div>
             </div>
-            <div>{renderPublicHolidayRefreshJobStatus latestRefreshJob}</div>
+            <div class="flex-shrink-0">
+                {renderPublicHolidayRefreshForm activeRefreshJob}
+            </div>
         </div>
-        <div class="flex-shrink-0">
-            {renderPublicHolidayRefreshForm activeRefreshJob}
-        </div>
+        {renderPublicHolidayCoverageWarning publicHolidayCoverage}
+        {renderPublicHolidayCoverageTable publicHolidayCoverage}
     </div>
 |]
+
+renderPublicHolidayCoverageWarning :: [PublicHolidayCoverageYear] -> Html
+renderPublicHolidayCoverageWarning publicHolidayCoverage
+    | publicHolidayCoverageHasWarning publicHolidayCoverage = [hsx|
+        <div class="alert alert-warning mb-0">
+            Public holiday cache has missing or stale target-year data. Payroll predictions continue to run, but refresh the cache and review the latest job status.
+        </div>
+    |]
+    | otherwise = mempty
+
+renderPublicHolidayCoverageTable :: [PublicHolidayCoverageYear] -> Html
+renderPublicHolidayCoverageTable publicHolidayCoverage = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Year</th>
+                    <th>Cached holidays</th>
+                    <th>Latest import</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {forEach publicHolidayCoverage renderPublicHolidayCoverageRow}
+            </tbody>
+        </table>
+    </div>
+|]
+
+renderPublicHolidayCoverageRow :: PublicHolidayCoverageYear -> Html
+renderPublicHolidayCoverageRow coverage = [hsx|
+    <tr>
+        <td>{tshow coverage.year}</td>
+        <td>{tshow coverage.cachedCount}</td>
+        <td>{maybe "Never" formatTimestamp coverage.latestImportedAt}</td>
+        <td>{renderPublicHolidayCoverageStatus coverage.status}</td>
+    </tr>
+|]
+
+renderPublicHolidayCoverageStatus :: PublicHolidayCoverageStatus -> Html
+renderPublicHolidayCoverageStatus status =
+    case status of
+        PublicHolidayCoverageHealthy -> [hsx|<span class="badge text-bg-success">healthy</span>|]
+        PublicHolidayCoverageMissing -> [hsx|<span class="badge text-bg-warning">missing</span>|]
+        PublicHolidayCoverageStale -> [hsx|<span class="badge text-bg-warning">stale</span>|]
 
 renderPublicHolidayRefreshForm :: Maybe AppJob -> Html
 renderPublicHolidayRefreshForm activeRefreshJob = [hsx|

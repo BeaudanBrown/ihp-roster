@@ -1475,6 +1475,7 @@ CREATE INDEX idx_award_level_base_rates_lookup ON award_level_base_rates (award_
 CREATE INDEX idx_award_level_penalty_rates_lookup ON award_level_penalty_rates (award_level_id, employment_basis, penalty_kind, operative_from, operative_to);
 CREATE INDEX idx_award_time_penalty_allowances_lookup ON award_time_penalty_allowances (award_fixed_id, penalty_kind, operative_from, operative_to);
 CREATE INDEX idx_public_holidays_lookup ON public_holidays (jurisdiction, holiday_date);
+CREATE UNIQUE INDEX idx_public_holidays_unique_null_safe ON public_holidays (jurisdiction, holiday_date, name, COALESCE(region, ''));
 CREATE INDEX idx_app_jobs_pending ON app_jobs (status, run_at, created_at);
 CREATE INDEX idx_app_jobs_kind_created_at ON app_jobs (job_kind, created_at DESC);
 CREATE INDEX idx_app_jobs_venue_created_at ON app_jobs (venue_id, created_at DESC);

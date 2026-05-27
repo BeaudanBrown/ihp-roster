@@ -1,9 +1,10 @@
 module Web.Controller.Support where
 
-import Application.Async.Queue (AppJobRequest (..), EnqueueAppJobResult (..),
-                                enqueueAppJob, fetchActiveAppJobByDedupeKey,
+import Application.Async.Queue (EnqueueAppJobResult (..),
+                                fetchActiveAppJobByDedupeKey,
                                 fetchLatestAppJobByKind)
-import Application.FwcMapd.Job (fwcMapdRefreshJobDedupeKey,
+import Application.FwcMapd.Job (enqueueFwcMapdRefreshJob,
+                                fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
 import Application.Helper.Controller (unsafeEnumFromText)
 import Application.Helper.FwcMapd (FwcMapdAdminData, fetchFwcMapdAdminData)
@@ -11,11 +12,13 @@ import Application.Helper.LiveResource (LiveResource (..), liveMutationResult)
 import Application.Helper.LiveSurface (serveTypedLiveFragment)
 import Application.Helper.VenueOnboardingInvitation (venueOnboardingInvitationLifetime)
 import Application.InvitationDelivery.Job (enqueueVenueOnboardingInvitationDeliveryJob)
-import Application.PublicHolidays.Job (publicHolidayRefreshJobDedupeKey,
+import Application.PublicHolidays.Coverage (PublicHolidayCoverageYear,
+                                            fetchPublicHolidayCoverage)
+import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
+                                       publicHolidayRefreshJobDedupeKey,
                                        publicHolidayRefreshJobKind)
 import Application.Support.LiveUpdates
 import Control.Monad (void)
-import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
@@ -33,7 +36,7 @@ instance Controller SupportController where
         passkeys <- fetchCurrentUserPasskeys
         canAddPasskey <- supportCanAddPasskey passkeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
-        (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         render IndexView { .. }
 
@@ -44,15 +47,15 @@ instance Controller SupportController where
 
     action ShowPublicHolidaysSectionAction =
         serveTypedLiveFragment supportLiveSurfaceDefinition () SupportPublicHolidaysLiveFragment \_ -> do
-            (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-            respondHtml (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
+            (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+            respondHtml (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
 
     action CreateSupportVenueOnboardingInvitationAction = do
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         canAddPasskey <- supportCanAddPasskey passkeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
-        (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
         now <- getCurrentTime
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm |> fill @'["email"]
         onboardingInvitation
@@ -73,19 +76,7 @@ instance Controller SupportController where
                     redirectTo SupportAction
 
     action CreateFwcMapdRefreshJobAction = do
-        enqueueResult <-
-            enqueueAppJob
-                AppJobRequest
-                    { jobKind = fwcMapdRefreshJobKind
-                    , payload = Aeson.object []
-                    , payloadSchemaVersion = 1
-                    , requestedByUserId = Just (unpackId currentUser.id)
-                    , venueId = Nothing
-                    , relatedTable = Just "fwc_mapd_sync_runs"
-                    , relatedId = Nothing
-                    , dedupeKey = Just fwcMapdRefreshJobDedupeKey
-                    , runAt = Nothing
-                    }
+        enqueueResult <- enqueueFwcMapdRefreshJob (Just (unpackId currentUser.id))
         case enqueueResult of
             EnqueuedAppJob _ ->
                 setSuccessMessage "Award rate refresh queued."
@@ -97,19 +88,7 @@ instance Controller SupportController where
         respondToAwardRatesRefresh
 
     action CreatePublicHolidayRefreshJobAction = do
-        enqueueResult <-
-            enqueueAppJob
-                AppJobRequest
-                    { jobKind = publicHolidayRefreshJobKind
-                    , payload = Aeson.object ["jurisdiction" Aeson..= ("VIC" :: Text)]
-                    , payloadSchemaVersion = 1
-                    , requestedByUserId = Just (unpackId currentUser.id)
-                    , venueId = Nothing
-                    , relatedTable = Just "public_holidays"
-                    , relatedId = Nothing
-                    , dedupeKey = Just publicHolidayRefreshJobDedupeKey
-                    , runAt = Nothing
-                    }
+        enqueueResult <- enqueuePublicHolidayRefreshJob (Just (unpackId currentUser.id))
         case enqueueResult of
             EnqueuedAppJob _ ->
                 setSuccessMessage "Public holiday refresh queued."
@@ -162,16 +141,12 @@ fetchFwcMapdAwardRatesSectionData = do
 
 fetchPublicHolidaySectionData ::
     (?modelContext :: ModelContext) =>
-    IO (Int, Maybe AppJob, Maybe AppJob)
+    IO ([PublicHolidayCoverageYear], Maybe AppJob, Maybe AppJob)
 fetchPublicHolidaySectionData = do
-    publicHolidayCount <-
-        query @PublicHoliday
-            |> filterWhere (#jurisdiction, "VIC")
-            |> filterWhere (#isRegional, False)
-            |> fetchCount
+    publicHolidayCoverage <- fetchPublicHolidayCoverage
     latestPublicHolidayRefreshJob <- fetchLatestAppJobByKind publicHolidayRefreshJobKind
     activePublicHolidayRefreshJob <- fetchActiveAppJobByDedupeKey publicHolidayRefreshJobDedupeKey
-    pure (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob)
+    pure (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob)
 
 supportCanAddPasskey :: (?context :: ControllerContext) => [Passkey] -> IO Bool
 supportCanAddPasskey passkeys = do
@@ -190,8 +165,8 @@ respondToPublicHolidayRefresh :: (?context :: ControllerContext, ?modelContext :
 respondToPublicHolidayRefresh =
     if isHtmxRequest
         then do
-            (publicHolidayCount, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
-            respondHtml (renderPublicHolidaysSection publicHolidayCount latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
+            (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+            respondHtml (renderPublicHolidaysSection publicHolidayCoverage latestPublicHolidayRefreshJob activePublicHolidayRefreshJob)
         else redirectTo SupportAction
 
 isSafeReturnPath :: Text -> Bool

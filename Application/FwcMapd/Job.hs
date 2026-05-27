@@ -1,9 +1,11 @@
 module Application.FwcMapd.Job
-    ( fwcMapdRefreshJobDedupeKey
+    ( enqueueFwcMapdRefreshJob
+    , fwcMapdRefreshJobDedupeKey
     , fwcMapdRefreshJobKind
     , performFwcMapdRefreshJob
     ) where
 
+import Application.Async.Queue
 import Application.FwcMapd.Sync
 import Application.Helper.LiveResource
 import Control.Monad (void)
@@ -18,6 +20,24 @@ fwcMapdRefreshJobKind = "fwc_mapd_refresh"
 
 fwcMapdRefreshJobDedupeKey :: Text
 fwcMapdRefreshJobDedupeKey = "fwc-mapd-refresh"
+
+enqueueFwcMapdRefreshJob ::
+    (?modelContext :: ModelContext) =>
+    Maybe UUID ->
+    IO EnqueueAppJobResult
+enqueueFwcMapdRefreshJob requestedByUserId =
+    enqueueAppJob
+        AppJobRequest
+            { jobKind = fwcMapdRefreshJobKind
+            , payload = Aeson.object []
+            , payloadSchemaVersion = 1
+            , requestedByUserId
+            , venueId = Nothing
+            , relatedTable = Just "fwc_mapd_sync_runs"
+            , relatedId = Nothing
+            , dedupeKey = Just fwcMapdRefreshJobDedupeKey
+            , runAt = Nothing
+            }
 
 performFwcMapdRefreshJob ::
     (?modelContext :: ModelContext) =>
