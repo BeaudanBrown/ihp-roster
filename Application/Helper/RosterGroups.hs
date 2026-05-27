@@ -222,6 +222,15 @@ fetchEligibleRosterGroupStaff rosterGroupId = do
                 |> orderBy #lastName
                 |> fetch
 
+fetchCurrentVenueActiveStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [Staff]
+fetchCurrentVenueActiveStaff =
+    query @Staff
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#isActive, True)
+        |> filterWhere (#archivedAt, Nothing)
+        |> orderBy #lastName
+        |> fetch
+
 fetchVenueDayNames :: (?modelContext :: ModelContext) => Venue -> IO [DayName]
 fetchVenueDayNames venue = do
     venueConfig <- ensureVenueConfigRecord venue

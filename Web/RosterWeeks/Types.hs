@@ -8,6 +8,7 @@ module Web.RosterWeeks.Types
     , RosterRenderData (..)
     , RosterRenderIndexes (..)
     , RosterRowRenderModel (..)
+    , RosterStaffPanelScope (..)
     , RosterStaffSelfServicePanel (..)
     , RosterStaffPanelEntry (..)
     , RosterViewCapabilities (..)
@@ -77,6 +78,11 @@ data RosterWeekOverviewDay = RosterWeekOverviewDay
     , scheduledMinutes           :: Int
     , overviewIsClosed           :: Bool
     }
+
+data RosterStaffPanelScope
+    = RosterStaffPanelCurrentGroup
+    | RosterStaffPanelAllVenue
+    deriving (Eq, Show)
 
 data RosterStaffPanelEntry = RosterStaffPanelEntry
     { staff              :: Staff

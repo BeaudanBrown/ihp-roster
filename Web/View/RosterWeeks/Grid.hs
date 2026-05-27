@@ -57,7 +57,7 @@ renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -
 renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridPanelStaff, gridStaffSelfServicePanel } = [hsx|
     <div class="row g-4 align-items-start roster-layout">
         {renderRosterContentFragment gridModel}
-        {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) gridPanelStaff)}
+        {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) RosterStaffPanelCurrentGroup gridPanelStaff)}
         {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
     </div>
 |]

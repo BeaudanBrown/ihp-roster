@@ -17,7 +17,7 @@ module Web.RosterWeeks.DirectReadModel
 
 import Application.Helper.Conflict
 import Application.Helper.Profiling
-import Application.Helper.View (linkedActiveStaffForRosterPanel)
+import Application.Helper.RosterGroups (fetchCurrentVenueActiveStaff)
 import Data.Coerce (coerce)
 import Data.List (nubBy)
 import Data.Maybe (mapMaybe)
@@ -122,22 +122,30 @@ fetchEligibleRosterGroupStaffDirect rosterGroupId =
         \ORDER BY staff.last_name"
         (unpackId rosterGroupId, unpackId currentVenueId)
 
-fetchRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Id RosterGroup -> RosterWeek -> IO [RosterStaffPanelEntry]
-fetchRosterStaffPanelEntriesDirect rosterGroupId rosterWeek = do
-    eligibleStaffMembers <- fetchEligibleRosterGroupStaffDirect rosterGroupId
-    let linkedStaff = linkedActiveStaffForRosterPanel eligibleStaffMembers
-    assignedCounts <- fetchAssignedShiftCountsDirect rosterWeek
-    memberships <- fetchLinkedVenueMembershipsDirect linkedStaff
-    let assignedCountByStaffId = Map.fromList assignedCounts
-    let membershipByUserId = Map.fromList [(membership.userId, membership) | membership <- memberships]
-    pure (map (panelEntry assignedCountByStaffId membershipByUserId) linkedStaff)
-    where
-        panelEntry assignedCountByStaffId membershipByUserId staff =
-            RosterStaffPanelEntry
-                { staff
-                , assignedShiftCount = Map.findWithDefault 0 (coerce staff.id) assignedCountByStaffId
-                , userRole = maybe "worker" (inputValue . (.venueRole)) (staff.userId >>= (`Map.lookup` membershipByUserId))
-                }
+fetchRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> Id RosterGroup -> RosterWeek -> IO [RosterStaffPanelEntry]
+fetchRosterStaffPanelEntriesDirect panelScope rosterGroupId rosterWeek = do
+    panelStaffMembers <-
+        case panelScope of
+            RosterStaffPanelCurrentGroup -> fetchEligibleRosterGroupStaffDirect rosterGroupId
+            RosterStaffPanelAllVenue     -> fetchCurrentVenueActiveStaff
+    visibleSlots <- fetchVisibleRosterWeekSlotsDirect rosterWeek
+    fetchRosterStaffPanelEntriesForScope panelScope panelStaffMembers visibleSlots
+
+fetchVisibleRosterWeekSlotsDirect :: (?modelContext :: ModelContext) => RosterWeek -> IO [RosterSlot]
+fetchVisibleRosterWeekSlotsDirect rosterWeek = do
+    rosterDays <-
+        query @RosterDay
+            |> filterWhere (#rosterWeekId, coerce (get #id rosterWeek))
+            |> fetch
+    slots <-
+        sqlQuery
+            "SELECT roster_slots.* \
+            \FROM roster_slots \
+            \JOIN roster_days ON roster_days.id = roster_slots.roster_day_id \
+            \WHERE roster_days.roster_week_id = ? \
+            \AND roster_slots.deleted_at IS NULL"
+            (PG.Only (unpackId rosterWeek.id))
+    pure (filterVisibleRosterSlots rosterDays slots)
 
 fetchAssignedShiftCountsDirect :: (?modelContext :: ModelContext) => RosterWeek -> IO [(UUID.UUID, Int)]
 fetchAssignedShiftCountsDirect rosterWeek =

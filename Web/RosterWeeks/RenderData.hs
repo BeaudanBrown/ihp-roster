@@ -177,7 +177,7 @@ renderRosterStaffPanelFromProjection rosterData =
     case rosterData of
         Nothing -> mempty
         Just RosterRenderData { rosterWeek, panelStaff } ->
-            renderRosterStaffPanelFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) panelStaff
+            renderRosterStaffPanelFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) RosterStaffPanelCurrentGroup panelStaff
 
 renderRequestedRowFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => RosterRenderData -> UUID.UUID -> Int -> Maybe Blaze.Html
 renderRequestedRowFragmentFromProjection RosterRenderData { rosterWeek, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, orderedSlotNames, shiftTypes, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } rosterDayId rowIndex =
@@ -419,8 +419,8 @@ renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment = d
         Just rosterWeek ->
             case fragment of
                 RosterProjectionStaffPanel -> do
-                    panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect rosterGroupId rosterWeek)
-                    pure (Just (renderRosterStaffPanelFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) panelStaff))
+                    panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup rosterGroupId rosterWeek)
+                    pure (Just (renderRosterStaffPanelFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) RosterStaffPanelCurrentGroup panelStaff))
                 RosterProjectionContent -> do
                     rosterData <- fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
                     pure (renderRosterProjectionFragment rosterData fragment)
@@ -459,24 +459,31 @@ renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment = d
                             else pure Nothing
                     pure (renderRequestedDaySectionFragment (hasRole ManagerRole' && not rosterWeek.isLive) weekStartDate facts.baseOrderedSlotDefinitions assignmentFilters staffMembers staffOptionStates facts.baseShiftTypes facts.baseAllSlots slotConflicts renderIndexes rosterLayoutMode venueConfig.rosterEndTimesEnabled rosterWagePrediction showWageEstimates rosterDayUuid)
 
-fetchVisibleRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe [RosterStaffPanelEntry])
-fetchVisibleRosterStaffPanelEntriesDirect rosterGroupId weekOffset = do
+fetchVisibleRosterStaffPanelEntriesDirect :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> Id RosterGroup -> Int -> IO (Maybe [RosterStaffPanelEntry])
+fetchVisibleRosterStaffPanelEntriesDirect panelScope rosterGroupId weekOffset = do
     visibleRosterWeek <- fetchVisibleRosterWeek rosterGroupId weekOffset
     case visibleRosterWeek of
         Nothing -> pure (Just [])
-        Just rosterWeek -> Just <$> profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect rosterGroupId rosterWeek)
+        Just rosterWeek -> Just <$> profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect panelScope rosterGroupId rosterWeek)
 
 buildDirectStaffPanel :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterBaseFacts -> IO [RosterStaffPanelEntry]
 buildDirectStaffPanel RosterBaseFacts { baseEligibleStaff = eligibleStaffMembers, baseVisibleSlots = visibleSlots } =
     profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntries eligibleStaffMembers visibleSlots)
 
-fetchVisibleRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO (Maybe [RosterStaffPanelEntry])
-fetchVisibleRosterStaffPanelEntries rosterGroupId weekOffset =
+fetchVisibleRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterStaffPanelScope -> Id RosterGroup -> Int -> IO (Maybe [RosterStaffPanelEntry])
+fetchVisibleRosterStaffPanelEntries panelScope rosterGroupId weekOffset =
     case currentRosterReadModelBackend of
         ProjectionRosterReadModel -> do
             rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
-            pure ((\RosterRenderData { panelStaff } -> panelStaff) <$> rosterData)
-        DirectRosterReadModel -> fetchVisibleRosterStaffPanelEntriesDirect rosterGroupId weekOffset
+            case panelScope of
+                RosterStaffPanelCurrentGroup -> pure ((\RosterRenderData { panelStaff } -> panelStaff) <$> rosterData)
+                RosterStaffPanelAllVenue ->
+                    case rosterData of
+                        Nothing -> pure Nothing
+                        Just RosterRenderData { rosterDays, allSlots } -> do
+                            allVenueStaff <- fetchCurrentVenueActiveStaff
+                            Just <$> profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesForScope panelScope allVenueStaff (filterVisibleRosterSlots rosterDays allSlots))
+        DirectRosterReadModel -> fetchVisibleRosterStaffPanelEntriesDirect panelScope rosterGroupId weekOffset
 
 fetchVisibleRosterRowFragment :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Id RosterDay -> Int -> IO (Maybe Blaze.Html)
 fetchVisibleRosterRowFragment rosterGroupId weekOffset rosterDayId rowIndex = do

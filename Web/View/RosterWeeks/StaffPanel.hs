@@ -3,42 +3,43 @@ module Web.View.RosterWeeks.StaffPanel
     , renderRosterStaffPanelFragmentOob
     ) where
 
-import Application.Helper.Url (appendQueryParams)
 import Application.Helper.View (staffDisplayName)
+import Data.List (sortBy)
 import qualified Data.Text as Text
 import Web.RosterWeeks.Dom (rosterStaffPanelFragmentId)
-import Web.RosterWeeks.Types (RosterStaffPanelEntry (..))
+import Web.RosterWeeks.Types (RosterStaffPanelEntry (..), RosterStaffPanelScope (..))
 import Web.View.Prelude
 
-renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragment =
     renderRosterStaffPanelFragmentWithSwap Nothing
 
-renderRosterStaffPanelFragmentOob :: (?context :: ControllerContext) => Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanelFragmentOob :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragmentOob =
     renderRosterStaffPanelFragmentWithSwap (Just "outerHTML")
 
-renderRosterStaffPanelFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanelFragmentWithSwap maybeSwapOob weekOffset currentRosterGroupId panelStaff =
+renderRosterStaffPanelFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Int -> Id RosterGroup -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanelFragmentWithSwap maybeSwapOob weekOffset currentRosterGroupId panelScope panelStaff =
     if currentUserIsManager
         then [hsx|
             <div id={rosterStaffPanelFragmentId}
                  class="col-12 col-xl-4 col-xxl-2 roster-layout-side"
                  hx-swap-oob={maybeSwapOob}>
-                {renderRosterStaffPanel weekOffset currentRosterGroupId panelStaff}
+                {renderRosterStaffPanel weekOffset currentRosterGroupId panelScope panelStaff}
             </div>
         |]
         else mempty
 
-renderRosterStaffPanel :: Int -> Id RosterGroup -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanel weekOffset currentRosterGroupId panelStaff = [hsx|
+renderRosterStaffPanel :: Int -> Id RosterGroup -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanel weekOffset currentRosterGroupId panelScope panelStaff = [hsx|
     <div class="app-panel roster-staff-panel">
         <div class="app-panel-body">
             <div class="roster-staff-panel-header">
                 <div>
                     <h2 class="h5 mb-1">Staff</h2>
-                    <div class="roster-staff-panel-summary">{tshow (length panelStaff)} active staff</div>
+                    <div class="roster-staff-panel-summary">{staffPanelSummary panelScope panelStaff}</div>
                 </div>
+                {renderStaffScopeToggle weekOffset currentRosterGroupId panelScope}
             </div>
 
             <div class="roster-staff-panel-list">
@@ -66,7 +67,7 @@ renderRosterStaffPanel weekOffset currentRosterGroupId panelStaff = [hsx|
                         </tr>
                     </thead>
                     <tbody class="roster-staff-table-body">
-                        {forEach panelStaff (renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId)}
+                        {forEach renderedPanelStaff (renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId)}
                     </tbody>
                 </table>
             </div>
@@ -75,6 +76,49 @@ renderRosterStaffPanel weekOffset currentRosterGroupId panelStaff = [hsx|
 |]
     where
         panelStaffMembers = map (.staff) panelStaff
+        renderedPanelStaff = sortRosterStaffPanelEntries panelStaffMembers panelStaff
+
+sortRosterStaffPanelEntries :: [Staff] -> [RosterStaffPanelEntry] -> [RosterStaffPanelEntry]
+sortRosterStaffPanelEntries panelStaffMembers =
+    sortBy \left right ->
+        compare (sortName left) (sortName right)
+            <> compare (get #id left.staff) (get #id right.staff)
+    where
+        sortName entry = Text.toCaseFold (staffDisplayName panelStaffMembers entry.staff)
+
+staffPanelSummary :: RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Text
+staffPanelSummary RosterStaffPanelCurrentGroup panelStaff = tshow (length panelStaff) <> " group staff"
+staffPanelSummary RosterStaffPanelAllVenue panelStaff = tshow (length panelStaff) <> " active staff"
+
+renderStaffScopeToggle :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
+renderStaffScopeToggle weekOffset currentRosterGroupId panelScope = [hsx|
+    <form method="GET"
+          action={ShowRosterWeekStaffPanelFragmentAction weekOffset}
+          class="form-check form-switch d-flex align-items-center gap-2 mb-0 roster-staff-scope-toggle">
+        <input type="hidden" name="rosterGroupId" value={tshow currentRosterGroupId} />
+        <input type="checkbox"
+               id={staffScopeToggleInputId currentRosterGroupId}
+               name="staffScope"
+               value="all"
+               class="form-check-input mt-0"
+               hx-get={ShowRosterWeekStaffPanelFragmentAction weekOffset}
+               hx-trigger="change"
+               hx-include="closest form"
+               hx-target={staffPanelTargetSelector}
+               hx-swap="outerHTML"
+               hx-push-url="false"
+               checked={panelScope == RosterStaffPanelAllVenue} />
+        <label class="form-check-label small fw-semibold" for={staffScopeToggleInputId currentRosterGroupId}>
+            Show all staff
+        </label>
+    </form>
+|]
+
+staffPanelTargetSelector :: Text
+staffPanelTargetSelector = "#" <> rosterStaffPanelFragmentId
+
+staffScopeToggleInputId :: Id RosterGroup -> Text
+staffScopeToggleInputId rosterGroupId = "roster-staff-scope-toggle-" <> tshow rosterGroupId
 
 renderRosterStaffPanelEntry :: [Staff] -> Int -> Id RosterGroup -> RosterStaffPanelEntry -> Html
 renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId entry =

@@ -2,6 +2,7 @@ module Web.RosterWeeks.StaffOptions
     ( buildRosterStaffOptionStates
     , fetchAssignedRosterWeekStaff
     , fetchRosterStaffPanelEntries
+    , fetchRosterStaffPanelEntriesForScope
     , hasNoPreferredShiftsOnDay
     , isApprovedLeaveOn
     , rosterAssignmentOptionStateFor
@@ -12,7 +13,7 @@ import Application.Helper.Controller (LeaveRequestStatus (..),
 import Application.Helper.View (linkedActiveStaffForRosterPanel)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
 import Data.Coerce (coerce)
-import Data.List (find, nub)
+import Data.List (find, nub, sortBy)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import qualified Data.Set as Set
@@ -24,9 +25,13 @@ import Web.RosterWeeks.AvailabilityInputs (fetchApprovedLeaveRequestsForRosterWi
 import Web.RosterWeeks.Types
 
 fetchRosterStaffPanelEntries :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]
-fetchRosterStaffPanelEntries staffMembers allSlots = do
-    let linkedStaff = linkedActiveStaffForRosterPanel staffMembers
-    let linkedUserIds = mapMaybe (.userId) linkedStaff
+fetchRosterStaffPanelEntries =
+    fetchRosterStaffPanelEntriesForScope RosterStaffPanelCurrentGroup
+
+fetchRosterStaffPanelEntriesForScope :: (?context :: ControllerContext, ?modelContext :: ModelContext) => RosterStaffPanelScope -> [Staff] -> [RosterSlot] -> IO [RosterStaffPanelEntry]
+fetchRosterStaffPanelEntriesForScope panelScope staffMembers allSlots = do
+    let panelStaff = staffForPanelScope panelScope staffMembers
+    let linkedUserIds = mapMaybe (.userId) panelStaff
 
     memberships <-
         if null linkedUserIds
@@ -39,7 +44,7 @@ fetchRosterStaffPanelEntries staffMembers allSlots = do
 
     let membershipsByUserId = Map.fromList [ (membership.userId, membership) | membership <- memberships ]
     let assignedShiftCountByStaffId = Map.fromListWith (+) [ (staffId, 1 :: Int) | slot <- allSlots, staffId <- maybeToList slot.staffId ]
-    pure (map (buildPanelEntry membershipsByUserId assignedShiftCountByStaffId) linkedStaff)
+    pure (map (buildPanelEntry membershipsByUserId assignedShiftCountByStaffId) panelStaff)
     where
         buildPanelEntry membershipsByUserId assignedShiftCountByStaffId staff =
             let staffId = coerce (get #id staff)
@@ -52,6 +57,15 @@ fetchRosterStaffPanelEntries staffMembers allSlots = do
                     , assignedShiftCount
                     , userRole = roleText
                     }
+
+staffForPanelScope :: RosterStaffPanelScope -> [Staff] -> [Staff]
+staffForPanelScope RosterStaffPanelCurrentGroup = linkedActiveStaffForRosterPanel
+staffForPanelScope RosterStaffPanelAllVenue =
+    sortBy sortStaff
+        . filter (\staff -> staff.isActive && isNothing staff.archivedAt)
+    where
+        sortStaff left right =
+            compare left.firstName right.firstName <> compare left.lastName right.lastName
 
 fetchAssignedRosterWeekStaff :: (?context :: ControllerContext, ?modelContext :: ModelContext) => [RosterSlot] -> IO [Staff]
 fetchAssignedRosterWeekStaff allSlots = do

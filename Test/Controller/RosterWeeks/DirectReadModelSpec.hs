@@ -87,7 +87,7 @@ tests = beforeAll testContext do
 
                 entries <- withUserAndCurrentVenue fixture.manager fixture.venue.id do
                     withCurrentControllerContext do
-                        fetchRosterStaffPanelEntriesDirect fixture.rosterGroup.id fixture.rosterWeek
+                        fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup fixture.rosterGroup.id fixture.rosterWeek
 
                 let entry = fromJust (find ((== fixture.eligibleStaff.id) . (.staff.id)) entries)
                 entry.userRole `shouldBe` "manager"

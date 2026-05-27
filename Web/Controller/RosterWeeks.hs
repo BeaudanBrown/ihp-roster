@@ -96,10 +96,11 @@ instance Controller RosterWeeksController where
 
     action ShowRosterWeekStaffPanelFragmentAction { weekOffset } = do
         rosterGroup <- resolveRequestedRosterGroup
+        let panelScope = rosterStaffPanelScopeFromParams
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionStaffPanel \_ -> do
-            panelStaff <- fetchVisibleRosterStaffPanelEntries rosterGroup.id weekOffset
+            panelStaff <- fetchVisibleRosterStaffPanelEntries panelScope rosterGroup.id weekOffset
             respondHtmlProfiled $
-                maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id) panelStaff
+                maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id panelScope) panelStaff
 
     action ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
@@ -709,7 +710,7 @@ respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefresh
         Just RosterRenderData { rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } -> do
             let uniqueRowKeys = nub requestedRowKeys
             let renderedRows = mapMaybe (renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled) uniqueRowKeys
-            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId panelStaff | shouldRefreshStaffPanel]
+            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId RosterStaffPanelCurrentGroup panelStaff | shouldRefreshStaffPanel]
             respondHtmlProfiled (mconcat (renderedRows <> renderedStaffPanel))
 
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
@@ -872,6 +873,12 @@ ensureRosterWeekIsDraftForEdit rosterWeek =
             else do
                 setErrorMessage errorMessage
                 redirectToPath targetPath
+
+rosterStaffPanelScopeFromParams :: (?request :: Request) => RosterStaffPanelScope
+rosterStaffPanelScopeFromParams =
+    case Text.toLower (paramOrDefault @Text "group" "staffScope") of
+        "all" -> RosterStaffPanelAllVenue
+        _     -> RosterStaffPanelCurrentGroup
 
 normalizeRosterSlotDefinitionName :: Text -> Either Text Text
 normalizeRosterSlotDefinitionName submittedName =

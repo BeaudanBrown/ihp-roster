@@ -1141,6 +1141,41 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
                 response `responseBodyShouldNotContain` "data-roster-staff-name=\"Bravo\""
 
+        it "manager can toggle the roster staff panel to all active venue staff, including unlinked staff" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                otherVenue <- createVenueWithConfig "Venue B"
+                manager <- createUserRecord "roster-manager-all-panel@example.com" "staff" True
+                alphaUser <- createUserRecord "roster-alpha-all-panel@example.com" "staff" True
+                bravoUser <- createUserRecord "roster-bravo-all-panel@example.com" "staff" True
+                otherUser <- createUserRecord "roster-other-all-panel@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue alphaUser "worker"
+                _ <- createVenueMembershipRecord venue bravoUser "worker"
+                _ <- createVenueMembershipRecord otherVenue otherUser "worker"
+                frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
+                backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
+                alpha <- createStaffRecord venue (Just alphaUser) "Alpha" "Crew"
+                bravo <- createStaffRecord venue (Just bravoUser) "Bravo" "Crew"
+                trial <- createStaffRecord venue Nothing "Trial" "Crew"
+                _ <- createStaffRecord otherVenue (Just otherUser) "Other" "Crew"
+                syncStaffRosterGroupAssignments alpha [frontOfHouse.id]
+                syncStaffRosterGroupAssignments bravo [backOfHouse.id]
+                syncStaffRosterGroupAssignments trial [backOfHouse.id]
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams (ShowRosterWeekStaffPanelFragmentAction 0)
+                        [ ("rosterGroupId", idToParam frontOfHouse.id)
+                        , ("staffScope", "all")
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
+                response `responseBodyShouldContain` "data-roster-staff-name=\"Bravo\""
+                response `responseBodyShouldContain` "data-roster-staff-name=\"Trial\""
+                response `responseBodyShouldNotContain` "data-roster-staff-name=\"Other\""
+                response `responseBodyShouldContain` "4 active staff"
+
         it "staff row fragment fetch returns a masked row for a draft week" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
