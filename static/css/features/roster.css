@@ -1648,13 +1648,18 @@
         min-width: 4.25rem;
     }
 
-    .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] {
+    .roster-grid-frame:not([data-roster-layout="day_columns"]) {
         --roster-day-column-width: 5.35rem;
     }
 
     .roster-slots-scroller,
     .roster-grid-frame[data-roster-layout="day_columns"] {
         scroll-snap-type: x mandatory;
+    }
+
+    .roster-slots-scroller[data-roster-snap-dragging="true"],
+    .roster-grid-frame[data-roster-layout="day_columns"][data-roster-snap-dragging="true"] {
+        scroll-snap-type: none;
     }
 
     .roster-day-column {
@@ -1667,6 +1672,15 @@
     }
 
     .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] .roster-slots-grid {
+        min-width: calc(var(--roster-slot-count) * 100%);
+    }
+
+    .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="true"] .roster-grid {
+        --roster-grid-columns: repeat(var(--roster-slot-count), minmax(0, 0.82fr) minmax(0, 0.82fr) minmax(0, 1.44fr) minmax(0, 0.88fr));
+        min-width: 100%;
+    }
+
+    .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="true"] .roster-slots-grid {
         min-width: calc(var(--roster-slot-count) * 100%);
     }
 

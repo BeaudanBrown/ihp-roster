@@ -653,6 +653,10 @@
     const snapDebounceMs = 120;
     const snapTolerancePx = 1;
     const scrollTimers = new WeakMap();
+    const activePointerIds = new Set();
+    const activeTouchIds = new Set();
+    const activeSnapContainers = new Set();
+    const pendingSnapContainers = new Set();
 
     function clampScrollLeft(containerEl, scrollLeft) {
         const maxScrollLeft = Math.max(0, containerEl.scrollWidth - containerEl.clientWidth);
@@ -720,8 +724,46 @@
         }
     }
 
+    function findSnapContainer(target) {
+        if (!(target instanceof Element)) return null;
+        const containerEl = target.closest(rowScrollerSelector + ', ' + dayColumnFrameSelector);
+        return containerEl instanceof HTMLElement ? containerEl : null;
+    }
+
+    function hasActiveTouchOrPointer() {
+        return activePointerIds.size > 0 || activeTouchIds.size > 0;
+    }
+
+    function markSnapContainerActive(containerEl) {
+        if (!phoneMediaQuery.matches) return;
+        activeSnapContainers.add(containerEl);
+        containerEl.dataset.rosterSnapDragging = 'true';
+    }
+
+    function releaseActiveSnapContainers() {
+        activeSnapContainers.forEach(function (containerEl) {
+            containerEl.removeAttribute('data-roster-snap-dragging');
+        });
+        activeSnapContainers.clear();
+    }
+
+    function flushPendingSnaps() {
+        if (hasActiveTouchOrPointer()) return;
+
+        releaseActiveSnapContainers();
+        pendingSnapContainers.forEach(function (containerEl) {
+            scheduleSnap(containerEl);
+        });
+        pendingSnapContainers.clear();
+    }
+
     function scheduleSnap(containerEl) {
         if (!phoneMediaQuery.matches) return;
+
+        if (hasActiveTouchOrPointer()) {
+            pendingSnapContainers.add(containerEl);
+            return;
+        }
 
         const existingTimer = scrollTimers.get(containerEl);
         if (existingTimer) {
@@ -733,6 +775,48 @@
             snapContainer(containerEl);
         }, snapDebounceMs));
     }
+
+    document.addEventListener('pointerdown', function (event) {
+        const containerEl = findSnapContainer(event.target);
+        if (!(containerEl instanceof HTMLElement)) return;
+
+        activePointerIds.add(event.pointerId);
+        markSnapContainerActive(containerEl);
+    }, true);
+
+    document.addEventListener('pointerup', function (event) {
+        activePointerIds.delete(event.pointerId);
+        flushPendingSnaps();
+    }, true);
+
+    document.addEventListener('pointercancel', function (event) {
+        activePointerIds.delete(event.pointerId);
+        flushPendingSnaps();
+    }, true);
+
+    document.addEventListener('touchstart', function (event) {
+        const containerEl = findSnapContainer(event.target);
+        if (!(containerEl instanceof HTMLElement)) return;
+
+        Array.from(event.changedTouches).forEach(function (touch) {
+            activeTouchIds.add(touch.identifier);
+        });
+        markSnapContainerActive(containerEl);
+    }, true);
+
+    document.addEventListener('touchend', function (event) {
+        Array.from(event.changedTouches).forEach(function (touch) {
+            activeTouchIds.delete(touch.identifier);
+        });
+        flushPendingSnaps();
+    }, true);
+
+    document.addEventListener('touchcancel', function (event) {
+        Array.from(event.changedTouches).forEach(function (touch) {
+            activeTouchIds.delete(touch.identifier);
+        });
+        flushPendingSnaps();
+    }, true);
 
     document.addEventListener('scroll', function (event) {
         if (!(event.target instanceof HTMLElement)) return;
