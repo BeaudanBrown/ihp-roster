@@ -188,8 +188,8 @@ renderXeroTimesheetPreparationStaffMappingsFragment showMatched view
         </section>
     |]
     where
-        (selectedRows, unselectedRows) = List.partition staffRowHasSelection view.preparationStaffRows
-        visibleRows = unselectedRows <> if showMatched then selectedRows else []
+        (confirmedRows, unconfirmedRows) = List.partition staffRowIsConfirmed view.preparationStaffRows
+        visibleRows = unconfirmedRows <> if showMatched then confirmedRows else []
 
 renderStaffShowMatchedToggle :: Bool -> XeroTimesheetPreparationView -> Html
 renderStaffShowMatchedToggle showMatched view = [hsx|
@@ -213,7 +213,7 @@ renderStaffShowMatchedToggle showMatched view = [hsx|
 
 renderStaffMappingRow :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
 renderStaffMappingRow view row = [hsx|
-    <tr class={classes [("xero-staff-mapping-row-matched", staffRowIsMatched row)]}
+    <tr class={classes [("xero-staff-mapping-row-matched", staffRowIsConfirmed row)]}
         data-xero-staff-mapping-status={staffMappingStatus row}>
         <td>
             <div class="fw-semibold text-truncate">{staffName staff}</div>
@@ -232,7 +232,7 @@ renderStaffEmployeeSelectionForm view row = [hsx|
           class="d-inline-flex gap-2"
           data-disable-javascript-submission="true"
           hx-post={pathTo (ApplyXeroTimesheetPreparationStaffDecisionAction view.preparationRun.id)}
-          hx-trigger="change"
+          hx-trigger="change, submit"
           hx-target={"#" <> dialogOverlayMountId}
           hx-swap="innerHTML">
         <input type="hidden" name="staffId" value={tshow staff.id} />
@@ -242,6 +242,7 @@ renderStaffEmployeeSelectionForm view row = [hsx|
             {forEach selectableEmployees (renderEmployeeOption currentSelection)}
             <option value="not_applicable" selected={currentSelection == "not_applicable"}>Not paid through Xero</option>
         </select>
+        {renderPendingAutoMatchConfirm row}
     </form>
 |]
     where
@@ -355,13 +356,21 @@ staffOutcomeReason row
     | staffHasVerifiedXeroEmployee row = "Mapped to Xero employee " <> fromMaybe "" row.preparationStaffMappingRow.mappingRowMapping.xeroEmployeeName <> "."
     | otherwise = "No Xero employee is selected for this staff member."
 
-staffRowIsMatched :: XeroPreparationStaffRow -> Bool
-staffRowIsMatched row =
-    staffRowHasSelection row
+renderPendingAutoMatchConfirm :: XeroPreparationStaffRow -> Html
+renderPendingAutoMatchConfirm row
+    | staffRowHasPendingAutoMatch row = [hsx|<button class="btn btn-sm btn-primary" type="submit">Confirm match</button>|]
+    | otherwise = mempty
 
-staffRowHasSelection :: XeroPreparationStaffRow -> Bool
-staffRowHasSelection row =
-    not (Text.null (currentStaffEmployeeSelection row))
+staffRowIsConfirmed :: XeroPreparationStaffRow -> Bool
+staffRowIsConfirmed row =
+    staffHasVerifiedXeroEmployee row || staffMarkedNotPaidThroughXero row
+
+staffRowHasPendingAutoMatch :: XeroPreparationStaffRow -> Bool
+staffRowHasPendingAutoMatch row =
+    maybe False isPendingAutoMatch row.preparationStaffDecision
+    where
+        isPendingAutoMatch decision =
+            decision.decisionKind == "staff_auto_match" && decision.decisionStatus == "pending"
 
 staffRowNeedsAttention :: XeroPreparationStaffRow -> Bool
 staffRowNeedsAttention row =

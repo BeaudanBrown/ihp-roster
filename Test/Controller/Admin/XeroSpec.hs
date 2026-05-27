@@ -1313,9 +1313,10 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Staff mappings"
                 response `responseBodyShouldContain` "Show matched"
                 response `responseBodyShouldContain` "Xero employee"
-                response `responseBodyShouldNotContain` "name=\"xeroEmployeeSelection\""
-                response `responseBodyShouldNotContain` "value=\"employee-a\" selected"
-                response `responseBodyShouldNotContain` "value=\"employee-b\" selected"
+                response `responseBodyShouldContain` "name=\"xeroEmployeeSelection\""
+                response `responseBodyShouldContain` "value=\"employee-a\" selected"
+                response `responseBodyShouldContain` "value=\"employee-b\" selected"
+                response `responseBodyShouldContain` "Confirm match"
                 pendingStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
                 pendingStaffDecisions `shouldBe` 2
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
@@ -1332,6 +1333,7 @@ tests = beforeAll testContext do
                 matchedResponse `responseBodyShouldContain` "Not paid through Xero"
                 matchedResponse `responseBodyShouldNotContain` ">Approve</button>"
                 matchedResponse `responseBodyShouldNotContain` "Skip this time"
+                matchedResponse `responseBodyShouldContain` "Confirm match"
                 matchedResponse `responseBodyShouldNotContain` "Suggested match"
                 matchedResponse `responseBodyShouldNotContain` "Manual employee"
                 matchedResponse `responseBodyShouldNotContain` "name=\"xeroEmployeeId\""
@@ -1369,7 +1371,7 @@ tests = beforeAll testContext do
                             ]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "included"
+                response `responseBodyShouldNotContain` "Confirm match"
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` "verified"
                 mapping.xeroEmployeeId `shouldBe` Just "employee-a"
@@ -1403,15 +1405,16 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Managed pay items"
                 response `responseBodyShouldContain` "will be created on submit"
-                response `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - Undated"
-                response `responseBodyShouldContain` "Ordinary Hours - earnings-account-code"
+                response `responseBodyShouldContain` "1 will be created on submit"
+                response `responseBodyShouldContain` "Ordinary - "
+                response `responseBodyShouldContain` " - PERM - Bepis - Undated"
                 response `responseBodyShouldNotContain` "Approve creation"
                 response `responseBodyShouldNotContain` "Earnings-rate mappings"
                 response `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
                 pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
                 pendingPayItemDecisions `shouldSatisfy` (> 0)
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                preparationRun.status `shouldBe` "needs_approval"
+                preparationRun.status `shouldBe` "ready_for_preview"
 
         it "creates proposed managed Xero pay items automatically when submitting from preparation" $ withContext do
             withCleanDb do
@@ -1448,7 +1451,7 @@ tests = beforeAll testContext do
                                     [("accountCode", "477")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Draft timesheets submitted"
+                response `responseBodyShouldContain` "Preview"
                 createRequests <- liftIO $ IORef.readIORef requestsRef
                 length createRequests `shouldSatisfy` (> 0)
                 refreshedRun <- fetch run.id

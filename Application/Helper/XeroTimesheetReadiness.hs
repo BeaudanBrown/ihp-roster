@@ -13,6 +13,7 @@ import Application.Helper.VenueScopedQueries
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.XeroPayItems
+import Application.Xero.Timesheets.Buckets
 import Control.Monad (guard)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
@@ -77,13 +78,17 @@ validateXeroTimesheetReadiness request = do
     maybeConnection <- fetchActiveXeroConnection request.readinessVenueId
     latestSync <- fetchLatestXeroSyncRun request.readinessVenueId
     periodEntries <- fetchPeriodTimesheetEntries request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd
-    let entries = filter (not . staffIsSkipped request . (.staffId)) periodEntries
+    notPaidStaffIds <- maybe (pure []) fetchNotPaidStaffMappingIds maybeConnection
+    let effectiveSkippedStaffIds = List.nub (request.readinessSkippedStaffIds <> notPaidStaffIds)
+    let entries = filter (not . staffIsSkipped effectiveSkippedStaffIds . (.staffId)) periodEntries
     let approvedEntries = approvedSubmittableEntries entries
     let includedStaffIds = List.nub (map (.staffId) approvedEntries)
     staffMappings <- maybe (pure []) (fetchVerifiedStaffMappings includedStaffIds) maybeConnection
-    buckets <- fetchVenueLocalBuckets request.readinessVenueId request.readinessPeriodStart
+    buckets <- fetchPeriodXeroLocalEarningsBuckets request.readinessVenueId request.readinessPeriodStart request.readinessPeriodEnd effectiveSkippedStaffIds
     earningsMappings <- maybe (pure []) (fetchVerifiedEarningsMappings buckets) maybeConnection
-    payItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
+    allPayItemRequirements <- maybe (pure []) fetchPayItemRequirements maybeConnection
+    let bucketKeys = map (.localBucketKey) buckets
+        payItemRequirements = filter (\requirement -> requirement.requirementKey `elem` bucketKeys) allPayItemRequirements
     maybeCalendarSelection <- maybe (pure Nothing) fetchVerifiedPayrollCalendarSelection maybeConnection
     maybeCalendar <- fetchRequestPayrollCalendar request maybeConnection maybeCalendarSelection
     syncedEmployees <- maybe (pure []) (fetchMappedXeroEmployees staffMappings) maybeConnection
@@ -151,6 +156,15 @@ fetchVerifiedStaffMappings staffIds connection =
         |> filterWhereIn (#staffId, staffIds)
         |> filterWhere (#mappingStatus, "verified" :: Text)
         |> fetch
+
+fetchNotPaidStaffMappingIds :: (?modelContext :: ModelContext) => XeroConnection -> IO [UUID]
+fetchNotPaidStaffMappingIds connection = do
+    mappings <-
+        query @XeroStaffMapping
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#mappingStatus, "not_applicable" :: Text)
+            |> fetch
+    pure (map (.staffId) (filter (isJust . (.updatedByUserId)) mappings))
 
 fetchMappedXeroEmployees :: (?modelContext :: ModelContext) => [XeroStaffMapping] -> XeroConnection -> IO [XeroEmployee]
 fetchMappedXeroEmployees mappings connection =
@@ -534,7 +548,7 @@ matchingRemoteTimesheets :: XeroTimesheetReadinessRequest -> [TimesheetEntry] ->
 matchingRemoteTimesheets request entries mappings remoteTimesheets =
     let includedStaffIds =
             approvedSubmittableEntries entries
-                |> filter (not . staffIsSkipped request . (.staffId))
+                |> filter (not . staffIsSkipped request.readinessSkippedStaffIds . (.staffId))
                 |> map (.staffId)
                 |> List.nub
         mappedEmployeeIds =
@@ -551,9 +565,9 @@ approvedSubmittableEntries :: [TimesheetEntry] -> [TimesheetEntry]
 approvedSubmittableEntries =
     filter \entry -> entry.isApproved && isNothing entry.deletedAt
 
-staffIsSkipped :: XeroTimesheetReadinessRequest -> UUID -> Bool
-staffIsSkipped request staffId =
-    staffId `elem` request.readinessSkippedStaffIds
+staffIsSkipped :: [UUID] -> UUID -> Bool
+staffIsSkipped skippedStaffIds staffId =
+    staffId `elem` skippedStaffIds
 
 blocker :: Text -> Text -> XeroReadinessBlocker
 blocker = blockerWith

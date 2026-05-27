@@ -16,6 +16,7 @@ import Application.Xero.Admin.PayItems
 import Application.Xero.Admin.ReadModel
 import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection
+import Application.Xero.Timesheets.Buckets
 import Application.Xero.Timesheets.Preview
 import Application.Xero.Timesheets.Submission
 import Control.Monad (void)
@@ -133,7 +134,7 @@ loadXeroTimesheetPreparationView runId = do
             approvedStaffIds <- fetchApprovedPreparationStaffIds run
             xeroEmployees <- fetchCurrentVenueXeroEmployees (Just connection)
             xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-            payItemRequirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
+            payItemRequirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
             payrollCalendars <- fetchCurrentVenueXeroPayrollCalendars (Just connection)
             payrollCalendarSelection <- fetchCurrentVenueXeroPayrollCalendarSelection (Just connection)
             accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
@@ -238,7 +239,7 @@ approveXeroPreparationPayItems runId maybeAccountCode = do
         Just run -> do
             connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
             xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-            requirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
+            requirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
             accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
             accountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
             forM_ (Text.strip <$> maybeAccountCode) \accountCode ->
@@ -274,7 +275,7 @@ ensurePreparationPayItemsReady ::
 ensurePreparationPayItemsReady run maybeAccountCode = do
     connection <- fetch (Id run.xeroConnectionId :: Id XeroConnection)
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-    requirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
+    requirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
     accountCodeOptions <- fetchCurrentVenueXeroPayItemAccountCodeOptions (Just connection)
     accountCodeSelection <- fetchCurrentVenueXeroPayItemAccountCodeSelection (Just connection)
     forM_ (Text.strip <$> maybeAccountCode) \accountCode ->
@@ -509,6 +510,31 @@ fetchApprovedPreparationStaffIds run = do
             |> map (.staffId)
             |> List.nub
 
+fetchPreparationPayItemRequirements ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    XeroTimesheetPreparationRun ->
+    XeroConnection ->
+    [XeroEarningsRate] ->
+    IO [XeroPayItemRequirement]
+fetchPreparationPayItemRequirements run connection xeroEarningsRates = do
+    requirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
+    skippedStaffIds <- fetchPreparationNotPaidStaffIds connection
+    buckets <- fetchPeriodXeroLocalEarningsBuckets (Id run.venueId) run.payPeriodStart run.payPeriodEnd skippedStaffIds
+    let bucketKeys = map (.localBucketKey) buckets
+    pure (filter (\requirement -> requirement.payItemRequirementKey `elem` bucketKeys) requirements)
+
+fetchPreparationNotPaidStaffIds ::
+    (?modelContext :: ModelContext) =>
+    XeroConnection ->
+    IO [UUID]
+fetchPreparationNotPaidStaffIds connection = do
+    mappings <-
+        query @XeroStaffMapping
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#mappingStatus, "not_applicable" :: Text)
+            |> fetch
+    pure (map (.staffId) (filter (isJust . (.updatedByUserId)) mappings))
+
 ensurePreparationDecisionProposals ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     XeroTimesheetPreparationRun ->
@@ -531,7 +557,7 @@ ensurePreparationDecisionProposals run = do
                         (Aeson.object ["suggestedEmployeeId" Aeson..= employee.xeroEmployeeId, "suggestedEmployeeName" Aeson..= employee.displayName])
             _ -> pure ()
     xeroEarningsRates <- fetchCurrentVenueXeroEarningsRates (Just connection)
-    requirements <- fetchCurrentVenueXeroPayItemRequirements (Just connection) xeroEarningsRates
+    requirements <- fetchPreparationPayItemRequirements run connection xeroEarningsRates
     forM_ (filter (\requirement -> requirement.payItemRequirementStatus == "proposed") requirements) \requirement ->
         void $
             ensurePendingPreparationDecision
