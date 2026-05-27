@@ -1652,6 +1652,15 @@
         --roster-day-column-width: 5.35rem;
     }
 
+    .roster-slots-scroller,
+    .roster-grid-frame[data-roster-layout="day_columns"] {
+        scroll-snap-type: x mandatory;
+    }
+
+    .roster-day-column {
+        scroll-snap-align: center;
+    }
+
     .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] .roster-grid {
         --roster-grid-columns: repeat(var(--roster-slot-count), minmax(0, 0.88fr) minmax(0, 1.46fr) minmax(0, 0.86fr));
         min-width: 100%;

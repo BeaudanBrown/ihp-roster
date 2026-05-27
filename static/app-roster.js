@@ -643,6 +643,102 @@
     }, true);
 })();
 
+(function enableRosterPhoneHorizontalSnap() {
+    if (typeof window === 'undefined') return;
+
+    const phoneMediaQuery = window.matchMedia('(max-width: 575.98px)');
+    const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const rowScrollerSelector = '.roster-slots-scroller';
+    const dayColumnFrameSelector = '.roster-grid-frame[data-roster-layout="day_columns"]';
+    const snapDebounceMs = 120;
+    const snapTolerancePx = 1;
+    const scrollTimers = new WeakMap();
+
+    function clampScrollLeft(containerEl, scrollLeft) {
+        const maxScrollLeft = Math.max(0, containerEl.scrollWidth - containerEl.clientWidth);
+        return Math.min(Math.max(0, scrollLeft), maxScrollLeft);
+    }
+
+    function smoothScrollTo(containerEl, scrollLeft) {
+        const targetLeft = clampScrollLeft(containerEl, scrollLeft);
+        if (Math.abs(containerEl.scrollLeft - targetLeft) <= snapTolerancePx) return;
+
+        containerEl.scrollTo({
+            left: targetLeft,
+            behavior: reducedMotionQuery.matches ? 'auto' : 'smooth',
+        });
+    }
+
+    function readSlotCount(frameEl) {
+        const slotCount = Number.parseInt(window.getComputedStyle(frameEl).getPropertyValue('--roster-slot-count'), 10);
+        if (Number.isFinite(slotCount) && slotCount > 0) return slotCount;
+        return 1;
+    }
+
+    function snapDayRowsScroller(scrollerEl) {
+        const frameEl = scrollerEl.closest('.roster-grid-frame:not([data-roster-layout="day_columns"])');
+        if (!(frameEl instanceof HTMLElement)) return;
+
+        const slotCount = readSlotCount(frameEl);
+        const groupWidth = scrollerEl.scrollWidth / slotCount;
+        if (!Number.isFinite(groupWidth) || groupWidth <= 0) return;
+
+        smoothScrollTo(scrollerEl, Math.round(scrollerEl.scrollLeft / groupWidth) * groupWidth);
+    }
+
+    function snapDayColumnFrame(frameEl) {
+        const columns = Array.from(frameEl.querySelectorAll('.roster-day-column'))
+            .filter(function (columnEl) { return columnEl instanceof HTMLElement; });
+        if (columns.length === 0) return;
+
+        const frameCenter = frameEl.scrollLeft + (frameEl.clientWidth / 2);
+        const nearestColumn = columns.reduce(function (nearest, columnEl) {
+            const columnCenter = columnEl.offsetLeft + (columnEl.offsetWidth / 2);
+            const distance = Math.abs(columnCenter - frameCenter);
+            if (!nearest || distance < nearest.distance) {
+                return { columnEl, distance };
+            }
+            return nearest;
+        }, null);
+
+        if (!nearestColumn) return;
+
+        const targetLeft = nearestColumn.columnEl.offsetLeft + (nearestColumn.columnEl.offsetWidth / 2) - (frameEl.clientWidth / 2);
+        smoothScrollTo(frameEl, targetLeft);
+    }
+
+    function snapContainer(containerEl) {
+        if (!phoneMediaQuery.matches) return;
+
+        if (containerEl.matches(rowScrollerSelector)) {
+            snapDayRowsScroller(containerEl);
+        } else if (containerEl.matches(dayColumnFrameSelector)) {
+            snapDayColumnFrame(containerEl);
+        }
+    }
+
+    function scheduleSnap(containerEl) {
+        if (!phoneMediaQuery.matches) return;
+
+        const existingTimer = scrollTimers.get(containerEl);
+        if (existingTimer) {
+            window.clearTimeout(existingTimer);
+        }
+
+        scrollTimers.set(containerEl, window.setTimeout(function () {
+            scrollTimers.delete(containerEl);
+            snapContainer(containerEl);
+        }, snapDebounceMs));
+    }
+
+    document.addEventListener('scroll', function (event) {
+        if (!(event.target instanceof HTMLElement)) return;
+        if (!event.target.matches(rowScrollerSelector) && !event.target.matches(dayColumnFrameSelector)) return;
+
+        scheduleSnap(event.target);
+    }, true);
+})();
+
 // Client-side sorting for the compact roster staff table.
 (function enableRosterStaffPanelSorting() {
     if (typeof window === 'undefined') return;
