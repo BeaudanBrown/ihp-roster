@@ -29,6 +29,10 @@ renderXeroConnectionDetails connection connectionActionsAllowed = [hsx|
             {renderXeroConnectionError connection}
         </div>
         {renderXeroConnectionNotice connection}
+        <div id="xero-reference-sync-indicator" class="htmx-indicator small app-muted d-inline-flex align-items-center gap-2" aria-live="polite">
+            <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+            <span>Syncing Xero payroll reference data...</span>
+        </div>
         <div class="d-flex flex-wrap gap-2">
             {renderXeroReconnectControls connectionActionsAllowed}
         </div>
