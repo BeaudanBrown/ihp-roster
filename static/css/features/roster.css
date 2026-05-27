@@ -684,6 +684,8 @@
     --roster-shift-type-palette-8: rgb(174, 195, 126);
     --roster-shift-type-palette-9: rgb(210, 165, 119);
     --roster-shift-type-palette-10: rgb(138, 165, 205);
+    --roster-shift-border-width: 3px;
+    --roster-shift-edge-corner-radius: calc(var(--app-radius-lg) - 0.2rem);
     --roster-staff-highlight-fill: color-mix(in srgb, var(--app-accent) 32%, var(--app-surface));
     --roster-staff-highlight-cell-fill: color-mix(in srgb, var(--app-accent) 36%, var(--app-panel-bg));
     display: grid;
@@ -1850,18 +1852,29 @@
     right: -1px;
     bottom: 0;
     left: -1px;
-    border-top: 3px solid var(--roster-shift-type-colour);
-    border-bottom: 3px solid var(--roster-shift-type-colour);
+    border-top: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
+    border-bottom: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
 }
 
 .roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.slot-end-time-cell)::before {
     left: 0;
-    border-left: 3px solid var(--roster-shift-type-colour);
+    border-left: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
 }
 
 .roster-grid .roster-block-end[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
     right: 0;
-    border-right: 3px solid var(--roster-shift-type-colour);
+    border-right: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
+}
+
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-time-cell[data-roster-shift-colour^="palette-"]::before,
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-staff-cell[data-roster-shift-colour^="palette-"]::before,
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+    bottom: 1px;
+}
+
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child .roster-block-end[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+    right: 0;
+    border-bottom-right-radius: var(--roster-shift-edge-corner-radius);
 }
 
 .roster-grid .slot-shift-type-cell.is-shift-type-required {
