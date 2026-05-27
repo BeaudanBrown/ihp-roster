@@ -1826,6 +1826,13 @@
     color: inherit !important;
 }
 
+.roster-shift-card.is-roster-staff-slot-highlighted .roster-shift-card-field,
+.roster-shift-card.is-roster-staff-slot-highlighted-start .roster-shift-card-field,
+.roster-shift-card.is-roster-staff-slot-highlighted-end .roster-shift-card-field {
+    background-color: transparent !important;
+    color: var(--app-text) !important;
+}
+
 .roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"],
 .roster-grid .slot-staff-cell[data-roster-shift-colour^="palette-"],
 .roster-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty) {
@@ -1839,19 +1846,21 @@
     position: absolute;
     pointer-events: none;
     z-index: 3;
-    top: -2px;
-    right: -2px;
-    bottom: -2px;
-    left: -2px;
+    top: 0;
+    right: -1px;
+    bottom: 0;
+    left: -1px;
     border-top: 3px solid var(--roster-shift-type-colour);
     border-bottom: 3px solid var(--roster-shift-type-colour);
 }
 
 .roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.slot-end-time-cell)::before {
+    left: 0;
     border-left: 3px solid var(--roster-shift-type-colour);
 }
 
 .roster-grid .roster-block-end[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+    right: 0;
     border-right: 3px solid var(--roster-shift-type-colour);
 }
 
