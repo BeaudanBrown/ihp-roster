@@ -7,7 +7,7 @@ import {
     gotoWhenReady,
     loginAs,
     openNewLeaveRequestDialog,
-    loginAsPrivilegedUserWithFreshPasskey,
+    loginAsPrivilegedUserWithSeededPasskeySession,
     openAuthenticatedNavIfCollapsed,
     openRoster,
     webauthnBaseURL,
@@ -17,7 +17,7 @@ test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Mobile experience smoke', () => {
     test('venue admin navigation remains usable when the header collapses', async ({ page }) => {
-        await loginAsPrivilegedUserWithFreshPasskey(page);
+        await loginAsPrivilegedUserWithSeededPasskeySession(page);
 
         const navToggle = page.locator('.navbar-toggler');
         if (await navToggle.isVisible()) {

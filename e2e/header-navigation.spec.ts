@@ -1,23 +1,21 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { loginAs, loginAsPrivilegedUserWithFreshPasskey, verifyCurrentUserPasskeyStepUp, webauthnBaseURL } from './test-helpers';
-
-test.use({ baseURL: webauthnBaseURL });
+import { loginAs, loginAsPrivilegedUserWithSeededPasskeySession } from './test-helpers';
 
 test.describe('Authenticated header navigation', () => {
     test('venue admin header links navigate across roster, profile, timesheets, unavailability, and admin', async ({ page }) => {
-        await loginAsPrivilegedUserWithFreshPasskey(page);
+        await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await expect(page.locator('#roster-week-shell')).toBeVisible();
 
         await page.evaluate(() => {
-            window.__headerNavMarker = 'before-profile';
+            (window as Window & { __headerNavMarker?: string }).__headerNavMarker = 'before-profile';
         });
 
         await page.getByRole('link', { name: 'profile' }).click();
         await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.getByRole('heading', { name: 'Profile', exact: true })).toBeVisible();
         await expect(page.locator('#firstName')).toBeVisible();
-        await expect(page.evaluate(() => window.__headerNavMarker)).resolves.toBeUndefined();
+        await expect(page.evaluate(() => (window as Window & { __headerNavMarker?: string }).__headerNavMarker)).resolves.toBeUndefined();
 
         await page.getByRole('link', { name: 'timesheets' }).click();
         await expect(page).toHaveURL(/(Timesheets|ShowTimesheetWeek)/, { timeout: E2E_TIMEOUT.navigation });
@@ -28,9 +26,6 @@ test.describe('Authenticated header navigation', () => {
         await expect(page.locator('#leave-requests-content')).toBeVisible();
 
         await page.getByRole('link', { name: 'admin' }).click();
-        if (page.url().includes('/PasskeyStepUp')) {
-            await verifyCurrentUserPasskeyStepUp(page);
-        }
         await expect(page).toHaveURL(/Admin/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#admin-config-sections')).toBeVisible();
         await expect(page.getByRole('heading', { name: 'Roster Groups' }).first()).toBeVisible();

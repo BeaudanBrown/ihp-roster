@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoExports, loginAs, loginAsPrivilegedUserWithFreshPasskey, payrollReportCard, webauthnBaseURL } from './test-helpers';
+import { gotoExports, loginAs, loginAsPrivilegedUserWithSeededPasskeySession, payrollReportCard, webauthnBaseURL } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -28,7 +28,7 @@ test.describe('Export authorization and negative cases', () => {
     });
 
     test('venue admin sees the fixed export catalog without report-definition management', async ({ page }) => {
-        await loginAsPrivilegedUserWithFreshPasskey(page);
+        await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
 
         await expect(page.locator('#report-definition-management')).toHaveCount(0);

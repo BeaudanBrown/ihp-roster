@@ -5,7 +5,7 @@ import {
     downloadExportAtIndex,
     generatePayrollReport,
     gotoExports,
-    loginAsPrivilegedUserWithFreshPasskey,
+    loginAsPrivilegedUserWithSeededPasskeySession,
     readDownloadText,
     readZipEntryText,
     listZipEntries,
@@ -19,7 +19,7 @@ test.describe('Payroll export determinism', () => {
     test.setTimeout(E2E_TIMEOUT.test);
 
     test('repeated staff-hours generation preserves job history and identical CSV content', async ({ page }) => {
-        await loginAsPrivilegedUserWithFreshPasskey(page);
+        await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
 
         const { weekStart, weekEnd } = await currentReportWeek(page);
@@ -44,7 +44,7 @@ test.describe('Payroll export determinism', () => {
     });
 
     test('repeated wage generation preserves job history and identical ZIP content', async ({ page }) => {
-        await loginAsPrivilegedUserWithFreshPasskey(page);
+        await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
 
         const { weekStart, weekEnd } = await currentReportWeek(page);

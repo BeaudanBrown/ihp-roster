@@ -5,7 +5,7 @@ import {
     downloadExport,
     generatePayrollReport,
     gotoExports,
-    loginAsPrivilegedUserWithFreshPasskey,
+    loginAsPrivilegedUserWithSeededPasskeySession,
     payrollReportCard,
     parseCsv,
     readDownloadText,
@@ -28,7 +28,7 @@ test.describe('Payroll export downloads', () => {
     test.setTimeout(E2E_TIMEOUT.test);
 
     test('venue admin can generate and download staff_hours and hourly breakdown exports', async ({ page }) => {
-        await loginAsPrivilegedUserWithFreshPasskey(page);
+        await loginAsPrivilegedUserWithSeededPasskeySession(page);
         await gotoExports(page);
 
         await expect(payrollReportCard(page, 'Staff Hours CSV')).toHaveCount(1);

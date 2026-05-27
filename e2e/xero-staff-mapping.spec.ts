@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAsPrivilegedUserWithFreshPasskey, runSql, webauthnBaseURL } from './test-helpers';
+import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, runSql, webauthnBaseURL } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -182,7 +182,7 @@ test.describe('Xero staff mapping', () => {
     });
 
     test('autosaving a staff mapping preserves the viewport scroll position', async ({ page }) => {
-        await loginAsPrivilegedUserWithFreshPasskey(page, 'e2e-super-admin@example.com', 'test-password-123');
+        await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-super-admin@example.com', 'test-password-123');
         await openXeroSection(page);
 
         const select = page.getByLabel('Xero employee for Mapping 54 Mapping Scroll');

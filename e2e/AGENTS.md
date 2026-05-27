@@ -104,6 +104,7 @@ await openRoster(page, { email: 'e2e-test@example.com', weekOffset: 1 });
 ```
 
 `gotoWhenReady` retries the navigation until the expected selector appears instead of failing on the temporary `Is compiling` page. `loginAs` wraps the seeded login flow and waits for the post-login roster shell.
+For privileged admin/support feature specs that are not directly testing passkeys, use `loginAsPrivilegedUserWithSeededPasskeySession` or `openAdminWithSeededPasskeySession`; reserve `loginAsPrivilegedUserWithFreshPasskey` and raw WebAuthn registration helpers for `passkeys.spec.ts` or passkey-specific coverage.
 `gotoWhenReady` also retries transient `ERR_CONNECTION_REFUSED` startup races from the temporary E2E app server instead of failing immediately on the first `page.goto`.
 `openRoster(page, ...)` is the shared helper for authenticated roster-grid specs. It defaults to the seeded venue admin (`e2e-admin@example.com`) and canonical roster-group fixture, preserves the current post-login grid when one is already visible, and otherwise resolves the current roster group before navigating to the canonical `ShowRosterWeek` route instead of assuming the `/RosterWeeks` landing page has already resolved to a concrete grid. New roster-grid specs should use `openRoster` unless they are explicitly testing authentication or initial roster routing.
 

@@ -232,16 +232,27 @@ export async function removeVirtualPasskeyAuthenticator(authenticator: Awaited<R
 
 export async function registerFirstPasskeyForCurrentUser(page: Page) {
     await openProfileSecuritySection(page);
-    await expect(page.getByRole('button', { name: 'Add passkey' })).toBeVisible();
-    await page.getByRole('button', { name: 'Add passkey' }).click();
+    await registerFirstPasskeyFromVisibleControl(page);
+    await openProfileSecuritySection(page);
     await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
 }
 
 export async function registerFirstSupportPasskeyForCurrentUser(page: Page) {
     await gotoWhenReady(page, '/Support', '.js-passkey-register');
-    await expect(page.getByRole('button', { name: 'Add passkey' })).toBeVisible();
-    await page.getByRole('button', { name: 'Add passkey' }).click();
+    await registerFirstPasskeyFromVisibleControl(page);
+    await gotoWhenReady(page, '/Support', '.js-passkey-register');
     await expect(currentPasskeyManagement(page).locator('table tbody tr')).toHaveCount(1, { timeout: E2E_TIMEOUT.passkey });
+}
+
+async function registerFirstPasskeyFromVisibleControl(page: Page) {
+    await expect(page.getByRole('button', { name: 'Add passkey' })).toBeVisible();
+    await Promise.all([
+        page.waitForResponse(
+            (response) => new URL(response.url()).pathname.includes('FinishPasskeyRegistration') && response.status() === 200,
+            { timeout: E2E_TIMEOUT.passkey },
+        ),
+        page.getByRole('button', { name: 'Add passkey' }).click(),
+    ]);
 }
 
 function currentPasskeyManagement(page: Page) {
@@ -288,6 +299,40 @@ export async function verifyCurrentUserPasskeyStepUp(page: Page) {
     await expect(page.getByRole('button', { name: 'Verify with passkey' })).toBeVisible();
     await page.getByRole('button', { name: 'Verify with passkey' }).click();
     await expect(page).not.toHaveURL(/PasskeyStepUp/, { timeout: E2E_TIMEOUT.passkey });
+}
+
+export async function markCurrentSessionPasskeyVerified(page: Page) {
+    const token = process.env.E2E_TEST_TOKEN;
+    if (!token) {
+        throw new Error('E2E_TEST_TOKEN is required to mark a seeded passkey session verified.');
+    }
+
+    const responseStatus = await page.evaluate(
+        async ({ endpoint, submittedToken }) => {
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'X-E2E-Test-Token': submittedToken },
+            });
+            return response.status;
+        },
+        { endpoint: new URL('/__e2e/mark-passkey-verified', page.url()).toString(), submittedToken: token },
+    );
+    expect(responseStatus).toBe(200);
+}
+
+export async function loginAsPrivilegedUserWithSeededPasskeySession(
+    page: Page,
+    email = 'e2e-admin@example.com',
+    password = 'test-password-123',
+) {
+    await loginAs(page, email, password);
+    await page.waitForLoadState('networkidle', { timeout: E2E_TIMEOUT.action }).catch(() => {});
+    await markCurrentSessionPasskeyVerified(page);
+}
+
+export async function openAdminWithSeededPasskeySession(page: Page) {
+    await loginAsPrivilegedUserWithSeededPasskeySession(page);
+    await gotoWhenReady(page, '/Admin', '#admin-config-sections');
 }
 
 export async function loginAsPrivilegedUserWithFreshPasskey(

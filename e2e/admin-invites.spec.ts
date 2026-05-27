@@ -8,7 +8,7 @@ import {
     inviteUrlForCurrentBase,
     mailhogMessageSubject,
     mailhogMessageText,
-    openAdminWithFreshPasskey,
+    openAdminWithSeededPasskeySession,
     waitForMailhogMessage,
     webauthnBaseURL,
 } from './test-helpers';
@@ -41,7 +41,7 @@ test.describe('Admin invites', () => {
     test('admin can queue and revoke an invite, and revoked links stop working', async ({ page, request, baseURL }) => {
         const inviteeEmail = `e2e-revoke-${Date.now()}@example.com`;
 
-        await openAdminWithFreshPasskey(page);
+        await openAdminWithSeededPasskeySession(page);
         await openInvitesSection(page);
 
         await page.fill('#new-invite-email', inviteeEmail);
@@ -70,7 +70,7 @@ test.describe('Admin invites', () => {
     test('accepted invites verify the email, avoid a second email, and show accepted status when the admin revisits invites', async ({ browser, page, request, baseURL }) => {
         const inviteeEmail = `e2e-accept-${Date.now()}@example.com`;
 
-        await openAdminWithFreshPasskey(page);
+        await openAdminWithSeededPasskeySession(page);
         await openInvitesSection(page);
 
         await page.fill('#new-invite-email', inviteeEmail);

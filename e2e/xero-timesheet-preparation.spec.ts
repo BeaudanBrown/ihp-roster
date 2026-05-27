@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAsPrivilegedUserWithFreshPasskey, runSql, webauthnBaseURL } from './test-helpers';
+import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, runSql, webauthnBaseURL } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
 
@@ -196,7 +196,7 @@ test.describe('Xero timesheet preparation', () => {
     });
 
     test('opens the guided preparation modal from a selected Xero pay period', async ({ page }) => {
-        await loginAsPrivilegedUserWithFreshPasskey(page, 'e2e-admin@example.com', 'test-password-123');
+        await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-admin@example.com', 'test-password-123');
         await openDraftTimesheetsPanel(page);
 
         const form = page.locator('[data-xero-timesheet-preparation-form="true"]');

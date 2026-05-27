@@ -1,11 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { E2E_TIMEOUT } from './timeouts';
-import { gotoWhenReady, loginAsPrivilegedUserWithFreshPasskey, webauthnBaseURL } from './test-helpers';
+import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, webauthnBaseURL } from './test-helpers';
 
 test.use({ baseURL: webauthnBaseURL });
 
 async function loginAsSuperAdmin(page: import('@playwright/test').Page) {
-    await loginAsPrivilegedUserWithFreshPasskey(page, 'e2e-super-admin@example.com', 'test-password-123');
+    await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-super-admin@example.com', 'test-password-123');
 }
 
 async function loginAsManager(page: import('@playwright/test').Page) {
