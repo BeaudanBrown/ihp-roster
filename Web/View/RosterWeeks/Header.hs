@@ -29,7 +29,6 @@ renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGrou
             {renderRosterWeekControls weekOffset currentRosterGroup weekStartDate}
         </div>
         <div class="app-surface-toolbar-side app-surface-toolbar-side-right roster-grid-header-side roster-grid-header-side-right">
-            {renderRosterWeekManagerControls weekOffset currentRosterGroup viewCapabilities}
             {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates}
         </div>
     </div>
@@ -76,15 +75,6 @@ renderRosterGroupSwitchOption selectedRosterGroupId rosterGroup = [hsx|
     </option>
 |]
 
-renderRosterWeekManagerControls :: (?context :: ControllerContext) => Int -> RosterGroup -> RosterViewCapabilities -> Html
-renderRosterWeekManagerControls weekOffset currentRosterGroup viewCapabilities
-    | not viewCapabilities.canCopyRosterWeek = mempty
-    | otherwise = [hsx|
-        <div class="d-flex flex-wrap gap-2 align-items-center" data-roster-week-controls="manager-actions">
-            {renderCopyPreviousWeekForm weekOffset currentRosterGroup.id}
-        </div>
-    |]
-
 renderWeekNavigationLink :: Text -> Text -> Text -> Html
 renderWeekNavigationLink iconClass ariaLabel url =
     [hsx|
@@ -128,20 +118,13 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
         divider = [hsx|<div class="dropdown-divider my-1"></div>|]
      in [hsx|
     <div class="dropdown">
-        <button class="btn btn-outline-secondary"
-                type="button"
-                id={menuTriggerId}
-                data-bs-toggle="dropdown"
-                data-bs-auto-close="outside"
-                aria-expanded="false"
-                aria-label="Roster actions">
-            <i class="bi bi-three-dots-vertical"></i>
-        </button>
+        {renderAppSettingsMenuButton menuTriggerId "Roster settings"}
         <div class="dropdown-menu dropdown-menu-end p-2 app-action-menu" aria-labelledby={menuTriggerId}>
             <div class="px-1 pb-2">
                 {renderRosterGroupSwitcher weekOffset rosterGroups currentRosterGroup}
             </div>
             <div class="dropdown-divider my-1"></div>
+            {renderRosterWeekActionsMenuSection weekOffset currentRosterGroup.id viewCapabilities}
             {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode}
             {renderRosterWageEstimatePreferenceMenuSection weekOffset currentRosterGroup.id viewCapabilities rosterEndTimesEnabled showWageEstimates}
             {renderRosterColumnMenuSection maybeRosterWeek viewCapabilities}
@@ -151,6 +134,19 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
         </div>
     </div>
 |]
+
+renderRosterWeekActionsMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterViewCapabilities -> Html
+renderRosterWeekActionsMenuSection weekOffset rosterGroupId viewCapabilities
+    | not viewCapabilities.canCopyRosterWeek = mempty
+    | otherwise = [hsx|
+        <div class="px-1 py-1">
+            <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Week actions</div>
+            <div class="d-grid gap-2">
+                {renderCopyPreviousWeekForm weekOffset rosterGroupId}
+            </div>
+        </div>
+        <div class="dropdown-divider my-1"></div>
+    |]
 
 renderRosterLayoutMenuSection :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterLayoutModeEnum -> Html
 renderRosterLayoutMenuSection weekOffset rosterGroupId selectedLayoutMode = [hsx|
@@ -326,7 +322,10 @@ renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
           hx-push-url="false"
           hx-sync={"#" <> rosterWeekShellId <> ":replace"}
           hx-confirm="This will overwrite the current week with the previous week's roster. Continue?">
-        <button type="submit" class="btn btn-outline-primary">Copy Previous Week</button>
+        <button type="submit" class="btn btn-outline-primary btn-sm w-100 text-start">
+            <i class="bi bi-copy me-1" aria-hidden="true"></i>
+            Copy Previous Week
+        </button>
     </form>
 |]
 

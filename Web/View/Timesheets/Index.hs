@@ -125,15 +125,7 @@ renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff selectedStaffFi
         updateUrl = pathTo (ShowTimesheetWeekAction weekOffset)
      in [hsx|
     <div class="dropdown">
-        <button class="btn btn-outline-secondary"
-                type="button"
-                id={menuTriggerId}
-                data-bs-toggle="dropdown"
-                data-bs-auto-close="outside"
-                aria-expanded="false"
-                aria-label="Timesheet actions">
-            <i class="bi bi-three-dots-vertical"></i>
-        </button>
+        {renderAppSettingsMenuButton menuTriggerId "Timesheet settings"}
         <div class="dropdown-menu dropdown-menu-end p-2 app-action-menu" aria-labelledby={menuTriggerId}>
             <form class="px-1 py-1"
                   method="GET"

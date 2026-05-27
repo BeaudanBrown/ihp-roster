@@ -35,6 +35,18 @@
     min-width: min(30rem, 92vw);
 }
 
+.app-settings-menu-button {
+    min-width: 2.35rem;
+    min-height: 2.35rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.app-settings-menu-button .bi {
+    line-height: 1;
+}
+
 .app-surface-toolbar {
     position: relative;
     display: flex;
