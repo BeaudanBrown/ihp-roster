@@ -7,6 +7,7 @@ import {
     firstRosterDayAddButton,
     firstRosterDayRemoveButton,
     openRoster,
+    runSql,
 } from './test-helpers';
 
 async function ensureAtLeastTwoRosterColumns(page: Page) {
@@ -136,6 +137,48 @@ test.describe('Roster mobile baseline', () => {
         expect(metrics?.listOverflowY).not.toBe('auto');
     });
 
+    test('keeps the day-row day rail width stable when end times are enabled on phone widths', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+
+        const readMetrics = async () => page.locator('.roster-grid-frame').first().evaluate((frame) => {
+            if (!(frame instanceof HTMLElement)) {
+                throw new Error('Expected roster frame to be an HTMLElement');
+            }
+
+            const rail = frame.querySelector('.roster-day-rail');
+            const scroller = frame.querySelector('.roster-slots-scroller');
+            if (!(rail instanceof HTMLElement) || !(scroller instanceof HTMLElement)) {
+                throw new Error('Expected day-row rail and scroller to be present');
+            }
+
+            return {
+                endTimes: frame.dataset.rosterEndTimes,
+                railWidth: Math.round(rail.getBoundingClientRect().width),
+                scrollerWidth: Math.round(scroller.getBoundingClientRect().width),
+                slotCount: Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 1,
+                scrollerScrollWidth: scroller.scrollWidth,
+            };
+        });
+
+        runSql("UPDATE venue_config SET roster_end_times_enabled = FALSE WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'");
+        await page.reload();
+        await expect(page.locator('.roster-grid-frame[data-roster-end-times="false"]')).toBeVisible();
+        const withoutEndTimes = await readMetrics();
+
+        runSql("UPDATE venue_config SET roster_end_times_enabled = TRUE WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'");
+        await page.reload();
+        await expect(page.locator('.roster-grid-frame[data-roster-end-times="true"]')).toBeVisible();
+        const withEndTimes = await readMetrics();
+
+        runSql("UPDATE venue_config SET roster_end_times_enabled = FALSE WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'");
+
+        expect(withoutEndTimes.endTimes).toBe('false');
+        expect(withEndTimes.endTimes).toBe('true');
+        expect(withEndTimes.railWidth).toBe(withoutEndTimes.railWidth);
+        expect(withEndTimes.scrollerWidth).toBe(withoutEndTimes.scrollerWidth);
+        expect(withEndTimes.scrollerScrollWidth).toBeGreaterThanOrEqual(withEndTimes.scrollerWidth * withEndTimes.slotCount);
+    });
+
     test('snaps horizontal day-row scrolling to one slot group on phone widths', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -180,6 +223,64 @@ test.describe('Roster mobile baseline', () => {
         expect(snapMetrics.snapType).toContain('mandatory');
         expect(Math.abs(snapMetrics.actualScrollLeft - snapMetrics.expectedScrollLeft)).toBeLessThanOrEqual(2);
         expect(snapMetrics.scrollerLeft).toBeGreaterThanOrEqual(snapMetrics.dayRailRight - 1);
+    });
+
+    test('waits until pointer release before applying phone horizontal snap', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await ensureAtLeastTwoRosterColumns(page);
+
+        const snapMetrics = await page.locator('.roster-slots-scroller').first().evaluate(async (scroller) => {
+            if (!(scroller instanceof HTMLElement)) {
+                throw new Error('Expected roster slot scroller to be an HTMLElement');
+            }
+
+            const frame = scroller.closest('.roster-grid-frame');
+            if (!(frame instanceof HTMLElement)) {
+                throw new Error('Expected roster slot scroller to live in a roster frame');
+            }
+
+            const slotCount = Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 1;
+            const groupWidth = scroller.scrollWidth / slotCount;
+            const rawScrollLeft = groupWidth * 0.42;
+            const expectedScrollLeft = Math.round(rawScrollLeft / groupWidth) * groupWidth;
+
+            scroller.dispatchEvent(new PointerEvent('pointerdown', {
+                bubbles: true,
+                pointerId: 101,
+                pointerType: 'touch',
+            }));
+            scroller.scrollLeft = rawScrollLeft;
+            scroller.dispatchEvent(new Event('scroll', { bubbles: false }));
+
+            await new Promise((resolve) => window.setTimeout(resolve, 260));
+            const duringPointerScrollLeft = scroller.scrollLeft;
+            const snapTypeDuringPointer = getComputedStyle(scroller).scrollSnapType;
+            const draggingDuringPointer = scroller.dataset.rosterSnapDragging;
+
+            scroller.dispatchEvent(new PointerEvent('pointerup', {
+                bubbles: true,
+                pointerId: 101,
+                pointerType: 'touch',
+            }));
+            await new Promise((resolve) => window.setTimeout(resolve, 260));
+
+            return {
+                rawScrollLeft,
+                expectedScrollLeft,
+                duringPointerScrollLeft,
+                finalScrollLeft: scroller.scrollLeft,
+                snapTypeDuringPointer,
+                draggingDuringPointer,
+                draggingAfterPointer: scroller.dataset.rosterSnapDragging ?? '',
+            };
+        });
+
+        expect(Math.abs(snapMetrics.duringPointerScrollLeft - snapMetrics.rawScrollLeft)).toBeLessThanOrEqual(2);
+        expect(snapMetrics.snapTypeDuringPointer).toBe('none');
+        expect(snapMetrics.draggingDuringPointer).toBe('true');
+        expect(snapMetrics.draggingAfterPointer).toBe('');
+        expect(Math.abs(snapMetrics.finalScrollLeft - snapMetrics.expectedScrollLeft)).toBeLessThanOrEqual(2);
     });
 
     test('snaps horizontal day-column scrolling to the nearest centered day on phone widths', async ({ page }) => {
