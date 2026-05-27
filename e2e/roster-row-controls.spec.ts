@@ -14,6 +14,15 @@ async function loginAndOpenRoster(page) {
 }
 
 test.describe('Roster row controls', () => {
+    test('labels the single time column as start in day-row mode', async ({ page }) => {
+        await loginAndOpenRoster(page);
+        await expect(page.locator('.roster-grid-frame[data-roster-layout="day_rows"][data-roster-end-times="false"]')).toBeVisible();
+
+        const subheaders = page.locator('.roster-slots-scroller .roster-grid-header-row-subheads .roster-subhead');
+        await expect(subheaders.first()).toHaveText('Start');
+        await expect(subheaders.filter({ hasText: /^Time$/ })).toHaveCount(0);
+    });
+
     test('adds and removes the last row from the day header controls', async ({ page }) => {
         await loginAndOpenRoster(page);
 
@@ -139,6 +148,8 @@ test.describe('Roster row controls', () => {
             const typeBadgeStyle = getComputedStyle(typeBadge);
             const timeTriggerStyle = getComputedStyle(timeTrigger);
             const staffInputStyle = getComputedStyle(staffInput);
+            const shiftTypeInput = realCard.querySelector('.slot-shift-type-input');
+            const shiftTypeInputStyle = shiftTypeInput instanceof HTMLElement ? getComputedStyle(shiftTypeInput) : null;
             const conflictProbeStyle = getComputedStyle(conflictProbe);
             const emptyStaffInputStyle = getComputedStyle(emptyStaffInput);
             const emptyShiftTypeInputStyle = getComputedStyle(emptyShiftTypeInput);
@@ -156,6 +167,9 @@ test.describe('Roster row controls', () => {
                 codeBackground: codeStyle.backgroundColor,
                 badgeDisplay: typeBadgeStyle.display,
                 staffColor: staffInputStyle.color,
+                timeFontSize: timeTriggerStyle.fontSize,
+                staffFontSize: staffInputStyle.fontSize,
+                shiftTypeFontSize: shiftTypeInputStyle?.fontSize ?? '',
                 cardHasConflictClass: realCard.classList.contains('conflict-critical'),
                 conflictBackground: conflictProbeStyle.backgroundColor,
                 conflictColor: conflictProbeStyle.color,
@@ -186,6 +200,8 @@ test.describe('Roster row controls', () => {
         expect(metrics?.badgeDisplay).toBe('flex');
         expect(metrics?.staffBackground).toBe(metrics?.conflictBackground);
         expect(metrics?.staffColor).toBe(metrics?.conflictColor);
+        expect(metrics?.timeFontSize).toBe(metrics?.staffFontSize);
+        expect(metrics?.timeFontSize).toBe(metrics?.shiftTypeFontSize);
         expect(metrics?.cardHasConflictClass).toBe(false);
         expect(metrics?.timeTriggerBorderWidth).toBe('0px');
         expect(metrics?.staffInputBorderWidth).toBe('0px');
