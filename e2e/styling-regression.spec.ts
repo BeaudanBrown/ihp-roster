@@ -73,6 +73,28 @@ test.describe('Styling regression contracts', () => {
             const probeFirstSectionSecondCell = probe.querySelector('.probe-first-section-second-cell');
             const probeSecondSectionFirstCell = probe.querySelector('.probe-second-section-first-cell');
 
+            const cornerProbe = document.createElement('div');
+            cornerProbe.className = 'roster-grid-frame';
+            cornerProbe.style.position = 'absolute';
+            cornerProbe.style.left = '-10000px';
+            cornerProbe.innerHTML = `
+                <div class="roster-grid">
+                    <div class="roster-grid-day-section" style="--roster-day-row-count:1;">
+                        <div class="day-row day-alt-light">
+                            <div role="gridcell" class="slot-time-cell" data-roster-shift-colour="palette-1">time</div>
+                            <div role="gridcell" class="slot-staff-cell" data-roster-shift-colour="palette-1">staff</div>
+                            <div role="gridcell" class="slot-shift-type-cell roster-block-end probe-non-final-block-end" data-roster-shift-colour="palette-1">code</div>
+                            <div role="gridcell" class="slot-time-cell roster-block-start" data-roster-shift-colour="palette-2">time</div>
+                            <div role="gridcell" class="slot-staff-cell" data-roster-shift-colour="palette-2">staff</div>
+                            <div role="gridcell" class="slot-shift-type-cell roster-block-end probe-final-block-end" data-roster-shift-colour="palette-2">code</div>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(cornerProbe);
+
+            const probeNonFinalBlockEnd = cornerProbe.querySelector('.probe-non-final-block-end');
+            const probeFinalBlockEnd = cornerProbe.querySelector('.probe-final-block-end');
+
             if (
                 !(probeLightCell instanceof HTMLElement)
                 || !(probeDarkCell instanceof HTMLElement)
@@ -81,8 +103,11 @@ test.describe('Styling regression contracts', () => {
                 || !(probeFirstSectionFirstCell instanceof HTMLElement)
                 || !(probeFirstSectionSecondCell instanceof HTMLElement)
                 || !(probeSecondSectionFirstCell instanceof HTMLElement)
+                || !(probeNonFinalBlockEnd instanceof HTMLElement)
+                || !(probeFinalBlockEnd instanceof HTMLElement)
             ) {
                 probe.remove();
+                cornerProbe.remove();
                 return null;
             }
 
@@ -95,6 +120,8 @@ test.describe('Styling regression contracts', () => {
             const probeFirstSectionFirstCellStyle = getComputedStyle(probeFirstSectionFirstCell);
             const probeFirstSectionSecondCellStyle = getComputedStyle(probeFirstSectionSecondCell);
             const probeSecondSectionFirstCellStyle = getComputedStyle(probeSecondSectionFirstCell);
+            const probeNonFinalBlockEndPseudoStyle = getComputedStyle(probeNonFinalBlockEnd, '::before');
+            const probeFinalBlockEndPseudoStyle = getComputedStyle(probeFinalBlockEnd, '::before');
 
             const probeMetrics = {
                 lightDayCellBackground: probeLightStyle.backgroundColor,
@@ -104,8 +131,11 @@ test.describe('Styling regression contracts', () => {
                 firstDayFirstRowBorderTop: probeFirstSectionFirstCellStyle.borderTopColor,
                 firstDaySecondRowBorderTop: probeFirstSectionSecondCellStyle.borderTopColor,
                 secondDayFirstRowBorderTop: probeSecondSectionFirstCellStyle.borderTopColor,
+                nonFinalBlockEndBottomRightRadius: probeNonFinalBlockEndPseudoStyle.borderBottomRightRadius,
+                finalBlockEndBottomRightRadius: probeFinalBlockEndPseudoStyle.borderBottomRightRadius,
             };
             probe.remove();
+            cornerProbe.remove();
 
             const railSections = Array.from(frame.querySelectorAll('.roster-day-rail-section'));
             const gridSections = Array.from(frame.querySelectorAll('.roster-grid-day-section'));
@@ -160,6 +190,8 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.darkEmptyCellBackground).toBe(metrics?.darkDayCellBackground);
         expect(metrics?.firstDaySecondRowBorderTop).not.toBe(metrics?.firstDayFirstRowBorderTop);
         expect(metrics?.secondDayFirstRowBorderTop).toBe(metrics?.firstDaySecondRowBorderTop);
+        expect(metrics?.nonFinalBlockEndBottomRightRadius).toBe('0px');
+        expect(Number.parseFloat(metrics?.finalBlockEndBottomRightRadius ?? '0')).toBeGreaterThan(0);
         expect(metrics?.sectionDeltas.every((delta) => delta <= 1)).toBe(true);
     });
 

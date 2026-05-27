@@ -1872,7 +1872,7 @@
     bottom: 1px;
 }
 
-.roster-grid .roster-grid-day-section:last-child .day-row:last-child .roster-block-end[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child > .roster-block-end:last-child[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
     right: 0;
     border-bottom-right-radius: var(--roster-shift-edge-corner-radius);
 }
