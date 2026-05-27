@@ -1009,34 +1009,11 @@
 .roster-shift-card.is-roster-staff-slot-highlighted,
 .roster-shift-card.is-roster-staff-slot-highlighted-start,
 .roster-shift-card.is-roster-staff-slot-highlighted-end {
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 48%, transparent);
+    background: color-mix(in srgb, var(--app-accent) 14%, var(--app-surface));
 }
 
 .roster-grid [role="gridcell"].is-roster-staff-slot-highlighted {
-    position: relative;
-}
-
-.roster-grid [role="gridcell"].is-roster-staff-slot-highlighted::after {
-    content: "";
-    position: absolute;
-    pointer-events: none;
-    z-index: 3;
-    top: -1px;
-    right: 0;
-    bottom: -1px;
-    left: 0;
-    border-top: 3px solid color-mix(in srgb, var(--app-accent) 48%, transparent);
-    border-bottom: 3px solid color-mix(in srgb, var(--app-accent) 48%, transparent);
-}
-
-.roster-grid [role="gridcell"].is-roster-staff-slot-highlighted-start::after {
-    left: -1px;
-    border-left: 3px solid color-mix(in srgb, var(--app-accent) 48%, transparent);
-}
-
-.roster-grid [role="gridcell"].is-roster-staff-slot-highlighted-end::after {
-    right: -1px;
-    border-right: 3px solid color-mix(in srgb, var(--app-accent) 48%, transparent);
+    background-color: color-mix(in srgb, var(--app-accent) 13%, transparent);
 }
 
 .roster-grid .slot-staff-cell {
@@ -1539,6 +1516,27 @@
         min-width: 48rem;
     }
 
+    .roster-grid-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+    }
+
+    .roster-grid-header-center {
+        grid-column: 1 / -1;
+        justify-content: center;
+    }
+
+    .roster-grid-header-side-left {
+        grid-column: 1;
+        justify-content: flex-start;
+    }
+
+    .roster-grid-header-side-right {
+        grid-column: 2;
+        justify-content: flex-end;
+    }
+
     .roster-grid-frame:not([data-roster-layout="day_columns"]) {
         --roster-day-column-width: 9.75rem;
         --roster-wage-column-width: 5.9rem;
@@ -1630,6 +1628,19 @@
 
     .roster-day-rail-section .roster-day-action-toggle.is-active {
         min-width: 4.25rem;
+    }
+
+    .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] {
+        --roster-day-column-width: 5.35rem;
+    }
+
+    .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] .roster-grid {
+        --roster-grid-columns: repeat(var(--roster-slot-count), minmax(0, 0.88fr) minmax(0, 1.46fr) minmax(0, 0.86fr));
+        min-width: 100%;
+    }
+
+    .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] .roster-slots-grid {
+        min-width: calc(var(--roster-slot-count) * 100%);
     }
 
     .roster-grid .slot-cell-input,
@@ -1810,15 +1821,30 @@
 .roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"],
 .roster-grid .slot-staff-cell[data-roster-shift-colour^="palette-"],
 .roster-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty) {
-    box-shadow: inset 0 3px 0 var(--roster-shift-type-colour), inset 0 -3px 0 var(--roster-shift-type-colour);
+    position: relative;
 }
 
-.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.slot-end-time-cell) {
-    box-shadow: inset 3px 0 0 var(--roster-shift-type-colour), inset 0 3px 0 var(--roster-shift-type-colour), inset 0 -3px 0 var(--roster-shift-type-colour);
+.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]::before,
+.roster-grid .slot-staff-cell[data-roster-shift-colour^="palette-"]::before,
+.roster-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    z-index: 4;
+    top: -1px;
+    right: -1px;
+    bottom: -1px;
+    left: -1px;
+    border-top: 3px solid var(--roster-shift-type-colour);
+    border-bottom: 3px solid var(--roster-shift-type-colour);
 }
 
-.roster-grid .roster-block-end[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty) {
-    box-shadow: inset -3px 0 0 var(--roster-shift-type-colour), inset 0 3px 0 var(--roster-shift-type-colour), inset 0 -3px 0 var(--roster-shift-type-colour);
+.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.slot-end-time-cell)::before {
+    border-left: 3px solid var(--roster-shift-type-colour);
+}
+
+.roster-grid .roster-block-end[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+    border-right: 3px solid var(--roster-shift-type-colour);
 }
 
 .roster-grid .slot-shift-type-cell.is-shift-type-required {

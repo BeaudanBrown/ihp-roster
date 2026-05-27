@@ -52,6 +52,7 @@ test.describe('Roster mobile baseline', () => {
                 scrollerScrollWidth: scroller.scrollWidth,
                 overflowX: getComputedStyle(scroller).overflowX,
                 gridMinWidth: getComputedStyle(grid).minWidth,
+                slotCount: Number.parseInt(getComputedStyle(frame).getPropertyValue('--roster-slot-count'), 10) || 0,
                 dayRailPosition: getComputedStyle(dayRail).position,
                 daySectionPosition: getComputedStyle(daySection).position,
                 firstDayRailHeight: Math.round(daySection.getBoundingClientRect().height),
@@ -69,7 +70,10 @@ test.describe('Roster mobile baseline', () => {
 
         expect(rosterTableMetrics).not.toBeNull();
         expect(rosterTableMetrics?.overflowX).toBe('auto');
-        expect(rosterTableMetrics?.scrollerScrollWidth).toBeGreaterThan(rosterTableMetrics?.scrollerClientWidth ?? 0);
+        expect(rosterTableMetrics?.scrollerScrollWidth).toBeGreaterThanOrEqual(rosterTableMetrics?.scrollerClientWidth ?? 0);
+        if ((rosterTableMetrics?.slotCount ?? 0) > 1) {
+            expect(rosterTableMetrics?.scrollerScrollWidth).toBeGreaterThan(rosterTableMetrics?.scrollerClientWidth ?? 0);
+        }
         expect(rosterTableMetrics?.gridMinWidth).not.toBe('0px');
         expect(rosterTableMetrics?.dayRailPosition).toBe('static');
         expect(rosterTableMetrics?.daySectionPosition).toBe('static');
