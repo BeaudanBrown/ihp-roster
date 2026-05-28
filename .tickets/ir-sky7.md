@@ -1,6 +1,6 @@
 ---
 id: ir-sky7
-status: open
+status: closed
 deps: []
 links: [ir-t7be, ir-6vvh]
 created: 2026-05-28T05:35:32Z
