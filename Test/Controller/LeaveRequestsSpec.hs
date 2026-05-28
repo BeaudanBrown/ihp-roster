@@ -9,6 +9,7 @@ import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Config
 import qualified Data.ByteString.Lazy.Char8 as LByteString
 import qualified Data.Set as Set
+import qualified Data.Text as Text
 import Data.Time.Calendar (addDays, fromGregorian)
 import Data.Time.Clock (UTCTime (..), getCurrentTime, secondsToDiffTime,
                         utctDay)
@@ -287,6 +288,15 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Approved (1)"
                 response `responseBodyShouldContain` "Denied (0)"
                 response `responseBodyShouldContain` "Archive (3)"
+                body <- responseBody response
+                let bodyText = cs (LByteString.unpack body)
+                    pendingSection = fst (Text.breakOn "id=\"leave-approved\"" (snd (Text.breakOn "id=\"leave-pending\"" bodyText)))
+                    archiveSection = snd (Text.breakOn "id=\"leave-archive\"" bodyText)
+                Text.isInfixOf "aria-expanded=\"true\"" pendingSection `shouldBe` True
+                Text.isInfixOf "accordion-collapse collapse show" pendingSection `shouldBe` True
+                Text.isInfixOf ">Actions<" archiveSection `shouldBe` False
+                Text.isInfixOf ">Approve<" archiveSection `shouldBe` False
+                Text.isInfixOf ">Deny<" archiveSection `shouldBe` False
 
         it "renders manager accordions with zero counts instead of empty-state copy when there are no leave requests" $ withContext do
             withCleanDb do

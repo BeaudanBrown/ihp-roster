@@ -101,10 +101,10 @@ renderLeaveRequestsTable leaveRequests staffMembers currentViewerStaffId = [hsx|
 renderManagerLeaveRequests :: (?context :: ControllerContext) => [LeaveRequest] -> [Staff] -> Maybe UUID -> Day -> Html
 renderManagerLeaveRequests leaveRequests staffMembers currentViewerStaffId today = [hsx|
     <div class="accordion leave-request-accordion" id="leave-request-manager-sections">
-        {renderManagerSection "leave-pending" "Pending" pendingRequests staffMembers currentViewerStaffId True}
-        {renderManagerSection "leave-approved" "Approved" approvedRequests staffMembers currentViewerStaffId False}
-        {renderManagerSection "leave-denied" "Denied" deniedRequests staffMembers currentViewerStaffId False}
-        {renderManagerSection "leave-archive" "Archive" archivedRequests staffMembers currentViewerStaffId False}
+        {renderManagerSection "leave-pending" "Pending" pendingRequests staffMembers currentViewerStaffId True True}
+        {renderManagerSection "leave-approved" "Approved" approvedRequests staffMembers currentViewerStaffId False True}
+        {renderManagerSection "leave-denied" "Denied" deniedRequests staffMembers currentViewerStaffId False True}
+        {renderManagerSection "leave-archive" "Archive" archivedRequests staffMembers currentViewerStaffId False False}
     </div>
 |]
     where
@@ -118,8 +118,8 @@ leaveRequestIsArchived :: Day -> LeaveRequest -> Bool
 leaveRequestIsArchived today leaveRequest =
     leaveRequest.endDate < today
 
-renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Html
-renderManagerSection sectionId title requests staffMembers currentViewerStaffId isOpen =
+renderManagerSection :: (?context :: ControllerContext) => Text -> Text -> [LeaveRequest] -> [Staff] -> Maybe UUID -> Bool -> Bool -> Html
+renderManagerSection sectionId title requests staffMembers currentViewerStaffId isOpen showActions =
     renderAppAccordionItem AppAccordionItemConfig
         { appAccordionItemId = sectionId
         , appAccordionItemParentId = "leave-request-manager-sections"
@@ -143,16 +143,16 @@ renderManagerSection sectionId title requests staffMembers currentViewerStaffId 
                             <div>Staff</div>
                             <div>Dates</div>
                             <div>Notes</div>
-                            <div>Actions</div>
+                            {renderManagerActionsHeader showActions}
                         </div>
                         <div class="leave-request-list-body">
-                            {forEach requests (renderManagerLeaveRequestRow staffMembers currentViewerStaffId)}
+                            {forEach requests (renderManagerLeaveRequestRow staffMembers currentViewerStaffId showActions)}
                         </div>
                     </div>
                 |]
 
-renderManagerLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> LeaveRequest -> Html
-renderManagerLeaveRequestRow staffMembers currentViewerStaffId leaveRequest = [hsx|
+renderManagerLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> Bool -> LeaveRequest -> Html
+renderManagerLeaveRequestRow staffMembers currentViewerStaffId showActions leaveRequest = [hsx|
     <article class="leave-request-row">
         <div class="leave-request-row-staff">
             <div class="leave-request-row-name">{resolveStaffName leaveRequest.staffId staffMembers}</div>
@@ -160,8 +160,18 @@ renderManagerLeaveRequestRow staffMembers currentViewerStaffId leaveRequest = [h
         </div>
         <div class="leave-request-row-dates">{renderDateRangeText leaveRequest}</div>
         <div class="leave-request-row-notes">{fromMaybe "No notes" (leaveRequest.notes >>= nonEmptyText)}</div>
-        <div class="leave-request-row-actions">{renderActions currentViewerStaffId leaveRequest}</div>
+        {renderManagerActionsCell currentViewerStaffId showActions leaveRequest}
     </article>
+|]
+
+renderManagerActionsHeader :: Bool -> Html
+renderManagerActionsHeader False = mempty
+renderManagerActionsHeader True = [hsx|<div>Actions</div>|]
+
+renderManagerActionsCell :: (?context :: ControllerContext) => Maybe UUID -> Bool -> LeaveRequest -> Html
+renderManagerActionsCell _currentViewerStaffId False _leaveRequest = mempty
+renderManagerActionsCell currentViewerStaffId True leaveRequest = [hsx|
+    <div class="leave-request-row-actions">{renderActions currentViewerStaffId leaveRequest}</div>
 |]
 
 renderLeaveRequestRow :: (?context :: ControllerContext) => [Staff] -> Maybe UUID -> LeaveRequest -> Html

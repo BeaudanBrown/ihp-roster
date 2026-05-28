@@ -1,6 +1,6 @@
 ---
 id: ir-oiak
-status: open
+status: closed
 deps: [ir-hdpq]
 links: []
 created: 2026-05-28T05:42:05Z
@@ -22,3 +22,9 @@ Keep the Unavailability page's Pending accordion section open by default. Render
 
 Pending remains the only default-open unavailability section; Archive rows have no Actions column; no layout gap remains; tests/e2e for leave manager sections are updated; archive pagination follow-up is recorded.
 
+
+## Notes
+
+**2026-05-28T06:29:06Z**
+
+Archive pagination follow-up is tracked by child ticket ir-aqy1.
