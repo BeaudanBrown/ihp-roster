@@ -1,6 +1,6 @@
 ---
 id: ir-pups
-status: open
+status: closed
 deps: []
 links: [ir-2ds0]
 created: 2026-05-28T05:35:32Z
