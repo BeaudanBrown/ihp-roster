@@ -99,12 +99,14 @@ renderTimesheetWeekNavigationLink label url =
             }
 
 renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bool -> Bool -> Maybe UUID -> [Staff] -> Html
-renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff selectedStaffFilterId staffMembers = [hsx|
-    <div class="app-panel-header app-surface-toolbar">
-        <div class="app-surface-toolbar-side">
-            {renderTimesheetWeekNavigationLink "This week" (timesheetWeekResetUrl showApproved showAllStaff selectedStaffFilterId)}
-        </div>
-        <div class="app-surface-toolbar-center">
+renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff selectedStaffFilterId staffMembers =
+    renderWeekToolbar WeekToolbarConfig
+        { weekToolbarVariant = WeekToolbarTimesheets
+        , weekToolbarAriaLabel = "Timesheet week controls"
+        , weekToolbarExtraClass = "timesheet-week-header"
+        , weekToolbarPrimary = mempty
+        , weekToolbarReset = renderTimesheetWeekNavigationLink "This week" (timesheetWeekResetUrl showApproved showAllStaff selectedStaffFilterId)
+        , weekToolbarNavigation = [hsx|
             <div class="btn-group app-week-nav-group" role="group" aria-label="Timesheet week navigation">
                 {renderTimesheetWeekNavigationLink "<" (timesheetWeekUrl (weekOffset - 1) showApproved showAllStaff selectedStaffFilterId)}
                 <div class="btn btn-outline-secondary app-week-nav-label">
@@ -112,12 +114,10 @@ renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff sel
                 </div>
                 {renderTimesheetWeekNavigationLink ">" (timesheetWeekUrl (weekOffset + 1) showApproved showAllStaff selectedStaffFilterId)}
             </div>
-        </div>
-        <div class="app-surface-toolbar-side app-surface-toolbar-side-right">
-            {renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff selectedStaffFilterId staffMembers}
-        </div>
-    </div>
-|]
+        |]
+        , weekToolbarSettings = renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff selectedStaffFilterId staffMembers
+        , weekToolbarAuxiliary = mempty
+        }
 
 renderTimesheetWeekMoreMenu :: (?context :: ControllerContext) => Int -> Bool -> Bool -> Maybe UUID -> [Staff] -> Html
 renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff selectedStaffFilterId staffMembers =

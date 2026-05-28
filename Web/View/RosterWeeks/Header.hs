@@ -18,21 +18,17 @@ import Web.View.Prelude
 import Web.View.RosterWeeks.Overview (renderWeekOverviewDropdown)
 
 renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Html
-renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates = [hsx|
-    <div class="app-panel-header app-surface-toolbar roster-grid-header">
-        <div class="app-surface-toolbar-side roster-grid-header-side roster-grid-header-side-left">
-            {renderLiveToggle maybeRosterWeek viewCapabilities}
-            {renderThisWeekButton}
-            {renderRosterWeekWageSummary rosterWagePrediction}
-        </div>
-        <div class="app-surface-toolbar-center roster-grid-header-center">
-            {renderRosterWeekControls weekOffset currentRosterGroup weekStartDate}
-        </div>
-        <div class="app-surface-toolbar-side app-surface-toolbar-side-right roster-grid-header-side roster-grid-header-side-right">
-            {renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates}
-        </div>
-    </div>
-|]
+renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates =
+    renderWeekToolbar WeekToolbarConfig
+        { weekToolbarVariant = WeekToolbarRoster
+        , weekToolbarAriaLabel = "Roster week controls"
+        , weekToolbarExtraClass = "roster-grid-header"
+        , weekToolbarPrimary = renderLiveToggle maybeRosterWeek viewCapabilities
+        , weekToolbarReset = renderThisWeekButton
+        , weekToolbarNavigation = renderRosterWeekControls weekOffset currentRosterGroup weekStartDate
+        , weekToolbarSettings = renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters viewCapabilities rosterLayoutMode rosterEndTimesEnabled showWageEstimates
+        , weekToolbarAuxiliary = renderRosterWeekWageSummary rosterWagePrediction
+        }
 
 renderRosterWeekWageSummary :: (?context :: ControllerContext) => Maybe RosterWagePrediction -> Html
 renderRosterWeekWageSummary Nothing = mempty
@@ -117,7 +113,7 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
     let menuTriggerId = rosterWeekMoreMenuId maybeRosterWeek currentRosterGroup.id
         divider = [hsx|<div class="dropdown-divider my-1"></div>|]
      in [hsx|
-    <div class="dropdown">
+    <div class="dropdown" data-roster-week-controls="manager-actions">
         {renderAppSettingsMenuButton menuTriggerId "Roster settings"}
         <div class="dropdown-menu dropdown-menu-end p-2 app-action-menu" aria-labelledby={menuTriggerId}>
             <div class="px-1 pb-2">

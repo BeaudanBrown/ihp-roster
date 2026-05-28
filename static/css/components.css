@@ -617,6 +617,54 @@ h5,
     white-space: nowrap;
 }
 
+.app-week-toolbar {
+    position: relative;
+    z-index: 4;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    grid-template-areas: "quick navigation settings";
+    gap: 0.75rem;
+    align-items: center;
+    min-height: 4.5rem;
+}
+
+.app-week-toolbar-section {
+    min-width: 0;
+}
+
+.app-week-toolbar-quick {
+    grid-area: quick;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.app-week-toolbar-navigation {
+    grid-area: navigation;
+    display: flex;
+    justify-content: center;
+}
+
+.app-week-toolbar-settings {
+    grid-area: settings;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.app-week-toolbar-aux {
+    min-width: 0;
+}
+
+.app-week-toolbar-aux-mobile {
+    display: none;
+}
+
+.app-week-toolbar-aux-desktop {
+    display: inline-flex;
+}
+
 @media (max-width: 991.98px) {
     .app-surface-toolbar {
         min-height: auto;
@@ -633,6 +681,68 @@ h5,
 
     .app-surface-toolbar-side,
     .app-surface-toolbar-side-right {
+        justify-content: center;
+    }
+
+    .app-week-toolbar {
+        min-height: auto;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+    }
+
+    .app-week-toolbar-roster {
+        grid-template-areas:
+            "quick settings"
+            "navigation navigation"
+            "auxiliary auxiliary";
+    }
+
+    .app-week-toolbar-timesheets {
+        grid-template-areas:
+            "quick quick"
+            "navigation navigation";
+    }
+
+    .app-week-toolbar-quick,
+    .app-week-toolbar-navigation,
+    .app-week-toolbar-settings,
+    .app-week-toolbar-aux-mobile {
+        position: relative;
+        z-index: 1;
+    }
+
+    .app-week-toolbar-quick {
+        justify-content: center;
+    }
+
+    .app-week-toolbar-roster .app-week-toolbar-quick {
+        justify-content: flex-start;
+    }
+
+    .app-week-toolbar-timesheets .app-week-toolbar-quick {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        justify-content: center;
+    }
+
+    .app-week-toolbar-settings {
+        grid-column: 2;
+        grid-row: 1;
+        justify-content: flex-end;
+        z-index: 2;
+    }
+
+    .app-week-toolbar-navigation {
+        justify-content: center;
+    }
+
+    .app-week-toolbar-aux-desktop {
+        display: none;
+    }
+
+    .app-week-toolbar-aux-mobile {
+        grid-area: auxiliary;
+        display: flex;
         justify-content: center;
     }
 
