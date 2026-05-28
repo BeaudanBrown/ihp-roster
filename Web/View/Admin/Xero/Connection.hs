@@ -14,7 +14,7 @@ renderXeroDisconnectedConnectionDetails connectionActionsAllowed = [hsx|
             <dd class="col-sm-9">{renderAppStatusBadge AppStatusNeutral "not connected"}</dd>
         </dl>
         <p class="mb-0 app-muted">
-            Connecting grants ihp-roster access to the selected Xero organisation for payroll integration setup.
+            Connecting grants Bepis access to the selected Xero organisation for payroll integration setup.
         </p>
         {renderXeroConnectControl connectionActionsAllowed}
     </div>

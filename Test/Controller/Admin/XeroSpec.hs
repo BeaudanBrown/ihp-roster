@@ -77,6 +77,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Status:"
                 response `responseBodyShouldNotContain` "app-accordion-section-header"
                 response `responseBodyShouldNotContain` "Staff mappings"
+                response `responseBodyShouldNotContain` "Draft timesheet submission"
+                response `responseBodyShouldNotContain` "id=\"xero-timesheets-data\""
 
                 fragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
@@ -84,6 +86,8 @@ tests = beforeAll testContext do
                 fragmentResponse `responseBodyShouldContain` "id=\"admin-xero-fragment\""
                 fragmentResponse `responseBodyShouldContain` "not connected"
                 fragmentResponse `responseBodyShouldNotContain` "Staff mappings"
+                fragmentResponse `responseBodyShouldNotContain` "Draft timesheet submission"
+                fragmentResponse `responseBodyShouldNotContain` "id=\"xero-timesheets-data\""
                 fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
 
         it "records touched resources for Xero connection mutations" $ withContext do
@@ -1159,6 +1163,8 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Draft timesheet submission"
+                response `responseBodyShouldContain` "approved Bepis timesheets"
+                response `responseBodyShouldNotContain` "approved IHP timesheets"
                 response `responseBodyShouldContain` "Prepare"
                 response `responseBodyShouldContain` "name=\"periodKey\""
                 response `responseBodyShouldContain` "hx-target=\"#dialog-overlay-mount\""
@@ -1803,6 +1809,8 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroFragmentAction
                 pageResponse `responseBodyShouldContain` "reconnect required"
                 pageResponse `responseBodyShouldContain` "Xero needs to be reconnected before sync can continue."
+                pageResponse `responseBodyShouldNotContain` "Draft timesheet submission"
+                pageResponse `responseBodyShouldNotContain` "id=\"xero-timesheets-data\""
 
         it "sends HTMX sync requests into the reconnect flow when the refresh token is expired" $ withContext do
             withCleanDb do

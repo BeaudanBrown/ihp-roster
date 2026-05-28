@@ -213,13 +213,10 @@ renderXeroAutoSyncTrigger _ _ =
     mempty
 
 renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroPayItemAccountCodeOption] -> Maybe XeroSyncRun -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> XeroTimesheetPanelData -> Html
-renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed timesheetPanel = [hsx|
+renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed _timesheetPanel = [hsx|
     <div class="d-flex flex-column gap-4">
         <section class={appSurfaceClasses "p-3"}>
             {renderXeroDisconnectedConnectionDetails connectionActionsAllowed}
-        </section>
-        <section class={appSurfaceClasses "p-3"}>
-            {renderXeroTimesheetPanel timesheetPanel}
         </section>
     </div>
 |]
@@ -228,11 +225,18 @@ renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _
         <section class={appSurfaceClasses "p-3"}>
             {renderXeroConnectionDetails connection connectionActionsAllowed}
         </section>
+        {renderXeroOperationalPanels connection timesheetPanel}
+    </div>
+|]
+
+renderXeroOperationalPanels :: XeroConnection -> XeroTimesheetPanelData -> Html
+renderXeroOperationalPanels connection timesheetPanel
+    | connection.connectionStatus == "active" = [hsx|
         <section class={appSurfaceClasses "p-3"}>
             {renderXeroTimesheetPanel timesheetPanel}
         </section>
-    </div>
-|]
+    |]
+    | otherwise = mempty
 
 renderXeroStaffMappingsFragment :: [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> Html
 renderXeroStaffMappingsFragment =

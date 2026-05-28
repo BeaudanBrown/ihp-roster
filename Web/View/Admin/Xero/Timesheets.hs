@@ -15,7 +15,7 @@ renderXeroTimesheetPanel panel = [hsx|
         <div class="d-flex flex-column flex-lg-row justify-content-between gap-3">
             <div>
                 <h3 class="h6 mb-1">Draft timesheet submission</h3>
-                <div class="small app-muted">Create Xero Payroll AU draft timesheets from approved IHP timesheets for the selected payroll calendar period.</div>
+                <div class="small app-muted">Create Xero Payroll AU draft timesheets from approved Bepis timesheets for the selected payroll calendar period.</div>
             </div>
             <div class="d-flex flex-wrap gap-2 align-items-start">
                 {renderPreparationButton panel}

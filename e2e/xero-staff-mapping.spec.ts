@@ -4,13 +4,13 @@ import { gotoWhenReady, loginAsPrivilegedUserWithSeededPasskeySession, webauthnB
 test.use({ baseURL: webauthnBaseURL });
 
 test.describe('Xero admin page', () => {
-    test('shows the flat connection and draft-timesheet surface without page-level staff/pay-item setup', async ({ page }) => {
+    test('shows only connection chrome before Xero is connected', async ({ page }) => {
         await loginAsPrivilegedUserWithSeededPasskeySession(page, 'e2e-super-admin@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Xero', '#admin-xero-fragment');
 
         await expect(page.getByText('not connected')).toBeVisible();
-        await expect(page.getByText('Draft timesheet submission')).toBeVisible();
-        await expect(page.locator('#xero-timesheets-data')).toBeVisible();
+        await expect(page.getByText('Draft timesheet submission')).toHaveCount(0);
+        await expect(page.locator('#xero-timesheets-data')).toHaveCount(0);
 
         await expect(page.locator('.accordion')).toHaveCount(0);
         await expect(page.locator('#xero-staff-mappings-data')).toHaveCount(0);

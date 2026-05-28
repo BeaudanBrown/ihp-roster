@@ -47,14 +47,14 @@ function resetXeroTimesheetPreparationFixture() {
             'e2e-xero-timesheet-tenant',
             'E2E Timesheet Tenant',
             'e2e-xero-timesheet-connection',
-            'reauthorization_required',
+            'active',
             'openid profile email accounting.settings payroll.employees payroll.payruns offline_access',
             'e2e-refresh-token',
             NULL,
             NULL,
             NOW(),
             NOW(),
-            'E2E reconnect required',
+            NULL,
             '${ownerUserId}',
             NOW() + INTERVAL '1 minute'
         )
@@ -181,12 +181,6 @@ function resetXeroTimesheetPreparationFixture() {
 async function openDraftTimesheetsPanel(page: import('@playwright/test').Page) {
     await gotoWhenReady(page, '/Xero', '#admin-xero-fragment');
 
-    const draftTimesheetsToggle = page.getByRole('button', { name: 'Draft timesheets' });
-    if ((await draftTimesheetsToggle.getAttribute('aria-expanded')) !== 'true') {
-        await draftTimesheetsToggle.click();
-    }
-
-    await expect(draftTimesheetsToggle).toHaveAttribute('aria-expanded', 'true', { timeout: E2E_TIMEOUT.action });
     await expect(page.locator('#xero-timesheets-data')).toBeVisible({ timeout: E2E_TIMEOUT.action });
 }
 
@@ -230,7 +224,6 @@ test.describe('Xero timesheet preparation', () => {
         await expect(page.getByRole('heading', { name: 'Prepare Xero draft timesheets' })).toBeVisible();
         await expect(preparationDialog).toContainText('Pay Period');
         await expect(preparationDialog).toContainText(/\d{2}\/\d{2}\/\d{4} to \d{2}\/\d{2}\/\d{4} · payment \d{2}\/\d{2}\/\d{4}/);
-        await expect(preparationDialog).toContainText('Reconnect Xero before continuing this preparation run.');
         await expect(preparationDialog).toContainText('Staff mappings');
         await expect(preparationDialog).toContainText('Managed pay items');
         await expect(preparationDialog.locator('a[href="/StartXeroConnection"]')).toBeVisible();
