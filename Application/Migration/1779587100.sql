@@ -1,0 +1,32 @@
+CREATE TABLE user_feedback_items (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    submitted_by_user_id UUID NOT NULL,
+    feedback_type TEXT DEFAULT 'bug' NOT NULL,
+    status TEXT DEFAULT 'new' NOT NULL,
+    priority TEXT DEFAULT 'normal' NOT NULL,
+    content TEXT NOT NULL,
+    submitted_path TEXT,
+    user_agent TEXT,
+    read_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    read_by_user_id UUID DEFAULT NULL,
+    support_note TEXT,
+    resolved_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    resolved_by_user_id UUID DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (submitted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (read_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (resolved_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((feedback_type = 'bug') OR (feedback_type = 'suggestion') OR (feedback_type = 'question') OR (feedback_type = 'other')),
+    CHECK ((status = 'new') OR (status = 'triaged') OR (status = 'planned') OR (status = 'in_progress') OR (status = 'done') OR (status = 'closed')),
+    CHECK ((priority = 'low') OR (priority = 'normal') OR (priority = 'high')),
+    CHECK (char_length(content) >= 3),
+    CHECK (char_length(content) <= 3000),
+    CHECK (support_note IS NULL OR char_length(support_note) <= 3000),
+    CHECK (((read_at IS NULL) AND (read_by_user_id IS NULL)) OR ((read_at IS NOT NULL) AND (read_by_user_id IS NOT NULL))),
+    CHECK (((resolved_at IS NULL) AND (resolved_by_user_id IS NULL)) OR ((resolved_at IS NOT NULL) AND (resolved_by_user_id IS NOT NULL)))
+);
+CREATE INDEX user_feedback_items_unread_idx ON user_feedback_items (created_at) WHERE read_at IS NULL;
+CREATE INDEX user_feedback_items_venue_created_at_idx ON user_feedback_items (venue_id, created_at);
