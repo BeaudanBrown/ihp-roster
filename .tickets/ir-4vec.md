@@ -1,6 +1,6 @@
 ---
 id: ir-4vec
-status: open
+status: closed
 deps: [ir-f8wn]
 links: []
 created: 2026-05-28T05:42:04Z

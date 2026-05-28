@@ -551,7 +551,7 @@ tests = beforeAll testContext do
 
                 adminResponse `responseStatusShouldBe` status200
                 adminResponse `responseBodyShouldContain` "data-roster-layout=\"day_rows\""
-                adminResponse `responseBodyShouldContain` "Week wage estimate:"
+                adminResponse `responseBodyShouldContain` "Wages:"
                 adminResponse `responseBodyShouldContain` "$150.00"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary"
                 adminResponse `responseBodyShouldContain` "roster-wage-summary-total"
@@ -560,8 +560,8 @@ tests = beforeAll testContext do
                 adminResponse `responseBodyShouldContain` "roster-wage-rail-head"
                 adminResponse `responseBodyShouldContain` ">Wages<"
                 adminResponse `responseBodyShouldContain` "roster-day-wage-total"
-                adminResponse `responseBodyShouldContain` "aria-label=\"Wage estimate for day\""
-                adminResponse `responseBodyShouldContain` "Show wage estimates"
+                adminResponse `responseBodyShouldContain` "aria-label=\"Wages for day\""
+                adminResponse `responseBodyShouldContain` "Show wages"
                 adminResponse `responseBodyShouldNotContain` "Admin estimate only"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
@@ -573,11 +573,11 @@ tests = beforeAll testContext do
 
                 dayColumnsResponse `responseStatusShouldBe` status200
                 dayColumnsResponse `responseBodyShouldContain` "data-roster-layout=\"day_columns\""
-                dayColumnsResponse `responseBodyShouldContain` "Week wage estimate:"
+                dayColumnsResponse `responseBodyShouldContain` "Wages:"
                 dayColumnsResponse `responseBodyShouldContain` "roster-wage-summary-total"
                 dayColumnsResponse `responseBodyShouldContain` "roster-day-wage-total-labeled"
-                dayColumnsResponse `responseBodyShouldContain` "Wage estimate"
-                dayColumnsResponse `responseBodyShouldContain` "aria-label=\"Wage estimate for day\""
+                dayColumnsResponse `responseBodyShouldContain` "Wages"
+                dayColumnsResponse `responseBodyShouldContain` "aria-label=\"Wages for day\""
                 dayColumnsResponse `responseBodyShouldNotContain` "roster-wage-prediction"
 
                 hiddenWagesResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -588,8 +588,8 @@ tests = beforeAll testContext do
 
                 hiddenWagesResponse `responseStatusShouldBe` status200
                 hiddenWagesResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
-                hiddenWagesResponse `responseBodyShouldContain` "Show wage estimates"
-                hiddenWagesResponse `responseBodyShouldNotContain` "Week wage estimate:"
+                hiddenWagesResponse `responseBodyShouldContain` "Show wages"
+                hiddenWagesResponse `responseBodyShouldNotContain` "Wages:"
                 hiddenWagesResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 hiddenWagesResponse `responseBodyShouldNotContain` "roster-day-wage-total"
                 hiddenPreferences <- query @UserPreference
@@ -605,9 +605,9 @@ tests = beforeAll testContext do
                 managerResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 managerResponse `responseBodyShouldNotContain` "roster-wage-summary-total"
                 managerResponse `responseBodyShouldNotContain` "roster-day-wage-total"
-                managerResponse `responseBodyShouldNotContain` "aria-label=\"Wage estimate for day\""
+                managerResponse `responseBodyShouldNotContain` "aria-label=\"Wages for day\""
                 managerResponse `responseBodyShouldNotContain` "roster-wage-prediction"
-                managerResponse `responseBodyShouldNotContain` "Show wage estimates"
+                managerResponse `responseBodyShouldNotContain` "Show wages"
 
         it "hides wage estimate controls when roster end times are disabled" $ withContext do
             withCleanDb do
@@ -636,8 +636,8 @@ tests = beforeAll testContext do
                 adminResponse `responseStatusShouldBe` status200
                 adminResponse `responseBodyShouldContain` "data-roster-end-times=\"false\""
                 adminResponse `responseBodyShouldContain` "data-roster-wages=\"hidden\""
-                adminResponse `responseBodyShouldNotContain` "Show wage estimates"
-                adminResponse `responseBodyShouldNotContain` "Week wage estimate:"
+                adminResponse `responseBodyShouldNotContain` "Show wages"
+                adminResponse `responseBodyShouldNotContain` "Wages:"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-summary"
                 adminResponse `responseBodyShouldNotContain` "roster-day-wage-total"
                 adminResponse `responseBodyShouldNotContain` "roster-wage-rail-head"
@@ -649,8 +649,8 @@ tests = beforeAll testContext do
                             [("showWageEstimates", "true")]
 
                 toggleResponse `responseStatusShouldBe` status200
-                toggleResponse `responseBodyShouldNotContain` "Show wage estimates"
-                toggleResponse `responseBodyShouldNotContain` "Week wage estimate:"
+                toggleResponse `responseBodyShouldNotContain` "Show wages"
+                toggleResponse `responseBodyShouldNotContain` "Wages:"
                 hiddenPreferences <- query @UserPreference
                     |> filterWhere (#userId, unpackId admin.id)
                     |> fetchOneOrNothing

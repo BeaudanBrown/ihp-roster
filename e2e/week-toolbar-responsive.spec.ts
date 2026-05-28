@@ -11,6 +11,7 @@ type ToolbarMetrics = {
     settingsTop: number;
     settingsRight: number;
     auxiliaryTop: number | null;
+    auxiliaryRight: number | null;
     resetTop: number | null;
     resetBottom: number | null;
     resetCenterX: number | null;
@@ -60,6 +61,7 @@ async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbar
             settingsTop: Math.round(settings.top),
             settingsRight: Math.round(settings.right),
             auxiliaryTop: auxiliary ? Math.round(auxiliary.top) : null,
+            auxiliaryRight: auxiliary ? Math.round(auxiliary.right) : null,
             resetTop: reset ? Math.round(reset.top) : null,
             resetBottom: reset ? Math.round(reset.bottom) : null,
             resetCenterX: reset ? Math.round(reset.left + reset.width / 2) : null,
@@ -73,11 +75,14 @@ test.describe('Shared week toolbar responsive layout', () => {
     test('keeps roster and timesheet week controls on one desktop row', async ({ page }) => {
         test.setTimeout(90_000);
         await page.setViewportSize({ width: 1280, height: 900 });
+        runSql("UPDATE venue_config SET roster_end_times_enabled = TRUE WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'");
 
         await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: false });
         const roster = await weekToolbarMetrics(page, '[data-week-toolbar="roster"]');
         expect(Math.abs(roster.quickTop - roster.navigationTop)).toBeLessThanOrEqual(2);
         expect(Math.abs(roster.settingsTop - roster.navigationTop)).toBeLessThanOrEqual(2);
+        expect(roster.auxiliaryRight).not.toBeNull();
+        expect(roster.auxiliaryRight ?? 0).toBeGreaterThan(roster.toolbarCenterX);
 
         await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
         const timesheets = await weekToolbarMetrics(page, '[data-week-toolbar="timesheets"]');

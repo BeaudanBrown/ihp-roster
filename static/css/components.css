@@ -666,7 +666,9 @@ h5,
 .app-week-toolbar-settings {
     grid-area: settings;
     display: flex;
+    align-items: center;
     justify-content: flex-end;
+    gap: 0.5rem;
 }
 
 .app-week-toolbar-aux {

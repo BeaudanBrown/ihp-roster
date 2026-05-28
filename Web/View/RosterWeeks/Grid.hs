@@ -121,7 +121,7 @@ renderDayRowsWageAmount (Just prediction) date =
     case lookupRosterWagePredictionDayByDate prediction date of
         Nothing -> mempty
         Just dayPrediction -> [hsx|
-            <div class="roster-day-wage-total" aria-label="Wage estimate for day">
+            <div class="roster-day-wage-total" aria-label="Wages for day">
                 {formatMoneyAmount dayPrediction.predictionDayTotal}
             </div>
         |]
@@ -132,8 +132,8 @@ renderDayColumnWageEstimate (Just prediction) date =
     case lookupRosterWagePredictionDayByDate prediction date of
         Nothing -> mempty
         Just dayPrediction -> [hsx|
-            <div class="roster-day-wage-total roster-day-wage-total-labeled" aria-label="Wage estimate for day">
-                <span class="roster-day-wage-label">Wage estimate</span>
+            <div class="roster-day-wage-total roster-day-wage-total-labeled" aria-label="Wages for day">
+                <span class="roster-day-wage-label">Wages</span>
                 <span>{formatMoneyAmount dayPrediction.predictionDayTotal}</span>
             </div>
         |]

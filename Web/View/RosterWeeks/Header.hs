@@ -35,8 +35,8 @@ renderRosterWeekWageSummary Nothing = mempty
 renderRosterWeekWageSummary (Just prediction)
     | not currentUserIsAdmin = mempty
     | otherwise = [hsx|
-        <div class="roster-wage-summary" aria-label="Week wage estimate">
-            <span class="roster-wage-summary-label">Week wage estimate:</span>
+        <div class="roster-wage-summary" aria-label="Week wages estimate">
+            <span class="roster-wage-summary-label">Wages:</span>
             <span class="roster-wage-summary-total">{formatMoneyAmount prediction.predictionWeekTotal}</span>
         </div>
     |]
@@ -199,7 +199,7 @@ renderRosterWageEstimatePreferenceMenuSection weekOffset rosterGroupId viewCapab
 
 renderRosterWageEstimateToggle :: Bool -> Html
 renderRosterWageEstimateToggle showWageEstimates =
-    renderAppToggleButton $ (defaultAppToggleButtonConfig "show-wage-estimates" showWageEstimates [hsx|<span class="small">Show wage estimates</span>|])
+    renderAppToggleButton $ (defaultAppToggleButtonConfig "show-wage-estimates" showWageEstimates [hsx|<span class="small">Show wages</span>|])
         { appToggleInputName = Just "showWageEstimates"
         , appToggleInputValue = "true"
         , appToggleButtonClass = "btn-sm w-100 justify-content-start"
