@@ -259,7 +259,10 @@ parseRequiredEmail paramName emptyMessage =
                             pure Nothing
 
 parseIsActiveParam :: (?context :: ControllerContext, ?request :: Request) => Bool
-parseIsActiveParam = paramOrDefault "true" "isActive" == ("true" :: Text)
+parseIsActiveParam =
+    case paramList @Text "isActive" of
+        [] -> True
+        values -> "true" `elem` values
 
 parseShowInactiveParam :: (?context :: ControllerContext, ?request :: Request) => ByteString -> Bool
 parseShowInactiveParam paramName = paramOrDefault "false" paramName == ("true" :: Text)

@@ -270,6 +270,10 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "admin_shift_types"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
                 pageResponse `responseBodyShouldContain` "name=\"showInactiveShiftTypes\" value=\"true\""
+                pageResponse `responseBodyShouldContain` "id=\"new-shift-type-active\""
+                pageResponse `responseBodyShouldContain` "name=\"isActive\" value=\"true\""
+                pageResponse `responseBodyShouldContain` "type=\"hidden\" name=\"isActive\" value=\"false\""
+                pageResponse `responseBodyShouldContain` ("id=\"shift-type-active-" <> tshow shiftType.id <> "\"")
                 pageResponse `responseBodyShouldContain` "app-toggle-button btn-success"
                 pageResponse `responseBodyShouldContain` "aria-pressed=\"true\""
                 pageResponse `responseBodyShouldContain` "role=\"switch\" aria-checked=\"true\""

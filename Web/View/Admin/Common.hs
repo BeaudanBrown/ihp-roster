@@ -128,6 +128,26 @@ renderActiveBadge isActive =
         then renderAppStatusBadge AppStatusSuccess "active"
         else renderAppStatusBadge AppStatusNeutral "inactive"
 
+renderAdminActiveToggle :: Text -> Maybe Text -> Text -> Bool -> Html
+renderAdminActiveToggle inputId maybePostPath targetId isActive = [hsx|
+    {renderAppToggleButton toggleConfig}
+    <input type="hidden" name="isActive" value="false" />
+|]
+    where
+        statusLabel :: Text
+        statusLabel = if isActive then "Active" else "Inactive"
+        toggleConfig = (defaultAppToggleButtonConfig inputId isActive [hsx|<span class="small">{statusLabel}</span>|])
+            { appToggleInputName = Just "isActive"
+            , appToggleInputValue = "true"
+            , appToggleButtonClass = "btn-sm w-100"
+            , appToggleRoleSwitch = True
+            , appToggleHxPost = maybePostPath
+            , appToggleHxTrigger = if isJust maybePostPath then Just "change" else Nothing
+            , appToggleHxInclude = if isJust maybePostPath then Just "closest form" else Nothing
+            , appToggleHxTarget = if isJust maybePostPath then Just ("#" <> targetId) else Nothing
+            , appToggleHxSwap = if isJust maybePostPath then Just "outerHTML" else Nothing
+            }
+
 renderEmptyState :: Text -> Html
 renderEmptyState message = [hsx|<p class="app-muted mb-0">{message}</p>|]
 

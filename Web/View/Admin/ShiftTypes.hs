@@ -135,10 +135,7 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
             </div>
             <div class="col-12 col-lg-1">
                 <label class="form-label" for="new-shift-type-active">Status</label>
-                <select id="new-shift-type-active" class="form-select" name="isActive">
-                    <option value="true" selected={True}>Active</option>
-                    <option value="false">Inactive</option>
-                </select>
+                {renderAdminActiveToggle "new-shift-type-active" Nothing "admin-shift-types-fragment" True}
             </div>
             <div class="col-12 col-lg-2">
                 <button class="btn btn-outline-primary w-100" type="submit">Add</button>
@@ -212,17 +209,8 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates activ
                 {renderShiftTypeColourSelect ("shift-type-colour-" <> tshow shiftType.id) shiftType.colourKey (Just (pathTo (UpdateShiftTypeAction shiftType.id)))}
             </div>
             <div class="col-12 col-lg-2">
-                <label class="form-label">Status</label>
-                <select class="form-select"
-                        name="isActive"
-                        hx-post={UpdateShiftTypeAction (get #id shiftType)}
-                        hx-trigger="change"
-                        hx-include="closest form"
-                        hx-target="#admin-shift-types-fragment"
-                        hx-swap="outerHTML">
-                    <option value="true" selected={shiftType.isActive}>Active</option>
-                    <option value="false" selected={not shiftType.isActive}>Inactive</option>
-                </select>
+                <label class="form-label" for={"shift-type-active-" <> tshow shiftType.id}>Status</label>
+                {renderAdminActiveToggle ("shift-type-active-" <> tshow shiftType.id) (Just (pathTo (UpdateShiftTypeAction shiftType.id))) "admin-shift-types-fragment" shiftType.isActive}
             </div>
         </div>
     </form>
