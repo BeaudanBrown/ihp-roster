@@ -522,47 +522,11 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "less than 2 months ago"
                 response `responseBodyShouldContain` "Delete"
                 response `responseBodyShouldContain` "Email setup link for another device"
+                response `responseBodyShouldContain` "Delete this passkey? You may need to verify with a passkey before it is removed."
                 response `responseBodyShouldNotContain` "Created"
                 response `responseBodyShouldNotContain` "Rename"
                 response `responseBodyShouldNotContain` "id=\"passkey-management-name\""
                 response `responseBodyShouldNotContain` "data-begin-url=\"/BeginPasskeyRegistration\""
-
-        it "renames a user's passkey and normalizes blank names" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Passkey Rename Venue"
-                user <- createUserRecord "passkey-rename@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
-                passkey <- createTestPasskeyRecord user "Original"
-
-                response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
-                    callActionWithParams (UpdatePasskeyNameAction passkey.id) [("name", "  Laptop  ")]
-
-                response `responseStatusShouldBe` status200
-                renamedPasskey <- fetch passkey.id
-                renamedPasskey.name `shouldBe` "Laptop"
-
-                blankResponse <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
-                    callActionWithParams (UpdatePasskeyNameAction passkey.id) [("name", "   ")]
-
-                blankResponse `responseStatusShouldBe` status200
-                defaultedPasskey <- fetch passkey.id
-                defaultedPasskey.name `shouldBe` "Passkey"
-
-        it "does not let a user rename another user's passkey" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Passkey Access Venue"
-                owner <- createUserRecord "passkey-owner@example.com" "staff" True
-                other <- createUserRecord "passkey-other@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue owner "worker"
-                _ <- createVenueMembershipRecord venue other "worker"
-                passkey <- createTestPasskeyRecord owner "Owner passkey"
-
-                response <- withUserAndCurrentVenue other venue.id do
-                    callActionWithParams (UpdatePasskeyNameAction passkey.id) [("name", "Compromised")]
-
-                response `responseStatusShouldBe` status403
-                unchangedPasskey <- fetch passkey.id
-                unchangedPasskey.name `shouldBe` "Owner passkey"
 
         it "requires fresh passkey verification before an ordinary user deletes a passkey" $ withContext do
             withCleanDb do

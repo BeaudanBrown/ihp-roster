@@ -77,7 +77,10 @@ renderPasskeyRow now passkey = [hsx|
         <td>{passkey.name}</td>
         <td class="app-muted small">{formatRelativeLastUsed now passkey.lastUsedAt}</td>
         <td class="text-end">
-            <form method="POST" action={pathTo (DeletePasskeyAction passkey.id)} class="d-inline">
+            <form method="POST"
+                  action={pathTo (DeletePasskeyAction passkey.id)}
+                  class="d-inline"
+                  onsubmit="return confirm('Delete this passkey? You may need to verify with a passkey before it is removed.')">
                 <input type="hidden" name="_method" value="DELETE"/>
                 <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
             </form>

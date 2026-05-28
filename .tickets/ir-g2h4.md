@@ -22,3 +22,9 @@ Change DeletePasskeyAction so deleting any passkey requires fresh passkey verifi
 
 Unverified delete attempts are blocked for ordinary and mandatory-passkey users; verified deletes still succeed subject to last-passkey rules; Hspec covers ordinary user and mandatory user cases.
 
+
+## Notes
+
+**2026-05-28T07:28:25Z**
+
+Follow-up per review: added a browser confirmation before passkey delete submission; after approval the existing fresh-verification step-up flow still runs when required.

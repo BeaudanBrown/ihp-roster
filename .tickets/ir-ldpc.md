@@ -28,3 +28,7 @@ Passkey list has no rename form and no Created column; Last used displays relati
 **2026-05-28T07:08:00Z**
 
 Removed passkey rename controls from the UI; left UpdatePasskeyNameAction backend route in place for compatibility and because route cleanup is broader than this UI ticket.
+
+**2026-05-28T07:28:25Z**
+
+Follow-up per review: deleted the vestigial UpdatePasskeyNameAction backend route and tests instead of leaving it for later cleanup.

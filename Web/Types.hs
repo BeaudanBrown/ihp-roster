@@ -46,7 +46,6 @@ data PasskeysController
     | ShowPasskeyRecoveryCodeDialogAction
     | UsePasskeyRecoveryCodeAction
     | SendNewDevicePasskeySetupEmailAction
-    | UpdatePasskeyNameAction { passkeyId :: !(Id Passkey) }
     | DeletePasskeyAction { passkeyId :: !(Id Passkey) }
     deriving (Eq, Show, Data)
 

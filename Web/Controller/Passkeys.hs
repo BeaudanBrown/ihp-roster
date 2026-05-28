@@ -2,7 +2,6 @@ module Web.Controller.Passkeys where
 
 import Application.Helper.PasskeyRecoveryCodes (verifyAndConsumeRecoveryCode)
 import Application.Helper.PasskeySetupTokens
-import qualified Data.Aeson as Aeson
 import qualified Data.Text as Text
 import Web.Controller.Prelude
 import Web.View.Passkeys.StepUp
@@ -65,19 +64,6 @@ instance Controller PasskeysController where
         sendPasskeySetupTokenEmail currentUser SelfNewDevicePasskeySetup rawToken
         setSuccessMessage "New-device passkey setup email sent. Open it on the device you want to add."
         redirectToPath profileSecurityPath
-
-    action UpdatePasskeyNameAction { passkeyId } = do
-        passkey <- fetch passkeyId
-        accessDeniedUnless (passkey.userId == unpackId currentUser.id)
-        ensureFreshPasskeyForProfileSecurity
-        let submittedName = Text.strip (param @Text "name")
-        let newName = if Text.null submittedName then "Passkey" else submittedName
-
-        passkey
-            |> set #name newName
-            |> updateRecordDiscardResult
-
-        renderJson (Aeson.object ["ok" Aeson..= True, "name" Aeson..= newName])
 
     action DeletePasskeyAction { passkeyId } = do
         passkey <- fetch passkeyId
