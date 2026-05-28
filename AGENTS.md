@@ -31,6 +31,12 @@ Before changing a subsystem:
    `docs/workstreams/`.
 6. Read archived plans only when a ticket or workstream explicitly links them.
 
+## Branding Copy
+
+Customer-facing product/app copy says "Bepis". "IHP" remains valid for
+framework and technical references. `ihp-roster` remains valid for repo,
+service, and internal ops names unless an ops migration explicitly renames them.
+
 ## Framework Reference
 
 Prefer the sibling IHP checkout when present. Paths are relative to this
