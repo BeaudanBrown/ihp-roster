@@ -18,6 +18,7 @@
     --app-text-muted: var(--app-muted);
     --app-text-subtle: #7f8da5;
     --app-text-inverse: #0d1119;
+    --app-white: #ffffff;
 
     --app-link: #8bb5ff;
     --app-link-hover: #b7cfff;
