@@ -17,7 +17,8 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as ByteString
 import Data.List.NonEmpty (NonEmpty ((:|)))
 import qualified Data.Serialize as Serialize
-import Data.Time.Clock (addUTCTime, getCurrentTime)
+import Data.Time.Calendar (fromGregorian)
+import Data.Time.Clock (UTCTime (..), addUTCTime, getCurrentTime, secondsToDiffTime)
 import Generated.Types
 import IHP.ControllerPrelude
 import IHP.FrameworkConfig
@@ -39,10 +40,19 @@ import Web.Controller.Auth (authenticationChallengeSessionKey,
 import Web.FrontController ()
 import Web.Routes
 import Web.Types
+import Web.View.Passkeys.Management (formatRelativeLastUsed)
 
 tests :: Spec
 tests = beforeAll testContext do
     describe "PasskeysController" do
+        it "formats relative passkey last-used times with one unit" $ withContext do
+            let now = UTCTime (fromGregorian 2026 5 28) (secondsToDiffTime (12 * 60 * 60))
+            formatRelativeLastUsed now Nothing `shouldBe` "Never"
+            formatRelativeLastUsed now (Just (addUTCTime (negate (90 * 60)) now)) `shouldBe` "less than 2 hours ago"
+            formatRelativeLastUsed now (Just (addUTCTime (negate (3 * 24 * 60 * 60)) now)) `shouldBe` "less than 3 days ago"
+            formatRelativeLastUsed now (Just (addUTCTime (negate (13 * 24 * 60 * 60)) now)) `shouldBe` "less than 2 weeks ago"
+            formatRelativeLastUsed now (Just (addUTCTime (negate (35 * 24 * 60 * 60)) now)) `shouldBe` "less than 2 months ago"
+
         it "uses forwarded HTTPS origin when running behind a reverse proxy" $ withContext do
             withRequestHeaders [("X-Forwarded-Proto", "https")] do
                 let ?request = ?request { Wai.requestHeaderHost = Just "bepis.lol" }
@@ -500,15 +510,20 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Passkey List Venue"
                 user <- createUserRecord "passkey-list@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
+                now <- getCurrentTime
                 _ <- createTestPasskeyRecord user "Phone passkey"
+                    >>= updateRecord . set #lastUsedAt (Just (addUTCTime (negate (35 * 24 * 60 * 60)) now))
 
                 response <- withUserAndCurrentVenue user venue.id do
                     callActionWithParams EditProfileAction [("section", "security")]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Phone passkey"
+                response `responseBodyShouldContain` "less than 2 months ago"
                 response `responseBodyShouldContain` "Delete"
                 response `responseBodyShouldContain` "Email setup link for another device"
+                response `responseBodyShouldNotContain` "Created"
+                response `responseBodyShouldNotContain` "Rename"
                 response `responseBodyShouldNotContain` "id=\"passkey-management-name\""
                 response `responseBodyShouldNotContain` "data-begin-url=\"/BeginPasskeyRegistration\""
 

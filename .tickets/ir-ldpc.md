@@ -1,6 +1,6 @@
 ---
 id: ir-ldpc
-status: open
+status: closed
 deps: [ir-skto]
 links: []
 created: 2026-05-28T05:42:04Z
@@ -22,3 +22,9 @@ Remove rename controls from the passkey list UI and remove the Created column. S
 
 Passkey list has no rename form and no Created column; Last used displays relative age in one unit; formatter is covered by tests; delete controls remain available only through the verified delete flow.
 
+
+## Notes
+
+**2026-05-28T07:08:00Z**
+
+Removed passkey rename controls from the UI; left UpdatePasskeyNameAction backend route in place for compatibility and because route cleanup is broader than this UI ticket.

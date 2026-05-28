@@ -1,24 +1,24 @@
 module Web.View.Passkeys.Management
-    ( renderPasskeyManagement
+    ( formatRelativeLastUsed
+    , renderPasskeyManagement
     , renderPasskeyManagementWithAddButton
     )
 where
 
-import qualified Data.Text as Text
-import Data.Time.Format (defaultTimeLocale, formatTime)
+import Data.Time.Clock (diffUTCTime)
 import Web.View.Prelude
 
-renderPasskeyManagement :: [Passkey] -> Text -> Html
-renderPasskeyManagement passkeys =
-    renderPasskeyManagementWithAddButton (null passkeys) passkeys
+renderPasskeyManagement :: UTCTime -> [Passkey] -> Text -> Html
+renderPasskeyManagement now passkeys =
+    renderPasskeyManagementWithAddButton now (null passkeys) passkeys
 
-renderPasskeyManagementWithAddButton :: Bool -> [Passkey] -> Text -> Html
-renderPasskeyManagementWithAddButton canAddPasskey passkeys successRedirect = [hsx|
+renderPasskeyManagementWithAddButton :: UTCTime -> Bool -> [Passkey] -> Text -> Html
+renderPasskeyManagementWithAddButton now canAddPasskey passkeys successRedirect = [hsx|
     <div class="app-form-width" data-passkey-management="true">
         {renderPasskeyRegistrationAction canAddPasskey successRedirect}
         {renderNewDevicePasskeyAction passkeys}
         <div class="mt-4">
-            {renderPasskeyTable passkeys}
+            {renderPasskeyTable now passkeys}
         </div>
     </div>
 |]
@@ -50,39 +50,32 @@ renderNewDevicePasskeyAction _ = [hsx|
     </form>
 |]
 
-renderPasskeyTable :: [Passkey] -> Html
-renderPasskeyTable [] = [hsx|
+renderPasskeyTable :: UTCTime -> [Passkey] -> Html
+renderPasskeyTable _ [] = [hsx|
     <p class="app-muted mb-0">No passkeys registered yet.</p>
 |]
-renderPasskeyTable passkeys = [hsx|
+renderPasskeyTable now passkeys = [hsx|
     <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
             <thead>
                 <tr>
                     <th>Name</th>
-                    <th>Created</th>
                     <th>Last used</th>
                     <th class="text-end">Actions</th>
                 </tr>
             </thead>
             <tbody>
-                {forEach passkeys renderPasskeyRow}
+                {forEach passkeys (renderPasskeyRow now)}
             </tbody>
         </table>
     </div>
 |]
 
-renderPasskeyRow :: Passkey -> Html
-renderPasskeyRow passkey = [hsx|
+renderPasskeyRow :: UTCTime -> Passkey -> Html
+renderPasskeyRow now passkey = [hsx|
     <tr>
-        <td>
-            <form method="POST" action={pathTo (UpdatePasskeyNameAction passkey.id)} class="d-flex gap-2">
-                <input type="text" class="form-control form-control-sm" name="name" value={passkey.name} aria-label="Passkey name"/>
-                <button type="submit" class="btn btn-sm btn-outline-secondary">Rename</button>
-            </form>
-        </td>
-        <td class="app-muted small">{formatDateTime passkey.createdAt}</td>
-        <td class="app-muted small">{maybe "Never" formatDateTime passkey.lastUsedAt}</td>
+        <td>{passkey.name}</td>
+        <td class="app-muted small">{formatRelativeLastUsed now passkey.lastUsedAt}</td>
         <td class="text-end">
             <form method="POST" action={pathTo (DeletePasskeyAction passkey.id)} class="d-inline">
                 <input type="hidden" name="_method" value="DELETE"/>
@@ -92,5 +85,26 @@ renderPasskeyRow passkey = [hsx|
     </tr>
 |]
 
-formatDateTime :: UTCTime -> Text
-formatDateTime = Text.pack . formatTime defaultTimeLocale "%d/%m/%Y %H:%M"
+formatRelativeLastUsed :: UTCTime -> Maybe UTCTime -> Text
+formatRelativeLastUsed _ Nothing = "Never"
+formatRelativeLastUsed now (Just lastUsedAt)
+    | secondsAgo < hourSeconds = "less than 1 hour ago"
+    | secondsAgo < daySeconds = lessThan (ceilingUnit hourSeconds) "hour"
+    | secondsAgo < weekSeconds = lessThan (ceilingUnit daySeconds) "day"
+    | secondsAgo < monthSeconds = lessThan (ceilingUnit weekSeconds) "week"
+    | otherwise = lessThan (ceilingUnit monthSeconds) "month"
+  where
+    secondsAgo = max 0 (floor (diffUTCTime now lastUsedAt) :: Int)
+    hourSeconds = 60 * 60
+    daySeconds = 24 * hourSeconds
+    weekSeconds = 7 * daySeconds
+    monthSeconds = 30 * daySeconds
+    ceilingUnit unitSeconds = max 1 ((secondsAgo + unitSeconds - 1) `div` unitSeconds)
+
+lessThan :: Int -> Text -> Text
+lessThan amount unitName =
+    "less than " <> tshow amount <> " " <> pluralize amount unitName <> " ago"
+
+pluralize :: Int -> Text -> Text
+pluralize 1 unitName = unitName
+pluralize _ unitName = unitName <> "s"

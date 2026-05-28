@@ -55,6 +55,7 @@ data EditView = EditView
     , leaveRequestForm         :: LeaveRequest
     , staffRsaDocument         :: Maybe StaffDocument
     , today                    :: Day
+    , now                      :: UTCTime
     , openSection              :: Text
     }
 
@@ -79,7 +80,7 @@ instance View EditView where
                         renderProfileLiveSurface
                             staff
                             openSection
-                            (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection)
+                            (renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today now openSection)
                     }
             })
 
@@ -91,8 +92,8 @@ renderProfileLiveSurface staff openSection body = [hsx|
     </div>
 |]
 
-renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Day -> Text -> Html
-renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today openSection = [hsx|
+renderProfileContentFragment :: Staff -> Text -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> [Passkey] -> [LeaveRequest] -> LeaveRequest -> Maybe StaffDocument -> Day -> UTCTime -> Text -> Html
+renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedShiftPreferences passkeys leaveRequests leaveRequestForm staffRsaDocument today now openSection = [hsx|
     <div id={profileContentFragmentId}>
         <div class="accordion" id={profileSectionsAccordionId}>
             {renderAccordionSection
@@ -105,7 +106,7 @@ renderProfileContentFragment staff currentUserEmail preferenceWeekdays selectedS
                 "profile-security"
                 "Sign-In Methods"
                 (openSection == "security")
-                (renderPasskeyManagement passkeys (appendQueryParams (pathTo EditProfileAction) [("section", "security")]))
+                (renderPasskeyManagement now passkeys (appendQueryParams (pathTo EditProfileAction) [("section", "security")]))
             }
             {renderAccordionSection
                 "profile-leave"

@@ -39,6 +39,7 @@ instance Controller SupportController where
         onboardingInvitations <- fetchVenueOnboardingInvitations
         passkeys <- fetchCurrentUserPasskeys
         canAddPasskey <- supportCanAddPasskey passkeys
+        now <- getCurrentTime
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
         feedbackRows <- fetchSupportFeedbackRows
