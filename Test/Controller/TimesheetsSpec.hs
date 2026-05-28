@@ -378,6 +378,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "name=\"staffFilterId\""
                 response `responseBodyShouldContain` "timesheet-entry-staff-name\">Ava Filter"
                 response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Bea Filter"
+                response `responseBodyShouldContain` cs ("href=\"/Timesheets?showApproved=true&amp;showAllStaff=true&amp;staffFilterId=" <> tshow workerA.id <> "\"")
+                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=-1&amp;showApproved=true&amp;showAllStaff=true&amp;staffFilterId=" <> tshow workerA.id)
+                response `responseBodyShouldContain` cs ("href=\"/ShowTimesheetWeek?weekOffset=1&amp;showApproved=true&amp;showAllStaff=true&amp;staffFilterId=" <> tshow workerA.id)
                 response `responseBodyShouldContain` "timesheet-entry-card-link"
                 response `responseBodyShouldContain` cs (pathTo (EditTimesheetEntryAction entryA.id))
 
@@ -421,6 +424,13 @@ tests = beforeAll testContext do
                         ]
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-week-toolbar=\"timesheets\""
+                response `responseBodyShouldContain` "data-week-toolbar-section=\"quick\""
+                response `responseBodyShouldContain` "data-week-toolbar-section=\"navigation\""
+                response `responseBodyShouldContain` "data-week-toolbar-section=\"settings\""
+                response `responseBodyShouldContain` "href=\"/Timesheets?showApproved=true&amp;showAllStaff=false\""
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=1&amp;showApproved=true&amp;showAllStaff=false\""
+                response `responseBodyShouldContain` "href=\"/ShowTimesheetWeek?weekOffset=3&amp;showApproved=true&amp;showAllStaff=false\""
                 response `responseBodyShouldContain` "action=\"/ShowTimesheetWeek?weekOffset=2\""
                 response `responseBodyShouldContain` "hx-get=\"/ShowTimesheetWeek?weekOffset=2\""
                 response `responseBodyShouldContain` "name=\"weekOffset\" value=\"2\""

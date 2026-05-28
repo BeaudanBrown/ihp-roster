@@ -219,7 +219,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">Alpha</option>"
                 response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?rosterWeekId="
-                response `responseBodyShouldContain` ">Live</label>"
+                response `responseBodyShouldContain` ">Live</span></label>"
 
         it "does not render conflict highlights on live roster weeks" $ withContext do
             withCleanDb do
@@ -253,6 +253,10 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-week-toolbar=\"roster\""
+                response `responseBodyShouldContain` "data-week-toolbar-section=\"quick\""
+                response `responseBodyShouldContain` "data-week-toolbar-section=\"navigation\""
+                response `responseBodyShouldContain` "data-week-toolbar-section=\"settings\""
                 response `responseBodyShouldContain` "data-roster-week-controls=\"manager-actions\""
                 response `responseBodyShouldContain` "hx-post=\"/CopyRosterWeek?sourceWeekOffset=-1&amp;targetWeekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
