@@ -199,17 +199,20 @@ renderStaffShowMatchedToggle showMatched view = [hsx|
           hx-trigger="change"
           hx-target="#xero-preparation-staff-mappings"
           hx-swap="outerHTML">
-        <div class="form-check form-switch mb-0">
-            <input id="xero-preparation-show-matched-staff-toggle"
-                   class="form-check-input xero-staff-mapping-show-matched-toggle"
-                   name="showMatched"
-                   value="true"
-                   type="checkbox"
-                   checked={showMatched} />
-            <label class="form-check-label small" for="xero-preparation-show-matched-staff-toggle">Show matched</label>
+        <div>
+            {renderStaffShowMatchedToggleButton showMatched}
         </div>
     </form>
 |]
+
+renderStaffShowMatchedToggleButton :: Bool -> Html
+renderStaffShowMatchedToggleButton showMatched =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig "xero-preparation-show-matched-staff-toggle" showMatched [hsx|<span class="small">Show matched</span>|])
+        { appToggleInputName = Just "showMatched"
+        , appToggleInputValue = "true"
+        , appToggleButtonClass = "btn-sm xero-staff-mapping-show-matched-toggle"
+        , appToggleRoleSwitch = True
+        }
 
 renderStaffMappingRow :: XeroTimesheetPreparationView -> XeroPreparationStaffRow -> Html
 renderStaffMappingRow view row = [hsx|

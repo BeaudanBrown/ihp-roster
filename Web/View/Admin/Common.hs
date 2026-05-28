@@ -44,18 +44,8 @@ renderInactiveToggleSummary paramName fragmentPath targetId rows showInactive = 
         <p class="small app-muted mb-0">
             {tshow (length rows)} rows total, {tshow activeCount} active, {tshow inactiveCount} inactive.
         </p>
-        <div class="form-check form-switch mb-0">
-            <input
-                id={targetId <> "-show-inactive-toggle"}
-                class="form-check-input"
-                type="checkbox"
-                role="switch"
-                checked={showInactive}
-                hx-get={toggleHref}
-                hx-target={"#" <> targetId}
-                hx-swap="outerHTML"
-            />
-            <label class="form-check-label small" for={targetId <> "-show-inactive-toggle"}>Show inactive</label>
+        <div>
+            {renderShowInactiveToggle (targetId <> "-show-inactive-toggle") targetId toggleHref showInactive}
         </div>
     </div>
 |]
@@ -63,6 +53,16 @@ renderInactiveToggleSummary paramName fragmentPath targetId rows showInactive = 
         activeCount = countActiveRows rows
         inactiveCount = length rows - activeCount
         toggleHref = appendQueryParams fragmentPath [(paramName, if showInactive then "false" else "true")]
+
+renderShowInactiveToggle :: Text -> Text -> Text -> Bool -> Html
+renderShowInactiveToggle inputId targetId toggleHref showInactive =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId showInactive [hsx|<span class="small">Show inactive</span>|])
+        { appToggleButtonClass = "btn-sm"
+        , appToggleRoleSwitch = True
+        , appToggleHxGet = Just toggleHref
+        , appToggleHxTarget = Just ("#" <> targetId)
+        , appToggleHxSwap = Just "outerHTML"
+        }
 
 renderRosterGroupDefaultBadge :: RosterGroup -> Html
 renderRosterGroupDefaultBadge rosterGroup

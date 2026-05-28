@@ -30,18 +30,8 @@ renderRosterEndTimesForm venueConfig = [hsx|
             <div class="fw-semibold">Roster end times</div>
             <p class="small app-muted mb-0">Require staffed shifts to have start and end times before going live.</p>
         </div>
-        <div class="form-check form-switch mb-0 admin-setting-row-control">
-            <input class="form-check-input"
-                   type="checkbox"
-                   role="switch"
-                   id="venue-roster-end-times-enabled"
-                   name="rosterEndTimesEnabled"
-                   value="true"
-                   checked={venueConfig.rosterEndTimesEnabled}
-                   onchange="this.form.requestSubmit()" />
-            <label class="form-check-label small" for="venue-roster-end-times-enabled">
-                {if venueConfig.rosterEndTimesEnabled then ("Enabled" :: Text) else "Disabled"}
-            </label>
+        <div class="admin-setting-row-control">
+            {renderVenueSettingToggle "venue-roster-end-times-enabled" "rosterEndTimesEnabled" venueConfig.rosterEndTimesEnabled}
         </div>
     </form>
 |]
@@ -56,21 +46,21 @@ renderAutoTimesheetCreationForm venueConfig = [hsx|
             <div class="fw-semibold">Auto-create pending timesheets</div>
             <p class="small app-muted mb-0">When a live rostered shift ends, create a pending timesheet after a 2-hour grace period.</p>
         </div>
-        <div class="form-check form-switch mb-0 admin-setting-row-control">
-            <input class="form-check-input"
-                   type="checkbox"
-                   role="switch"
-                   id="venue-auto-timesheet-creation-enabled"
-                   name="autoTimesheetCreationEnabled"
-                   value="true"
-                   checked={venueConfig.autoTimesheetCreationEnabled}
-                   onchange="this.form.requestSubmit()" />
-            <label class="form-check-label small" for="venue-auto-timesheet-creation-enabled">
-                {if venueConfig.autoTimesheetCreationEnabled then ("Enabled" :: Text) else "Disabled"}
-            </label>
+        <div class="admin-setting-row-control">
+            {renderVenueSettingToggle "venue-auto-timesheet-creation-enabled" "autoTimesheetCreationEnabled" venueConfig.autoTimesheetCreationEnabled}
         </div>
     </form>
 |]
+
+renderVenueSettingToggle :: Text -> Text -> Bool -> Html
+renderVenueSettingToggle inputId fieldName isEnabled =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId isEnabled [hsx|<span class="small">{if isEnabled then ("Enabled" :: Text) else "Disabled"}</span>|])
+        { appToggleInputName = Just fieldName
+        , appToggleInputValue = "true"
+        , appToggleButtonClass = "btn-sm"
+        , appToggleRoleSwitch = True
+        , appToggleOnChange = Just "this.form.requestSubmit()"
+        }
 
 renderRosterWeekStartForm :: VenueConfig -> Html
 renderRosterWeekStartForm venueConfig = [hsx|

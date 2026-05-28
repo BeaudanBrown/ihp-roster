@@ -128,17 +128,8 @@ renderBillingControlPanel maybeControl =
         (Just "Founder support can mark a venue read-only manually. Stripe status does not change this flag in v1.")
         [hsx|
             <form method="POST" action={UpdateVenueBillingControlAction} class="d-flex flex-column gap-3" data-disable-javascript-submission="true">
-                <div class="form-check form-switch">
-                    <input
-                        class="form-check-input"
-                        type="checkbox"
-                        role="switch"
-                        id="billing-manual-read-only"
-                        name="manualReadOnly"
-                        value="true"
-                        checked={maybe False (.manualReadOnly) maybeControl}
-                    />
-                    <label class="form-check-label" for="billing-manual-read-only">Manual read-only</label>
+                <div>
+                    {renderBillingManualReadOnlyToggle (maybe False (.manualReadOnly) maybeControl)}
                 </div>
                 <div>
                     <label class="form-label" for="billing-manual-read-only-reason">Reason</label>
@@ -206,6 +197,14 @@ eventStatusBadgeClass status =
 renderProviderObject :: BillingEvent -> Text
 renderProviderObject event =
     Text.intercalate " " (filter (not . Text.null) [fromMaybe "" event.providerObjectType, fromMaybe "" event.providerObjectId])
+
+renderBillingManualReadOnlyToggle :: Bool -> Html
+renderBillingManualReadOnlyToggle isReadOnly =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig "billing-manual-read-only" isReadOnly [hsx|<span>Manual read-only</span>|])
+        { appToggleInputName = Just "manualReadOnly"
+        , appToggleInputValue = "true"
+        , appToggleRoleSwitch = True
+        }
 
 renderControlAudit :: VenueBillingControl -> Text
 renderControlAudit control =

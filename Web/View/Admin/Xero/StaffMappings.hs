@@ -107,13 +107,16 @@ renderXeroStaffMappingStaffCell row = [hsx|
 
 renderXeroStaffMappingShowMatchedToggle :: Html
 renderXeroStaffMappingShowMatchedToggle = [hsx|
-    <div class="form-check form-switch mb-0 ms-auto">
-        <input id="xero-show-matched-staff-toggle"
-               class="form-check-input xero-staff-mapping-show-matched-toggle"
-               type="checkbox" />
-        <label class="form-check-label small" for="xero-show-matched-staff-toggle">Show matched</label>
+    <div class="ms-auto">
+        {renderXeroShowMatchedToggleButton}
     </div>
 |]
+
+renderXeroShowMatchedToggleButton :: Html
+renderXeroShowMatchedToggleButton =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig "xero-show-matched-staff-toggle" False [hsx|<span class="small">Show matched</span>|])
+        { appToggleButtonClass = "btn-sm xero-staff-mapping-show-matched-toggle"
+        }
 
 renderXeroStaffMappingCounts :: XeroStaffMappingCounts -> Html
 renderXeroStaffMappingCounts =
