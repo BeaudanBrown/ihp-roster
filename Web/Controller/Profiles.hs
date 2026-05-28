@@ -24,7 +24,7 @@ instance Controller ProfilesController where
         maybeExistingStaff <- fetchCurrentUserStaff
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
         let currentUserEmail = currentUser.email
-        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "profile" "section")
+        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
         (preferenceWeekdays, selectedShiftPreferences) <- profilePreferenceViewData maybeExistingStaff
         passkeys <- fetchCurrentUserPasskeys
         leaveRequests <- fetchCurrentUserLeaveRequests
@@ -45,7 +45,7 @@ instance Controller ProfilesController where
                     respondHtml (renderProfileLeaveRequestsContentFragment staff leaveRequestForm leaveRequests)
 
     action ShowProfileContentFragmentAction = do
-        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "profile" "section")
+        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
         fetchCurrentUserStaff >>= \case
             Nothing -> accessDeniedUnless False
             Just staff ->
@@ -65,7 +65,7 @@ instance Controller ProfilesController where
         let submittedShiftPreferenceKeys = nub (paramTexts "shiftPreferenceKeys")
         let staff = fromMaybe (buildNewCurrentUserStaff currentUser) maybeExistingStaff
         let currentUserEmail = currentUser.email
-        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "profile" "section")
+        let openSection = normalizeProfileOpenSection (paramOrDefault @Text "" "section")
         passkeys <- fetchCurrentUserPasskeys
         staffRsaDocument <- maybe (pure Nothing) latestRsaDocumentForStaff maybeExistingStaff
         now <- getCurrentTime
@@ -156,5 +156,6 @@ profilePreferenceViewDataWithSubmitted _maybeStaff submittedShiftPreferenceKeys 
     pure (preferenceWeekdays, selectedShiftPreferences)
 
 normalizeProfileOpenSection :: Text -> Text
-normalizeProfileOpenSection =
-    profileContentFragmentSectionParam . profileContentFragment
+normalizeProfileOpenSection section
+    | section `elem` ["profile", "security", "leave", "rsa"] = section
+    | otherwise = ""

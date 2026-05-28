@@ -52,6 +52,7 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels
                             , rsaReturnRosterGroupId = maybeRosterGroupId
                             }
                     , rsaPanelCanReview = currentUserIsManager
+                    , rsaPanelShowHeader = True
                     }
      in [hsx|
         {renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff))}

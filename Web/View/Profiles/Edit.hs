@@ -191,6 +191,7 @@ renderProfileRsaSection staff staffRsaDocument today =
                         , rsaReturnRosterGroupId = Nothing
                         }
                 , rsaPanelCanReview = currentUserIsManager
+                , rsaPanelShowHeader = False
                 }
 
 renderProfileLeaveRequestsContentFragment :: Staff -> LeaveRequest -> [LeaveRequest] -> Html

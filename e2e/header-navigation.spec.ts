@@ -14,7 +14,8 @@ test.describe('Authenticated header navigation', () => {
         await page.getByRole('link', { name: 'profile' }).click();
         await expect(page).toHaveURL(/EditProfile/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.getByRole('heading', { name: 'Profile', exact: true })).toBeVisible();
-        await expect(page.locator('#firstName')).toBeVisible();
+        await expect(page.locator('#profile-content-fragment')).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Profile Details' })).toHaveAttribute('aria-expanded', 'false');
         await expect(page.evaluate(() => (window as Window & { __headerNavMarker?: string }).__headerNavMarker)).resolves.toBeUndefined();
 
         await page.getByRole('link', { name: 'timesheets' }).click();

@@ -209,6 +209,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "staff-access-worker@example.com"
                 response `responseBodyShouldContain` "Email passkey setup"
                 response `responseBodyShouldContain` "Email recovery link"
+                response `responseBodyShouldContain` "RSA"
+                response `responseBodyShouldContain` "Upload a Responsible Service of Alcohol statement of attainment."
                 response `responseBodyShouldContain` "Upload and scan PDF"
                 response `responseBodyShouldContain` "action=\"/ScanStaffDocument\""
                 response `responseBodyShouldNotContain` "Upload manually"

@@ -26,22 +26,29 @@ data RsaPanelConfig = RsaPanelConfig
     , rsaPanelToday         :: !Day
     , rsaPanelReturnContext :: !RsaReturnContext
     , rsaPanelCanReview     :: !Bool
+    , rsaPanelShowHeader    :: !Bool
     }
 
 renderRsaDocumentPanel :: RsaPanelConfig -> Html
-renderRsaDocumentPanel config@RsaPanelConfig { rsaPanelStaff, rsaPanelDocument, rsaPanelToday } = [hsx|
+renderRsaDocumentPanel config@RsaPanelConfig { rsaPanelStaff, rsaPanelDocument, rsaPanelToday, rsaPanelShowHeader } = [hsx|
     <div class="rsa-document-panel">
-        <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
-            <div>
-                <h5 class="mb-1">RSA</h5>
-                <p class="app-muted mb-0">Upload a Responsible Service of Alcohol statement of attainment.</p>
-            </div>
-            {renderRsaStatusBadge rsaPanelToday rsaPanelDocument}
-        </div>
+        {renderRsaPanelHeader rsaPanelShowHeader rsaPanelToday rsaPanelDocument}
         {renderCurrentRsaSummary config}
         <div class="mt-3">
             {renderRsaUploadForm rsaPanelStaff config.rsaPanelReturnContext}
         </div>
+    </div>
+|]
+
+renderRsaPanelHeader :: Bool -> Day -> Maybe StaffDocument -> Html
+renderRsaPanelHeader False _ _ = mempty
+renderRsaPanelHeader True today maybeDocument = [hsx|
+    <div class="d-flex flex-wrap align-items-start justify-content-between gap-2 mb-3">
+        <div>
+            <h5 class="mb-1">RSA</h5>
+            <p class="app-muted mb-0">Upload a Responsible Service of Alcohol statement of attainment.</p>
+        </div>
+        {renderRsaStatusBadge today maybeDocument}
     </div>
 |]
 
