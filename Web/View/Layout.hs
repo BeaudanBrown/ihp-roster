@@ -48,6 +48,7 @@ renderAppHeader =
                     <a class="navbar-brand fw-semibold" href={RosterWeeksAction}>Bepis</a>
                     <div class="app-header-desktop-actions d-none d-md-flex align-items-center gap-2 ms-auto">
                         {renderWhenAudience SupportAudience (renderSupportVenueSwitcher "support-venue-switch" "support-venue-switch-form")}
+                        {renderDesktopFeedbackButton}
                         <div class="navbar-nav app-header-nav d-flex flex-row gap-1 align-items-center">
                             {renderDesktopNavLinks}
                         </div>
@@ -72,11 +73,38 @@ renderAppHeader =
                     <nav class="app-mobile-nav-list" aria-label="Primary navigation">
                         {renderMobileNavLinks}
                     </nav>
+                    {renderMobileFeedbackButton}
                     {renderMobileLogoutForm}
                 </div>
             </div>
         |]
         Nothing -> mempty
+
+renderDesktopFeedbackButton :: Html
+renderDesktopFeedbackButton = [hsx|
+    <button class="btn btn-outline-info btn-sm app-header-nav-item"
+            type="button"
+            hx-get={NewFeedbackAction}
+            hx-target={"#" <> dialogOverlayMountId}
+            hx-swap="innerHTML"
+            hx-push-url="false">
+        <i class="bi bi-chat-dots" aria-hidden="true"></i>
+        <span>feedback</span>
+    </button>
+|]
+
+renderMobileFeedbackButton :: Html
+renderMobileFeedbackButton = [hsx|
+    <button class="app-mobile-nav-link"
+            type="button"
+            hx-get={NewFeedbackAction}
+            hx-target={"#" <> dialogOverlayMountId}
+            hx-swap="innerHTML"
+            hx-push-url="false">
+        <i class="bi bi-chat-dots app-mobile-nav-icon" aria-hidden="true"></i>
+        <span>Feedback</span>
+    </button>
+|]
 
 renderDesktopNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
 renderDesktopNavLinks = [hsx|

@@ -164,6 +164,11 @@ data AdminController
     | ProfileLiveInvalidateVenueAction
     deriving (Eq, Show, Data)
 
+data FeedbackController
+    = NewFeedbackAction
+    | CreateFeedbackAction
+    deriving (Eq, Show, Data)
+
 data SupportController
     = SupportAction
     | ShowFwcMapdAwardRatesSectionAction

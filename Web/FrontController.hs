@@ -18,6 +18,7 @@ import Web.Controller.Auth
 import Web.Controller.Billing
 import Web.Controller.E2ETest
 import Web.Controller.Exports
+import Web.Controller.Feedback
 import Web.Controller.LeaveRequests
 import Web.Controller.LiveUpdates
 import Web.Controller.Passkeys
@@ -49,6 +50,7 @@ instance FrontController WebApplication where
         , parseRoute @StripeWebhooksController
         , parseRoute @E2ETestController
         , parseRoute @AdminController
+        , parseRoute @FeedbackController
         , parseRoute @SupportController
         , parseRoute @StaffController
         , parseRoute @RosterWeeksController

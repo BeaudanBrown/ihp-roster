@@ -21,6 +21,7 @@ import qualified Test.Controller.AdminSpec
 import qualified Test.Controller.BillingSpec
 import qualified Test.Controller.E2ETestSpec
 import qualified Test.Controller.ExportsSpec
+import qualified Test.Controller.FeedbackSpec
 import qualified Test.Controller.LeaveRequestsSpec
 import qualified Test.Controller.PasskeysSpec
 import qualified Test.Controller.PayrollExportParitySpec
@@ -158,6 +159,7 @@ allSuites =
     , TestSuite "SessionsController" Test.Controller.SessionsSpec.tests
     , TestSuite "RosterWeeksController" Test.Controller.RosterWeeksSpec.tests
     , TestSuite "LeaveRequestsController" Test.Controller.LeaveRequestsSpec.tests
+    , TestSuite "FeedbackController" Test.Controller.FeedbackSpec.tests
     , TestSuite "SupportController" Test.Controller.SupportSpec.tests
     , TestSuite "RosterGrid" Test.RosterGridSpec.tests
     , TestSuite "UsersController" Test.Controller.UsersSpec.tests

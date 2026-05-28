@@ -25,6 +25,7 @@ instance AutoRoute E2ETestController where
 
     customPathTo MarkE2EPasskeyVerifiedAction = Just "/__e2e/mark-passkey-verified"
 instance AutoRoute AdminController
+instance AutoRoute FeedbackController
 instance AutoRoute SupportController
 instance AutoRoute StaffController
 instance AutoRoute RosterWeeksController
