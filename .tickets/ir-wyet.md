@@ -1,6 +1,6 @@
 ---
 id: ir-wyet
-status: open
+status: closed
 deps: [ir-elbv]
 links: []
 created: 2026-05-27T23:58:34Z

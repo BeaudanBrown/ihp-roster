@@ -14,3 +14,9 @@ tags: [area:roster, coordinator:coordinator-az6]
 
 Move copy-from-previous beside week navigation and shape the control area for future actions.
 
+
+## Notes
+
+**2026-05-28T02:10:47Z**
+
+Reconciled during ir-bao4: copy-from-previous placement text is treated as outdated for this pass; copy remains in roster settings per clarification.

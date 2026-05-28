@@ -1,6 +1,6 @@
 ---
 id: ir-bao4
-status: open
+status: closed
 deps: [ir-5n96]
 links: [ir-w8dk]
 created: 2026-05-27T23:58:34Z
