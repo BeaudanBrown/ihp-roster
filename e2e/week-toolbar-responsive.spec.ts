@@ -1,0 +1,118 @@
+import { test, expect } from '@playwright/test';
+import { gotoWhenReady, loginAs, openRoster, runSql } from './test-helpers';
+
+type ToolbarMetrics = {
+    quickTop: number;
+    quickBottom: number;
+    quickCenterX: number;
+    navigationTop: number;
+    navigationBottom: number;
+    navigationCenterX: number;
+    settingsTop: number;
+    settingsRight: number;
+    auxiliaryTop: number | null;
+    resetCenterX: number | null;
+    toolbarCenterX: number;
+};
+
+async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbarSelector: string): Promise<ToolbarMetrics> {
+    return page.locator(toolbarSelector).evaluate((toolbar) => {
+        if (!(toolbar instanceof HTMLElement)) {
+            throw new Error('Expected toolbar to be an HTMLElement');
+        }
+
+        const rectFor = (selector: string) => {
+            const element = toolbar.querySelector(selector);
+            if (!(element instanceof HTMLElement)) {
+                throw new Error(`Expected toolbar section ${selector}`);
+            }
+            return element.getBoundingClientRect();
+        };
+
+        const visibleRectFor = (selector: string) => {
+            const elements = Array.from(toolbar.querySelectorAll(selector));
+            const element = elements.find((candidate): candidate is HTMLElement => {
+                if (!(candidate instanceof HTMLElement)) return false;
+                const style = getComputedStyle(candidate);
+                const rect = candidate.getBoundingClientRect();
+                return style.display !== 'none' && rect.width > 0 && rect.height > 0;
+            });
+            return element?.getBoundingClientRect() ?? null;
+        };
+
+        const quick = rectFor('[data-week-toolbar-section="quick"]');
+        const navigation = rectFor('[data-week-toolbar-section="navigation"]');
+        const settings = rectFor('[data-week-toolbar-section="settings"]');
+        const auxiliary = visibleRectFor('[data-week-toolbar-section^="auxiliary"]');
+        const reset = visibleRectFor('[data-week-toolbar-section="quick"] .app-week-nav-button');
+        const toolbarRect = toolbar.getBoundingClientRect();
+
+        return {
+            quickTop: Math.round(quick.top),
+            quickBottom: Math.round(quick.bottom),
+            quickCenterX: Math.round(quick.left + quick.width / 2),
+            navigationTop: Math.round(navigation.top),
+            navigationBottom: Math.round(navigation.bottom),
+            navigationCenterX: Math.round(navigation.left + navigation.width / 2),
+            settingsTop: Math.round(settings.top),
+            settingsRight: Math.round(settings.right),
+            auxiliaryTop: auxiliary ? Math.round(auxiliary.top) : null,
+            resetCenterX: reset ? Math.round(reset.left + reset.width / 2) : null,
+            toolbarCenterX: Math.round(toolbarRect.left + toolbarRect.width / 2),
+        };
+    });
+}
+
+test.describe('Shared week toolbar responsive layout', () => {
+    test('keeps roster and timesheet week controls on one desktop row', async ({ page }) => {
+        test.setTimeout(90_000);
+        await page.setViewportSize({ width: 1280, height: 900 });
+
+        await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: false });
+        const roster = await weekToolbarMetrics(page, '[data-week-toolbar="roster"]');
+        expect(Math.abs(roster.quickTop - roster.navigationTop)).toBeLessThanOrEqual(2);
+        expect(Math.abs(roster.settingsTop - roster.navigationTop)).toBeLessThanOrEqual(2);
+
+        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+        const timesheets = await weekToolbarMetrics(page, '[data-week-toolbar="timesheets"]');
+        expect(Math.abs(timesheets.quickTop - timesheets.navigationTop)).toBeLessThanOrEqual(2);
+        expect(Math.abs(timesheets.settingsTop - timesheets.navigationTop)).toBeLessThanOrEqual(2);
+    });
+
+    test('orders roster mobile controls as quick actions, navigation, wage summary', async ({ page }) => {
+        test.setTimeout(90_000);
+        await page.setViewportSize({ width: 390, height: 844 });
+        runSql("UPDATE venue_config SET roster_end_times_enabled = TRUE WHERE venue_id = 'a1000000-0000-0000-0000-000000000001'");
+
+        await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: false });
+        const toolbar = page.locator('[data-week-toolbar="roster"]');
+        await expect(toolbar.getByText('Live')).toBeVisible();
+        await expect(toolbar.getByRole('link', { name: 'This week' })).toBeVisible();
+        await expect(toolbar.getByRole('button', { name: 'Roster settings' })).toBeVisible();
+        await expect(toolbar.locator('.roster-week-nav-group')).toBeVisible();
+        await expect(toolbar.locator('[data-week-toolbar-section="auxiliary"] .roster-wage-summary')).toBeVisible();
+
+        const metrics = await weekToolbarMetrics(page, '[data-week-toolbar="roster"]');
+        expect(metrics.navigationTop).toBeGreaterThanOrEqual(metrics.quickBottom - 1);
+        expect(metrics.auxiliaryTop).not.toBeNull();
+        expect(metrics.auxiliaryTop ?? 0).toBeGreaterThanOrEqual(metrics.navigationBottom - 1);
+    });
+
+    test('centres timesheet mobile reset above week navigation with settings on the right', async ({ page }) => {
+        test.setTimeout(90_000);
+        await page.setViewportSize({ width: 390, height: 844 });
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+
+        const toolbar = page.locator('[data-week-toolbar="timesheets"]');
+        await expect(toolbar.getByRole('link', { name: 'This week' })).toBeVisible();
+        await expect(toolbar.getByRole('button', { name: 'Timesheet settings' })).toBeVisible();
+        await expect(toolbar.locator('.app-week-nav-group')).toBeVisible();
+
+        const metrics = await weekToolbarMetrics(page, '[data-week-toolbar="timesheets"]');
+        expect(metrics.resetCenterX).not.toBeNull();
+        expect(Math.abs((metrics.resetCenterX ?? 0) - metrics.toolbarCenterX)).toBeLessThanOrEqual(16);
+        expect(metrics.settingsRight).toBeGreaterThan(metrics.toolbarCenterX);
+        expect(metrics.navigationTop).toBeGreaterThanOrEqual(metrics.quickBottom - 1);
+    });
+});
