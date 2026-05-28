@@ -64,8 +64,13 @@ async function pairedStaffSelects(actorPage, viewerPage) {
 }
 
 async function copyPreviousWeek(page) {
+    const copyButton = page.getByRole('button', { name: 'Copy Previous Week' });
+    if (!(await copyButton.isVisible().catch(() => false))) {
+        await page.getByRole('button', { name: 'Roster settings' }).click();
+        await expect(copyButton).toBeVisible();
+    }
     page.once('dialog', (dialog) => dialog.accept());
-    await page.getByRole('button', { name: 'Copy Previous Week' }).click();
+    await copyButton.click();
     await expect(page.locator('#roster-week-shell')).toBeVisible();
 }
 

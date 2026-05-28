@@ -37,7 +37,7 @@ renderRosterStaffSelfServicePanelFragment (Just panel)
     | currentUserIsSupportAdmin = mempty
     | otherwise = [hsx|
         <div id={rosterStaffSelfServicePanelFragmentId}
-             class="col-12 col-xl-4 col-xxl-2 roster-layout-side roster-staff-self-service-panel">
+             class="col-12 col-xl-4 col-xxl-3 roster-layout-side roster-staff-self-service-panel">
             <div class="roster-staff-self-service-stack">
                 <div class="app-panel roster-quick-tool-panel">
                     <div class="app-panel-body p-0">

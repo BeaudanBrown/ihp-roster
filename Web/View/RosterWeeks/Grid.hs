@@ -64,7 +64,7 @@ renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridWeekOff
 
 rosterContentColumnClasses :: (?context :: ControllerContext) => RosterGridRenderModel -> Text
 rosterContentColumnClasses RosterGridRenderModel { gridStaffSelfServicePanel } =
-    classes [("col-12", True), ("col-xl-8", hasSidePanel), ("col-xxl-10", hasSidePanel), ("mx-auto", not hasSidePanel), ("roster-layout-main", hasSidePanel)]
+    classes [("col-12", True), ("col-xl-8", hasSidePanel), ("col-xxl-9", hasSidePanel), ("mx-auto", not hasSidePanel), ("roster-layout-main", hasSidePanel)]
     where
         hasSidePanel = currentUserIsManager || isJust gridStaffSelfServicePanel
 

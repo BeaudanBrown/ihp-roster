@@ -23,7 +23,7 @@ renderRosterStaffPanelFragmentWithSwap maybeSwapOob weekOffset currentRosterGrou
     if currentUserIsManager
         then [hsx|
             <div id={rosterStaffPanelFragmentId}
-                 class="col-12 col-xl-4 col-xxl-2 roster-layout-side"
+                 class="col-12 col-xl-4 col-xxl-3 roster-layout-side"
                  hx-swap-oob={maybeSwapOob}>
                 {renderRosterStaffPanel weekOffset currentRosterGroupId panelScope panelStaff}
             </div>

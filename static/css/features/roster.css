@@ -560,6 +560,20 @@
     }
 }
 
+@media (min-width: 1400px) {
+    .roster-grid-frame:not([data-roster-layout="day_columns"]) {
+        --roster-day-column-width: 14.5%;
+    }
+
+    .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] .roster-grid {
+        --roster-grid-columns: repeat(var(--roster-slot-count), minmax(4.6rem, 1.4fr) minmax(6.8rem, 2fr) minmax(3.8rem, 1fr));
+    }
+
+    .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="true"] .roster-grid {
+        --roster-grid-columns: repeat(var(--roster-slot-count), minmax(4.35rem, 1.25fr) minmax(4.35rem, 1.25fr) minmax(6.8rem, 2.25fr) minmax(4.2rem, 0.95fr));
+    }
+}
+
 @media (max-width: 1199.98px) {
     .roster-layout {
         --bs-gutter-x: 0;
