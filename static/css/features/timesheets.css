@@ -25,6 +25,10 @@
     min-width: min(88rem, calc(var(--timesheet-day-count) * 18.5rem));
 }
 
+.timesheet-week-frame[data-horizontal-snap-dragging="true"] {
+    scroll-snap-type: none;
+}
+
 .timesheet-day-panel {
     display: grid;
     grid-template-rows: auto 1fr;
@@ -347,6 +351,14 @@
 }
 
 @media (max-width: 575.98px) {
+    .timesheet-week-frame {
+        scroll-snap-type: x mandatory;
+    }
+
+    .timesheet-day-panel {
+        scroll-snap-align: center;
+    }
+
     .timesheet-week-frame {
         padding: 0.65rem;
     }

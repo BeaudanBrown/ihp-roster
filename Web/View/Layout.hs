@@ -249,6 +249,7 @@ scripts = [hsx|
         <script src={assetPath "/app-dialog-overlays.js"}></script>
         <script src={assetPath "/app-toasts.js"}></script>
         <script src={assetPath "/app-time-picker.js"}></script>
+        <script src={assetPath "/app-horizontal-scroll.js"}></script>
         <script src={assetPath "/app-roster.js"}></script>
         <script src={assetPath "/app-timesheets.js"}></script>
         <script src={assetPath "/app-toggle-buttons.js"}></script>

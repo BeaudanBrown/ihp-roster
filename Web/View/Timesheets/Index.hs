@@ -68,7 +68,10 @@ renderTimesheetWeekShell view@IndexView { .. } =
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
-                        <div class="timesheet-week-frame" data-timesheet-layout="day_columns">
+                        <div class="timesheet-week-frame"
+                             data-timesheet-layout="day_columns"
+                             data-horizontal-snap="nearest-item"
+                             data-horizontal-snap-item-selector=".timesheet-day-panel">
                             <div class="timesheet-day-columns" style="--timesheet-day-count: 7;">
                             {forEach [0 .. 6] (renderDaySection . timesheetDayRenderModel view)}
                             </div>
