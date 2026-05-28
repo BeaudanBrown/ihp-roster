@@ -203,33 +203,15 @@ renderRosterGroupCheckbox selectedRosterGroupIds rosterGroup =
     let isSelected = rosterGroup.id `elem` selectedRosterGroupIds
      in [hsx|
         <div class="col-12 col-md-6">
-            <label class={rosterGroupButtonClass isSelected} data-toggle-button="success">
-                <input
-                    class="visually-hidden"
-                    type="checkbox"
-                    name="rosterGroupIds"
-                    value={tshow rosterGroup.id}
-                    checked={isSelected}
-                    data-toggle-button-input="true"
-                />
-                <span>{rosterGroup.name}</span>
-            </label>
+            {renderRosterGroupToggle rosterGroup isSelected}
         </div>
     |]
 
-rosterGroupButtonClass :: Bool -> Text
-rosterGroupButtonClass isSelected =
-    classes
-        [ ("btn", True)
-        , ("btn-sm", True)
-        , ("timesheet-approval-toggle", True)
-        , ("shift-preference-availability-button", True)
-        , ("w-100", True)
-        , ("d-flex", True)
-        , ("align-items-center", True)
-        , ("justify-content-center", True)
-        , ("gap-1", True)
-        , ("btn-success", isSelected)
-        , ("btn-outline-success", not isSelected)
-        ]
+renderRosterGroupToggle :: RosterGroup -> Bool -> Html
+renderRosterGroupToggle rosterGroup isSelected =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig ("staff-roster-group-" <> tshow rosterGroup.id) isSelected [hsx|<span>{rosterGroup.name}</span>|])
+        { appToggleInputName = Just "rosterGroupIds"
+        , appToggleInputValue = tshow rosterGroup.id
+        , appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button w-100 d-flex align-items-center justify-content-center gap-1"
+        }
 

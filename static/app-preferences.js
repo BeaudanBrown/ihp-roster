@@ -45,7 +45,7 @@
     }
 
     function syncAvailability(container) {
-        const availableInput = container.querySelector('[data-shift-preference-available]');
+        const availableInput = container.querySelector('[data-shift-preference-available], [data-app-toggle-button-input="true"]');
         const startInput = container.querySelector('[data-shift-preference-start]');
         const endInput = container.querySelector('[data-shift-preference-end]');
         if (!availableInput || !startInput || !endInput) return;
@@ -67,7 +67,7 @@
             if (container.dataset.shiftPreferenceWindowReady === 'true') return;
             container.dataset.shiftPreferenceWindowReady = 'true';
 
-            const availableInput = container.querySelector('[data-shift-preference-available]');
+            const availableInput = container.querySelector('[data-shift-preference-available], [data-app-toggle-button-input="true"]');
             const startInput = container.querySelector('[data-shift-preference-start]');
             const endInput = container.querySelector('[data-shift-preference-end]');
             if (availableInput) {
@@ -87,32 +87,8 @@
         });
     }
 
-    function syncToggleButton(input) {
-        const button = input.closest('[data-toggle-button]');
-        if (!button) return;
-
-        const variant = button.dataset.toggleButton || 'success';
-        const checkedClass = `btn-${variant}`;
-        const uncheckedClass = `btn-outline-${variant}`;
-        button.classList.toggle(checkedClass, input.checked);
-        button.classList.toggle(uncheckedClass, !input.checked);
-    }
-
-    function initToggleButtons(target) {
-        const root = target instanceof HTMLElement ? target : document;
-        root.querySelectorAll('[data-toggle-button-input]').forEach(function (input) {
-            if (input.dataset.toggleButtonReady === 'true') return;
-            input.dataset.toggleButtonReady = 'true';
-            input.addEventListener('change', function () {
-                syncToggleButton(input);
-            });
-            syncToggleButton(input);
-        });
-    }
-
     function initPreferenceControls(target) {
         initShiftPreferenceWindows(target);
-        initToggleButtons(target);
     }
 
     document.addEventListener('app:page-ready', function (event) {

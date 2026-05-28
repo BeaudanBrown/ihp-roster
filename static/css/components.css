@@ -521,6 +521,24 @@ h5,
     gap: 0.85rem;
 }
 
+.app-toggle-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    user-select: none;
+}
+
+.app-toggle-button:focus-within {
+    outline: 0.2rem solid var(--bs-focus-ring-color);
+    outline-offset: 0.15rem;
+}
+
+.app-toggle-button-input:disabled + * {
+    pointer-events: none;
+}
+
 .admin-setting-row {
     display: flex;
     align-items: center;

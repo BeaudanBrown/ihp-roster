@@ -11,6 +11,7 @@ module Application.Helper.View
     , module Application.Helper.View.Status
     , module Application.Helper.View.TimePicker
     , module Application.Helper.View.Timesheets
+    , module Application.Helper.View.ToggleButton
     , module Application.Helper.View.Toast
     ) where
 
@@ -26,4 +27,5 @@ import Application.Helper.View.StaffDialogs
 import Application.Helper.View.Status
 import Application.Helper.View.TimePicker
 import Application.Helper.View.Timesheets
+import Application.Helper.View.ToggleButton
 import Application.Helper.View.Toast

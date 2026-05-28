@@ -152,18 +152,7 @@ renderShiftPreferenceDayRow selectedShiftPreferences weekday =
              data-min-hour={tshow preferenceMinimumHour}
              data-max-hour={tshow preferenceMaximumHour}>
             <th scope="row" class="shift-preference-table__available">
-                <label class={availabilityButtonClass isSelected}>
-                    <input
-                        class="visually-hidden"
-                        type="checkbox"
-                        name="shiftPreferenceKeys"
-                        value={key}
-                        checked={isSelected}
-                        data-shift-preference-available="true"
-                    />
-                    <span>{weekdayLabel}</span>
-                    <span class="visually-hidden">{weekday.label} available</span>
-                </label>
+                {renderShiftPreferenceAvailabilityToggle key weekdayLabel weekday.label isSelected}
             </th>
             <td class="shift-preference-table__start-time">
                 <div class="shift-preference-window__controls">
@@ -207,6 +196,18 @@ renderShiftPreferenceDayRow selectedShiftPreferences weekday =
         </tr>
     |]
 
+renderShiftPreferenceAvailabilityToggle :: Text -> Text -> Text -> Bool -> Html
+renderShiftPreferenceAvailabilityToggle key weekdayLabel fullWeekdayLabel isSelected =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig ("shiftPreferenceAvailable-" <> key) isSelected [hsx|
+        <span>{weekdayLabel}</span>
+        <span class="visually-hidden">{fullWeekdayLabel} available</span>
+    |])
+        { appToggleInputName = Just "shiftPreferenceKeys"
+        , appToggleInputValue = key
+        , appToggleButtonClass = "btn-sm timesheet-approval-toggle shift-preference-availability-button"
+        , appToggleShiftPreferenceAvailable = True
+        }
+
 abbreviateWeekdayLabel :: Text -> Text
 abbreviateWeekdayLabel = Text.take 3
 
@@ -232,17 +233,6 @@ preferenceHourPercent hour =
         spanHours = max 1 (preferenceMaximumHour - preferenceMinimumHour)
         boundedHour = max preferenceMinimumHour (min preferenceMaximumHour hour)
         percent = (fromIntegral (boundedHour - preferenceMinimumHour) / fromIntegral spanHours) * (100 :: Double)
-
-availabilityButtonClass :: Bool -> Text
-availabilityButtonClass isSelected =
-    classes
-        [ ("btn", True)
-        , ("btn-sm", True)
-        , ("timesheet-approval-toggle", True)
-        , ("shift-preference-availability-button", True)
-        , ("btn-success", isSelected)
-        , ("btn-outline-success", not isSelected)
-        ]
 
 findSelectedShiftPreference :: Int -> [ShiftPreferenceSelection] -> Maybe ShiftPreferenceSelection
 findSelectedShiftPreference weekdayIndex =

@@ -251,6 +251,7 @@ scripts = [hsx|
         <script src={assetPath "/app-time-picker.js"}></script>
         <script src={assetPath "/app-roster.js"}></script>
         <script src={assetPath "/app-timesheets.js"}></script>
+        <script src={assetPath "/app-toggle-buttons.js"}></script>
         <script src={assetPath "/app-preferences.js"}></script>
         <script src={assetPath "/app.js"}></script>
     |]
