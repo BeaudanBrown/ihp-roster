@@ -103,10 +103,7 @@ renderRosterGroupCreateForm showInactive = [hsx|
             </div>
             <div class="col-12 col-md-2">
                 <label class="form-label" for="new-roster-group-active">Status</label>
-                <select id="new-roster-group-active" class="form-select" name="isActive">
-                    <option value="true" selected={True}>Active</option>
-                    <option value="false">Inactive</option>
-                </select>
+                {renderAdminActiveToggle "new-roster-group-active" Nothing "admin-roster-groups-fragment" True}
             </div>
             <div class="col-12 col-md-2">
                 <button class="btn btn-outline-primary w-100" type="submit">Add Group</button>
@@ -142,7 +139,6 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
                 <div class="d-flex align-items-center gap-2">
                     <span class="fw-semibold">Roster Group</span>
                     {renderActiveBadge rosterGroup.isActive}
-                    {renderRosterGroupDefaultBadge rosterGroup}
                 </div>
                 <div class="btn-group btn-group-sm" role="group" aria-label="Reorder roster group">
                     {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (MoveRosterGroupUpAction rosterGroup.id) "admin-roster-groups-fragment" "Up"}
@@ -155,11 +151,8 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
                     <input class="form-control" type="text" name="name" value={rosterGroup.name} />
                 </div>
                 <div class="col-12 col-md-2">
-                    <label class="form-label">Status</label>
-                    <select class="form-select" name="isActive">
-                        <option value="true" selected={rosterGroup.isActive}>Active</option>
-                        <option value="false" selected={not rosterGroup.isActive}>Inactive</option>
-                    </select>
+                    <label class="form-label" for={"roster-group-active-" <> tshow rosterGroup.id}>Status</label>
+                    {renderAdminActiveToggle ("roster-group-active-" <> tshow rosterGroup.id) Nothing "admin-roster-groups-fragment" rosterGroup.isActive}
                 </div>
                 <div class="col-12 col-md-2">
                     <button class="btn btn-outline-secondary w-100" type="submit">Update</button>

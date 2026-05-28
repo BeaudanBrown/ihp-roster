@@ -288,6 +288,9 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "admin_roster_groups"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-roster-groups-fragment\""
                 pageResponse `responseBodyShouldContain` "name=\"showInactiveRosterGroups\" value=\"true\""
+                pageResponse `responseBodyShouldContain` "id=\"new-roster-group-active\""
+                pageResponse `responseBodyShouldContain` ("id=\"roster-group-active-" <> tshow rosterGroup.id <> "\"")
+                pageResponse `responseBodyShouldNotContain` "app-status-info\">Default</span>"
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateRosterGroup?rosterGroupId=" <> tshow rosterGroup.id)
                 pageResponse `responseBodyShouldContain` "hx-push-url=\"false\""
 
