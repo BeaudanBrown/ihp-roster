@@ -1209,7 +1209,7 @@
 
 .roster-day-column-header {
     display: grid;
-    grid-template-columns: minmax(5.6rem, 1fr) minmax(0, auto) minmax(2.1rem, 1fr);
+    grid-template-columns: minmax(5.6rem, 1fr) minmax(0, auto) minmax(4.85rem, 4.85rem);
     align-items: center;
     gap: 0.55rem;
     min-height: 4rem;
@@ -1235,7 +1235,35 @@
 }
 
 .roster-day-column-control-slot {
+    width: 4.85rem;
     justify-self: end;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.roster-day-column-control-slot .roster-day-action {
+    width: 4.85rem;
+    min-width: 4.85rem;
+    max-width: 4.85rem;
+    min-height: 1.9rem;
+    padding: 0 0.48rem;
+    border-radius: 0.55rem;
+    border: 1px solid var(--app-control-border);
+    background: var(--app-white-alpha-05);
+    color: var(--app-text);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+}
+
+.roster-day-column-control-slot .roster-day-action-toggle.is-active {
+    border-color: var(--app-warning-border-strong);
+    color: var(--app-warning);
+    background: var(--app-warning-tint);
 }
 
 .roster-day-column-header .roster-day-date {

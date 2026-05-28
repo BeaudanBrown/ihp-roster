@@ -1,6 +1,6 @@
 ---
 id: ir-3u3z
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-28T05:42:04Z
@@ -22,3 +22,9 @@ Update roster/day-column CSS so the closed-day toggle remains fixed/stable in ea
 
 Day-column closed toggle stays stable in mobile/desktop day-column layout; roster mobile This Week control is centered; no page-level horizontal overflow regression; Playwright mobile/responsive coverage is updated.
 
+
+## Notes
+
+**2026-05-28T06:14:47Z**
+
+style-audit currently fails on pre-existing audit items unrelated to this ticket: undefined --app-white, existing hardcoded palette colors, Billing text-bg-light, and inline style review list. No new style-audit categories were introduced by the roster week-control CSS changes.

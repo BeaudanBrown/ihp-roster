@@ -365,6 +365,64 @@ test.describe('Roster mobile baseline', () => {
         expect(Math.abs(snapMetrics?.nearestCenterOffset ?? 0)).toBeLessThanOrEqual(2);
     });
 
+    test('keeps day-column closed controls stable on phone widths', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await ensureRosterLayout(page, 'day_columns');
+
+        const firstColumn = page.locator('.roster-day-column').first();
+        const closeButton = firstColumn.locator('[data-roster-day-closed-toggle="true"]');
+        await expect(closeButton).toBeVisible();
+
+        const readMetrics = async () => firstColumn.evaluate((column) => {
+            if (!(column instanceof HTMLElement)) {
+                throw new Error('Expected roster day column to be an HTMLElement');
+            }
+
+            const header = column.querySelector('.roster-day-column-header');
+            const controlSlot = column.querySelector('.roster-day-column-control-slot');
+            const toggle = column.querySelector('[data-roster-day-closed-toggle="true"]');
+            if (!(header instanceof HTMLElement) || !(controlSlot instanceof HTMLElement) || !(toggle instanceof HTMLElement)) {
+                throw new Error('Expected day-column header controls');
+            }
+
+            const headerRect = header.getBoundingClientRect();
+            const slotRect = controlSlot.getBoundingClientRect();
+            const toggleRect = toggle.getBoundingClientRect();
+
+            return {
+                headerHeight: Math.round(headerRect.height),
+                slotLeft: Math.round(slotRect.left),
+                slotRight: Math.round(slotRect.right),
+                slotWidth: Math.round(slotRect.width),
+                toggleLeft: Math.round(toggleRect.left),
+                toggleRight: Math.round(toggleRect.right),
+                toggleWidth: Math.round(toggleRect.width),
+                bodyScrollWidth: document.body.scrollWidth,
+                viewportWidth: document.documentElement.clientWidth,
+            };
+        });
+
+        const before = await readMetrics();
+        await closeButton.click();
+        await expect(firstColumn.locator('[data-roster-day-closed-toggle="true"]')).toContainText('CLOSED');
+        const closed = await readMetrics();
+        await firstColumn.locator('[data-roster-day-closed-toggle="true"]').click();
+        await expect(firstColumn.locator('[data-roster-day-closed-toggle="true"] .bi-unlock')).toBeVisible();
+        const reopened = await readMetrics();
+
+        expect(closed.headerHeight).toBe(before.headerHeight);
+        expect(closed.slotLeft).toBe(before.slotLeft);
+        expect(closed.slotRight).toBe(before.slotRight);
+        expect(closed.slotWidth).toBe(before.slotWidth);
+        expect(closed.toggleLeft).toBe(before.toggleLeft);
+        expect(closed.toggleRight).toBe(before.toggleRight);
+        expect(closed.toggleWidth).toBe(before.toggleWidth);
+        expect(reopened.slotLeft).toBe(before.slotLeft);
+        expect(reopened.toggleWidth).toBe(before.toggleWidth);
+        expect(closed.bodyScrollWidth).toBeLessThanOrEqual(closed.viewportWidth + 1);
+        await expectNoHorizontalViewportOverflow(page);
+    });
+
     test('preserves core week navigation and row controls on a narrow viewport', async ({ page }) => {
         await expect(firstRosterDayAddButton(page)).toBeVisible();
         await expect(firstRosterDayRemoveButton(page)).toBeVisible();
