@@ -211,6 +211,9 @@ tests = beforeAll testContext do
                 venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
                 venueSettingsResponse `responseBodyShouldContain` "hx-push-url=\"false\""
+                venueSettingsResponse `responseBodyShouldNotContain` "Roster week starts on"
+                venueSettingsResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
+                venueSettingsResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
                 venueSettingsResponse `responseBodyShouldNotContain` "id=\"app\""
 
                 exportsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
@@ -573,6 +576,9 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "admin_venue_config"
                 pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
+                pageResponse `responseBodyShouldNotContain` "Roster week starts on"
+                pageResponse `responseBodyShouldNotContain` "admin-roster-week-starts-on"
+                pageResponse `responseBodyShouldNotContain` "name=\"rosterWeekStartsOn\""
 
                 versionBefore <- currentLiveUpdateVersion AdminVenueConfigScope { venueId = unpackId venue.id }
                 response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do

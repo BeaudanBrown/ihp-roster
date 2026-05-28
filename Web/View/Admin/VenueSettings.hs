@@ -13,7 +13,6 @@ import Application.Helper.Controller (currentVenueOrNothing)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
 import Application.Helper.LiveUpdate
-import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
 import Web.View.Admin.Common
 import Web.View.Prelude
 
@@ -82,7 +81,6 @@ renderVenueSettingsSection venueConfig =
             <div class="admin-settings-grid">
                 {renderRosterEndTimesForm venueConfig}
                 {renderAutoTimesheetCreationForm venueConfig}
-                {renderRosterWeekStartForm venueConfig}
             </div>
         |]
 
@@ -144,35 +142,3 @@ renderVenueSettingToggle inputId fieldName isEnabled =
         , appToggleHxPushUrl = Just "false"
         }
 
-renderRosterWeekStartForm :: VenueConfig -> Html
-renderRosterWeekStartForm venueConfig = [hsx|
-    <form method="POST"
-          action={UpdateVenueConfigAction}
-          class="admin-setting-row"
-          data-disable-javascript-submission="true"
-          hx-post={UpdateVenueConfigAction}
-          hx-target={"#" <> adminVenueSettingsFragmentId}
-          hx-swap="outerHTML"
-          hx-push-url="false">
-        <input type="hidden" name="configField" value="rosterWeekStartsOn" />
-        <div class="admin-setting-row-copy">
-            <div class="fw-semibold">Roster week starts on</div>
-            <p class="small app-muted mb-0">Changing this is locked once roster, timesheet, availability, export, or payroll version data exists.</p>
-        </div>
-        <div class="admin-setting-row-control admin-setting-row-select">
-            <label class="visually-hidden" for="admin-roster-week-starts-on">Roster week starts on</label>
-            <select id="admin-roster-week-starts-on"
-                    class="form-select form-select-sm"
-                    name="rosterWeekStartsOn"
-                    onchange="if (!window.htmx) this.form.requestSubmit()"
-                    hx-post={UpdateVenueConfigAction}
-                    hx-trigger="change"
-                    hx-include="closest form"
-                    hx-target={"#" <> adminVenueSettingsFragmentId}
-                    hx-swap="outerHTML"
-                    hx-push-url="false">
-                {forEach validRosterWeekStartDays (renderRosterWeekStartOption venueConfig.rosterWeekStartsOn)}
-            </select>
-        </div>
-    </form>
-|]
