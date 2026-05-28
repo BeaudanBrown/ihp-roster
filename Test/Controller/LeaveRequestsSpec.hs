@@ -298,6 +298,51 @@ tests = beforeAll testContext do
                 Text.isInfixOf ">Approve<" archiveSection `shouldBe` False
                 Text.isInfixOf ">Deny<" archiveSection `shouldBe` False
 
+        it "paginates archived manager leave requests without changing active sections" $ withContext do
+            withCleanDb do
+                today <- utctDay <$> getCurrentTime
+                venue <- createVenueWithConfig "Leave Archive Pagination Venue"
+                manager <- createUserRecord "leave-manager-archive-pagination@example.com" "staff" True
+                workerUser <- createUserRecord "leave-worker-archive-pagination@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                staff <- createStaffRecord venue (Just workerUser) "Page" "Archive"
+                _ <- createLeaveRequestRecord venue staff (addDays 2 today) (addDays 3 today) "pending"
+                forM_ [1 .. 12 :: Int] \index -> do
+                    let endDate = addDays (negate (toInteger index)) today
+                    leaveRequest <- createLeaveRequestRecord venue staff (addDays (-1) endDate) endDate "approved"
+                    leaveRequest
+                        |> set #notes (Just ("archive-page-note-" <> tshow index))
+                        |> updateRecord
+
+                firstPageResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction LeaveRequestsAction
+                olderPageResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams LeaveRequestsAction [("archivePage", "2")]
+                fragmentResponse <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowLeaveRequestsContentFragmentAction [("archivePage", "2")]
+
+                firstPageResponse `responseStatusShouldBe` status200
+                firstPageResponse `responseBodyShouldContain` "Pending (1)"
+                firstPageResponse `responseBodyShouldContain` "Archive (12)"
+                firstPageResponse `responseBodyShouldContain` "archive-page-note-1"
+                firstPageResponse `responseBodyShouldContain` "archive-page-note-10"
+                firstPageResponse `responseBodyShouldNotContain` "archive-page-note-11"
+                firstPageResponse `responseBodyShouldContain` "Older"
+                firstPageResponse `responseBodyShouldContain` "archivePage=2"
+
+                olderPageResponse `responseStatusShouldBe` status200
+                olderPageResponse `responseBodyShouldContain` "Pending (1)"
+                olderPageResponse `responseBodyShouldContain` "Archive (12)"
+                olderPageResponse `responseBodyShouldContain` "archive-page-note-11"
+                olderPageResponse `responseBodyShouldContain` "archive-page-note-12"
+                olderPageResponse `responseBodyShouldNotContain` "archive-page-note-10"
+
+                fragmentResponse `responseStatusShouldBe` status200
+                fragmentResponse `responseBodyShouldContain` "id=\"leave-requests-content\""
+                fragmentResponse `responseBodyShouldContain` "archive-page-note-11"
+                fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
+
         it "renders manager accordions with zero counts instead of empty-state copy when there are no leave requests" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"

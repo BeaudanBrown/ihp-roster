@@ -7,6 +7,7 @@ module Web.LeaveRequests.Projection
     , buildLeaveRequestsContentFragmentRef
     , buildLeaveRequestsPageFragmentRef
     , buildLeaveRequestsScope
+    , currentLeaveArchivePage
     , fetchLeaveRequestsProjection
     , fetchLeaveRequestsProjectionCached
     , leaveRequestsIndexView
@@ -135,17 +136,23 @@ renderLeaveRequestsProjectionHtml projection fragment =
                     projection.leaveProjectionStaffMembers
                     projection.leaveProjectionCurrentViewerStaffId
                     projection.leaveProjectionToday
+                    currentLeaveArchivePage
                 )
 
-leaveRequestsIndexView :: (?context :: ControllerContext) => LeaveRequestsProjection -> IndexView
+leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsProjection -> IndexView
 leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveProjectionStaffMembers, leaveProjectionCurrentViewerStaffId, leaveProjectionToday } =
     IndexView
         { leaveRequests = leaveProjectionRequests
         , staffMembers = leaveProjectionStaffMembers
         , currentViewerStaffId = leaveProjectionCurrentViewerStaffId
         , today = leaveProjectionToday
+        , archivePage = currentLeaveArchivePage
         , liveUpdateSurface = Just (mkTypedDefinedLiveSurface leaveRequestsLiveSurfaceDefinition ())
         }
+
+currentLeaveArchivePage :: (?request :: Request) => Int
+currentLeaveArchivePage =
+    fromMaybe 1 (paramOrNothing @Int "archivePage")
 
 affectedRosterWeekInvalidationTargetsForScopes ::
     Id Venue ->

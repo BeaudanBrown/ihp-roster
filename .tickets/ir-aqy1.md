@@ -1,6 +1,6 @@
 ---
 id: ir-aqy1
-status: open
+status: closed
 deps: [ir-oiak]
 links: []
 created: 2026-05-28T05:42:18Z

@@ -114,8 +114,8 @@ respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
     projection <- fetchLeaveRequestsProjectionCached
     let mainFragment =
             if renderMainFragmentOob
-                then renderLeaveRequestsContentFragmentOob projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday
-                else renderLeaveRequestsContentFragment projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday
+                then renderLeaveRequestsContentFragmentOob projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday currentLeaveArchivePage
+                else renderLeaveRequestsContentFragment projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday currentLeaveArchivePage
     respondHtmlProfiled $
         mconcat
             [ mainFragment
