@@ -81,8 +81,7 @@ renderPasskeyRecoveryCodeForm = [hsx|
                class="form-control"
                name="recoveryCode"
                autocomplete="one-time-code"
-               placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
-               autofocus="autofocus"/>
+               placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"/>
     </form>
     <p class="app-muted small mb-0 mt-3">
         Recovery codes can only be used once. If you do not have yours, ask a venue owner or support admin to send a recovery setup link.

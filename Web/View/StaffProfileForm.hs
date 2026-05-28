@@ -17,7 +17,6 @@ renderPersonalProfileFields staff maybeEmail = [hsx|
                 class={inputClass staff "firstName"}
                 value={staff.firstName}
                 required="required"
-                autofocus="autofocus"
             />
             {renderStaffFieldError staff "firstName"}
         </div>

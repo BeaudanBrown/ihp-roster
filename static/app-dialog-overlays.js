@@ -3,8 +3,6 @@
     if (typeof window === 'undefined') return;
 
     const mountId = 'dialog-overlay-mount';
-    let lastTrigger = null;
-
     function getMount() {
         return document.getElementById(mountId);
     }
@@ -18,25 +16,6 @@
         return Boolean(document.querySelector('.modal.show:not([data-dialog-overlay="true"])'));
     }
 
-    function focusDialog(dialogEl) {
-        if (!(dialogEl instanceof HTMLElement)) return;
-
-        const focusTarget = dialogEl.querySelector('[autofocus], .is-invalid, input, select, textarea, button, a[href]');
-        if (focusTarget instanceof HTMLElement) {
-            focusTarget.focus();
-            return;
-        }
-
-        dialogEl.focus();
-    }
-
-    function restoreFocus() {
-        if (lastTrigger instanceof HTMLElement && document.contains(lastTrigger)) {
-            lastTrigger.focus();
-        }
-        lastTrigger = null;
-    }
-
     function syncDialogState() {
         const dialogEl = getActiveDialog();
         const hasDialog = dialogEl instanceof HTMLElement;
@@ -44,12 +23,6 @@
 
         document.body.classList.toggle('modal-open', shouldLockBody);
         document.body.style.overflow = shouldLockBody ? 'hidden' : '';
-
-        if (hasDialog) {
-            focusDialog(dialogEl);
-        } else if (!hasVisibleBootstrapModal()) {
-            restoreFocus();
-        }
     }
 
     function clearMount() {
@@ -59,13 +32,6 @@
         mountEl.innerHTML = '';
         syncDialogState();
     }
-
-    document.addEventListener('click', function (event) {
-        const triggerEl = event.target.closest(`[hx-target="#${mountId}"]`);
-        if (triggerEl instanceof HTMLElement) {
-            lastTrigger = triggerEl;
-        }
-    }, true);
 
     document.addEventListener('click', function (event) {
         const activeDialog = getActiveDialog();

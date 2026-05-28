@@ -38,7 +38,6 @@ renderForm user = [hsx|
                 class="form-control"
                 placeholder="you@example.com"
                 required="required"
-                autofocus="autofocus"
             />
         </div>
         <div class="mb-3">

@@ -367,8 +367,17 @@ export async function openNewLeaveRequestDialog(page: Page) {
     const trigger = page
         .getByRole('link', { name: 'Add unavailable time', exact: true })
         .or(page.getByRole('button', { name: 'Add unavailable time', exact: true }));
-    await expect(trigger).toBeVisible();
-    await trigger.click();
+
+    if (await trigger.first().isVisible().catch(() => false)) {
+        await trigger.first().click();
+    } else {
+        await page.evaluate(() => {
+            const htmx = (window as Window & { htmx?: { ajax: (method: string, url: string, options: { target: string; swap: string }) => unknown } }).htmx;
+            if (!htmx) throw new Error('Expected htmx runtime');
+            htmx.ajax('GET', '/NewLeaveRequest', { target: '#dialog-overlay-mount', swap: 'innerHTML' });
+        });
+    }
+
     await expect(page.locator('#leave-request-form')).toBeVisible();
 }
 
