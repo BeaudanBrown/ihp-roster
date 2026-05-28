@@ -2,7 +2,7 @@
 id: ir-w8dk
 status: open
 deps: []
-links: [ir-lxfx]
+links: [ir-lxfx, ir-bao4]
 created: 2026-04-29T04:41:29Z
 type: task
 priority: 2
