@@ -154,11 +154,22 @@ tests = beforeAll testContext do
                 (cs visibleRosterGroupsBody :: String) `shouldContainInOrder` ["Active Group", "Inactive Group"]
                 visibleRosterGroupsResponse `responseBodyShouldContain` "checked=\"checked\""
 
-        it "serves export admin fragments through typed surfaces" $ withContext do
+        it "serves venue settings and export admin fragments through typed surfaces" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Expansion Fragment Venue"
                 admin <- createUserRecord "admin-expansion-fragments@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                venueSettingsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminVenueSettingsFragmentAction
+                venueSettingsResponse `responseStatusShouldBe` status200
+                venueSettingsResponse `responseBodyShouldContain` "id=\"admin-venue-settings-fragment\""
+                venueSettingsResponse `responseBodyShouldContain` "data-live-update-surface=\""
+                venueSettingsResponse `responseBodyShouldContain` "admin_venue_config"
+                venueSettingsResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
+                venueSettingsResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
+                venueSettingsResponse `responseBodyShouldContain` "hx-push-url=\"false\""
+                venueSettingsResponse `responseBodyShouldNotContain` "id=\"app\""
 
                 exportsResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminExportsFragmentAction
@@ -460,6 +471,36 @@ tests = beforeAll testContext do
                 unchangedRosterGroup.isActive `shouldBe` True
                 versionAfter <- currentLiveUpdateVersion AdminRosterGroupsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore
+
+        it "updates venue settings through targeted admin fragments" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Venue Settings Fragment Venue"
+                admin <- createUserRecord "admin-venue-settings-fragment@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+
+                pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction AdminAction
+                pageResponse `responseBodyShouldContain` "id=\"admin-venue-settings-fragment\""
+                pageResponse `responseBodyShouldContain` "admin_venue_config"
+                pageResponse `responseBodyShouldContain` "hx-post=\"/UpdateVenueConfig\""
+                pageResponse `responseBodyShouldContain` "hx-target=\"#admin-venue-settings-fragment\""
+
+                versionBefore <- currentLiveUpdateVersion AdminVenueConfigScope { venueId = unpackId venue.id }
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams UpdateVenueConfigAction
+                            [ ("configField", "rosterEndTimesEnabled")
+                            , ("rosterEndTimesEnabled", "true")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"admin-venue-settings-fragment\""
+                response `responseBodyShouldContain` "checked=\"checked\""
+                response `responseBodyShouldNotContain` "id=\"app\""
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                venueConfig.rosterEndTimesEnabled `shouldBe` True
+                versionAfter <- currentLiveUpdateVersion AdminVenueConfigScope { venueId = unpackId venue.id }
+                versionAfter `shouldBe` (versionBefore + 1)
 
         it "updates non-pay config rows from the admin page" $ withContext do
             withCleanDb do

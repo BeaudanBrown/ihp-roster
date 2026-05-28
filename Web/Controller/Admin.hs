@@ -64,6 +64,16 @@ profileLiveResourcesFor resourceName = do
         "staff-roster-membership" -> maybe [] (\value -> [StaffRosterMembershipResource value]) staffId
         _ -> []
 
+respondToVenueSettingsMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+respondToVenueSettingsMutation =
+    if isHtmxRequest
+        then do
+            venueConfig <- fetchVenueConfig
+            respondHtml (renderVenueSettingsSectionFragment venueConfig)
+        else redirectToAdminFor (paramOrNothing "rosterGroupId")
+
 respondToShiftTypesSectionMutationWithXeroRefresh ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     Bool ->
@@ -257,7 +267,7 @@ instance Controller AdminController where
                     if rosterEndTimesEnabled
                         then "Roster end times enabled."
                         else "Roster end times disabled."
-                redirectToAdminFor (paramOrNothing "rosterGroupId")
+                respondToVenueSettingsMutation
             "autoTimesheetCreationEnabled" -> do
                 let autoTimesheetCreationEnabled = isJust (paramOrNothing @Text "autoTimesheetCreationEnabled")
                 _ <- setAutoTimesheetCreationEnabledMutation venueConfig autoTimesheetCreationEnabled
@@ -265,21 +275,21 @@ instance Controller AdminController where
                     if autoTimesheetCreationEnabled
                         then "Auto-created pending timesheets enabled."
                         else "Auto-created pending timesheets disabled."
-                redirectToAdminFor (paramOrNothing "rosterGroupId")
+                respondToVenueSettingsMutation
             _ -> do
                 requestedRosterWeekStartsOn <- parseRosterWeekStartsOn
                 case requestedRosterWeekStartsOn of
-                    Nothing -> redirectToAdminFor (paramOrNothing "rosterGroupId")
+                    Nothing -> respondToVenueSettingsMutation
                     Just rosterWeekStartsOn -> do
                         isLocked <- isVenueRosterWeekStartLocked
                         if isLocked
                             then do
                                 setErrorMessage "Roster week start can only be configured before roster, timesheet, leave, export, or payroll version data exists."
-                                redirectToAdminFor (paramOrNothing "rosterGroupId")
+                                respondToVenueSettingsMutation
                             else do
                                 _ <- setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn
                                 setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
-                                redirectToAdminFor (paramOrNothing "rosterGroupId")
+                                respondToVenueSettingsMutation
 
     action ShowAdminVenueSettingsFragmentAction =
         serveTypedLiveFragment adminVenueSettingsLiveSurfaceDefinition () adminVenueSettingsFragment \_ -> do

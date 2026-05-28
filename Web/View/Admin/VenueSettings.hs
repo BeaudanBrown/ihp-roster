@@ -90,7 +90,12 @@ renderRosterEndTimesForm :: VenueConfig -> Html
 renderRosterEndTimesForm venueConfig = [hsx|
     <form method="POST"
           action={UpdateVenueConfigAction}
-          class="admin-setting-row">
+          class="admin-setting-row"
+          data-disable-javascript-submission="true"
+          hx-post={UpdateVenueConfigAction}
+          hx-target={"#" <> adminVenueSettingsFragmentId}
+          hx-swap="outerHTML"
+          hx-push-url="false">
         <input type="hidden" name="configField" value="rosterEndTimesEnabled" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Roster end times</div>
@@ -106,7 +111,12 @@ renderAutoTimesheetCreationForm :: VenueConfig -> Html
 renderAutoTimesheetCreationForm venueConfig = [hsx|
     <form method="POST"
           action={UpdateVenueConfigAction}
-          class="admin-setting-row">
+          class="admin-setting-row"
+          data-disable-javascript-submission="true"
+          hx-post={UpdateVenueConfigAction}
+          hx-target={"#" <> adminVenueSettingsFragmentId}
+          hx-swap="outerHTML"
+          hx-push-url="false">
         <input type="hidden" name="configField" value="autoTimesheetCreationEnabled" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Auto-create pending timesheets</div>
@@ -125,14 +135,25 @@ renderVenueSettingToggle inputId fieldName isEnabled =
         , appToggleInputValue = "true"
         , appToggleButtonClass = "btn-sm"
         , appToggleRoleSwitch = True
-        , appToggleOnChange = Just "this.form.requestSubmit()"
+        , appToggleOnChange = Just "if (!window.htmx) this.form.requestSubmit()"
+        , appToggleHxPost = Just (pathTo UpdateVenueConfigAction)
+        , appToggleHxTrigger = Just "change"
+        , appToggleHxInclude = Just "closest form"
+        , appToggleHxTarget = Just ("#" <> adminVenueSettingsFragmentId)
+        , appToggleHxSwap = Just "outerHTML"
+        , appToggleHxPushUrl = Just "false"
         }
 
 renderRosterWeekStartForm :: VenueConfig -> Html
 renderRosterWeekStartForm venueConfig = [hsx|
     <form method="POST"
           action={UpdateVenueConfigAction}
-          class="admin-setting-row">
+          class="admin-setting-row"
+          data-disable-javascript-submission="true"
+          hx-post={UpdateVenueConfigAction}
+          hx-target={"#" <> adminVenueSettingsFragmentId}
+          hx-swap="outerHTML"
+          hx-push-url="false">
         <input type="hidden" name="configField" value="rosterWeekStartsOn" />
         <div class="admin-setting-row-copy">
             <div class="fw-semibold">Roster week starts on</div>
@@ -143,7 +164,13 @@ renderRosterWeekStartForm venueConfig = [hsx|
             <select id="admin-roster-week-starts-on"
                     class="form-select form-select-sm"
                     name="rosterWeekStartsOn"
-                    onchange="this.form.requestSubmit()">
+                    onchange="if (!window.htmx) this.form.requestSubmit()"
+                    hx-post={UpdateVenueConfigAction}
+                    hx-trigger="change"
+                    hx-include="closest form"
+                    hx-target={"#" <> adminVenueSettingsFragmentId}
+                    hx-swap="outerHTML"
+                    hx-push-url="false">
                 {forEach validRosterWeekStartDays (renderRosterWeekStartOption venueConfig.rosterWeekStartsOn)}
             </select>
         </div>
