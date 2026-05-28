@@ -69,11 +69,6 @@ tests = beforeAll testContext do
             response <- callAction DenyLeaveRequestAction { leaveRequestId = requestId }
             response `responseStatusShouldBe` status302
 
-        it "redirects unauthenticated users from delete leave action" $ withContext do
-            let requestId = "00000000-0000-0000-0000-000000000000" :: Id LeaveRequest
-            response <- callAction DeleteLeaveRequestAction { leaveRequestId = requestId }
-            response `responseStatusShouldBe` status302
-
         it "selects leave roster invalidation targets from active roster week scopes in the current venue" $ withContext do
             withCleanDb do
                 let staleTimestamp = UTCTime (fromGregorian 2024 12 1) (secondsToDiffTime 0)
@@ -242,25 +237,6 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Please choose an unavailable from date"
                 leaveExists <- query @LeaveRequest |> filterWhere (#venueId, unpackId venue.id) |> fetchExists
                 leaveExists `shouldBe` False
-
-        it "renders explicit delete forms instead of js-delete links for authenticated leave pages" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Leave Venue"
-                user <- createUserRecord "leave-delete-form@example.com" "staff" True
-                workerUser <- createUserRecord "leave-delete-worker@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "manager"
-                _ <- createVenueMembershipRecord venue workerUser "worker"
-                staff <- createStaffRecord venue (Just workerUser) "Delia" "Viewer"
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 13) (fromGregorian 2025 1 14) "pending"
-
-                response <- withUserAndCurrentVenue user venue.id do
-                    callAction LeaveRequestsAction
-
-                response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` cs (pathTo (DeleteLeaveRequestAction leaveRequest.id))
-                response `responseBodyShouldContain` cs (pathTo DeleteSessionAction)
-                response `responseBodyShouldContain` "name=\"_method\" value=\"DELETE\""
-                response `responseBodyShouldNotContain` "js-delete"
 
         it "renders manager accordion headings with counts inline after the title" $ withContext do
             withCleanDb do
@@ -482,31 +458,6 @@ tests = beforeAll testContext do
                 versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` versionBefore + 1
 
-        it "deleting leave via HTMX bumps the leave scope version" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Leave Venue"
-                user <- createUserRecord "leave-htmx-delete@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue user "worker"
-                staff <- createStaffRecord venue (Just user) "Del" "Own"
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 13) (fromGregorian 2025 1 14) "pending"
-
-                versionBefore <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
-
-                response <- withUserAndCurrentVenue user venue.id do
-                    withRequestHeaders [("HX-Request", "true"), ("X-Live-Update-Client-Id", "leave-delete-client")] do
-                        callActionWithParams (DeleteLeaveRequestAction leaveRequest.id)
-                            [ ("responseContext", "profile")
-                            , ("section", "leave")
-                            ]
-
-                response `responseStatusShouldBe` status200
-                body <- responseBody response
-                let bodyText = cs (LByteString.unpack body)
-                bodyText `shouldContain` "id=\"profile-leave-request-form-fragment\""
-                bodyText `shouldContain` "id=\"profile-leave-requests-list-fragment\" hx-swap-oob=\"outerHTML\""
-                versionAfter <- currentLiveUpdateVersion LeaveRequestsScope { venueId = unpackId venue.id }
-                versionAfter `shouldBe` versionBefore + 1
-
         it "writes an audit event when approving a leave request" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
@@ -581,47 +532,3 @@ tests = beforeAll testContext do
                 leaveEvent.previousStatus `shouldBe` Nothing
                 fmap inputValue leaveEvent.newStatus `shouldBe` Just "pending"
 
-        it "writes an audit event when deleting a pending leave request" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Leave Venue"
-                manager <- createUserRecord "leave-delete@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                staff <- createStaffRecord venue Nothing "Del" "Leave"
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 13) (fromGregorian 2025 1 14) "pending"
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callAction DeleteLeaveRequestAction { leaveRequestId = leaveRequest.id }
-
-                response `responseStatusShouldBe` status302
-
-                retainedLeaveRequest <- fetch leaveRequest.id
-                retainedLeaveRequest.deletedAt `shouldSatisfy` isJust
-                retainedLeaveRequest.deletedByUserId `shouldBe` Just (unpackId manager.id)
-
-                leaveEvent <- query @LeaveRequestEvent |> fetchOne
-                inputValue leaveEvent.eventType `shouldBe` "deleted"
-                fmap inputValue leaveEvent.previousStatus `shouldBe` Just "pending"
-                leaveEvent.newStatus `shouldBe` Nothing
-
-                auditEvent <- query @AuditEvent |> fetchOne
-                auditEvent.eventType `shouldBe` "leave_deleted"
-                auditEvent.targetId `shouldBe` unpackId leaveRequest.id
-
-        it "blocks deleting a reviewed leave request" $ withContext do
-            withCleanDb do
-                venue <- createVenueWithConfig "Leave Venue"
-                manager <- createUserRecord "leave-reviewed-delete@example.com" "staff" True
-                _ <- createVenueMembershipRecord venue manager "manager"
-                staff <- createStaffRecord venue Nothing "Rev" "Leave"
-                leaveRequest <- createLeaveRequestRecord venue staff (fromGregorian 2025 1 15) (fromGregorian 2025 1 16) "approved"
-
-                response <- withUserAndCurrentVenue manager venue.id do
-                    callAction DeleteLeaveRequestAction { leaveRequestId = leaveRequest.id }
-
-                response `responseStatusShouldBe` status302
-
-                remainingCount <- query @LeaveRequest |> fetchCount
-                remainingCount `shouldBe` 1
-
-                leaveEventCount <- query @LeaveRequestEvent |> fetchCount
-                leaveEventCount `shouldBe` 0

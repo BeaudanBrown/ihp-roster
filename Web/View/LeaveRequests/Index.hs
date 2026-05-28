@@ -1,7 +1,6 @@
 module Web.View.LeaveRequests.Index where
 
 import Application.Helper.Controller (LeaveRequestStatus (..),
-                                      leaveRequestCanBeDeleted,
                                       parseLeaveRequestStatus)
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
                                        liveSurfaceConfigJson)
@@ -191,10 +190,8 @@ renderStatusBadge status =
         _                  -> renderAppStatusBadge AppStatusWarning "Pending"
 
 renderActions :: (?context :: ControllerContext) => Maybe UUID -> LeaveRequest -> Html
-renderActions currentViewerStaffId leaveRequest = [hsx|
-    {renderReviewActions leaveRequest}
-    {renderDeleteAction currentViewerStaffId leaveRequest}
-|]
+renderActions _currentViewerStaffId leaveRequest =
+    renderReviewActions leaveRequest
 
 renderReviewActions :: (?context :: ControllerContext) => LeaveRequest -> Html
 renderReviewActions leaveRequest
@@ -248,27 +245,3 @@ renderReviewActions leaveRequest
                 </form>
             |]
 
-renderDeleteAction :: (?context :: ControllerContext) => Maybe UUID -> LeaveRequest -> Html
-renderDeleteAction currentViewerStaffId leaveRequest =
-    if canDelete
-        then [hsx|
-            <form method="POST"
-                  action={DeleteLeaveRequestAction leaveRequest.id}
-                  class="d-inline"
-                  hx-delete={DeleteLeaveRequestAction leaveRequest.id}
-                  hx-target={"#" <> leaveRequestsContentFragmentId}
-                  hx-swap="outerHTML"
-                  hx-push-url="false">
-                <input type="hidden" name="_method" value="DELETE"/>
-                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-            </form>
-        |]
-        else mempty
-    where
-        canDelete =
-            leaveRequestCanBeDeleted leaveRequest
-                && (currentUserIsManager || isCurrentUsersLeaveRequest currentViewerStaffId leaveRequest)
-
-isCurrentUsersLeaveRequest :: Maybe UUID -> LeaveRequest -> Bool
-isCurrentUsersLeaveRequest currentViewerStaffId leaveRequest =
-    Just leaveRequest.staffId == currentViewerStaffId

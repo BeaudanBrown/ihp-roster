@@ -1,7 +1,6 @@
 module Web.LeaveRequests.Mutations
     ( LeaveReviewDecision (..)
     , ReviewedLeaveRequest (..)
-    , cancelLeaveRequest
     , leaveReviewTouchedResources
     , reviewLeaveRequest
     , submitLeaveRequest
@@ -11,7 +10,6 @@ import Application.Helper.LiveResource
 import Application.Helper.WeekBoundaries (affectedVenueWeekOffsetsForDateRange)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import Data.Time.Clock (getCurrentTime)
 import Web.Controller.Prelude
 import Web.LiveResourceInvalidation (invalidateTouchedResources)
 
@@ -78,38 +76,6 @@ reviewLeaveRequest decision leaveRequest = do
                 , reviewedLeaveWasAlreadyApproved = wasApproved
                 }
             touchedResources
-
-cancelLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => LeaveRequest -> IO (LiveMutationResult LeaveRequest)
-cancelLeaveRequest leaveRequest = do
-    now <- getCurrentTime
-    softDeletedLeaveRequest <- withTransaction do
-        softDeletedLeaveRequest <-
-            leaveRequest
-                |> set #deletedAt (Just now)
-                |> set #deletedByUserId (Just (unpackId currentUser.id))
-                |> set #deleteReason (Just "user_deleted")
-                |> updateRecord
-        void $
-            recordCurrentUserLeaveRequestEvent
-                softDeletedLeaveRequest
-                (unsafeEnumFromText @LeaveRequestEventTypeEnum "deleted")
-                (Just leaveRequest.status)
-                Nothing
-                (Aeson.object ["deletedAt" Aeson..= now])
-        void $ recordCurrentUserAuditEvent
-            "leave_deleted"
-            "leave_requests"
-            (unpackId (get #id leaveRequest))
-            (Aeson.object
-                [ "staffId" Aeson..= leaveRequest.staffId
-                , "startDate" Aeson..= leaveRequest.startDate
-                , "endDate" Aeson..= leaveRequest.endDate
-                , "deletedStatus" Aeson..= inputValue leaveRequest.status
-                , "deletedAt" Aeson..= now
-                ]
-            )
-        pure softDeletedLeaveRequest
-    invalidateTouchedResources "leave.cancel" (liveMutationResult softDeletedLeaveRequest (baseLeaveTouchedResources softDeletedLeaveRequest))
 
 baseLeaveTouchedResources :: LeaveRequest -> [LiveResource]
 baseLeaveTouchedResources leaveRequest =

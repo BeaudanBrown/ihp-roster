@@ -8,9 +8,7 @@ import Generated.Types
 import IHP.ControllerPrelude
 
 import Application.Helper.ControllerAccess (fetchVenueConfig, hasRole)
-import Application.Helper.ControllerSupport (LeaveRequestStatus (LeavePending),
-                                             VenueRole (ManagerRole'),
-                                             parseLeaveRequestStatus)
+import Application.Helper.ControllerSupport (VenueRole (ManagerRole'))
 
 parseTimeParam :: Text -> Maybe TimeOfDay
 parseTimeParam value = parseTimeM True defaultTimeLocale "%H:%M" (cs value)
@@ -60,10 +58,6 @@ ensureEditWindowOrManager workedOn =
         config <- fetchVenueConfig
         today <- utctDay <$> getCurrentTime
         accessDeniedUnless (isWithinEditWindow today workedOn config.staffTimesheetEditWindowDays)
-
-leaveRequestCanBeDeleted :: LeaveRequest -> Bool
-leaveRequestCanBeDeleted leaveRequest =
-    parseLeaveRequestStatus leaveRequest.status == Just LeavePending
 
 isLeaveDateRangeValid :: Day -> Day -> Bool
 isLeaveDateRangeValid startDate endDate = endDate > startDate

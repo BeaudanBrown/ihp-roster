@@ -1,6 +1,5 @@
 module Web.View.Profiles.Edit where
 
-import Application.Helper.Controller (leaveRequestCanBeDeleted)
 import Application.Helper.LiveSurface (LiveSurfaceConfig (..),
                                        liveSurfaceConfigJson,
                                        mkTypedDefinedLiveSurface)
@@ -45,10 +44,6 @@ profileLeaveQueryParams =
 profileCreateLeaveRequestPath :: Text
 profileCreateLeaveRequestPath =
     appendQueryParams (pathTo CreateLeaveRequestAction) profileLeaveQueryParams
-
-profileDeleteLeaveRequestPath :: Id LeaveRequest -> Text
-profileDeleteLeaveRequestPath leaveRequestId =
-    appendQueryParams (pathTo (DeleteLeaveRequestAction leaveRequestId)) profileLeaveQueryParams
 
 data EditView = EditView
     { staff                    :: Staff
@@ -275,7 +270,6 @@ renderProfileLeaveRequestsList leaveRequests
                 <div>Dates</div>
                 <div>Status</div>
                 <div>Notes</div>
-                <div>Actions</div>
             </div>
             <div class="leave-request-list-body">
                 {forEach sortedLeaveRequests renderProfileLeaveRequestRow}
@@ -291,25 +285,6 @@ renderProfileLeaveRequestRow leaveRequest = [hsx|
         <div class="leave-request-row-dates">{renderDateRangeText leaveRequest}</div>
         <div class="leave-request-row-status">{renderStatusBadge leaveRequest.status}</div>
         <div class="leave-request-row-notes">{fromMaybe "No notes" (leaveRequest.notes >>= nonEmptyText)}</div>
-        <div class="leave-request-row-actions">{renderProfileLeaveDeleteAction leaveRequest}</div>
     </article>
 |]
 
-renderProfileLeaveDeleteAction :: LeaveRequest -> Html
-renderProfileLeaveDeleteAction leaveRequest =
-    if leaveRequestCanBeDeleted leaveRequest
-        then [hsx|
-            <form method="POST"
-                  action={profileDeleteLeaveRequestPath leaveRequest.id}
-                  class="d-inline"
-                  hx-delete={profileDeleteLeaveRequestPath leaveRequest.id}
-                  hx-target={"#" <> profileLeaveRequestsListFragmentId}
-                  hx-swap="outerHTML"
-                  hx-push-url="false">
-                <input type="hidden" name="_method" value="DELETE"/>
-                <input type="hidden" name="responseContext" value="profile"/>
-                <input type="hidden" name="section" value="leave"/>
-                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-            </form>
-        |]
-        else mempty

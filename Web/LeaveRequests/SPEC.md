@@ -14,8 +14,8 @@ This file describes implemented leave/availability behavior.
 - Managers/admins can approve, deny, or manage requests according to role
   checks.
 - Approved-state leave changes invalidate affected roster scopes. Pending
-  create/delete does not fan out to roster viewers unless a new product
-  decision changes that rule.
+  create does not fan out to roster viewers unless a new product decision
+  changes that rule.
 
 ## History
 

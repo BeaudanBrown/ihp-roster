@@ -84,7 +84,6 @@ data LeaveRequestsController
     | CreateLeaveRequestAction
     | ApproveLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     | DenyLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
-    | DeleteLeaveRequestAction { leaveRequestId :: !(Id LeaveRequest) }
     deriving (Eq, Show, Data)
 
 data ExportsController

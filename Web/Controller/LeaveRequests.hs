@@ -109,24 +109,6 @@ instance Controller LeaveRequestsController where
                 setSuccessMessage "Unavailable period denied"
                 redirectTo LeaveRequestsAction
 
-    action DeleteLeaveRequestAction { leaveRequestId } = do
-        ensureVenueWritable
-        leaveRequest <- fetch leaveRequestId
-        let responseContext = requestedLeaveResponseContext
-        ensureLeaveProfileAccess responseContext
-        ensureRecordInCurrentVenue leaveRequest.venueId
-        accessDeniedUnless (isNothing leaveRequest.deletedAt)
-        ensureLeaveDeleteAllowed leaveRequest
-        unless (leaveRequestCanBeDeleted leaveRequest) do
-            setErrorMessage "Reviewed unavailable periods cannot be deleted."
-            redirectToPath (leaveFallbackPath responseContext)
-        _ <- cancelLeaveRequest leaveRequest
-        if isHtmxRequest
-            then respondWithLeaveMutationSuccess responseContext "Unavailable period cancelled" False
-            else do
-                setSuccessMessage "Unavailable period cancelled"
-                redirectToPath (leaveFallbackPath responseContext)
-
 respondWithLeaveRequestsContent :: (?modelContext :: ModelContext, ?context :: ControllerContext, ?request :: Request) => Text -> Bool -> IO ()
 respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
     projection <- fetchLeaveRequestsProjectionCached
@@ -234,15 +216,6 @@ respondWithLeaveContextError responseContext errorMessage =
                     [ renderRosterStaffSelfServiceLeaveFormFragment leaveRequest
                     , renderToastOob ToastBottomCenter (errorToast errorMessage)
                     ]
-
-ensureLeaveDeleteAllowed :: (?context :: ControllerContext, ?modelContext :: ModelContext) => LeaveRequest -> IO ()
-ensureLeaveDeleteAllowed leaveRequest =
-    if hasRole ManagerRole'
-        then pure ()
-        else do
-            maybeStaff <- fetchCurrentUserStaff
-            let canDeleteOwn = maybe False (\staff -> coerce (get #id staff) == leaveRequest.staffId) maybeStaff
-            accessDeniedUnless canDeleteOwn
 
 buildDefaultRosterLeaveRequest :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO LeaveRequest
 buildDefaultRosterLeaveRequest = do
