@@ -104,7 +104,6 @@ renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gr
              data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
              data-horizontal-snap={if isDayColumnsLayout then ("nearest-item" :: Text) else ""}
              data-horizontal-snap-item-selector={if isDayColumnsLayout then (".roster-day-column" :: Text) else ""}
-             data-horizontal-snap-dragging-attr={if isDayColumnsLayout then ("data-roster-snap-dragging" :: Text) else ""}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
              data-roster-column-editor={if slotColumnsAreEditable then ("available" :: Text) else "unavailable"}
              data-roster-wages={if gridShowWageEstimates then ("visible" :: Text) else "hidden"}
@@ -153,8 +152,7 @@ renderRosterDayRowsGrid endTimesEnabled slotColumnsAreEditable maybeRosterWeek s
     <div class="roster-slots-scroller"
          data-horizontal-snap="equal-groups"
          data-horizontal-snap-group-var="--roster-slot-count"
-         data-horizontal-snap-group-var-scope=".roster-grid-frame"
-         data-horizontal-snap-dragging-attr="data-roster-snap-dragging">
+         data-horizontal-snap-group-var-scope=".roster-grid-frame">
         <div class="roster-grid roster-slots-grid" role="grid" aria-label="Roster slots">
             <div class="roster-grid-head" role="rowgroup">
                 <div class="roster-grid-header-row roster-grid-header-row-blocks" role="row">

@@ -1693,8 +1693,8 @@
         scroll-snap-type: x mandatory;
     }
 
-    .roster-slots-scroller[data-roster-snap-dragging="true"],
-    .roster-grid-frame[data-roster-layout="day_columns"][data-roster-snap-dragging="true"] {
+    .roster-slots-scroller[data-horizontal-snap-dragging="true"],
+    .roster-grid-frame[data-roster-layout="day_columns"][data-horizontal-snap-dragging="true"] {
         scroll-snap-type: none;
     }
 

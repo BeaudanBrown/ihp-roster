@@ -256,7 +256,7 @@ test.describe('Roster mobile baseline', () => {
             await new Promise((resolve) => window.setTimeout(resolve, 260));
             const duringPointerScrollLeft = scroller.scrollLeft;
             const snapTypeDuringPointer = getComputedStyle(scroller).scrollSnapType;
-            const draggingDuringPointer = scroller.dataset.rosterSnapDragging;
+            const draggingDuringPointer = scroller.dataset.horizontalSnapDragging;
 
             scroller.dispatchEvent(new PointerEvent('pointerup', {
                 bubbles: true,
@@ -272,7 +272,7 @@ test.describe('Roster mobile baseline', () => {
                 finalScrollLeft: scroller.scrollLeft,
                 snapTypeDuringPointer,
                 draggingDuringPointer,
-                draggingAfterPointer: scroller.dataset.rosterSnapDragging ?? '',
+                draggingAfterPointer: scroller.dataset.horizontalSnapDragging ?? '',
             };
         });
 
