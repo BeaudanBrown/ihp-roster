@@ -35,12 +35,21 @@ tests = beforeAll testContext do
 
         it "queues one delayed job per complete live roster slot when the venue opts in" $ withContext do
             withCleanDb do
-                (venue, manager, rosterWeek, rosterDay, slot, _shiftType) <- createCompleteLiveRosterSlotFixture
+                (venue, manager, rosterWeek, rosterDay, slot, shiftType) <- createCompleteLiveRosterSlotFixture
                 venueConfig <- fetchVenueConfigFor venue
                 _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
                 slotName <- fetchSlotNameRecord venue "Early"
                 incompleteSlot <- createRosterSlotRecord rosterDay slotName Nothing 1
                 _ <- updateRecord (incompleteSlot |> set #startTime (Just (timeOfDay 12 0)))
+                invalidTimingSlot <- createRosterSlotRecord rosterDay slotName Nothing 2
+                _ <- updateRecord
+                    ( invalidTimingSlot
+                        |> set #staffId slot.staffId
+                        |> set #startTime (Just (timeOfDay 9 0))
+                        |> set #endTime (Just (timeOfDay 8 0))
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
+                        |> set #durationMinutes (Just 1380)
+                    )
 
                 queuedJobs <- enqueueRosterTimesheetCreationJobsForWeek (Just manager.id) rosterWeek
 

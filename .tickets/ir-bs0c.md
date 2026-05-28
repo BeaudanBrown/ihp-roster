@@ -1,6 +1,6 @@
 ---
 id: ir-bs0c
-status: open
+status: closed
 deps: [ir-93pf]
 links: []
 created: 2026-05-28T05:42:04Z

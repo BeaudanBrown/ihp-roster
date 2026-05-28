@@ -12,9 +12,9 @@ module Application.Helper.RosterWagePrediction
     , formatMoneyAmount
     ) where
 
-import Application.Helper.TimeRules (shiftDurationMinutes, timeOfDayToMinutes)
+import Application.Helper.TimeRules (shiftDurationMinutes, timeOfDayToMinutes,
+                                     validRosterShiftDurationMinutes)
 import Application.Helper.WeekBoundaries (weekdayIndexForDay)
-import Control.Monad (guard)
 import qualified Data.List as List
 import qualified Data.Map.Strict as Map
 import Data.Ord (Down (..))
@@ -148,7 +148,7 @@ completeRosterSlot slot = do
     shiftTypeId <- slot.shiftTypeId
     startTime <- slot.startTime
     endTime <- slot.endTime
-    guard (shiftDurationMinutes startTime endTime > 0)
+    _ <- validRosterShiftDurationMinutes startTime endTime
     pure (staffId, shiftTypeId, startTime, endTime)
 
 staffedIncomplete :: RosterSlot -> Bool

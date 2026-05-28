@@ -493,6 +493,7 @@ instance Controller RosterWeeksController where
                     |> applyOptionalField #shiftTypeId (parseOptionalShiftTypeId maybeShiftTypeParam) maybeShiftTypeParam
                     |> applyRosterSlotDuration
 
+        ensureRosterSlotTimingValidForSave rosterWeek newSlot
         ensureOptionalStaffInCurrentVenue newSlot.staffId
         ensureOptionalShiftTypeInCurrentVenue newSlot.shiftTypeId
         isEligibleForAssignment <-
@@ -563,6 +564,7 @@ instance Controller RosterWeeksController where
                     |> applyOptionalField #shiftTypeId (parseOptionalShiftTypeId maybeShiftTypeParam) maybeShiftTypeParam
                     |> applyRosterSlotDuration
 
+        ensureRosterSlotTimingValidForSave rosterWeek updatedSlot
         ensureOptionalStaffInCurrentVenue updatedSlot.staffId
         ensureOptionalShiftTypeInCurrentVenue updatedSlot.shiftTypeId
         isEligibleForAssignment <-
@@ -823,7 +825,7 @@ validateRosterWeekCanGoLive rosterWeek True = do
             else Just (publishRequiredFieldsMessage venueConfig.rosterEndTimesEnabled)
 
 publishRequiredFieldsMessage :: Bool -> Text
-publishRequiredFieldsMessage True = "Roster week cannot go live until every staffed shift has a start time, end time, and shift type."
+publishRequiredFieldsMessage True = "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
 publishRequiredFieldsMessage False = "Roster week cannot go live until every staffed shift has a start time and shift type."
 
 rosterSlotBlocksPublish :: Bool -> RosterSlot -> Bool
@@ -832,9 +834,32 @@ rosterSlotBlocksPublish endTimesEnabled slot =
         && ( isNothing slot.startTime
              || isNothing slot.shiftTypeId
              || ( endTimesEnabled
-                    && (isNothing slot.endTime || maybe True (<= 0) slot.durationMinutes)
+                    && not (rosterSlotHasValidStartEnd slot)
                 )
            )
+
+rosterSlotHasValidStartEnd :: RosterSlot -> Bool
+rosterSlotHasValidStartEnd slot =
+    case (slot.startTime, slot.endTime) of
+        (Just startTime, Just endTime) -> isValidRosterShiftTimePair startTime endTime
+        _ -> False
+
+ensureRosterSlotTimingValidForSave :: (?context :: ControllerContext, ?request :: Request) => RosterWeek -> RosterSlot -> IO ()
+ensureRosterSlotTimingValidForSave rosterWeek slot =
+    case (slot.startTime, slot.endTime) of
+        (Just startTime, Just endTime)
+            | not (isValidRosterShiftTimePair startTime endTime) ->
+                let rosterGroupId = coerce rosterWeek.rosterGroupId
+                    errorMessage = invalidRosterSlotTimingMessage
+                 in if isHtmxRequest
+                        then respondWithRosterToast errorMessage "app-toast-error"
+                        else do
+                            setErrorMessage errorMessage
+                            redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+        _ -> pure ()
+
+invalidRosterSlotTimingMessage :: Text
+invalidRosterSlotTimingMessage = "Choose an end time after the start time within the 6:00 AM to 5:45 AM roster day."
 
 rosterSlotTimesheetSourceChanged :: RosterSlot -> RosterSlot -> Bool
 rosterSlotTimesheetSourceChanged previous next =
@@ -847,9 +872,9 @@ applyRosterSlotDuration :: RosterSlot -> RosterSlot
 applyRosterSlotDuration slot =
     case (slot.startTime, slot.endTime) of
         (Just startTime, Just endTime) ->
-            slot |> set #durationMinutes (Just (shiftDurationMinutes startTime endTime))
+            slot |> set #durationMinutes (validRosterShiftDurationMinutes startTime endTime)
         _ ->
-            slot
+            slot |> set #durationMinutes Nothing
 
 ensureOptionalShiftTypeInCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe UUID.UUID -> IO ()
 ensureOptionalShiftTypeInCurrentVenue Nothing = pure ()

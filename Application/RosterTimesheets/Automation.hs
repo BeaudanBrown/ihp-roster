@@ -15,10 +15,11 @@ module Application.RosterTimesheets.Automation
 
 import Application.Async.Queue
 import Application.Helper.Audit
-import Application.Helper.Controller (shiftDurationMinutes, unsafeEnumFromText,
+import Application.Helper.Controller (unsafeEnumFromText,
+                                      validRosterShiftDurationMinutes,
                                       venueWeekOffsetForDay, venueWeekStartDate)
 import Application.Helper.LiveResource
-import Control.Monad (forM, guard, void)
+import Control.Monad (forM, void)
 import qualified Data.Aeson as Aeson
 import Data.Coerce (coerce)
 import Data.Time.Calendar (Day, addDays, diffDays)
@@ -219,7 +220,7 @@ completeRosterSlot rosterSlot = do
     startTime <- rosterSlot.startTime
     endTime <- rosterSlot.endTime
     shiftTypeId <- rosterSlot.shiftTypeId
-    guard (shiftDurationMinutes startTime endTime > 0)
+    _ <- validRosterShiftDurationMinutes startTime endTime
     pure (startTime, endTime, staffId, shiftTypeId)
 
 fetchRosterTimesheetJobContext ::
