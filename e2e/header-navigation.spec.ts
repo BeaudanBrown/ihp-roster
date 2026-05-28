@@ -28,7 +28,8 @@ test.describe('Authenticated header navigation', () => {
         await page.getByRole('link', { name: 'admin' }).click();
         await expect(page).toHaveURL(/Admin/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#admin-config-sections')).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Roster Groups' }).first()).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Roster Groups' }).first()).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Roster Groups' }).first()).toHaveAttribute('aria-expanded', 'false');
 
         await page.getByRole('link', { name: 'roster' }).click();
         await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });

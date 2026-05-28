@@ -51,7 +51,8 @@ test.describe('Mandatory venue-admin passkeys', () => {
         await gotoWhenReady(page, '/Admin', '#admin-config-sections');
 
         await expect(page.locator('#admin-config-sections')).toBeVisible();
-        await expect(page.getByRole('heading', { name: 'Roster Groups' }).first()).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Roster Groups' }).first()).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Roster Groups' }).first()).toHaveAttribute('aria-expanded', 'false');
     });
 
     test('password login with an existing passkey requires step-up before admin pages', async ({ page }) => {

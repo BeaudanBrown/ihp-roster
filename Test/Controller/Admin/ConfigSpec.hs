@@ -62,6 +62,11 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldNotContain` "Exports"
+                response `responseBodyShouldContain` "id=\"invites-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"venue-settings-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"shift-types-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldContain` "id=\"roster-groups-collapse\" class=\"accordion-collapse collapse\""
+                response `responseBodyShouldNotContain` "accordion-collapse collapse show"
                 response `responseBodyShouldContain` "href=\"/Xero\""
                 response `responseBodyShouldNotContain` "Venue Config"
 
