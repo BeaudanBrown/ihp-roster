@@ -22,7 +22,7 @@ tests = do
             let resources =
                     Set.fromList
                         [ BillingResource venueId
-                        , AdminVenueConfigResource venueId
+                        , AdminVenueSettingsResource venueId
                         , AdminInvitesResource venueId
                         , SupportAwardRatesResource
                         ]

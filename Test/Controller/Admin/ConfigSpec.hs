@@ -34,7 +34,10 @@ import Network.Wai (responseHeaders)
 import Test.Hspec
 import Test.Support
 import qualified Test.XeroMock as XeroMock
-import Web.Admin.Mutations (adminVenueConfigTouchedResources)
+import Web.Admin.Mutations (adminVenueSettingsTouchedResources,
+                            autoTimesheetCreationTouchedResources,
+                            rosterEndTimesTouchedResources,
+                            rosterWeekStartsOnTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
 import Web.Routes
@@ -58,12 +61,26 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "href=\"/Xero\""
                 response `responseBodyShouldNotContain` "Venue Config"
 
-        it "records touched resources for admin config mutations" $ withContext do
+        it "records setting-specific touched resources for admin config mutations" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Touched Venue"
+                let venueId = unpackId venue.id
 
-                Set.fromList (adminVenueConfigTouchedResources venue.id)
-                    `shouldBe` Set.fromList [AdminVenueConfigResource (unpackId venue.id)]
+                Set.fromList (adminVenueSettingsTouchedResources venue.id)
+                    `shouldBe` Set.fromList [AdminVenueSettingsResource venueId]
+                Set.fromList (autoTimesheetCreationTouchedResources venue.id)
+                    `shouldBe` Set.fromList [AdminVenueSettingsResource venueId]
+                Set.fromList (rosterEndTimesTouchedResources venue.id)
+                    `shouldBe` Set.fromList
+                        [ AdminVenueSettingsResource venueId
+                        , RosterEndTimesConfigResource venueId
+                        ]
+                Set.fromList (rosterWeekStartsOnTouchedResources venue.id)
+                    `shouldBe` Set.fromList
+                        [ AdminVenueSettingsResource venueId
+                        , RosterWeekBoundaryConfigResource venueId
+                        , TimesheetWeekBoundaryConfigResource venueId
+                        ]
 
         it "shows the Xero header button and page to super admins" $ withContext do
             withCleanDb do

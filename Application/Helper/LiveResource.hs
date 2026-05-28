@@ -26,7 +26,10 @@ data LiveResource
     | RosterWeekResource !UUID !Int
     | RosterDayResource !UUID
     | RosterSlotResource !UUID
-    | AdminVenueConfigResource !UUID
+    | AdminVenueSettingsResource !UUID
+    | RosterEndTimesConfigResource !UUID
+    | RosterWeekBoundaryConfigResource !UUID
+    | TimesheetWeekBoundaryConfigResource !UUID
     | AdminRosterGroupsResource !UUID
     | AdminShiftTypesResource !UUID
     | AdminInvitesResource !UUID

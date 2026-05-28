@@ -44,7 +44,10 @@ profileLiveResourcesFor resourceName = do
     let staffId = paramOrNothing @UUID "staffId"
     pure case resourceName of
         "billing" -> [BillingResource venueUuid]
-        "admin-venue-config" -> [AdminVenueConfigResource venueUuid]
+        "admin-venue-config" -> [AdminVenueSettingsResource venueUuid]
+        "roster-end-times-config" -> [RosterEndTimesConfigResource venueUuid]
+        "roster-week-boundary-config" -> [RosterWeekBoundaryConfigResource venueUuid]
+        "timesheet-week-boundary-config" -> [TimesheetWeekBoundaryConfigResource venueUuid]
         "admin-invites" -> [AdminInvitesResource venueUuid]
         "admin-roster-groups" -> [AdminRosterGroupsResource venueUuid]
         "admin-shift-types" -> [AdminShiftTypesResource venueUuid]

@@ -49,6 +49,10 @@ tests = do
                         , TimesheetWeekResource venueId 0
                         , TimesheetDayResource venueId 0 2
                         , StaffRsaDocumentsResource staffId
+                        , AdminVenueSettingsResource venueId
+                        , RosterEndTimesConfigResource venueId
+                        , RosterWeekBoundaryConfigResource venueId
+                        , TimesheetWeekBoundaryConfigResource venueId
                         , AdminInvitesResource venueId
                         , AdminRosterGroupsResource venueId
                         , AdminShiftTypesResource venueId

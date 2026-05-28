@@ -102,12 +102,12 @@ tests = do
             typedSurfaceDependsOn profileLeaveRequestsLiveSurfaceDefinition leaveKey profileLeaveRequestsFragment
                 `shouldBe` [StaffLeaveRequestsResource staffId]
 
-        it "declares admin venue config dependencies for venue-scoped settings surfaces" do
+        it "declares admin venue settings dependencies for venue-scoped settings surfaces" do
             let venueId = fromWords 7 0 0 0
             let definition = adminVenueSettingsLiveSurfaceDefinitionForVenue venueId
 
             typedSurfaceDependsOn definition () adminVenueSettingsFragment
-                `shouldBe` [AdminVenueConfigResource venueId]
+                `shouldBe` [AdminVenueSettingsResource venueId]
 
         it "declares admin invitation dependencies for venue-scoped invite surfaces" do
             let venueId = fromWords 3 0 0 0

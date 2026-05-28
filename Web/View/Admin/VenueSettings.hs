@@ -46,7 +46,7 @@ adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
         , typedSurfaceFragmentContract = \() fragment ->
             mkSurfaceFragmentContract
                 (adminVenueSettingsLiveFragmentRef fragment)
-                (liveFragmentDependsOn (AdminVenueConfigResource surfaceVenueId) [])
+                (liveFragmentDependsOn (AdminVenueSettingsResource surfaceVenueId) [])
         , typedSurfaceDecorateRequestsWithin = const ["#" <> adminVenueSettingsFragmentId]
         , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
         }

@@ -12,7 +12,7 @@ tests = do
     describe "LiveResource diagnostics" do
         it "preserves mutation results when diagnostics are disabled" do
             unsetEnv "LIVE_MUTATION_DIAGNOSTICS"
-            let result = liveMutationResult ("ok" :: Text) [AdminVenueConfigResource nil, AdminVenueConfigResource nil]
+            let result = liveMutationResult ("ok" :: Text) [AdminVenueSettingsResource nil, AdminVenueSettingsResource nil]
             observed <- recordLiveMutationDiagnostics "test.disabled" result
             liveMutationValue observed `shouldBe` "ok"
-            liveMutationTouchedResources observed `shouldBe` Set.fromList [AdminVenueConfigResource nil]
+            liveMutationTouchedResources observed `shouldBe` Set.fromList [AdminVenueSettingsResource nil]

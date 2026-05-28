@@ -1,6 +1,7 @@
 module Web.Admin.Mutations
     ( AdminShiftTypeMutationResult (..)
-    , adminVenueConfigTouchedResources
+    , adminVenueSettingsTouchedResources
+    , autoTimesheetCreationTouchedResources
     , createRosterGroupMutation
     , createShiftTypeMutation
     , createVenueInvitationMutation
@@ -8,6 +9,8 @@ module Web.Admin.Mutations
     , moveRosterGroupMutation
     , moveShiftTypeMutation
     , revokeVenueInvitationMutation
+    , rosterEndTimesTouchedResources
+    , rosterWeekStartsOnTouchedResources
     , setAutoTimesheetCreationEnabledMutation
     , setRosterEndTimesEnabledMutation
     , setRosterWeekStartsOnMutation
@@ -44,14 +47,14 @@ setRosterEndTimesEnabledMutation venueConfig rosterEndTimesEnabled = do
     updated <- venueConfig
         |> set #rosterEndTimesEnabled rosterEndTimesEnabled
         |> updateRecord
-    invalidateTouchedResources "admin.venue_config.roster_end_times" (liveMutationResult updated (adminVenueConfigTouchedResources currentVenueId))
+    invalidateTouchedResources "admin.venue_config.roster_end_times" (liveMutationResult updated (rosterEndTimesTouchedResources currentVenueId))
 
 setAutoTimesheetCreationEnabledMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Bool -> IO (LiveMutationResult VenueConfig)
 setAutoTimesheetCreationEnabledMutation venueConfig autoTimesheetCreationEnabled = do
     updated <- venueConfig
         |> set #autoTimesheetCreationEnabled autoTimesheetCreationEnabled
         |> updateRecord
-    invalidateTouchedResources "admin.venue_config.auto_timesheets" (liveMutationResult updated (adminVenueConfigTouchedResources currentVenueId))
+    invalidateTouchedResources "admin.venue_config.auto_timesheets" (liveMutationResult updated (autoTimesheetCreationTouchedResources currentVenueId))
 
 setRosterWeekStartsOnMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => VenueConfig -> Int -> IO (LiveMutationResult VenueConfig)
 setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
@@ -60,11 +63,26 @@ setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn = do
             |> set #rosterWeekStartsOn rosterWeekStartsOn
             |> set #weekOffsetEpoch (defaultWeekOffsetEpochForStartDay rosterWeekStartsOn)
             |> updateRecord
-    invalidateTouchedResources "admin.venue_config.week_start" (liveMutationResult updated (adminVenueConfigTouchedResources currentVenueId))
+    invalidateTouchedResources "admin.venue_config.week_start" (liveMutationResult updated (rosterWeekStartsOnTouchedResources currentVenueId))
 
-adminVenueConfigTouchedResources :: Id Venue -> [LiveResource]
-adminVenueConfigTouchedResources venueId =
-    [AdminVenueConfigResource (unpackId venueId)]
+adminVenueSettingsTouchedResources :: Id Venue -> [LiveResource]
+adminVenueSettingsTouchedResources venueId =
+    [AdminVenueSettingsResource (unpackId venueId)]
+
+rosterEndTimesTouchedResources :: Id Venue -> [LiveResource]
+rosterEndTimesTouchedResources venueId =
+    adminVenueSettingsTouchedResources venueId <> [RosterEndTimesConfigResource (unpackId venueId)]
+
+autoTimesheetCreationTouchedResources :: Id Venue -> [LiveResource]
+autoTimesheetCreationTouchedResources =
+    adminVenueSettingsTouchedResources
+
+rosterWeekStartsOnTouchedResources :: Id Venue -> [LiveResource]
+rosterWeekStartsOnTouchedResources venueId =
+    adminVenueSettingsTouchedResources venueId
+        <> [ RosterWeekBoundaryConfigResource (unpackId venueId)
+           , TimesheetWeekBoundaryConfigResource (unpackId venueId)
+           ]
 
 createVenueInvitationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> IO (LiveMutationResult VenueInvitation)
 createVenueInvitationMutation email = do
