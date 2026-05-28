@@ -1,6 +1,6 @@
 ---
 id: ir-y8mj
-status: open
+status: closed
 deps: [ir-59gm, ir-w8dk]
 links: [ir-59gm, ir-5o6t, ir-nin6]
 created: 2026-04-29T04:41:29Z
@@ -24,3 +24,7 @@ Add controller or browser coverage for automatic week creation and copy behavior
 **2026-04-30T07:23:08Z**
 
 2026-04-30 reconciliation: basic missing-week materialization is implemented and covered by NavigationSpec. Keep this ticket focused on copy-overwrite behavior and any missing browser/controller verification around copy controls.
+
+**2026-05-28T08:13:38Z**
+
+2026-05-28 verification: added focused Hspec coverage for staff-hidden copy controls, live-target overwrite-to-draft behavior, and selected roster-group copy scoping. Existing coverage already verifies missing-week materialization, explicit hx-confirm overwrite copy in roster settings, creation/copy, and live fragment browser copy flow.

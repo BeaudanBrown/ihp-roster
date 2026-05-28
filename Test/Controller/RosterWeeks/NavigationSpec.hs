@@ -266,6 +266,20 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "role=\"switch\" aria-checked=\"false\""
 
+        it "hides copy previous week controls from staff users" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                worker <- createUserRecord "roster-worker-copy-hidden@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- fetchSlotNameRecord venue "Early"
+
+                response <- withUserAndCurrentVenue worker venue.id do
+                    callAction (ShowRosterWeekAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` "Copy Previous Week"
+                response `responseBodyShouldNotContain` "hx-post=\"/CopyRosterWeek"
+
         it "roster group switcher preserves weekOffset in the submitted form" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"

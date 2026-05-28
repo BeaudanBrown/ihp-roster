@@ -1465,6 +1465,120 @@ tests = beforeAll testContext do
                 copiedSlot.startTime `shouldBe` Just (timeOfDay 8 0)
                 copiedSlot.durationMinutes `shouldBe` Just 300
 
+        it "copying over a live target week explicitly replaces it as a draft" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-copy-live-target@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                early <- fetchSlotNameRecord venue "Early"
+                late <- fetchSlotNameRecord venue "Late"
+                alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
+                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
+
+                sourceWeek <- createRosterWeekRecord venue 0 True
+                sourceDay <- createRosterDayRecord sourceWeek 0
+                sourceSlot <- createRosterSlotRecord sourceDay early (Just alpha) 0
+                _ <- updateRecord
+                    ( sourceSlot
+                        |> set #startTime (Just (timeOfDay 8 0))
+                        |> set #durationMinutes (Just 300)
+                    )
+
+                targetWeek <- createRosterWeekRecord venue 1 True
+                targetDay <- createRosterDayRecord targetWeek 0
+                targetSlot <- createRosterSlotRecord targetDay late (Just bravo) 0
+                _ <- updateRecord
+                    ( targetSlot
+                        |> set #startTime (Just (timeOfDay 14 0))
+                        |> set #durationMinutes (Just 180)
+                    )
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (CopyRosterWeekAction 0 1)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Roster week copied from the previous week."
+
+                copiedWeek <- fetch targetWeek.id
+                copiedWeek.isLive `shouldBe` False
+                copiedDay <- query @RosterDay
+                    |> filterWhere (#rosterWeekId, unpackId copiedWeek.id)
+                    |> filterWhere (#dayOffset, 0)
+                    |> fetchOne
+                activeSlots <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId copiedDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+
+                length activeSlots `shouldBe` 1
+                let copiedSlot = fromJust (head activeSlots)
+                copiedSlotDefinition <- fetch (Id copiedSlot.rosterWeekSlotDefinitionId :: Id RosterWeekSlotDefinition)
+                copiedSlot.staffId `shouldBe` Just (unpackId alpha.id)
+                copiedSlotDefinition.name `shouldBe` early.name
+                copiedSlot.startTime `shouldBe` Just (timeOfDay 8 0)
+                replacedTargetSlot <- fetch targetSlot.id
+                replacedTargetSlot.deletedAt `shouldSatisfy` isJust
+
+        it "copies only within the selected roster group scope" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-copy-group-scope@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                frontOfHouse <- createVenueRosterGroupWithDefaults venue "Front of House" 1 True
+                backOfHouse <- createVenueRosterGroupWithDefaults venue "Back of House" 2 True
+                frontSlotName <- fetchSlotNameRecordForRosterGroup frontOfHouse "Early"
+                backSlotName <- fetchSlotNameRecordForRosterGroup backOfHouse "Early"
+                alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
+                bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
+
+                frontSourceWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 True
+                frontSourceDay <- createRosterDayRecord frontSourceWeek 0
+                frontSourceSlot <- createRosterSlotRecord frontSourceDay frontSlotName (Just alpha) 0
+                _ <- updateRecord (frontSourceSlot |> set #startTime (Just (timeOfDay 8 0)))
+
+                backSourceWeek <- createRosterWeekRecordForRosterGroup venue backOfHouse 0 True
+                backSourceDay <- createRosterDayRecord backSourceWeek 0
+                backSourceSlot <- createRosterSlotRecord backSourceDay backSlotName (Just bravo) 0
+                _ <- updateRecord (backSourceSlot |> set #startTime (Just (timeOfDay 12 0)))
+
+                frontTargetWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 1 False
+                _ <- createRosterDayRecord frontTargetWeek 0
+                backTargetWeek <- createRosterWeekRecordForRosterGroup venue backOfHouse 1 False
+                backTargetDay <- createRosterDayRecord backTargetWeek 0
+                backTargetSlot <- createRosterSlotRecord backTargetDay backSlotName (Just bravo) 0
+                _ <- updateRecord (backTargetSlot |> set #startTime (Just (timeOfDay 15 0)))
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams
+                        (CopyRosterWeekAction 0 1)
+                        [("rosterGroupId", ByteString.pack (cs (tshow frontOfHouse.id)))]
+
+                response `responseStatusShouldBe` status302
+
+                frontCopiedDay <- query @RosterDay
+                    |> filterWhere (#rosterWeekId, unpackId frontTargetWeek.id)
+                    |> filterWhere (#dayOffset, 0)
+                    |> fetchOne
+                frontCopiedSlots <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId frontCopiedDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                length frontCopiedSlots `shouldBe` 1
+                let frontCopiedSlot = fromJust (head frontCopiedSlots)
+                frontCopiedSlot.staffId `shouldBe` Just (unpackId alpha.id)
+                frontCopiedSlot.startTime `shouldBe` Just (timeOfDay 8 0)
+
+                backUnchangedSlot <- fetch backTargetSlot.id
+                backUnchangedSlot.deletedAt `shouldBe` Nothing
+                backUnchangedSlot.staffId `shouldBe` Just (unpackId bravo.id)
+                backUnchangedSlot.startTime `shouldBe` Just (timeOfDay 15 0)
+                backActiveSlots <- query @RosterSlot
+                    |> filterWhere (#rosterDayId, unpackId backTargetDay.id)
+                    |> filterWhere (#deletedAt, Nothing)
+                    |> fetch
+                length backActiveSlots `shouldBe` 1
+
         it "rejects copying a roster week onto itself via HTMX" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
