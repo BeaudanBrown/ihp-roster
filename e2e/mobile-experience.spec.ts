@@ -279,6 +279,64 @@ test.describe('Mobile experience smoke', () => {
         await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
     });
 
+    test('timesheet day snapping lets the newest quick scroll win', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+
+        await expect(page.locator('#timesheet-day-section-0')).toBeVisible();
+
+        const snapMetrics = await page.locator('.timesheet-week-frame').first().evaluate(async (frame) => {
+            if (!(frame instanceof HTMLElement)) {
+                throw new Error('Expected timesheet week frame to be an HTMLElement');
+            }
+
+            const panels = Array.from(frame.querySelectorAll('.timesheet-day-panel')).filter((panel): panel is HTMLElement => panel instanceof HTMLElement);
+            if (panels.length < 4) {
+                throw new Error('Expected at least four timesheet day panels');
+            }
+
+            const maxScrollLeft = Math.max(0, frame.scrollWidth - frame.clientWidth);
+            const scrollNearPanel = (panel: HTMLElement, adjustmentRatio: number) => {
+                const centeredLeft = panel.offsetLeft + (panel.offsetWidth / 2) - (frame.clientWidth / 2);
+                frame.scrollLeft = Math.min(Math.max(0, centeredLeft + (panel.offsetWidth * adjustmentRatio)), maxScrollLeft);
+                frame.dispatchEvent(new Event('scroll', { bubbles: false }));
+            };
+
+            scrollNearPanel(panels[1], -0.2);
+            await new Promise((resolve) => window.setTimeout(resolve, 60));
+            scrollNearPanel(panels[2], -0.2);
+            await new Promise((resolve) => window.setTimeout(resolve, 300));
+
+            const frameRect = frame.getBoundingClientRect();
+            const frameCenter = frameRect.left + (frameRect.width / 2);
+            const nearestPanel = panels.reduce((nearest, panel) => {
+                const panelRect = panel.getBoundingClientRect();
+                const panelCenter = panelRect.left + (panelRect.width / 2);
+                const distance = Math.abs(panelCenter - frameCenter);
+                if (!nearest || distance < nearest.distance) {
+                    return { index: panels.indexOf(panel), distance, centerOffset: panelCenter - frameCenter };
+                }
+                return nearest;
+            }, null as null | { index: number; distance: number; centerOffset: number });
+
+            return {
+                nearestIndex: nearestPanel?.index ?? -1,
+                nearestCenterOffset: nearestPanel?.centerOffset ?? Number.NaN,
+                snapDragging: frame.dataset.horizontalSnapDragging ?? '',
+                dragDragging: frame.dataset.horizontalDragging ?? '',
+                suppressClickUntil: frame.dataset.horizontalSuppressClickUntil ?? '',
+            };
+        });
+
+        expect(snapMetrics.nearestIndex).toBe(2);
+        expect(Math.abs(snapMetrics.nearestCenterOffset)).toBeLessThanOrEqual(2);
+        expect(snapMetrics.snapDragging).toBe('');
+        expect(snapMetrics.dragDragging).toBe('');
+        expect(snapMetrics.suppressClickUntil).toBe('');
+    });
+
     test('timesheet entries use uniform mobile actions for approved and pending entries', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets?showApproved=true', '#timesheet-week-shell');
