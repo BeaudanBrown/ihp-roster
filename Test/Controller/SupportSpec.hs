@@ -99,10 +99,10 @@ tests = beforeAll testContext do
                 feedbackItem <- newRecord @UserFeedbackItem
                     |> set #venueId (unpackId venue.id)
                     |> set #submittedByUserId (unpackId submitter.id)
-                    |> set #feedbackType "question"
+                    |> set #feedbackType "suggestion"
                     |> set #status "new"
                     |> set #priority "normal"
-                    |> set #content "How do I copy last week?"
+                    |> set #content "Make the copy week action clearer"
                     |> createRecord
 
                 response <- withPasskeyVerifiedUser superAdmin do

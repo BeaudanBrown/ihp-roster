@@ -107,7 +107,7 @@ renderFeedbackPanel :: Int -> [SupportFeedbackRow] -> Html
 renderFeedbackPanel unreadCount feedbackRows =
     renderAppPanel AppPanelConfig
         { appPanelTitle = Just "User Feedback"
-        , appPanelDescription = Just "Issues, questions, and suggestions submitted from inside the app. Marking items read clears the feedback header badge."
+        , appPanelDescription = Just "Issues and suggestions submitted from inside the app. Marking items read clears the feedback header badge."
         , appPanelHasActions = unreadCount > 0
         , appPanelActions = renderMarkAllFeedbackReadForm unreadCount
         , appPanelHasCustomHeader = False
@@ -193,7 +193,6 @@ feedbackTypeLabel feedbackType =
     case feedbackType of
         "bug" -> "bug"
         "suggestion" -> "suggestion"
-        "question" -> "question"
         "other" -> "other"
         _ -> feedbackType
 

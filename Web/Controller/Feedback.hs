@@ -77,7 +77,7 @@ validateFeedbackType feedbackType
     | otherwise = Failure "Choose a feedback type"
 
 allowedFeedbackTypes :: [Text]
-allowedFeedbackTypes = ["bug", "suggestion", "question", "other"]
+allowedFeedbackTypes = ["bug", "suggestion", "other"]
 
 currentRequestPathOnly :: (?request :: Request) => Text
 currentRequestPathOnly =

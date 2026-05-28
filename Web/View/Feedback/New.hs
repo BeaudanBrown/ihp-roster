@@ -58,16 +58,11 @@ renderFeedbackForm formMode feedbackItem =
 renderFeedbackFormFields :: UserFeedbackItem -> Html
 renderFeedbackFormFields feedbackItem = [hsx|
     <div class="app-form-width">
-        <p class="app-muted small">
-            Found a problem, have an idea, or need help? Send it here. Please do not include passwords, payment details, or sensitive staff documents.
-        </p>
-
         <div class="mb-3">
             <label class="form-label" for="feedback-type">Type</label>
             <select id="feedback-type" name="feedbackType" class={classes [("form-select", True), ("is-invalid", feedbackHasErrorFor feedbackItem "feedbackType")]}>
                 {renderFeedbackTypeOption feedbackItem "bug" "Bug"}
                 {renderFeedbackTypeOption feedbackItem "suggestion" "Suggestion"}
-                {renderFeedbackTypeOption feedbackItem "question" "Question"}
                 {renderFeedbackTypeOption feedbackItem "other" "Other"}
             </select>
             {renderFeedbackFieldError feedbackItem "feedbackType"}

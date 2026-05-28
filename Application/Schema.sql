@@ -870,7 +870,7 @@ CREATE TABLE user_feedback_items (
     FOREIGN KEY (submitted_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (read_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
     FOREIGN KEY (resolved_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
-    CHECK ((feedback_type = 'bug') OR (feedback_type = 'suggestion') OR (feedback_type = 'question') OR (feedback_type = 'other')),
+    CHECK ((feedback_type = 'bug') OR (feedback_type = 'suggestion') OR (feedback_type = 'other')),
     CHECK ((status = 'new') OR (status = 'triaged') OR (status = 'planned') OR (status = 'in_progress') OR (status = 'done') OR (status = 'closed')),
     CHECK ((priority = 'low') OR (priority = 'normal') OR (priority = 'high')),
     CHECK (char_length(content) >= 3),
