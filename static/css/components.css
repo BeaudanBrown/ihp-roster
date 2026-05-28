@@ -686,21 +686,24 @@ h5,
 
     .app-week-toolbar {
         min-height: auto;
-        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-areas:
+            "quick"
+            "navigation";
         align-items: center;
     }
 
     .app-week-toolbar-roster {
         grid-template-areas:
-            "quick settings"
-            "navigation navigation"
-            "auxiliary auxiliary";
+            "quick"
+            "navigation"
+            "auxiliary";
     }
 
     .app-week-toolbar-timesheets {
         grid-template-areas:
-            "quick quick"
-            "navigation navigation";
+            "quick"
+            "navigation";
     }
 
     .app-week-toolbar-quick,
@@ -715,30 +718,38 @@ h5,
         justify-content: center;
     }
 
-    .app-week-toolbar-roster .app-week-toolbar-quick {
-        justify-content: flex-start;
-    }
-
+    .app-week-toolbar-roster .app-week-toolbar-quick,
     .app-week-toolbar-timesheets .app-week-toolbar-quick {
-        grid-column: 1 / -1;
-        grid-row: 1;
+        grid-area: quick;
+        position: static;
         justify-content: center;
+        min-height: 2.35rem;
     }
 
-    .app-week-toolbar-timesheets .app-week-toolbar-settings {
+    .app-week-toolbar-roster .app-week-toolbar-quick > form:first-child {
         position: absolute;
         top: 0;
-        right: 0;
+        left: 0.75rem;
+    }
+
+    .app-week-toolbar-roster .app-week-toolbar-quick > a.app-week-nav-button,
+    .app-week-toolbar-timesheets .app-week-toolbar-quick > a.app-week-nav-button {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
     }
 
     .app-week-toolbar-settings {
-        grid-column: 2;
-        grid-row: 1;
+        position: absolute;
+        top: 0;
+        right: 0.75rem;
         justify-content: flex-end;
         z-index: 2;
     }
 
     .app-week-toolbar-navigation {
+        width: 100%;
         justify-content: center;
     }
 

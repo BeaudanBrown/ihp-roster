@@ -13,6 +13,7 @@ type ToolbarMetrics = {
     auxiliaryTop: number | null;
     resetCenterX: number | null;
     toolbarCenterX: number;
+    toolbarRight: number;
 };
 
 async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbarSelector: string): Promise<ToolbarMetrics> {
@@ -59,6 +60,7 @@ async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbar
             auxiliaryTop: auxiliary ? Math.round(auxiliary.top) : null,
             resetCenterX: reset ? Math.round(reset.left + reset.width / 2) : null,
             toolbarCenterX: Math.round(toolbarRect.left + toolbarRect.width / 2),
+            toolbarRight: Math.round(toolbarRect.right),
         };
     });
 }
@@ -93,6 +95,9 @@ test.describe('Shared week toolbar responsive layout', () => {
         await expect(toolbar.locator('[data-week-toolbar-section="auxiliary"] .roster-wage-summary')).toBeVisible();
 
         const metrics = await weekToolbarMetrics(page, '[data-week-toolbar="roster"]');
+        expect(metrics.resetCenterX).not.toBeNull();
+        expect(Math.abs((metrics.resetCenterX ?? 0) - metrics.toolbarCenterX)).toBeLessThanOrEqual(4);
+        expect(metrics.settingsRight).toBeLessThanOrEqual(metrics.toolbarRight - 8);
         expect(metrics.navigationTop).toBeGreaterThanOrEqual(metrics.quickBottom - 1);
         expect(metrics.auxiliaryTop).not.toBeNull();
         expect(metrics.auxiliaryTop ?? 0).toBeGreaterThanOrEqual(metrics.navigationBottom - 1);
@@ -111,8 +116,9 @@ test.describe('Shared week toolbar responsive layout', () => {
 
         const metrics = await weekToolbarMetrics(page, '[data-week-toolbar="timesheets"]');
         expect(metrics.resetCenterX).not.toBeNull();
-        expect(Math.abs((metrics.resetCenterX ?? 0) - metrics.toolbarCenterX)).toBeLessThanOrEqual(16);
+        expect(Math.abs((metrics.resetCenterX ?? 0) - metrics.toolbarCenterX)).toBeLessThanOrEqual(4);
         expect(metrics.settingsRight).toBeGreaterThan(metrics.toolbarCenterX);
+        expect(metrics.settingsRight).toBeLessThanOrEqual(metrics.toolbarRight - 8);
         expect(metrics.navigationTop).toBeGreaterThanOrEqual(metrics.quickBottom - 1);
     });
 });
