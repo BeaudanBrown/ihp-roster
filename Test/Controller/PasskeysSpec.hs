@@ -508,6 +508,9 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Phone passkey"
                 response `responseBodyShouldContain` "Delete"
+                response `responseBodyShouldContain` "Email setup link for another device"
+                response `responseBodyShouldNotContain` "id=\"passkey-management-name\""
+                response `responseBodyShouldNotContain` "data-begin-url=\"/BeginPasskeyRegistration\""
 
         it "renames a user's passkey and normalizes blank names" $ withContext do
             withCleanDb do

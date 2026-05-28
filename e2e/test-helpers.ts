@@ -265,7 +265,7 @@ export async function openProfileSecuritySection(page: Page) {
     if ((await securityToggle.getAttribute('aria-expanded')) !== 'true') {
         await securityToggle.click();
     }
-    await expect(page.locator('#profile-security-collapse .js-passkey-register')).toBeVisible();
+    await expect(page.locator('#profile-security-collapse')).toBeVisible();
 }
 
 export async function openProfileLeaveSection(page: Page) {

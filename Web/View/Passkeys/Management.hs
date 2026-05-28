@@ -9,8 +9,8 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Web.View.Prelude
 
 renderPasskeyManagement :: [Passkey] -> Text -> Html
-renderPasskeyManagement =
-    renderPasskeyManagementWithAddButton True
+renderPasskeyManagement passkeys =
+    renderPasskeyManagementWithAddButton (null passkeys) passkeys
 
 renderPasskeyManagementWithAddButton :: Bool -> [Passkey] -> Text -> Html
 renderPasskeyManagementWithAddButton canAddPasskey passkeys successRedirect = [hsx|

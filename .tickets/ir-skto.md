@@ -1,6 +1,6 @@
 ---
 id: ir-skto
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-28T05:42:04Z

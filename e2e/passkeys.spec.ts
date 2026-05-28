@@ -95,7 +95,7 @@ test.describe('Mandatory venue-admin passkeys', () => {
         await expect(page.locator('body')).toContainText('must keep at least one passkey');
     });
 
-    test('adding another admin passkey requires fresh step-up after password login', async ({ page }) => {
+    test('adding another admin passkey uses the emailed setup-link path after password login', async ({ page }) => {
         clearE2EUserPasskeys(adminEmail);
         const firstAuthenticator = await enableVirtualPasskeyAuthenticator(page);
 
@@ -106,15 +106,15 @@ test.describe('Mandatory venue-admin passkeys', () => {
 
         await loginAs(page, adminEmail, password);
         await openProfileSecuritySection(page);
-        await page.getByRole('button', { name: 'Add passkey' }).click();
+        await expect(page.getByRole('button', { name: 'Add passkey' })).toHaveCount(0);
+        await page.getByRole('button', { name: 'Email setup link for another device' }).click();
 
         await verifyCurrentUserPasskeyStepUp(page);
         await expect(page).toHaveURL(/EditProfile.*section=security/, { timeout: E2E_TIMEOUT.navigation });
 
         await openProfileSecuritySection(page);
+        await page.getByRole('button', { name: 'Email setup link for another device' }).click();
+        await expect(page.locator('body')).toContainText('New-device passkey setup email sent.', { timeout: E2E_TIMEOUT.navigation });
         await removeVirtualPasskeyAuthenticator(firstAuthenticator);
-        await enableVirtualPasskeyAuthenticator(page);
-        await page.getByRole('button', { name: 'Add passkey' }).click();
-        await expect(page.locator('#profile-security-collapse table tbody tr')).toHaveCount(2, { timeout: E2E_TIMEOUT.navigation });
     });
 });
