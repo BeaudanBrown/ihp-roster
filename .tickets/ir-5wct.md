@@ -1,6 +1,6 @@
 ---
 id: ir-5wct
-status: open
+status: closed
 deps: [ir-xyaw]
 links: []
 created: 2026-05-28T05:42:05Z

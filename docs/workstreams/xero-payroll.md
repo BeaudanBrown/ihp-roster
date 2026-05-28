@@ -26,7 +26,7 @@ Archived context:
 
 ## Goal
 
-Connect approved, reproducible IHP payroll data to Xero Payroll AU through
+Connect approved, reproducible Bepis payroll data to Xero Payroll AU through
 managed pay items and draft timesheet submission.
 
 ## Current State

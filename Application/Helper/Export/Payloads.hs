@@ -414,7 +414,7 @@ buildPayrollEarningsCsvRecords entries staffById payResultsByEntryId versionMani
                 , earningsRateName = aggregation.aggregationEarningsRateName
                 , hours = paidMinutesToHours aggregation.aggregationMinutes
                 , trackingCode = aggregation.aggregationTrackingCode
-                , description = "IHP entries: " <> Text.intercalate " " (map tshow aggregation.aggregationTimesheetEntryIds)
+                , description = "Bepis entries: " <> Text.intercalate " " (map tshow aggregation.aggregationTimesheetEntryIds)
                 , staffId = aggregation.aggregationStaffId
                 , timesheetEntryIds = aggregation.aggregationTimesheetEntryIds
                 , payConfigVersionManifest = versionManifestForAggregation aggregation.aggregationVersionManifests
