@@ -2,7 +2,7 @@
 id: ir-2ds0
 status: open
 deps: []
-links: [ir-5rhn, ir-caf4, ir-7gm0]
+links: [ir-5rhn, ir-caf4, ir-7gm0, ir-pups]
 created: 2026-04-29T04:41:30Z
 type: feature
 priority: 2

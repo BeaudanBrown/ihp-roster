@@ -2,7 +2,7 @@
 id: ir-t7be
 status: open
 deps: []
-links: []
+links: [ir-6vvh, ir-sky7]
 created: 2026-04-29T04:41:29Z
 type: epic
 priority: 1
