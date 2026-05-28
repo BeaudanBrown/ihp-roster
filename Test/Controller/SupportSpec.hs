@@ -68,7 +68,7 @@ tests = beforeAll testContext do
 
                 responseShouldMountLiveSurface response supportLiveSurface
 
-        it "shows submitted feedback with an unread badge for super admins" $ withContext do
+        it "shows submitted feedback without the submit-feedback button for super admins" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Feedback Support Venue"
                 submitter <- createUserRecord "feedback-support-user@example.com" "staff" True
@@ -89,7 +89,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "User Feedback"
                 response `responseBodyShouldContain` "Roster page needs a clearer publish button"
                 response `responseBodyShouldContain` "feedback-support-user@example.com"
-                response `responseBodyShouldContain` "<span class=\"badge text-bg-danger ms-1\">1</span>"
+                response `responseBodyShouldContain` "Unread feedback: <span class=\"fw-semibold\">1</span>"
+                response `responseBodyShouldNotContain` "hx-get=\"/NewFeedback\""
 
         it "marks feedback read for super admins" $ withContext do
             withCleanDb do
