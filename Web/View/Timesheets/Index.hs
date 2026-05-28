@@ -286,7 +286,7 @@ renderEntryCard TimesheetDayRenderModel { dayStaffMembers, dayShiftTypes, dayTod
                     {renderCompactTimeRange entry.startTime entry.endTime}
                 </div>
                 <div class="timesheet-entry-meta">Shift: {renderDuration entry}</div>
-                <div class="timesheet-entry-meta">Break: <span class="timesheet-entry-break-summary">{renderBreakSummary entry}</span></div>
+                <div class="timesheet-entry-meta timesheet-entry-break-meta">Break: <span class="timesheet-entry-break-summary">{renderBreakSummary entry}</span></div>
             </div>
 
             <div class="timesheet-entry-actions">

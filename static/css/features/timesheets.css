@@ -202,6 +202,12 @@
     font-variant-numeric: tabular-nums;
 }
 
+.timesheet-entry-break-meta {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .timesheet-entry-break-summary {
     white-space: nowrap;
 }
