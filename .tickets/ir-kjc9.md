@@ -1,6 +1,6 @@
 ---
 id: ir-kjc9
-status: open
+status: closed
 deps: []
 links: [ir-caf4, ir-9jap]
 created: 2026-05-28T05:35:32Z
