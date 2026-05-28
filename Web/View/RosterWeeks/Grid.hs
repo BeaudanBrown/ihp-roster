@@ -104,6 +104,8 @@ renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gr
              data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
              data-horizontal-snap={if isDayColumnsLayout then ("nearest-item" :: Text) else ""}
              data-horizontal-snap-item-selector={if isDayColumnsLayout then (".roster-day-column" :: Text) else ""}
+             data-horizontal-drag-scroll={if isDayColumnsLayout then ("mouse" :: Text) else ""}
+             data-horizontal-drag-scroll-ignore-selector={if isDayColumnsLayout then (".slot-staff-input, .slot-shift-type-input, .slot-time-trigger, .js-time-picker-trigger, .js-time-picker-step-down, .js-time-picker-step-up" :: Text) else ""}
              data-roster-end-times={if gridRosterEndTimesEnabled then ("true" :: Text) else "false"}
              data-roster-column-editor={if slotColumnsAreEditable then ("available" :: Text) else "unavailable"}
              data-roster-wages={if gridShowWageEstimates then ("visible" :: Text) else "hidden"}

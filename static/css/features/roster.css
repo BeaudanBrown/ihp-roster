@@ -1186,7 +1186,7 @@
     --roster-day-column-width: 30%;
 }
 
-.roster-grid-frame[data-roster-layout="day_columns"][data-roster-day-columns-dragging="true"] {
+.roster-grid-frame[data-roster-layout="day_columns"][data-horizontal-dragging="true"] {
     cursor: grabbing;
     user-select: none;
 }
