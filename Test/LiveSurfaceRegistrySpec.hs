@@ -45,7 +45,7 @@ tests = do
             targetSummary (planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.singleton (XeroTimesheetsResource venueId)) scopes)
                 `shouldBe` Set.singleton (AdminXeroScope venueId, [AdminXeroFragment, AdminXeroTimesheetsFragment])
 
-        it "plans timesheet day fragments from week and day dependencies" do
+        it "plans timesheet day fragments from week, day, and venue-config dependencies" do
             let venueId = fromWords 3 0 0 0
             let scope = TimesheetWeekScope venueId 4
 
@@ -53,6 +53,9 @@ tests = do
                 `shouldBe` Set.singleton (scope, [TimesheetDaySectionFragment 2])
 
             targetSummary (planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.singleton (TimesheetWeekResource venueId 4)) [scope])
+                `shouldBe` Set.singleton (scope, map TimesheetDaySectionFragment [0 .. 6])
+
+            targetSummary (planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.singleton (TimesheetWeekBoundaryConfigResource venueId)) [scope])
                 `shouldBe` Set.singleton (scope, map TimesheetDaySectionFragment [0 .. 6])
 
         it "ignores resources that do not match the subscribed scope" do

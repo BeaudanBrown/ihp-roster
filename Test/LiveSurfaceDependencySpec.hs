@@ -41,9 +41,13 @@ tests = do
             let request = TimesheetProjectionRequest 2 True True Nothing
 
             typedSurfaceDependsOn definition request TimesheetProjectionPage
-                `shouldBe` [TimesheetWeekResource venueId 2]
+                `shouldBe` [TimesheetWeekResource venueId 2, TimesheetWeekBoundaryConfigResource venueId]
             typedSurfaceDependsOn definition request (TimesheetProjectionDaySection 4)
-                `shouldBe` [TimesheetWeekResource venueId 2, TimesheetDayResource venueId 2 4]
+                `shouldBe`
+                    [ TimesheetWeekResource venueId 2
+                    , TimesheetDayResource venueId 2 4
+                    , TimesheetWeekBoundaryConfigResource venueId
+                    ]
 
         it "selects affected fragments from typed dependencies" do
             let venueId = fromWords 1 0 0 0
