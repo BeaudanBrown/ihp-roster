@@ -71,7 +71,8 @@ renderTimesheetWeekShell view@IndexView { .. } =
                         <div class="timesheet-week-frame"
                              data-timesheet-layout="day_columns"
                              data-horizontal-snap="nearest-item"
-                             data-horizontal-snap-item-selector=".timesheet-day-panel">
+                             data-horizontal-snap-item-selector=".timesheet-day-panel"
+                             data-horizontal-drag-scroll="mouse">
                             <div class="timesheet-day-columns" style="--timesheet-day-count: 7;">
                             {forEach [0 .. 6] (renderDaySection . timesheetDayRenderModel view)}
                             </div>

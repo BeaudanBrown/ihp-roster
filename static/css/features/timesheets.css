@@ -9,12 +9,12 @@
     scrollbar-width: thin;
 }
 
-.timesheet-week-frame[data-timesheet-day-columns-dragging="true"] {
+.timesheet-week-frame[data-horizontal-dragging="true"] {
     cursor: grabbing;
     user-select: none;
 }
 
-.timesheet-week-frame[data-timesheet-day-columns-dragging="true"] * {
+.timesheet-week-frame[data-horizontal-dragging="true"] * {
     cursor: grabbing !important;
 }
 
