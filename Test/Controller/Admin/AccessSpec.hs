@@ -83,14 +83,14 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Roster Groups"
                 response `responseBodyShouldContain` "Shift Types"
                 response `responseBodyShouldContain` "Invites"
-                response `responseBodyShouldContain` "Exports"
-                response `responseBodyShouldContain` "Staff Hours CSV"
-                response `responseBodyShouldContain` "Hourly Breakdown ZIP"
-                response `responseBodyShouldContain` "Payroll Earnings CSV"
+                response `responseBodyShouldNotContain` "Exports"
+                response `responseBodyShouldNotContain` "Staff Hours CSV"
+                response `responseBodyShouldNotContain` "Hourly Breakdown ZIP"
+                response `responseBodyShouldNotContain` "Payroll Earnings CSV"
                 response `responseBodyShouldNotContain` "admin-slot-names-fragment"
                 response `responseBodyShouldContain` "admin-invites-fragment"
                 body <- responseBody response
-                (cs body :: String) `shouldContainInOrder` ["Invites", "Exports", "Shift Types", "Roster Groups"]
+                (cs body :: String) `shouldContainInOrder` ["Invites", "Shift Types", "Roster Groups"]
                 response `responseBodyShouldNotContain` "Compliance"
                 response `responseBodyShouldNotContain` "Venue Config"
                 response `responseBodyShouldNotContain` "Award Levels"

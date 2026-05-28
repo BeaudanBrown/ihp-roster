@@ -61,7 +61,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Roster Groups"
-                response `responseBodyShouldContain` "Exports"
+                response `responseBodyShouldNotContain` "Exports"
                 response `responseBodyShouldContain` "href=\"/Xero\""
                 response `responseBodyShouldNotContain` "Venue Config"
 
