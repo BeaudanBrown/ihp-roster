@@ -23,7 +23,8 @@ test.describe('Authentication', () => {
         // Should redirect to the roster flow for the current venue
         await expect(page).toHaveURL(/(RosterWeeks|ShowRosterWeek)/, { timeout: E2E_TIMEOUT.navigation });
         await expect(page.locator('#roster-content')).toBeVisible({ timeout: E2E_TIMEOUT.navigation });
-        await expect(page.getByRole('button', { name: 'Open roster week overview' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Open roster week overview' })).toHaveCount(0);
+        await expect(page.locator('.roster-week-nav-label')).toContainText('Week of');
         await expect(page.getByRole('link', { name: 'roster' })).toBeVisible();
 
         // Logout

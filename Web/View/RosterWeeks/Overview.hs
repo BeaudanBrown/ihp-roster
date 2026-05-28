@@ -1,5 +1,6 @@
 module Web.View.RosterWeeks.Overview
-    ( renderWeekOverviewDropdown
+    ( renderRosterWeekLabel
+    , renderWeekOverviewDropdown
     , renderWeekOverviewPanelFragment
     ) where
 

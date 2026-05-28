@@ -529,7 +529,7 @@ tests = beforeAll testContext do
                 firstRowText `shouldContain` "data-conflict-message="
                 secondRowText `shouldContain` "data-conflict-message="
 
-        it "defers roster month overview loading to an HTMX fragment" $ withContext do
+        it "renders a static roster week label without the month overview trigger" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-overview-shell@example.com" "staff" True
@@ -539,8 +539,11 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "data-week-overview-fragment-mount=\"true\""
-                response `responseBodyShouldContain` "hx-get=\"/ShowRosterWeekOverviewFragment?weekOffset=0&amp;rosterGroupId="
+                response `responseBodyShouldContain` "roster-week-nav-label"
+                response `responseBodyShouldContain` "Week of"
+                response `responseBodyShouldNotContain` "Open roster week overview"
+                response `responseBodyShouldNotContain` "data-week-overview-fragment-mount=\"true\""
+                response `responseBodyShouldNotContain` "hx-get=\"/ShowRosterWeekOverviewFragment?weekOffset=0&amp;rosterGroupId="
                 response `responseBodyShouldNotContain` "data-week-overview-day=\"true\""
 
         it "month overview fragment includes other weeks in the same month and counts assigned shifts rather than unique staff" $ withContext do

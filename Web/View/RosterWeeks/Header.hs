@@ -15,7 +15,7 @@ import Web.RosterWeeks.Paths (rosterAssignmentFiltersUrl, rosterCopyWeekUrl,
 import Web.RosterWeeks.Types (RosterAssignmentFilters (..),
                               RosterViewCapabilities (..))
 import Web.View.Prelude
-import Web.View.RosterWeeks.Overview (renderWeekOverviewDropdown)
+import Web.View.RosterWeeks.Overview (renderRosterWeekLabel)
 
 renderRosterGridHeader :: (?context :: ControllerContext) => Maybe RosterWeek -> Int -> [RosterGroup] -> RosterGroup -> RosterAssignmentFilters -> Day -> RosterViewCapabilities -> RosterLayoutModeEnum -> Bool -> Maybe RosterWagePrediction -> Bool -> Html
 renderRosterGridHeader maybeRosterWeek weekOffset rosterGroups currentRosterGroup assignmentFilters weekStartDate viewCapabilities rosterLayoutMode rosterEndTimesEnabled rosterWagePrediction showWageEstimates =
@@ -45,7 +45,7 @@ renderRosterWeekControls :: (?context :: ControllerContext) => Int -> RosterGrou
 renderRosterWeekControls weekOffset currentRosterGroup weekStartDate = [hsx|
     <div class="btn-group app-week-nav-group roster-week-nav-group" role="group" aria-label="Roster week navigation">
         {renderWeekNavigationLink "bi-chevron-left" "Previous week" (rosterWeekUrl (weekOffset - 1) currentRosterGroup.id)}
-        {renderWeekOverviewDropdown weekOffset currentRosterGroup.id weekStartDate}
+        <span class="btn btn-outline-secondary app-week-nav-button app-week-nav-label roster-week-nav-button roster-week-nav-label" aria-current="date">{renderRosterWeekLabel weekStartDate}</span>
         {renderWeekNavigationLink "bi-chevron-right" "Next week" (rosterWeekUrl (weekOffset + 1) currentRosterGroup.id)}
     </div>
 |]

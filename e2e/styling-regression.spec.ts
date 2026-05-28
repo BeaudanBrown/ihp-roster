@@ -162,7 +162,7 @@ test.describe('Styling regression contracts', () => {
                 navBackground: getComputedStyle(navGroup).backgroundColor,
                 navItemMargins: Array.from(navGroup.children).map((child) => getComputedStyle(child).marginLeft),
                 navButtonBorders: Array.from(navGroup.querySelectorAll('.roster-week-nav-button')).map((child) => getComputedStyle(child).borderColor),
-                navOverviewTriggerRadius: getComputedStyle(navGroup.querySelector('.roster-week-overview-trigger') as Element).borderRadius,
+                navWeekLabelRadius: getComputedStyle(navGroup.querySelector('.roster-week-nav-label') as Element).borderRadius,
                 renderedDayCellBackground: renderedDayCellStyle.backgroundColor,
                 renderedDayRailBackground: renderedDayRailStyle.backgroundColor,
                 sectionDeltas,
@@ -181,7 +181,7 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.navBackground).not.toBe('rgba(0, 0, 0, 0)');
         expect(metrics?.navItemMargins.every((margin) => margin === '0px')).toBe(true);
         expect(metrics?.navButtonBorders.every((border) => border === 'rgba(0, 0, 0, 0)')).toBe(true);
-        expect(Number.parseFloat(metrics?.navOverviewTriggerRadius ?? '0')).toBeGreaterThan(100);
+        expect(Number.parseFloat(metrics?.navWeekLabelRadius ?? '0')).toBeGreaterThan(100);
         expect(metrics?.renderedDayCellBackground).not.toBe('rgb(13, 17, 25)');
         expect(metrics?.renderedDayRailBackground).not.toBe('rgb(13, 17, 25)');
         expect(metrics?.lightDayCellBackground).not.toBe(metrics?.darkDayCellBackground);
