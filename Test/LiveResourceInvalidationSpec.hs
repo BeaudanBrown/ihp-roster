@@ -37,6 +37,26 @@ tests = do
             expandLiveResourcesWithoutContext activeScopes (Set.singleton (LeaveCalendarResource venueId 0))
                 `shouldBe` Set.singleton (LeaveCalendarResource venueId 0)
 
+        it "expands roster-affecting venue config resources to active roster week resources" do
+            let venueId = fromWords 1 0 0 0
+            let otherVenueId = fromWords 2 0 0 0
+            let rosterGroupId = fromWords 4 0 0 0
+            let otherRosterGroupId = fromWords 5 0 0 0
+            let activeScopes = [(venueId, rosterGroupId, 0), (venueId, rosterGroupId, 1), (otherVenueId, otherRosterGroupId, 0)]
+
+            expandLiveResourcesWithoutContext activeScopes (Set.singleton (RosterEndTimesConfigResource venueId))
+                `shouldBe` Set.fromList
+                    [ RosterEndTimesConfigResource venueId
+                    , RosterWeekResource rosterGroupId 0
+                    , RosterWeekResource rosterGroupId 1
+                    ]
+            expandLiveResourcesWithoutContext activeScopes (Set.singleton (RosterWeekBoundaryConfigResource venueId))
+                `shouldBe` Set.fromList
+                    [ RosterWeekBoundaryConfigResource venueId
+                    , RosterWeekResource rosterGroupId 0
+                    , RosterWeekResource rosterGroupId 1
+                    ]
+
         it "leaves direct resources for dependency-derived live surface matching" do
             let venueId = fromWords 1 0 0 0
             let staffId = fromWords 3 0 0 0

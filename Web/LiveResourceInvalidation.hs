@@ -40,6 +40,10 @@ expandLiveResources activeScopes resources = do
     where
         expandOne (LeaveCalendarResource venueId weekOffset) =
             pure (expandLeaveCalendarResource activeScopes venueId weekOffset)
+        expandOne (RosterEndTimesConfigResource venueId) =
+            pure (expandActiveVenueRosterWeekResources activeScopes venueId)
+        expandOne (RosterWeekBoundaryConfigResource venueId) =
+            pure (expandActiveVenueRosterWeekResources activeScopes venueId)
         expandOne (StaffProfileResource staffId) =
             activeRosterWeekResourcesForStaff activeScopes staffId
         expandOne (StaffPreferencesResource staffId) =
@@ -62,6 +66,10 @@ expandLiveResourcesWithoutContext activeRosterScopes resources =
                 , activeVenueId == venueId
                 , activeWeekOffset == weekOffset
                 ]
+        expandOne (RosterEndTimesConfigResource venueId) =
+            expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId
+        expandOne (RosterWeekBoundaryConfigResource venueId) =
+            expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId
         expandOne _ =
             Set.empty
 
@@ -324,6 +332,22 @@ expandLeaveCalendarResource activeScopes venueId weekOffset =
         | RosterWeekScope { venueId = activeVenueId, rosterGroupId, weekOffset = activeWeekOffset } <- activeScopes
         , activeVenueId == venueId
         , activeWeekOffset == weekOffset
+        ]
+
+expandActiveVenueRosterWeekResources :: [LiveUpdateScope] -> UUID -> Set.Set LiveResource
+expandActiveVenueRosterWeekResources activeScopes venueId =
+    Set.fromList
+        [ RosterWeekResource rosterGroupId weekOffset
+        | RosterWeekScope { venueId = activeVenueId, rosterGroupId, weekOffset } <- activeScopes
+        , activeVenueId == venueId
+        ]
+
+expandActiveVenueRosterWeekResourcesWithoutContext :: [(UUID, UUID, Int)] -> UUID -> Set.Set LiveResource
+expandActiveVenueRosterWeekResourcesWithoutContext activeRosterScopes venueId =
+    Set.fromList
+        [ RosterWeekResource rosterGroupId weekOffset
+        | (activeVenueId, rosterGroupId, weekOffset) <- activeRosterScopes
+        , activeVenueId == venueId
         ]
 
 activeRosterWeekResourcesForStaff ::

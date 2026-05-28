@@ -87,16 +87,30 @@ rosterFragmentRef scope = \case
             (rosterWeekRowFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId (coerce rosterDayId) rowIndex)
             |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath (RosterProjectionRow rosterDayId rowIndex))
 
-rosterFragmentDependencies :: RosterProjectionScope -> RosterProjectionFragment -> FragmentDependencies
-rosterFragmentDependencies scope = \case
-    RosterProjectionContent ->
-        liveFragmentDependsOn (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset) []
-    RosterProjectionStaffPanel ->
-        liveFragmentDependsOn (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset) []
-    RosterProjectionDaySection rosterDayId ->
-        liveFragmentDependsOn (RosterDayResource rosterDayId) []
-    RosterProjectionRow rosterDayId _ ->
-        liveFragmentDependsOn (RosterDayResource rosterDayId) []
+rosterFragmentDependencies :: (?context :: ControllerContext) => RosterProjectionScope -> RosterProjectionFragment -> FragmentDependencies
+rosterFragmentDependencies scope =
+    let venueId = unpackId currentVenueId
+     in \case
+            RosterProjectionContent ->
+                liveFragmentDependsOn
+                    (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset)
+                    [ RosterEndTimesConfigResource venueId
+                    , RosterWeekBoundaryConfigResource venueId
+                    ]
+            RosterProjectionStaffPanel ->
+                liveFragmentDependsOn (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset) []
+            RosterProjectionDaySection rosterDayId ->
+                liveFragmentDependsOn
+                    (RosterDayResource rosterDayId)
+                    [ RosterEndTimesConfigResource venueId
+                    , RosterWeekBoundaryConfigResource venueId
+                    ]
+            RosterProjectionRow rosterDayId _ ->
+                liveFragmentDependsOn
+                    (RosterDayResource rosterDayId)
+                    [ RosterEndTimesConfigResource venueId
+                    , RosterWeekBoundaryConfigResource venueId
+                    ]
 
 rosterFragmentContainmentPath :: RosterProjectionFragment -> [Text]
 rosterFragmentContainmentPath = \case

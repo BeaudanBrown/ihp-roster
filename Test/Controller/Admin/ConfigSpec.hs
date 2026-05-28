@@ -3,8 +3,10 @@ module Test.Controller.Admin.ConfigSpec where
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.Export (ExportJobType (..), exportJobTypeToText)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.LiveUpdate (LiveUpdateScope (..),
+import Application.Helper.LiveUpdate (LiveFragmentKey (..),
+                                      LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
+import Application.Helper.LiveUpdate.Runtime (LiveUpdateWireFragment (..))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults)
 import Application.Helper.ShiftTypeColours (blankShiftTypeColourKey)
 import Application.Helper.WeekBoundaries (defaultWeekOffsetEpochForStartDay)
@@ -40,6 +42,8 @@ import Web.Admin.Mutations (adminVenueSettingsTouchedResources,
                             rosterWeekStartsOnTouchedResources)
 import Web.Controller.Admin ()
 import Web.FrontController ()
+import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
+                                planRegisteredLiveSurfaceInvalidations)
 import Web.Routes
 import Web.Types
 
@@ -81,6 +85,26 @@ tests = beforeAll testContext do
                         , RosterWeekBoundaryConfigResource venueId
                         , TimesheetWeekBoundaryConfigResource venueId
                         ]
+
+        it "plans roster content refreshes for roster-affecting venue config resources" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Roster Config Planning Venue"
+                admin <- createUserRecord "admin-roster-config-planning@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                let venueId = unpackId venue.id
+                let scope = RosterWeekScope { venueId, rosterGroupId = unpackId rosterGroup.id, weekOffset = 0 }
+                let planFragments resource = withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                        withCurrentControllerContext do
+                            pure
+                                [ (target.targetScope, map (.fragmentKey) target.targetFragments)
+                                | target <- planRegisteredLiveSurfaceInvalidations (Set.singleton resource) [scope]
+                                ]
+
+                planFragments (RosterEndTimesConfigResource venueId)
+                    `shouldReturn` [(scope, [RosterContentFragment])]
+                planFragments (RosterWeekBoundaryConfigResource venueId)
+                    `shouldReturn` [(scope, [RosterContentFragment])]
 
         it "shows the Xero header button and page to super admins" $ withContext do
             withCleanDb do
