@@ -565,6 +565,46 @@ in
         description = "Randomized delay applied to the RSA reminder timer.";
       };
     };
+
+    publicHolidays.refresh = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Whether to enqueue public holiday refresh jobs on a systemd timer.";
+      };
+
+      onCalendar = mkOption {
+        type = types.str;
+        default = "*-*-01 03:00:00";
+        description = "systemd OnCalendar expression for the public holiday refresh sweep.";
+      };
+
+      randomizedDelaySec = mkOption {
+        type = types.str;
+        default = "2h";
+        description = "Randomized delay applied to the public holiday refresh timer.";
+      };
+    };
+
+    fwcMapd.refresh = {
+      enable = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Whether to enqueue FWC MAPD refresh jobs on a systemd timer.";
+      };
+
+      onCalendar = mkOption {
+        type = types.str;
+        default = "*-*-02 03:00:00";
+        description = "systemd OnCalendar expression for the FWC MAPD refresh sweep.";
+      };
+
+      randomizedDelaySec = mkOption {
+        type = types.str;
+        default = "2h";
+        description = "Randomized delay applied to the FWC MAPD refresh timer.";
+      };
+    };
   };
 
   config = mkIf cfg.enable (mkMerge [
@@ -803,6 +843,68 @@ in
           OnCalendar = cfg.rsa.reminders.onCalendar;
           Persistent = true;
           RandomizedDelaySec = cfg.rsa.reminders.randomizedDelaySec;
+        };
+      };
+      systemd.services.public-holiday-refresh-sweep = mkIf cfg.publicHolidays.refresh.enable {
+        description = "Enqueue public holiday refresh jobs for ihp-roster";
+        after = [ schemaReadyService ];
+        requires = [ schemaReadyService ];
+        serviceConfig = {
+          Type = "oneshot";
+          EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
+          ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/PublicHolidayRefreshSweep";
+          NoNewPrivileges = true;
+          PrivateTmp = true;
+        }
+        // serviceUserConfig;
+        environment = {
+          DATABASE_URL =
+            if cfg.databaseUrl != null then
+              cfg.databaseUrl
+            else
+              "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+          IHP_TELEMETRY_DISABLED = "1";
+          APP_BASE_URL = cfg.baseUrl;
+        }
+        // cfg.additionalEnvVars;
+      };
+      systemd.timers.public-holiday-refresh-sweep = mkIf cfg.publicHolidays.refresh.enable {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = cfg.publicHolidays.refresh.onCalendar;
+          Persistent = true;
+          RandomizedDelaySec = cfg.publicHolidays.refresh.randomizedDelaySec;
+        };
+      };
+      systemd.services.fwc-mapd-refresh-sweep = mkIf cfg.fwcMapd.refresh.enable {
+        description = "Enqueue FWC MAPD refresh jobs for ihp-roster";
+        after = [ schemaReadyService ];
+        requires = [ schemaReadyService ];
+        serviceConfig = {
+          Type = "oneshot";
+          EnvironmentFile = optional (cfg.environmentFile != null) cfg.environmentFile;
+          ExecStart = "${if cfg.package != null then cfg.package else defaultPackage}/bin/FwcMapdRefreshSweep";
+          NoNewPrivileges = true;
+          PrivateTmp = true;
+        }
+        // serviceUserConfig;
+        environment = {
+          DATABASE_URL =
+            if cfg.databaseUrl != null then
+              cfg.databaseUrl
+            else
+              "postgresql://${cfg.databaseUser}@/${cfg.databaseName}";
+          IHP_TELEMETRY_DISABLED = "1";
+          APP_BASE_URL = cfg.baseUrl;
+        }
+        // cfg.additionalEnvVars;
+      };
+      systemd.timers.fwc-mapd-refresh-sweep = mkIf cfg.fwcMapd.refresh.enable {
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnCalendar = cfg.fwcMapd.refresh.onCalendar;
+          Persistent = true;
+          RandomizedDelaySec = cfg.fwcMapd.refresh.randomizedDelaySec;
         };
       };
     }
