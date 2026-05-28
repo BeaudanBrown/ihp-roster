@@ -172,27 +172,27 @@ renderTimesheetStaffFilter selectedStaffFilterId staffMembers = [hsx|
 
 renderTimesheetHideApprovedToggle :: Bool -> Html
 renderTimesheetHideApprovedToggle showApproved = [hsx|
-    <div class="form-check form-switch mb-2">
-        <input type="checkbox"
-               id="timesheet-hide-approved-toggle"
-               class="form-check-input"
-               checked={not showApproved}
-               onchange="document.getElementById('timesheet-show-approved-value').value = this.checked ? 'false' : 'true'; this.form.requestSubmit();" />
-        <label class="form-check-label small" for="timesheet-hide-approved-toggle">Hide approved</label>
+    <div class="mb-2">
+        {renderTimesheetToggleButton "timesheet-hide-approved-toggle" "timesheet-show-approved-value" (not showApproved) "false" "true" "Hide approved"}
     </div>
 |]
 
 renderTimesheetMenuToggle :: Text -> Text -> Bool -> Text -> Html
 renderTimesheetMenuToggle inputId hiddenInputId isChecked label = [hsx|
-    <div class="form-check form-switch mb-2">
-        <input type="checkbox"
-               id={inputId}
-               class="form-check-input"
-               checked={isChecked}
-               onchange={"document.getElementById('" <> hiddenInputId <> "').value = this.checked ? 'true' : 'false'; this.form.requestSubmit();"} />
-        <label class="form-check-label small" for={inputId}>{label}</label>
+    <div class="mb-2">
+        {renderTimesheetToggleButton inputId hiddenInputId isChecked "true" "false" label}
     </div>
 |]
+
+renderTimesheetToggleButton :: Text -> Text -> Bool -> Text -> Text -> Text -> Html
+renderTimesheetToggleButton inputId hiddenInputId isChecked checkedValue uncheckedValue label =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId isChecked [hsx|<span class="small">{label}</span>|])
+        { appToggleButtonClass = "btn-sm w-100 justify-content-start"
+        , appToggleHiddenInputId = Just hiddenInputId
+        , appToggleHiddenInputCheckedValue = Just checkedValue
+        , appToggleHiddenInputUncheckedValue = Just uncheckedValue
+        , appToggleOnChange = Just ("document.getElementById('" <> hiddenInputId <> "').value = this.checked ? '" <> checkedValue <> "' : '" <> uncheckedValue <> "'; this.form.requestSubmit();")
+        }
 
 renderTimesheetWeekLabel :: Day -> Text
 renderTimesheetWeekLabel weekStartDate =

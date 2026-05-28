@@ -194,19 +194,21 @@ renderRosterWageEstimatePreferenceMenuSection weekOffset rosterGroupId viewCapab
               hx-swap="outerHTML"
               hx-push-url="false"
               hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
-            <div class="form-check form-switch mb-0 px-1 roster-display-toggle">
-                <input type="checkbox"
-                       id="show-wage-estimates"
-                       name="showWageEstimates"
-                       value="true"
-                       class="form-check-input ms-0 me-2"
-                       checked={showWageEstimates}
-                       onchange="this.form.requestSubmit()" />
-                <label class="form-check-label small" for="show-wage-estimates">Show wage estimates</label>
+            <div class="px-1 roster-display-toggle">
+                {renderRosterWageEstimateToggle showWageEstimates}
             </div>
         </form>
         <div class="dropdown-divider my-1"></div>
 |]
+
+renderRosterWageEstimateToggle :: Bool -> Html
+renderRosterWageEstimateToggle showWageEstimates =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig "show-wage-estimates" showWageEstimates [hsx|<span class="small">Show wage estimates</span>|])
+        { appToggleInputName = Just "showWageEstimates"
+        , appToggleInputValue = "true"
+        , appToggleButtonClass = "btn-sm w-100 justify-content-start"
+        , appToggleOnChange = Just "this.form.requestSubmit()"
+        }
 
 renderRosterColumnMenuSection :: (?context :: ControllerContext) => Maybe RosterWeek -> RosterViewCapabilities -> Html
 renderRosterColumnMenuSection maybeRosterWeek viewCapabilities
@@ -299,17 +301,19 @@ renderRosterAssignmentFiltersMenuSection weekOffset rosterGroupId menuTriggerId 
 
 renderRosterAssignmentFilterToggle :: Text -> Text -> Bool -> Text -> Html
 renderRosterAssignmentFilterToggle inputId fieldName isChecked label = [hsx|
-    <div class="form-check form-switch mb-2">
-        <input type="checkbox"
-               id={inputId}
-               name={fieldName}
-               value="true"
-               class="form-check-input"
-               checked={isChecked}
-               onchange="this.form.requestSubmit()" />
-        <label class="form-check-label small" for={inputId}>{label}</label>
+    <div class="mb-2">
+        {renderRosterAssignmentFilterToggleButton inputId fieldName isChecked label}
     </div>
 |]
+
+renderRosterAssignmentFilterToggleButton :: Text -> Text -> Bool -> Text -> Html
+renderRosterAssignmentFilterToggleButton inputId fieldName isChecked label =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig inputId isChecked [hsx|<span class="small">{label}</span>|])
+        { appToggleInputName = Just fieldName
+        , appToggleInputValue = "true"
+        , appToggleButtonClass = "btn-sm w-100 justify-content-start text-start"
+        , appToggleOnChange = Just "this.form.requestSubmit()"
+        }
 
 renderCopyPreviousWeekForm :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Html
 renderCopyPreviousWeekForm weekOffset rosterGroupId = [hsx|
@@ -333,25 +337,26 @@ renderLiveToggleForm :: RosterWeek -> Html
 renderLiveToggleForm rosterWeek = [hsx|
     <form method="POST"
           action={ToggleRosterWeekLiveStatusAction rosterWeek.id}
-          class="form-check form-switch d-flex align-items-center gap-2 mb-0">
-        <input type="checkbox"
-               id={liveToggleInputId rosterWeek.id}
-               name="isLive"
-               value="true"
-               class="form-check-input mt-0"
-               hx-post={ToggleRosterWeekLiveStatusAction rosterWeek.id}
-               hx-trigger="change"
-               hx-include="closest form"
-               hx-target={"#" <> rosterContentFragmentId}
-               hx-swap="outerHTML"
-               hx-push-url="false"
-               hx-sync={"#" <> rosterWeekShellId <> ":replace"}
-               checked={rosterWeek.isLive} />
-        <label class="form-check-label fw-semibold" for={liveToggleInputId rosterWeek.id}>
-            Live
-        </label>
+          class="mb-0">
+        {renderLiveToggleButton rosterWeek}
     </form>
 |]
+
+renderLiveToggleButton :: RosterWeek -> Html
+renderLiveToggleButton rosterWeek =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig (liveToggleInputId rosterWeek.id) rosterWeek.isLive [hsx|<span class="fw-semibold">Live</span>|])
+        { appToggleInputName = Just "isLive"
+        , appToggleInputValue = "true"
+        , appToggleButtonClass = "btn-sm"
+        , appToggleRoleSwitch = True
+        , appToggleHxPost = Just (pathTo (ToggleRosterWeekLiveStatusAction rosterWeek.id))
+        , appToggleHxTrigger = Just "change"
+        , appToggleHxInclude = Just "closest form"
+        , appToggleHxTarget = Just ("#" <> rosterContentFragmentId)
+        , appToggleHxSwap = Just "outerHTML"
+        , appToggleHxPushUrl = Just "false"
+        , appToggleHxSync = Just ("#" <> rosterWeekShellId <> ":replace")
+        }
 
 liveToggleInputId :: Id RosterWeek -> Text
 liveToggleInputId rosterWeekId = "roster-live-toggle-" <> tshow rosterWeekId

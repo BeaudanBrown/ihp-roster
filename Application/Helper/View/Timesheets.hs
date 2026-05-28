@@ -20,6 +20,7 @@ import Application.Helper.View.Audience
 import Application.Helper.View.Format
 import Application.Helper.View.Overlay
 import Application.Helper.View.TimePicker
+import Application.Helper.View.ToggleButton
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
 import Data.Time.Format (defaultTimeLocale, formatTime)
@@ -85,19 +86,7 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved 
     </div>
 
     <div class="mb-3">
-        <div class="form-check">
-            <input
-                id="hadBreak"
-                name="hadBreak"
-                type="checkbox"
-                value="on"
-                class={classes [("form-check-input", True), ("is-invalid", hasErrorFor entry "hadBreak")]}
-                checked={entry.hadBreak}
-                data-break-toggle="true"
-                data-break-target="#timesheet-break-time-fields"
-            />
-            <label class="form-check-label" for="hadBreak">Had break</label>
-        </div>
+        {renderTimesheetBreakToggle entry}
         {renderFieldError entry "hadBreak"}
     </div>
 
@@ -123,6 +112,15 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved 
         breakStartTimeValue = optionalTimeOfDayToStorageValue entry.breakStartTime
         breakEndTimeValue = optionalTimeOfDayToStorageValue entry.breakEndTime
         dateValueIso = tshow entry.workedOn :: Text
+
+renderTimesheetBreakToggle :: TimesheetEntry -> Html
+renderTimesheetBreakToggle entry =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig "hadBreak" entry.hadBreak [hsx|<span>Had break</span>|])
+        { appToggleInputName = Just "hadBreak"
+        , appToggleInputValue = "on"
+        , appToggleButtonClass = classes [("btn-sm", True), ("is-invalid", hasErrorFor entry "hadBreak")]
+        , appToggleBreakTarget = Just "#timesheet-break-time-fields"
+        }
 
 renderTimesheetStaffCommentField :: (?context :: ControllerContext) => TimesheetEntry -> Maybe UUID -> Html
 renderTimesheetStaffCommentField entry currentViewerStaffId

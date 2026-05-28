@@ -94,25 +94,26 @@ renderStaffScopeToggle :: (?context :: ControllerContext) => Int -> Id RosterGro
 renderStaffScopeToggle weekOffset currentRosterGroupId panelScope = [hsx|
     <form method="GET"
           action={ShowRosterWeekStaffPanelFragmentAction weekOffset}
-          class="form-check form-switch d-flex align-items-center gap-2 mb-0 roster-staff-scope-toggle">
+          class="mb-0 roster-staff-scope-toggle">
         <input type="hidden" name="rosterGroupId" value={tshow currentRosterGroupId} />
-        <input type="checkbox"
-               id={staffScopeToggleInputId currentRosterGroupId}
-               name="staffScope"
-               value="all"
-               class="form-check-input mt-0"
-               hx-get={ShowRosterWeekStaffPanelFragmentAction weekOffset}
-               hx-trigger="change"
-               hx-include="closest form"
-               hx-target={staffPanelTargetSelector}
-               hx-swap="outerHTML"
-               hx-push-url="false"
-               checked={panelScope == RosterStaffPanelAllVenue} />
-        <label class="form-check-label small fw-semibold" for={staffScopeToggleInputId currentRosterGroupId}>
-            Show all staff
-        </label>
+        {renderStaffScopeToggleButton weekOffset currentRosterGroupId panelScope}
     </form>
 |]
+
+renderStaffScopeToggleButton :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterStaffPanelScope -> Html
+renderStaffScopeToggleButton weekOffset currentRosterGroupId panelScope =
+    renderAppToggleButton $ (defaultAppToggleButtonConfig (staffScopeToggleInputId currentRosterGroupId) (panelScope == RosterStaffPanelAllVenue) [hsx|<span class="small fw-semibold">Show all staff</span>|])
+        { appToggleInputName = Just "staffScope"
+        , appToggleInputValue = "all"
+        , appToggleButtonClass = "btn-sm"
+        , appToggleRoleSwitch = True
+        , appToggleHxGet = Just (pathTo (ShowRosterWeekStaffPanelFragmentAction weekOffset))
+        , appToggleHxTrigger = Just "change"
+        , appToggleHxInclude = Just "closest form"
+        , appToggleHxTarget = Just staffPanelTargetSelector
+        , appToggleHxSwap = Just "outerHTML"
+        , appToggleHxPushUrl = Just "false"
+        }
 
 staffPanelTargetSelector :: Text
 staffPanelTargetSelector = "#" <> rosterStaffPanelFragmentId
