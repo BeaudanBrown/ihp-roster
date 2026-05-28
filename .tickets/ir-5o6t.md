@@ -1,6 +1,6 @@
 ---
 id: ir-5o6t
-status: in_progress
+status: closed
 deps: []
 links: [ir-y8mj, ir-59gm, ir-nin6]
 created: 2026-04-29T04:41:29Z
@@ -16,7 +16,7 @@ Repo-local feature migrated from coordinator-az6. Visiting any week should mater
 ## Design
 
 coordinator_ref: coordinator-az6
-status: in_progress
+status: closed
 source: coordinator standalone feature
 workstream: docs/workstreams/backlog.md
 
@@ -30,3 +30,7 @@ Any visited week materializes safely, copy-from-previous remains available in th
 **2026-04-30T07:23:08Z**
 
 2026-04-30 reconciliation: any-member missing-week materialization is current behavior and no longer the open gap. Remaining children should focus on copy-overwrite verification and reusable week controls.
+
+**2026-05-28T08:14:27Z**
+
+2026-05-28 closeout: acceptance confirmed. Missing weeks materialize on visit with existing NavigationSpec coverage; shared week toolbar/navigation controls are present and Copy Previous Week remains in approved Roster settings placement with explicit overwrite confirmation; copy overwrite is covered for existing/live target weeks and roster-group scope; e2e roster live-fragments already proves browser copy from settings into an auto-created week updates another viewer.
