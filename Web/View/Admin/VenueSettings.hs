@@ -1,10 +1,76 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 module Web.View.Admin.VenueSettings
-    ( renderVenueSettingsSection
+    ( AdminVenueSettingsLiveFragment (..)
+    , adminVenueSettingsFragment
+    , adminVenueSettingsLiveSurfaceDefinition
+    , adminVenueSettingsLiveSurfaceDefinitionForVenue
+    , renderVenueSettingsSection
+    , renderVenueSettingsSectionFragment
     ) where
 
+import Application.Helper.Controller (currentVenueOrNothing)
+import Application.Helper.LiveResource (LiveResource (..))
+import Application.Helper.LiveSurface
+import Application.Helper.LiveUpdate
 import Application.Helper.WeekBoundaries (validRosterWeekStartDays)
 import Web.View.Admin.Common
 import Web.View.Prelude
+
+data AdminVenueSettingsSurface
+
+data AdminVenueSettingsLiveFragment
+    = AdminVenueSettingsLiveFragment
+    deriving (Eq, Show)
+
+adminVenueSettingsFragment :: AdminVenueSettingsLiveFragment
+adminVenueSettingsFragment =
+    AdminVenueSettingsLiveFragment
+
+adminVenueSettingsFragmentId :: Text
+adminVenueSettingsFragmentId = "admin-venue-settings-fragment"
+
+adminVenueSettingsLiveSurfaceDefinition :: (?context :: ControllerContext) => TypedLiveSurfaceDefinition AdminVenueSettingsSurface () AdminVenueSettingsLiveFragment
+adminVenueSettingsLiveSurfaceDefinition =
+    adminVenueSettingsLiveSurfaceDefinitionForVenue currentVenueScopeId
+
+adminVenueSettingsLiveSurfaceDefinitionForVenue :: UUID -> TypedLiveSurfaceDefinition AdminVenueSettingsSurface () AdminVenueSettingsLiveFragment
+adminVenueSettingsLiveSurfaceDefinitionForVenue surfaceVenueId =
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "admin-venue-config"
+        , typedSurfaceScope = const (SurfaceScope AdminVenueConfigScope { venueId = surfaceVenueId })
+        , typedSurfaceScopeFromWire = \case
+            AdminVenueConfigScope { venueId } | venueId == surfaceVenueId -> Just ()
+            _ -> Nothing
+        , typedSurfaceDefaultFragments = const [adminVenueSettingsFragment]
+        , typedSurfaceFragmentContract = \() fragment ->
+            mkSurfaceFragmentContract
+                (adminVenueSettingsLiveFragmentRef fragment)
+                (liveFragmentDependsOn (AdminVenueConfigResource surfaceVenueId) [])
+        , typedSurfaceDecorateRequestsWithin = const ["#" <> adminVenueSettingsFragmentId]
+        , typedSurfaceAuthorize = liveSurfaceAuthorizationByRequirement (const (RequireCurrentVenueAdmin surfaceVenueId))
+        }
+
+adminVenueSettingsLiveFragmentRef :: AdminVenueSettingsLiveFragment -> SurfaceFragmentRef AdminVenueSettingsSurface
+adminVenueSettingsLiveFragmentRef AdminVenueSettingsLiveFragment =
+    mkSurfaceFragmentRef
+        AdminVenueConfigFragment
+        adminVenueSettingsFragmentId
+        (pathTo ShowAdminVenueSettingsFragmentAction)
+
+currentVenueScopeId :: (?context :: ControllerContext) => UUID
+currentVenueScopeId =
+    case currentVenueOrNothing of
+        Just venue -> unpackId venue.id
+        Nothing -> error "Admin venue settings live surface requires a current venue"
+
+renderVenueSettingsSectionFragment :: (?context :: ControllerContext) => VenueConfig -> Html
+renderVenueSettingsSectionFragment venueConfig = [hsx|
+    <div id={adminVenueSettingsFragmentId}
+         data-live-update-surface={liveSurfaceConfigJson (mkTypedDefinedLiveSurface adminVenueSettingsLiveSurfaceDefinition ())}>
+        {renderVenueSettingsSection venueConfig}
+    </div>
+|]
 
 renderVenueSettingsSection :: VenueConfig -> Html
 renderVenueSettingsSection venueConfig =

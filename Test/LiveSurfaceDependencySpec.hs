@@ -24,6 +24,8 @@ import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
 import Web.View.Admin.Invites (AdminInvitesSurfaceKey (..),
                                adminInvitesFragment,
                                adminInvitesLiveSurfaceDefinitionForVenue)
+import Web.View.Admin.VenueSettings (adminVenueSettingsFragment,
+                                     adminVenueSettingsLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinitionForVenue,
                             adminXeroPayItemsFragment,
                             adminXeroShellFragment,
@@ -99,6 +101,13 @@ tests = do
                 `shouldBe` [StaffRsaDocumentsResource staffId]
             typedSurfaceDependsOn profileLeaveRequestsLiveSurfaceDefinition leaveKey profileLeaveRequestsFragment
                 `shouldBe` [StaffLeaveRequestsResource staffId]
+
+        it "declares admin venue config dependencies for venue-scoped settings surfaces" do
+            let venueId = fromWords 7 0 0 0
+            let definition = adminVenueSettingsLiveSurfaceDefinitionForVenue venueId
+
+            typedSurfaceDependsOn definition () adminVenueSettingsFragment
+                `shouldBe` [AdminVenueConfigResource venueId]
 
         it "declares admin invitation dependencies for venue-scoped invite surfaces" do
             let venueId = fromWords 3 0 0 0

@@ -141,6 +141,7 @@ data AdminController
     | SubmitXeroDraftTimesheetsAction
     | RetryXeroDraftTimesheetSubmissionAction { xeroTimesheetSubmissionId :: !(Id XeroTimesheetSubmission) }
     | UpdateVenueConfigAction
+    | ShowAdminVenueSettingsFragmentAction
     | ShowAdminInvitesFragmentAction
     | ShowAdminShiftTypesFragmentAction
     | ShowAdminRosterGroupsFragmentAction

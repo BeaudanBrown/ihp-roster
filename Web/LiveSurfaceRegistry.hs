@@ -39,6 +39,8 @@ import Web.View.Admin.Invites (adminInvitesLiveSurfaceDefinition,
                                adminInvitesLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.RosterGroups (adminRosterGroupsLiveSurfaceDefinition)
 import Web.View.Admin.ShiftTypes (adminShiftTypesLiveSurfaceDefinition)
+import Web.View.Admin.VenueSettings (adminVenueSettingsLiveSurfaceDefinition,
+                                     adminVenueSettingsLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Xero (adminXeroLiveSurfaceDefinition,
                             adminXeroLiveSurfaceDefinitionForVenue)
 
@@ -61,6 +63,7 @@ authorizeRegisteredLiveSurfaceScope scope = do
         catMaybes
             <$> sequence
                 [ authorizeTypedLiveSurfaceWireScope supportLiveSurfaceDefinition scope
+                , authorizeTypedLiveSurfaceWireScope adminVenueSettingsLiveSurfaceDefinition scope
                 , authorizeTypedLiveSurfaceWireScope adminInvitesLiveSurfaceDefinition scope
                 , authorizeTypedLiveSurfaceWireScope adminExportsLiveSurfaceDefinition scope
                 , authorizeTypedLiveSurfaceWireScope adminShiftTypesLiveSurfaceDefinition scope
@@ -123,6 +126,7 @@ currentVenueRegisteredLiveSurfacesForScope scope =
         Nothing -> []
         Just _ ->
             case scope of
+                AdminVenueConfigScope {} -> [registeredTypedLiveSurface adminVenueSettingsLiveSurfaceDefinition defaultCandidateFragments]
                 AdminExportsScope {} -> [registeredTypedLiveSurface adminExportsLiveSurfaceDefinition defaultCandidateFragments]
                 AdminShiftTypesScope {} -> [registeredTypedLiveSurface adminShiftTypesLiveSurfaceDefinition defaultCandidateFragments]
                 AdminRosterGroupsScope {} -> [registeredTypedLiveSurface adminRosterGroupsLiveSurfaceDefinition defaultCandidateFragments]
@@ -142,6 +146,8 @@ contextFreeRegisteredLiveSurfacesForScope = \case
         [registeredTypedLiveSurface billingLiveSurfaceDefinition defaultCandidateFragments]
     AdminInvitesScope { venueId } ->
         [registeredTypedLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue venueId) defaultCandidateFragments]
+    AdminVenueConfigScope { venueId } ->
+        [registeredTypedLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue venueId) defaultCandidateFragments]
     TimesheetWeekScope { venueId } ->
         [registeredTypedLiveSurface (timesheetLiveSurfaceDefinitionForVenue venueId) defaultCandidateFragments]
     AdminXeroScope { venueId } ->

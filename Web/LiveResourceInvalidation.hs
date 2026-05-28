@@ -246,6 +246,8 @@ candidateLiveScopesForResources resources =
             staffProfileScope staffId
         candidateScopesForResource (RosterWeekResource rosterGroupId weekOffset) =
             pure [RosterWeekScope { venueId = unpackId currentVenueId, rosterGroupId, weekOffset }]
+        candidateScopesForResource (AdminVenueConfigResource venueId) =
+            pure [AdminVenueConfigScope { venueId }]
         candidateScopesForResource (AdminInvitesResource venueId) =
             pure [AdminInvitesScope { venueId }]
         candidateScopesForResource (AdminRosterGroupsResource venueId) =
@@ -279,6 +281,8 @@ candidateLiveScopesForResourcesWithoutContext resources =
             [TimesheetWeekScope { venueId, weekOffset }]
         candidateScopesForResource (TimesheetDayResource venueId weekOffset _) =
             [TimesheetWeekScope { venueId, weekOffset }]
+        candidateScopesForResource (AdminVenueConfigResource venueId) =
+            [AdminVenueConfigScope { venueId }]
         candidateScopesForResource (AdminInvitesResource venueId) =
             [AdminInvitesScope { venueId }]
         candidateScopesForResource (BillingResource venueId) =

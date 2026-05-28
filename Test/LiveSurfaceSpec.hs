@@ -11,6 +11,7 @@ import IHP.Prelude
 import Web.Billing.LiveUpdates
 import Web.Timesheets.Projection
 import Web.View.Admin.Invites
+import Web.View.Admin.VenueSettings
 import Web.View.Admin.Xero
 import Test.Hspec
 import Test.Support.LiveSurfaceContract
@@ -66,6 +67,7 @@ tests = describe "LiveSurface contract helpers" do
         let surfaces =
                 [ mkTypedDefinedLiveSurface billingLiveSurfaceDefinition billingKey
                 , mkTypedDefinedLiveSurface (timesheetLiveSurfaceDefinitionForVenue venueId) timesheetKey
+                , mkTypedDefinedLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue venueId) ()
                 , mkTypedDefinedLiveSurface (adminInvitesLiveSurfaceDefinitionForVenue venueId) invitesKey
                 , mkTypedDefinedLiveSurface (adminXeroLiveSurfaceDefinitionForVenue venueId) ()
                 ]
@@ -89,11 +91,12 @@ tests = describe "LiveSurface contract helpers" do
             AdminXeroPayItemsFragment
             "xero-pay-items-data"
             "/ShowAdminXeroPayItemsFragment"
-        map (.feature) surfaces `shouldBe` ["billing", "timesheets", "admin-invites", "admin-xero"]
+        map (.feature) surfaces `shouldBe` ["billing", "timesheets", "admin-venue-config", "admin-invites", "admin-xero"]
         map (.scopeKey) surfaces
             `shouldBe`
                 [ "billing:11111111-1111-1111-1111-111111111111"
                 , "timesheet_week:11111111-1111-1111-1111-111111111111:1"
+                , "admin_venue_config:11111111-1111-1111-1111-111111111111"
                 , "admin_invites:11111111-1111-1111-1111-111111111111"
                 , "admin_xero:11111111-1111-1111-1111-111111111111"
                 ]

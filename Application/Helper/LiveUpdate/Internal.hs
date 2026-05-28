@@ -58,6 +58,9 @@ data LiveUpdateScope
         , rosterGroupId :: !UUID.UUID
         , weekOffset    :: !Int
         }
+    | AdminVenueConfigScope
+        { venueId :: !UUID.UUID
+        }
     | AdminShiftTypesScope
         { venueId :: !UUID.UUID
         }
@@ -104,6 +107,7 @@ data LiveFragmentKey
     | TimesheetDaySectionFragment
         { dayOffset :: !Int
         }
+    | AdminVenueConfigFragment
     | AdminInvitesFragment
     | AdminExportsFragment
     | AdminShiftTypesFragment
@@ -194,6 +198,8 @@ data LiveUpdateBroadcastResult = LiveUpdateBroadcastResult
 liveUpdateScopeKey :: LiveUpdateScope -> Text
 liveUpdateScopeKey RosterWeekScope { venueId, rosterGroupId, weekOffset } =
     Text.intercalate ":" ["roster_week", UUID.toText venueId, UUID.toText rosterGroupId, tshow weekOffset]
+liveUpdateScopeKey AdminVenueConfigScope { venueId } =
+    Text.intercalate ":" ["admin_venue_config", UUID.toText venueId]
 liveUpdateScopeKey AdminShiftTypesScope { venueId } =
     Text.intercalate ":" ["admin_shift_types", UUID.toText venueId]
 liveUpdateScopeKey AdminRosterGroupsScope { venueId } =
@@ -226,6 +232,11 @@ instance Aeson.ToJSON LiveUpdateScope where
             , "venueId" Aeson..= UUID.toText venueId
             , "rosterGroupId" Aeson..= UUID.toText rosterGroupId
             , "weekOffset" Aeson..= weekOffset
+            ]
+    toJSON AdminVenueConfigScope { venueId } =
+        Aeson.object
+            [ "kind" Aeson..= ("admin_venue_config" :: Text)
+            , "venueId" Aeson..= UUID.toText venueId
             ]
     toJSON AdminShiftTypesScope { venueId } =
         Aeson.object
@@ -288,6 +299,9 @@ instance Aeson.FromJSON LiveUpdateScope where
                     <$> (parseUuid =<< object Aeson..: "venueId")
                     <*> (parseUuid =<< object Aeson..: "rosterGroupId")
                     <*> object Aeson..: "weekOffset"
+            "admin_venue_config" ->
+                AdminVenueConfigScope
+                    <$> (parseUuid =<< object Aeson..: "venueId")
             "admin_shift_types" ->
                 AdminShiftTypesScope
                     <$> (parseUuid =<< object Aeson..: "venueId")
@@ -343,6 +357,8 @@ instance Aeson.ToJSON LiveFragmentKey where
             [ "kind" Aeson..= ("timesheet_day_section" :: Text)
             , "dayOffset" Aeson..= dayOffset
             ]
+    toJSON AdminVenueConfigFragment =
+        Aeson.object ["kind" Aeson..= ("admin_venue_config" :: Text)]
     toJSON AdminInvitesFragment =
         Aeson.object ["kind" Aeson..= ("admin_invites" :: Text)]
     toJSON AdminExportsFragment =
@@ -387,6 +403,7 @@ instance Aeson.FromJSON LiveFragmentKey where
             "timesheet_day_section" ->
                 TimesheetDaySectionFragment
                     <$> object Aeson..: "dayOffset"
+            "admin_venue_config" -> pure AdminVenueConfigFragment
             "admin_invites" -> pure AdminInvitesFragment
             "admin_exports" -> pure AdminExportsFragment
             "admin_shift_types" -> pure AdminShiftTypesFragment

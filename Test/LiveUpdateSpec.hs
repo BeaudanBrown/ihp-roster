@@ -19,6 +19,7 @@ tests = describe "LiveUpdate runtime types" do
         let staffId = expectUuid "44444444-4444-4444-4444-444444444444"
         let scopes =
                 [ RosterWeekScope { venueId, rosterGroupId, weekOffset = 0 }
+                , AdminVenueConfigScope { venueId }
                 , AdminShiftTypesScope { venueId }
                 , AdminRosterGroupsScope { venueId }
                 , AdminInvitesScope { venueId }
@@ -42,6 +43,7 @@ tests = describe "LiveUpdate runtime types" do
                 , RosterRowFragment { rosterDayId, rowIndex = 1 }
                 , LeaveRequestsContentFragment
                 , TimesheetDaySectionFragment { dayOffset = 4 }
+                , AdminVenueConfigFragment
                 , AdminInvitesFragment
                 , AdminExportsFragment
                 , AdminShiftTypesFragment
@@ -92,6 +94,8 @@ tests = describe "LiveUpdate runtime types" do
 
         liveUpdateScopeKey RosterWeekScope { venueId, rosterGroupId, weekOffset = -1 }
             `shouldBe` "roster_week:11111111-1111-1111-1111-111111111111:33333333-3333-3333-3333-333333333333:-1"
+        liveUpdateScopeKey AdminVenueConfigScope { venueId }
+            `shouldBe` "admin_venue_config:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey AdminShiftTypesScope { venueId }
             `shouldBe` "admin_shift_types:11111111-1111-1111-1111-111111111111"
         liveUpdateScopeKey AdminRosterGroupsScope { venueId }

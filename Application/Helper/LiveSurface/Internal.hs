@@ -303,6 +303,8 @@ liveSurfaceAuthorizationByRequirement requirement =
 defaultLiveUpdateScopeAuthorizationRequirement :: LiveUpdateScope -> LiveScopeAuthorizationRequirement
 defaultLiveUpdateScopeAuthorizationRequirement RosterWeekScope { venueId, rosterGroupId } =
     RequireCurrentVenueRosterGroup venueId rosterGroupId
+defaultLiveUpdateScopeAuthorizationRequirement AdminVenueConfigScope { venueId } =
+    RequireCurrentVenueAdmin venueId
 defaultLiveUpdateScopeAuthorizationRequirement AdminInvitesScope { venueId } =
     RequireCurrentVenueAdmin venueId
 defaultLiveUpdateScopeAuthorizationRequirement AdminExportsScope { venueId } =

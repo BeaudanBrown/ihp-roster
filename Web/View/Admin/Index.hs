@@ -56,7 +56,7 @@ renderConfigSectionsAccordion :: [RosterGroup] -> RosterGroup -> Bool -> [ShiftT
 renderConfigSectionsAccordion rosterGroups currentRosterGroup showInactiveRosterGroups shiftTypes showInactiveShiftTypes venueConfig awardLevels awardLevelBaseRates invitations reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs = [hsx|
     <div class="accordion admin-config-accordion" id="admin-config-sections">
         {renderAccordionItem "invites" "Invites" True (renderInvitesSectionFragment invitations currentRosterGroup.id)}
-        {renderAccordionItem "venue-settings" "Venue Settings" False (renderVenueSettingsSection venueConfig)}
+        {renderAccordionItem "venue-settings" "Venue Settings" False (renderVenueSettingsSectionFragment venueConfig)}
         {renderAccordionItem "exports" "Exports" False (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)}
         {renderAccordionItem "shift-types" "Shift Types" False (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)}
         {renderAccordionItem "roster-groups" "Roster Groups" False (renderRosterGroupsSectionFragment rosterGroups showInactiveRosterGroups)}

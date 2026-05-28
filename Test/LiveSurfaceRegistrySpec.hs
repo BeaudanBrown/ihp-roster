@@ -15,12 +15,14 @@ tests = do
             let venueId = fromWords 1 0 0 0
             let scopes =
                     [ BillingScope venueId
+                    , AdminVenueConfigScope venueId
                     , AdminInvitesScope venueId
                     , SupportPlatformScope
                     ]
             let resources =
                     Set.fromList
                         [ BillingResource venueId
+                        , AdminVenueConfigResource venueId
                         , AdminInvitesResource venueId
                         , SupportAwardRatesResource
                         ]
@@ -28,6 +30,7 @@ tests = do
             targetSummary (planRegisteredLiveSurfaceInvalidationsWithoutContext resources scopes)
                 `shouldBe` Set.fromList
                     [ (BillingScope venueId, [BillingStatusFragment])
+                    , (AdminVenueConfigScope venueId, [AdminVenueConfigFragment])
                     , (AdminInvitesScope venueId, [AdminInvitesFragment])
                     , (SupportPlatformScope, [SupportAwardRatesSectionFragment])
                     ]

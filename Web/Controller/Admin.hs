@@ -29,6 +29,7 @@ import Web.View.Admin.Index
 import Web.View.Admin.Invites
 import Web.View.Admin.RosterGroups
 import Web.View.Admin.ShiftTypes
+import Web.View.Admin.VenueSettings
 import Web.View.Admin.Xero
 
 profileLiveResourcesFor ::
@@ -43,6 +44,7 @@ profileLiveResourcesFor resourceName = do
     let staffId = paramOrNothing @UUID "staffId"
     pure case resourceName of
         "billing" -> [BillingResource venueUuid]
+        "admin-venue-config" -> [AdminVenueConfigResource venueUuid]
         "admin-invites" -> [AdminInvitesResource venueUuid]
         "admin-roster-groups" -> [AdminRosterGroupsResource venueUuid]
         "admin-shift-types" -> [AdminShiftTypesResource venueUuid]
@@ -278,6 +280,11 @@ instance Controller AdminController where
                                 _ <- setRosterWeekStartsOnMutation venueConfig rosterWeekStartsOn
                                 setSuccessMessage ("Roster week will start on " <> weekdayIndexLabel rosterWeekStartsOn)
                                 redirectToAdminFor (paramOrNothing "rosterGroupId")
+
+    action ShowAdminVenueSettingsFragmentAction =
+        serveTypedLiveFragment adminVenueSettingsLiveSurfaceDefinition () adminVenueSettingsFragment \_ -> do
+            venueConfig <- fetchVenueConfig
+            respondHtml (renderVenueSettingsSectionFragment venueConfig)
 
     action ShowAdminInvitesFragmentAction = do
         currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (paramOrNothing "rosterGroupId")
