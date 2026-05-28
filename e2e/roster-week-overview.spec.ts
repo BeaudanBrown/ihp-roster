@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { gotoWhenReady, loginAs, openRoster } from './test-helpers';
+import { gotoWhenReady, loginAs, openRoster, runSql } from './test-helpers';
 
 const e2eRosterPath = '/ShowRosterWeek?weekOffset=0&rosterGroupId=a1000000-0000-0000-0000-000000000211';
 
@@ -13,7 +13,8 @@ test.describe('Roster week overview', () => {
     });
 
     test('exports the live roster as a jpg from the roster actions menu', async ({ page }) => {
-        await openRoster(page);
+        runSql("UPDATE roster_weeks SET is_live = TRUE WHERE id = 'a1000000-0000-0000-0000-000000000053';");
+        await openRoster(page, { weekOffset: 1, ensureDraft: false, ensureEditable: false });
 
         await page.getByRole('button', { name: 'Roster settings' }).click();
         const exportButton = page.getByRole('button', { name: 'Export JPG' });
@@ -22,6 +23,13 @@ test.describe('Roster week overview', () => {
         await exportButton.click();
 
         await expect(page.locator('body')).toHaveAttribute('data-roster-export-last-status', 'success');
+    });
+
+    test('does not show roster JPG export on draft weeks', async ({ page }) => {
+        await openRoster(page, { weekOffset: 2 });
+
+        await page.getByRole('button', { name: 'Roster settings' }).click();
+        await expect(page.getByRole('button', { name: 'Export JPG' })).toHaveCount(0);
     });
 
     test('keeps the desktop roster grid fitted without page-level horizontal scrolling', async ({ page }) => {

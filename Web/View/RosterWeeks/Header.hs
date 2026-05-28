@@ -124,7 +124,7 @@ renderRosterWeekMoreMenu maybeRosterWeek weekOffset rosterGroups currentRosterGr
             {renderRosterLayoutMenuSection weekOffset currentRosterGroup.id rosterLayoutMode}
             {renderRosterWageEstimatePreferenceMenuSection weekOffset currentRosterGroup.id viewCapabilities rosterEndTimesEnabled showWageEstimates}
             {renderRosterColumnMenuSection maybeRosterWeek viewCapabilities}
-            {renderRosterExportMenuSection viewCapabilities}
+            {renderRosterExportMenuSection maybeRosterWeek viewCapabilities}
             {renderRosterAssignmentFiltersMenuSection weekOffset currentRosterGroup.id menuTriggerId assignmentFilters viewCapabilities}
             {when (shouldShowRosterWeekMenuDivider maybeRosterWeek viewCapabilities) divider}
         </div>
@@ -242,9 +242,10 @@ renderRosterSortForm (Just rosterWeek)
     |]
 renderRosterSortForm _ = mempty
 
-renderRosterExportMenuSection :: RosterViewCapabilities -> Html
-renderRosterExportMenuSection viewCapabilities
+renderRosterExportMenuSection :: Maybe RosterWeek -> RosterViewCapabilities -> Html
+renderRosterExportMenuSection maybeRosterWeek viewCapabilities
     | not viewCapabilities.canExportRosterImage = mempty
+    | not (maybe False (.isLive) maybeRosterWeek) = mempty
     | otherwise = [hsx|
         <div class="px-1 py-1">
             <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Share roster</div>

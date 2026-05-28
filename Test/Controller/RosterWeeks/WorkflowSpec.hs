@@ -631,6 +631,33 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` ">Alpha<"
                 response `responseBodyShouldNotContain` "No roster exists for this week yet."
 
+        it "shows roster JPG export only to managers on live weeks" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-export-live-only@example.com" "staff" True
+                worker <- createUserRecord "roster-worker-export-hidden@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- fetchSlotNameRecord venue "Early"
+                draftWeek <- createRosterWeekRecord venue 0 False
+
+                draftManagerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+                draftManagerResponse `responseStatusShouldBe` status200
+                draftManagerResponse `responseBodyShouldNotContain` "Export JPG"
+
+                _ <- updateRecord (draftWeek |> set #isLive True)
+
+                liveManagerResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+                liveManagerResponse `responseStatusShouldBe` status200
+                liveManagerResponse `responseBodyShouldContain` "Export JPG"
+
+                workerResponse <- withUserAndCurrentVenue worker venue.id do
+                    callAction (ShowRosterWeekAction 0)
+                workerResponse `responseStatusShouldBe` status200
+                workerResponse `responseBodyShouldNotContain` "Export JPG"
+
         it "shows week wage estimates to admins only when end times are enabled" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
