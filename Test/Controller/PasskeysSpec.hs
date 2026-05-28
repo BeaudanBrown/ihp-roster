@@ -519,14 +519,14 @@ tests = beforeAll testContext do
                 _ <- createVenueMembershipRecord venue user "worker"
                 passkey <- createTestPasskeyRecord user "Original"
 
-                response <- withUserAndCurrentVenue user venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
                     callActionWithParams (UpdatePasskeyNameAction passkey.id) [("name", "  Laptop  ")]
 
                 response `responseStatusShouldBe` status200
                 renamedPasskey <- fetch passkey.id
                 renamedPasskey.name `shouldBe` "Laptop"
 
-                blankResponse <- withUserAndCurrentVenue user venue.id do
+                blankResponse <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
                     callActionWithParams (UpdatePasskeyNameAction passkey.id) [("name", "   ")]
 
                 blankResponse `responseStatusShouldBe` status200
@@ -549,14 +549,31 @@ tests = beforeAll testContext do
                 unchangedPasskey <- fetch passkey.id
                 unchangedPasskey.name `shouldBe` "Owner passkey"
 
-        it "deletes a user's own passkey" $ withContext do
+        it "requires fresh passkey verification before an ordinary user deletes a passkey" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Passkey Delete Step Up Worker Venue"
+                user <- createUserRecord "passkey-delete-worker-step-up@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue user "worker"
+                passkey <- createTestPasskeyRecord user "Delete me later"
+
+                response <- withUserAndCurrentVenue user venue.id do
+                    callAction (DeletePasskeyAction passkey.id)
+
+                response `responseStatusShouldBe` status302
+                lookup HTTP.hLocation (responseHeaders response) `shouldBe` Just "http://localhost/PasskeyStepUp"
+                stillExists <- query @Passkey
+                    |> filterWhere (#id, passkey.id)
+                    |> fetchExists
+                stillExists `shouldBe` True
+
+        it "deletes an ordinary user's own passkey after fresh verification" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Passkey Delete Venue"
                 user <- createUserRecord "passkey-delete@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue user "worker"
                 passkey <- createTestPasskeyRecord user "Delete me"
 
-                response <- withUserAndCurrentVenue user venue.id do
+                response <- withPasskeyVerifiedUserAndCurrentVenue user venue.id do
                     callAction (DeletePasskeyAction passkey.id)
 
                 response `responseStatusShouldBe` status302

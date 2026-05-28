@@ -11,14 +11,14 @@ instance Controller PasskeysController where
     beforeAction = ensureIsUser
 
     action PasskeyStepUpAction = do
-        unless currentUserRequiresMandatoryPasskey do
+        rawStepUpRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
+        let stepUpRedirectTo = rawStepUpRedirectTo >>= nonEmptyText
+        unless (currentUserRequiresMandatoryPasskey || isJust stepUpRedirectTo) do
             redirectTo RosterWeeksAction
         passkeys <- fetchCurrentUserPasskeys
         when (null passkeys) do
-            setErrorMessage "Venue admins and owners must add a passkey before continuing."
+            setErrorMessage "Add your first passkey before continuing."
             redirectToPath profileSecurityPath
-        rawStepUpRedirectTo <- getSession @Text passkeyStepUpRedirectSessionKey
-        let stepUpRedirectTo = rawStepUpRedirectTo >>= nonEmptyText
         render StepUpView { .. }
 
     action ShowPasskeyRecoveryCodeDialogAction = do
@@ -105,10 +105,9 @@ nonEmptyText value =
 
 ensureFreshPasskeyForProfileSecurity :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
 ensureFreshPasskeyForProfileSecurity = do
-    when currentUserRequiresMandatoryPasskey do
-        verified <- isCurrentUserPasskeyVerified
-        unless verified do
-            withRequestContext do
-                setSession passkeyStepUpRedirectSessionKey profileSecurityPath
-                setErrorMessage "Verify with your passkey before changing passkey settings."
-                redirectTo PasskeyStepUpAction
+    verified <- isCurrentUserPasskeyVerified
+    unless verified do
+        withRequestContext do
+            setSession passkeyStepUpRedirectSessionKey profileSecurityPath
+            setErrorMessage "Verify with your passkey before changing passkey settings."
+            redirectTo PasskeyStepUpAction
