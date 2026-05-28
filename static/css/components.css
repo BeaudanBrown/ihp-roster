@@ -641,6 +641,18 @@ h5,
     justify-content: flex-start;
 }
 
+.app-week-toolbar-primary,
+.app-week-toolbar-reset,
+.app-week-toolbar-aux {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.app-week-toolbar-mobile-control {
+    display: none;
+}
+
 .app-week-toolbar-navigation {
     grid-area: navigation;
     display: flex;
@@ -686,27 +698,35 @@ h5,
 
     .app-week-toolbar {
         min-height: auto;
-        grid-template-columns: minmax(0, 1fr);
-        grid-template-areas:
-            "quick"
-            "navigation";
+        grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+        column-gap: 0.75rem;
+        row-gap: 0.75rem;
         align-items: center;
     }
 
     .app-week-toolbar-roster {
         grid-template-areas:
-            "quick"
-            "navigation"
-            "auxiliary";
+            "primary top-spacer settings"
+            "navigation navigation navigation"
+            "auxiliary auxiliary auxiliary";
     }
 
     .app-week-toolbar-timesheets {
         grid-template-areas:
-            "quick"
-            "navigation";
+            ". top-spacer settings"
+            "navigation navigation navigation";
     }
 
-    .app-week-toolbar-quick,
+    .app-week-toolbar-desktop-start {
+        display: none;
+    }
+
+    .app-week-toolbar-mobile-control {
+        display: flex;
+    }
+
+    .app-week-toolbar-primary,
+    .app-week-toolbar-reset,
     .app-week-toolbar-navigation,
     .app-week-toolbar-settings,
     .app-week-toolbar-aux-mobile {
@@ -714,41 +734,34 @@ h5,
         z-index: 1;
     }
 
-    .app-week-toolbar-quick {
+    .app-week-toolbar-primary {
+        grid-area: primary;
+        justify-content: flex-start;
+        min-width: 0;
+    }
+
+    .app-week-toolbar-timesheets .app-week-toolbar-primary {
+        display: none;
+    }
+
+    .app-week-toolbar-reset {
+        grid-column: 1 / -1;
+        grid-row: 1;
+        justify-self: stretch;
         justify-content: center;
-    }
-
-    .app-week-toolbar-roster .app-week-toolbar-quick,
-    .app-week-toolbar-timesheets .app-week-toolbar-quick {
-        grid-area: quick;
-        position: static;
-        justify-content: center;
-        min-height: 2.35rem;
-    }
-
-    .app-week-toolbar-roster .app-week-toolbar-quick > form:first-child {
-        position: absolute;
-        top: 0;
-        left: 0.75rem;
-    }
-
-    .app-week-toolbar-roster .app-week-toolbar-quick > a.app-week-nav-button,
-    .app-week-toolbar-timesheets .app-week-toolbar-quick > a.app-week-nav-button {
-        position: absolute;
-        top: 0;
-        left: 50%;
-        transform: translateX(-50%);
+        width: calc(100% + 3rem);
+        min-width: 0;
+        margin-inline: -1.5rem;
     }
 
     .app-week-toolbar-settings {
-        position: absolute;
-        top: 0;
-        right: 0.75rem;
+        grid-area: settings;
         justify-content: flex-end;
-        z-index: 2;
+        padding-right: 0.5rem;
     }
 
     .app-week-toolbar-navigation {
+        grid-area: navigation;
         width: 100%;
         justify-content: center;
     }
@@ -761,6 +774,10 @@ h5,
         grid-area: auxiliary;
         display: flex;
         justify-content: center;
+    }
+
+    .app-week-toolbar-timesheets .app-week-toolbar-aux-mobile {
+        display: none;
     }
 
     .admin-setting-row {

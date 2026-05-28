@@ -1564,7 +1564,7 @@
         min-width: 48rem;
     }
 
-    .roster-grid-header {
+    .roster-grid-header:not(.app-week-toolbar) {
         position: relative;
         z-index: 30;
         display: grid;

@@ -11,6 +11,8 @@ type ToolbarMetrics = {
     settingsTop: number;
     settingsRight: number;
     auxiliaryTop: number | null;
+    resetTop: number | null;
+    resetBottom: number | null;
     resetCenterX: number | null;
     toolbarCenterX: number;
     toolbarRight: number;
@@ -45,7 +47,7 @@ async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbar
         const navigation = rectFor('[data-week-toolbar-section="navigation"]');
         const settings = rectFor('[data-week-toolbar-section="settings"]');
         const auxiliary = visibleRectFor('[data-week-toolbar-section^="auxiliary"]');
-        const reset = visibleRectFor('[data-week-toolbar-section="quick"] .app-week-nav-button');
+        const reset = visibleRectFor('[data-week-toolbar-section="reset"] .app-week-nav-button');
         const toolbarRect = toolbar.getBoundingClientRect();
 
         return {
@@ -58,6 +60,8 @@ async function weekToolbarMetrics(page: import('@playwright/test').Page, toolbar
             settingsTop: Math.round(settings.top),
             settingsRight: Math.round(settings.right),
             auxiliaryTop: auxiliary ? Math.round(auxiliary.top) : null,
+            resetTop: reset ? Math.round(reset.top) : null,
+            resetBottom: reset ? Math.round(reset.bottom) : null,
             resetCenterX: reset ? Math.round(reset.left + reset.width / 2) : null,
             toolbarCenterX: Math.round(toolbarRect.left + toolbarRect.width / 2),
             toolbarRight: Math.round(toolbarRect.right),
@@ -88,7 +92,7 @@ test.describe('Shared week toolbar responsive layout', () => {
 
         await openRoster(page, { email: 'e2e-admin@example.com', ensureEditable: false });
         const toolbar = page.locator('[data-week-toolbar="roster"]');
-        await expect(toolbar.getByText('Live')).toBeVisible();
+        await expect(toolbar.locator('[data-week-toolbar-section="primary"]').getByText('Live')).toBeVisible();
         await expect(toolbar.getByRole('link', { name: 'This week' })).toBeVisible();
         await expect(toolbar.getByRole('button', { name: 'Roster settings' })).toBeVisible();
         await expect(toolbar.locator('.roster-week-nav-group')).toBeVisible();
@@ -98,7 +102,8 @@ test.describe('Shared week toolbar responsive layout', () => {
         expect(metrics.resetCenterX).not.toBeNull();
         expect(Math.abs((metrics.resetCenterX ?? 0) - metrics.toolbarCenterX)).toBeLessThanOrEqual(4);
         expect(metrics.settingsRight).toBeLessThanOrEqual(metrics.toolbarRight - 8);
-        expect(metrics.navigationTop).toBeGreaterThanOrEqual(metrics.quickBottom - 1);
+        expect(metrics.resetBottom).not.toBeNull();
+        expect(metrics.navigationTop).toBeGreaterThanOrEqual((metrics.resetBottom ?? 0) - 1);
         expect(metrics.auxiliaryTop).not.toBeNull();
         expect(metrics.auxiliaryTop ?? 0).toBeGreaterThanOrEqual(metrics.navigationBottom - 1);
     });
@@ -119,6 +124,7 @@ test.describe('Shared week toolbar responsive layout', () => {
         expect(Math.abs((metrics.resetCenterX ?? 0) - metrics.toolbarCenterX)).toBeLessThanOrEqual(4);
         expect(metrics.settingsRight).toBeGreaterThan(metrics.toolbarCenterX);
         expect(metrics.settingsRight).toBeLessThanOrEqual(metrics.toolbarRight - 8);
-        expect(metrics.navigationTop).toBeGreaterThanOrEqual(metrics.quickBottom - 1);
+        expect(metrics.resetBottom).not.toBeNull();
+        expect(metrics.navigationTop).toBeGreaterThanOrEqual((metrics.resetBottom ?? 0) - 1);
     });
 });

@@ -35,12 +35,18 @@ renderWeekToolbar WeekToolbarConfig { weekToolbarVariant, weekToolbarAriaLabel, 
          role="navigation"
          aria-label={weekToolbarAriaLabel}
          data-week-toolbar={variantName}>
-        <div class="app-week-toolbar-section app-week-toolbar-quick" data-week-toolbar-section="quick">
+        <div class="app-week-toolbar-section app-week-toolbar-quick app-week-toolbar-desktop-start" data-week-toolbar-section="quick">
             {weekToolbarPrimary}
             {weekToolbarReset}
             <div class="app-week-toolbar-aux app-week-toolbar-aux-desktop" data-week-toolbar-section="auxiliary-desktop">
                 {weekToolbarAuxiliary}
             </div>
+        </div>
+        <div class="app-week-toolbar-section app-week-toolbar-primary app-week-toolbar-mobile-control" data-week-toolbar-section="primary">
+            {weekToolbarPrimary}
+        </div>
+        <div class="app-week-toolbar-section app-week-toolbar-reset app-week-toolbar-mobile-control" data-week-toolbar-section="reset">
+            {weekToolbarReset}
         </div>
         <div class="app-week-toolbar-section app-week-toolbar-navigation" data-week-toolbar-section="navigation">
             {weekToolbarNavigation}
