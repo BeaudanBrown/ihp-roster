@@ -1,6 +1,9 @@
 module Web.FrontController where
 
-import Application.Helper.Controller (currentVenueSessionKey)
+import Application.Helper.Controller (currentUserIsSuperAdmin,
+                                      currentVenueSessionKey)
+import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
+                                    fetchSupportUnreadFeedbackCount)
 import Application.Helper.Profiling (initRequestProfiling)
 import qualified Control.Exception as Exception
 import qualified Data.Text.IO as TextIO
@@ -71,3 +74,12 @@ instance InitControllerContext WebApplication where
                 deleteSession currentVenueSessionKey
                 putContext (Nothing :: Maybe User)
         initCurrentVenueContext
+        initFeedbackContext
+
+initFeedbackContext :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO ()
+initFeedbackContext = do
+    unreadCount <-
+        if currentUserIsSuperAdmin
+            then fetchSupportUnreadFeedbackCount
+            else pure (SupportUnreadFeedbackCount 0)
+    putContext unreadCount

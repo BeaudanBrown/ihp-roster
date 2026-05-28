@@ -2,13 +2,16 @@ module Web.View.Layout (defaultLayout, Html) where
 
 import Application.Helper.Controller (currentSupportVenueOptions,
                                       currentVenueOrNothing)
+import Application.Helper.Feedback (SupportUnreadFeedbackCount (..))
 import Application.Helper.View
 import qualified Data.Text as Text
 import qualified Data.Text.Encoding as TextEncoding
 import Generated.Types
+import IHP.Controller.Context (maybeFromContext)
 import IHP.ControllerSupport (getRequestPathAndQuery)
 import IHP.Environment
 import IHP.ViewPrelude
+import System.IO.Unsafe (unsafePerformIO)
 import Web.Routes
 import Web.Types
 
@@ -90,6 +93,7 @@ renderDesktopFeedbackButton = [hsx|
             hx-push-url="false">
         <i class="bi bi-chat-dots" aria-hidden="true"></i>
         <span>feedback</span>
+        {renderFeedbackUnreadBadge}
     </button>
 |]
 
@@ -103,8 +107,15 @@ renderMobileFeedbackButton = [hsx|
             hx-push-url="false">
         <i class="bi bi-chat-dots app-mobile-nav-icon" aria-hidden="true"></i>
         <span>Feedback</span>
+        {renderFeedbackUnreadBadge}
     </button>
 |]
+
+renderFeedbackUnreadBadge :: (?context :: ControllerContext) => Html
+renderFeedbackUnreadBadge =
+    case unsafePerformIO (maybeFromContext @SupportUnreadFeedbackCount) of
+        Just (SupportUnreadFeedbackCount count) | count > 0 -> [hsx|<span class="badge text-bg-danger ms-1">{tshow count}</span>|]
+        _ -> mempty
 
 renderDesktopNavLinks :: (?context :: ControllerContext, ?request :: Request) => Html
 renderDesktopNavLinks = [hsx|

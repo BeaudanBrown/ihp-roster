@@ -1,5 +1,7 @@
 module Web.View.Support.Index where
 
+import Application.Helper.Feedback (allowedFeedbackPriorities,
+                                    allowedFeedbackStatuses)
 import Application.Helper.FwcMapd (FwcMapdAdminData (..),
                                    FwcMapdDisplayPayRate (..))
 import Application.Helper.LiveSurface (liveSurfaceConfigJson)
@@ -24,6 +26,14 @@ data IndexView = IndexView
     , publicHolidayCoverage         :: [PublicHolidayCoverageYear]
     , latestPublicHolidayRefreshJob :: Maybe AppJob
     , activePublicHolidayRefreshJob :: Maybe AppJob
+    , feedbackRows                  :: [SupportFeedbackRow]
+    , unreadFeedbackCount           :: Int
+    }
+
+data SupportFeedbackRow = SupportFeedbackRow
+    { supportFeedbackItem       :: UserFeedbackItem
+    , supportFeedbackVenueName  :: Text
+    , supportFeedbackSubmitter  :: Text
     }
 
 instance View IndexView where
@@ -52,6 +62,8 @@ instance View IndexView where
                         </form>
                         {renderVenueOnboardingInvitationList onboardingInvitations}
                     |]
+            feedbackPanel =
+                renderFeedbackPanel unreadFeedbackCount feedbackRows
             signInMethodsPanel =
                 simpleAppPanel
                     "Sign-In Methods"
@@ -75,6 +87,7 @@ instance View IndexView where
                     , appPageWidthClass = ""
                     , appPageBody = [hsx|
                         <div class="app-page-stack">
+                            {feedbackPanel}
                             {signInMethodsPanel}
                             {awardRatesPanel}
                             {publicHolidaysPanel}
@@ -89,6 +102,159 @@ instance View IndexView where
                 {page}
             </section>
         |]
+
+renderFeedbackPanel :: Int -> [SupportFeedbackRow] -> Html
+renderFeedbackPanel unreadCount feedbackRows =
+    renderAppPanel AppPanelConfig
+        { appPanelTitle = Just "User Feedback"
+        , appPanelDescription = Just "Issues, questions, and suggestions submitted from inside the app. Marking items read clears the feedback header badge."
+        , appPanelHasActions = unreadCount > 0
+        , appPanelActions = renderMarkAllFeedbackReadForm unreadCount
+        , appPanelHasCustomHeader = False
+        , appPanelCustomHeader = mempty
+        , appPanelClass = ""
+        , appPanelBodyClass = ""
+        , appPanelBody = [hsx|
+            <div class="d-flex flex-column gap-3">
+                <div class="small app-muted">
+                    Unread feedback: <span class="fw-semibold">{tshow unreadCount}</span>
+                </div>
+                {if null feedbackRows then renderEmptyState "No feedback submitted yet." else renderFeedbackTable feedbackRows}
+            </div>
+        |]
+        }
+
+renderMarkAllFeedbackReadForm :: Int -> Html
+renderMarkAllFeedbackReadForm unreadCount
+    | unreadCount <= 0 = mempty
+    | otherwise = [hsx|
+        <form method="POST" action={MarkAllFeedbackReadAction} data-disable-javascript-submission="true">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Mark all read</button>
+        </form>
+    |]
+
+renderFeedbackTable :: [SupportFeedbackRow] -> Html
+renderFeedbackTable feedbackRows = [hsx|
+    <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>Status</th>
+                    <th>Type</th>
+                    <th>Priority</th>
+                    <th>Venue</th>
+                    <th>Submitted By</th>
+                    <th>Feedback</th>
+                    <th>Submitted</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {forEach feedbackRows renderFeedbackRow}
+            </tbody>
+        </table>
+    </div>
+|]
+
+renderFeedbackRow :: SupportFeedbackRow -> Html
+renderFeedbackRow SupportFeedbackRow { supportFeedbackItem = feedbackItem, supportFeedbackVenueName, supportFeedbackSubmitter } = [hsx|
+    <tr class={classes [("table-warning", isNothing feedbackItem.readAt)]}>
+        <td>
+            {renderFeedbackReadBadge feedbackItem}
+            <div class="mt-1">{renderFeedbackStatusForm feedbackItem}</div>
+        </td>
+        <td>{renderFeedbackTypeBadge feedbackItem.feedbackType}</td>
+        <td>{renderFeedbackPriorityForm feedbackItem}</td>
+        <td>{supportFeedbackVenueName}</td>
+        <td>{supportFeedbackSubmitter}</td>
+        <td class="feedback-content-cell">
+            <details>
+                <summary>{feedbackContentPreview feedbackItem.content}</summary>
+                <div class="mt-2 text-break">{feedbackItem.content}</div>
+                {forEach feedbackItem.submittedPath renderSubmittedPath}
+                {renderSupportNoteForm feedbackItem}
+            </details>
+        </td>
+        <td>{formatTimestamp feedbackItem.createdAt}</td>
+        <td>{renderMarkFeedbackReadForm feedbackItem}</td>
+    </tr>
+|]
+
+renderFeedbackReadBadge :: UserFeedbackItem -> Html
+renderFeedbackReadBadge feedbackItem
+    | isNothing feedbackItem.readAt = [hsx|<span class="badge text-bg-danger">unread</span>|]
+    | otherwise = [hsx|<span class="badge text-bg-secondary">read</span>|]
+
+renderFeedbackTypeBadge :: Text -> Html
+renderFeedbackTypeBadge feedbackType = [hsx|<span class="badge text-bg-info">{feedbackTypeLabel feedbackType}</span>|]
+
+feedbackTypeLabel :: Text -> Text
+feedbackTypeLabel feedbackType =
+    case feedbackType of
+        "bug" -> "bug"
+        "suggestion" -> "suggestion"
+        "question" -> "question"
+        "other" -> "other"
+        _ -> feedbackType
+
+renderFeedbackStatusForm :: UserFeedbackItem -> Html
+renderFeedbackStatusForm feedbackItem = [hsx|
+    <form method="POST" action={UpdateFeedbackStatusAction feedbackItem.id} data-disable-javascript-submission="true">
+        <label class="visually-hidden" for={feedbackControlId "status" feedbackItem.id}>Status</label>
+        <select id={feedbackControlId "status" feedbackItem.id} name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+            {forEach allowedFeedbackStatuses (renderFeedbackSelectOption feedbackItem.status)}
+        </select>
+    </form>
+|]
+
+renderFeedbackPriorityForm :: UserFeedbackItem -> Html
+renderFeedbackPriorityForm feedbackItem = [hsx|
+    <form method="POST" action={UpdateFeedbackPriorityAction feedbackItem.id} data-disable-javascript-submission="true">
+        <label class="visually-hidden" for={feedbackControlId "priority" feedbackItem.id}>Priority</label>
+        <select id={feedbackControlId "priority" feedbackItem.id} name="priority" class="form-select form-select-sm" onchange="this.form.submit()">
+            {forEach allowedFeedbackPriorities (renderFeedbackSelectOption feedbackItem.priority)}
+        </select>
+    </form>
+|]
+
+renderFeedbackSelectOption :: Text -> Text -> Html
+renderFeedbackSelectOption current value = [hsx|
+    <option value={value} selected={current == value}>{feedbackOptionLabel value}</option>
+|]
+
+feedbackOptionLabel :: Text -> Text
+feedbackOptionLabel value = Text.replace "_" " " value
+
+renderMarkFeedbackReadForm :: UserFeedbackItem -> Html
+renderMarkFeedbackReadForm feedbackItem
+    | isJust feedbackItem.readAt = mempty
+    | otherwise = [hsx|
+        <form method="POST" action={MarkFeedbackReadAction feedbackItem.id} data-disable-javascript-submission="true">
+            <button type="submit" class="btn btn-outline-secondary btn-sm">Mark read</button>
+        </form>
+    |]
+
+renderSupportNoteForm :: UserFeedbackItem -> Html
+renderSupportNoteForm feedbackItem = [hsx|
+    <form method="POST" action={UpdateFeedbackSupportNoteAction feedbackItem.id} class="mt-3" data-disable-javascript-submission="true">
+        <label class="form-label small" for={feedbackControlId "note" feedbackItem.id}>Support note</label>
+        <textarea id={feedbackControlId "note" feedbackItem.id} name="supportNote" rows="2" class="form-control form-control-sm">{fromMaybe "" feedbackItem.supportNote}</textarea>
+        <button type="submit" class="btn btn-outline-secondary btn-sm mt-2">Save note</button>
+    </form>
+|]
+
+renderSubmittedPath :: Text -> Html
+renderSubmittedPath submittedPath = [hsx|<div class="small app-muted mt-2">Page: {submittedPath}</div>|]
+
+feedbackContentPreview :: Text -> Text
+feedbackContentPreview content =
+    let stripped = Text.strip content
+     in if Text.length stripped > 120
+            then Text.take 117 stripped <> "..."
+            else stripped
+
+feedbackControlId :: Text -> Id UserFeedbackItem -> Text
+feedbackControlId prefix feedbackItemId = prefix <> "-" <> inputValue feedbackItemId
 
 renderAwardRatesSection :: FwcMapdAdminData -> Maybe AppJob -> Maybe AppJob -> Html
 renderAwardRatesSection FwcMapdAdminData { latestSyncRun, currentAwards, currentCoreClassifications, currentCoreAdultPayRates, rateTypeBreakdown } latestRefreshJob activeRefreshJob = [hsx|

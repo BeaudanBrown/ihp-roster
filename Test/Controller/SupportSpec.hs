@@ -68,6 +68,51 @@ tests = beforeAll testContext do
 
                 responseShouldMountLiveSurface response supportLiveSurface
 
+        it "shows submitted feedback with an unread badge for super admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Feedback Support Venue"
+                submitter <- createUserRecord "feedback-support-user@example.com" "staff" True
+                superAdmin <- createUserRecordWithPlatformRole "feedback-support-super@example.com" "staff" (Just SuperAdminRole) True
+                _ <- newRecord @UserFeedbackItem
+                    |> set #venueId (unpackId venue.id)
+                    |> set #submittedByUserId (unpackId submitter.id)
+                    |> set #feedbackType "bug"
+                    |> set #status "new"
+                    |> set #priority "normal"
+                    |> set #content "Roster page needs a clearer publish button"
+                    |> createRecord
+
+                response <- withPasskeyVerifiedUser superAdmin do
+                    callAction SupportAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "User Feedback"
+                response `responseBodyShouldContain` "Roster page needs a clearer publish button"
+                response `responseBodyShouldContain` "feedback-support-user@example.com"
+                response `responseBodyShouldContain` "<span class=\"badge text-bg-danger ms-1\">1</span>"
+
+        it "marks feedback read for super admins" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Feedback Read Venue"
+                submitter <- createUserRecord "feedback-read-user@example.com" "staff" True
+                superAdmin <- createUserRecordWithPlatformRole "feedback-read-super@example.com" "staff" (Just SuperAdminRole) True
+                feedbackItem <- newRecord @UserFeedbackItem
+                    |> set #venueId (unpackId venue.id)
+                    |> set #submittedByUserId (unpackId submitter.id)
+                    |> set #feedbackType "question"
+                    |> set #status "new"
+                    |> set #priority "normal"
+                    |> set #content "How do I copy last week?"
+                    |> createRecord
+
+                response <- withPasskeyVerifiedUser superAdmin do
+                    callAction (MarkFeedbackReadAction feedbackItem.id)
+
+                response `responseStatusShouldBe` status302
+                updatedFeedback <- fetch feedbackItem.id
+                updatedFeedback.readAt `shouldSatisfy` isJust
+                updatedFeedback.readByUserId `shouldBe` Just (unpackId superAdmin.id)
+
         it "routes support refresh mutations through touched resources" $ withContext do
             withCleanDb do
                 superAdmin <- createUserRecordWithPlatformRole "support-mutation-super@example.com" "staff" (Just SuperAdminRole) True
@@ -85,6 +130,7 @@ tests = beforeAll testContext do
         it "deduplicates concurrent award-rate refresh enqueues without 500s" $ withContext do
             withCleanDb do
                 superAdmin <- createUserRecordWithPlatformRole "support-concurrent-super@example.com" "staff" (Just SuperAdminRole) True
+                ensureTestUserHasPasskey superAdmin
 
                 results <- runConcurrentActions 12 do
                     withPasskeyVerifiedUser superAdmin do

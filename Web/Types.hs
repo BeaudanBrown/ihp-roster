@@ -176,6 +176,11 @@ data SupportController
     | CreateSupportVenueOnboardingInvitationAction
     | CreateFwcMapdRefreshJobAction
     | CreatePublicHolidayRefreshJobAction
+    | MarkFeedbackReadAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | MarkAllFeedbackReadAction
+    | UpdateFeedbackStatusAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | UpdateFeedbackPriorityAction { feedbackItemId :: !(Id UserFeedbackItem) }
+    | UpdateFeedbackSupportNoteAction { feedbackItemId :: !(Id UserFeedbackItem) }
     | SwitchSupportVenueAction
     deriving (Eq, Show, Data)
 

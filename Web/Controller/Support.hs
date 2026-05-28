@@ -3,6 +3,10 @@ module Web.Controller.Support where
 import Application.Async.Queue (EnqueueAppJobResult (..),
                                 fetchActiveAppJobByDedupeKey,
                                 fetchLatestAppJobByKind)
+import Application.Helper.Feedback (SupportUnreadFeedbackCount (..),
+                                    allowedFeedbackPriorities,
+                                    allowedFeedbackStatuses,
+                                    fetchSupportUnreadFeedbackCount)
 import Application.FwcMapd.Job (enqueueFwcMapdRefreshJob,
                                 fwcMapdRefreshJobDedupeKey,
                                 fwcMapdRefreshJobKind)
@@ -18,7 +22,7 @@ import Application.PublicHolidays.Job (enqueuePublicHolidayRefreshJob,
                                        publicHolidayRefreshJobDedupeKey,
                                        publicHolidayRefreshJobKind)
 import Application.Support.LiveUpdates
-import Control.Monad (void)
+import Control.Monad (forM, forM_, void)
 import Data.Coerce (coerce)
 import qualified Data.Text as Text
 import Web.Controller.Prelude
@@ -37,6 +41,8 @@ instance Controller SupportController where
         canAddPasskey <- supportCanAddPasskey passkeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        feedbackRows <- fetchSupportFeedbackRows
+        SupportUnreadFeedbackCount unreadFeedbackCount <- fetchSupportUnreadFeedbackCount
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm
         render IndexView { .. }
 
@@ -56,6 +62,8 @@ instance Controller SupportController where
         canAddPasskey <- supportCanAddPasskey passkeys
         (fwcMapdAdminData, latestFwcMapdRefreshJob, activeFwcMapdRefreshJob) <- fetchFwcMapdAwardRatesSectionData
         (publicHolidayCoverage, latestPublicHolidayRefreshJob, activePublicHolidayRefreshJob) <- fetchPublicHolidaySectionData
+        feedbackRows <- fetchSupportFeedbackRows
+        SupportUnreadFeedbackCount unreadFeedbackCount <- fetchSupportUnreadFeedbackCount
         now <- getCurrentTime
         let onboardingInvitation = buildSupportVenueOnboardingInvitationForm |> fill @'["email"]
         onboardingInvitation
@@ -99,6 +107,60 @@ instance Controller SupportController where
                 liveMutationResult () [SupportPublicHolidaysResource]
         respondToPublicHolidayRefresh
 
+    action MarkFeedbackReadAction { feedbackItemId } = do
+        feedbackItem <- fetch feedbackItemId
+        _ <- markFeedbackRead feedbackItem
+        setSuccessMessage "Feedback marked read."
+        redirectTo SupportAction
+
+    action MarkAllFeedbackReadAction = do
+        unreadFeedbackItems <- query @UserFeedbackItem
+            |> filterWhere (#readAt, Nothing)
+            |> fetch
+        forM_ unreadFeedbackItems markFeedbackRead
+        setSuccessMessage "All feedback marked read."
+        redirectTo SupportAction
+
+    action UpdateFeedbackStatusAction { feedbackItemId } = do
+        let status = param @Text "status"
+        if status `elem` allowedFeedbackStatuses
+            then do
+                feedbackItem <- fetch feedbackItemId
+                now <- getCurrentTime
+                _ <- feedbackItem
+                    |> set #status status
+                    |> setResolvedFieldsForStatus status now
+                    |> markFeedbackReadFields now
+                    |> updateRecord
+                setSuccessMessage "Feedback status updated."
+            else setErrorMessage "Choose a valid feedback status."
+        redirectTo SupportAction
+
+    action UpdateFeedbackPriorityAction { feedbackItemId } = do
+        let priority = param @Text "priority"
+        if priority `elem` allowedFeedbackPriorities
+            then do
+                feedbackItem <- fetch feedbackItemId
+                now <- getCurrentTime
+                _ <- feedbackItem
+                    |> set #priority priority
+                    |> markFeedbackReadFields now
+                    |> updateRecord
+                setSuccessMessage "Feedback priority updated."
+            else setErrorMessage "Choose a valid feedback priority."
+        redirectTo SupportAction
+
+    action UpdateFeedbackSupportNoteAction { feedbackItemId } = do
+        feedbackItem <- fetch feedbackItemId
+        now <- getCurrentTime
+        let supportNote = Text.take 3000 (Text.strip (paramOrDefault @Text "" "supportNote"))
+        _ <- feedbackItem
+            |> set #supportNote (if Text.null supportNote then Nothing else Just supportNote)
+            |> markFeedbackReadFields now
+            |> updateRecord
+        setSuccessMessage "Feedback note updated."
+        redirectTo SupportAction
+
     action SwitchSupportVenueAction = do
         let venueId = (coerce (param @UUID "venueId") :: Id Venue)
         let nextPath = fromMaybe (pathTo SupportAction) (paramOrNothing @Text "next")
@@ -123,6 +185,47 @@ buildSupportVenueOnboardingInvitationForm =
     newRecord @VenueOnboardingInvitation
         |> set #status (unsafeEnumFromText @InvitationStatusEnum "pending")
         |> set #deliveryStatus (unsafeEnumFromText @InvitationDeliveryStatusEnum "queued")
+
+fetchSupportFeedbackRows :: (?modelContext :: ModelContext) => IO [SupportFeedbackRow]
+fetchSupportFeedbackRows = do
+    feedbackItems <- query @UserFeedbackItem
+        |> orderByDesc #createdAt
+        |> limit 50
+        |> fetch
+    forM feedbackItems \supportFeedbackItem -> do
+        venue <- fetch (coerce supportFeedbackItem.venueId :: Id Venue)
+        submitter <- fetch (coerce supportFeedbackItem.submittedByUserId :: Id User)
+        pure SupportFeedbackRow
+            { supportFeedbackItem
+            , supportFeedbackVenueName = venue.name
+            , supportFeedbackSubmitter = submitter.email
+            }
+
+markFeedbackRead :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => UserFeedbackItem -> IO UserFeedbackItem
+markFeedbackRead feedbackItem
+    | isJust feedbackItem.readAt = pure feedbackItem
+    | otherwise = do
+        now <- getCurrentTime
+        feedbackItem
+            |> markFeedbackReadFields now
+            |> updateRecord
+
+markFeedbackReadFields :: (?context :: ControllerContext, ?request :: Request) => UTCTime -> UserFeedbackItem -> UserFeedbackItem
+markFeedbackReadFields now feedbackItem =
+    feedbackItem
+        |> set #readAt (Just now)
+        |> set #readByUserId (Just (unpackId currentUser.id))
+
+setResolvedFieldsForStatus :: (?context :: ControllerContext, ?request :: Request) => Text -> UTCTime -> UserFeedbackItem -> UserFeedbackItem
+setResolvedFieldsForStatus status now feedbackItem
+    | status == "done" || status == "closed" =
+        feedbackItem
+            |> set #resolvedAt (Just now)
+            |> set #resolvedByUserId (Just (unpackId currentUser.id))
+    | otherwise =
+        feedbackItem
+            |> set #resolvedAt Nothing
+            |> set #resolvedByUserId Nothing
 
 fetchVenueOnboardingInvitations :: (?modelContext :: ModelContext) => IO [VenueOnboardingInvitation]
 fetchVenueOnboardingInvitations =
