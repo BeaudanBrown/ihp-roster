@@ -542,17 +542,17 @@ tests = describe "Schema" do
                 `shouldBe` ["Alex", "Zed"]
 
     describe "Quarter-hour time picker helpers" do
-        it "generates canonical options from 06:00 to 23:45 in 15-minute increments" do
+        it "generates canonical roster options from 06:00 to 05:45 next day in 15-minute increments" do
             fmap fst quarterHourTimeOptions `shouldSatisfy` (not . null)
-            (fmap fst (head quarterHourTimeOptions)) `shouldBe` Just "06:00"
-            (fmap fst (last quarterHourTimeOptions)) `shouldBe` Just "23:45"
-            length quarterHourTimeOptions `shouldBe` 72
+            (fmap fst (head quarterHourTimeOptions)) `shouldBe` Just rosterOperationalStartTimeText
+            (fmap fst (last quarterHourTimeOptions)) `shouldBe` Just rosterOperationalFinalSelectableTimeText
+            length quarterHourTimeOptions `shouldBe` 96
 
-        it "supports wrapped overnight ranges ending at 04:45 without an orphan 05:00 row" do
-            let overnightOptions = quarterHourTimeOptionsInRange (TimeOfDay 6 0 0) (TimeOfDay 4 45 0)
+        it "supports wrapped overnight ranges ending at 05:45" do
+            let overnightOptions = quarterHourTimeOptionsInRange rosterOperationalStartTime rosterOperationalFinalSelectableTime
             fmap fst (head overnightOptions) `shouldBe` Just "06:00"
-            fmap fst (last overnightOptions) `shouldBe` Just "04:45"
-            fmap fst overnightOptions `shouldNotContain` ["05:00"]
+            fmap fst (last overnightOptions) `shouldBe` Just "05:45"
+            fmap fst overnightOptions `shouldContain` ["05:00", "05:45"]
 
         it "renders stored HH:MM values as 12-hour AM/PM labels" do
             storageTimeToDisplayLabel "00:00" `shouldBe` "12:00 AM"
@@ -725,6 +725,26 @@ tests = describe "Schema" do
             shiftDurationMinutes (TimeOfDay 6 0 0) (TimeOfDay 6 15 0) `shouldBe` 15
             shiftDurationMinutes (TimeOfDay 22 0 0) (TimeOfDay 2 0 0) `shouldBe` 240
             shiftDurationMinutes (TimeOfDay 9 0 0) (TimeOfDay 9 0 0) `shouldBe` 0
+
+    describe "TimeRules roster operational day" do
+        it "exposes the 06:00 to 05:45 next-day roster window" do
+            rosterOperationalStartMinuteOfDay `shouldBe` 360
+            rosterOperationalFinalSelectableMinuteOfDay `shouldBe` 345
+            rosterOperationalFinalSelectableMinute `shouldBe` 1785
+            rosterOperationalStartTime `shouldBe` TimeOfDay 6 0 0
+            rosterOperationalFinalSelectableTime `shouldBe` TimeOfDay 5 45 0
+
+        it "validates same-day and overnight roster shift durations inside the operational window" do
+            validRosterShiftDurationMinutes (TimeOfDay 9 0 0) (TimeOfDay 17 0 0) `shouldBe` Just 480
+            validRosterShiftDurationMinutes (TimeOfDay 22 0 0) (TimeOfDay 2 0 0) `shouldBe` Just 240
+            validRosterShiftDurationMinutes (TimeOfDay 6 0 0) (TimeOfDay 5 45 0) `shouldBe` Just 1425
+            isValidRosterShiftTimePair (TimeOfDay 22 0 0) (TimeOfDay 2 0 0) `shouldBe` True
+
+        it "rejects zero-length and out-of-window roster shifts" do
+            validRosterShiftDurationMinutes (TimeOfDay 9 0 0) (TimeOfDay 8 0 0) `shouldBe` Nothing
+            validRosterShiftDurationMinutes (TimeOfDay 9 0 0) (TimeOfDay 9 0 0) `shouldBe` Nothing
+            isValidRosterShiftTimePair (TimeOfDay 9 0 0) (TimeOfDay 8 0 0) `shouldBe` False
+            isValidRosterShiftTimePair (TimeOfDay 9 0 0) (TimeOfDay 9 0 0) `shouldBe` False
 
     describe "Timesheet edit window" do
         it "isWithinEditWindow allows edits within the window" do

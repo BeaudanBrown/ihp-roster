@@ -59,7 +59,8 @@ test.describe('Roster Time Picker', () => {
 
         await trigger.click();
         await expect(page.locator(modalSelector)).toBeVisible();
-        await expect(page.locator(`${modalSelector} .js-time-picker-option`)).toHaveCount(92);
+        await expect(page.locator(`${modalSelector} .js-time-picker-option`)).toHaveCount(96);
+        await expect(page.locator(`${modalSelector} .js-time-picker-option[data-time-value="05:45"]`)).toBeVisible();
 
         await clickAndWaitForRosterSlotMutation(
             page,

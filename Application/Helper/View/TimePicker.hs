@@ -20,6 +20,10 @@ module Application.Helper.View.TimePicker
     , timePickerStepButtonStates
     ) where
 
+import Application.Helper.TimeRules (rosterOperationalFinalSelectableTime,
+                                     rosterOperationalFinalSelectableTimeText,
+                                     rosterOperationalStartTime,
+                                     rosterOperationalStartTimeText)
 import Data.List (elemIndex)
 import qualified Data.Text as Text
 import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
@@ -45,10 +49,10 @@ data TimePickerConfig = TimePickerConfig
 timePickerModalId :: Text
 timePickerModalId = "quarter-hour-time-picker-modal"
 
--- | Canonical quarter-hour time options from 06:00 through 23:45.
+-- | Canonical roster quarter-hour time options from 06:00 through 05:45 next day.
 -- Value format is 24-hour HH:MM for storage; label format is 12-hour with AM/PM.
 quarterHourTimeOptions :: [(Text, Text)]
-quarterHourTimeOptions = quarterHourTimeOptionsInRange (TimeOfDay 6 0 0) (TimeOfDay 23 45 0)
+quarterHourTimeOptions = quarterHourTimeOptionsInRange rosterOperationalStartTime rosterOperationalFinalSelectableTime
 
 quarterHourTimeOptionsInRange :: TimeOfDay -> TimeOfDay -> [(Text, Text)]
 quarterHourTimeOptionsInRange startTime endTime =
@@ -131,8 +135,8 @@ renderQuarterHourTimePickerModal = [hsx|
     <div class="modal fade"
          id={timePickerModalId}
          tabindex="-1"
-         data-default-start-time="06:00"
-         data-default-end-time="23:45"
+         data-default-start-time={rosterOperationalStartTimeText}
+         data-default-end-time={rosterOperationalFinalSelectableTimeText}
          aria-labelledby="timePickerModalLabel"
          aria-hidden="true">
         <div class="modal-dialog modal-dialog-scrollable">

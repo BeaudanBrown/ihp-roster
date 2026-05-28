@@ -13,6 +13,8 @@ module Web.View.RosterWeeks.Grid
 
 import Application.Helper.RosterWagePrediction
 import Application.Helper.ShiftTypeColours (shiftTypeColourPaletteKeys)
+import Application.Helper.TimeRules (rosterOperationalFinalSelectableTimeText,
+                                     rosterOperationalStartTimeText)
 import Application.Helper.UserPreferences (rosterLayoutModeValue)
 import Application.Helper.View (staffDisplayName)
 import Data.Coerce (coerce)
@@ -937,7 +939,7 @@ renderReadOnlyDayColumnShiftTypeBadge staffId selectedShiftType = [hsx|
 renderEditableTimeCell :: Text -> Text -> Text -> RosterSlotCellTarget -> Text -> Html
 renderEditableTimeCell fieldName ariaLabel emptyLabel target currentValue =
     let pickerConfig =
-            (defaultTimePickerConfig fieldName currentValue "06:00" "04:45" False)
+            (defaultTimePickerConfig fieldName currentValue rosterOperationalStartTimeText rosterOperationalFinalSelectableTimeText False)
                 { timePickerShowStepButtons = False
                 , timePickerEmptyLabel = emptyLabel
                 , timePickerFieldClasses = ["m-0", "d-flex", "align-items-center", "slot-cell-form"]

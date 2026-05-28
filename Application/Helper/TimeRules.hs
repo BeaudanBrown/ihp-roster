@@ -19,17 +19,57 @@ isQuarterHourTime tod = todMin tod `mod` 15 == 0 && todSec tod == 0
 isQuarterHourMinutes :: Int -> Bool
 isQuarterHourMinutes mins = mins >= 0 && mins `mod` 15 == 0
 
+rosterOperationalStartMinuteOfDay :: Int
+rosterOperationalStartMinuteOfDay = 6 * 60
+
+rosterOperationalFinalSelectableMinuteOfDay :: Int
+rosterOperationalFinalSelectableMinuteOfDay = 5 * 60 + 45
+
+rosterOperationalFinalSelectableMinute :: Int
+rosterOperationalFinalSelectableMinute = 24 * 60 + rosterOperationalFinalSelectableMinuteOfDay
+
+rosterOperationalStartTime :: TimeOfDay
+rosterOperationalStartTime = TimeOfDay 6 0 0
+
+rosterOperationalFinalSelectableTime :: TimeOfDay
+rosterOperationalFinalSelectableTime = TimeOfDay 5 45 0
+
+rosterOperationalStartTimeText :: Text
+rosterOperationalStartTimeText = "06:00"
+
+rosterOperationalFinalSelectableTimeText :: Text
+rosterOperationalFinalSelectableTimeText = "05:45"
+
 shiftDurationMinutes :: TimeOfDay -> TimeOfDay -> Int
 shiftDurationMinutes start end =
     normalizeShiftMinuteOfDay end - normalizeShiftMinuteOfDay start
+
+validRosterShiftDurationMinutes :: TimeOfDay -> TimeOfDay -> Maybe Int
+validRosterShiftDurationMinutes start end =
+    let startMinute = normalizeRosterOperationalMinute start
+        endMinute = normalizeRosterOperationalMinute end
+        duration = endMinute - startMinute
+     in if startMinute >= rosterOperationalStartMinuteOfDay
+            && startMinute <= rosterOperationalFinalSelectableMinute
+            && endMinute >= rosterOperationalStartMinuteOfDay
+            && endMinute <= rosterOperationalFinalSelectableMinute
+            && duration > 0
+            then Just duration
+            else Nothing
+
+isValidRosterShiftTimePair :: TimeOfDay -> TimeOfDay -> Bool
+isValidRosterShiftTimePair start end = isJust (validRosterShiftDurationMinutes start end)
 
 timeOfDayToMinutes :: TimeOfDay -> Int
 timeOfDayToMinutes tod = todHour tod * 60 + todMin tod
 
 normalizeShiftMinuteOfDay :: TimeOfDay -> Int
-normalizeShiftMinuteOfDay tod =
+normalizeShiftMinuteOfDay = normalizeRosterOperationalMinute
+
+normalizeRosterOperationalMinute :: TimeOfDay -> Int
+normalizeRosterOperationalMinute tod =
     let minuteOfDay = timeOfDayToMinutes tod
-    in if minuteOfDay < 360 then minuteOfDay + 1440 else minuteOfDay
+    in if minuteOfDay < rosterOperationalStartMinuteOfDay then minuteOfDay + 1440 else minuteOfDay
 
 isWithinEditWindow :: Day -> Day -> Int -> Bool
 isWithinEditWindow today workedOn windowDays =
