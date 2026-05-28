@@ -160,6 +160,7 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridRosterEndTimesEnabled    :: Bool
     , gridRosterWagePrediction     :: Maybe RosterWagePrediction
     , gridShowWageEstimates        :: Bool
+    , gridPublishAttempted         :: Bool
     }
 
 data RosterDayRenderModel = RosterDayRenderModel
@@ -177,6 +178,7 @@ data RosterDayRenderModel = RosterDayRenderModel
     , dayRosterEndTimesEnabled :: Bool
     , dayRosterWagePrediction  :: Maybe RosterWagePrediction
     , dayShowWageEstimates     :: Bool
+    , dayPublishAttempted      :: Bool
     }
 
 data RosterRowRenderModel = RosterRowRenderModel
@@ -193,6 +195,7 @@ data RosterRowRenderModel = RosterRowRenderModel
     , rowRenderIndexes         :: RosterRenderIndexes
     , rowRosterLayoutMode      :: RosterLayoutModeEnum
     , rowRosterEndTimesEnabled :: Bool
+    , rowPublishAttempted      :: Bool
     }
 
 data RosterProjectionScope = RosterProjectionScope

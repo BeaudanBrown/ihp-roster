@@ -1013,6 +1013,12 @@ tests = beforeAll testContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                 _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)))
 
+                draftResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekAction 0)
+                draftResponse `responseStatusShouldBe` status200
+                draftResponse `responseBodyShouldNotContain` "is-publish-required"
+                draftResponse `responseBodyShouldNotContain` "required after failed publish"
+
                 blockedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
@@ -1021,6 +1027,9 @@ tests = beforeAll testContext do
 
                 blockedResponse `responseStatusShouldBe` status200
                 blockedResponse `responseBodyShouldContain` "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
+                blockedResponse `responseBodyShouldContain` "is-publish-required"
+                blockedResponse `responseBodyShouldContain` "Select roster slot end time required after failed publish"
+                blockedResponse `responseBodyShouldContain` "Shift type required after failed publish"
                 blockedWeek <- fetch rosterWeek.id
                 blockedWeek.isLive `shouldBe` False
 
@@ -1038,6 +1047,8 @@ tests = beforeAll testContext do
                             [("isLive", "on")]
 
                 publishedResponse `responseStatusShouldBe` status200
+                publishedResponse `responseBodyShouldNotContain` "is-publish-required"
+                publishedResponse `responseBodyShouldNotContain` "required after failed publish"
                 publishedWeek <- fetch rosterWeek.id
                 publishedWeek.isLive `shouldBe` True
 

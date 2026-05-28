@@ -1468,6 +1468,22 @@
     color: var(--app-warning-conflict-text) !important;
 }
 
+.roster-grid .slot-cell-form.is-publish-required .slot-cell-input,
+.roster-grid .slot-cell-form.is-publish-required .time-picker-trigger-button,
+.roster-shift-card .slot-cell-form.is-publish-required .slot-cell-input,
+.roster-shift-card .slot-cell-form.is-publish-required .time-picker-trigger-button,
+.roster-shift-card .roster-shift-type-badge.is-publish-required,
+.roster-shift-card .roster-shift-type-badge.is-publish-required .slot-cell-input {
+    border-color: var(--app-warning) !important;
+    box-shadow: 0 0 0 0.12rem color-mix(in srgb, var(--app-warning) 34%, transparent) !important;
+}
+
+.roster-grid .slot-cell-form.is-publish-required .js-time-picker-label,
+.roster-shift-card .slot-cell-form.is-publish-required .js-time-picker-label {
+    color: var(--app-warning-conflict-text) !important;
+    font-weight: 800;
+}
+
 .roster-grid-frame [data-roster-shift-colour="palette-1"] { --roster-shift-type-colour: var(--roster-shift-type-palette-1); }
 .roster-grid-frame [data-roster-shift-colour="palette-2"] { --roster-shift-type-colour: var(--roster-shift-type-palette-2); }
 .roster-grid-frame [data-roster-shift-colour="palette-3"] { --roster-shift-type-colour: var(--roster-shift-type-palette-3); }

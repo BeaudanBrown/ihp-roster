@@ -75,7 +75,7 @@ renderRosterContent =
     renderRosterMainPanel
 
 renderRosterMainPanel :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates } =
+renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridPublishAttempted } =
     let dayModel =
             RosterDayRenderModel
                 { dayIsEditable = rosterWeekIsEditable gridRosterWeek
@@ -92,6 +92,7 @@ renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gr
                 , dayRosterEndTimesEnabled = gridRosterEndTimesEnabled
                 , dayRosterWagePrediction = gridRosterWagePrediction
                 , dayShowWageEstimates = gridShowWageEstimates
+                , dayPublishAttempted = gridPublishAttempted
                 }
         slotColumnsAreEditable = gridViewCapabilities.canManageRosterColumns
         isDayColumnsLayout = rosterLayoutModeValue gridRosterLayoutMode == "day_columns"
@@ -456,12 +457,12 @@ rosterSlotHasVisibleData slot =
         || isJust slot.durationMinutes
 
 renderDayColumnRow :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
-renderDayColumnRow RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowStaffOptionStates, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
+renderDayColumnRow RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowStaffOptionStates, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
     <div id={rosterRowDomIdText rowRosterDay.id rowIndex}
          data-roster-row="true"
          hx-swap-oob={maybeSwapOob}
          class={classes [("roster-day-column-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True)]}>
-        {forEach (zip [0 :: Int ..] rowSlotNames) (renderDayColumnSlotCard rowIsEditable rowAssignmentFilters rowStaffMembers rowStaffOptionStates rowShiftTypes rowRosterEndTimesEnabled rowRosterDay rowIndex rowSlots rowRenderIndexes)}
+        {forEach (zip [0 :: Int ..] rowSlotNames) (renderDayColumnSlotCard rowIsEditable rowAssignmentFilters rowStaffMembers rowStaffOptionStates rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
     </div>
 |]
 
@@ -479,7 +480,7 @@ lastRowIndexForRows :: [(Int, [RosterSlot])] -> Int
 lastRowIndexForRows dayRows = maybe (-1) fst (last dayRows)
 
 renderDayRows :: (?context :: ControllerContext) => RosterDayRenderModel -> Day -> RosterDay -> [(Int, [RosterSlot])] -> Html
-renderDayRows RosterDayRenderModel { dayIsEditable, daySlotNames, dayAssignmentFilters, dayStaffMembers, dayStaffOptionStates, dayShiftTypes, dayRenderIndexes, dayRosterLayoutMode, dayRosterEndTimesEnabled } date rosterDay dayRows =
+renderDayRows RosterDayRenderModel { dayIsEditable, daySlotNames, dayAssignmentFilters, dayStaffMembers, dayStaffOptionStates, dayShiftTypes, dayRenderIndexes, dayRosterLayoutMode, dayRosterEndTimesEnabled, dayPublishAttempted } date rosterDay dayRows =
     let rowModel =
             RosterRowRenderModel
                 { rowIsEditable = dayIsEditable
@@ -495,6 +496,7 @@ renderDayRows RosterDayRenderModel { dayIsEditable, daySlotNames, dayAssignmentF
                 , rowRenderIndexes = dayRenderIndexes
                 , rowRosterLayoutMode = dayRosterLayoutMode
                 , rowRosterEndTimesEnabled = dayRosterEndTimesEnabled
+                , rowPublishAttempted = dayPublishAttempted
                 }
      in [hsx|
     {forEach indexedRows (renderRow rowModel)}
@@ -519,13 +521,13 @@ renderRowWithAttrs :: (?context :: ControllerContext) => RosterRowRenderModel ->
 renderRowWithAttrs rowModel@RosterRowRenderModel { rowRosterLayoutMode } rowData maybeSwapOob
     | rosterLayoutModeValue rowRosterLayoutMode == "day_columns" =
         renderDayColumnRow rowModel rowData maybeSwapOob
-renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowStaffOptionStates, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
+renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowStaffOptionStates, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
     <div id={rosterRowDomIdText rowRosterDay.id rowIndex}
          role="row"
          data-roster-row="true"
          hx-swap-oob={maybeSwapOob}
          class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True), ("day-alt-dark", odd (get #dayOffset rowRosterDay)), ("day-alt-light", even (get #dayOffset rowRosterDay))]}>
-        {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowStaffOptionStates rowShiftTypes rowRosterEndTimesEnabled rowRosterDay rowIndex rowSlots rowRenderIndexes)}
+        {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowStaffOptionStates rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
     </div>
 |]
 
@@ -646,8 +648,8 @@ renderDeleteLastRowButton rosterDay rowIndex =
         |]
         else [hsx|<span></span>|]
 
-renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
-renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled rosterDay rowIndex rowSlots renderIndexes (blockIndex, slotName) =
+renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
+renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex rowSlots renderIndexes (blockIndex, slotName) =
     if rosterDay.isClosed
         then renderClosedBlockCells endTimesEnabled blockIndex
         else
@@ -655,11 +657,11 @@ renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates shi
                 (if isEditable
                     then renderCreateBlockCells assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled rosterDay rowIndex blockIndex slotName
                     else renderEmptyBlockCells endTimesEnabled blockIndex)
-                (renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled renderIndexes blockIndex)
+                (renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex)
                 (Map.lookup (coerce (get #id rosterDay), rowIndex, coerce (get #id slotName)) renderIndexes.rosterSlotByDayRowSlotName)
 
-renderExistingSlotBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> RosterRenderIndexes -> Int -> RosterSlot -> Html
-renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled renderIndexes blockIndex slot =
+renderExistingSlotBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> Int -> RosterSlot -> Html
+renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot =
     let currentStartTime = optionalTimeOfDayToStorageValue slot.startTime
         currentEndTime = optionalTimeOfDayToStorageValue slot.endTime
         currentPrimaryConflict = primaryConflict (lookupConflicts (get #id slot) renderIndexes)
@@ -667,6 +669,9 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
         currentShiftType = findShiftTypeForSlot shiftTypes slot.shiftTypeId
         currentShiftTypeLabel = fromMaybe "" (renderShiftTypeOptionLabel <$> currentShiftType)
         currentShiftTypeColourKey = shiftTypeBadgeColourKey currentShiftType
+        missingStartTime = publishAttempted && isJust slot.staffId && isNothing slot.startTime
+        missingEndTime = publishAttempted && isJust slot.staffId && isNothing slot.endTime
+        missingShiftType = publishAttempted && isJust slot.staffId && isNothing slot.shiftTypeId
     in
     if endTimesEnabled
         then [hsx|
@@ -675,7 +680,7 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
                  data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
-                {if isEditable then renderEditableTimeCell "startTime" "Select roster slot start time" "Start" (ExistingRosterSlotTarget slot.id) currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
+                {if isEditable then renderEditableTimeCell "startTime" "Select roster slot start time" "Start" (ExistingRosterSlotTarget slot.id) currentStartTime missingStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
             </div>
 
             <div role="gridcell"
@@ -683,7 +688,7 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
                  data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
-                {if isEditable then renderEditableTimeCell "endTime" "Select roster slot end time" "End" (ExistingRosterSlotTarget slot.id) currentEndTime else renderReadOnlyCell (renderTimePickerDisplayLabel "End" currentEndTime)}
+                {if isEditable then renderEditableTimeCell "endTime" "Select roster slot end time" "End" (ExistingRosterSlotTarget slot.id) currentEndTime missingEndTime else renderReadOnlyCell (renderTimePickerDisplayLabel "End" currentEndTime)}
             </div>
 
             <div role="gridcell"
@@ -697,11 +702,11 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
             </div>
 
             <div role="gridcell"
-                 class={classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", isNothing slot.shiftTypeId), ("is-shift-type-required", isJust slot.staffId && isNothing slot.shiftTypeId)]}
+                 class={classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", isNothing slot.shiftTypeId), ("is-shift-type-required", missingShiftType)]}
                  data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
-                {if isEditable then renderEditableShiftTypeCell (ExistingRosterSlotTarget slot.id) slot.shiftTypeId shiftTypes else renderReadOnlyCell currentShiftTypeLabel}
+                {if isEditable then renderEditableShiftTypeCell (ExistingRosterSlotTarget slot.id) slot.shiftTypeId shiftTypes missingShiftType else renderReadOnlyCell currentShiftTypeLabel}
             </div>
         |]
         else [hsx|
@@ -710,7 +715,7 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
                  data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
-                {if isEditable then renderEditableTimeCell "startTime" "Select roster slot time" "Time" (ExistingRosterSlotTarget slot.id) currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Time" currentStartTime)}
+                {if isEditable then renderEditableTimeCell "startTime" "Select roster slot time" "Time" (ExistingRosterSlotTarget slot.id) currentStartTime missingStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Time" currentStartTime)}
             </div>
 
             <div role="gridcell"
@@ -724,17 +729,17 @@ renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOpti
             </div>
 
             <div role="gridcell"
-                 class={classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", isNothing slot.shiftTypeId), ("is-shift-type-required", isJust slot.staffId && isNothing slot.shiftTypeId)]}
+                 class={classes [("slot-shift-type-cell roster-block-end", True), ("is-shift-type-empty", isNothing slot.shiftTypeId), ("is-shift-type-required", missingShiftType)]}
                  data-roster-shift-colour={currentShiftTypeColourKey}
                  data-roster-staff-id={maybe "" tshow slot.staffId}
                  data-roster-slot-id={tshow slot.id}>
-                {if isEditable then renderEditableShiftTypeCell (ExistingRosterSlotTarget slot.id) slot.shiftTypeId shiftTypes else renderReadOnlyCell currentShiftTypeLabel}
+                {if isEditable then renderEditableShiftTypeCell (ExistingRosterSlotTarget slot.id) slot.shiftTypeId shiftTypes missingShiftType else renderReadOnlyCell currentShiftTypeLabel}
             </div>
         |]
 
 renderDayColumnRosterSlotCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterSlot -> Html
-renderDayColumnRosterSlotCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayStaffOptionStates, dayShiftTypes, dayRenderIndexes, dayRosterEndTimesEnabled } slot =
-    renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayStaffOptionStates dayShiftTypes dayRosterEndTimesEnabled dayRenderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
+renderDayColumnRosterSlotCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayStaffOptionStates, dayShiftTypes, dayRenderIndexes, dayRosterEndTimesEnabled, dayPublishAttempted } slot =
+    renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayStaffOptionStates dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
 
 renderDayColumnCreateCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Maybe RosterSlotCellTarget -> Html
 renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayStaffOptionStates, dayShiftTypes, dayRosterEndTimesEnabled } rosterDay maybeTarget
@@ -743,7 +748,7 @@ renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable, dayAssignmentFil
         case maybeTarget of
             Nothing -> mempty
             Just target ->
-                renderDayColumnSlotCardContent True dayAssignmentFilters dayStaffMembers dayStaffOptionStates dayShiftTypes dayRosterEndTimesEnabled emptyRenderIndexes target Nothing Nothing Nothing Nothing Nothing
+                renderDayColumnSlotCardContent True dayAssignmentFilters dayStaffMembers dayStaffOptionStates dayShiftTypes dayRosterEndTimesEnabled False emptyRenderIndexes target Nothing Nothing Nothing Nothing Nothing
   where
     emptyRenderIndexes =
         RosterRenderIndexes
@@ -754,17 +759,17 @@ renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable, dayAssignmentFil
             , rosterConflictsBySlotId = Map.empty
             }
 
-renderDayColumnSlotCard :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
-renderDayColumnSlotCard isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled rosterDay rowIndex rowSlots renderIndexes (_, slotName)
+renderDayColumnSlotCard :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
+renderDayColumnSlotCard isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex rowSlots renderIndexes (_, slotName)
     | rosterDay.isClosed = [hsx|<div class="roster-shift-card roster-shift-card-closed"><span>Closed</span></div>|]
     | otherwise =
         case Map.lookup (coerce (get #id rosterDay), rowIndex, coerce (get #id slotName)) renderIndexes.rosterSlotByDayRowSlotName of
             Just slot ->
-                renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled renderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) renderIndexes))
+                renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled publishAttempted renderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) renderIndexes))
             Nothing -> [hsx|<div class="roster-shift-card roster-shift-card-empty"></div>|]
 
-renderDayColumnSlotCardContent :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> RosterRenderIndexes -> RosterSlotCellTarget -> Maybe UUID -> Maybe TimeOfDay -> Maybe TimeOfDay -> Maybe UUID -> Maybe RosterConflict -> Html
-renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled renderIndexes target staffId startTime endTime shiftTypeId currentPrimaryConflict =
+renderDayColumnSlotCardContent :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> RosterSlotCellTarget -> Maybe UUID -> Maybe TimeOfDay -> Maybe TimeOfDay -> Maybe UUID -> Maybe RosterConflict -> Html
+renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled publishAttempted renderIndexes target staffId startTime endTime shiftTypeId currentPrimaryConflict =
     let currentStartTime = optionalTimeOfDayToStorageValue startTime
         currentEndTime = optionalTimeOfDayToStorageValue endTime
         currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel staffId renderIndexes)
@@ -773,17 +778,20 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
             ExistingRosterSlotTarget slotId -> tshow slotId
             NewRosterSlotTarget {} -> ""
         currentShiftTypeColourKey = shiftTypeBadgeColourKey currentShiftType
+        missingStartTime = publishAttempted && isJust staffId && isNothing startTime
+        missingEndTime = publishAttempted && isJust staffId && isNothing endTime
+        missingShiftType = publishAttempted && isJust staffId && isNothing shiftTypeId
         endTimeField =
             if endTimesEnabled
                 then [hsx|
                     <div class="roster-shift-card-field roster-shift-card-time">
-                        {if isEditable then renderEditableTimeCell "endTime" "Select roster slot end time" "End" target currentEndTime else renderReadOnlyCell (renderTimePickerDisplayLabel "End" currentEndTime)}
+                        {if isEditable then renderEditableTimeCell "endTime" "Select roster slot end time" "End" target currentEndTime missingEndTime else renderReadOnlyCell (renderTimePickerDisplayLabel "End" currentEndTime)}
                     </div>
                 |]
                 else mempty
         codeField
-            | isEditable = renderEditableDayColumnShiftTypeBadge target staffId shiftTypeId currentShiftType shiftTypes
-            | otherwise = renderReadOnlyDayColumnShiftTypeBadge staffId currentShiftType
+            | isEditable = renderEditableDayColumnShiftTypeBadge target staffId shiftTypeId currentShiftType shiftTypes missingShiftType
+            | otherwise = renderReadOnlyDayColumnShiftTypeBadge staffId currentShiftType missingShiftType
      in [hsx|
         <article class={classes [("roster-shift-card", True), ("roster-shift-card-create", not (targetHasExistingSlot target))]}
                  data-roster-slot-id={rosterSlotDataId}
@@ -793,7 +801,7 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
                  data-conflict-message={renderConflictMessage currentPrimaryConflict}>
             <div class={classes [("roster-shift-card-fields", True), ("has-end-times", endTimesEnabled)]}>
                 <div class="roster-shift-card-field roster-shift-card-time">
-                    {if isEditable then renderEditableTimeCell "startTime" "Select roster slot start time" "Start" target currentStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
+                    {if isEditable then renderEditableTimeCell "startTime" "Select roster slot start time" "Start" target currentStartTime missingStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
                 </div>
                 {endTimeField}
                 <div class={classes [("roster-shift-card-field roster-shift-card-staff", True), (renderConflictClass currentPrimaryConflict, True)]}>
@@ -830,17 +838,17 @@ renderCreateBlockCells :: (?context :: ControllerContext) => RosterAssignmentFil
 renderCreateBlockCells assignmentFilters staffMembers staffOptionStates shiftTypes True rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
      in mconcat
-        [ [hsx|<div role="gridcell" class={classes [("slot-time-cell", True), ("slot-start-time-cell", True), ("roster-block-start", blockIndex > 0)]}>{renderEditableTimeCell "startTime" "Select roster slot start time" "Start" target ""}</div>|]
-        , [hsx|<div role="gridcell" class="slot-time-cell slot-end-time-cell">{renderEditableTimeCell "endTime" "Select roster slot end time" "End" target ""}</div>|]
+        [ [hsx|<div role="gridcell" class={classes [("slot-time-cell", True), ("slot-start-time-cell", True), ("roster-block-start", blockIndex > 0)]}>{renderEditableTimeCell "startTime" "Select roster slot start time" "Start" target "" False}</div>|]
+        , [hsx|<div role="gridcell" class="slot-time-cell slot-end-time-cell">{renderEditableTimeCell "endTime" "Select roster slot end time" "End" target "" False}</div>|]
         , [hsx|<div role="gridcell" class="slot-staff-cell position-relative">{renderEditableStaffCell assignmentFilters target Nothing staffMembers staffOptionStates Nothing}</div>|]
-        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end is-shift-type-empty" data-roster-shift-colour="">{renderEditableShiftTypeCell target Nothing shiftTypes}</div>|]
+        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end is-shift-type-empty" data-roster-shift-colour="">{renderEditableShiftTypeCell target Nothing shiftTypes False}</div>|]
         ]
 renderCreateBlockCells assignmentFilters staffMembers staffOptionStates shiftTypes False rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
      in mconcat
-        [ [hsx|<div role="gridcell" class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}>{renderEditableTimeCell "startTime" "Select roster slot time" "Time" target ""}</div>|]
+        [ [hsx|<div role="gridcell" class={classes [("slot-time-cell", True), ("roster-block-start", blockIndex > 0)]}>{renderEditableTimeCell "startTime" "Select roster slot time" "Time" target "" False}</div>|]
         , [hsx|<div role="gridcell" class="slot-staff-cell position-relative">{renderEditableStaffCell assignmentFilters target Nothing staffMembers staffOptionStates Nothing}</div>|]
-        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end is-shift-type-empty" data-roster-shift-colour="">{renderEditableShiftTypeCell target Nothing shiftTypes}</div>|]
+        , [hsx|<div role="gridcell" class="slot-shift-type-cell roster-block-end is-shift-type-empty" data-roster-shift-colour="">{renderEditableShiftTypeCell target Nothing shiftTypes False}</div>|]
         ]
 
 renderClosedBlockCells :: Bool -> Int -> Html
@@ -904,13 +912,13 @@ shiftTypeBadgeLabel :: Maybe UUID -> Maybe ShiftType -> Text
 shiftTypeBadgeLabel staffId maybeShiftType =
     fromMaybe (if isJust staffId then "Type required" else "Type") (renderShiftTypeOptionLabel <$> maybeShiftType)
 
-renderEditableDayColumnShiftTypeBadge :: RosterSlotCellTarget -> Maybe UUID -> Maybe UUID -> Maybe ShiftType -> [ShiftType] -> Html
-renderEditableDayColumnShiftTypeBadge target staffId selectedShiftTypeId selectedShiftType shiftTypes = [hsx|
-    <form class={classes [("m-0 slot-cell-form roster-shift-type-badge roster-shift-type-badge-editable", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isJust staffId && isNothing selectedShiftTypeId)]}
+renderEditableDayColumnShiftTypeBadge :: RosterSlotCellTarget -> Maybe UUID -> Maybe UUID -> Maybe ShiftType -> [ShiftType] -> Bool -> Html
+renderEditableDayColumnShiftTypeBadge target staffId selectedShiftTypeId selectedShiftType shiftTypes isPublishRequired = [hsx|
+    <form class={classes [("m-0 slot-cell-form roster-shift-type-badge roster-shift-type-badge-editable", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
           data-roster-shift-colour={shiftTypeBadgeColourKey selectedShiftType}>
         <select name="shiftTypeId"
-                class={classes [("form-select form-select-sm slot-cell-input slot-shift-type-input roster-shift-type-badge-select", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isJust staffId && isNothing selectedShiftTypeId)]}
-                aria-label="Shift type"
+                class={classes [("form-select form-select-sm slot-cell-input slot-shift-type-input roster-shift-type-badge-select", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
+                aria-label={if isPublishRequired then ("Shift type required after failed publish" :: Text) else "Shift type"}
                 data-roster-field-key={rosterFieldKey target "shiftTypeId"}
                 hx-post={rosterSlotTargetAction target}
                 hx-trigger="change"
@@ -928,30 +936,30 @@ renderEditableDayColumnShiftTypeBadge target staffId selectedShiftTypeId selecte
              in shiftType.isActive || Just shiftTypeId == selectedShiftTypeId
         visibleShiftTypes = filter selectedOrActive shiftTypes
 
-renderReadOnlyDayColumnShiftTypeBadge :: Maybe UUID -> Maybe ShiftType -> Html
-renderReadOnlyDayColumnShiftTypeBadge staffId selectedShiftType = [hsx|
-    <div class={classes [("slot-cell-static roster-shift-type-badge roster-shift-type-badge-readonly", True), ("is-empty", isNothing selectedShiftType), ("is-required", isJust staffId && isNothing selectedShiftType)]}
+renderReadOnlyDayColumnShiftTypeBadge :: Maybe UUID -> Maybe ShiftType -> Bool -> Html
+renderReadOnlyDayColumnShiftTypeBadge staffId selectedShiftType isPublishRequired = [hsx|
+    <div class={classes [("slot-cell-static roster-shift-type-badge roster-shift-type-badge-readonly", True), ("is-empty", isNothing selectedShiftType), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
          data-roster-shift-colour={shiftTypeBadgeColourKey selectedShiftType}>
         <span class="roster-shift-type-badge-label">{shiftTypeBadgeLabel staffId selectedShiftType}</span>
     </div>
 |]
 
-renderEditableTimeCell :: Text -> Text -> Text -> RosterSlotCellTarget -> Text -> Html
-renderEditableTimeCell fieldName ariaLabel emptyLabel target currentValue =
+renderEditableTimeCell :: Text -> Text -> Text -> RosterSlotCellTarget -> Text -> Bool -> Html
+renderEditableTimeCell fieldName ariaLabel emptyLabel target currentValue isPublishRequired =
     let pickerConfig =
             (defaultTimePickerConfig fieldName currentValue rosterOperationalStartTimeText rosterOperationalFinalSelectableTimeText False)
                 { timePickerShowStepButtons = False
                 , timePickerEmptyLabel = emptyLabel
-                , timePickerFieldClasses = ["m-0", "d-flex", "align-items-center", "slot-cell-form"]
+                , timePickerFieldClasses = ["m-0", "d-flex", "align-items-center", "slot-cell-form"] <> ["is-publish-required" | isPublishRequired]
                 , timePickerControlClasses = ["roster-time-picker-control"]
                 , timePickerTriggerClasses = ["btn-sm", "slot-time-trigger"]
-                , timePickerAriaLabel = ariaLabel
+                , timePickerAriaLabel = if isPublishRequired then ariaLabel <> " required after failed publish" else ariaLabel
                 }
         inputHtml = [hsx|
             <input type="hidden"
                    name={fieldName}
                    value={currentValue}
-                   class="slot-time-input slot-cell-input js-time-picker-input"
+                   class={classes [("slot-time-input slot-cell-input js-time-picker-input", True), ("is-publish-required", isPublishRequired)]}
                    data-roster-field-key={rosterFieldKey target fieldName}
                    hx-post={rosterSlotTargetAction target}
                    hx-trigger="change"
@@ -994,11 +1002,12 @@ renderEditableStaffCell _ target selectedStaffId staffMembers staffOptionStates 
                     Nothing
         visibleStaffMembers = filter selectedOrVisible staffMembers
 
-renderEditableShiftTypeCell :: RosterSlotCellTarget -> Maybe UUID -> [ShiftType] -> Html
-renderEditableShiftTypeCell target selectedShiftTypeId shiftTypes = [hsx|
-    <form class={classes [("m-0 slot-cell-form", True), ("is-empty", isNothing selectedShiftTypeId)]}>
+renderEditableShiftTypeCell :: RosterSlotCellTarget -> Maybe UUID -> [ShiftType] -> Bool -> Html
+renderEditableShiftTypeCell target selectedShiftTypeId shiftTypes isPublishRequired = [hsx|
+    <form class={classes [("m-0 slot-cell-form", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}>
         <select name="shiftTypeId"
-                class={classes [("form-select form-select-sm slot-cell-input slot-shift-type-input", True), ("is-empty", isNothing selectedShiftTypeId)]}
+                class={classes [("form-select form-select-sm slot-cell-input slot-shift-type-input", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
+                aria-label={if isPublishRequired then ("Shift type required after failed publish" :: Text) else "Shift type"}
                 data-roster-field-key={rosterFieldKey target "shiftTypeId"}
                 hx-post={rosterSlotTargetAction target}
                 hx-trigger="change"

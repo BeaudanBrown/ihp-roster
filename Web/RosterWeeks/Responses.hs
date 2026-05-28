@@ -65,18 +65,19 @@ respondWithRosterContentOob rosterGroupId weekOffset = do
                             , gridRosterEndTimesEnabled = rosterEndTimesEnabled
                             , gridRosterWagePrediction = rosterWagePrediction
                             , gridShowWageEstimates = showWageEstimates
+                            , gridPublishAttempted = False
                             }
 
 respondWithRosterContentUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithRosterContentUpdate rosterGroupId weekOffset successMessage = do
-    respondWithRosterContentToast rosterGroupId weekOffset (successToast successMessage)
+    respondWithRosterContentToast rosterGroupId weekOffset False (successToast successMessage)
 
 respondWithRosterContentError :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Text -> IO ()
 respondWithRosterContentError rosterGroupId weekOffset errorMessage = do
-    respondWithRosterContentToast rosterGroupId weekOffset (errorToast errorMessage)
+    respondWithRosterContentToast rosterGroupId weekOffset True (errorToast errorMessage)
 
-respondWithRosterContentToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> ToastOverlayConfig -> IO ()
-respondWithRosterContentToast rosterGroupId weekOffset toast = do
+respondWithRosterContentToast :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> Bool -> ToastOverlayConfig -> IO ()
+respondWithRosterContentToast rosterGroupId weekOffset publishAttempted toast = do
     rosterGroups <- fetchCurrentVenueRosterGroups
     currentRosterGroup <- fetchCurrentVenueRosterGroupOrDefault (Just rosterGroupId)
     rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
@@ -109,6 +110,7 @@ respondWithRosterContentToast rosterGroupId weekOffset toast = do
                                 , gridRosterEndTimesEnabled = rosterEndTimesEnabled
                                 , gridRosterWagePrediction = rosterWagePrediction
                                 , gridShowWageEstimates = showWageEstimates
+                                , gridPublishAttempted = publishAttempted
                                 }
             , renderToastOob ToastBottomCenter toast
             ]
