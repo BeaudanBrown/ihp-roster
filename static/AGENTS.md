@@ -9,6 +9,7 @@ Read this before editing `static/` assets.
   - `app-bootstrap.js`
   - `app-date-pickers.js`
   - `app-dialog-overlays.js`
+  - `app-horizontal-scroll.js`
   - `app-live-updates.js`
   - `app-passkeys.js`
   - `app-preferences.js`
@@ -40,6 +41,18 @@ Read this before editing `static/` assets.
   intentionally self-describing; do not switch to compact fragment-key payloads
   without a protocol migration ticket and browser coverage.
 - Feature scripts may handle genuinely feature-specific UI behavior.
+
+## Horizontal Scroll Components
+
+- Use `data-horizontal-snap` for reusable horizontal snapping and
+  `data-horizontal-drag-scroll` for reusable mouse drag-scroll.
+- Use generic runtime attrs only: `data-horizontal-snap-dragging` and
+  `data-horizontal-dragging`. Do not add feature-specific aliases.
+- Interactive descendants are ignored by drag-scroll by default; add a narrow
+  `data-horizontal-drag-scroll-ignore-selector` only for extra feature-specific
+  controls.
+- The newest user scroll or drag must cancel stale snap intent. Do not add
+  feature scripts that fight `app-horizontal-scroll.js` for the same scroller.
 
 ## UI Rules
 
