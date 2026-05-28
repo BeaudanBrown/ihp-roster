@@ -198,6 +198,87 @@ test.describe('Mobile experience smoke', () => {
         await expectDialogToFitViewport(page, '#dialog-overlay-mount .modal-dialog, #dialog-overlay-mount [role="dialog"]');
     });
 
+    test('timesheet day columns do not auto-scroll initially and snap to the nearest day after user scroll', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await loginAs(page, 'e2e-test@example.com', 'test-password-123');
+        await gotoWhenReady(page, '/Timesheets', '#timesheet-week-shell');
+
+        await expect(page.locator('#timesheet-day-section-0')).toBeVisible();
+
+        const snapMetrics = await page.locator('.timesheet-week-frame').first().evaluate(async (frame) => {
+            if (!(frame instanceof HTMLElement)) {
+                throw new Error('Expected timesheet week frame to be an HTMLElement');
+            }
+
+            const panels = Array.from(frame.querySelectorAll('.timesheet-day-panel')).filter((panel): panel is HTMLElement => panel instanceof HTMLElement);
+            if (panels.length < 3) {
+                throw new Error('Expected multiple timesheet day panels');
+            }
+
+            await new Promise((resolve) => window.requestAnimationFrame(resolve));
+            const initialScrollLeft = frame.scrollLeft;
+            const maxScrollLeft = Math.max(0, frame.scrollWidth - frame.clientWidth);
+            const secondPanelTarget = panels[1].offsetLeft + (panels[1].offsetWidth / 2) - (frame.clientWidth / 2);
+            const rawScrollLeft = Math.min(Math.max(0, secondPanelTarget - (panels[1].offsetWidth * 0.32)), maxScrollLeft);
+
+            frame.scrollLeft = rawScrollLeft;
+            const frameRectBeforeSnap = frame.getBoundingClientRect();
+            const secondPanelRectBeforeSnap = panels[1].getBoundingClientRect();
+            const expectedScrollLeft = Math.min(
+                Math.max(
+                    0,
+                    frame.scrollLeft
+                        + (secondPanelRectBeforeSnap.left + (secondPanelRectBeforeSnap.width / 2))
+                        - (frameRectBeforeSnap.left + (frameRectBeforeSnap.width / 2)),
+                ),
+                maxScrollLeft,
+            );
+            frame.dispatchEvent(new Event('scroll', { bubbles: false }));
+
+            await new Promise((resolve) => window.setTimeout(resolve, 260));
+
+            const frameRect = frame.getBoundingClientRect();
+            const frameCenter = frameRect.left + (frameRect.width / 2);
+            const nearestPanel = panels.reduce((nearest, panel) => {
+                const panelRect = panel.getBoundingClientRect();
+                const panelCenter = panelRect.left + (panelRect.width / 2);
+                const distance = Math.abs(panelCenter - frameCenter);
+                if (!nearest || distance < nearest.distance) {
+                    return { index: panels.indexOf(panel), distance, centerOffset: panelCenter - frameCenter };
+                }
+                return nearest;
+            }, null as null | { index: number; distance: number; centerOffset: number });
+
+            return {
+                initialScrollLeft,
+                panelCount: panels.length,
+                clientWidth: frame.clientWidth,
+                scrollWidth: frame.scrollWidth,
+                expectedScrollLeft,
+                actualScrollLeft: frame.scrollLeft,
+                nearestIndex: nearestPanel?.index ?? -1,
+                nearestCenterOffset: nearestPanel?.centerOffset ?? Number.NaN,
+                snapType: getComputedStyle(frame).scrollSnapType,
+                panelSnapAlign: getComputedStyle(panels[1]).scrollSnapAlign,
+            };
+        });
+
+        expect(snapMetrics.initialScrollLeft).toBe(0);
+        expect(snapMetrics.panelCount).toBeGreaterThan(1);
+        expect(snapMetrics.scrollWidth).toBeGreaterThan(snapMetrics.clientWidth);
+        expect(snapMetrics.snapType).toContain('mandatory');
+        expect(snapMetrics.panelSnapAlign).toBe('center');
+        expect(snapMetrics.nearestIndex).toBe(1);
+        expect(Math.abs(snapMetrics.actualScrollLeft - snapMetrics.expectedScrollLeft)).toBeLessThanOrEqual(2);
+        expect(Math.abs(snapMetrics.nearestCenterOffset)).toBeLessThanOrEqual(2);
+
+        const centeredDayAddBar = page.locator('#timesheet-day-section-1 [data-timesheet-day-add="true"]');
+        await expect(centeredDayAddBar).toBeVisible();
+        await centeredDayAddBar.click();
+        await expect(page.locator('#timesheet-entry-create-form')).toBeVisible();
+    });
+
     test('timesheet entries use uniform mobile actions for approved and pending entries', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets?showApproved=true', '#timesheet-week-shell');
