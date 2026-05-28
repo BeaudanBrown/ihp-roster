@@ -145,8 +145,8 @@ renderRosterGroupRow showInactive activeCount (rosterGroupIndex, rosterGroup) = 
                     {renderRosterGroupDefaultBadge rosterGroup}
                 </div>
                 <div class="btn-group btn-group-sm" role="group" aria-label="Reorder roster group">
-                    {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (MoveRosterGroupUpAction rosterGroup.id) "Up"}
-                    {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (MoveRosterGroupDownAction rosterGroup.id) "Down"}
+                    {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == 0) (MoveRosterGroupUpAction rosterGroup.id) "admin-roster-groups-fragment" "Up"}
+                    {renderMoveButton (not rosterGroup.isActive || rosterGroupIndex == activeCount - 1) (MoveRosterGroupDownAction rosterGroup.id) "admin-roster-groups-fragment" "Down"}
                 </div>
             </div>
             <div class="row g-2 align-items-end">

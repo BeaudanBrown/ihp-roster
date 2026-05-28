@@ -74,7 +74,15 @@ renderExportsSection _reportWeekSelection defaultRangeStart defaultRangeEnd expo
         (renderExportSummary exportJobs)
         mempty
         [hsx|
-            <form id="admin-export-generation-form" method="POST" action={CreateExportJobAction} class={appSurfaceClasses "p-3"} data-disable-javascript-submission="true">
+            <form id="admin-export-generation-form"
+                  method="POST"
+                  action={CreateExportJobAction}
+                  class={appSurfaceClasses "p-3"}
+                  data-disable-javascript-submission="true"
+                  hx-post={CreateExportJobAction}
+                  hx-target={"#" <> adminExportsFragmentId}
+                  hx-swap="outerHTML"
+                  hx-push-url="false">
                 <div class="row g-3 align-items-end">
                     <div class="col-12 col-md-4 col-lg-3">
                         <label class="form-label" for="admin-export-range-start">From</label>

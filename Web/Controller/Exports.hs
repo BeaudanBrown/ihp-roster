@@ -11,6 +11,21 @@ import Network.Wai (responseLBS)
 import Web.Controller.Prelude
 import Web.Exports.Mutations (recordExportDownloadMutation,
                               requestFixedExportMutation)
+import Web.View.Admin.Exports (renderExportsSectionFragment)
+
+respondToAdminExportsSectionMutation ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO ()
+respondToAdminExportsSectionMutation =
+    if isHtmxRequest
+        then do
+            currentWeekOffset <- currentReportWeekOffset
+            reportWeekSelection <- fetchReportWeekSelection currentWeekOffset
+            let defaultRangeStart = reportWeekSelection.weekStart
+            let defaultRangeEnd = reportWeekSelection.weekEnd
+            exportJobs <- fetchCurrentVenueExportJobs
+            respondHtml (renderExportsSectionFragment reportWeekSelection defaultRangeStart defaultRangeEnd exportJobs)
+        else redirectToPath (pathTo AdminAction <> "#exports")
 
 instance Controller ExportsController where
     beforeAction = do
@@ -34,10 +49,10 @@ instance Controller ExportsController where
                     Left message -> setErrorMessage message
                     Right _ -> do
                         setSuccessMessage "Export generated"
-                redirectToPath (pathTo AdminAction <> "#exports")
+                respondToAdminExportsSectionMutation
             _ -> do
                 setErrorMessage "Choose an export type and a valid start and end date."
-                redirectToPath (pathTo AdminAction <> "#exports")
+                respondToAdminExportsSectionMutation
 
     action DownloadExportJobAction { exportJobId } = do
         let downloadToken = param @UUID "token"

@@ -177,8 +177,8 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates activ
         <input type="hidden" name="showInactiveShiftTypes" value={boolParam showInactive} />
         <div class="d-flex justify-content-end align-items-center mb-2">
             <div class="btn-group btn-group-sm" role="group" aria-label="Reorder shift type">
-                {renderMoveButton (not shiftType.isActive || shiftTypeIndex == 0) (MoveShiftTypeUpAction shiftType.id) "Up"}
-                {renderMoveButton (not shiftType.isActive || shiftTypeIndex == activeCount - 1) (MoveShiftTypeDownAction shiftType.id) "Down"}
+                {renderMoveButton (not shiftType.isActive || shiftTypeIndex == 0) (MoveShiftTypeUpAction shiftType.id) "admin-shift-types-fragment" "Up"}
+                {renderMoveButton (not shiftType.isActive || shiftTypeIndex == activeCount - 1) (MoveShiftTypeDownAction shiftType.id) "admin-shift-types-fragment" "Down"}
             </div>
         </div>
         <div class="row g-2 align-items-end">

@@ -409,7 +409,7 @@ instance Controller AdminController where
         ensureRecordInCurrentVenue rosterGroup.venueId
         _ <- moveRosterGroupMutation rosterGroup (-1)
         setSuccessMessage "Roster group order updated"
-        redirectToAdminFor (Just rosterGroup.id)
+        respondToRosterGroupsSectionMutation (Just rosterGroup.id)
 
     action MoveRosterGroupDownAction { rosterGroupId } = do
         ensureVenueWritable
@@ -417,7 +417,7 @@ instance Controller AdminController where
         ensureRecordInCurrentVenue rosterGroup.venueId
         _ <- moveRosterGroupMutation rosterGroup 1
         setSuccessMessage "Roster group order updated"
-        redirectToAdminFor (Just rosterGroup.id)
+        respondToRosterGroupsSectionMutation (Just rosterGroup.id)
 
     action CreateShiftTypeAction = do
         ensureVenueWritable
@@ -460,7 +460,7 @@ instance Controller AdminController where
         ensureRecordInCurrentVenue shiftType.venueId
         _ <- moveShiftTypeMutation shiftType (-1)
         setSuccessMessage "Shift type order updated"
-        redirectToAdminFor (paramOrNothing "rosterGroupId")
+        respondToShiftTypesSectionMutationWithXeroRefresh False
 
     action MoveShiftTypeDownAction { shiftTypeId } = do
         ensureVenueWritable
@@ -468,4 +468,4 @@ instance Controller AdminController where
         ensureRecordInCurrentVenue shiftType.venueId
         _ <- moveShiftTypeMutation shiftType 1
         setSuccessMessage "Shift type order updated"
-        redirectToAdminFor (paramOrNothing "rosterGroupId")
+        respondToShiftTypesSectionMutationWithXeroRefresh False

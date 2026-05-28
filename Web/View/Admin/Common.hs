@@ -69,14 +69,22 @@ renderRosterGroupDefaultBadge rosterGroup
     | rosterGroup.isDefault = renderAppStatusBadge AppStatusInfo "Default"
     | otherwise = mempty
 
-renderMoveButton :: Bool -> AdminController -> Text -> Html
-renderMoveButton isDisabled action label =
+renderMoveButton :: Bool -> AdminController -> Text -> Text -> Html
+renderMoveButton isDisabled action targetId label =
     if isDisabled
         then [hsx|
             <button class="btn btn-outline-secondary" type="button" disabled={True}>{label}</button>
         |]
         else [hsx|
-            <button class="btn btn-outline-secondary" type="submit" formaction={action}>{label}</button>
+            <button class="btn btn-outline-secondary"
+                    type="submit"
+                    formaction={action}
+                    hx-post={action}
+                    hx-trigger="click"
+                    hx-include="closest form"
+                    hx-target={"#" <> targetId}
+                    hx-swap="outerHTML"
+                    hx-push-url="false">{label}</button>
         |]
 
 renderShiftTypeRuleOption :: ShiftType -> Html
