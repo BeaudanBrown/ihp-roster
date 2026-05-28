@@ -1256,6 +1256,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Prepare Xero draft timesheets"
                 response `responseBodyShouldContain` "Staff mappings"
                 response `responseBodyShouldContain` "Show matched"
+                response `responseBodyShouldContain` "app-toggle-button btn-outline-success"
+                response `responseBodyShouldContain` "aria-pressed=\"false\""
                 response `responseBodyShouldContain` "hx-get=\"/ShowXeroTimesheetPreparationStaffMappingsFragment"
                 response `responseBodyShouldContain` "id=\"xero-preparation-staff-mappings\""
                 response `responseBodyShouldNotContain` "Ada Lovelace"
@@ -1273,6 +1275,8 @@ tests = beforeAll testContext do
                 matchedResponse `responseStatusShouldBe` status200
                 matchedResponse `responseBodyShouldContain` "Ada Lovelace"
                 matchedResponse `responseBodyShouldContain` "checked"
+                matchedResponse `responseBodyShouldContain` "app-toggle-button btn-success"
+                matchedResponse `responseBodyShouldContain` "aria-pressed=\"true\""
                 preparationRun.status `shouldBe` "ready_for_preview"
                 preparationRun.payPeriodStart `shouldBe` fixture.periodStart
                 preparationRun.payPeriodEnd `shouldBe` fixture.periodEnd

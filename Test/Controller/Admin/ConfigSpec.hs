@@ -185,6 +185,9 @@ tests = beforeAll testContext do
                 pageResponse `responseBodyShouldContain` "admin_shift_types"
                 pageResponse `responseBodyShouldContain` "hx-target=\"#admin-shift-types-fragment\""
                 pageResponse `responseBodyShouldContain` "name=\"showInactiveShiftTypes\" value=\"true\""
+                pageResponse `responseBodyShouldContain` "app-toggle-button btn-success"
+                pageResponse `responseBodyShouldContain` "aria-pressed=\"true\""
+                pageResponse `responseBodyShouldContain` "role=\"switch\" aria-checked=\"true\""
                 pageResponse `responseBodyShouldContain` ("hx-post=\"/UpdateShiftType?shiftTypeId=" <> tshow shiftType.id <> "\"")
                 pageResponse `responseBodyShouldContain` "hx-trigger=\"input changed delay:600ms, blur changed\""
                 pageResponse `responseBodyShouldContain` "hx-trigger=\"change\""

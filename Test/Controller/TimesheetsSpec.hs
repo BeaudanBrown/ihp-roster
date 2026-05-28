@@ -329,6 +329,9 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Hide approved"
                 response `responseBodyShouldContain` "Show all staff"
+                response `responseBodyShouldContain` "app-toggle-button btn-success"
+                response `responseBodyShouldContain` "app-toggle-button btn-outline-success"
+                response `responseBodyShouldContain` "aria-pressed=\"true\""
                 response `responseBodyShouldContain` "No entries for this day."
                 response `responseBodyShouldNotContain` "timesheet-entry-staff-name\">Ava Hours"
                 response `responseBodyShouldNotContain` "timesheet-entry-card\" data-timesheet-entry-approved=\"true\""

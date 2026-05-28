@@ -258,6 +258,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "hx-confirm=\"This will overwrite the current week with the previous week's roster. Continue?\""
                 response `responseBodyShouldContain` "data-disable-javascript-submission=\"true\""
                 response `responseBodyShouldContain` "roster-live-toggle-"
+                response `responseBodyShouldContain` "app-toggle-button btn-outline-success"
+                response `responseBodyShouldContain` "aria-pressed=\"false\""
+                response `responseBodyShouldContain` "role=\"switch\" aria-checked=\"false\""
 
         it "roster group switcher preserves weekOffset in the submitted form" $ withContext do
             withCleanDb do

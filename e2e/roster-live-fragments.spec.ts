@@ -20,7 +20,7 @@ async function openRosterWeekOffset(page, weekOffset) {
 async function expectAutoCreatedDraftWeek(page) {
     await expect(page.locator('#roster-content')).toBeVisible();
     await expect(page.locator('[data-roster-row]')).toHaveCount(28);
-    await expect(page.locator('.form-check-input[type="checkbox"]').first()).not.toBeChecked();
+    await expect(page.locator('[data-app-toggle-button-input="true"][role="switch"]').first()).not.toBeChecked();
     await expect(page.getByRole('button', { name: 'Create Draft Roster' })).toHaveCount(0);
 }
 
