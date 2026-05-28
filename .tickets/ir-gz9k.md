@@ -1,6 +1,6 @@
 ---
 id: ir-gz9k
-status: open
+status: closed
 deps: [ir-bao4]
 links: []
 created: 2026-05-27T23:58:34Z
