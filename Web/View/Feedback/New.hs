@@ -37,7 +37,6 @@ renderFeedbackForm formMode feedbackItem =
             <form id={feedbackFormId}
                   method="POST"
                   action={CreateFeedbackAction}
-                  class="mt-3"
                   data-disable-javascript-submission="true"
                   hx-post={CreateFeedbackAction}
                   hx-target={"#" <> dialogOverlayMountId}
@@ -49,8 +48,7 @@ renderFeedbackForm formMode feedbackItem =
         PageOverlayForm -> [hsx|
             <form id={feedbackFormId}
                   method="POST"
-                  action={CreateFeedbackAction}
-                  class="mt-3">
+                  action={CreateFeedbackAction}>
                 {renderFeedbackFormFields feedbackItem}
             </form>
         |]
