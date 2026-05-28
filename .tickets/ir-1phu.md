@@ -1,6 +1,6 @@
 ---
 id: ir-1phu
-status: open
+status: closed
 deps: []
 links: [ir-6vvh]
 created: 2026-05-28T05:35:32Z
