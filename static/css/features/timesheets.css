@@ -1,5 +1,19 @@
 /* Timesheet week card, timeline, and approval styles. */
 
+.timesheet-settings-toggle-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+}
+
+.timesheet-settings-toggle-grid:has(> .timesheet-settings-toggle:only-child) {
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.timesheet-settings-toggle {
+    min-width: 0;
+}
+
 .timesheet-week-frame {
     display: block;
     overflow-x: auto;

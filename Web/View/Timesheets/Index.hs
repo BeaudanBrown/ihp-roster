@@ -144,8 +144,10 @@ renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff selectedStaffFi
                 <input type="hidden" name="showApproved" id="timesheet-show-approved-value" value={boolParam showApproved} />
                 <input type="hidden" name="showAllStaff" id="timesheet-show-all-staff-value" value={boolParam showAllStaff} />
                 <div class="small text-uppercase fw-semibold app-muted px-1 pb-2">Filters</div>
-                {renderTimesheetHideApprovedToggle showApproved}
-                {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" "timesheet-show-all-staff-value" showAllStaff "Show all staff")}
+                <div class="timesheet-settings-toggle-grid mb-2">
+                    {renderTimesheetHideApprovedToggle showApproved}
+                    {when currentUserIsManager (renderTimesheetMenuToggle "timesheet-show-all-staff-toggle" "timesheet-show-all-staff-value" showAllStaff "Show all staff")}
+                </div>
                 {when currentUserIsManager (renderTimesheetStaffFilter selectedStaffFilterId staffMembers)}
             </form>
         </div>
@@ -176,14 +178,14 @@ renderTimesheetStaffFilter selectedStaffFilterId staffMembers = [hsx|
 
 renderTimesheetHideApprovedToggle :: Bool -> Html
 renderTimesheetHideApprovedToggle showApproved = [hsx|
-    <div class="mb-2">
+    <div class="timesheet-settings-toggle">
         {renderTimesheetToggleButton "timesheet-hide-approved-toggle" "timesheet-show-approved-value" (not showApproved) "false" "true" "Hide approved"}
     </div>
 |]
 
 renderTimesheetMenuToggle :: Text -> Text -> Bool -> Text -> Html
 renderTimesheetMenuToggle inputId hiddenInputId isChecked label = [hsx|
-    <div class="mb-2">
+    <div class="timesheet-settings-toggle">
         {renderTimesheetToggleButton inputId hiddenInputId isChecked "true" "false" label}
     </div>
 |]
