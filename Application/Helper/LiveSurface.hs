@@ -2,6 +2,7 @@ module Application.Helper.LiveSurface
     ( AuthorizedLiveFragment (..)
     , FragmentContract (..)
     , FragmentDependencies (..)
+    , FragmentRenderMode (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , LiveSurfaceConfig (..)
@@ -24,8 +25,11 @@ module Application.Helper.LiveSurface
     , mkTypedDefinedLiveSurface
     , mkTypedSurfaceProjectionDefinition
     , normalizeSurfaceFragmentRefs
+    , normalizeTypedLiveSurfaceFragments
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
+    , renderTypedLiveSurfaceFragmentsFromSnapshot
+    , respondWithTypedLiveSurfaceFragments
     , serveTypedLiveFragment
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
@@ -46,6 +50,7 @@ import Application.Helper.LiveSurface.Internal
     ( AuthorizedLiveFragment (..)
     , FragmentContract (..)
     , FragmentDependencies (..)
+    , FragmentRenderMode (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
     , LiveSurfaceConfig (..)
@@ -67,8 +72,11 @@ import Application.Helper.LiveSurface.Internal
     , mkSurfaceFragmentRef
     , mkTypedDefinedLiveSurface
     , normalizeSurfaceFragmentRefs
+    , normalizeTypedLiveSurfaceFragments
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
+    , renderTypedLiveSurfaceFragmentsFromSnapshot
+    , respondWithTypedLiveSurfaceFragments
     , serveTypedLiveFragment
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur

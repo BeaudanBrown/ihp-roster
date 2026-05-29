@@ -1,6 +1,6 @@
 ---
 id: ir-0b7s
-status: open
+status: closed
 deps: [ir-2ert]
 links: []
 created: 2026-05-29T03:16:06Z
@@ -22,3 +22,9 @@ Create a reusable FragmentRenderMode/Oob mode and helper that loads a snapshot o
 
 Helper compiles; focused unit/Hspec coverage verifies parent/child containment normalization and extras; no feature behavior changes except tests/examples if needed.
 
+
+## Notes
+
+**2026-05-29T04:00:54Z**
+
+Implemented shared FragmentRenderMode plus typed actor response helpers in Application.Helper.LiveSurface. Added focused LiveSurfaceSpec coverage for typed containment normalization and OOB-mode rendering with extras. Verification attempts: bin/in-env typecheck and bin/in-env hspec-test --match LiveSurface both fail before reaching these focused assertions because generated types are missing unrelated XeroAccount, XeroImportedPayItem, and UserFeedbackItem types (likely existing schema/generated-types drift noted in working context).

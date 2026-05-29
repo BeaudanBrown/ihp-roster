@@ -2,6 +2,7 @@ module Application.Helper.LiveSurface.Internal
     ( LiveSurfaceConfig (..)
     , FragmentContract (..)
     , FragmentDependencies (..)
+    , FragmentRenderMode (..)
     , AuthorizedLiveFragment (..)
     , LiveScopeAuthorizationRequirement (..)
     , LiveSurfaceAuthorization (..)
@@ -26,8 +27,11 @@ module Application.Helper.LiveSurface.Internal
     , mkSurfaceProjectionDefinition
     , mkTypedDefinedLiveSurface
     , normalizeSurfaceFragmentRefs
+    , normalizeTypedLiveSurfaceFragments
     , renderLiveSurfaceProjectionFragment
     , renderLiveSurfaceProjectionFragmentFromStore
+    , renderTypedLiveSurfaceFragmentsFromSnapshot
+    , respondWithTypedLiveSurfaceFragments
     , serveTypedLiveFragment
     , setTypedLiveSurfaceActorRefresh
     , surfaceFragmentRefWithDeferUntilBlur
@@ -45,7 +49,9 @@ module Application.Helper.LiveSurface.Internal
 
 import Application.Helper.LiveResource (LiveResource)
 import Application.Helper.LiveUpdate.Internal
+import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.SurfaceProjection
+import Application.Helper.View.Oob (OobSwapAttr, outerHtmlOobSwap)
 import Application.Helper.ControllerAccess (hasRole)
 import Application.Helper.ControllerContext (authenticatedCurrentUser,
                                              currentUserIsSuperAdmin,
@@ -104,6 +110,11 @@ data AuthorizedLiveFragment surface scope fragment = AuthorizedLiveFragment
 data FragmentDependencies
     = DependsOnLiveResources !(NonEmpty LiveResource)
     | ResyncOnlyFragment !Text
+    deriving (Eq, Show)
+
+data FragmentRenderMode
+    = FragmentPlain
+    | FragmentOob !OobSwapAttr
     deriving (Eq, Show)
 
 data FragmentContract surface = FragmentContract
@@ -245,6 +256,63 @@ normalizeSurfaceFragmentRefs fragmentRefs =
             not (any (`isProperPrefixOf` ref.surfaceFragmentContainmentPath) allPaths)
         isProperPrefixOf prefix path =
             length prefix < length path && prefix `List.isPrefixOf` path
+
+normalizeTypedLiveSurfaceFragments ::
+    TypedLiveSurfaceDefinition surface scope fragment ->
+    scope ->
+    [fragment] ->
+    [fragment]
+normalizeTypedLiveSurfaceFragments definition surfaceKey fragments =
+    map fst normalizedPairs
+    where
+        fragmentPairs =
+            map
+                (\fragment -> (fragment, typedLiveSurfaceFragmentRef definition surfaceKey fragment))
+                fragments
+        normalizedRefs = normalizeSurfaceFragmentRefs (map snd fragmentPairs)
+        normalizedPairs =
+            mapMaybe
+                (\normalizedRef -> List.find (sameContainmentPath normalizedRef . snd) fragmentPairs)
+                normalizedRefs
+        sameContainmentPath left right =
+            surfaceFragmentContainmentPath left == surfaceFragmentContainmentPath right
+
+renderTypedLiveSurfaceFragmentsFromSnapshot ::
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
+    scope ->
+    [fragment] ->
+    FragmentRenderMode ->
+    Blaze.Html ->
+    (FragmentRenderMode -> snapshot -> fragment -> Maybe Blaze.Html) ->
+    snapshot ->
+    Blaze.Html
+renderTypedLiveSurfaceFragmentsFromSnapshot definition surfaceKey fragments renderMode extraHtml renderFragment snapshot =
+    mconcat (map renderNormalizedFragment normalizedFragments) <> extraHtml
+    where
+        normalizedFragments =
+            normalizeTypedLiveSurfaceFragmentsFromProjection definition surfaceKey fragments
+        renderNormalizedFragment fragment =
+            fromMaybe mempty (renderFragment renderMode snapshot fragment)
+
+normalizeTypedLiveSurfaceFragmentsFromProjection ::
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
+    scope ->
+    [fragment] ->
+    [fragment]
+normalizeTypedLiveSurfaceFragmentsFromProjection definition surfaceKey fragments =
+    map fst normalizedPairs
+    where
+        fragmentPairs =
+            map
+                (\fragment -> (fragment, definition.projectionSurfaceFragmentRef surfaceKey fragment))
+                fragments
+        normalizedRefs = normalizeSurfaceFragmentRefs (map snd fragmentPairs)
+        normalizedPairs =
+            mapMaybe
+                (\normalizedRef -> List.find (sameContainmentPath normalizedRef . snd) fragmentPairs)
+                normalizedRefs
+        sameContainmentPath left right =
+            surfaceFragmentContainmentPath left == surfaceFragmentContainmentPath right
 
 authorizeTypedLiveSurfaceScope ::
     (?context :: ControllerContext, ?modelContext :: ModelContext) =>
@@ -444,6 +512,27 @@ loadLiveSurfaceProjection ::
     IO snapshot
 loadLiveSurfaceProjection definition =
     loadSurfaceProjection definition.surfaceProjectionDefinition
+
+respondWithTypedLiveSurfaceFragments ::
+    forall surface scope snapshot fragment.
+    (?context :: ControllerContext, ?request :: Request, Dynamic.Typeable snapshot) =>
+    ProjectionLiveSurfaceDefinition surface scope snapshot fragment ->
+    scope ->
+    [fragment] ->
+    Blaze.Html ->
+    (FragmentRenderMode -> snapshot -> fragment -> Maybe Blaze.Html) ->
+    IO ()
+respondWithTypedLiveSurfaceFragments definition surfaceKey fragments extraHtml renderFragment = do
+    snapshot <- loadLiveSurfaceProjection definition surfaceKey
+    respondHtmlProfiled $
+        renderTypedLiveSurfaceFragmentsFromSnapshot
+            definition
+            surfaceKey
+            fragments
+            (FragmentOob outerHtmlOobSwap)
+            extraHtml
+            renderFragment
+            snapshot
 
 loadLiveSurfaceProjectionFromStore ::
     forall surface scope snapshot fragment.

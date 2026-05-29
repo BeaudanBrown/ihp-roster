@@ -2,7 +2,8 @@ module Test.LiveSurfaceSpec where
 
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..), LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..), LiveUpdateScope (..), LiveUpdateWireFragment (..))
+import Application.Helper.SurfaceProjection (defaultSurfaceProjectionCachePolicy)
 import Application.Support.LiveUpdates
 import Data.List.NonEmpty (NonEmpty (..))
 import qualified Data.UUID as UUID
@@ -15,6 +16,9 @@ import Web.View.Admin.VenueSettings
 import Web.View.Admin.Xero
 import Test.Hspec
 import Test.Support.LiveSurfaceContract
+import qualified Text.Blaze.Html as Blaze
+import qualified Text.Blaze.Html.Renderer.Text as HtmlRenderer
+import qualified Text.Blaze.Html5 as Html5
 
 tests :: Spec
 tests = describe "LiveSurface contract helpers" do
@@ -34,6 +38,27 @@ tests = describe "LiveSurface contract helpers" do
             `shouldBe` ["roster-day-22222222"]
         targetIds (normalizeSurfaceFragmentRefs [child, sibling])
             `shouldBe` ["roster-staff-panel-fragment", "billing-status-fragment"]
+
+    it "normalizes typed surface fragments by containment path" do
+        normalizeTypedLiveSurfaceFragments
+            testActorLiveSurfaceDefinition
+            ()
+            [TestActorChild, TestActorDuplicateChild, TestActorParent, TestActorSibling]
+            `shouldBe` [TestActorParent, TestActorSibling]
+
+    it "renders normalized actor fragments in OOB mode with extras" do
+        let html =
+                renderTypedLiveSurfaceFragmentsFromSnapshot
+                    testActorProjectionDefinition
+                    ()
+                    [TestActorChild, TestActorParent, TestActorSibling]
+                    (FragmentOob (Just "outerHTML"))
+                    (Html5.toHtml ("extra" :: Text))
+                    renderTestActorFragment
+                    ("snapshot" :: Text)
+
+        HtmlRenderer.renderHtml html
+            `shouldBe` "oob:outerHTML:snapshot:parentoob:outerHTML:snapshot:siblingextra"
 
     it "derives live fragment refs and dependencies from a single fragment contract" do
         let venueId = expectUuid "11111111-1111-1111-1111-111111111111"
@@ -123,6 +148,69 @@ testFragmentRef fragmentKey target path =
 targetIds :: [SurfaceFragmentRef surface] -> [Text]
 targetIds refs =
     map (.targetId) (unSurfaceFragmentRefs refs)
+
+data TestActorSurface
+
+data TestActorFragment
+    = TestActorParent
+    | TestActorChild
+    | TestActorDuplicateChild
+    | TestActorSibling
+    deriving (Eq, Show)
+
+testActorLiveSurfaceDefinition :: TypedLiveSurfaceDefinition TestActorSurface () TestActorFragment
+testActorLiveSurfaceDefinition =
+    TypedLiveSurfaceDefinition
+        { typedSurfaceFeature = "test-actor"
+        , typedSurfaceScope = const (SurfaceScope SupportPlatformScope)
+        , typedSurfaceScopeFromWire = const (Just ())
+        , typedSurfaceDefaultFragments = const [TestActorParent]
+        , typedSurfaceFragmentContract = \() fragment ->
+            mkSurfaceFragmentContract
+                (testActorFragmentRef fragment)
+                (liveFragmentResyncOnly "test actor fragment")
+        , typedSurfaceDecorateRequestsWithin = const []
+        , typedSurfaceAuthorize = LiveSurfaceAuthorization { authorizeLiveSurfaceScope = const (pure True) }
+        }
+
+testActorProjectionDefinition :: ProjectionLiveSurfaceDefinition TestActorSurface () Text TestActorFragment
+testActorProjectionDefinition =
+    mkTypedSurfaceProjectionDefinition
+        testActorLiveSurfaceDefinition
+        "test-actor"
+        defaultSurfaceProjectionCachePolicy
+        (const "test")
+        (pure "viewer")
+        (const (pure 0))
+        (const (pure "snapshot"))
+        (\snapshot fragment -> renderTestActorFragment FragmentPlain snapshot fragment)
+
+testActorFragmentRef :: TestActorFragment -> SurfaceFragmentRef TestActorSurface
+testActorFragmentRef TestActorParent =
+    mkSurfaceFragmentRef RosterContentFragment "actor-parent" "/actor-parent"
+testActorFragmentRef TestActorChild =
+    mkSurfaceFragmentRef RosterStaffPanelFragment "actor-child" "/actor-child"
+        |> surfaceFragmentRefWithPath ["actor-parent", "actor-child"]
+testActorFragmentRef TestActorDuplicateChild =
+    mkSurfaceFragmentRef RosterStaffPanelFragment "actor-duplicate-child" "/actor-duplicate-child"
+        |> surfaceFragmentRefWithPath ["actor-parent", "actor-child"]
+testActorFragmentRef TestActorSibling =
+    mkSurfaceFragmentRef BillingStatusFragment "actor-sibling" "/actor-sibling"
+
+renderTestActorFragment :: FragmentRenderMode -> Text -> TestActorFragment -> Maybe Blaze.Html
+renderTestActorFragment renderMode snapshot fragment =
+    Just (Html5.toHtml (modeLabel renderMode <> ":" <> snapshot <> ":" <> fragmentLabel fragment))
+
+modeLabel :: FragmentRenderMode -> Text
+modeLabel FragmentPlain = "plain"
+modeLabel (FragmentOob Nothing) = "oob:none"
+modeLabel (FragmentOob (Just swapAttr)) = "oob:" <> swapAttr
+
+fragmentLabel :: TestActorFragment -> Text
+fragmentLabel TestActorParent = "parent"
+fragmentLabel TestActorChild = "child"
+fragmentLabel TestActorDuplicateChild = "duplicate-child"
+fragmentLabel TestActorSibling = "sibling"
 
 expectUuid :: Text -> UUID.UUID
 expectUuid value =
