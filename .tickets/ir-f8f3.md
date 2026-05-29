@@ -1,6 +1,6 @@
 ---
 id: ir-f8f3
-status: in_progress
+status: closed
 deps: []
 links: []
 created: 2026-05-29T00:50:41Z
@@ -27,3 +27,7 @@ Owner/super-admin can complete a forward-only modal: resolve staff, approve pay 
 **2026-05-29T00:51:29Z**
 
 Decided against run-scoped skip-this-time support; removed living workstream reference and will avoid reintroducing it in the wizard.
+
+**2026-05-29T01:01:41Z**
+
+Implemented forward-only Xero preparation wizard: staff step, pay-item approval/account-code step, summary/confirmation step, in-modal submitting spinner, success toast with dialog close, failure dialog, stale skip references removed. Verified typecheck, focused Xero Hspec, and xero-timesheet-preparation E2E.
