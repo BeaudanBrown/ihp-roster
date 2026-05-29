@@ -46,22 +46,13 @@
     white-space: nowrap;
 }
 
-.roster-wage-summary-label,
-.roster-wage-summary-warning {
+.roster-wage-summary-label {
     color: var(--app-muted);
     font-weight: 700;
 }
 
 .roster-wage-summary-total {
     font-variant-numeric: tabular-nums;
-}
-
-.roster-wage-summary-warning {
-    overflow: hidden;
-    padding-left: 0.4rem;
-    border-left: 1px solid var(--app-border-subtle);
-    color: var(--app-warning);
-    text-overflow: ellipsis;
 }
 
 .roster-day-wage-total {

@@ -42,10 +42,6 @@
     flex: 0 0 auto;
 }
 
-.admin-setting-row-select {
-    width: min(14rem, 45%);
-}
-
 .admin-shift-colour-select {
     --roster-shift-type-palette-1: var(--roster-shift-type-palette-1-soft);
     --roster-shift-type-palette-2: var(--roster-shift-type-palette-2-soft);

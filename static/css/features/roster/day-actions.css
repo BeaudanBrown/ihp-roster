@@ -91,8 +91,7 @@
     width: 100%;
 }
 
-.roster-day-rail-section .roster-day-date,
-.roster-day-rail-section .day-label-empty {
+.roster-day-rail-section .roster-day-date {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -120,10 +119,6 @@
     font-weight: 800;
     letter-spacing: 0.12em;
     color: var(--app-warning);
-}
-
-.roster-day-rail-section .day-label-empty {
-    color: transparent;
 }
 
 .roster-day-rail-section .roster-day-actions {

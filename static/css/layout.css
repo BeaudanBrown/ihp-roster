@@ -56,14 +56,6 @@ a:not(.btn):hover {
     margin: 0 auto;
 }
 
-.app-page.app-page-narrow {
-    max-width: 58rem;
-}
-
-.app-page.app-page-wide {
-    max-width: 84rem;
-}
-
 .app-page-stack {
     display: flex;
     flex-direction: column;
@@ -284,3 +276,4 @@ a:not(.btn):hover {
     color: var(--app-danger-contrast);
     background-color: var(--app-danger-tint);
     border-color: var(--app-danger-border);
+}

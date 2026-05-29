@@ -1,11 +1,8 @@
 /* Shared responsive admin setting-row controls in original cascade position. */
 
+@media (max-width: 991.98px) {
     .admin-setting-row {
         align-items: stretch;
         flex-direction: column;
-    }
-
-    .admin-setting-row-select {
-        width: 100%;
     }
 }

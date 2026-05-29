@@ -226,7 +226,6 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/layout.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/surfaces.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/menus.css"}/>
-        <link rel="stylesheet" href={assetPath "/css/components/surface-toolbar.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/horizontal.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/week-nav.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/status.css"}/>

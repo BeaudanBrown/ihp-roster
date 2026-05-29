@@ -17,7 +17,6 @@ async function expectStylesheetServed(page: Page, path: string) {
 const sharedComponentStylesheets = [
     '/css/components/surfaces.css',
     '/css/components/menus.css',
-    '/css/components/surface-toolbar.css',
     '/css/components/horizontal.css',
     '/css/components/week-nav.css',
     '/css/components/status.css',
@@ -214,7 +213,7 @@ test.describe('Styling regression contracts', () => {
         expect(metrics?.frameScrollWidth).toBeLessThanOrEqual((metrics?.frameClientWidth ?? 0) + 1);
         expect(metrics?.tableMinWidth).not.toBe('0px');
         expect(metrics?.headerPosition).toBe('relative');
-        expect(metrics?.headerDisplay).toBe('flex');
+        expect(metrics?.headerDisplay).toBe('grid');
         expect(Number.parseFloat(metrics?.navBorderRadius ?? '0')).toBeGreaterThan(100);
         expect(metrics?.navBackground).not.toBe('rgba(0, 0, 0, 0)');
         expect(metrics?.navItemMargins.every((margin) => margin === '0px')).toBe(true);
@@ -235,7 +234,7 @@ test.describe('Styling regression contracts', () => {
 
     test('keeps shared accordion panel styling applied on the profile page', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/EditProfile', '#profile-sections');
+        await gotoWhenReady(page, '/EditProfile?section=profile', '#profile-sections');
 
         await expectLocalStylesheet(page, '/app.css');
         for (const stylesheet of sharedComponentStylesheets) {
@@ -297,7 +296,7 @@ test.describe('Styling regression contracts', () => {
 
     test('keeps profile shift preference sliders aligned after HTMX save', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/EditProfile', '#profile-content-fragment');
+        await gotoWhenReady(page, '/EditProfile?section=profile', '#profile-content-fragment');
 
         const firstPreferenceRow = page.locator('[data-shift-preference-window]').first();
         await expect(firstPreferenceRow).toBeVisible();
@@ -360,7 +359,7 @@ test.describe('Styling regression contracts', () => {
 
     test('flattens nested app panels inside accordion bodies', async ({ page }) => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
-        await gotoWhenReady(page, '/EditProfile', '#profile-sections');
+        await gotoWhenReady(page, '/EditProfile?section=profile', '#profile-sections');
 
         const metrics = await page.evaluate(() => {
             const probe = document.createElement('div');
@@ -449,7 +448,7 @@ test.describe('Styling regression contracts', () => {
         await expectStylesheetServed(page, '/css/bootstrap-bridge.css');
         await expectStylesheetServed(page, '/css/overlays.css');
 
-        await page.getByRole('link', { name: 'Add unavailable time' }).click();
+        await page.getByRole('button', { name: 'feedback', exact: true }).click();
         await expect(page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]')).toBeVisible();
 
         const modalMetrics = await page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]').evaluate((dialog) => {
@@ -520,24 +519,27 @@ test.describe('Styling regression contracts', () => {
                 throw new Error('Expected roster grid header to be an HTMLElement');
             }
 
-            const center = header.querySelector('.roster-grid-header-center');
+            const navigation = header.querySelector('.app-week-toolbar-navigation');
+            const primary = header.querySelector('.app-week-toolbar-primary');
             const tableContainer = document.querySelector('.roster-slots-scroller');
             const grid = document.querySelector('.roster-grid');
 
-            if (!(center instanceof HTMLElement) || !(tableContainer instanceof HTMLElement) || !(grid instanceof HTMLElement)) {
+            if (!(navigation instanceof HTMLElement) || !(primary instanceof HTMLElement) || !(tableContainer instanceof HTMLElement) || !(grid instanceof HTMLElement)) {
                 return null;
             }
 
             const headerRect = header.getBoundingClientRect();
-            const centerRect = center.getBoundingClientRect();
+            const navigationRect = navigation.getBoundingClientRect();
 
             return {
-                headerFlexDirection: getComputedStyle(header).flexDirection,
+                headerDisplay: getComputedStyle(header).display,
+                headerGridTemplateAreas: getComputedStyle(header).gridTemplateAreas,
                 headerMinHeight: getComputedStyle(header).minHeight,
-                centerPosition: getComputedStyle(center).position,
-                centerTransform: getComputedStyle(center).transform,
-                centerTop: Math.round(centerRect.top),
+                navigationGridArea: getComputedStyle(navigation).gridArea,
+                navigationPosition: getComputedStyle(navigation).position,
+                navigationTop: Math.round(navigationRect.top),
                 headerTop: Math.round(headerRect.top),
+                primaryDisplay: getComputedStyle(primary).display,
                 tableContainerPosition: getComputedStyle(tableContainer).position,
                 tableContainerOverflowX: getComputedStyle(tableContainer).overflowX,
                 gridMinWidth: getComputedStyle(grid).minWidth,
@@ -547,11 +549,13 @@ test.describe('Styling regression contracts', () => {
         });
 
         expect(metrics).not.toBeNull();
-        expect(metrics?.headerFlexDirection).toBe('column');
+        expect(metrics?.headerDisplay).toBe('grid');
+        expect(metrics?.headerGridTemplateAreas).toContain('navigation');
         expect(metrics?.headerMinHeight).toBe('0px');
-        expect(metrics?.centerPosition).toBe('static');
-        expect(metrics?.centerTransform).toBe('none');
-        expect(metrics?.centerTop).toBeGreaterThanOrEqual(metrics?.headerTop ?? 0);
+        expect(metrics?.navigationGridArea).toBe('navigation');
+        expect(metrics?.navigationPosition).toBe('relative');
+        expect(metrics?.navigationTop).toBeGreaterThanOrEqual(metrics?.headerTop ?? 0);
+        expect(metrics?.primaryDisplay).toBe('flex');
         expect(metrics?.tableContainerPosition).toBe('static');
         expect(metrics?.tableContainerOverflowX).toBe('auto');
         expect(metrics?.gridMinWidth).not.toBe('0px');

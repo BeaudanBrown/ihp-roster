@@ -92,22 +92,6 @@
     font-weight: 700;
 }
 
-.roster-grid .slot-time-step {
-    width: 23%;
-    min-width: 0;
-    flex: 0 0 23%;
-    height: var(--roster-grid-row-height);
-    min-height: var(--roster-grid-row-height);
-    border: 0 !important;
-    border-radius: 0 !important;
-    background-color: transparent !important;
-    color: var(--app-text-muted);
-    font-size: var(--roster-text-sm);
-    font-weight: 700;
-    line-height: 1;
-    padding: 0;
-}
-
 .roster-layout-mode-group .btn {
     min-width: 0;
     overflow: hidden;

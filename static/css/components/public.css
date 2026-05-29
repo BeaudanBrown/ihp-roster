@@ -4,10 +4,6 @@
     max-width: 30rem;
 }
 
-.app-auth-card.app-auth-card-profile {
-    max-width: 58rem;
-}
-
 .app-public-page {
     width: min(100%, 68rem);
     margin: 0 auto;

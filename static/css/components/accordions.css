@@ -68,11 +68,6 @@
     border-top: 0;
 }
 
-.app-accordion-section-header {
-    padding-bottom: 1rem;
-    border-bottom: 1px solid var(--app-border-alpha-70);
-}
-
 .app-accordion-section-body {
     padding-top: 1rem;
 }

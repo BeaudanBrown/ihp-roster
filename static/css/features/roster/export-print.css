@@ -57,15 +57,10 @@
         white-space: normal;
     }
 
-    .roster-wage-summary-warning {
-        max-width: 100%;
-    }
 }
 
 @media print {
-    .btn,
-    .roster-day-action,
-    .breadcrumb {
+    .roster-day-action {
         display: none !important;
     }
 

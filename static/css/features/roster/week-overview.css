@@ -248,23 +248,3 @@
 [data-roster-week-controls="manager-actions"] {
     justify-content: flex-end;
 }
-
-.breadcrumb {
-    --bs-breadcrumb-divider-color: var(--app-muted);
-    --bs-breadcrumb-item-active-color: var(--app-muted);
-}
-
-.nav-tabs {
-    border-bottom-color: var(--app-border);
-}
-
-.nav-tabs .nav-link {
-    color: var(--app-muted);
-}
-
-.nav-tabs .nav-link.active,
-.nav-tabs .nav-item.show .nav-link {
-    color: var(--app-text);
-    background-color: var(--app-surface-2);
-    border-color: var(--app-border) var(--app-border) var(--app-surface-2);
-}
