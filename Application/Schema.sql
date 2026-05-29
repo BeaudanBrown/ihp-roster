@@ -219,6 +219,7 @@ CREATE TABLE staff (
     ideal_shifts_per_week INT DEFAULT 0 NOT NULL,
     employment_basis staff_employment_basis_enum DEFAULT 'casual' NOT NULL,
     default_award_level_id UUID DEFAULT NULL,
+    imported_xero_pay_item_id UUID DEFAULT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
     archived_by_user_id UUID DEFAULT NULL,
@@ -292,6 +293,7 @@ CREATE TABLE shift_types (
     name TEXT NOT NULL,
     sort_order INT DEFAULT 0 NOT NULL,
     override_award_level_id UUID DEFAULT NULL,
+    imported_xero_pay_item_id UUID DEFAULT NULL,
     colour_key TEXT DEFAULT '' NOT NULL,
     is_active BOOLEAN DEFAULT TRUE NOT NULL,
     archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
@@ -427,6 +429,7 @@ CREATE TABLE staff_pay_versions (
     venue_id UUID NOT NULL,
     staff_id UUID NOT NULL,
     default_award_level_id UUID DEFAULT NULL,
+    imported_xero_pay_item_id UUID DEFAULT NULL,
     employment_basis staff_employment_basis_enum NOT NULL,
     effective_from DATE NOT NULL,
     effective_to DATE DEFAULT NULL,
@@ -448,6 +451,7 @@ CREATE TABLE shift_type_pay_versions (
     venue_id UUID NOT NULL,
     shift_type_id UUID NOT NULL,
     override_award_level_id UUID DEFAULT NULL,
+    imported_xero_pay_item_id UUID DEFAULT NULL,
     payroll_label TEXT NOT NULL,
     effective_from DATE NOT NULL,
     effective_to DATE DEFAULT NULL,
@@ -1085,6 +1089,39 @@ CREATE TABLE xero_earnings_rates (
     FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
     FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT
 );
+CREATE TABLE xero_imported_pay_items (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
+    venue_id UUID NOT NULL,
+    xero_connection_id UUID NOT NULL,
+    xero_earnings_rate_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    account_code TEXT,
+    earnings_type TEXT NOT NULL,
+    rate_type TEXT NOT NULL,
+    type_of_units TEXT NOT NULL,
+    rate_per_unit NUMERIC(12,4) NOT NULL,
+    raw_payload JSONB DEFAULT '{}'::JSONB NOT NULL,
+    imported_by_user_id UUID NOT NULL,
+    imported_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    last_seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    archived_at TIMESTAMP WITH TIME ZONE DEFAULT NULL,
+    archived_by_user_id UUID DEFAULT NULL,
+    archive_reason TEXT DEFAULT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    FOREIGN KEY (venue_id) REFERENCES venues (id) ON DELETE RESTRICT,
+    FOREIGN KEY (xero_connection_id) REFERENCES xero_connections (id) ON DELETE RESTRICT,
+    FOREIGN KEY (imported_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    FOREIGN KEY (archived_by_user_id) REFERENCES users (id) ON DELETE RESTRICT,
+    CHECK ((char_length(btrim(name)) > 0) AND (char_length(name) <= 255)),
+    CHECK (char_length(btrim(xero_earnings_rate_id)) > 0),
+    CHECK (account_code IS NULL OR ((char_length(btrim(account_code)) > 0) AND (char_length(account_code) <= 80))),
+    CHECK (lower(earnings_type) = 'ordinarytimeearnings'),
+    CHECK (lower(rate_type) = 'rateperunit'),
+    CHECK (lower(type_of_units) = 'hours'),
+    CHECK (rate_per_unit > 0),
+    CHECK (archived_at IS NULL OR archived_by_user_id IS NOT NULL)
+);
 CREATE TABLE xero_accounts (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY NOT NULL,
     venue_id UUID NOT NULL,
@@ -1470,6 +1507,7 @@ CREATE INDEX idx_venue_invitations_email_status ON venue_invitations (email, sta
 CREATE INDEX idx_venue_onboarding_invitations_email_status ON venue_onboarding_invitations (email, status);
 CREATE INDEX idx_staff_venue ON staff (venue_id);
 CREATE INDEX idx_staff_default_award_level ON staff (default_award_level_id) WHERE default_award_level_id IS NOT NULL;
+CREATE INDEX idx_staff_imported_xero_pay_item ON staff (imported_xero_pay_item_id) WHERE imported_xero_pay_item_id IS NOT NULL;
 CREATE UNIQUE INDEX idx_staff_linked_user_per_venue ON staff (venue_id, user_id) WHERE user_id IS NOT NULL AND is_active = TRUE AND archived_at IS NULL;
 CREATE INDEX idx_staff_documents_venue_staff_type_created ON staff_documents (venue_id, staff_id, document_type, created_at DESC);
 CREATE INDEX idx_staff_documents_rsa_expiry ON staff_documents (venue_id, expiry_date) WHERE document_type = 'rsa_statement_of_attainment' AND status <> 'rejected';
@@ -1484,6 +1522,7 @@ CREATE INDEX idx_staff_roster_groups_group_staff ON staff_roster_groups (roster_
 CREATE INDEX idx_slot_names_group_sort ON slot_names (roster_group_id, sort_order ASC, created_at ASC);
 CREATE UNIQUE INDEX idx_slot_names_active_name ON slot_names (roster_group_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
 CREATE UNIQUE INDEX idx_shift_types_active_name ON shift_types (venue_id, name) WHERE is_active = TRUE AND archived_at IS NULL;
+CREATE INDEX idx_shift_types_imported_xero_pay_item ON shift_types (imported_xero_pay_item_id) WHERE imported_xero_pay_item_id IS NOT NULL;
 CREATE INDEX idx_roster_weeks_venue_offset ON roster_weeks (venue_id, week_offset);
 CREATE INDEX idx_roster_week_slot_definitions_week_sort ON roster_week_slot_definitions (roster_week_id, sort_order ASC, created_at ASC) WHERE deleted_at IS NULL;
 CREATE UNIQUE INDEX idx_roster_week_slot_definitions_active_name ON roster_week_slot_definitions (roster_week_id, name) WHERE deleted_at IS NULL;
@@ -1493,8 +1532,10 @@ CREATE INDEX idx_roster_slots_shift_type ON roster_slots (shift_type_id) WHERE s
 CREATE UNIQUE INDEX idx_roster_slots_active_cell ON roster_slots (roster_day_id, row_index, roster_week_slot_definition_id) WHERE deleted_at IS NULL;
 CREATE INDEX idx_staff_pay_versions_staff_effective ON staff_pay_versions (staff_id, effective_from DESC, created_at DESC);
 CREATE UNIQUE INDEX idx_staff_pay_versions_one_open ON staff_pay_versions (staff_id) WHERE effective_to IS NULL;
+CREATE INDEX idx_staff_pay_versions_imported_xero_pay_item ON staff_pay_versions (imported_xero_pay_item_id) WHERE imported_xero_pay_item_id IS NOT NULL;
 CREATE INDEX idx_shift_type_pay_versions_shift_effective ON shift_type_pay_versions (shift_type_id, effective_from DESC, created_at DESC);
 CREATE UNIQUE INDEX idx_shift_type_pay_versions_one_open ON shift_type_pay_versions (shift_type_id) WHERE effective_to IS NULL;
+CREATE INDEX idx_shift_type_pay_versions_imported_xero_pay_item ON shift_type_pay_versions (imported_xero_pay_item_id) WHERE imported_xero_pay_item_id IS NOT NULL;
 CREATE INDEX idx_fwc_mapd_sync_runs_started_at ON fwc_mapd_sync_runs (started_at DESC);
 CREATE INDEX idx_fwc_mapd_awards_fixed_id ON fwc_mapd_awards (award_fixed_id, award_operative_to);
 CREATE INDEX idx_fwc_mapd_awards_code ON fwc_mapd_awards (code);
@@ -1551,6 +1592,9 @@ CREATE UNIQUE INDEX idx_xero_employees_connection_employee ON xero_employees (xe
 CREATE INDEX idx_xero_employees_venue_name ON xero_employees (venue_id, display_name);
 CREATE UNIQUE INDEX idx_xero_earnings_rates_connection_rate ON xero_earnings_rates (xero_connection_id, xero_earnings_rate_id);
 CREATE INDEX idx_xero_earnings_rates_venue_name ON xero_earnings_rates (venue_id, name);
+CREATE UNIQUE INDEX idx_xero_imported_pay_items_active_remote ON xero_imported_pay_items (xero_connection_id, xero_earnings_rate_id) WHERE archived_at IS NULL;
+CREATE INDEX idx_xero_imported_pay_items_venue_active_name ON xero_imported_pay_items (venue_id, name) WHERE archived_at IS NULL;
+CREATE INDEX idx_xero_imported_pay_items_venue_archived ON xero_imported_pay_items (venue_id, archived_at DESC) WHERE archived_at IS NOT NULL;
 CREATE UNIQUE INDEX idx_xero_accounts_connection_account ON xero_accounts (xero_connection_id, xero_account_id);
 CREATE INDEX idx_xero_accounts_connection_code ON xero_accounts (xero_connection_id, code);
 CREATE INDEX idx_xero_accounts_venue_type_status ON xero_accounts (venue_id, account_type, status);
@@ -1569,6 +1613,10 @@ CREATE INDEX idx_xero_payroll_calendar_selections_venue_status ON xero_payroll_c
 CREATE UNIQUE INDEX idx_xero_pay_item_account_code_selections_connection ON xero_pay_item_account_code_selections (xero_connection_id);
 CREATE UNIQUE INDEX idx_xero_pay_item_requirement_records_connection_key ON xero_pay_item_requirement_records (xero_connection_id, requirement_key);
 CREATE INDEX idx_xero_pay_item_requirement_records_venue_status ON xero_pay_item_requirement_records (venue_id, requirement_status);
+ALTER TABLE staff ADD CONSTRAINT staff_imported_xero_pay_item_id_fk FOREIGN KEY (imported_xero_pay_item_id) REFERENCES xero_imported_pay_items (id) ON DELETE RESTRICT;
+ALTER TABLE shift_types ADD CONSTRAINT shift_types_imported_xero_pay_item_id_fk FOREIGN KEY (imported_xero_pay_item_id) REFERENCES xero_imported_pay_items (id) ON DELETE RESTRICT;
+ALTER TABLE staff_pay_versions ADD CONSTRAINT staff_pay_versions_imported_xero_pay_item_id_fk FOREIGN KEY (imported_xero_pay_item_id) REFERENCES xero_imported_pay_items (id) ON DELETE RESTRICT;
+ALTER TABLE shift_type_pay_versions ADD CONSTRAINT shift_type_pay_versions_imported_xero_pay_item_id_fk FOREIGN KEY (imported_xero_pay_item_id) REFERENCES xero_imported_pay_items (id) ON DELETE RESTRICT;
 ALTER TABLE xero_submission_runs ADD CONSTRAINT xero_submission_runs_preparation_run_id_fk FOREIGN KEY (xero_timesheet_preparation_run_id) REFERENCES xero_timesheet_preparation_runs (id) ON DELETE RESTRICT;
 CREATE INDEX idx_xero_submission_runs_connection_period ON xero_submission_runs (xero_connection_id, pay_period_start, pay_period_end);
 CREATE INDEX idx_xero_submission_runs_preparation ON xero_submission_runs (xero_timesheet_preparation_run_id) WHERE xero_timesheet_preparation_run_id IS NOT NULL;
@@ -1626,6 +1674,7 @@ CREATE TRIGGER prevent_hard_delete_xero_connections BEFORE DELETE ON xero_connec
 CREATE TRIGGER prevent_hard_delete_xero_sync_runs BEFORE DELETE ON xero_sync_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_employees BEFORE DELETE ON xero_employees FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_earnings_rates BEFORE DELETE ON xero_earnings_rates FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
+CREATE TRIGGER prevent_hard_delete_xero_imported_pay_items BEFORE DELETE ON xero_imported_pay_items FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_accounts BEFORE DELETE ON xero_accounts FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_payroll_calendars BEFORE DELETE ON xero_payroll_calendars FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
 CREATE TRIGGER prevent_hard_delete_xero_pay_runs BEFORE DELETE ON xero_pay_runs FOR EACH ROW EXECUTE FUNCTION prevent_hard_delete();
@@ -1873,6 +1922,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION enforce_imported_xero_pay_item_venue_integrity()
+RETURNS TRIGGER
+AS $$
+BEGIN
+    IF NEW.imported_xero_pay_item_id IS NOT NULL
+        AND NOT EXISTS (
+            SELECT 1
+            FROM xero_imported_pay_items xipi
+            WHERE xipi.id = NEW.imported_xero_pay_item_id
+                AND xipi.venue_id = NEW.venue_id
+        )
+    THEN
+        RAISE EXCEPTION 'imported_xero_pay_item_id venue_id must match row venue';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE OR REPLACE FUNCTION enforce_xero_staff_mapping_venue_integrity()
 RETURNS TRIGGER
 AS $$
@@ -1946,7 +2014,12 @@ CREATE TRIGGER enforce_timesheet_entry_venue_integrity BEFORE INSERT OR UPDATE O
 CREATE TRIGGER enforce_report_definition_filter_venue_integrity BEFORE INSERT OR UPDATE ON report_definition_shift_type_filters FOR EACH ROW EXECUTE FUNCTION enforce_report_definition_filter_venue_integrity();
 CREATE TRIGGER enforce_xero_sync_runs_venue_integrity BEFORE INSERT OR UPDATE ON xero_sync_runs FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_employees_venue_integrity BEFORE INSERT OR UPDATE ON xero_employees FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
+CREATE TRIGGER enforce_staff_xero_pay_item_venue BEFORE INSERT OR UPDATE ON staff FOR EACH ROW EXECUTE FUNCTION enforce_imported_xero_pay_item_venue_integrity();
+CREATE TRIGGER enforce_shift_types_xero_pay_item_venue BEFORE INSERT OR UPDATE ON shift_types FOR EACH ROW EXECUTE FUNCTION enforce_imported_xero_pay_item_venue_integrity();
+CREATE TRIGGER enforce_staff_pay_versions_xero_pay_item_venue BEFORE INSERT OR UPDATE ON staff_pay_versions FOR EACH ROW EXECUTE FUNCTION enforce_imported_xero_pay_item_venue_integrity();
+CREATE TRIGGER enforce_shift_pay_versions_xero_pay_item_venue BEFORE INSERT OR UPDATE ON shift_type_pay_versions FOR EACH ROW EXECUTE FUNCTION enforce_imported_xero_pay_item_venue_integrity();
 CREATE TRIGGER enforce_xero_earnings_rates_venue_integrity BEFORE INSERT OR UPDATE ON xero_earnings_rates FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
+CREATE TRIGGER enforce_xero_imported_pay_items_venue_integrity BEFORE INSERT OR UPDATE ON xero_imported_pay_items FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_accounts_venue_integrity BEFORE INSERT OR UPDATE ON xero_accounts FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_payroll_calendars_venue_integrity BEFORE INSERT OR UPDATE ON xero_payroll_calendars FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
 CREATE TRIGGER enforce_xero_pay_runs_venue_integrity BEFORE INSERT OR UPDATE ON xero_pay_runs FOR EACH ROW EXECUTE FUNCTION enforce_xero_connection_venue_integrity();
