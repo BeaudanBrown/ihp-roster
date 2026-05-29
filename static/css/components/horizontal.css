@@ -1,0 +1,50 @@
+/* Shared horizontal strip primitives for snap-enabled day/week scrollers. */
+
+.app-horizontal-frame {
+    display: block;
+    overflow-x: auto;
+    padding: 0.9rem;
+    cursor: grab;
+    scrollbar-color: var(--app-control-border) transparent;
+    scrollbar-width: thin;
+}
+
+.app-horizontal-frame[data-horizontal-dragging="true"] {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.app-horizontal-frame[data-horizontal-dragging="true"] * {
+    cursor: grabbing !important;
+}
+
+.app-horizontal-frame[data-horizontal-snap-dragging="true"] {
+    scroll-snap-type: none;
+}
+
+.app-horizontal-grid {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.app-horizontal-panel {
+    min-width: 0;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    background-clip: padding-box;
+    overflow: hidden;
+}
+
+@media (max-width: 575.98px) {
+    .app-horizontal-frame[data-horizontal-snap] {
+        scroll-snap-type: x mandatory;
+    }
+
+    .app-horizontal-panel {
+        scroll-snap-align: center;
+    }
+
+    .app-horizontal-frame {
+        padding: 0.65rem;
+    }
+}

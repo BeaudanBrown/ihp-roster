@@ -8,6 +8,7 @@ CSS_FILES += static/css/layout.css
 CSS_FILES += static/css/components/surfaces.css
 CSS_FILES += static/css/components/menus.css
 CSS_FILES += static/css/components/surface-toolbar.css
+CSS_FILES += static/css/components/horizontal.css
 CSS_FILES += static/css/components/week-nav.css
 CSS_FILES += static/css/components/status.css
 CSS_FILES += static/css/components/public.css

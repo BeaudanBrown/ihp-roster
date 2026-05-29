@@ -38,8 +38,9 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
   `.app-page*`, page headers, and global authenticated navigation in
   `layout.css`.
 - **Shared components:** put reusable surfaces, menus/navigation, week toolbar,
-  badges/status, public/auth surfaces, forms, buttons, tables, accordions,
-  toggles, and admin primitives in focused `components/*.css` modules.
+  badges/status, horizontal strip primitives, public/auth surfaces, forms,
+  buttons, tables, accordions, toggles, and admin primitives in focused
+  `components/*.css` modules.
 - **Overlays:** put workflow dialog, toast, picker, and overlay host styling in
   `overlays.css`.
 - **Roster feature:** put roster-only selectors in focused
@@ -61,9 +62,10 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
 
 - A new roster day-column affordance belongs in the roster feature module that
   owns day columns. If it needs a new colour, add a semantic token first.
-- A timesheet week strip and roster day strip should share a component primitive
-  when their layout rules match; feature classes can remain as wrappers for JS
-  and tests.
+- A timesheet week strip and roster day-column strip should use the shared
+  `app-horizontal-frame`, `app-horizontal-grid`, and `app-horizontal-panel`
+  primitives when their layout rules match; feature classes and
+  `data-horizontal-*` attributes remain for JS and tests.
 - A dialog footer or toast visual change belongs in `overlays.css` and the
   shared overlay helpers, not in a feature stylesheet.
 - A form field spacing rule used by roster and admin belongs in a shared forms

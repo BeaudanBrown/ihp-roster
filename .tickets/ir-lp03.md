@@ -1,6 +1,6 @@
 ---
 id: ir-lp03
-status: open
+status: closed
 deps: [ir-fnfn, ir-f5mw]
 links: []
 created: 2026-05-29T00:51:30Z
@@ -22,3 +22,9 @@ Add shared classes such as .app-horizontal-frame, .app-horizontal-grid, and opti
 
 Roster day-column frame and timesheet week frame use the shared horizontal primitive classes plus their feature classes. Existing data-horizontal-snap and data-horizontal-drag-scroll attributes are unchanged. Duplicate scroll/drag/snap CSS is reduced. Mobile horizontal overflow remains local, not page-level. Focused checks pass or are noted: e2e/mobile-experience.spec.ts, e2e/roster-mobile.spec.ts, and style-audit.
 
+
+## Notes
+
+**2026-05-29T01:40:45Z**
+
+Added shared app-horizontal-frame/grid/panel primitives and applied them to roster day-column and timesheet week strips while retaining existing feature classes and data-horizontal-* attrs. Verification: bash ./bin/in-env ./bin/style-audit passed; bash ./bin/in-env typecheck passed; bash ./bin/in-env e2e e2e/mobile-experience.spec.ts passed (24/24); bash ./bin/in-env e2e e2e/roster-mobile.spec.ts passed (27/27).

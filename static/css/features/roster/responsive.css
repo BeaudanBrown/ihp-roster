@@ -150,18 +150,12 @@
         --roster-day-column-width: 5.35rem;
     }
 
-    .roster-slots-scroller,
-    .roster-grid-frame[data-roster-layout="day_columns"] {
+    .roster-slots-scroller {
         scroll-snap-type: x mandatory;
     }
 
-    .roster-slots-scroller[data-horizontal-snap-dragging="true"],
-    .roster-grid-frame[data-roster-layout="day_columns"][data-horizontal-snap-dragging="true"] {
+    .roster-slots-scroller[data-horizontal-snap-dragging="true"] {
         scroll-snap-type: none;
-    }
-
-    .roster-day-column {
-        scroll-snap-align: center;
     }
 
     .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] .roster-grid {

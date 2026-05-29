@@ -103,7 +103,7 @@ renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gr
      in [hsx|
     <div class="app-panel overflow-hidden mb-5 mb-xl-0">
         {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates}
-        <div class="roster-grid-frame"
+        <div class={classes [("roster-grid-frame", True), ("app-horizontal-frame", isDayColumnsLayout)]}
              data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
              data-horizontal-snap={if isDayColumnsLayout then ("nearest-item" :: Text) else ""}
              data-horizontal-snap-item-selector={if isDayColumnsLayout then (".roster-day-column" :: Text) else ""}
@@ -366,7 +366,7 @@ renderRosterWageRailSection RosterDayRenderModel { dayWeekStartDate, dayAllSlots
 
 renderRosterDayColumns :: (?context :: ControllerContext) => RosterDayRenderModel -> [RosterDay] -> Html
 renderRosterDayColumns dayModel rosterDays = [hsx|
-    <div class="roster-day-columns" style={"--roster-day-count:" <> tshow (max 1 (length rosterDays)) <> ";"}>
+    <div class="roster-day-columns app-horizontal-grid" style={"--roster-day-count:" <> tshow (max 1 (length rosterDays)) <> ";"}>
         {forEach rosterDays (renderRosterDayColumn dayModel)}
     </div>
 |]
@@ -388,7 +388,7 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
         <section id={rosterDaySectionDomId rosterDay.id}
                  data-roster-day-section="true"
                  hx-swap-oob={maybeSwapOob}
-                 class={classes [("roster-day-column", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
+                 class={classes [("roster-day-column", True), ("app-horizontal-panel", True), ("day-alt-dark", odd (get #dayOffset rosterDay)), ("day-alt-light", even (get #dayOffset rosterDay))]}>
             <header class="roster-day-column-header">
                 <div class="roster-day-heading">
                     {renderPrimaryDayLabel date}

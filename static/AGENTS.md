@@ -62,7 +62,9 @@ Read this before editing `static/` assets.
 
 ## Horizontal Scroll Components
 
-- Use `data-horizontal-snap` for reusable horizontal snapping and
+- Use `app-horizontal-frame`, `app-horizontal-grid`, and
+  `app-horizontal-panel` for reusable horizontal strip layout, with
+  `data-horizontal-snap` for reusable horizontal snapping and
   `data-horizontal-drag-scroll` for reusable mouse drag-scroll.
 - Use generic runtime attrs only: `data-horizontal-snap-dragging` and
   `data-horizontal-dragging`. Do not add feature-specific aliases.

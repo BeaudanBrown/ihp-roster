@@ -14,44 +14,15 @@
     min-width: 0;
 }
 
-.timesheet-week-frame {
-    display: block;
-    overflow-x: auto;
-    padding: 0.9rem;
-    cursor: grab;
-    scrollbar-color: var(--app-control-border) transparent;
-    scrollbar-width: thin;
-}
-
-.timesheet-week-frame[data-horizontal-dragging="true"] {
-    cursor: grabbing;
-    user-select: none;
-}
-
-.timesheet-week-frame[data-horizontal-dragging="true"] * {
-    cursor: grabbing !important;
-}
-
 .timesheet-day-columns {
-    display: grid;
     grid-template-columns: repeat(var(--timesheet-day-count), minmax(17.5rem, 1fr));
-    gap: 0.75rem;
     min-width: min(88rem, calc(var(--timesheet-day-count) * 18.5rem));
-}
-
-.timesheet-week-frame[data-horizontal-snap-dragging="true"] {
-    scroll-snap-type: none;
 }
 
 .timesheet-day-panel {
     display: grid;
     grid-template-rows: auto 1fr;
-    min-width: 0;
-    border: 1px solid var(--app-border);
-    border-radius: 0.75rem;
     background: var(--app-surface-muted);
-    background-clip: padding-box;
-    overflow: hidden;
 }
 
 .timesheet-day-header {
@@ -371,18 +342,6 @@
 }
 
 @media (max-width: 575.98px) {
-    .timesheet-week-frame {
-        scroll-snap-type: x mandatory;
-    }
-
-    .timesheet-day-panel {
-        scroll-snap-align: center;
-    }
-
-    .timesheet-week-frame {
-        padding: 0.65rem;
-    }
-
     .timesheet-day-columns {
         grid-template-columns: repeat(var(--timesheet-day-count), minmax(16.5rem, 1fr));
         min-width: calc(var(--timesheet-day-count) * 16.5rem);

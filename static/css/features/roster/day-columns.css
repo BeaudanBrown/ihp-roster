@@ -1,32 +1,16 @@
 /* Roster day-column layout and day-column header controls. */
 
 .roster-grid-frame[data-roster-layout="day_columns"] {
-    display: block;
-    overflow-x: auto;
-    padding: 0.9rem;
-    cursor: grab;
     --roster-day-column-width: 30%;
 }
 
-.roster-grid-frame[data-roster-layout="day_columns"][data-horizontal-dragging="true"] {
-    cursor: grabbing;
-    user-select: none;
-}
-
 .roster-day-columns {
-    display: grid;
     grid-template-columns: repeat(var(--roster-day-count), minmax(19.4rem, 1fr));
-    gap: 0.75rem;
     min-width: min(88rem, calc(var(--roster-day-count) * 20rem));
 }
 
 .roster-day-column {
-    min-width: 0;
-    border: 1px solid var(--app-border);
-    border-radius: 0.75rem;
     background: var(--app-white-alpha-015);
-    background-clip: padding-box;
-    overflow: hidden;
 }
 
 .roster-day-column-header {

@@ -68,12 +68,12 @@ renderTimesheetWeekShell view@IndexView { .. } =
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
-                        <div class="timesheet-week-frame"
+                        <div class="timesheet-week-frame app-horizontal-frame"
                              data-timesheet-layout="day_columns"
                              data-horizontal-snap="nearest-item"
                              data-horizontal-snap-item-selector=".timesheet-day-panel"
                              data-horizontal-drag-scroll="mouse">
-                            <div class="timesheet-day-columns" style="--timesheet-day-count: 7;">
+                            <div class="timesheet-day-columns app-horizontal-grid" style="--timesheet-day-count: 7;">
                             {forEach [0 .. 6] (renderDaySection . timesheetDayRenderModel view)}
                             </div>
                         </div>
@@ -231,7 +231,7 @@ renderDaySectionOob =
 renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> TimesheetDayRenderModel -> Html
 renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries, dayWeekStartDate, dayWeekOffset, dayShowApproved, dayShowAllStaff, dayStaffFilterId, dayOffset } = [hsx|
     <section id={timesheetDaySectionDomId dayOffset}
-             class="timesheet-day-panel"
+             class="timesheet-day-panel app-horizontal-panel"
              data-timesheet-day-offset={tshow dayOffset}
              data-live-update-url={timesheetDaySectionFragmentUrl dayWeekOffset dayOffset dayShowApproved dayShowAllStaff dayStaffFilterId}
              hx-swap-oob={maybeSwapOob}>

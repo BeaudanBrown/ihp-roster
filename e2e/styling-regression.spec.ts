@@ -18,6 +18,7 @@ const sharedComponentStylesheets = [
     '/css/components/surfaces.css',
     '/css/components/menus.css',
     '/css/components/surface-toolbar.css',
+    '/css/components/horizontal.css',
     '/css/components/week-nav.css',
     '/css/components/status.css',
     '/css/components/public.css',
