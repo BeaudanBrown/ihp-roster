@@ -53,10 +53,10 @@ tests = do
                 `shouldBe` Set.singleton (scope, [TimesheetDaySectionFragment 2])
 
             targetSummary (planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.singleton (TimesheetWeekResource venueId 4)) [scope])
-                `shouldBe` Set.singleton (scope, map TimesheetDaySectionFragment [0 .. 6])
+                `shouldBe` Set.singleton (scope, [TimesheetToolbarFragment, TimesheetDayColumnsFragment])
 
             targetSummary (planRegisteredLiveSurfaceInvalidationsWithoutContext (Set.singleton (TimesheetWeekBoundaryConfigResource venueId)) [scope])
-                `shouldBe` Set.singleton (scope, map TimesheetDaySectionFragment [0 .. 6])
+                `shouldBe` Set.singleton (scope, [TimesheetToolbarFragment, TimesheetDayColumnsFragment])
 
         it "ignores resources that do not match the subscribed scope" do
             let venueId = fromWords 4 0 0 0

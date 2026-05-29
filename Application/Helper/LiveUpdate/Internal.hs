@@ -104,6 +104,8 @@ data LiveFragmentKey
         , rowIndex    :: !Int
         }
     | LeaveRequestsContentFragment
+    | TimesheetToolbarFragment
+    | TimesheetDayColumnsFragment
     | TimesheetDaySectionFragment
         { dayOffset :: !Int
         }
@@ -352,6 +354,10 @@ instance Aeson.ToJSON LiveFragmentKey where
             ]
     toJSON LeaveRequestsContentFragment =
         Aeson.object ["kind" Aeson..= ("leave_requests_content" :: Text)]
+    toJSON TimesheetToolbarFragment =
+        Aeson.object ["kind" Aeson..= ("timesheet_toolbar" :: Text)]
+    toJSON TimesheetDayColumnsFragment =
+        Aeson.object ["kind" Aeson..= ("timesheet_day_columns" :: Text)]
     toJSON TimesheetDaySectionFragment { dayOffset } =
         Aeson.object
             [ "kind" Aeson..= ("timesheet_day_section" :: Text)
@@ -400,6 +406,8 @@ instance Aeson.FromJSON LiveFragmentKey where
                     <$> (parseUuid =<< object Aeson..: "rosterDayId")
                     <*> object Aeson..: "rowIndex"
             "leave_requests_content" -> pure LeaveRequestsContentFragment
+            "timesheet_toolbar" -> pure TimesheetToolbarFragment
+            "timesheet_day_columns" -> pure TimesheetDayColumnsFragment
             "timesheet_day_section" ->
                 TimesheetDaySectionFragment
                     <$> object Aeson..: "dayOffset"

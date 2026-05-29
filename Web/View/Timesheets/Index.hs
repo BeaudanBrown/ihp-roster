@@ -10,8 +10,10 @@ import Data.Time.Format (defaultTimeLocale, formatTime)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Data.UUID (UUID)
 import Web.Timesheets.Paths (editTimesheetEntryUrl, newTimesheetEntryUrl,
+                             timesheetDayColumnsFragmentUrl,
                              timesheetDaySectionFragmentUrl,
-                             timesheetWeekResetUrl, timesheetWeekUrl)
+                             timesheetToolbarFragmentUrl, timesheetWeekResetUrl,
+                             timesheetWeekUrl)
 import Web.View.Prelude
 
 data IndexView = IndexView
@@ -47,6 +49,12 @@ data TimesheetDayRenderModel = TimesheetDayRenderModel
 timesheetWeekShellId :: Text
 timesheetWeekShellId = "timesheet-week-shell"
 
+timesheetWeekToolbarId :: Text
+timesheetWeekToolbarId = "timesheet-week-toolbar"
+
+timesheetDayColumnsId :: Text
+timesheetDayColumnsId = "timesheet-day-columns"
+
 instance View IndexView where
     html = renderTimesheetWeekShell
 
@@ -64,7 +72,7 @@ renderTimesheetWeekShell view@IndexView { .. } =
                     , appPanelHasActions = False
                     , appPanelActions = mempty
                     , appPanelHasCustomHeader = True
-                    , appPanelCustomHeader = renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff selectedStaffFilterId staffMembers
+                    , appPanelCustomHeader = renderTimesheetWeekToolbar view
                     , appPanelClass = "overflow-hidden"
                     , appPanelBodyClass = ""
                     , appPanelBody = [hsx|
@@ -73,34 +81,66 @@ renderTimesheetWeekShell view@IndexView { .. } =
                              data-horizontal-snap="nearest-item"
                              data-horizontal-snap-item-selector=".timesheet-day-panel"
                              data-horizontal-drag-scroll="mouse">
-                            <div class="timesheet-day-columns app-horizontal-grid" style="--timesheet-day-count: 7;">
-                            {forEach [0 .. 6] (renderDaySection . timesheetDayRenderModel view)}
-                            </div>
+                            {renderTimesheetDayColumns view}
                         </div>
                     |]
                     }
             })
      in [hsx|
     <section id={timesheetWeekShellId}
-             hx-history-elt="true"
-             data-live-update-surface={liveSurfaceConfigJson <$> liveUpdateSurface}>
+             hx-history-elt="true">
         {page}
     </section>
 |]
 
+renderTimesheetWeekToolbar :: (?context :: ControllerContext) => IndexView -> Html
+renderTimesheetWeekToolbar =
+    renderTimesheetWeekToolbarWithSwap Nothing
+
+renderTimesheetWeekToolbarOob :: (?context :: ControllerContext) => IndexView -> Html
+renderTimesheetWeekToolbarOob =
+    renderTimesheetWeekToolbarWithSwap (Just "outerHTML")
+
+renderTimesheetWeekToolbarWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
+renderTimesheetWeekToolbarWithSwap maybeSwapOob IndexView { weekOffset, weekStartDate, showApproved, showAllStaff, selectedStaffFilterId, staffMembers } = [hsx|
+    <div id={timesheetWeekToolbarId}
+         data-live-update-url={timesheetToolbarFragmentUrl weekOffset showApproved showAllStaff selectedStaffFilterId}
+         hx-swap-oob={maybeSwapOob}>
+        {renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff selectedStaffFilterId staffMembers}
+    </div>
+|]
+
+renderTimesheetDayColumns :: (?context :: ControllerContext) => IndexView -> Html
+renderTimesheetDayColumns =
+    renderTimesheetDayColumnsWithSwap Nothing
+
+renderTimesheetDayColumnsOob :: (?context :: ControllerContext) => IndexView -> Html
+renderTimesheetDayColumnsOob =
+    renderTimesheetDayColumnsWithSwap (Just "outerHTML")
+
+renderTimesheetDayColumnsWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
+renderTimesheetDayColumnsWithSwap maybeSwapOob view@IndexView { weekOffset, showApproved, showAllStaff, selectedStaffFilterId, liveUpdateSurface } = [hsx|
+    <div id={timesheetDayColumnsId}
+         class="timesheet-day-columns app-horizontal-grid"
+         style="--timesheet-day-count: 7;"
+         data-live-update-surface={liveSurfaceConfigJson <$> liveUpdateSurface}
+         data-live-update-url={timesheetDayColumnsFragmentUrl weekOffset showApproved showAllStaff selectedStaffFilterId}
+         hx-swap-oob={maybeSwapOob}>
+        {forEach [0 .. 6] (renderDaySection . timesheetDayRenderModel view)}
+    </div>
+|]
+
 renderTimesheetWeekNavigationLink :: Text -> Text -> Html
-renderTimesheetWeekNavigationLink label url =
-    renderPartialNavigationLink
-        PartialNavigationLink
-            { partialNavigationLabel = label
-            , partialNavigationUrl = url
-            , partialNavigationTargetId = timesheetWeekShellId
-            , partialNavigationSelectId = Just timesheetWeekShellId
-            , partialNavigationClass = "btn btn-outline-secondary app-week-nav-button"
-            , partialNavigationSwap = "outerHTML"
-            , partialNavigationSync = Just ("#" <> timesheetWeekShellId <> ":replace")
-            , partialNavigationPushUrl = True
-            }
+renderTimesheetWeekNavigationLink label url = [hsx|
+    <a href={url}
+       class="btn btn-outline-secondary app-week-nav-button"
+       hx-get={url}
+       hx-swap="none"
+       hx-push-url="true"
+       hx-sync={"#" <> timesheetWeekShellId <> ":replace"}>
+        {label}
+    </a>
+|]
 
 renderTimesheetWeekHeader :: (?context :: ControllerContext) => Int -> Day -> Bool -> Bool -> Maybe UUID -> [Staff] -> Html
 renderTimesheetWeekHeader weekOffset weekStartDate showApproved showAllStaff selectedStaffFilterId staffMembers =
@@ -136,8 +176,7 @@ renderTimesheetWeekMoreMenu weekOffset showApproved showAllStaff selectedStaffFi
                   action={updateUrl}
                   data-disable-javascript-submission="true"
                   hx-get={updateUrl}
-                  hx-target={"#" <> timesheetWeekShellId}
-                  hx-swap="outerHTML"
+                  hx-swap="none"
                   hx-push-url="true"
                   hx-sync={"#" <> timesheetWeekShellId <> ":replace"}>
                 <input type="hidden" name="weekOffset" value={tshow weekOffset} />
@@ -361,8 +400,7 @@ renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff staffF
               class="timesheet-entry-action-form"
               data-disable-javascript-submission="true"
               hx-post={UnapproveTimesheetEntryAction entry.id}
-              hx-target={"#" <> timesheetDaySectionDomId dayOffset}
-              hx-swap="outerHTML"
+              hx-swap="none"
               hx-push-url="false">
             <input type="hidden" name="weekOffset" value={tshow weekOffset} />
             <input type="hidden" name="showApproved" value={boolParam showApproved} />
@@ -377,8 +415,7 @@ renderApprovalAction dayOffset entry weekOffset showApproved showAllStaff staffF
               class="timesheet-entry-action-form"
               data-disable-javascript-submission="true"
               hx-post={ApproveTimesheetEntryAction entry.id}
-              hx-target={"#" <> timesheetDaySectionDomId dayOffset}
-              hx-swap="outerHTML"
+              hx-swap="none"
               hx-push-url="false">
             <input type="hidden" name="weekOffset" value={tshow weekOffset} />
             <input type="hidden" name="showApproved" value={boolParam showApproved} />

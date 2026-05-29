@@ -21,22 +21,40 @@ instance Controller TimesheetsController where
         currentOffset <- currentTimesheetWeekOffset
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         if isHtmxRequest
-            then do
-                setHtmxPushUrl (timesheetWeekUrl currentOffset showApproved showAllStaff selectedStaffFilterId)
-                renderTimesheetWeekPage currentOffset showApproved showAllStaff selectedStaffFilterId
+            then respondWithTimesheetWeekFragmentsUpdate currentOffset showApproved showAllStaff selectedStaffFilterId
             else redirectToPath (timesheetWeekUrl currentOffset showApproved showAllStaff selectedStaffFilterId)
 
     action ShowTimesheetWeekAction { weekOffset } = do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
         renderTimesheetWeekPage weekOffset showApproved showAllStaff selectedStaffFilterId
 
-    action ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = do
+    action ShowTimesheetToolbarFragmentAction { weekOffset } = do
         let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
         serveTypedLiveFragment
             timesheetLiveSurfaceDefinition
-            (TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId)
-            (TimesheetProjectionDaySection dayOffset)
-            \_ -> respondWithTimesheetDaySectionFragment weekOffset dayOffset showApproved showAllStaff selectedStaffFilterId
+            requestKey
+            TimesheetProjectionToolbar
+            \_ -> respondWithTimesheetFragment requestKey TimesheetProjectionToolbar
+
+    action ShowTimesheetDayColumnsFragmentAction { weekOffset } = do
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
+        serveTypedLiveFragment
+            timesheetLiveSurfaceDefinition
+            requestKey
+            TimesheetProjectionDayColumns
+            \_ -> respondWithTimesheetFragment requestKey TimesheetProjectionDayColumns
+
+    action ShowTimesheetDaySectionFragmentAction { weekOffset, dayOffset } = do
+        let (showApproved, showAllStaff, selectedStaffFilterId) = timesheetViewFiltersFromRequest
+        let requestKey = TimesheetProjectionRequest weekOffset showApproved showAllStaff selectedStaffFilterId
+        let fragment = TimesheetProjectionDaySection dayOffset
+        serveTypedLiveFragment
+            timesheetLiveSurfaceDefinition
+            requestKey
+            fragment
+            \_ -> respondWithTimesheetFragment requestKey fragment
 
     action NewTimesheetEntryAction = do
         weekOffset <- weekOffsetFromParamOrCurrent
@@ -99,7 +117,7 @@ instance Controller TimesheetsController where
                     mutationResult <- createTimesheetEntryMutation weekOffset timesheetEntry
                     let createdEntry = mutationResult.liveMutationValue
                     if isHtmxRequest
-                        then respondWithTimesheetDaySectionUpdate weekOffset createdEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry created" True True
+                        then respondWithTimesheetDaySectionUpdate weekOffset createdEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry created" True
                         else do
                             setSuccessMessage "Timesheet entry created"
                             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
@@ -173,7 +191,7 @@ instance Controller TimesheetsController where
         ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved showAllStaff selectedStaffFilterId
         _ <- deleteTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry removed" True True
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry removed" True
             else setSuccessMessage "Timesheet entry removed"
         unless isHtmxRequest do
             redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
@@ -189,7 +207,7 @@ instance Controller TimesheetsController where
 
         _ <- approveTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry approved" False False
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry approved" False
             else do
                 setSuccessMessage "Timesheet entry approved"
                 redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)
@@ -206,7 +224,7 @@ instance Controller TimesheetsController where
 
         _ <- unapproveTimesheetEntryMutation weekOffset timesheetEntry
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry unapproved" False False
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff selectedStaffFilterId "Timesheet entry unapproved" False
             else do
                 setSuccessMessage "Timesheet entry unapproved"
                 redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff selectedStaffFilterId)

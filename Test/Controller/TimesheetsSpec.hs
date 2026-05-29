@@ -4,6 +4,7 @@ import Application.Helper.Controller (PlatformRole (SuperAdminRole),
                                       parseTimeParam)
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveSurface (mkTypedDefinedLiveSurface,
+                                       typedLiveSurfaceFragmentRefs,
                                        unSurfaceFragmentRefs)
 import Application.Helper.LiveUpdate (LiveUpdateScope (..),
                                       currentLiveUpdateVersion)
@@ -28,7 +29,8 @@ import Web.Controller.Timesheets ()
 import Web.FrontController ()
 import Web.Routes
 import Web.Timesheets.Mutations (timesheetEntryTouchedResources)
-import Web.Timesheets.Projection (TimesheetProjectionRequest (..),
+import Web.Timesheets.Projection (TimesheetProjectionFragment (..),
+                                  TimesheetProjectionRequest (..),
                                   timesheetDaySectionFragmentRef,
                                   timesheetLiveSurfaceDefinition)
 import Web.Types
@@ -87,7 +89,7 @@ tests = beforeAll testContext do
                     withCurrentControllerContext do
                         let requestKey = TimesheetProjectionRequest 0 False True Nothing
                         let liveSurface = mkTypedDefinedLiveSurface timesheetLiveSurfaceDefinition requestKey
-                        let expectedRefs = [timesheetDaySectionFragmentRef requestKey dayOffset | dayOffset <- [0 .. 6]]
+                        let expectedRefs = typedLiveSurfaceFragmentRefs timesheetLiveSurfaceDefinition requestKey [TimesheetProjectionDayColumns]
                         response <- callAction ShowTimesheetWeekAction { weekOffset = 0 }
                         pure (response, liveSurface, unSurfaceFragmentRefs expectedRefs)
 

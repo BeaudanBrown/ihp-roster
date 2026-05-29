@@ -66,6 +66,8 @@ data ProfilesController
 data TimesheetsController
     = TimesheetsAction
     | ShowTimesheetWeekAction { weekOffset :: !Int }
+    | ShowTimesheetToolbarFragmentAction { weekOffset :: !Int }
+    | ShowTimesheetDayColumnsFragmentAction { weekOffset :: !Int }
     | ShowTimesheetDaySectionFragmentAction { weekOffset :: !Int, dayOffset :: !Int }
     | NewTimesheetEntryAction
     | CreateTimesheetEntryAction

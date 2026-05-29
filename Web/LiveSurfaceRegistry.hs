@@ -32,7 +32,8 @@ import Web.Profiles.LiveUpdates (ProfileContentFragment (..),
                                  profileContentLiveSurfaceDefinition,
                                  profileLeaveRequestsLiveSurfaceDefinition)
 import Web.RosterWeeks.LiveSurface (rosterLiveSurfaceDefinition)
-import Web.Timesheets.Projection (timesheetLiveSurfaceDefinition,
+import Web.Timesheets.Projection (timesheetLiveSurfaceCandidateFragments,
+                                  timesheetLiveSurfaceDefinition,
                                   timesheetLiveSurfaceDefinitionForVenue)
 import Web.View.Admin.Exports (adminExportsLiveSurfaceDefinition)
 import Web.View.Admin.Invites (adminInvitesLiveSurfaceDefinition,
@@ -149,7 +150,7 @@ contextFreeRegisteredLiveSurfacesForScope = \case
     AdminVenueConfigScope { venueId } ->
         [registeredTypedLiveSurface (adminVenueSettingsLiveSurfaceDefinitionForVenue venueId) defaultCandidateFragments]
     TimesheetWeekScope { venueId } ->
-        [registeredTypedLiveSurface (timesheetLiveSurfaceDefinitionForVenue venueId) defaultCandidateFragments]
+        [registeredTypedLiveSurface (timesheetLiveSurfaceDefinitionForVenue venueId) (const timesheetLiveSurfaceCandidateFragments)]
     AdminXeroScope { venueId } ->
         [registeredTypedLiveSurface (adminXeroLiveSurfaceDefinitionForVenue venueId) defaultCandidateFragments]
     _ ->

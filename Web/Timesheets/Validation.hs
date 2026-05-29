@@ -29,7 +29,7 @@ ensureTimesheetEntryNotPayrollLocked timesheetEntry weekOffset showApproved show
     when locked do
         let message = "This approved timesheet entry is locked because it has been exported or submitted to Xero."
         if isHtmxRequest
-            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff staffFilterId message True True
+            then respondWithTimesheetDaySectionUpdate weekOffset timesheetEntry.workedOn showApproved showAllStaff staffFilterId message True
             else do
                 setErrorMessage message
                 redirectToPath (timesheetWeekUrl weekOffset showApproved showAllStaff staffFilterId)

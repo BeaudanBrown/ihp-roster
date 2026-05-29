@@ -1,7 +1,9 @@
 module Web.Timesheets.Paths
     ( editTimesheetEntryUrl
     , newTimesheetEntryUrl
+    , timesheetDayColumnsFragmentUrl
     , timesheetDaySectionFragmentUrl
+    , timesheetToolbarFragmentUrl
     , timesheetWeekResetUrl
     , timesheetWeekUrl
     ) where
@@ -28,6 +30,24 @@ timesheetWeekResetUrl :: Bool -> Bool -> Maybe UUID -> Text
 timesheetWeekResetUrl showApproved showAllStaff staffFilterId =
     appendQueryParams
         (pathTo TimesheetsAction)
+        [ ("showApproved", toBoolText showApproved)
+        , ("showAllStaff", toBoolText showAllStaff)
+        , ("staffFilterId", maybe "" tshow staffFilterId)
+        ]
+
+timesheetToolbarFragmentUrl :: Int -> Bool -> Bool -> Maybe UUID -> Text
+timesheetToolbarFragmentUrl weekOffset showApproved showAllStaff staffFilterId =
+    appendQueryParams
+        (pathTo ShowTimesheetToolbarFragmentAction { weekOffset })
+        [ ("showApproved", toBoolText showApproved)
+        , ("showAllStaff", toBoolText showAllStaff)
+        , ("staffFilterId", maybe "" tshow staffFilterId)
+        ]
+
+timesheetDayColumnsFragmentUrl :: Int -> Bool -> Bool -> Maybe UUID -> Text
+timesheetDayColumnsFragmentUrl weekOffset showApproved showAllStaff staffFilterId =
+    appendQueryParams
+        (pathTo ShowTimesheetDayColumnsFragmentAction { weekOffset })
         [ ("showApproved", toBoolText showApproved)
         , ("showAllStaff", toBoolText showAllStaff)
         , ("staffFilterId", maybe "" tshow staffFilterId)

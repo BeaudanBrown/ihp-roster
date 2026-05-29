@@ -76,7 +76,21 @@ tests = describe "LiveSurface contract helpers" do
         typedLiveSurfaceConfigShouldExposeDefaultRefs
             (timesheetLiveSurfaceDefinitionForVenue venueId)
             timesheetKey
-            (map TimesheetProjectionDaySection [0 .. 6])
+            [TimesheetProjectionDayColumns]
+        typedLiveSurfaceFragmentShouldMapTo
+            (timesheetLiveSurfaceDefinitionForVenue venueId)
+            timesheetKey
+            TimesheetProjectionToolbar
+            TimesheetToolbarFragment
+            "timesheet-week-toolbar"
+            "/ShowTimesheetToolbarFragment?weekOffset=1&showApproved=true&showAllStaff=true"
+        typedLiveSurfaceFragmentShouldMapTo
+            (timesheetLiveSurfaceDefinitionForVenue venueId)
+            timesheetKey
+            TimesheetProjectionDayColumns
+            TimesheetDayColumnsFragment
+            "timesheet-day-columns"
+            "/ShowTimesheetDayColumnsFragment?weekOffset=1&showApproved=true&showAllStaff=true"
         typedLiveSurfaceFragmentShouldMapTo
             (timesheetLiveSurfaceDefinitionForVenue venueId)
             timesheetKey

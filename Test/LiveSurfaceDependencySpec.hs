@@ -40,7 +40,9 @@ tests = do
             let definition = timesheetLiveSurfaceDefinitionForVenue venueId
             let request = TimesheetProjectionRequest 2 True True Nothing
 
-            typedSurfaceDependsOn definition request TimesheetProjectionPage
+            typedSurfaceDependsOn definition request TimesheetProjectionToolbar
+                `shouldBe` [TimesheetWeekResource venueId 2, TimesheetWeekBoundaryConfigResource venueId]
+            typedSurfaceDependsOn definition request TimesheetProjectionDayColumns
                 `shouldBe` [TimesheetWeekResource venueId 2, TimesheetWeekBoundaryConfigResource venueId]
             typedSurfaceDependsOn definition request (TimesheetProjectionDaySection 4)
                 `shouldBe`
@@ -53,7 +55,7 @@ tests = do
             let venueId = fromWords 1 0 0 0
             let definition = timesheetLiveSurfaceDefinitionForVenue venueId
             let request = TimesheetProjectionRequest 2 True True Nothing
-            let candidates = [TimesheetProjectionPage, TimesheetProjectionDaySection 4, TimesheetProjectionDaySection 5]
+            let candidates = [TimesheetProjectionToolbar, TimesheetProjectionDayColumns, TimesheetProjectionDaySection 4, TimesheetProjectionDaySection 5]
 
             typedLiveSurfaceAffectedFragments definition request (Set.fromList [TimesheetDayResource venueId 2 4]) candidates
                 `shouldBe` [TimesheetProjectionDaySection 4]
