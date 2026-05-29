@@ -103,8 +103,8 @@
     --app-warning-mark: rgba(240, 199, 114, 0.4);
     --app-warning-conflict-bg: #524a34;
     --app-warning-conflict-text: #ffe7b2;
-    --app-info-conflict-bg: #2d384c;
-    --app-info-conflict-text: #d6e5ff;
+    --app-info-conflict-bg: #4b3b73;
+    --app-info-conflict-text: #f1eaff;
     --app-info-export-glow: rgba(109, 151, 222, 0.16);
     --app-timesheet-card-start: rgba(44, 56, 77, 0.86);
     --app-timesheet-card-end: rgba(30, 39, 55, 0.96);
