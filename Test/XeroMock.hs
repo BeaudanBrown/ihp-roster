@@ -26,6 +26,7 @@ import qualified Network.HTTP.Types.URI as URI
 import qualified Network.Wai as Wai
 import qualified Network.Wai.Handler.Warp as Warp
 import Test.Hspec
+import Text.Read (readMaybe)
 
 data OpenApiSpec = OpenApiSpec
     { specPath :: !FilePath
@@ -87,7 +88,7 @@ xeroRequestContractCases identitySpec payrollSpec =
     , (identitySpec, identityContract "connections list" "GET" "/Connections" "/connections" NoRequestBody, buildFetchConnectedTenantsRequest "access-token")
     , (identitySpec, identityContract "connection delete" "DELETE" "/Connections/{id}" "/connections/connection-id" NoRequestBody, buildDeleteXeroConnectionRequest "access-token" "connection-id")
     , (payrollSpec, payrollReadContract "employees list" "/Employees" "/Employees" [], buildFetchPayrollEmployeesRequest "access-token" "tenant-id")
-    , (payrollSpec, payrollReadContract "pay items list" "/PayItems" "/PayItems" [], buildFetchEarningsRatesRequest "access-token" "tenant-id")
+    , (payrollSpec, (payrollReadContract "pay items list" "/PayItems" "/PayItems" ["page"]) { contractAllowedQueries = [] }, buildFetchEarningsRatesRequest "access-token" "tenant-id")
     , (payrollSpec, payrollReadContract "payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], buildFetchPayrollCalendarsRequest "access-token" "tenant-id")
     , (payrollSpec, payrollReadContract "payroll settings accounts" "/Settings" "/Settings" [], buildFetchPayrollSettingsAccountsRequest "access-token" "tenant-id")
     , ( payrollSpec
@@ -390,6 +391,47 @@ fixedXeroRawResponse status body action =
         app _ respond =
             respond (Wai.responseLBS status [("Content-Type", "application/json")] body)
 
+withPaginatedPayItemsMock :: (XeroRequestBaseUrls -> IO a) -> IO a
+withPaginatedPayItemsMock action =
+    Warp.testWithApplication (pure app) \port ->
+        action (xeroRequestBaseUrlsFor ("http://127.0.0.1:" <> tshow port))
+    where
+        app request respond
+            | Wai.requestMethod request == methodGet && Wai.rawPathInfo request == "/payroll.xro/1.0/PayItems" =
+                respond (jsonResponse status200 (paginatedPayItemsFixture (payItemsPage request)))
+            | otherwise =
+                respond (jsonResponse status404 (Aeson.object ["error" Aeson..= ("unexpected paginated pay items mock endpoint" :: Text)]))
+
+payItemsPage :: Wai.Request -> Int
+payItemsPage request =
+    case lookup "page" (URI.parseQuery (Wai.rawQueryString request)) >>= id of
+        Just value -> fromMaybe 1 (readMaybe (ByteStringChar8.unpack value))
+        Nothing    -> 1
+
+paginatedPayItemsFixture :: Int -> Aeson.Value
+paginatedPayItemsFixture page =
+    Aeson.object
+        [ "PayItems" Aeson..=
+            Aeson.object
+                [ "EarningsRates" Aeson..= earningsRatesForPage page
+                ]
+        ]
+
+earningsRatesForPage :: Int -> [Aeson.Value]
+earningsRatesForPage 1 = map payItemsPageRate [1 .. 100]
+earningsRatesForPage 2 = [payItemsPageRate 101]
+earningsRatesForPage _ = []
+
+payItemsPageRate :: Int -> Aeson.Value
+payItemsPageRate index =
+    Aeson.object
+        [ "EarningsRateID" Aeson..= ("earnings-rate-" <> tshow index :: Text)
+        , "Name" Aeson..= ("Ordinary Hours " <> tshow index :: Text)
+        , "EarningsType" Aeson..= ("ORDINARYTIMEEARNINGS" :: Text)
+        , "RateType" Aeson..= ("RATEPERUNIT" :: Text)
+        , "IsActive" Aeson..= True
+        ]
+
 xeroStrictMockApp :: OpenApiSpec -> OpenApiSpec -> IORef.IORef [Wai.Response] -> Wai.Application
 xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef request respond = do
     body <- Wai.strictRequestBody request
@@ -418,7 +460,7 @@ xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef request re
                 (method, "/payroll.xro/1.0/Employees")
                     | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock employees list" "/Employees" "/Employees" [], jsonResponse status200 employeesFixture))
                 (method, "/payroll.xro/1.0/PayItems")
-                    | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock pay items list" "/PayItems" "/PayItems" [], jsonResponse status200 payItemsFixture))
+                    | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock pay items list" "/PayItems" "/PayItems" ["page"]) { contractAllowedQueries = ["page"] }, jsonResponse status200 payItemsFixture))
                     | method == methodPost -> pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock pay item create" "/PayItems" "/PayItems" (JsonObjectWithArrayField "EarningsRates"), jsonResponse status200 payItemsFixture))
                 (method, "/payroll.xro/1.0/PayrollCalendars")
                     | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], jsonResponse status200 calendarsFixture))

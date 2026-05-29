@@ -129,6 +129,13 @@ tests =
                 `shouldBe` List.sort expectedContractCaseNames
             coveredXeroClientOperationNames `shouldBe` expectedContractCaseNames
 
+        it "fetches all paginated Payroll AU pay item pages" do
+            XeroMock.withPaginatedPayItemsMock \urls -> do
+                result <- withXeroRequestBaseUrlsForTest urls do
+                    client <- currentXeroClient
+                    client.fetchEarningsRates "access-token" "tenant-id"
+                fmap (map (.xeroEarningsRateId)) result `shouldBe` Right (map (\index -> "earnings-rate-" <> tshow index) [1 .. 101 :: Int])
+
         it "exercises the concrete XeroClient HTTP transport against a strict localhost OpenAPI mock" do
             XeroMock.withStrictXeroMock identitySpec payrollSpec \urls -> do
                 withXeroRequestBaseUrlsForTest urls do

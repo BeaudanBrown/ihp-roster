@@ -547,8 +547,29 @@ fetchPayrollEmployeesRequest accessToken tenantId = do
 fetchEarningsRatesRequest :: Text -> Text -> IO (Either XeroClientError [XeroEarningsRateRef])
 fetchEarningsRatesRequest accessToken tenantId = do
     urls <- currentXeroRequestBaseUrls
-    fmap unXeroPayItemsResponse <$>
-        sendXeroJsonRequest "Xero payroll pay items request" (buildFetchEarningsRatesRequestWith urls accessToken tenantId)
+    fetchAllEarningsRatePages urls accessToken tenantId 1 []
+
+xeroPayItemsPageSize :: Int
+xeroPayItemsPageSize = 100
+
+xeroPayItemsMaxPages :: Int
+xeroPayItemsMaxPages = 100
+
+fetchAllEarningsRatePages :: XeroRequestBaseUrls -> Text -> Text -> Int -> [XeroEarningsRateRef] -> IO (Either XeroClientError [XeroEarningsRateRef])
+fetchAllEarningsRatePages urls accessToken tenantId page acc
+    | page > xeroPayItemsMaxPages =
+        pure (Left (XeroHttpError ("Xero payroll pay items pagination exceeded " <> tshow xeroPayItemsMaxPages <> " pages")))
+    | otherwise = do
+        pageResult <-
+            fmap unXeroPayItemsResponse <$>
+                sendXeroJsonRequest "Xero payroll pay items request" (buildFetchEarningsRatesPageRequestWith urls accessToken tenantId page)
+        case pageResult of
+            Left err -> pure (Left err)
+            Right pageRates ->
+                let acc' = acc <> pageRates
+                 in if length pageRates < xeroPayItemsPageSize
+                        then pure (Right acc')
+                        else fetchAllEarningsRatePages urls accessToken tenantId (page + 1) acc'
 
 fetchPayrollCalendarsRequest :: Text -> Text -> IO (Either XeroClientError [XeroPayrollCalendarRef])
 fetchPayrollCalendarsRequest accessToken tenantId = do
@@ -685,6 +706,15 @@ buildFetchEarningsRatesRequest =
 buildFetchEarningsRatesRequestWith :: XeroRequestBaseUrls -> Text -> Text -> XeroHttpRequest
 buildFetchEarningsRatesRequestWith urls accessToken tenantId =
     buildXeroPayrollGetRequest accessToken tenantId (urls.xeroPayrollBaseUrl <> "/PayItems") []
+
+buildFetchEarningsRatesPageRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Int -> XeroHttpRequest
+buildFetchEarningsRatesPageRequestWith urls accessToken tenantId page =
+    buildXeroPayrollGetRequest accessToken tenantId payItemsPageUrl []
+    where
+        payItemsPageUrl =
+            urls.xeroPayrollBaseUrl
+                <> "/PayItems"
+                <> TextEncoding.decodeUtf8 (URI.renderQuery True [("page", Just (TextEncoding.encodeUtf8 (tshow page)))])
 
 buildFetchPayrollCalendarsRequest :: Text -> Text -> XeroHttpRequest
 buildFetchPayrollCalendarsRequest =
