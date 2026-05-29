@@ -82,16 +82,24 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
 
 ## Audit commands
 
-- `bash ./bin/in-env ./bin/style-audit` is the hard gate. It fails on undefined
-  CSS variables and Layout/Makefile stylesheet sync problems. It also prints
-  existing warning-style findings for hardcoded colours, light Bootstrap
-  utilities, and inline style attributes.
+- `bash ./bin/in-env ./bin/style-audit` is the hard gate. It fails on
+  undefined CSS variables, Layout/Makefile stylesheet sync problems, app-owned
+  CSS files that are not linked/mirrored, app-owned CSS `@import`, files over
+  the `CSS_LINE_BUDGET` budget, raw colour literals outside token/palette/bridge
+  modules, and unexpected app/global/Bootstrap selectors in feature modules.
+  The remaining light Bootstrap utility and inline-style sections are review
+  output only.
+- Intentional exceptions must stay rare and explicit. Prefer moving CSS to the
+  correct shared module or adding a token first; if an exception is genuinely
+  durable, add the narrowest path/selector allowlist entry in `bin/style-audit`
+  with a nearby comment or ticket note explaining ownership.
 - `bash ./bin/in-env ./bin/css-inventory` is warning-only. It reports app-owned
   CSS line counts, files over the current size budget, raw colours outside
   token/palette/bridge modules, feature stylesheets that mention app/global/Bootstrap
   selectors, simple stale-selector candidates with no HS/JS mention, and the
-  Layout/Makefile asset-sync summary. Use it before and after split/refactor
-  tickets to keep known debt visible without blocking early pure moves.
+  Layout/Makefile asset-sync summary. It may include style-audit-allowlisted
+  selectors so agents can keep pressure on cleanup without blocking the hard
+  gate.
 
 ## Before adding CSS
 

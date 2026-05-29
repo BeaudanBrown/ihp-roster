@@ -1,6 +1,6 @@
 ---
 id: ir-5gtw
-status: open
+status: closed
 deps: [ir-lgt3]
 links: []
 created: 2026-05-29T00:51:31Z
@@ -22,3 +22,9 @@ Update bin/style-audit or the companion inventory command so the project can pre
 
 Running bash ./bin/in-env ./bin/style-audit catches newly added app-owned CSS files missing from Layout/Makefile, undefined vars, oversized files beyond the documented budget, unexpected raw colors, and forbidden global selectors in feature stylesheets. Existing project CSS passes the hard checks. Docs tell future agents how to resolve or justify warnings.
 
+
+## Notes
+
+**2026-05-29T02:21:37Z**
+
+Hardened bin/style-audit into the CSS architecture gate: it now fails on unlinked/non-mirrored app-owned CSS files, app-owned @import, CSS files over CSS_LINE_BUDGET, raw colour literals outside token/palette/bootstrap-bridge files, and unexpected app/global/Bootstrap selectors in feature CSS, while retaining existing undefined-var and Layout/Makefile checks. Added narrow embedded allowlists for the two compatibility marker CSS files and current feature-scoped Bootstrap/app selector exceptions. Moved preference focus-ring rgba into --app-focus-ring-primary in bootstrap-bridge so current CSS has no raw colour findings. Updated static CSS docs/agent notes to explain hard gates and exception handling. Verification: bash -n bin/style-audit passed; bash ./bin/in-env ./bin/style-audit passed; temporary _guardrail-probe.css correctly made style-audit fail on missing Layout link, missing CSS_FILES, @import, raw color, and unexpected feature global selector, then was removed; bash ./bin/in-env ./bin/css-inventory passed warning-only with raw colours now none; lsp_diagnostics '*' clean except existing e2e/roster-row-controls implicit-any hint; bash ./bin/in-env e2e e2e/styling-regression.spec.ts passed (7/7).

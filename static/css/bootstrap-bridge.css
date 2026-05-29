@@ -18,6 +18,7 @@
     --bs-emphasis-color: var(--app-text);
     --bs-secondary-color: var(--app-muted);
     --bs-secondary-bg: var(--app-surface-2);
+    --app-focus-ring-primary: rgba(var(--bs-primary-rgb), 0.25);
 }
 
 .modal {

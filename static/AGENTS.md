@@ -42,8 +42,10 @@ Read this before editing `static/` assets.
 - Do not edit generated or third-party CSS (`static/prod.css`,
   `static/vendor/**`) as part of app stylesheet refactors.
 - Run `bash ./bin/in-env ./bin/style-audit` after stylesheet link, token, or
-  architecture changes. Use `bash ./bin/in-env ./bin/css-inventory` for the
-  warning-only CSS architecture report (line budgets, raw colours, global
+  architecture changes. It is a hard gate for Layout/Makefile sync, missing
+  app-owned stylesheet links, `@import`, line budget, raw colour, and unexpected
+  global-selector regressions. Use `bash ./bin/in-env ./bin/css-inventory` for
+  the warning-only CSS architecture report (line budgets, raw colours, global
   feature selectors, and stale-selector candidates).
 - Do not add a bundler as part of ordinary runtime refactors.
 

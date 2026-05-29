@@ -3,10 +3,21 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-token_files=(
+line_budget="${CSS_LINE_BUDGET:-1000}"
+
+# Raw colour definitions are only allowed in files that own tokens, persisted
+# palettes, or Bootstrap variable bridging.
+raw_color_allowed_files=(
   static/css/tokens.css
   static/css/palette.css
   static/css/bootstrap-bridge.css
+)
+
+# Compatibility marker files kept so old paths are self-explanatory. They are
+# intentionally not linked because the real modules are linked directly.
+unlinked_app_css_allowlist=(
+  static/css/components.css
+  static/css/features/roster.css
 )
 
 scan_files=(
@@ -23,7 +34,78 @@ used="$tmp_dir/used.txt"
 undefined="$tmp_dir/undefined.txt"
 missing_assets="$tmp_dir/missing-assets.txt"
 missing_makefile_entries="$tmp_dir/missing-makefile-entries.txt"
+unlinked_app_css="$tmp_dir/unlinked-app-css.txt"
+makefile_missing_app_css="$tmp_dir/makefile-missing-app-css.txt"
 ihp_css_assets="$tmp_dir/ihp-css-assets.txt"
+oversized_css="$tmp_dir/oversized-css.txt"
+raw_colors="$tmp_dir/raw-colors.txt"
+raw_color_allowed_pattern="$tmp_dir/raw-color-allowed-pattern.txt"
+feature_global_selectors="$tmp_dir/feature-global-selectors.txt"
+feature_global_selector_allowlist="$tmp_dir/feature-global-selector-allowlist.txt"
+unexpected_feature_global_selectors="$tmp_dir/unexpected-feature-global-selectors.txt"
+banned_imports="$tmp_dir/banned-imports.txt"
+light_bootstrap_utilities="$tmp_dir/light-bootstrap-utilities.txt"
+inline_styles="$tmp_dir/inline-styles.txt"
+
+printf '' > "$missing_assets"
+printf '' > "$missing_makefile_entries"
+printf '' > "$unlinked_app_css"
+printf '' > "$makefile_missing_app_css"
+printf '' > "$oversized_css"
+printf '' > "$raw_colors"
+printf '' > "$feature_global_selectors"
+printf '' > "$unexpected_feature_global_selectors"
+printf '' > "$banned_imports"
+printf '' > "$light_bootstrap_utilities"
+printf '' > "$inline_styles"
+
+cat > "$ihp_css_assets" <<'EOF'
+/vendor/flatpickr.min.css
+EOF
+
+cat > "$feature_global_selector_allowlist" <<'EOF'
+^static/css/features/leave\.css:[0-9]+:[[:space:]]+\.leave-request-row-actions \.btn \{$
+^static/css/features/roster/grid-cells\.css:[0-9]+:\.roster-grid \.form-control-sm,$
+^static/css/features/roster/grid-cells\.css:[0-9]+:\.roster-grid \.form-select-sm \{$
+^static/css/features/roster/grid-cells\.css:[0-9]+:\.roster-layout-mode-group \.btn \{$
+^static/css/features/roster/grid-frame\.css:[0-9]+:[[:space:]]+main\.app-content:has\(\.roster-grid-frame\) \{$
+^static/css/features/roster/responsive\.css:[0-9]+:[[:space:]]+\.app-auth-body \{$
+^static/css/features/roster/responsive\.css:[0-9]+:[[:space:]]+\.app-content \{$
+^static/css/features/roster/responsive\.css:[0-9]+:[[:space:]]+\.app-page \{$
+^static/css/features/roster/responsive\.css:[0-9]+:[[:space:]]+\.app-panel-body,$
+^static/css/features/roster/responsive\.css:[0-9]+:[[:space:]]+\.app-panel-header,$
+^static/css/features/roster/responsive\.css:[0-9]+:[[:space:]]+\.roster-grid-header \.dropdown-menu \{$
+^static/css/features/roster/responsive\.css:[0-9]+:[[:space:]]+\.roster-staff-panel \.app-panel-body \{$
+^static/css/features/roster/staff-panel\.css:[0-9]+:[[:space:]]+\.roster-staff-panel \.app-panel-body \{$
+^static/css/features/roster/staff-panel\.css:[0-9]+:\.roster-quick-tool-panel \.app-form-width \{$
+^static/css/features/roster/staff-panel\.css:[0-9]+:\.roster-staff-panel \.app-panel-body \{$
+^static/css/features/roster/toolbar\.css:[0-9]+:\.roster-assignment-filter-grid \.form-check \{$
+^static/css/features/roster/toolbar\.css:[0-9]+:\.roster-assignment-filter-grid \.form-check-label \{$
+^static/css/features/timesheets\.css:[0-9]+:\.timesheet-entry-actions \.btn,$
+^static/css/features/timesheets\.css:[0-9]+:\.timesheet-entry-actions \.btn \{$
+EOF
+
+array_contains() {
+  local wanted="$1"
+  shift
+  local candidate
+  for candidate in "$@"; do
+    if [[ "$candidate" == "$wanted" ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+makefile_has_entry() {
+  local wanted="$1"
+  array_contains "$wanted" "${makefile_css_files[@]}"
+}
+
+linked_assets_has_entry() {
+  local wanted="$1"
+  array_contains "$wanted" "${linked_css_assets[@]}"
+}
 
 rg --no-heading --only-matching --replace '$2' --glob '!static/vendor/**' '(^|[;{"'\''[:space:]])(--[A-Za-z0-9_-]+)[[:space:]]*:' "${scan_files[@]}" \
   | sed 's/^.*://' \
@@ -51,27 +133,21 @@ mapfile -t linked_css_assets < <(
     | sort -u
 )
 
-mapfile -t imported_css_assets < <(
-  rg --only-matching --replace '/$1' '@import url\("([^"]+\.css)"\)' static/app.css \
-    | sed 's/^.*://' \
-    | sort -u
-)
-
 mapfile -t makefile_css_files < <(
   rg --only-matching --replace '$1' '^CSS_FILES \+= (.+\.css)$' Makefile \
     | sed 's/^.*://' \
     | sort -u
 )
 
-printf '' > "$missing_assets"
-printf '' > "$missing_makefile_entries"
-cat > "$ihp_css_assets" <<'EOF'
-/vendor/flatpickr.min.css
-EOF
+mapfile -t app_css_files < <(
+  find static -type f -name '*.css' \
+    ! -path 'static/vendor/*' \
+    ! -path 'static/vendor/**' \
+    ! -path 'static/prod.css' \
+    | sort
+)
 
-layout_and_imported_css_assets=("${linked_css_assets[@]}" "${imported_css_assets[@]}")
-
-for asset in "${layout_and_imported_css_assets[@]}"; do
+for asset in "${linked_css_assets[@]}"; do
   asset_file="static${asset}"
   ihp_static_asset_file="${IHP:-}/static${asset}"
   ihp_lib_asset_file="${IHP:-}/lib/IHP${asset}"
@@ -88,8 +164,23 @@ for asset in "${layout_and_imported_css_assets[@]}"; do
   makefile_entry="${asset#/}"
   local_makefile_entry="static/${makefile_entry}"
   ihp_makefile_entry="\${IHP}/static/${makefile_entry}"
-  if [[ ! " ${makefile_css_files[*]} " =~ " ${local_makefile_entry} " && ! " ${makefile_css_files[*]} " =~ " ${ihp_makefile_entry} " ]]; then
+  if ! makefile_has_entry "$local_makefile_entry" && ! makefile_has_entry "$ihp_makefile_entry"; then
     echo "$asset -> static/${makefile_entry}" >> "$missing_makefile_entries"
+  fi
+done
+
+for css_file in "${app_css_files[@]}"; do
+  if array_contains "$css_file" "${unlinked_app_css_allowlist[@]}"; then
+    continue
+  fi
+
+  asset="/${css_file#static/}"
+  if ! linked_assets_has_entry "$asset"; then
+    echo "$css_file -> assetPath \"$asset\"" >> "$unlinked_app_css"
+  fi
+
+  if ! makefile_has_entry "$css_file"; then
+    echo "$css_file" >> "$makefile_missing_app_css"
   fi
 done
 
@@ -101,30 +192,112 @@ else
 fi
 
 if [[ -s "$missing_makefile_entries" ]]; then
-  echo "  missing Makefile CSS_FILES entries:"
+  echo "  linked stylesheets missing Makefile CSS_FILES entries:"
   sed 's/^/    /' "$missing_makefile_entries"
 else
   echo "  all linked local stylesheets are in CSS_FILES"
 fi
 
+if [[ -s "$unlinked_app_css" ]]; then
+  echo "  app-owned CSS files not linked from Layout.hs:"
+  sed 's/^/    /' "$unlinked_app_css"
+else
+  echo "  all non-allowlisted app-owned CSS files are linked from Layout.hs"
+fi
+
+if [[ -s "$makefile_missing_app_css" ]]; then
+  echo "  app-owned CSS files missing Makefile CSS_FILES entries:"
+  sed 's/^/    /' "$makefile_missing_app_css"
+else
+  echo "  all non-allowlisted app-owned CSS files are in CSS_FILES"
+fi
+
 echo
-echo "style-audit: hardcoded colors outside token/palette files"
-rg -n '#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\(' static --glob '*.css' --glob '!static/vendor/**' --glob '!static/prod.css' \
-  | rg -v "$(printf '%s|' "${token_files[@]}" | sed 's/|$//')" \
-  | head -80 \
+echo "style-audit: app-owned CSS @import usage"
+rg -n '@import' static \
+  --glob '*.css' \
+  --glob '!static/vendor/**' \
+  --glob '!static/prod.css' > "$banned_imports" \
   || true
+if [[ -s "$banned_imports" ]]; then
+  sed 's/^/  /' "$banned_imports"
+else
+  echo "  none"
+fi
+
+echo
+echo "style-audit: CSS file size budget (${line_budget} lines/file)"
+for css_file in "${app_css_files[@]}"; do
+  lines="$(wc -l < "$css_file" | tr -d ' ')"
+  if (( lines > line_budget )); then
+    printf '%5d %s\n' "$lines" "$css_file" >> "$oversized_css"
+  fi
+done
+if [[ -s "$oversized_css" ]]; then
+  sed 's/^/  /' "$oversized_css"
+else
+  echo "  none over budget"
+fi
+
+printf '^(%s):' "$(printf '%s|' "${raw_color_allowed_files[@]}" | sed 's/|$//; s#/#\\/#g; s#\.#\\.#g')" > "$raw_color_allowed_pattern"
+
+echo
+echo "style-audit: raw colors outside token/palette/bridge files"
+rg -n '#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\(' static \
+  --glob '*.css' \
+  --glob '!static/vendor/**' \
+  --glob '!static/prod.css' \
+  | rg -v -f "$raw_color_allowed_pattern" > "$raw_colors" \
+  || true
+if [[ -s "$raw_colors" ]]; then
+  sed 's/^/  /' "$raw_colors"
+else
+  echo "  none"
+fi
+
+echo
+echo "style-audit: unexpected app/global/Bootstrap selectors in feature CSS"
+rg -n '^\s*[^{}@]*\.(app-[[:alnum:]_-]*|btn[[:alnum:]_-]*|form-[[:alnum:]_-]*|nav-[[:alnum:]_-]*|breadcrumb[[:alnum:]_-]*|table[[:alnum:]_-]*|dropdown[[:alnum:]_-]*|modal[[:alnum:]_-]*)' static/css/features \
+  --glob '*.css' > "$feature_global_selectors" \
+  || true
+if [[ -s "$feature_global_selectors" ]]; then
+  rg -v -f "$feature_global_selector_allowlist" "$feature_global_selectors" > "$unexpected_feature_global_selectors" || true
+fi
+if [[ -s "$unexpected_feature_global_selectors" ]]; then
+  sed 's/^/  /' "$unexpected_feature_global_selectors"
+else
+  echo "  none"
+fi
 
 echo
 echo "style-audit: banned light-mode Bootstrap utilities in HSX"
-rg -n 'bg-white|bg-light|bg-light-subtle|text-muted|text-body-secondary' Web Application --glob '*.hs' \
+rg -n 'bg-white|bg-light|bg-light-subtle|text-muted|text-body-secondary' Web Application --glob '*.hs' > "$light_bootstrap_utilities" \
   || true
+if [[ -s "$light_bootstrap_utilities" ]]; then
+  sed 's/^/  /' "$light_bootstrap_utilities"
+else
+  echo "  none"
+fi
 
 echo
 echo "style-audit: inline style attributes requiring review"
 rg -n 'style=' Web Application --glob '*.hs' \
-  | rg -v 'style=\{"--|style=\{\("width: var\(|timesheetMidnightStyle|segmentLeft|segmentWidth' \
+  | rg -v 'style=\{"--|style=\{\("width: var\(|timesheetMidnightStyle|segmentLeft|segmentWidth' > "$inline_styles" \
   || true
+if [[ -s "$inline_styles" ]]; then
+  sed 's/^/  /' "$inline_styles"
+else
+  echo "  none"
+fi
 
-if [[ -s "$undefined" || -s "$missing_assets" || -s "$missing_makefile_entries" ]]; then
+if [[ -s "$undefined" \
+  || -s "$missing_assets" \
+  || -s "$missing_makefile_entries" \
+  || -s "$unlinked_app_css" \
+  || -s "$makefile_missing_app_css" \
+  || -s "$banned_imports" \
+  || -s "$oversized_css" \
+  || -s "$raw_colors" \
+  || -s "$unexpected_feature_global_selectors" ]]; then
   exit 1
 fi
