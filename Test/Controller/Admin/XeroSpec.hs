@@ -1259,16 +1259,11 @@ tests = beforeAll testContext do
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Prepare Xero draft timesheets"
-                response `responseBodyShouldContain` "Staff mappings"
-                response `responseBodyShouldContain` "Show matched"
-                response `responseBodyShouldContain` "app-toggle-button btn-outline-success"
-                response `responseBodyShouldContain` "aria-pressed=\"false\""
-                response `responseBodyShouldContain` "hx-get=\"/ShowXeroTimesheetPreparationStaffMappingsFragment"
-                response `responseBodyShouldContain` "id=\"xero-preparation-staff-mappings\""
-                response `responseBodyShouldNotContain` "Ada Lovelace"
+                response `responseBodyShouldContain` "Review Xero draft timesheets"
+                response `responseBodyShouldContain` "Step 3 of 3"
                 response `responseBodyShouldContain` "Readiness validation"
-                response `responseBodyShouldContain` "Submit to Xero"
+                response `responseBodyShouldContain` "Submit draft timesheets to Xero"
+                response `responseBodyShouldNotContain` "Staff mappings"
                 response `responseBodyShouldNotContain` "Setup"
                 response `responseBodyShouldNotContain` "Sync reference data"
                 response `responseBodyShouldNotContain` "Earnings-rate mappings"
@@ -1453,7 +1448,8 @@ tests = beforeAll testContext do
                                     [("accountCode", "477")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Preview"
+                response `responseBodyShouldContain` "Submitted Xero draft timesheets."
+                response `responseBodyShouldContain` "id=\"dialog-overlay-mount\" hx-swap-oob=\"innerHTML\""
                 createRequests <- liftIO $ IORef.readIORef requestsRef
                 length createRequests `shouldSatisfy` (> 0)
                 refreshedRun <- fetch run.id
