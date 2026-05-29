@@ -239,7 +239,6 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/components/week-toolbar.css"}/>
         <link rel="stylesheet" href={assetPath "/css/components/admin-responsive.css"}/>
         <link rel="stylesheet" href={assetPath "/css/overlays.css"}/>
-        <link rel="stylesheet" href={assetPath "/css/features/exports.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/staff-documents.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/leave.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/preferences.css"}/>
@@ -258,7 +257,6 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/features/roster/export-print.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/timesheets.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/xero.css"}/>
-        <link rel="stylesheet" href={assetPath "/app.css"}/>
     |]
 
 scripts :: Html

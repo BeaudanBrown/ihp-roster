@@ -28,7 +28,3 @@
     border-radius: var(--app-radius-md);
     background: var(--app-surface-raised);
 }
-
-.app-surface-muted {
-    background: var(--app-surface-muted);
-}

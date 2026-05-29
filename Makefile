@@ -20,7 +20,6 @@ CSS_FILES += static/css/components/admin.css
 CSS_FILES += static/css/components/week-toolbar.css
 CSS_FILES += static/css/components/admin-responsive.css
 CSS_FILES += static/css/overlays.css
-CSS_FILES += static/css/features/exports.css
 CSS_FILES += static/css/features/staff-documents.css
 CSS_FILES += static/css/features/leave.css
 CSS_FILES += static/css/features/preferences.css
@@ -39,7 +38,6 @@ CSS_FILES += static/css/features/roster/states.css
 CSS_FILES += static/css/features/roster/export-print.css
 CSS_FILES += static/css/features/timesheets.css
 CSS_FILES += static/css/features/xero.css
-CSS_FILES += static/app.css
 
 JS_FILES += static/vendor/bootstrap-5.3.8/bootstrap.bundle.min.js
 JS_FILES += ${IHP}/static/vendor/flatpickr.js

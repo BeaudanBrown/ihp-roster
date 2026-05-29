@@ -36,11 +36,6 @@
     color: var(--app-text) !important;
 }
 
-.conflict-advisory {
-    background-color: var(--roster-warning) !important;
-    color: var(--app-text) !important;
-}
-
 .conflict-preference {
     background-color: var(--app-warning-conflict-bg) !important;
     color: var(--app-warning-conflict-text) !important;
@@ -53,11 +48,6 @@
 
 .roster-shift-card-field.conflict-critical {
     background: var(--roster-danger) !important;
-    color: var(--app-text) !important;
-}
-
-.roster-shift-card-field.conflict-advisory {
-    background: var(--roster-warning) !important;
     color: var(--app-text) !important;
 }
 
@@ -74,9 +64,6 @@
 .roster-shift-card-field.conflict-critical .slot-cell-form,
 .roster-shift-card-field.conflict-critical .slot-cell-input,
 .roster-shift-card-field.conflict-critical .slot-cell-static,
-.roster-shift-card-field.conflict-advisory .slot-cell-form,
-.roster-shift-card-field.conflict-advisory .slot-cell-input,
-.roster-shift-card-field.conflict-advisory .slot-cell-static,
 .roster-shift-card-field.conflict-preference .slot-cell-form,
 .roster-shift-card-field.conflict-preference .slot-cell-input,
 .roster-shift-card-field.conflict-preference .slot-cell-static,
@@ -87,11 +74,9 @@
 }
 
 .roster-grid .conflict-critical .slot-cell-input,
-.roster-grid .conflict-advisory .slot-cell-input,
 .roster-grid .conflict-preference .slot-cell-input,
 .roster-grid .conflict-ideal .slot-cell-input,
 .roster-shift-card-field.conflict-critical .slot-cell-input,
-.roster-shift-card-field.conflict-advisory .slot-cell-input,
 .roster-shift-card-field.conflict-preference .slot-cell-input,
 .roster-shift-card-field.conflict-ideal .slot-cell-input {
     color: inherit !important;

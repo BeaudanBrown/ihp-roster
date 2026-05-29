@@ -13,12 +13,9 @@ raw_color_allowed_files=(
   static/css/bootstrap-bridge.css
 )
 
-# Compatibility marker files kept so old paths are self-explanatory. They are
-# intentionally not linked because the real modules are linked directly.
-unlinked_app_css_allowlist=(
-  static/css/components.css
-  static/css/features/roster.css
-)
+# No app-owned CSS source files should be left unlinked. Keep this list empty
+# unless a ticket documents a deliberate non-runtime stylesheet exception.
+unlinked_app_css_allowlist=()
 
 scan_files=(
   static
@@ -79,8 +76,6 @@ cat > "$feature_global_selector_allowlist" <<'EOF'
 ^static/css/features/roster/staff-panel\.css:[0-9]+:[[:space:]]+\.roster-staff-panel \.app-panel-body \{$
 ^static/css/features/roster/staff-panel\.css:[0-9]+:\.roster-quick-tool-panel \.app-form-width \{$
 ^static/css/features/roster/staff-panel\.css:[0-9]+:\.roster-staff-panel \.app-panel-body \{$
-^static/css/features/roster/toolbar\.css:[0-9]+:\.roster-assignment-filter-grid \.form-check \{$
-^static/css/features/roster/toolbar\.css:[0-9]+:\.roster-assignment-filter-grid \.form-check-label \{$
 ^static/css/features/timesheets\.css:[0-9]+:\.timesheet-entry-actions \.btn,$
 ^static/css/features/timesheets\.css:[0-9]+:\.timesheet-entry-actions \.btn \{$
 EOF

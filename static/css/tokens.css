@@ -141,7 +141,6 @@
     --roster-day-b: #111827;
     --roster-empty: #101825;
     --roster-danger: #5e1e23;
-    --roster-warning: #4a3a1c;
     --roster-row-height: 1.2rem;
 
     --text-xs: clamp(0.68rem, 0.66rem + 0.14vw, 0.8rem);

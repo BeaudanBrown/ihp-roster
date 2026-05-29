@@ -37,7 +37,6 @@ test.describe('Styling regression contracts', () => {
     test('loads the split roster styles and applies the desktop roster grid contract', async ({ page }) => {
         await openRoster(page, { ensureEditable: false });
 
-        await expectLocalStylesheet(page, '/app.css');
         await expectLocalStylesheet(page, '/css/tokens.css');
         await expectLocalStylesheet(page, '/css/palette.css');
         await expectLocalStylesheet(page, '/css/bootstrap-bridge.css');
@@ -236,7 +235,6 @@ test.describe('Styling regression contracts', () => {
         await loginAs(page, 'e2e-worker@example.com', 'test-password-123');
         await gotoWhenReady(page, '/EditProfile?section=profile', '#profile-sections');
 
-        await expectLocalStylesheet(page, '/app.css');
         for (const stylesheet of sharedComponentStylesheets) {
             await expectLocalStylesheet(page, stylesheet);
         }
@@ -444,7 +442,6 @@ test.describe('Styling regression contracts', () => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/LeaveRequests', '#leave-requests-content');
 
-        await expectLocalStylesheet(page, '/app.css');
         await expectStylesheetServed(page, '/css/bootstrap-bridge.css');
         await expectStylesheetServed(page, '/css/overlays.css');
 

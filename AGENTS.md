@@ -139,8 +139,8 @@ the linked repo-local `ir-*` ticket for implementation details.
 - Use Bootstrap 5.3.8 vendor assets and `assetPath` for static references.
 - App CSS is split under `static/css/` and linked from `Web/View/Layout.hs` via
   `assetPath`; keep new stylesheet links mirrored in `Makefile` `CSS_FILES`.
-- Keep `static/app.css` minimal and do not use production CSS `@import` for
-  app-owned files, because imports bypass IHP's `assetPath` cache busting.
+- Do not use production CSS `@import` for app-owned files, because imports
+  bypass IHP's `assetPath` cache busting.
 - App JavaScript is split by concern under `static/app-*.js`.
 - Static and frontend runtime rules live in `static/AGENTS.md`.
 

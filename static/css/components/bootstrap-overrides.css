@@ -1,14 +1,4 @@
-/* Shared Bootstrap card, table, form-control, and outline-button overrides. */
-
-.card {
-    border-color: var(--app-border);
-    background-color: var(--app-surface);
-}
-
-.card-header {
-    border-bottom-color: var(--app-border);
-    background-color: var(--app-surface-2) !important;
-}
+/* Shared Bootstrap table, form-control, and outline-button overrides. */
 
 .table {
     --bs-table-color: var(--app-text);
@@ -18,26 +8,6 @@
     --bs-table-striped-color: var(--app-text);
     --bs-table-hover-bg: var(--app-accent-softer);
     --bs-table-hover-color: var(--app-text);
-}
-
-.breadcrumb {
-    --bs-breadcrumb-divider-color: var(--app-muted);
-    --bs-breadcrumb-item-active-color: var(--app-muted);
-}
-
-.nav-tabs {
-    border-bottom-color: var(--app-border);
-}
-
-.nav-tabs .nav-link {
-    color: var(--app-muted);
-}
-
-.nav-tabs .nav-link.active,
-.nav-tabs .nav-item.show .nav-link {
-    color: var(--app-text);
-    background-color: var(--app-surface-2);
-    border-color: var(--app-border) var(--app-border) var(--app-surface-2);
 }
 
 .btn-sm,
@@ -91,8 +61,7 @@
 }
 
 @media print {
-    .btn,
-    .breadcrumb {
+    .btn {
         display: none !important;
     }
 }

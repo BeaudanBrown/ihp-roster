@@ -26,8 +26,9 @@ Read this before editing `static/` assets.
   `static/css/layout.css`, shared UI primitives in focused
   `static/css/components/*.css` modules, overlays in `static/css/overlays.css`, and
   feature-only rules in `static/css/features/*` or focused feature modules.
-- Add feature CSS to the narrowest matching file instead of growing
-  `static/app.css`; keep `static/app.css` compatibility-only.
+- Add feature CSS to the narrowest matching file under `static/css/`; do not
+  recreate a catch-all `static/app.css` unless a compatibility ticket requires
+  it.
 - Before adding selectors, search for existing modules/classes, prefer shared
   component primitives such as `app-horizontal-*`, `app-dense-*`,
   `app-icon-button`, and `app-compact-action-button`, add semantic tokens

@@ -130,8 +130,8 @@ test.describe('Roster row controls', () => {
                 return null;
             }
 
-            realCard.classList.remove('conflict-critical', 'conflict-advisory', 'conflict-preference', 'conflict-ideal');
-            staffField.classList.remove('conflict-critical', 'conflict-advisory', 'conflict-preference', 'conflict-ideal');
+            realCard.classList.remove('conflict-critical', 'conflict-preference', 'conflict-ideal');
+            staffField.classList.remove('conflict-critical', 'conflict-preference', 'conflict-ideal');
             staffField.classList.add('conflict-critical');
 
             conflictProbe.className = 'conflict-critical';

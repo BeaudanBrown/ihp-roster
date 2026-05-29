@@ -8,8 +8,8 @@ third-party CSS (`static/prod.css`, `static/vendor/**`).
 
 ## Cascade order
 
-Keep stylesheet order deliberate. Broad foundations load first, narrow feature
-styles load later, and the compatibility shim loads last:
+Keep stylesheet order deliberate. Broad foundations load first and narrow
+feature styles load later:
 
 1. vendor Bootstrap / icon / IHP styles
 2. `tokens.css` - app design tokens and CSS custom properties
@@ -19,7 +19,6 @@ styles load later, and the compatibility shim loads last:
 6. `components/*.css` - shared app components
 7. `overlays.css` - dialogs, toasts, pickers, overlay hosts
 8. `features/*.css` / `features/<feature>/*.css` - feature-scoped styles
-9. `../app.css` - compatibility-only shim; keep it minimal
 
 When adding, moving, or splitting files, preserve selector order unless the
 ticket explicitly calls for a semantic refactor. Add every new linked stylesheet
@@ -53,8 +52,9 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
   `features/timesheets.css` (or `features/timesheets/*.css` if it grows). If a
   horizontal strip or dense control also serves roster, extract a shared
   component primitive instead of copying timesheet-specific CSS.
-- **Other features:** put exports, leave, preferences, staff-documents, and Xero
-  styles in their matching `features/*.css` files. Feature-only CSS should not
+- **Other features:** put leave, preferences, staff-documents, and Xero styles
+  in their matching `features/*.css` files. Create and link an export feature
+  stylesheet only when export-specific CSS exists. Feature-only CSS should not
   redefine global `.btn`, `.form-*`, `.nav-*`, `.breadcrumb`, or `.app-*`
   behavior unless an explicit exception is documented.
 

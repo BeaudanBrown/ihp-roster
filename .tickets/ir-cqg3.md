@@ -2,7 +2,7 @@
 id: ir-cqg3
 status: closed
 deps: []
-links: []
+links: [ir-yxbd]
 created: 2026-05-29T00:51:30Z
 type: epic
 priority: 2
@@ -31,3 +31,7 @@ Initial CSS scan before implementation: app-owned CSS source is about 4,369 line
 **2026-05-29T02:28:25Z**
 
 Epic complete. Final state: app-owned CSS is 4,162 lines across 41 files; no file exceeds the 1,000-line budget; roster CSS is decomposed into focused static/css/features/roster modules; shared components are split under static/css/components; shift-type palette values live in static/css/palette.css; horizontal, dense-control, and compact action-button primitives are documented and composed in views; stale selectors and stale styling-regression assumptions were pruned; bin/style-audit now enforces CSS architecture guardrails. Final sweep recorded on ir-bio0: style-audit, typecheck, css-inventory, styling-regression, roster-mobile, and mobile-experience all passed.
+
+**2026-05-29T02:46:08Z**
+
+Post-closeout dead CSS pass ir-yxbd removed another 65 app-owned CSS lines and 4 empty/compatibility source files. Current app-owned CSS inventory is 4,097 lines across 37 files, with style-audit/typecheck/css-inventory and focused styling/row-controls e2e passing.
