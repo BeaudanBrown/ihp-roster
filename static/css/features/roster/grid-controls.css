@@ -1,0 +1,53 @@
+/* Roster standard-grid static values and select control resets. */
+
+.roster-grid .roster-col-code {
+    min-width: 0;
+    white-space: nowrap;
+}
+
+.roster-grid .slot-cell-static {
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.16rem;
+    text-align: center;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.roster-grid .slot-staff-input,
+.roster-grid .slot-shift-type-input {
+    font-weight: 700;
+    color: var(--app-text) !important;
+    background-color: transparent !important;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    text-align: center;
+    text-align-last: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    padding-inline: 0.16rem;
+}
+
+.roster-grid .slot-staff-input option,
+.roster-grid .slot-shift-type-input option,
+.roster-shift-card .slot-staff-input option,
+.roster-shift-card .slot-shift-type-input option {
+    color: var(--app-text);
+    background-color: var(--app-surface);
+}
+
+.roster-shift-card .slot-shift-type-input {
+    font-weight: 700;
+}

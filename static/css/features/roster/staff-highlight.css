@@ -1,0 +1,16 @@
+/* Roster staff slot highlight states. */
+
+.roster-grid .slot-time-cell {
+    min-width: 0;
+    padding: 0 !important;
+}
+
+.roster-shift-card.is-roster-staff-slot-highlighted,
+.roster-shift-card.is-roster-staff-slot-highlighted-start,
+.roster-shift-card.is-roster-staff-slot-highlighted-end {
+    background: var(--roster-staff-highlight-fill) !important;
+}
+
+.roster-grid [role="gridcell"].is-roster-staff-slot-highlighted {
+    background-color: var(--roster-staff-highlight-cell-fill) !important;
+}

@@ -1,0 +1,191 @@
+/* Roster column-editing controls and day action buttons. */
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-day-rail-head {
+    background-color: color-mix(in srgb, var(--app-success) 16%, var(--roster-subhead));
+}
+
+.roster-grid-frame[data-roster-column-editor="available"] .roster-column-edit-start,
+.roster-grid-frame[data-roster-column-editing="true"] .roster-column-edit-done {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-column-edit-start,
+.roster-grid-frame[data-roster-column-editing="true"] .roster-grid-header-row-subheads {
+    display: none;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-grid-header-row-blocks {
+    display: grid;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-grid .roster-block-header {
+    background-color: color-mix(in srgb, var(--app-accent) 20%, var(--roster-header));
+    box-shadow: inset 0 -2px 0 var(--app-accent);
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-header {
+    position: relative;
+}
+
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-delete,
+.roster-grid-frame[data-roster-column-editing="true"] .roster-slot-column-add-form {
+    display: inline-flex;
+}
+
+.roster-grid .roster-subhead {
+    background-color: var(--roster-subhead);
+    font-size: var(--roster-text-xs);
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.roster-day-rail-section,
+.roster-wage-rail-section {
+    min-width: 0;
+    height: calc(var(--roster-grid-row-height) * var(--roster-day-label-rows));
+    min-height: calc(var(--roster-grid-row-height) * var(--roster-day-label-rows));
+    box-sizing: border-box;
+    text-align: center;
+}
+
+.roster-day-rail-section + .roster-day-rail-section,
+.roster-wage-rail-section + .roster-wage-rail-section {
+    box-shadow: inset 0 1px 0 var(--app-border-strong);
+}
+
+.roster-wage-rail-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem;
+}
+
+.roster-wage-rail-section .roster-day-wage-total {
+    padding: 0.2rem 0.5rem;
+}
+
+.roster-day-rail-section .roster-day-label-stack {
+    display: grid;
+    grid-template-rows: repeat(var(--roster-day-label-rows), minmax(0, 1fr));
+    height: 100%;
+}
+
+.roster-day-rail-section .roster-day-label-row {
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.18rem 0.45rem;
+}
+
+.roster-day-rail-section .roster-day-heading {
+    min-height: var(--roster-row-height);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.14rem;
+    line-height: 1;
+    width: 100%;
+}
+
+.roster-day-rail-section .roster-day-date,
+.roster-day-rail-section .day-label-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.roster-day-rail-section .roster-day-date {
+    font-size: var(--roster-text-sm);
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+}
+
+.roster-day-rail-section .roster-day-label-row-controls {
+    padding-top: 0.1rem;
+    padding-bottom: 0.22rem;
+}
+
+.roster-day-rail-section .roster-day-closed-label {
+    display: inline-flex;
+    min-height: 1.7rem;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.64rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    color: var(--app-warning);
+}
+
+.roster-day-rail-section .day-label-empty {
+    color: transparent;
+}
+
+.roster-day-rail-section .roster-day-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.36rem;
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+    justify-content: center;
+}
+
+.roster-day-rail-section .roster-day-action {
+    min-width: 1.7rem;
+    min-height: 1.7rem;
+    padding: 0 0.4rem;
+    border-radius: 0.55rem;
+    border: 1px solid var(--app-control-border);
+    background: var(--app-white-alpha-05);
+    color: var(--app-text);
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: inset 0 1px 0 var(--app-white-alpha-06);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+}
+
+.roster-day-rail-section .roster-day-action-toggle {
+    width: auto;
+    min-width: 1.9rem;
+    padding: 0 0.48rem;
+    border-radius: 0.55rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.02em;
+}
+
+.roster-day-rail-section .roster-day-action-toggle.is-active {
+    min-width: 4.85rem;
+    border-color: var(--app-warning-border-strong);
+    color: var(--app-warning);
+    background: var(--app-warning-tint);
+}
+
+.roster-day-rail-section .roster-day-action:hover,
+.roster-day-rail-section .roster-day-action:focus {
+    background: var(--app-accent-soft);
+    color: var(--app-text);
+    border-color: var(--app-accent-border-strong);
+    box-shadow: none;
+}
+
+.roster-day-rail-section .roster-day-action-add {
+    color: var(--app-outline-primary-text);
+}
+
+.roster-day-rail-section .roster-day-action-remove {
+    color: var(--app-outline-danger-text);
+}
+
+.roster-day-actions-placeholder {
+    display: block;
+    min-height: 1.7rem;
+}

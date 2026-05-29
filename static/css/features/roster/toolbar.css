@@ -1,0 +1,27 @@
+/* Roster toolbar, export button, assignment filters, and week navigation controls. */
+
+/* Roster week, staff panel, roster grid, conflict, and roster export styles. */
+
+.roster-export-button[disabled] {
+    opacity: 0.7;
+}
+
+.roster-assignment-filter-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    column-gap: 1rem;
+}
+
+.roster-assignment-filter-grid .form-check {
+    min-width: 0;
+}
+
+.roster-assignment-filter-grid .form-check-label {
+    display: block;
+}
+
+.roster-week-nav-arrow {
+    width: 2.5rem;
+    padding-inline: 0;
+    font-size: 1rem;
+}

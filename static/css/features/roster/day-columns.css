@@ -1,0 +1,111 @@
+/* Roster day-column layout and day-column header controls. */
+
+.roster-grid-frame[data-roster-layout="day_columns"] {
+    display: block;
+    overflow-x: auto;
+    padding: 0.9rem;
+    cursor: grab;
+    --roster-day-column-width: 30%;
+}
+
+.roster-grid-frame[data-roster-layout="day_columns"][data-horizontal-dragging="true"] {
+    cursor: grabbing;
+    user-select: none;
+}
+
+.roster-day-columns {
+    display: grid;
+    grid-template-columns: repeat(var(--roster-day-count), minmax(19.4rem, 1fr));
+    gap: 0.75rem;
+    min-width: min(88rem, calc(var(--roster-day-count) * 20rem));
+}
+
+.roster-day-column {
+    min-width: 0;
+    border: 1px solid var(--app-border);
+    border-radius: 0.75rem;
+    background: var(--app-white-alpha-015);
+    background-clip: padding-box;
+    overflow: hidden;
+}
+
+.roster-day-column-header {
+    display: grid;
+    grid-template-columns: minmax(5.6rem, 1fr) minmax(0, auto) minmax(4.85rem, 4.85rem);
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 4rem;
+    padding: 0.65rem;
+    border-bottom: 1px solid var(--app-border);
+    background: var(--roster-subhead);
+}
+
+.roster-day-column-header .roster-day-heading,
+.roster-day-column-wage-slot,
+.roster-day-column-control-slot {
+    min-width: 0;
+}
+
+.roster-day-column-header .roster-day-heading {
+    justify-self: start;
+    text-align: left;
+}
+
+.roster-day-column-wage-slot {
+    justify-self: center;
+    text-align: center;
+}
+
+.roster-day-column-control-slot {
+    width: 4.85rem;
+    justify-self: end;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.roster-day-column-control-slot .roster-day-action {
+    width: 4.85rem;
+    min-width: 4.85rem;
+    max-width: 4.85rem;
+    min-height: 1.9rem;
+    padding: 0 0.48rem;
+    border-radius: 0.55rem;
+    border: 1px solid var(--app-control-border);
+    background: var(--app-white-alpha-05);
+    color: var(--app-text);
+    font-size: 0.7rem;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+}
+
+.roster-day-column-control-slot .roster-day-action-toggle.is-active {
+    border-color: var(--app-warning-border-strong);
+    color: var(--app-warning);
+    background: var(--app-warning-tint);
+}
+
+.roster-day-column-header .roster-day-date {
+    font-size: var(--roster-text-sm);
+    font-weight: 800;
+}
+
+.roster-day-column-header .roster-day-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.roster-day-column-body {
+    display: grid;
+    gap: 0.6rem;
+    padding: 0.65rem;
+}
+
+.roster-day-column-row {
+    display: grid;
+    gap: 0.55rem;
+}

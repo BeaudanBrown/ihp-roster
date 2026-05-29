@@ -1,0 +1,304 @@
+/* Roster side layout, staff panel, quick tools, and staff-panel responsive rules. */
+
+.roster-layout-side {
+    display: flex;
+    min-width: 0;
+}
+
+.roster-staff-panel {
+    min-height: 0;
+}
+
+.roster-staff-self-service-panel {
+    min-width: 0;
+}
+
+.roster-staff-self-service-stack {
+    display: grid;
+    gap: 1rem;
+    width: 100%;
+}
+
+.roster-quick-tool-panel {
+    min-width: 0;
+}
+
+.roster-quick-tool-panel .app-form-width {
+    max-width: none;
+}
+
+.roster-quick-tool-timesheet .timesheet-day-panel {
+    border: 0;
+    border-radius: 0;
+}
+
+.roster-quick-tool-timesheet .timesheet-day-body {
+    min-height: 8rem;
+}
+
+.roster-staff-panel .app-panel-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.roster-staff-panel-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.7rem;
+}
+
+.roster-staff-scope-toggle {
+    flex: 0 0 auto;
+    margin-top: 0.05rem;
+}
+
+.roster-staff-panel-summary {
+    color: var(--app-muted);
+    font-size: var(--roster-text-xs);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.roster-staff-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: fixed;
+}
+
+.roster-staff-table-head th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 0 0 0.55rem;
+    border-bottom: 1px solid var(--app-roster-border-strong);
+    background: var(--app-roster-header-bg);
+    color: var(--app-muted);
+    font-size: var(--roster-text-xs);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.roster-staff-table-head th:first-child {
+    width: auto;
+    text-align: left;
+}
+
+.roster-staff-role-head {
+    width: 4.6rem;
+    text-align: left;
+}
+
+.roster-staff-metric-head {
+    width: 4.25rem;
+    text-align: right;
+}
+
+.roster-staff-action-head {
+    width: 3.75rem;
+    text-align: right;
+}
+
+.roster-staff-sort-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.22rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+}
+
+.roster-staff-sort-button::after {
+    content: "↕";
+    color: var(--app-roster-sort-muted);
+    font-size: 0.68rem;
+    line-height: 1;
+}
+
+.roster-staff-sort-button[aria-sort="ascending"]::after {
+    content: "↑";
+    color: var(--app-outline-primary-text);
+}
+
+.roster-staff-sort-button[aria-sort="descending"]::after {
+    content: "↓";
+    color: var(--app-outline-primary-text);
+}
+
+.roster-staff-sort-button-metric {
+    justify-content: flex-end;
+    width: 100%;
+}
+
+.roster-staff-panel-list {
+    min-height: 0;
+}
+
+.roster-staff-table-body {
+    border-top: 1px solid var(--app-roster-border-mid);
+}
+
+.roster-staff-panel-entry {
+    background: var(--app-white-alpha-015);
+    cursor: pointer;
+}
+
+.roster-staff-panel-entry.is-roster-staff-highlighted {
+    background: color-mix(in srgb, var(--app-accent) 18%, transparent);
+}
+
+.roster-staff-panel-entry th,
+.roster-staff-panel-entry td {
+    padding: 0.45rem 0;
+    border-top: 1px solid var(--app-roster-border-weak);
+    border-bottom: 1px solid var(--app-row-border);
+    vertical-align: middle;
+}
+
+.roster-staff-panel-entry:focus-visible {
+    outline: 2px solid var(--app-accent);
+    outline-offset: -2px;
+}
+
+.roster-staff-cell {
+    min-width: 0;
+    font-size: var(--roster-text-sm);
+}
+
+.roster-staff-name-primary {
+    display: block;
+    font-weight: 700;
+    color: var(--app-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.roster-staff-name {
+    min-width: 0;
+    padding-right: 0.55rem;
+    text-align: left;
+}
+
+.roster-staff-role {
+    color: var(--app-muted);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: left;
+    text-transform: uppercase;
+}
+
+.roster-staff-shifts {
+    color: var(--app-text);
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    text-align: right;
+}
+
+.roster-staff-shifts-ideal {
+    color: var(--app-muted);
+    margin-left: 0.28rem;
+}
+
+.roster-staff-action {
+    text-align: right;
+}
+
+.roster-staff-action-head {
+    text-align: right;
+}
+
+.roster-staff-locate-button {
+    display: inline-grid;
+    width: 2rem;
+    min-width: 2rem;
+    height: 2rem;
+    padding: 0;
+    place-items: center;
+}
+
+.roster-staff-locate-button[aria-pressed="true"] {
+    background: var(--app-accent);
+    border-color: var(--app-accent);
+    color: var(--app-white);
+}
+
+@media (min-width: 1200px) {
+    .roster-layout-side {
+        position: sticky;
+        top: 1.5rem;
+        align-self: flex-start;
+    }
+
+    .roster-staff-panel {
+        display: flex;
+        flex-direction: column;
+        max-height: calc(100svh - 3rem);
+        overflow: hidden;
+    }
+
+    .roster-staff-self-service-stack {
+        max-height: calc(100svh - 3rem);
+        overflow-y: auto;
+        padding-right: 0.25rem;
+    }
+
+    .roster-staff-panel .app-panel-body {
+        flex: 1 1 auto;
+    }
+
+    .roster-staff-panel-list {
+        --roster-staff-scrollbar-gutter-width: 1rem;
+        flex: 1 1 auto;
+        overflow-y: auto;
+        scrollbar-gutter: stable;
+        margin-right: calc(-1 * var(--roster-staff-scrollbar-gutter-width));
+        padding-right: 0;
+    }
+}
+
+@media (min-width: 1400px) {
+    .roster-grid-frame:not([data-roster-layout="day_columns"]) {
+        --roster-day-column-width: 14.5%;
+    }
+
+    .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="false"] .roster-grid {
+        --roster-grid-columns: repeat(var(--roster-slot-count), minmax(4.6rem, 1.4fr) minmax(6.8rem, 2fr) minmax(3.8rem, 1fr));
+    }
+
+    .roster-grid-frame:not([data-roster-layout="day_columns"])[data-roster-end-times="true"] .roster-grid {
+        --roster-grid-columns: repeat(var(--roster-slot-count), minmax(4.35rem, 1.25fr) minmax(4.35rem, 1.25fr) minmax(6.8rem, 2.25fr) minmax(4.2rem, 0.95fr));
+    }
+}
+
+@media (max-width: 1199.98px) {
+    .roster-layout {
+        --bs-gutter-x: 0;
+    }
+
+    .roster-layout-side {
+        display: block;
+    }
+
+    .roster-staff-role-head {
+        width: 4rem;
+    }
+
+    .roster-staff-metric-head {
+        width: 3.8rem;
+    }
+
+    .roster-staff-action-head {
+        width: 3.35rem;
+    }
+}

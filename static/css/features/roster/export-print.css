@@ -1,0 +1,80 @@
+/* Roster export staging, export surface, wage summary responsive tweaks, and print rules. */
+
+.roster-export-stage {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    pointer-events: none;
+    opacity: 0;
+    z-index: -1;
+}
+
+.roster-export-surface {
+    width: 1720px;
+    padding: 0;
+    background:
+        radial-gradient(circle at top left, var(--app-info-export-glow), transparent 28%),
+        linear-gradient(180deg, var(--app-export-gradient-start), var(--app-input-bg));
+}
+
+.roster-export-grid {
+    width: 100%;
+    margin: 0;
+}
+
+.roster-export-grid .roster-day-actions,
+.roster-export-grid .roster-day-actions-placeholder {
+    display: none !important;
+}
+
+.roster-export-grid .slot-cell-export-value {
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.16rem;
+    text-align: center;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 700;
+    color: var(--app-text);
+    font-size: var(--roster-text-sm);
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 991.98px) {
+    .roster-wage-summary {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .roster-wage-summary {
+        flex-wrap: wrap;
+        white-space: normal;
+    }
+
+    .roster-wage-summary-warning {
+        max-width: 100%;
+    }
+}
+
+@media print {
+    .btn,
+    .roster-day-action,
+    .breadcrumb {
+        display: none !important;
+    }
+
+    .roster-grid {
+        font-size: 0.66rem;
+    }
+
+    .roster-grid [role="columnheader"],
+    .roster-grid [role="gridcell"] {
+        padding: 0.15rem !important;
+    }
+}

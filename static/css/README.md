@@ -42,12 +42,12 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
   `components/*.css` module once split.
 - **Overlays:** put workflow dialog, toast, picker, and overlay host styling in
   `overlays.css`.
-- **Roster feature:** put roster-only selectors under `features/roster.css` or
-  focused `features/roster/*.css` modules. Examples: roster toolbar, week
+- **Roster feature:** put roster-only selectors in focused
+  `features/roster/*.css` modules. Current modules cover toolbar, week
   overview, staff panel, grid frame/cells, day actions, day columns, shift
-  cards, state badges, export/print. Keep feature selectors scoped to roster
-  roots/prefixes such as `.roster-*`, `.day-column-*`, `.shift-card-*`, or the
-  roster shell.
+  cards, responsive overrides, state badges/conflicts, and export/print. Keep
+  feature selectors scoped to roster roots/prefixes such as `.roster-*`,
+  `.day-column-*`, `.shift-card-*`, or the roster shell.
 - **Timesheets feature:** put timesheet-only week/day/entry styling in
   `features/timesheets.css` (or `features/timesheets/*.css` if it grows). If a
   horizontal strip or dense control also serves roster, extract a shared

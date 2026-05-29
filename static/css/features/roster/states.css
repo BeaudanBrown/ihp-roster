@@ -1,0 +1,178 @@
+/* Roster day alternation, conflict, palette, required, empty, and closed states. */
+
+.roster-grid .day-row.day-alt-dark {
+    background-color: var(--roster-day-a);
+}
+
+.roster-grid .day-row.day-alt-light {
+    background-color: var(--roster-day-b);
+}
+
+.roster-day-rail-section.day-alt-dark,
+.roster-grid .day-row.day-alt-dark {
+    background-color: var(--roster-day-a);
+}
+
+.roster-day-rail-section.day-alt-light,
+.roster-grid .day-row.day-alt-light {
+    background-color: var(--roster-day-b);
+}
+
+.roster-grid .day-row.day-alt-dark .slot-closed-cell {
+    background-color: color-mix(in srgb, var(--roster-empty) 58%, var(--roster-day-a));
+}
+
+.roster-grid .day-row.day-alt-light .slot-closed-cell {
+    background-color: color-mix(in srgb, var(--roster-empty) 68%, var(--roster-day-b));
+}
+
+.roster-grid .day-row + .day-row > [role="gridcell"],
+.roster-grid .roster-grid-day-section + .roster-grid-day-section .day-row:first-child > [role="gridcell"] {
+    border-top-color: var(--app-border-strong);
+}
+
+.conflict-critical {
+    background-color: var(--roster-danger) !important;
+    color: var(--app-text) !important;
+}
+
+.conflict-advisory {
+    background-color: var(--roster-warning) !important;
+    color: var(--app-text) !important;
+}
+
+.conflict-preference {
+    background-color: var(--app-warning-conflict-bg) !important;
+    color: var(--app-warning-conflict-text) !important;
+}
+
+.conflict-ideal {
+    background-color: var(--app-info-conflict-bg) !important;
+    color: var(--app-info-conflict-text) !important;
+}
+
+.roster-shift-card-field.conflict-critical {
+    background: var(--roster-danger) !important;
+    color: var(--app-text) !important;
+}
+
+.roster-shift-card-field.conflict-advisory {
+    background: var(--roster-warning) !important;
+    color: var(--app-text) !important;
+}
+
+.roster-shift-card-field.conflict-preference {
+    background: var(--app-warning-conflict-bg) !important;
+    color: var(--app-warning-conflict-text) !important;
+}
+
+.roster-shift-card-field.conflict-ideal {
+    background: var(--app-info-conflict-bg) !important;
+    color: var(--app-info-conflict-text) !important;
+}
+
+.roster-shift-card-field.conflict-critical .slot-cell-form,
+.roster-shift-card-field.conflict-critical .slot-cell-input,
+.roster-shift-card-field.conflict-critical .slot-cell-static,
+.roster-shift-card-field.conflict-advisory .slot-cell-form,
+.roster-shift-card-field.conflict-advisory .slot-cell-input,
+.roster-shift-card-field.conflict-advisory .slot-cell-static,
+.roster-shift-card-field.conflict-preference .slot-cell-form,
+.roster-shift-card-field.conflict-preference .slot-cell-input,
+.roster-shift-card-field.conflict-preference .slot-cell-static,
+.roster-shift-card-field.conflict-ideal .slot-cell-form,
+.roster-shift-card-field.conflict-ideal .slot-cell-input,
+.roster-shift-card-field.conflict-ideal .slot-cell-static {
+    background-color: inherit !important;
+}
+
+.roster-grid .conflict-critical .slot-cell-input,
+.roster-grid .conflict-advisory .slot-cell-input,
+.roster-grid .conflict-preference .slot-cell-input,
+.roster-grid .conflict-ideal .slot-cell-input,
+.roster-shift-card-field.conflict-critical .slot-cell-input,
+.roster-shift-card-field.conflict-advisory .slot-cell-input,
+.roster-shift-card-field.conflict-preference .slot-cell-input,
+.roster-shift-card-field.conflict-ideal .slot-cell-input {
+    color: inherit !important;
+}
+
+.roster-shift-card.is-roster-staff-slot-highlighted .roster-shift-card-field,
+.roster-shift-card.is-roster-staff-slot-highlighted-start .roster-shift-card-field,
+.roster-shift-card.is-roster-staff-slot-highlighted-end .roster-shift-card-field {
+    background-color: transparent !important;
+    color: var(--app-text) !important;
+}
+
+.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"],
+.roster-grid .slot-staff-cell[data-roster-shift-colour^="palette-"],
+.roster-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty) {
+    position: relative;
+}
+
+.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]::before,
+.roster-grid .slot-staff-cell[data-roster-shift-colour^="palette-"]::before,
+.roster-grid .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+    content: "";
+    position: absolute;
+    pointer-events: none;
+    z-index: 3;
+    top: 0;
+    right: -1px;
+    bottom: 0;
+    left: -1px;
+    border-top: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
+    border-bottom: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
+}
+
+.roster-grid .slot-time-cell[data-roster-shift-colour^="palette-"]:not(.slot-end-time-cell)::before {
+    left: 0;
+    border-left: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
+}
+
+.roster-grid .roster-block-end[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+    right: 0;
+    border-right: var(--roster-shift-border-width) solid var(--roster-shift-type-colour);
+}
+
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-time-cell[data-roster-shift-colour^="palette-"]::before,
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-staff-cell[data-roster-shift-colour^="palette-"]::before,
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child .slot-shift-type-cell[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+    bottom: 1px;
+}
+
+.roster-grid .roster-grid-day-section:last-child .day-row:last-child > .roster-block-end:last-child[data-roster-shift-colour^="palette-"]:not(.is-shift-type-empty)::before {
+    right: 0;
+    border-bottom-right-radius: var(--roster-shift-edge-corner-radius);
+}
+
+.roster-grid .slot-shift-type-cell.is-shift-type-required {
+    position: relative;
+}
+
+.roster-grid .slot-shift-type-cell.is-shift-type-required::after {
+    content: "!";
+    position: absolute;
+    top: 0.16rem;
+    right: 0.2rem;
+    z-index: 3;
+    width: 0.72rem;
+    height: 0.72rem;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--app-warning) 78%, var(--app-surface));
+    color: var(--app-panel-bg);
+    font-size: 0.54rem;
+    font-weight: 900;
+    line-height: 0.72rem;
+    text-align: center;
+}
+
+.roster-grid .slot-empty-cell {
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+}
+
+.roster-grid .slot-closed-cell {
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+}

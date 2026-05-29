@@ -21,10 +21,27 @@ test.describe('Styling regression contracts', () => {
         await openRoster(page, { ensureEditable: false });
 
         await expectLocalStylesheet(page, '/app.css');
-        await expectStylesheetServed(page, '/css/tokens.css');
-        await expectStylesheetServed(page, '/css/bootstrap-bridge.css');
-        await expectStylesheetServed(page, '/css/components.css');
-        await expectStylesheetServed(page, '/css/features/roster.css');
+        await expectLocalStylesheet(page, '/css/tokens.css');
+        await expectLocalStylesheet(page, '/css/bootstrap-bridge.css');
+        await expectLocalStylesheet(page, '/css/components.css');
+        const rosterStylesheets = [
+            '/css/features/roster/toolbar.css',
+            '/css/features/roster/week-overview.css',
+            '/css/features/roster/staff-panel.css',
+            '/css/features/roster/grid-frame.css',
+            '/css/features/roster/day-actions.css',
+            '/css/features/roster/staff-highlight.css',
+            '/css/features/roster/grid-cells.css',
+            '/css/features/roster/day-columns.css',
+            '/css/features/roster/shift-card.css',
+            '/css/features/roster/responsive.css',
+            '/css/features/roster/grid-controls.css',
+            '/css/features/roster/states.css',
+            '/css/features/roster/export-print.css',
+        ];
+        for (const stylesheet of rosterStylesheets) {
+            await expectLocalStylesheet(page, stylesheet);
+        }
 
         const metrics = await page.locator('.roster-grid-frame').first().evaluate((frame) => {
             if (!(frame instanceof HTMLElement)) {

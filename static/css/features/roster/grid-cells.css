@@ -1,0 +1,137 @@
+/* Roster standard grid cells, dense inputs, and layout-mode control sizing. */
+
+.roster-grid .slot-staff-cell {
+    min-width: 0;
+    padding: 0 !important;
+}
+
+.roster-grid .slot-shift-type-cell {
+    min-width: 0;
+    padding: 0 !important;
+}
+
+.roster-grid-day-section {
+    display: grid;
+    grid-auto-rows: var(--roster-grid-row-height);
+    height: calc(var(--roster-grid-row-height) * var(--roster-day-row-count));
+    min-height: calc(var(--roster-grid-row-height) * var(--roster-day-row-count));
+    box-sizing: border-box;
+}
+
+.roster-grid .day-row {
+    display: grid;
+    grid-template-columns: var(--roster-grid-columns);
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+    box-sizing: border-box;
+}
+
+.roster-grid .day-row > [role="gridcell"] {
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+    border-top: 1px solid var(--app-border);
+    border-bottom: 0;
+    border-left: 0;
+    border-right: 1px solid var(--app-border);
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+.roster-grid .roster-block-start {
+    border-left: 2px solid var(--app-border-strong) !important;
+}
+
+.roster-grid .roster-block-end {
+    border-right: 1px solid var(--app-border) !important;
+}
+
+.roster-grid .slot-empty-cell {
+    background-color: inherit;
+}
+
+.roster-grid .slot-closed-cell {
+    background-color: var(--roster-empty);
+}
+
+.roster-grid .form-control-sm,
+.roster-grid .form-select-sm {
+    font-size: var(--roster-text-sm);
+    border-color: transparent;
+    border-radius: 0;
+}
+
+.roster-grid .slot-cell-form {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+}
+
+.roster-grid .slot-cell-input {
+    width: 100%;
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+    padding: 0 0.16rem;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    text-align: center;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.roster-grid .slot-time-input {
+    font-weight: 700;
+    min-width: 0;
+}
+
+.roster-grid .slot-shift-type-input {
+    font-size: var(--roster-text-xs);
+    font-weight: 700;
+}
+
+.roster-grid .slot-time-trigger {
+    width: 100%;
+    flex: 1 1 auto;
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+    border: 0 !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    color: var(--app-text);
+    font-size: var(--roster-text-sm);
+    font-weight: 700;
+    text-align: center;
+    padding: 0 0.16rem;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+}
+
+.roster-grid .slot-time-step {
+    width: 23%;
+    min-width: 0;
+    flex: 0 0 23%;
+    height: var(--roster-grid-row-height);
+    min-height: var(--roster-grid-row-height);
+    border: 0 !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    color: var(--app-text-muted);
+    font-size: var(--roster-text-sm);
+    font-weight: 700;
+    line-height: 1;
+    padding: 0;
+}
+
+.roster-layout-mode-group .btn {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
