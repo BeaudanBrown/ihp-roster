@@ -38,6 +38,7 @@ test.describe('Styling regression contracts', () => {
 
         await expectLocalStylesheet(page, '/app.css');
         await expectLocalStylesheet(page, '/css/tokens.css');
+        await expectLocalStylesheet(page, '/css/palette.css');
         await expectLocalStylesheet(page, '/css/bootstrap-bridge.css');
         for (const stylesheet of sharedComponentStylesheets) {
             await expectLocalStylesheet(page, stylesheet);

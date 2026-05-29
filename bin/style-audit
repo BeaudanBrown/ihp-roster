@@ -5,6 +5,7 @@ cd "$(dirname "$0")/.."
 
 token_files=(
   static/css/tokens.css
+  static/css/palette.css
   static/css/bootstrap-bridge.css
 )
 
@@ -107,7 +108,7 @@ else
 fi
 
 echo
-echo "style-audit: hardcoded colors outside token files"
+echo "style-audit: hardcoded colors outside token/palette files"
 rg -n '#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\(' static --glob '*.css' --glob '!static/vendor/**' --glob '!static/prod.css' \
   | rg -v "$(printf '%s|' "${token_files[@]}" | sed 's/|$//')" \
   | head -80 \

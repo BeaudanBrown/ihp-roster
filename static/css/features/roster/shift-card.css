@@ -72,17 +72,6 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     position: relative;
 }
 
-.roster-shift-card[data-roster-shift-colour="palette-1"] { --roster-shift-type-colour: var(--roster-shift-type-palette-1); }
-.roster-shift-card[data-roster-shift-colour="palette-2"] { --roster-shift-type-colour: var(--roster-shift-type-palette-2); }
-.roster-shift-card[data-roster-shift-colour="palette-3"] { --roster-shift-type-colour: var(--roster-shift-type-palette-3); }
-.roster-shift-card[data-roster-shift-colour="palette-4"] { --roster-shift-type-colour: var(--roster-shift-type-palette-4); }
-.roster-shift-card[data-roster-shift-colour="palette-5"] { --roster-shift-type-colour: var(--roster-shift-type-palette-5); }
-.roster-shift-card[data-roster-shift-colour="palette-6"] { --roster-shift-type-colour: var(--roster-shift-type-palette-6); }
-.roster-shift-card[data-roster-shift-colour="palette-7"] { --roster-shift-type-colour: var(--roster-shift-type-palette-7); }
-.roster-shift-card[data-roster-shift-colour="palette-8"] { --roster-shift-type-colour: var(--roster-shift-type-palette-8); }
-.roster-shift-card[data-roster-shift-colour="palette-9"] { --roster-shift-type-colour: var(--roster-shift-type-palette-9); }
-.roster-shift-card[data-roster-shift-colour="palette-10"] { --roster-shift-type-colour: var(--roster-shift-type-palette-10); }
-
 .roster-shift-card[data-roster-shift-colour^="palette-"]::after {
     content: "";
     position: absolute;
@@ -207,17 +196,6 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     color: var(--app-warning-conflict-text) !important;
     font-weight: 800;
 }
-
-.roster-grid-frame [data-roster-shift-colour="palette-1"] { --roster-shift-type-colour: var(--roster-shift-type-palette-1); }
-.roster-grid-frame [data-roster-shift-colour="palette-2"] { --roster-shift-type-colour: var(--roster-shift-type-palette-2); }
-.roster-grid-frame [data-roster-shift-colour="palette-3"] { --roster-shift-type-colour: var(--roster-shift-type-palette-3); }
-.roster-grid-frame [data-roster-shift-colour="palette-4"] { --roster-shift-type-colour: var(--roster-shift-type-palette-4); }
-.roster-grid-frame [data-roster-shift-colour="palette-5"] { --roster-shift-type-colour: var(--roster-shift-type-palette-5); }
-.roster-grid-frame [data-roster-shift-colour="palette-6"] { --roster-shift-type-colour: var(--roster-shift-type-palette-6); }
-.roster-grid-frame [data-roster-shift-colour="palette-7"] { --roster-shift-type-colour: var(--roster-shift-type-palette-7); }
-.roster-grid-frame [data-roster-shift-colour="palette-8"] { --roster-shift-type-colour: var(--roster-shift-type-palette-8); }
-.roster-grid-frame [data-roster-shift-colour="palette-9"] { --roster-shift-type-colour: var(--roster-shift-type-palette-9); }
-.roster-grid-frame [data-roster-shift-colour="palette-10"] { --roster-shift-type-colour: var(--roster-shift-type-palette-10); }
 
 .roster-shift-type-badge {
     display: flex;

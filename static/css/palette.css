@@ -1,0 +1,57 @@
+/* Shared palette tokens for persisted roster shift-type colour keys. */
+:root {
+    --roster-shift-type-palette-1-rgb: 125, 180, 196;
+    --roster-shift-type-palette-2-rgb: 132, 190, 158;
+    --roster-shift-type-palette-3-rgb: 214, 184, 118;
+    --roster-shift-type-palette-4-rgb: 207, 151, 126;
+    --roster-shift-type-palette-5-rgb: 203, 137, 164;
+    --roster-shift-type-palette-6-rgb: 158, 149, 207;
+    --roster-shift-type-palette-7-rgb: 119, 190, 184;
+    --roster-shift-type-palette-8-rgb: 174, 195, 126;
+    --roster-shift-type-palette-9-rgb: 210, 165, 119;
+    --roster-shift-type-palette-10-rgb: 138, 165, 205;
+
+    --roster-shift-type-palette-1: rgb(var(--roster-shift-type-palette-1-rgb));
+    --roster-shift-type-palette-2: rgb(var(--roster-shift-type-palette-2-rgb));
+    --roster-shift-type-palette-3: rgb(var(--roster-shift-type-palette-3-rgb));
+    --roster-shift-type-palette-4: rgb(var(--roster-shift-type-palette-4-rgb));
+    --roster-shift-type-palette-5: rgb(var(--roster-shift-type-palette-5-rgb));
+    --roster-shift-type-palette-6: rgb(var(--roster-shift-type-palette-6-rgb));
+    --roster-shift-type-palette-7: rgb(var(--roster-shift-type-palette-7-rgb));
+    --roster-shift-type-palette-8: rgb(var(--roster-shift-type-palette-8-rgb));
+    --roster-shift-type-palette-9: rgb(var(--roster-shift-type-palette-9-rgb));
+    --roster-shift-type-palette-10: rgb(var(--roster-shift-type-palette-10-rgb));
+
+    --roster-shift-type-palette-1-soft: rgba(var(--roster-shift-type-palette-1-rgb), 0.82);
+    --roster-shift-type-palette-2-soft: rgba(var(--roster-shift-type-palette-2-rgb), 0.82);
+    --roster-shift-type-palette-3-soft: rgba(var(--roster-shift-type-palette-3-rgb), 0.82);
+    --roster-shift-type-palette-4-soft: rgba(var(--roster-shift-type-palette-4-rgb), 0.82);
+    --roster-shift-type-palette-5-soft: rgba(var(--roster-shift-type-palette-5-rgb), 0.82);
+    --roster-shift-type-palette-6-soft: rgba(var(--roster-shift-type-palette-6-rgb), 0.82);
+    --roster-shift-type-palette-7-soft: rgba(var(--roster-shift-type-palette-7-rgb), 0.82);
+    --roster-shift-type-palette-8-soft: rgba(var(--roster-shift-type-palette-8-rgb), 0.82);
+    --roster-shift-type-palette-9-soft: rgba(var(--roster-shift-type-palette-9-rgb), 0.82);
+    --roster-shift-type-palette-10-soft: rgba(var(--roster-shift-type-palette-10-rgb), 0.82);
+
+    --roster-shift-type-palette-1-option-bg: rgba(var(--roster-shift-type-palette-1-rgb), 0.34);
+    --roster-shift-type-palette-2-option-bg: rgba(var(--roster-shift-type-palette-2-rgb), 0.34);
+    --roster-shift-type-palette-3-option-bg: rgba(var(--roster-shift-type-palette-3-rgb), 0.34);
+    --roster-shift-type-palette-4-option-bg: rgba(var(--roster-shift-type-palette-4-rgb), 0.34);
+    --roster-shift-type-palette-5-option-bg: rgba(var(--roster-shift-type-palette-5-rgb), 0.34);
+    --roster-shift-type-palette-6-option-bg: rgba(var(--roster-shift-type-palette-6-rgb), 0.34);
+    --roster-shift-type-palette-7-option-bg: rgba(var(--roster-shift-type-palette-7-rgb), 0.34);
+    --roster-shift-type-palette-8-option-bg: rgba(var(--roster-shift-type-palette-8-rgb), 0.34);
+    --roster-shift-type-palette-9-option-bg: rgba(var(--roster-shift-type-palette-9-rgb), 0.34);
+    --roster-shift-type-palette-10-option-bg: rgba(var(--roster-shift-type-palette-10-rgb), 0.34);
+}
+
+[data-roster-shift-colour="palette-1"] { --roster-shift-type-colour: var(--roster-shift-type-palette-1); }
+[data-roster-shift-colour="palette-2"] { --roster-shift-type-colour: var(--roster-shift-type-palette-2); }
+[data-roster-shift-colour="palette-3"] { --roster-shift-type-colour: var(--roster-shift-type-palette-3); }
+[data-roster-shift-colour="palette-4"] { --roster-shift-type-colour: var(--roster-shift-type-palette-4); }
+[data-roster-shift-colour="palette-5"] { --roster-shift-type-colour: var(--roster-shift-type-palette-5); }
+[data-roster-shift-colour="palette-6"] { --roster-shift-type-colour: var(--roster-shift-type-palette-6); }
+[data-roster-shift-colour="palette-7"] { --roster-shift-type-colour: var(--roster-shift-type-palette-7); }
+[data-roster-shift-colour="palette-8"] { --roster-shift-type-colour: var(--roster-shift-type-palette-8); }
+[data-roster-shift-colour="palette-9"] { --roster-shift-type-colour: var(--roster-shift-type-palette-9); }
+[data-roster-shift-colour="palette-10"] { --roster-shift-type-colour: var(--roster-shift-type-palette-10); }

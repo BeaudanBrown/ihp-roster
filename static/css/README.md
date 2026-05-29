@@ -13,12 +13,13 @@ styles load later, and the compatibility shim loads last:
 
 1. vendor Bootstrap / icon / IHP styles
 2. `tokens.css` - app design tokens and CSS custom properties
-3. `bootstrap-bridge.css` - Bootstrap variable and component bridge
-4. `layout.css` - document shell, page layout, authenticated header
-5. `components/*.css` - shared app components
-6. `overlays.css` - dialogs, toasts, pickers, overlay hosts
-7. `features/*.css` / `features/<feature>/*.css` - feature-scoped styles
-8. `../app.css` - compatibility-only shim; keep it minimal
+3. `palette.css` - persisted palette key values shared by roster/admin colour UI
+4. `bootstrap-bridge.css` - Bootstrap variable and component bridge
+5. `layout.css` - document shell, page layout, authenticated header
+6. `components/*.css` - shared app components
+7. `overlays.css` - dialogs, toasts, pickers, overlay hosts
+8. `features/*.css` / `features/<feature>/*.css` - feature-scoped styles
+9. `../app.css` - compatibility-only shim; keep it minimal
 
 When adding, moving, or splitting files, preserve selector order unless the
 ticket explicitly calls for a semantic refactor. Add every new linked stylesheet
@@ -27,9 +28,9 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
 ## Ownership map
 
 - **Tokens and palettes:** put semantic variables in `tokens.css` before using
-  raw colour, spacing, radius, or shadow values elsewhere. Shift-type palette
-  values belong with tokens/palette ownership, not duplicated inside roster or
-  admin selectors.
+  raw colour, spacing, radius, or shadow values elsewhere. Persisted shift-type
+  palette key values and `data-roster-shift-colour` mappings belong in
+  `palette.css`, not duplicated inside roster or admin selectors.
 - **Bootstrap bridge:** put global Bootstrap variable overrides or unavoidable
   Bootstrap component bridges in `bootstrap-bridge.css`. Keep these broad and
   documented by selector intent.
@@ -82,7 +83,7 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
   utilities, and inline style attributes.
 - `bash ./bin/in-env ./bin/css-inventory` is warning-only. It reports app-owned
   CSS line counts, files over the current size budget, raw colours outside
-  token/bridge modules, feature stylesheets that mention app/global/Bootstrap
+  token/palette/bridge modules, feature stylesheets that mention app/global/Bootstrap
   selectors, simple stale-selector candidates with no HS/JS mention, and the
   Layout/Makefile asset-sync summary. Use it before and after split/refactor
   tickets to keep known debt visible without blocking early pure moves.

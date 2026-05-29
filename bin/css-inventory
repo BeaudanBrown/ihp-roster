@@ -106,12 +106,12 @@ else
 fi
 
 echo
-echo "css-inventory: raw colour warnings outside token/bridge modules (first ${warning_limit})"
+echo "css-inventory: raw colour warnings outside token/palette/bridge modules (first ${warning_limit})"
 rg -n '#[0-9A-Fa-f]{3,8}|rgba?\(|hsla?\(' static \
   --glob '*.css' \
   --glob '!static/vendor/**' \
   --glob '!static/prod.css' \
-  | rg -v '^(static/css/tokens\.css|static/css/bootstrap-bridge\.css):' \
+  | rg -v '^(static/css/tokens\.css|static/css/palette\.css|static/css/bootstrap-bridge\.css):' \
   | head -n "$warning_limit" > "$raw_colors" \
   || true
 if [[ -s "$raw_colors" ]]; then

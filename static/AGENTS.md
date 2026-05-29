@@ -20,7 +20,8 @@ Read this before editing `static/` assets.
   - `app.js`
 - Keep CSS split by concern under `static/css/`; read `static/css/README.md`
   before adding or moving app-owned CSS.
-- Choose the narrowest owner: tokens in `static/css/tokens.css`, Bootstrap
+- Choose the narrowest owner: semantic tokens in `static/css/tokens.css`,
+  persisted palette key values in `static/css/palette.css`, Bootstrap
   bridges in `static/css/bootstrap-bridge.css`, shell/header layout in
   `static/css/layout.css`, shared UI primitives in focused
   `static/css/components/*.css` modules, overlays in `static/css/overlays.css`, and
