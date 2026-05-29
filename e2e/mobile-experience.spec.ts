@@ -337,6 +337,54 @@ test.describe('Mobile experience smoke', () => {
         expect(snapMetrics.suppressClickUntil).toBe('');
     });
 
+    test('timesheet filter and week navigation preserve horizontal scroll', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await loginAsPrivilegedUserWithSeededPasskeySession(page);
+        await gotoWhenReady(page, '/Timesheets?showApproved=true&showAllStaff=true', '#timesheet-week-shell');
+
+        const frame = page.locator('.timesheet-week-frame').first();
+        await expect(frame).toBeVisible();
+        await expect(page.locator('#timesheet-day-columns')).toBeVisible();
+
+        const setScroll = async () => frame.evaluate((element) => {
+            if (!(element instanceof HTMLElement)) {
+                throw new Error('Expected timesheet week frame to be an HTMLElement');
+            }
+            const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+            element.scrollLeft = Math.min(Math.max(120, element.clientWidth * 1.4), maxScrollLeft);
+            return element.scrollLeft;
+        });
+        const readScroll = async () => frame.evaluate((element) => {
+            if (!(element instanceof HTMLElement)) {
+                throw new Error('Expected timesheet week frame to be an HTMLElement');
+            }
+            return element.scrollLeft;
+        });
+
+        const beforeFilterScroll = await setScroll();
+        expect(beforeFilterScroll).toBeGreaterThan(0);
+
+        await page.getByRole('button', { name: 'Timesheet settings' }).click();
+        await page.locator('label', { hasText: 'Show all staff' }).click();
+        await expect(page).toHaveURL(/showAllStaff=false/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#timesheet-day-columns')).toBeVisible();
+        await expect(page.locator('#timesheet-week-toolbar')).toBeVisible();
+        const afterFilterScroll = await readScroll();
+        expect(Math.abs(afterFilterScroll - beforeFilterScroll)).toBeLessThanOrEqual(2);
+
+        const beforeWeekScroll = await setScroll();
+        await page.locator('.app-week-nav-group').getByRole('link', { name: '>' }).click();
+        await expect(page).toHaveURL(/weekOffset=1/, { timeout: E2E_TIMEOUT.navigation });
+        await expect(page.locator('#timesheet-day-columns')).toBeVisible();
+        const afterWeekScroll = await readScroll();
+        expect(Math.abs(afterWeekScroll - beforeWeekScroll)).toBeLessThanOrEqual(2);
+
+        const dayColumnsLiveConfig = await page.locator('#timesheet-day-columns').getAttribute('data-live-update-surface');
+        expect(dayColumnsLiveConfig).toContain('timesheet_week');
+        await expect(page.locator('#timesheet-day-section-0')).toHaveAttribute('data-live-update-url', /weekOffset=1/);
+    });
+
     test('timesheet entries use uniform mobile actions for approved and pending entries', async ({ page }) => {
         await loginAs(page, 'e2e-test@example.com', 'test-password-123');
         await gotoWhenReady(page, '/Timesheets?showApproved=true', '#timesheet-week-shell');
