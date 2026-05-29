@@ -92,7 +92,7 @@ respondWithXeroPayItemsFragmentAndToast ::
 respondWithXeroPayItemsFragmentAndToast maybeToast = do
     xeroSectionData <- fetchCurrentVenueXeroAdminSectionData
     fragmentHtml <- profileActionSpan "admin.xero.pay_items.fragment.render" do
-        pure (renderXeroPayItemsFragment xeroSectionData.xeroPayItemAccountCodeOptions xeroSectionData.xeroPayItemRequirements xeroSectionData.xeroPayItemAccountCodeSelection xeroSectionData.xeroLatestPayItemSyncRun xeroSectionData.xeroConnectionActionsAllowed)
+        pure (renderXeroPayItemsFragment xeroSectionData.xeroPayItemAccountCodeOptions xeroSectionData.xeroPayItemRequirements xeroSectionData.xeroImportedPayItems xeroSectionData.xeroPayItemAccountCodeSelection xeroSectionData.xeroLatestPayItemSyncRun xeroSectionData.xeroConnectionActionsAllowed)
     respondHtmlProfiled $
         mconcat
             [ fragmentHtml

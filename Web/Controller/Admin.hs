@@ -202,6 +202,18 @@ instance Controller AdminController where
         ensureVenueWritable
         requireCurrentVenueOwnerForXero createMissingXeroPayItemsAction
 
+    action OpenXeroPayItemImportAction = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero openXeroPayItemImportAction
+
+    action ImportXeroPayItemsAction = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero importXeroPayItemsAction
+
+    action ArchiveXeroImportedPayItemAction { xeroImportedPayItemId } = do
+        ensureVenueWritable
+        requireCurrentVenueOwnerForXero (archiveXeroImportedPayItemAction xeroImportedPayItemId)
+
     action SaveXeroStaffMappingAction = do
         ensureVenueWritable
         requireCurrentVenueOwnerForXero saveXeroStaffMappingAction

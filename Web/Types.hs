@@ -126,6 +126,9 @@ data AdminController
     | DisconnectXeroConnectionAction
     | SyncXeroPayrollReferenceDataAction
     | CreateMissingXeroPayItemsAction
+    | OpenXeroPayItemImportAction
+    | ImportXeroPayItemsAction
+    | ArchiveXeroImportedPayItemAction { xeroImportedPayItemId :: !(Id XeroImportedPayItem) }
     | SaveXeroStaffMappingAction
     | SuggestXeroStaffMappingAction { staffId :: !(Id Staff) }
     | SaveXeroEarningsRateMappingAction

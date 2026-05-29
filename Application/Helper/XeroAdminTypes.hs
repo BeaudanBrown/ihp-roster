@@ -266,6 +266,7 @@ data XeroAdminSectionData = XeroAdminSectionData
     , xeroStaffMappingCounts          :: XeroStaffMappingCounts
     , xeroEarningsRates               :: [XeroEarningsRate]
     , xeroPayItemRequirements         :: [XeroPayItemRequirement]
+    , xeroImportedPayItems            :: [XeroImportedPayItem]
     , xeroPayItemAccountCodeOptions   :: [XeroPayItemAccountCodeOption]
     , xeroPayrollCalendars            :: [XeroPayrollCalendar]
     , xeroPayrollCalendarSelection    :: Maybe XeroPayrollCalendarSelection

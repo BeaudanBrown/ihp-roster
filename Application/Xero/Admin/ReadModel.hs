@@ -151,6 +151,17 @@ fetchCurrentVenueXeroEarningsRates maybeConnection =
                 |> orderBy #name
                 |> fetch
 
+fetchCurrentVenueXeroImportedPayItems :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroImportedPayItem]
+fetchCurrentVenueXeroImportedPayItems maybeConnection =
+    case maybeConnection of
+        Nothing -> pure []
+        Just connection ->
+            query @XeroImportedPayItem
+                |> filterWhere (#venueId, unpackId currentVenueId)
+                |> filterWhere (#xeroConnectionId, unpackId connection.id)
+                |> orderBy #name
+                |> fetch
+
 fetchCurrentVenueXeroAccounts :: (?context :: ControllerContext, ?modelContext :: ModelContext) => Maybe XeroConnection -> IO [XeroAccount]
 fetchCurrentVenueXeroAccounts maybeConnection =
     case maybeConnection of
@@ -398,6 +409,7 @@ fetchCurrentVenueXeroAdminSectionData xeroConnectionActionsAllowed = do
     xeroEarningsRates <- profileActionSpan "admin.xero.earnings_mapping.fetch_rates" (fetchCurrentVenueXeroEarningsRates xeroConnection)
     xeroEarningsBucketRows <- profileActionSpan "admin.xero.earnings_mapping.fetch_rows" (fetchCurrentVenueXeroEarningsBucketRows xeroConnection)
     xeroPayItemRequirements <- profileActionSpan "admin.xero.pay_items.fetch_requirements" (fetchCurrentVenueXeroPayItemRequirements xeroConnection xeroEarningsRates)
+    xeroImportedPayItems <- profileActionSpan "admin.xero.imported_pay_items.fetch" (fetchCurrentVenueXeroImportedPayItems xeroConnection)
     xeroPayItemAccountCodeOptions <- profileActionSpan "admin.xero.pay_item_account_code.fetch_options" (fetchCurrentVenueXeroPayItemAccountCodeOptions xeroConnection)
     xeroPayrollCalendars <- profileActionSpan "admin.xero.calendar.fetch_calendars" (fetchCurrentVenueXeroPayrollCalendars xeroConnection)
     xeroPayrollCalendarSelection <- profileActionSpan "admin.xero.calendar.fetch_selection" (fetchCurrentVenueXeroPayrollCalendarSelection xeroConnection)

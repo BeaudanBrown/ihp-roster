@@ -741,8 +741,8 @@ tests = beforeAll testContext do
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldNotContain` "Pay item requirements"
-                pageResponse `responseBodyShouldNotContain` "id=\"xero-pay-items-data\""
+                pageResponse `responseBodyShouldContain` "Pay item requirements"
+                pageResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
                 pageResponse `responseBodyShouldNotContain` "admin_xero_pay_items"
                 pageResponse `responseBodyShouldNotContain` "name=\"xeroPayItemAccountCodeSelection\""
                 payItemsFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do

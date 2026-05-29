@@ -171,7 +171,7 @@ currentVenueScopeId =
 
 renderXeroSection :: XeroAdminSectionData -> Html
 renderXeroSection XeroAdminSectionData { xeroConnection = maybeConnection, .. } =
-    renderXeroConnectionBody maybeConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroPayItemAccountCodeOptions xeroLatestPayItemSyncRun xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed xeroTimesheetPanelData
+    renderXeroConnectionBody maybeConnection xeroConnectedByUser xeroLatestSyncRun xeroEmployeeCount xeroEarningsRateCount xeroPayrollCalendarCount xeroEmployees xeroStaffMappingRows xeroStaffMappingCounts xeroEarningsRates xeroPayItemRequirements xeroImportedPayItems xeroPayItemAccountCodeOptions xeroLatestPayItemSyncRun xeroPayrollCalendars xeroPayrollCalendarSelection xeroPayItemAccountCodeSelection xeroReadyChecklist xeroConnectionActionsAllowed xeroTimesheetPanelData
 
 renderXeroSectionFragment :: XeroAdminSectionData -> Html
 renderXeroSectionFragment =
@@ -212,28 +212,31 @@ renderXeroAutoSyncTrigger True (Just connection)
 renderXeroAutoSyncTrigger _ _ =
     mempty
 
-renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroPayItemAccountCodeOption] -> Maybe XeroSyncRun -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> XeroTimesheetPanelData -> Html
-renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed _timesheetPanel = [hsx|
+renderXeroConnectionBody :: Maybe XeroConnection -> Maybe User -> Maybe XeroSyncRun -> Int -> Int -> Int -> [XeroEmployee] -> [XeroStaffMappingRow] -> XeroStaffMappingCounts -> [XeroEarningsRate] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> [XeroPayItemAccountCodeOption] -> Maybe XeroSyncRun -> [XeroPayrollCalendar] -> Maybe XeroPayrollCalendarSelection -> Maybe XeroPayItemAccountCodeSelection -> XeroReadyChecklist -> Bool -> XeroTimesheetPanelData -> Html
+renderXeroConnectionBody Nothing _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ connectionActionsAllowed _timesheetPanel = [hsx|
     <div class="d-flex flex-column gap-4">
         <section class={appSurfaceClasses "p-3"}>
             {renderXeroDisconnectedConnectionDetails connectionActionsAllowed}
         </section>
     </div>
 |]
-renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _employeeCount _earningsRateCount _payrollCalendarCount _xeroEmployees _mappingRows _mappingCounts _xeroEarningsRates _payItemRequirements _accountCodeOptions _maybePayItemSyncRun _xeroPayrollCalendars _maybePayrollCalendarSelection _maybePayItemAccountCodeSelection _readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
+renderXeroConnectionBody (Just connection) _maybeConnectedByUser _maybeSyncRun _employeeCount _earningsRateCount _payrollCalendarCount _xeroEmployees _mappingRows _mappingCounts _xeroEarningsRates payItemRequirements importedPayItems accountCodeOptions maybePayItemSyncRun _xeroPayrollCalendars _maybePayrollCalendarSelection maybePayItemAccountCodeSelection _readyChecklist connectionActionsAllowed timesheetPanel = [hsx|
     <div class="d-flex flex-column gap-4">
         <section class={appSurfaceClasses "p-3"}>
             {renderXeroConnectionDetails connection connectionActionsAllowed}
         </section>
-        {renderXeroOperationalPanels connection timesheetPanel}
+        {renderXeroOperationalPanels connection timesheetPanel payItemRequirements importedPayItems accountCodeOptions maybePayItemSyncRun maybePayItemAccountCodeSelection connectionActionsAllowed}
     </div>
 |]
 
-renderXeroOperationalPanels :: XeroConnection -> XeroTimesheetPanelData -> Html
-renderXeroOperationalPanels connection timesheetPanel
+renderXeroOperationalPanels :: XeroConnection -> XeroTimesheetPanelData -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> [XeroPayItemAccountCodeOption] -> Maybe XeroSyncRun -> Maybe XeroPayItemAccountCodeSelection -> Bool -> Html
+renderXeroOperationalPanels connection timesheetPanel payItemRequirements importedPayItems accountCodeOptions maybePayItemSyncRun maybePayItemAccountCodeSelection connectionActionsAllowed
     | connection.connectionStatus == "active" = [hsx|
         <section class={appSurfaceClasses "p-3"}>
             {renderXeroTimesheetPanel timesheetPanel}
+        </section>
+        <section>
+            {renderXeroPayItemsFragment accountCodeOptions payItemRequirements importedPayItems maybePayItemAccountCodeSelection maybePayItemSyncRun connectionActionsAllowed}
         </section>
     |]
     | otherwise = mempty
@@ -242,7 +245,7 @@ renderXeroStaffMappingsFragment :: [XeroEmployee] -> [XeroStaffMappingRow] -> Xe
 renderXeroStaffMappingsFragment =
     renderXeroStaffMappingsData
 
-renderXeroPayItemsFragment :: [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
+renderXeroPayItemsFragment :: [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
 renderXeroPayItemsFragment =
     renderXeroPayItemsData
 
