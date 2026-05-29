@@ -368,6 +368,7 @@ renderRosterDayColumns :: (?context :: ControllerContext) => RosterDayRenderMode
 renderRosterDayColumns dayModel rosterDays = [hsx|
     <div class="roster-day-columns app-horizontal-grid" style={"--roster-day-count:" <> tshow (max 1 (length rosterDays)) <> ";"}>
         {forEach rosterDays (renderRosterDayColumn dayModel)}
+        <div class="roster-day-columns-end-buffer" aria-hidden="true"></div>
     </div>
 |]
 
@@ -382,8 +383,8 @@ renderRosterDayColumnWithSwap maybeSwapOob dayModel@RosterDayRenderModel { dayIs
         rowCount = length dayRows
         lastRowIndex = lastRowIndexForRows dayRows
         date = Calendar.addDays (toInteger (get #dayOffset rosterDay)) dayWeekStartDate
-        compactSlots = compactDayColumnSlots dayModel.daySlotNames daySlots
-        maybeCreateTarget = firstAvailableDayColumnTarget dayModel.daySlotNames rosterDay daySlots
+        compactSlots = if rosterDay.isClosed then [] else compactDayColumnSlots dayModel.daySlotNames daySlots
+        maybeCreateTarget = if rosterDay.isClosed then Nothing else firstAvailableDayColumnTarget dayModel.daySlotNames rosterDay daySlots
      in [hsx|
         <section id={rosterDaySectionDomId rosterDay.id}
                  data-roster-day-section="true"

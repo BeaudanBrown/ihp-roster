@@ -5,8 +5,14 @@
 }
 
 .roster-day-columns {
-    grid-template-columns: repeat(var(--roster-day-count), minmax(19.4rem, 1fr));
-    min-width: min(88rem, calc(var(--roster-day-count) * 20rem));
+    --roster-day-columns-end-buffer-width: 0.15rem;
+    grid-template-columns: repeat(var(--roster-day-count), minmax(19.4rem, 1fr)) var(--roster-day-columns-end-buffer-width);
+    min-width: min(88.9rem, calc((var(--roster-day-count) * 20rem) + 0.9rem));
+}
+
+.roster-day-columns-end-buffer {
+    min-width: var(--roster-day-columns-end-buffer-width);
+    pointer-events: none;
 }
 
 .roster-day-column {
