@@ -69,19 +69,8 @@
 }
 
 .roster-grid .slot-cell-input {
-    width: 100%;
     height: var(--roster-grid-row-height);
     min-height: var(--roster-grid-row-height);
-    padding: 0 0.16rem;
-    border: 0 !important;
-    border-radius: 0 !important;
-    background-color: transparent !important;
-    box-shadow: none !important;
-    text-align: center;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
 }
 
 .roster-grid .slot-time-input {
@@ -95,23 +84,12 @@
 }
 
 .roster-grid .slot-time-trigger {
-    width: 100%;
     flex: 1 1 auto;
     height: var(--roster-grid-row-height);
     min-height: var(--roster-grid-row-height);
-    border: 0 !important;
-    border-radius: 0 !important;
-    background-color: transparent !important;
     color: var(--app-text);
     font-size: var(--roster-text-sm);
     font-weight: 700;
-    text-align: center;
-    padding: 0 0.16rem;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    font-variant-numeric: tabular-nums;
 }
 
 .roster-grid .slot-time-step {

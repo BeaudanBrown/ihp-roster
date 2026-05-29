@@ -24,6 +24,7 @@ const sharedComponentStylesheets = [
     '/css/components/public.css',
     '/css/components/panels.css',
     '/css/components/forms.css',
+    '/css/components/buttons.css',
     '/css/components/bootstrap-overrides.css',
     '/css/components/accordions.css',
     '/css/components/admin.css',

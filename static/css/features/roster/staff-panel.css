@@ -218,15 +218,6 @@
     text-align: right;
 }
 
-.roster-staff-locate-button {
-    display: inline-grid;
-    width: 2rem;
-    min-width: 2rem;
-    height: 2rem;
-    padding: 0;
-    place-items: center;
-}
-
 .roster-staff-locate-button[aria-pressed="true"] {
     background: var(--app-accent);
     border-color: var(--app-accent);

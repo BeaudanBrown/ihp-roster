@@ -14,6 +14,7 @@ CSS_FILES += static/css/components/status.css
 CSS_FILES += static/css/components/public.css
 CSS_FILES += static/css/components/panels.css
 CSS_FILES += static/css/components/forms.css
+CSS_FILES += static/css/components/buttons.css
 CSS_FILES += static/css/components/bootstrap-overrides.css
 CSS_FILES += static/css/components/accordions.css
 CSS_FILES += static/css/components/admin.css

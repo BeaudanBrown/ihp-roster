@@ -586,7 +586,7 @@ renderToggleClosedButton rosterDay =
                   hx-push-url="false"
                   hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
                 <button type="submit"
-                        class={classes [("btn btn-sm roster-day-action roster-day-action-toggle", True), ("is-active", rosterDay.isClosed)]}
+                        class={classes [("btn btn-sm app-compact-action-button roster-day-action roster-day-action-toggle", True), ("is-active", rosterDay.isClosed)]}
                         aria-label={buttonLabel}
                         data-roster-day-closed-toggle="true"
                         title={buttonLabel}>
@@ -611,7 +611,7 @@ renderAddRowButton rosterDay =
                   hx-push-url="false"
                   hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
                 <button type="submit"
-                        class="btn btn-sm roster-day-action roster-day-action-add"
+                        class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-add"
                         aria-label="Add shift row"
                         data-roster-day-add="true"
                         title="Add shift row">
@@ -637,7 +637,7 @@ renderDeleteLastRowButton rosterDay rowIndex =
                   hx-push-url="false"
                   hx-sync={"#" <> rosterWeekShellId <> ":replace"}>
                 <button type="submit"
-                        class="btn btn-sm roster-day-action roster-day-action-remove"
+                        class="btn btn-sm app-compact-action-button roster-day-action roster-day-action-remove"
                         aria-label={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}
                         data-roster-day-remove="true"
                         title={if canDelete then ("Delete last shift row" :: Text) else ("Minimum day size reached" :: Text)}
@@ -917,7 +917,7 @@ renderEditableDayColumnShiftTypeBadge target staffId selectedShiftTypeId selecte
     <form class={classes [("m-0 slot-cell-form roster-shift-type-badge roster-shift-type-badge-editable", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
           data-roster-shift-colour={shiftTypeBadgeColourKey selectedShiftType}>
         <select name="shiftTypeId"
-                class={classes [("form-select form-select-sm slot-cell-input slot-shift-type-input roster-shift-type-badge-select", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
+                class={classes [("form-select form-select-sm app-dense-control app-dense-select-plain slot-cell-input slot-shift-type-input roster-shift-type-badge-select", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
                 aria-label={if isPublishRequired then ("Shift type required after failed publish" :: Text) else "Shift type"}
                 data-roster-field-key={rosterFieldKey target "shiftTypeId"}
                 hx-post={rosterSlotTargetAction target}
@@ -938,7 +938,7 @@ renderEditableDayColumnShiftTypeBadge target staffId selectedShiftTypeId selecte
 
 renderReadOnlyDayColumnShiftTypeBadge :: Maybe UUID -> Maybe ShiftType -> Bool -> Html
 renderReadOnlyDayColumnShiftTypeBadge staffId selectedShiftType isPublishRequired = [hsx|
-    <div class={classes [("slot-cell-static roster-shift-type-badge roster-shift-type-badge-readonly", True), ("is-empty", isNothing selectedShiftType), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
+    <div class={classes [("app-dense-static slot-cell-static roster-shift-type-badge roster-shift-type-badge-readonly", True), ("is-empty", isNothing selectedShiftType), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
          data-roster-shift-colour={shiftTypeBadgeColourKey selectedShiftType}>
         <span class="roster-shift-type-badge-label">{shiftTypeBadgeLabel staffId selectedShiftType}</span>
     </div>
@@ -952,14 +952,14 @@ renderEditableTimeCell fieldName ariaLabel emptyLabel target currentValue isPubl
                 , timePickerEmptyLabel = emptyLabel
                 , timePickerFieldClasses = ["m-0", "d-flex", "align-items-center", "slot-cell-form"] <> ["is-publish-required" | isPublishRequired]
                 , timePickerControlClasses = ["roster-time-picker-control"]
-                , timePickerTriggerClasses = ["btn-sm", "slot-time-trigger"]
+                , timePickerTriggerClasses = ["btn-sm", "app-dense-control", "app-dense-time-value", "slot-time-trigger"]
                 , timePickerAriaLabel = if isPublishRequired then ariaLabel <> " required after failed publish" else ariaLabel
                 }
         inputHtml = [hsx|
             <input type="hidden"
                    name={fieldName}
                    value={currentValue}
-                   class={classes [("slot-time-input slot-cell-input js-time-picker-input", True), ("is-publish-required", isPublishRequired)]}
+                   class={classes [("app-dense-control app-dense-time-value slot-time-input slot-cell-input js-time-picker-input", True), ("is-publish-required", isPublishRequired)]}
                    data-roster-field-key={rosterFieldKey target fieldName}
                    hx-post={rosterSlotTargetAction target}
                    hx-trigger="change"
@@ -977,7 +977,7 @@ renderEditableStaffCell :: RosterAssignmentFilters -> RosterSlotCellTarget -> Ma
 renderEditableStaffCell _ target selectedStaffId staffMembers staffOptionStates currentPrimaryConflict = [hsx|
     <form class={classes [("m-0 slot-cell-form", True), ("is-empty", isNothing selectedStaffId)]}>
         <select name="staffId"
-                class={classes [("form-select form-select-sm slot-cell-input slot-staff-input", True), ("is-empty", isNothing selectedStaffId)]}
+                class={classes [("form-select form-select-sm app-dense-control app-dense-select-plain slot-cell-input slot-staff-input", True), ("is-empty", isNothing selectedStaffId)]}
                 data-roster-field-key={rosterFieldKey target "staffId"}
                 hx-post={rosterSlotTargetAction target}
                 hx-trigger="change"
@@ -1006,7 +1006,7 @@ renderEditableShiftTypeCell :: RosterSlotCellTarget -> Maybe UUID -> [ShiftType]
 renderEditableShiftTypeCell target selectedShiftTypeId shiftTypes isPublishRequired = [hsx|
     <form class={classes [("m-0 slot-cell-form", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}>
         <select name="shiftTypeId"
-                class={classes [("form-select form-select-sm slot-cell-input slot-shift-type-input", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
+                class={classes [("form-select form-select-sm app-dense-control app-dense-select-plain slot-cell-input slot-shift-type-input", True), ("is-empty", isNothing selectedShiftTypeId), ("is-required", isPublishRequired), ("is-publish-required", isPublishRequired)]}
                 aria-label={if isPublishRequired then ("Shift type required after failed publish" :: Text) else "Shift type"}
                 data-roster-field-key={rosterFieldKey target "shiftTypeId"}
                 hx-post={rosterSlotTargetAction target}
@@ -1028,7 +1028,7 @@ renderEditableShiftTypeCell target selectedShiftTypeId shiftTypes isPublishRequi
 renderReadOnlyStaffCell :: Text -> Maybe RosterConflict -> Html
 renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict =
     mconcat
-        [ [hsx|<div class="slot-cell-static">{currentStaffLabel}</div>|] ]
+        [ [hsx|<div class="app-dense-static slot-cell-static">{currentStaffLabel}</div>|] ]
 
 rosterSlotTargetAction :: RosterSlotCellTarget -> RosterWeeksController
 rosterSlotTargetAction (ExistingRosterSlotTarget rosterSlotId) =
@@ -1044,7 +1044,7 @@ rosterFieldKey (NewRosterSlotTarget rosterDayId rosterWeekSlotDefinitionId rowIn
 
 renderReadOnlyCell :: Text -> Html
 renderReadOnlyCell value = [hsx|
-    <div class={classes [("slot-cell-static", True), ("app-muted", Text.null value)]}>{if Text.null value then " " else value}</div>
+    <div class={classes [("app-dense-static slot-cell-static", True), ("app-muted", Text.null value)]}>{if Text.null value then " " else value}</div>
 |]
 
 renderAssignedStaffLabel :: Maybe UUID -> RosterRenderIndexes -> Maybe Text

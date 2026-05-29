@@ -147,7 +147,7 @@ renderRosterStaffPanelEntry panelStaffMembers weekOffset currentRosterGroupId en
                 <td class="roster-staff-cell roster-staff-shifts">{renderShiftSummary entry}</td>
                 <td class="roster-staff-cell roster-staff-action">
                     <button type="button"
-                            class="btn btn-sm btn-outline-secondary roster-staff-locate-button"
+                            class="btn btn-sm btn-outline-secondary app-icon-button roster-staff-locate-button"
                             data-roster-staff-highlight-toggle="true"
                             aria-label={"Locate shifts for " <> staffDisplayLabel}
                             aria-pressed="false">

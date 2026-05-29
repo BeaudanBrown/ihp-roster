@@ -1,4 +1,4 @@
-/* Shared profile form sizing, headings, form width, and muted helper. */
+/* Shared form sizing, dense controls, headings, form width, and muted helper. */
 
 .profile-field-grid .form-control,
 .profile-field-grid .form-select {
@@ -23,6 +23,90 @@ h5,
 
 .app-form-width {
     max-width: 30rem;
+}
+
+.app-dense-control {
+    width: 100%;
+    min-width: 0;
+    padding: 0 0.16rem;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background-color: transparent !important;
+    box-shadow: none !important;
+    outline: 0;
+    text-align: center;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-dense-control:hover,
+.form-control.app-dense-control:hover,
+.form-select.app-dense-control:hover,
+.btn.app-dense-control:hover {
+    background-color: var(--app-accent-soft) !important;
+    color: var(--app-text);
+}
+
+.app-dense-control:focus,
+.form-control.app-dense-control:focus,
+.form-select.app-dense-control:focus,
+.btn.app-dense-control:focus {
+    background-color: transparent !important;
+    color: inherit;
+    box-shadow: none !important;
+    outline: none;
+}
+
+.app-dense-control:focus-visible,
+.form-control.app-dense-control:focus-visible,
+.form-select.app-dense-control:focus-visible,
+.btn.app-dense-control:focus-visible {
+    box-shadow: none !important;
+    outline: none !important;
+    border-color: transparent !important;
+}
+
+.app-dense-control:disabled,
+.form-control.app-dense-control:disabled,
+.form-select.app-dense-control:disabled,
+.btn.app-dense-control:disabled {
+    background-color: transparent !important;
+    color: var(--app-text-muted);
+    opacity: 0.55;
+}
+
+.app-dense-select-plain {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: none !important;
+    cursor: pointer;
+    text-align-last: center;
+}
+
+.app-dense-select-plain option {
+    color: var(--app-text);
+    background-color: var(--app-surface);
+}
+
+.app-dense-static {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    padding-inline: 0.16rem;
+    text-align: center;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.app-dense-time-value {
+    font-variant-numeric: tabular-nums;
 }
 
 .app-muted {

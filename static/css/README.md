@@ -39,8 +39,8 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
   `layout.css`.
 - **Shared components:** put reusable surfaces, menus/navigation, week toolbar,
   badges/status, horizontal strip primitives, public/auth surfaces, forms,
-  buttons, tables, accordions, toggles, and admin primitives in focused
-  `components/*.css` modules.
+  dense controls, buttons, tables, accordions, toggles, and admin primitives in
+  focused `components/*.css` modules.
 - **Overlays:** put workflow dialog, toast, picker, and overlay host styling in
   `overlays.css`.
 - **Roster feature:** put roster-only selectors in focused
@@ -69,10 +69,13 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
 - A dialog footer or toast visual change belongs in `overlays.css` and the
   shared overlay helpers, not in a feature stylesheet.
 - A form field spacing rule used by roster and admin belongs in a shared forms
-  component module. A roster-only dense cell input rule stays in roster CSS until
-  it becomes a documented dense-control primitive.
+  component module. Roster dense cells compose `app-dense-control`,
+  `app-dense-select-plain`, `app-dense-static`, and `app-dense-time-value` for
+  reusable transparent dense controls while keeping roster sizing and states in
+  roster modules.
 - Button, table, badge/status, menu, navigation, and accordion rules that apply
-  across pages belong in shared component modules. Feature styles may compose
+  across pages belong in shared component modules. Compact icon/actions compose
+  `app-icon-button` or `app-compact-action-button`; feature styles may compose
   those classes but should avoid overriding Bootstrap globally.
 - Public/auth page surfaces belong in shared public/auth component CSS, while a
   feature-specific marketing or legal block belongs in that feature's stylesheet.

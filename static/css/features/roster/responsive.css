@@ -190,47 +190,27 @@
     }
 }
 
-.roster-grid .slot-time-trigger:hover,
 .roster-grid .slot-time-step:hover,
 .roster-grid .slot-staff-cell:hover .slot-staff-input,
-.roster-grid .slot-staff-input:hover,
-.roster-grid .slot-shift-type-cell:hover .slot-shift-type-input,
-.roster-grid .slot-shift-type-input:hover,
-.slot-staff-input:hover,
-.slot-shift-type-input:hover {
+.roster-grid .slot-shift-type-cell:hover .slot-shift-type-input {
     background-color: var(--app-accent-soft) !important;
     color: var(--app-text);
 }
 
-.roster-grid .slot-time-trigger:focus,
-.roster-grid .slot-time-step:focus,
-.roster-grid .slot-staff-input:focus,
-.roster-grid .slot-shift-type-input:focus,
-.slot-staff-input:focus,
-.slot-shift-type-input:focus {
+.roster-grid .slot-time-step:focus {
     background-color: transparent !important;
     color: inherit;
     box-shadow: none !important;
     outline: none;
 }
 
-.roster-grid .slot-time-trigger:focus-visible,
-.roster-grid .slot-time-step:focus-visible,
-.roster-grid .slot-staff-input:focus-visible,
-.roster-grid .slot-shift-type-input:focus-visible,
-.slot-staff-input:focus-visible,
-.slot-shift-type-input:focus-visible {
+.roster-grid .slot-time-step:focus-visible {
     box-shadow: none !important;
     outline: none !important;
     border-color: transparent !important;
 }
 
-.roster-grid .slot-time-step:disabled,
-.roster-grid .slot-time-trigger:disabled,
-.roster-grid .slot-staff-input:disabled,
-.roster-grid .slot-shift-type-input:disabled,
-.slot-staff-input:disabled,
-.slot-shift-type-input:disabled {
+.roster-grid .slot-time-step:disabled {
     background-color: transparent !important;
     color: var(--app-text-muted);
     opacity: 0.55;

@@ -234,13 +234,13 @@ test.describe('Roster row controls', () => {
             probe.innerHTML = `
                 <div class="roster-shift-card-fields">
                     <div class="roster-shift-card-field roster-shift-card-time">
-                        <div class="slot-cell-static">12:00 PM</div>
+                        <div class="app-dense-static slot-cell-static">12:00 PM</div>
                     </div>
                     <div class="roster-shift-card-field roster-shift-card-staff">
-                        <div class="slot-cell-static">Sonia</div>
+                        <div class="app-dense-static slot-cell-static">Sonia</div>
                     </div>
                     <div class="roster-shift-card-field roster-shift-card-code">
-                        <div class="slot-cell-static roster-shift-type-badge roster-shift-type-badge-readonly">
+                        <div class="app-dense-static slot-cell-static roster-shift-type-badge roster-shift-type-badge-readonly">
                             <span class="roster-shift-type-badge-label">Kitchen</span>
                         </div>
                     </div>

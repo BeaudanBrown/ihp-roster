@@ -111,34 +111,6 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     font-size: var(--roster-text-sm);
 }
 
-.roster-shift-card .slot-cell-input,
-.roster-shift-card .slot-time-trigger {
-    border: 0 !important;
-    border-radius: 0 !important;
-    box-shadow: none !important;
-    outline: 0;
-}
-
-.roster-shift-card .slot-cell-input {
-    text-align: center;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.roster-shift-card .slot-cell-static {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 100%;
-    padding-inline: 0.16rem;
-    text-align: center;
-    line-height: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
 .roster-shift-card-time .slot-cell-static {
     font-weight: 800;
     font-variant-numeric: tabular-nums;
@@ -146,23 +118,8 @@ article.roster-shift-card:not(.roster-shift-card-create) {
 
 .roster-shift-card .slot-staff-input,
 .roster-shift-card .slot-shift-type-input {
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: none !important;
-    border: 0 !important;
-    border-radius: 0 !important;
-    background-color: transparent !important;
-    box-shadow: none !important;
-    cursor: pointer;
     color: var(--app-text) !important;
     font-weight: 700;
-    text-align: center;
-    text-align-last: center;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    overflow: hidden;
-    padding-inline: 0.16rem;
 }
 
 .roster-grid .slot-cell-input.is-empty,
@@ -246,24 +203,8 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     text-align: center;
 }
 
-.roster-shift-card .slot-time-trigger:focus-visible {
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 55%, transparent) !important;
-}
-
 .roster-shift-card .slot-time-trigger {
     padding-inline: 0.35rem;
-}
-
-.roster-shift-card .slot-time-trigger:hover {
-    background-color: var(--app-accent-soft) !important;
-    color: var(--app-text);
-}
-
-.roster-shift-card .slot-time-trigger:focus {
-    background-color: transparent !important;
-    color: inherit;
-    box-shadow: none !important;
-    outline: none;
 }
 
 .roster-shift-card .slot-time-trigger:focus-visible {

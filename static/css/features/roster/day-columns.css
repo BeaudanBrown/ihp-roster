@@ -53,17 +53,7 @@
     max-width: 4.85rem;
     min-height: 1.9rem;
     padding: 0 0.48rem;
-    border-radius: 0.55rem;
-    border: 1px solid var(--app-control-border);
-    background: var(--app-white-alpha-05);
-    color: var(--app-text);
     font-size: 0.7rem;
-    font-weight: 700;
-    line-height: 1;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: 0.28rem;
 }
 
 .roster-day-column-control-slot .roster-day-action-toggle.is-active {
