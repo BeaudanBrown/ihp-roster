@@ -75,6 +75,19 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
 - Public/auth page surfaces belong in shared public/auth component CSS, while a
   feature-specific marketing or legal block belongs in that feature's stylesheet.
 
+## Audit commands
+
+- `bash ./bin/in-env ./bin/style-audit` is the hard gate. It fails on undefined
+  CSS variables and Layout/Makefile stylesheet sync problems. It also prints
+  existing warning-style findings for hardcoded colours, light Bootstrap
+  utilities, and inline style attributes.
+- `bash ./bin/in-env ./bin/css-inventory` is warning-only. It reports app-owned
+  CSS line counts, files over the current size budget, raw colours outside
+  token/bridge modules, feature stylesheets that mention app/global/Bootstrap
+  selectors, simple stale-selector candidates with no HS/JS mention, and the
+  Layout/Makefile asset-sync summary. Use it before and after split/refactor
+  tickets to keep known debt visible without blocking early pure moves.
+
 ## Before adding CSS
 
 1. Search for an existing selector, helper class, token, or component module.
@@ -93,4 +106,5 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
    stylesheet; new app-owned CSS modules should normally stay well under 1,000
    lines, with existing oversize files treated as refactor debt.
 8. Run `bash ./bin/in-env ./bin/style-audit` after stylesheet link, token, or
-   architecture changes.
+   architecture changes, and `bash ./bin/in-env ./bin/css-inventory` when you
+   need the warning-only architecture report.

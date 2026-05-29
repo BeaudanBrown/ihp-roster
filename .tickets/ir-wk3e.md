@@ -1,6 +1,6 @@
 ---
 id: ir-wk3e
-status: open
+status: closed
 deps: [ir-re0y]
 links: []
 created: 2026-05-29T00:51:30Z
@@ -22,3 +22,9 @@ Extend bin/style-audit only where checks are already intended to be hard (undefi
 
 A repo-local command produces a concise CSS architecture report. Existing hard style-audit gates still pass. The report identifies static/css/features/roster.css as over budget before the split and gives actionable warnings without failing CI-style verification. Documentation names the command and explains warning-only vs hard-fail output.
 
+
+## Notes
+
+**2026-05-29T01:11:58Z**
+
+Added warning-only bin/css-inventory architecture report and documented it in static CSS guidance. Verification: bash ./bin/in-env ./bin/style-audit passed; bash ./bin/in-env ./bin/css-inventory passed and reported static/css/features/roster.css over budget plus warning-only raw colour/global-selector/stale-candidate debt.
