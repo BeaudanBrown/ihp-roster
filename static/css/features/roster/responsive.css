@@ -153,17 +153,10 @@
         min-width: calc(var(--roster-slot-count) * 100%);
     }
 
-    .roster-grid .slot-cell-input,
-    .roster-grid .slot-time-trigger {
+    .roster-grid .slot-cell-static {
         padding-left: 0.08rem;
         padding-right: 0.08rem;
         font-size: var(--roster-text-xs);
     }
 
-}
-
-.roster-grid .slot-staff-cell:hover .slot-staff-input,
-.roster-grid .slot-shift-type-cell:hover .slot-shift-type-input {
-    background-color: var(--app-accent-soft) !important;
-    color: var(--app-text);
 }

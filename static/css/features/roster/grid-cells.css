@@ -60,36 +60,20 @@
     border-radius: 0;
 }
 
-.roster-grid .slot-cell-form {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: var(--roster-grid-row-height);
-    min-height: var(--roster-grid-row-height);
+.roster-grid .roster-shift-launcher {
+    cursor: pointer;
+    outline: none;
 }
 
-.roster-grid .slot-cell-input {
-    height: var(--roster-grid-row-height);
-    min-height: var(--roster-grid-row-height);
+.roster-grid .roster-shift-launcher:hover,
+.roster-grid .roster-shift-launcher:focus-visible,
+.roster-grid .roster-shift-launcher.is-roster-shift-group-highlighted {
+    background: var(--app-surface-subtle);
+    box-shadow: inset 0 0 0 1px var(--bs-primary-border-subtle);
 }
 
-.roster-grid .slot-time-input {
-    font-weight: 700;
-    min-width: 0;
-}
-
-.roster-grid .slot-shift-type-input {
-    font-size: var(--roster-text-xs);
-    font-weight: 700;
-}
-
-.roster-grid .slot-time-trigger {
-    flex: 1 1 auto;
-    height: var(--roster-grid-row-height);
-    min-height: var(--roster-grid-row-height);
-    color: var(--app-text);
-    font-size: var(--roster-text-sm);
-    font-weight: 700;
+.roster-grid .roster-shift-launcher:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--bs-primary);
 }
 
 .roster-layout-mode-group .btn {

@@ -166,20 +166,6 @@
             .replace(/-{2,}/g, '-');
     }
 
-    function formatTimeValue(value) {
-        if (!value) return '';
-        const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
-        if (!match) return value;
-
-        const hours = Number.parseInt(match[1], 10);
-        const minutes = match[2];
-        if (!Number.isFinite(hours)) return value;
-
-        const period = hours >= 12 ? 'PM' : 'AM';
-        const displayHour = (hours % 12) || 12;
-        return `${displayHour}:${minutes} ${period}`;
-    }
-
     function textOrEmpty(value) {
         return (value || '').trim();
     }
@@ -250,34 +236,20 @@
                 }
 
                 if (cellEl.classList.contains('slot-time-cell')) {
-                    const pickerLabelEl = cellEl.querySelector('.js-time-picker-label');
-                    const inputEl = cellEl.querySelector('.js-time-picker-input, .slot-time-input');
-                    const timeValue =
-                        textOrEmpty(pickerLabelEl && pickerLabelEl.textContent)
-                        || formatTimeValue(inputEl instanceof HTMLInputElement ? inputEl.value : '');
-                    replaceCellContents(cellEl, timeValue);
+                    const staticValue = cellEl.querySelector('.slot-cell-static');
+                    replaceCellContents(cellEl, textOrEmpty(staticValue && staticValue.textContent));
                     return;
                 }
 
                 if (cellEl.classList.contains('slot-staff-cell')) {
                     const staticValue = cellEl.querySelector('.slot-cell-static');
-                    const selectEl = cellEl.querySelector('.slot-staff-input');
-                    const selectedOption = selectEl instanceof HTMLSelectElement ? selectEl.selectedOptions[0] : null;
-                    const staffValue =
-                        textOrEmpty(staticValue && staticValue.textContent)
-                        || textOrEmpty(selectedOption && selectedOption.textContent);
-                    replaceCellContents(cellEl, staffValue);
+                    replaceCellContents(cellEl, textOrEmpty(staticValue && staticValue.textContent));
                     return;
                 }
 
                 if (cellEl.classList.contains('slot-shift-type-cell')) {
                     const staticValue = cellEl.querySelector('.slot-cell-static');
-                    const selectEl = cellEl.querySelector('.slot-shift-type-input');
-                    const selectedOption = selectEl instanceof HTMLSelectElement ? selectEl.selectedOptions[0] : null;
-                    const shiftTypeValue =
-                        textOrEmpty(staticValue && staticValue.textContent)
-                        || textOrEmpty(selectedOption && selectedOption.textContent);
-                    replaceCellContents(cellEl, shiftTypeValue);
+                    replaceCellContents(cellEl, textOrEmpty(staticValue && staticValue.textContent));
                     return;
                 }
 
@@ -810,6 +782,53 @@
         refreshRosterStaffHighlight();
     }
 
+    const shiftGroupHighlightClass = 'is-roster-shift-group-highlighted';
+
+    function shiftLauncherFromEvent(event) {
+        if (!(event.target instanceof Element)) return null;
+
+        const launcher = event.target.closest('[data-roster-shift-group-key]');
+        return launcher instanceof HTMLElement ? launcher : null;
+    }
+
+    function movedWithinShiftGroup(event, launcher) {
+        const groupKey = launcher.dataset.rosterShiftGroupKey || '';
+        if (!groupKey || !(event.relatedTarget instanceof Element)) return false;
+
+        const nextLauncher = event.relatedTarget.closest('[data-roster-shift-group-key]');
+        return nextLauncher instanceof HTMLElement && nextLauncher.dataset.rosterShiftGroupKey === groupKey;
+    }
+
+    function setShiftGroupHighlight(groupKey, shouldHighlight) {
+        if (!groupKey) return;
+
+        document.querySelectorAll(`[data-roster-shift-group-key="${CSS.escape(groupKey)}"]`).forEach(function (element) {
+            element.classList.toggle(shiftGroupHighlightClass, shouldHighlight);
+        });
+    }
+
+    function handleShiftGroupEnter(event) {
+        const launcher = shiftLauncherFromEvent(event);
+        if (!launcher || movedWithinShiftGroup(event, launcher)) return;
+
+        setShiftGroupHighlight(launcher.dataset.rosterShiftGroupKey || '', true);
+    }
+
+    function handleShiftGroupLeave(event) {
+        const launcher = shiftLauncherFromEvent(event);
+        if (!launcher || movedWithinShiftGroup(event, launcher)) return;
+
+        setShiftGroupHighlight(launcher.dataset.rosterShiftGroupKey || '', false);
+    }
+
+    function handleShiftLauncherKeydown(event) {
+        const launcher = shiftLauncherFromEvent(event);
+        if (!launcher || event.target !== launcher || (event.key !== 'Enter' && event.key !== ' ')) return;
+
+        event.preventDefault();
+        launcher.click();
+    }
+
     function handleStaffRowEnter(event) {
         const row = staffRowFromEvent(event);
         if (!row || movedWithinRow(event, row)) return;
@@ -823,6 +842,12 @@
 
         deactivateRosterStaff(row);
     }
+
+    document.addEventListener('mouseover', handleShiftGroupEnter);
+    document.addEventListener('mouseout', handleShiftGroupLeave);
+    document.addEventListener('focusin', handleShiftGroupEnter);
+    document.addEventListener('focusout', handleShiftGroupLeave);
+    document.addEventListener('keydown', handleShiftLauncherKeydown);
 
     document.addEventListener('mouseover', handleStaffRowEnter);
     document.addEventListener('mouseout', handleStaffRowLeave);

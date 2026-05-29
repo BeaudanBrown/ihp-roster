@@ -82,48 +82,12 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     border-radius: calc(0.65rem - 1px);
 }
 
-.roster-shift-card .slot-cell-form,
-.roster-shift-card .slot-cell-input,
-.roster-shift-card .slot-time-trigger,
-.roster-shift-card .slot-cell-static {
-    height: 2.15rem;
-    min-height: 2.15rem;
-}
-
-.roster-shift-card-time .slot-time-trigger {
-    font-weight: 800;
-}
-
-.roster-shift-card .slot-cell-form,
-.roster-shift-card .time-picker-field,
-.roster-shift-card .time-picker-control,
-.roster-shift-card .slot-cell-input,
-.roster-shift-card .slot-time-trigger,
-.roster-shift-card .slot-cell-static {
-    background-color: transparent !important;
-    color: inherit !important;
-}
-
-@media (hover: hover) {
-    .roster-shift-card-field.is-editable:hover,
-    .roster-shift-card-field.is-editable:focus-within,
-    .roster-shift-card-field.is-editable:hover > .slot-cell-form,
-    .roster-shift-card-field.is-editable:focus-within > .slot-cell-form {
-        background: var(--app-accent-soft) !important;
-    }
-
-    .roster-shift-card-field.is-editable:hover .slot-cell-input,
-    .roster-shift-card-field.is-editable:hover .slot-time-trigger,
-    .roster-shift-card-field.is-editable:focus-within .slot-cell-input,
-    .roster-shift-card-field.is-editable:focus-within .slot-time-trigger {
-        background-color: transparent !important;
-    }
-}
-
-.roster-shift-card .slot-cell-input,
-.roster-shift-card .slot-time-trigger,
 .roster-shift-card .slot-cell-static,
 .roster-shift-card .roster-shift-type-badge-label {
+    height: 2.15rem;
+    min-height: 2.15rem;
+    background-color: transparent !important;
+    color: inherit !important;
     font-size: var(--roster-text-sm);
 }
 
@@ -132,40 +96,24 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     font-variant-numeric: tabular-nums;
 }
 
-.roster-shift-card .slot-staff-input,
-.roster-shift-card .slot-shift-type-input {
-    color: var(--app-text) !important;
-    font-weight: 700;
+.roster-shift-card.roster-shift-launcher {
+    cursor: pointer;
+    outline: none;
 }
 
-.roster-grid .slot-cell-input.is-empty,
-.roster-grid .slot-cell-form.is-empty .slot-cell-input,
-.roster-shift-card .slot-cell-input.is-empty,
-.roster-shift-card .slot-cell-form.is-empty .slot-cell-input,
-.roster-shift-card .roster-shift-type-badge.is-empty .slot-cell-input {
-    color: var(--app-muted) !important;
+.roster-shift-card.roster-shift-launcher:hover,
+.roster-shift-card.roster-shift-launcher:focus-visible,
+.roster-shift-card.roster-shift-launcher.is-roster-shift-group-highlighted {
+    background: var(--app-accent-soft) !important;
+    box-shadow: 0 0 0 2px var(--bs-primary-border-subtle);
 }
 
-.roster-grid .slot-cell-input.is-required,
-.roster-grid .slot-cell-form.is-required .slot-cell-input,
-.roster-shift-card .slot-cell-input.is-required,
-.roster-shift-card .slot-cell-form.is-required .slot-cell-input,
-.roster-shift-card .roster-shift-type-badge.is-required .slot-cell-input {
-    color: var(--app-warning-conflict-text) !important;
+.roster-shift-card.roster-shift-launcher:focus-visible {
+    box-shadow: 0 0 0 2px var(--bs-primary);
 }
 
-.roster-grid .slot-cell-form.is-publish-required .slot-cell-input,
-.roster-grid .slot-cell-form.is-publish-required .time-picker-trigger-button,
-.roster-shift-card .slot-cell-form.is-publish-required .slot-cell-input,
-.roster-shift-card .slot-cell-form.is-publish-required .time-picker-trigger-button,
-.roster-shift-card .roster-shift-type-badge.is-publish-required,
-.roster-shift-card .roster-shift-type-badge.is-publish-required .slot-cell-input {
-    border-color: var(--app-warning) !important;
-    box-shadow: 0 0 0 0.12rem color-mix(in srgb, var(--app-warning) 34%, transparent) !important;
-}
-
-.roster-grid .slot-cell-form.is-publish-required .js-time-picker-label,
-.roster-shift-card .slot-cell-form.is-publish-required .js-time-picker-label {
+.roster-shift-card .is-roster-shift-publish-required .slot-cell-static,
+.roster-shift-card .is-shift-type-required .roster-shift-type-badge {
     color: var(--app-warning-conflict-text) !important;
     font-weight: 800;
 }
@@ -177,13 +125,6 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     width: 100%;
     padding-inline: 0.45rem;
     background: transparent !important;
-}
-
-.roster-shift-type-badge-select {
-    min-width: 0;
-    padding: 0 !important;
-    text-align: center !important;
-    text-align-last: center !important;
 }
 
 .roster-shift-type-badge-label {
@@ -217,18 +158,6 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     font-weight: 900;
     line-height: 0.78rem;
     text-align: center;
-}
-
-.roster-shift-card .slot-time-trigger {
-    padding-inline: 0.35rem;
-}
-
-.roster-shift-card .slot-time-trigger:focus-visible {
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--app-accent) 55%, transparent) !important;
-}
-
-.roster-shift-card .time-picker-trigger-button .js-time-picker-label {
-    white-space: nowrap;
 }
 
 .roster-shift-card-empty,

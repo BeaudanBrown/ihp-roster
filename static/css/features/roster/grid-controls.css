@@ -1,4 +1,4 @@
-/* Roster standard-grid static values and select control resets. */
+/* Roster standard-grid static values. */
 
 .roster-grid .roster-col-code {
     min-width: 0;
@@ -8,14 +8,4 @@
 .roster-grid .slot-cell-static {
     height: var(--roster-grid-row-height);
     min-height: var(--roster-grid-row-height);
-}
-
-.roster-grid .slot-staff-input,
-.roster-grid .slot-shift-type-input {
-    font-weight: 700;
-    color: var(--app-text) !important;
-}
-
-.roster-shift-card .slot-shift-type-input {
-    font-weight: 700;
 }

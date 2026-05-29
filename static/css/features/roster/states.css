@@ -84,24 +84,10 @@
     }
 }
 
-.roster-shift-card-field.conflict-critical .slot-cell-form,
-.roster-shift-card-field.conflict-critical .slot-cell-input,
 .roster-shift-card-field.conflict-critical .slot-cell-static,
-.roster-shift-card-field.conflict-preference .slot-cell-form,
-.roster-shift-card-field.conflict-preference .slot-cell-input,
 .roster-shift-card-field.conflict-preference .slot-cell-static,
-.roster-shift-card-field.conflict-ideal .slot-cell-form,
-.roster-shift-card-field.conflict-ideal .slot-cell-input,
 .roster-shift-card-field.conflict-ideal .slot-cell-static {
     background-color: inherit !important;
-}
-
-.roster-grid .conflict-critical .slot-cell-input,
-.roster-grid .conflict-preference .slot-cell-input,
-.roster-grid .conflict-ideal .slot-cell-input,
-.roster-shift-card-field.conflict-critical .slot-cell-input,
-.roster-shift-card-field.conflict-preference .slot-cell-input,
-.roster-shift-card-field.conflict-ideal .slot-cell-input {
     color: inherit !important;
 }
 
