@@ -247,13 +247,13 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/features/roster/staff-panel.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/grid-frame.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/day-actions.css"}/>
-        <link rel="stylesheet" href={assetPath "/css/features/roster/staff-highlight.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/grid-cells.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/day-columns.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/shift-card.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/responsive.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/grid-controls.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/states.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/features/roster/staff-highlight.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/roster/export-print.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/timesheets.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/xero.css"}/>

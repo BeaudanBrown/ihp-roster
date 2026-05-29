@@ -32,33 +32,56 @@
 }
 
 .conflict-critical {
-    background-color: var(--roster-danger) !important;
-    color: var(--app-text) !important;
+    --roster-conflict-bg: var(--roster-danger);
+    --roster-conflict-bg-start: color-mix(in srgb, var(--roster-danger) 76%, var(--app-white-alpha-08));
+    --roster-conflict-bg-hover: color-mix(in srgb, var(--roster-danger) 86%, var(--app-white-alpha-08));
+    --roster-conflict-bg-hover-end: color-mix(in srgb, var(--roster-danger) 92%, var(--app-surface));
+    --roster-conflict-text: var(--app-text);
+    background-color: var(--roster-conflict-bg) !important;
+    color: var(--roster-conflict-text) !important;
 }
 
 .conflict-preference {
-    background-color: var(--app-warning-conflict-bg) !important;
-    color: var(--app-warning-conflict-text) !important;
+    --roster-conflict-bg: var(--app-warning-conflict-bg);
+    --roster-conflict-bg-start: color-mix(in srgb, var(--app-warning-conflict-bg) 78%, var(--app-warning));
+    --roster-conflict-bg-hover: color-mix(in srgb, var(--app-warning-conflict-bg) 68%, var(--app-warning));
+    --roster-conflict-bg-hover-end: color-mix(in srgb, var(--app-warning-conflict-bg) 90%, var(--app-surface));
+    --roster-conflict-text: var(--app-warning-conflict-text);
+    background-color: var(--roster-conflict-bg) !important;
+    color: var(--roster-conflict-text) !important;
 }
 
 .conflict-ideal {
-    background-color: var(--app-info-conflict-bg) !important;
-    color: var(--app-info-conflict-text) !important;
+    --roster-conflict-bg: var(--app-info-conflict-bg);
+    --roster-conflict-bg-start: color-mix(in srgb, var(--app-info-conflict-bg) 78%, var(--app-info));
+    --roster-conflict-bg-hover: color-mix(in srgb, var(--app-info-conflict-bg) 68%, var(--app-info));
+    --roster-conflict-bg-hover-end: color-mix(in srgb, var(--app-info-conflict-bg) 90%, var(--app-surface));
+    --roster-conflict-text: var(--app-info-conflict-text);
+    background-color: var(--roster-conflict-bg) !important;
+    color: var(--roster-conflict-text) !important;
 }
 
-.roster-shift-card-field.conflict-critical {
-    background: var(--roster-danger) !important;
-    color: var(--app-text) !important;
-}
-
-.roster-shift-card-field.conflict-preference {
-    background: var(--app-warning-conflict-bg) !important;
-    color: var(--app-warning-conflict-text) !important;
-}
-
+.roster-shift-card-field.conflict-critical,
+.roster-shift-card-field.conflict-preference,
 .roster-shift-card-field.conflict-ideal {
-    background: var(--app-info-conflict-bg) !important;
-    color: var(--app-info-conflict-text) !important;
+    background: linear-gradient(180deg, var(--roster-conflict-bg-start), var(--roster-conflict-bg)) !important;
+    color: var(--roster-conflict-text) !important;
+    box-shadow:
+        inset 0 1px 0 color-mix(in srgb, var(--app-white) 12%, transparent),
+        inset 0 -1px 0 color-mix(in srgb, var(--app-bg) 22%, transparent);
+    text-shadow: 0 1px 0 color-mix(in srgb, var(--app-bg) 38%, transparent);
+    transition: background 140ms ease, box-shadow 140ms ease;
+}
+
+@media (hover: hover) {
+    .roster-shift-card-field.conflict-critical:hover,
+    .roster-shift-card-field.conflict-preference:hover,
+    .roster-shift-card-field.conflict-ideal:hover {
+        background: linear-gradient(180deg, var(--roster-conflict-bg-hover), var(--roster-conflict-bg-hover-end)) !important;
+        box-shadow:
+            inset 0 1px 0 color-mix(in srgb, var(--app-white) 16%, transparent),
+            inset 0 -1px 0 color-mix(in srgb, var(--app-bg) 18%, transparent);
+    }
 }
 
 .roster-shift-card-field.conflict-critical .slot-cell-form,
