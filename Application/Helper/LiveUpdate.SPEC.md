@@ -72,10 +72,27 @@ and `Application.Helper.LiveSurface.Internal`. Feature modules should keep
 fragment enums feature-local and cross the typed-to-wire boundary only through
 strict helpers such as `mkSurfaceFragmentRef`, `mkSurfaceFragmentContract`,
 `mkTypedDefinedLiveSurface`, `typedLiveSurfaceFragmentRef(s)`,
-`serveTypedLiveFragment`, and projection helpers. The runtime no longer keeps
-feature-facing broadcast or typed mutation helpers; typed config, projection,
-dependency matching, authorization, and actor-refresh helpers derive directly
-from `TypedLiveSurfaceDefinition`.
+`serveTypedLiveFragment`, `respondWithTypedLiveSurfaceFragments`, and projection
+helpers. The runtime no longer keeps feature-facing broadcast or typed mutation
+helpers; typed config, projection, dependency matching, authorization, and
+actor-refresh helpers derive directly from `TypedLiveSurfaceDefinition`.
+
+Actor responses and passive live updates should use one fragment model with
+multiple triggers. A feature-local fragment enum and `TypedLiveSurfaceDefinition`
+name the fragments once; successful actor HTMX responses render selected
+fragments immediately as OOB swaps with `respondWithTypedLiveSurfaceFragments`,
+while passive viewers receive structural invalidations and refetch the same
+fragments through their GET endpoints. Actor responses may append extras such as
+toasts or dialog clears after the normalized OOB fragments. The helper normalizes
+selected fragments through containment paths and loads the projection snapshot
+once before rendering, so feature code should not recreate local `renderXxxOob`
+actor helpers when the typed projection helper can render the same fragments.
+
+Validation failures are the main exception: return the submitted form or dialog
+fragment directly to the request target so field errors stay localized. Do not
+force validation failures through the unified actor-success helper, and do not
+turn fragment GET endpoints into OOB responses; GET endpoints return the plain
+target node and the browser/live runtime performs the swap.
 
 Feature-facing fragment selectors should be closed ADTs. Route/query strings may
 be parsed into those constructors, but the typed surface contract should not be

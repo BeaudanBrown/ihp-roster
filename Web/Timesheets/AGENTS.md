@@ -7,7 +7,7 @@ Read this before editing timesheet controllers, views, or helpers.
 - Read `SPEC.md` first.
 - Keep week path generation in `Paths.hs`.
 - Keep read-model construction in `Projection.hs`.
-- Keep HTMX/OOB response shape in `Responses.hs`.
+- Keep HTMX/OOB response shape in `Responses.hs`; successful actor refreshes should go through the shared typed fragment helper, not local OOB-only fragment helpers.
 - Keep parsing and validation helpers in `Validation.hs`.
 - Use IHP form helpers plus explicit server-side checks for required fields.
 
