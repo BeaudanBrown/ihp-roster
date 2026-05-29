@@ -1,0 +1,36 @@
+/* Shared status badge tone classes. */
+
+.app-status-badge {
+    border: 1px solid transparent;
+    font-weight: 600;
+}
+
+.app-status-neutral {
+    color: var(--app-text-muted);
+    background: var(--app-surface-muted);
+    border-color: var(--app-border-subtle);
+}
+
+.app-status-success {
+    color: var(--app-success);
+    background: var(--app-success-soft);
+    border-color: var(--app-success-soft);
+}
+
+.app-status-warning {
+    color: var(--app-warning);
+    background: var(--app-warning-soft);
+    border-color: var(--app-warning-soft);
+}
+
+.app-status-danger {
+    color: var(--app-danger);
+    background: var(--app-danger-soft);
+    border-color: var(--app-danger-soft);
+}
+
+.app-status-info {
+    color: var(--app-info);
+    background: var(--app-info-soft);
+    border-color: var(--app-info-soft);
+}

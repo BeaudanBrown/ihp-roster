@@ -1,0 +1,78 @@
+/* Shared app-panel accordion contract and nested panel flattening. */
+
+.accordion-item.app-panel {
+    overflow: hidden;
+    border-radius: 0.9rem;
+    background-color: var(--app-surface);
+}
+
+.accordion-item.app-panel:has(.accordion-button:not(.collapsed)) {
+    border-color: var(--app-accent-border-soft);
+    box-shadow: 0 0.7rem 1.7rem var(--app-shadow-md-raw), 0 0 0 1px var(--app-accent-softer);
+}
+
+.accordion-item.app-panel .accordion-header {
+    border-radius: inherit;
+}
+
+.accordion-item.app-panel .accordion-button {
+    border-radius: calc(0.9rem - 1px);
+    background-color: var(--app-surface);
+    color: var(--app-text);
+    border-bottom: 1px solid transparent;
+}
+
+.accordion-item.app-panel:first-of-type,
+.accordion-item.app-panel:last-of-type {
+    border-radius: 0.9rem;
+}
+
+.accordion-item.app-panel:first-of-type > .accordion-header .accordion-button.collapsed,
+.accordion-item.app-panel:last-of-type > .accordion-header .accordion-button.collapsed {
+    border-radius: calc(0.9rem - 1px) !important;
+}
+
+.accordion-item.app-panel .accordion-collapse {
+    border-radius: 0 0 calc(0.9rem - 1px) calc(0.9rem - 1px);
+}
+
+.accordion-item.app-panel:last-of-type > .accordion-collapse,
+.accordion-item.app-panel:last-of-type > .accordion-collapse > .accordion-body {
+    border-bottom-left-radius: calc(0.9rem - 1px);
+    border-bottom-right-radius: calc(0.9rem - 1px);
+}
+
+.accordion-item.app-panel .accordion-button:not(.collapsed) {
+    background-color: var(--app-surface-2);
+    color: var(--app-accent-hover);
+    border-bottom-color: var(--app-accent-border-soft);
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    box-shadow: none;
+}
+
+.accordion-item.app-panel .accordion-body {
+    background-color: var(--app-surface);
+    border-top: 1px solid var(--app-border-alpha-70);
+    border-radius: 0 0 calc(0.9rem - 1px) calc(0.9rem - 1px);
+}
+
+.accordion-item.app-panel .accordion-body.p-0 > .app-panel {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.accordion-item.app-panel .accordion-body.p-0 > .app-panel > .app-panel-header {
+    border-top: 0;
+}
+
+.app-accordion-section-header {
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--app-border-alpha-70);
+}
+
+.app-accordion-section-body {
+    padding-top: 1rem;
+}

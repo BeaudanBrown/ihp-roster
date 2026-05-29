@@ -223,7 +223,19 @@ stylesheets = [hsx|
         <link rel="stylesheet" href={assetPath "/css/tokens.css"}/>
         <link rel="stylesheet" href={assetPath "/css/bootstrap-bridge.css"}/>
         <link rel="stylesheet" href={assetPath "/css/layout.css"}/>
-        <link rel="stylesheet" href={assetPath "/css/components.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/surfaces.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/menus.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/surface-toolbar.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/week-nav.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/status.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/public.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/panels.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/forms.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/bootstrap-overrides.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/accordions.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/admin.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/week-toolbar.css"}/>
+        <link rel="stylesheet" href={assetPath "/css/components/admin-responsive.css"}/>
         <link rel="stylesheet" href={assetPath "/css/overlays.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/exports.css"}/>
         <link rel="stylesheet" href={assetPath "/css/features/staff-documents.css"}/>

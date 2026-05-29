@@ -1,0 +1,30 @@
+/* Shared profile form sizing, headings, form width, and muted helper. */
+
+.profile-field-grid .form-control,
+.profile-field-grid .form-select {
+    height: calc(2.75rem + 2px);
+}
+
+h1,
+.h1 {
+    font-size: var(--text-xl);
+    line-height: 1.12;
+}
+
+h2,
+.h2 {
+    font-size: clamp(1.2rem, 1.08rem + 0.55vw, 1.55rem);
+}
+
+h5,
+.h5 {
+    font-size: var(--text-lg);
+}
+
+.app-form-width {
+    max-width: 30rem;
+}
+
+.app-muted {
+    color: var(--app-muted) !important;
+}

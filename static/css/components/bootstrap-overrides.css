@@ -1,0 +1,71 @@
+/* Shared Bootstrap card, table, form-control, and outline-button overrides. */
+
+.card {
+    border-color: var(--app-border);
+    background-color: var(--app-surface);
+}
+
+.card-header {
+    border-bottom-color: var(--app-border);
+    background-color: var(--app-surface-2) !important;
+}
+
+.table {
+    --bs-table-color: var(--app-text);
+    --bs-table-bg: transparent;
+    --bs-table-border-color: var(--app-border);
+    --bs-table-striped-bg: var(--app-white-alpha-02);
+    --bs-table-striped-color: var(--app-text);
+    --bs-table-hover-bg: var(--app-accent-softer);
+    --bs-table-hover-color: var(--app-text);
+}
+
+.btn-sm,
+.form-control-sm,
+.form-select-sm,
+.small {
+    font-size: var(--text-xs);
+}
+
+.form-control,
+.form-select {
+    font-size: var(--text-sm);
+}
+
+.form-control,
+.form-select {
+    border-color: var(--app-border-strong);
+    background-color: var(--app-input-bg);
+    color: var(--app-text);
+}
+
+.form-control::placeholder {
+    color: var(--app-input-placeholder);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--app-accent-border-strong);
+    box-shadow: 0 0 0 0.18rem var(--app-accent-soft);
+}
+
+.btn-outline-secondary {
+    border-color: var(--app-control-border);
+    color: var(--app-control-text);
+}
+
+.btn-outline-secondary:hover {
+    background-color: var(--app-control-border-hover);
+    border-color: var(--app-control-border-hover);
+    color: var(--app-control-text-inverse);
+}
+
+.btn-outline-danger {
+    border-color: var(--app-outline-danger-border);
+    color: var(--app-outline-danger-text);
+}
+
+.btn-outline-primary {
+    border-color: var(--app-outline-primary-border);
+    color: var(--app-outline-primary-text);
+}

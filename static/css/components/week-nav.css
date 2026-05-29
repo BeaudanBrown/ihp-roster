@@ -1,0 +1,58 @@
+/* Shared compact week navigation button group primitives. */
+
+.app-week-nav-group {
+    gap: 0.4rem;
+    align-items: center;
+    padding: 0.1rem;
+    border-radius: 999px;
+    background: var(--app-white-alpha-03);
+    box-shadow: inset 0 0 0 1px var(--app-slate-alpha-14);
+}
+
+.app-week-nav-group.btn-group > .btn,
+.app-week-nav-group.btn-group > .dropdown,
+.app-week-nav-group.btn-group > a,
+.app-week-nav-group.btn-group > .app-week-nav-label {
+    margin-left: 0 !important;
+}
+
+.app-week-nav-group > .btn,
+.app-week-nav-group > .dropdown,
+.app-week-nav-group > a,
+.app-week-nav-group > .app-week-nav-label,
+.app-week-nav-group > .dropdown > .btn {
+    border-radius: 999px !important;
+}
+
+.app-week-nav-button,
+.app-week-live-toggle {
+    min-height: 2.35rem;
+    padding: 0.45rem 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.app-week-nav-button {
+    --bs-btn-border-color: transparent;
+    --bs-btn-hover-border-color: transparent;
+    --bs-btn-active-border-color: transparent;
+    border-color: transparent;
+    background: var(--app-white-alpha-02);
+    box-shadow: inset 0 0 0 1px var(--app-slate-alpha-45);
+}
+
+.app-week-nav-button:hover,
+.app-week-nav-button:focus {
+    background: var(--app-white-alpha-06);
+    border-color: transparent;
+    box-shadow: inset 0 0 0 1px var(--app-slate-alpha-70);
+}
+
+.app-week-nav-group .app-week-nav-button,
+.app-week-nav-group .app-week-nav-button:hover,
+.app-week-nav-group .app-week-nav-button:focus {
+    border-color: transparent !important;
+}

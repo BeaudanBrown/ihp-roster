@@ -15,7 +15,7 @@ styles load later, and the compatibility shim loads last:
 2. `tokens.css` - app design tokens and CSS custom properties
 3. `bootstrap-bridge.css` - Bootstrap variable and component bridge
 4. `layout.css` - document shell, page layout, authenticated header
-5. `components.css` / `components/*.css` - shared app components
+5. `components/*.css` - shared app components
 6. `overlays.css` - dialogs, toasts, pickers, overlay hosts
 7. `features/*.css` / `features/<feature>/*.css` - feature-scoped styles
 8. `../app.css` - compatibility-only shim; keep it minimal
@@ -38,8 +38,7 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
   `layout.css`.
 - **Shared components:** put reusable surfaces, menus/navigation, week toolbar,
   badges/status, public/auth surfaces, forms, buttons, tables, accordions,
-  toggles, and admin primitives in `components.css` or a focused
-  `components/*.css` module once split.
+  toggles, and admin primitives in focused `components/*.css` modules.
 - **Overlays:** put workflow dialog, toast, picker, and overlay host styling in
   `overlays.css`.
 - **Roster feature:** put roster-only selectors in focused

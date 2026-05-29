@@ -1,0 +1,11 @@
+/* Shared responsive admin setting-row controls in original cascade position. */
+
+    .admin-setting-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .admin-setting-row-select {
+        width: 100%;
+    }
+}

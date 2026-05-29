@@ -14,6 +14,22 @@ async function expectStylesheetServed(page: Page, path: string) {
     expect(response.headers()['content-type']).toContain('text/css');
 }
 
+const sharedComponentStylesheets = [
+    '/css/components/surfaces.css',
+    '/css/components/menus.css',
+    '/css/components/surface-toolbar.css',
+    '/css/components/week-nav.css',
+    '/css/components/status.css',
+    '/css/components/public.css',
+    '/css/components/panels.css',
+    '/css/components/forms.css',
+    '/css/components/bootstrap-overrides.css',
+    '/css/components/accordions.css',
+    '/css/components/admin.css',
+    '/css/components/week-toolbar.css',
+    '/css/components/admin-responsive.css',
+];
+
 test.describe('Styling regression contracts', () => {
     test.use({ viewport: { width: 1280, height: 900 } });
 
@@ -23,7 +39,9 @@ test.describe('Styling regression contracts', () => {
         await expectLocalStylesheet(page, '/app.css');
         await expectLocalStylesheet(page, '/css/tokens.css');
         await expectLocalStylesheet(page, '/css/bootstrap-bridge.css');
-        await expectLocalStylesheet(page, '/css/components.css');
+        for (const stylesheet of sharedComponentStylesheets) {
+            await expectLocalStylesheet(page, stylesheet);
+        }
         const rosterStylesheets = [
             '/css/features/roster/toolbar.css',
             '/css/features/roster/week-overview.css',
@@ -217,7 +235,9 @@ test.describe('Styling regression contracts', () => {
         await gotoWhenReady(page, '/EditProfile', '#profile-sections');
 
         await expectLocalStylesheet(page, '/app.css');
-        await expectStylesheetServed(page, '/css/components.css');
+        for (const stylesheet of sharedComponentStylesheets) {
+            await expectLocalStylesheet(page, stylesheet);
+        }
 
         const metrics = await page.locator('#profile-sections').evaluate((sections) => {
             if (!(sections instanceof HTMLElement)) {

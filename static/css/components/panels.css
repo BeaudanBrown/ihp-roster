@@ -1,0 +1,28 @@
+/* Shared panel header/body spacing and headings. */
+
+.app-auth-body,
+.app-panel-body {
+    padding: 1.5rem;
+}
+
+.app-panel-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--app-border);
+}
+
+.app-panel-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.app-panel-title {
+    margin: 0;
+}
+
+.app-panel-description {
+    margin: 0.35rem 0 0;
+    color: var(--app-muted);
+}

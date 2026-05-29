@@ -22,8 +22,8 @@ Read this before editing `static/` assets.
   before adding or moving app-owned CSS.
 - Choose the narrowest owner: tokens in `static/css/tokens.css`, Bootstrap
   bridges in `static/css/bootstrap-bridge.css`, shell/header layout in
-  `static/css/layout.css`, shared UI primitives in `static/css/components.css`
-  or `static/css/components/*.css`, overlays in `static/css/overlays.css`, and
+  `static/css/layout.css`, shared UI primitives in focused
+  `static/css/components/*.css` modules, overlays in `static/css/overlays.css`, and
   feature-only rules in `static/css/features/*` or focused feature modules.
 - Add feature CSS to the narrowest matching file instead of growing
   `static/app.css`; keep `static/app.css` compatibility-only.
