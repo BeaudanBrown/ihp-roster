@@ -97,10 +97,6 @@ renderTimesheetWeekToolbar :: (?context :: ControllerContext) => IndexView -> Ht
 renderTimesheetWeekToolbar =
     renderTimesheetWeekToolbarWithSwap Nothing
 
-renderTimesheetWeekToolbarOob :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetWeekToolbarOob =
-    renderTimesheetWeekToolbarWithSwap (Just "outerHTML")
-
 renderTimesheetWeekToolbarWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
 renderTimesheetWeekToolbarWithSwap maybeSwapOob IndexView { weekOffset, weekStartDate, showApproved, showAllStaff, selectedStaffFilterId, staffMembers } = [hsx|
     <div id={timesheetWeekToolbarId}
@@ -113,10 +109,6 @@ renderTimesheetWeekToolbarWithSwap maybeSwapOob IndexView { weekOffset, weekStar
 renderTimesheetDayColumns :: (?context :: ControllerContext) => IndexView -> Html
 renderTimesheetDayColumns =
     renderTimesheetDayColumnsWithSwap Nothing
-
-renderTimesheetDayColumnsOob :: (?context :: ControllerContext) => IndexView -> Html
-renderTimesheetDayColumnsOob =
-    renderTimesheetDayColumnsWithSwap (Just "outerHTML")
 
 renderTimesheetDayColumnsWithSwap :: (?context :: ControllerContext) => Maybe Text -> IndexView -> Html
 renderTimesheetDayColumnsWithSwap maybeSwapOob view@IndexView { weekOffset, showApproved, showAllStaff, selectedStaffFilterId, liveUpdateSurface } = [hsx|
@@ -262,10 +254,6 @@ timesheetDayRenderModel IndexView { entries, staffMembers, shiftTypes, today, ed
 renderDaySection :: (?context :: ControllerContext) => TimesheetDayRenderModel -> Html
 renderDaySection =
     renderDaySectionWithSwap Nothing
-
-renderDaySectionOob :: (?context :: ControllerContext) => TimesheetDayRenderModel -> Html
-renderDaySectionOob =
-    renderDaySectionWithSwap (Just "outerHTML")
 
 renderDaySectionWithSwap :: (?context :: ControllerContext) => Maybe Text -> TimesheetDayRenderModel -> Html
 renderDaySectionWithSwap maybeSwapOob model@TimesheetDayRenderModel { dayEntries, dayWeekStartDate, dayWeekOffset, dayShowApproved, dayShowAllStaff, dayStaffFilterId, dayOffset } = [hsx|

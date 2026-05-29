@@ -255,10 +255,10 @@ renderTimesheetProjectionFragment requestKey fragment =
 
 renderTimesheetWeekProjectionFragment :: (?context :: ControllerContext, ?request :: Request) => TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
 renderTimesheetWeekProjectionFragment =
-    renderTimesheetProjectionFragmentFromProjection False
+    renderTimesheetProjectionFragmentFromProjection FragmentPlain
 
-renderTimesheetProjectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => Bool -> TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
-renderTimesheetProjectionFragmentFromProjection renderOob projection fragment =
+renderTimesheetProjectionFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => FragmentRenderMode -> TimesheetWeekProjection -> TimesheetProjectionFragment -> Maybe Blaze.Html
+renderTimesheetProjectionFragmentFromProjection renderMode projection fragment =
     case fragment of
         TimesheetProjectionToolbar ->
             Just (toolbarRenderer (timesheetIndexView projection))
@@ -267,9 +267,15 @@ renderTimesheetProjectionFragmentFromProjection renderOob projection fragment =
         TimesheetProjectionDaySection dayOffset ->
             Just (dayRenderer (timesheetDayRenderModelFromProjection projection dayOffset))
     where
-        toolbarRenderer = if renderOob then renderTimesheetWeekToolbarOob else renderTimesheetWeekToolbar
-        columnsRenderer = if renderOob then renderTimesheetDayColumnsOob else renderTimesheetDayColumns
-        dayRenderer = if renderOob then renderDaySectionOob else renderDaySection
+        toolbarRenderer = case renderMode of
+            FragmentPlain -> renderTimesheetWeekToolbar
+            FragmentOob swapAttr -> renderTimesheetWeekToolbarWithSwap swapAttr
+        columnsRenderer = case renderMode of
+            FragmentPlain -> renderTimesheetDayColumns
+            FragmentOob swapAttr -> renderTimesheetDayColumnsWithSwap swapAttr
+        dayRenderer = case renderMode of
+            FragmentPlain -> renderDaySection
+            FragmentOob swapAttr -> renderDaySectionWithSwap swapAttr
 
 timesheetDayRenderModelFromProjection :: TimesheetWeekProjection -> Int -> TimesheetDayRenderModel
 timesheetDayRenderModelFromProjection projection dayOffset =
