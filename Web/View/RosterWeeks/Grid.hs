@@ -785,7 +785,7 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
         endTimeField =
             if endTimesEnabled
                 then [hsx|
-                    <div class="roster-shift-card-field roster-shift-card-time">
+                    <div class={classes [("roster-shift-card-field roster-shift-card-time", True), ("is-editable", isEditable)]}>
                         {if isEditable then renderEditableTimeCell "endTime" "Select roster slot end time" "End" target currentEndTime missingEndTime else renderReadOnlyCell (renderTimePickerDisplayLabel "End" currentEndTime)}
                     </div>
                 |]
@@ -801,14 +801,14 @@ renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOp
                  title={renderConflictMessage currentPrimaryConflict}
                  data-conflict-message={renderConflictMessage currentPrimaryConflict}>
             <div class={classes [("roster-shift-card-fields", True), ("has-end-times", endTimesEnabled)]}>
-                <div class="roster-shift-card-field roster-shift-card-time">
+                <div class={classes [("roster-shift-card-field roster-shift-card-time", True), ("is-editable", isEditable)]}>
                     {if isEditable then renderEditableTimeCell "startTime" "Select roster slot start time" "Start" target currentStartTime missingStartTime else renderReadOnlyCell (renderTimePickerDisplayLabel "Start" currentStartTime)}
                 </div>
                 {endTimeField}
-                <div class={classes [("roster-shift-card-field roster-shift-card-staff", True), (renderConflictClass currentPrimaryConflict, True)]}>
+                <div class={classes [("roster-shift-card-field roster-shift-card-staff", True), ("is-editable", isEditable), (renderConflictClass currentPrimaryConflict, True)]}>
                     {if isEditable then renderEditableStaffCell assignmentFilters target staffId staffMembers staffOptionStates currentPrimaryConflict else renderReadOnlyStaffCell currentStaffLabel currentPrimaryConflict}
                 </div>
-                <div class="roster-shift-card-field roster-shift-card-code"
+                <div class={classes [("roster-shift-card-field roster-shift-card-code", True), ("is-editable", isEditable)]}
                      data-roster-shift-colour={currentShiftTypeColourKey}>
                     {codeField}
                 </div>

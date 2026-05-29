@@ -104,6 +104,22 @@ article.roster-shift-card:not(.roster-shift-card-create) {
     color: inherit !important;
 }
 
+@media (hover: hover) {
+    .roster-shift-card-field.is-editable:hover,
+    .roster-shift-card-field.is-editable:focus-within,
+    .roster-shift-card-field.is-editable:hover > .slot-cell-form,
+    .roster-shift-card-field.is-editable:focus-within > .slot-cell-form {
+        background: var(--app-accent-soft) !important;
+    }
+
+    .roster-shift-card-field.is-editable:hover .slot-cell-input,
+    .roster-shift-card-field.is-editable:hover .slot-time-trigger,
+    .roster-shift-card-field.is-editable:focus-within .slot-cell-input,
+    .roster-shift-card-field.is-editable:focus-within .slot-time-trigger {
+        background-color: transparent !important;
+    }
+}
+
 .roster-shift-card .slot-cell-input,
 .roster-shift-card .slot-time-trigger,
 .roster-shift-card .slot-cell-static,
