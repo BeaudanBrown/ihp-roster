@@ -22,7 +22,7 @@ Preparation persistence should represent the modal workflow decisions without ma
 
 ## Acceptance Criteria
 
-Preparation run records can store pending/proposed/applied/blocked/resolved states and enough selected-period metadata for later readiness, preview, duplicate-check, and submission steps to run without URL params or global calendar selection. Proposed staff mappings, manual dropdown choices, persistent not-paid-through-Xero decisions, run-scoped skips for unmapped staff, account-code choices, and pay-item create approvals are represented without overloading `xero_submission_runs`.
+Preparation run records can store pending/proposed/applied/blocked/resolved states and enough selected-period metadata for later readiness, preview, duplicate-check, and submission steps to run without URL params or global calendar selection. Proposed staff mappings, manual dropdown choices, persistent not-paid-through-Xero decisions, account-code choices, and pay-item create approvals are represented without overloading `xero_submission_runs`.
 
 
 ## Notes

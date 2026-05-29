@@ -16,7 +16,7 @@ Add focused Hspec and E2E coverage for the guided Xero preparation modal.
 
 ## Design
 
-Cover application prepare states, decision application, explicit selected periods, selected-period calendar authority without `xero_payroll_calendar_selections`, Xero employee `payrollCalendarId` inclusion/exclusion, posted pay-run blockers, existing-timesheet blockers, pay-item approval, manual staff dropdown mapping, persistent not-paid decisions, run-scoped skip only for unmapped staff, and at least one HTMX modal path. Reuse strict Xero mock instead of ad hoc stubs.
+Cover application prepare states, decision application, explicit selected periods, selected-period calendar authority without `xero_payroll_calendar_selections`, Xero employee `payrollCalendarId` inclusion/exclusion, posted pay-run blockers, existing-timesheet blockers, pay-item approval, manual staff dropdown mapping, persistent not-paid decisions, and at least one HTMX modal path. Reuse strict Xero mock instead of ad hoc stubs.
 
 ## Acceptance Criteria
 
@@ -26,4 +26,4 @@ Focused Xero Hspec passes for backend readiness/orchestrator/preview/submission 
 
 **2026-05-20T01:04:01Z**
 
-Added focused guided-preparation controller coverage for persistent not-paid decisions and rejecting run-scoped skip when staff are already mapped; enforced the skip guard in the preparation service. Verified focused Xero Hspec and the existing Xero preparation E2E spec.
+Added focused guided-preparation controller coverage for persistent not-paid decisions. Verified focused Xero Hspec and the existing Xero preparation E2E spec.
