@@ -60,9 +60,8 @@ checks, readiness validation, preview, and final draft submission.
 
 Staff matching is automated by default, but proposed matches must be shown for
 approval before they persist. The modal must also allow manual Xero employee
-selection with dropdown controls, persistent `not paid through Xero` decisions,
-and run-scoped `skip this time` decisions. Do not keep a separate "match"
-button in the new flow.
+selection with dropdown controls and persistent `not paid through Xero`
+decisions. Do not keep a separate "match" button in the new flow.
 
 Managed pay items that need to be created in Xero must be approved in the same
 modal before creation. If there is exactly one synced payroll calendar or pay
