@@ -18,7 +18,8 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 OverlayButtonAction (..),
                                 ToastOverlayPosition (ToastBottomCenter),
                                 dialogOverlayMountId, errorToast,
-                                renderDialogOverlay, renderToastOob)
+                                renderDialogOverlay, renderToastOob,
+                                successToast)
 import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource)
 import Data.Coerce (coerce)
 import Data.List (nub)
@@ -26,6 +27,7 @@ import qualified Data.Set as Set
 import Data.Maybe (catMaybes, fromMaybe, isJust, mapMaybe)
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime, utctDay)
+import Data.Time.LocalTime (TimeOfDay)
 import qualified Data.Time.Calendar as Calendar
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
@@ -48,6 +50,7 @@ import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
+import Web.View.RosterWeeks.ShiftDialog
 import Web.View.RosterWeeks.Show (renderRosterWeekShell)
 import Web.View.RosterWeeks.StaffPanel (renderRosterStaffPanelFragment,
                                         renderRosterStaffPanelFragmentOob)
@@ -449,26 +452,22 @@ instance Controller RosterWeeksController where
                         setErrorMessage "Enable roster end times before showing wage estimates."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
 
+    action NewRosterSlotDialogAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = do
+        ensureManagerRole
+        ensureVenueWritable
+        (rosterDay, rosterWeek, slotDefinition) <- fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex
+        renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex emptyRosterShiftDialogValues
+
+    action EditRosterSlotDialogAction { rosterSlotId } = do
+        ensureManagerRole
+        ensureVenueWritable
+        (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
+        renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek (rosterShiftDialogValuesFromSlot rosterSlot)
+
     action CreateRosterSlotAction { rosterDayId, rosterWeekSlotDefinitionId, rowIndex } = do
         ensureManagerRole
         ensureVenueWritable
-
-        rosterDay <- fetch rosterDayId
-        let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
-        accessDeniedUnless (not rosterDay.isClosed)
-        accessDeniedUnless (rowIndex >= 0)
-
-        slotDefinition <- fetch rosterWeekSlotDefinitionId
-        accessDeniedUnless (slotDefinition.rosterWeekId == unpackId rosterWeek.id)
-        accessDeniedUnless (isNothing slotDefinition.deletedAt)
-
-        let maybeStaffParam = paramOrNothing @Text "staffId"
-        let maybeStartTimeParam = paramOrNothing @Text "startTime"
-        let maybeEndTimeParam = paramOrNothing @Text "endTime"
-        let maybeShiftTypeParam = paramOrNothing @Text "shiftTypeId"
+        (rosterDay, rosterWeek, slotDefinition) <- fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex
         let rosterGroupId = coerce rosterWeek.rosterGroupId
         existingSlot <- query @RosterSlot
             |> filterWhere (#rosterDayId, unpackId rosterDay.id)
@@ -476,139 +475,252 @@ instance Controller RosterWeeksController where
             |> filterWhere (#rowIndex, rowIndex)
             |> filterWhere (#deletedAt, Nothing)
             |> fetchOneOrNothing
-        let baseSlot =
-                fromMaybe
-                    ( newRecord @RosterSlot
-                    |> set #rosterDayId (unpackId rosterDay.id)
-                    |> set #rosterWeekSlotDefinitionId (unpackId slotDefinition.id)
-                    |> set #slotSortOrder slotDefinition.sortOrder
-                    |> set #rowIndex rowIndex
-                    )
-                    existingSlot
-        let newSlot =
-                baseSlot
-                    |> applyOptionalField #staffId (parseOptionalStaffId maybeStaffParam) maybeStaffParam
-                    |> applyOptionalField #startTime (parseOptionalTime maybeStartTimeParam) maybeStartTimeParam
-                    |> applyOptionalField #endTime (parseOptionalTime maybeEndTimeParam) maybeEndTimeParam
-                    |> applyOptionalField #shiftTypeId (parseOptionalShiftTypeId maybeShiftTypeParam) maybeShiftTypeParam
-                    |> applyRosterSlotDuration
-
-        ensureRosterSlotTimingValidForSave rosterWeek newSlot
-        ensureOptionalStaffInCurrentVenue newSlot.staffId
-        ensureOptionalShiftTypeInCurrentVenue newSlot.shiftTypeId
-        isEligibleForAssignment <-
-            case newSlot.staffId of
-                Nothing -> pure True
-                Just staffId -> staffIsEligibleForRosterGroup (Id staffId) rosterGroupId
-
-        if not isEligibleForAssignment
-            then do
-                let errorMessage = "That staff member is not applicable to this roster group."
-                if isHtmxRequest
-                    then respondWithRosterToast errorMessage "app-toast-error"
-                    else do
-                        setErrorMessage errorMessage
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-            else do
+        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterWeek Nothing
+        case validation of
+            Left values -> renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex values
+            Right valid -> do
+                let newSlot =
+                        fromMaybe
+                            ( newRecord @RosterSlot
+                            |> set #rosterDayId (unpackId rosterDay.id)
+                            |> set #rosterWeekSlotDefinitionId (unpackId slotDefinition.id)
+                            |> set #slotSortOrder slotDefinition.sortOrder
+                            |> set #rowIndex rowIndex
+                            )
+                            existingSlot
+                            |> applyValidatedRosterShift valid
                 mutationResult <- saveRosterSlotMutation rosterGroupId rosterWeek rosterDay existingSlot newSlot
-                let RosterSlotMutationResult { rosterSlotMutationSlot = createdSlot } = mutationResult.liveMutationValue
-                layoutMode <- fetchCurrentRosterLayoutMode
-                let actorFragmentCandidates =
-                        case rosterLayoutModeValue layoutMode of
-                            "day_columns" ->
-                                rosterContentAndStaffPanelFragments
-                            _ ->
-                                rosterContentAndStaffPanelFragments
-                                    <> maybe
-                                        [rosterRowFragment (unpackId rosterDay.id) rowIndex]
-                                        (\slot ->
-                                            actorRosterRowFragments maybeStaffParam [(slot.rosterDayId, slot.rowIndex)]
-                                                <> assignmentRefreshFragments maybeStaffParam
-                                        )
-                                        createdSlot
-                let actorFragments =
-                        rosterActorFragmentsForTouchedResources
-                            rosterGroupId
-                            rosterWeek.weekOffset
-                            mutationResult.liveMutationTouchedResources
-                            actorFragmentCandidates
-                if isHtmxRequest
-                    then respondWithRosterActorRefresh rosterGroupId rosterWeek.weekOffset actorFragments
-                    else do
-                        setSuccessMessage "Roster slot updated."
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+                respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult (Just valid.validRosterShiftStaffId) "Roster shift saved."
 
     action UpdateRosterSlotAction { rosterSlotId } = do
         ensureManagerRole
         ensureVenueWritable
-
-        rosterSlot <- fetch rosterSlotId
-        accessDeniedUnless (isNothing rosterSlot.deletedAt)
-        let rosterDayId = (coerce rosterSlot.rosterDayId :: Id RosterDay)
-        rosterDay <- fetch rosterDayId
-        let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
-        rosterWeek <- fetch rosterWeekId
-        ensureRecordInCurrentVenue rosterWeek.venueId
-        ensureRosterWeekIsDraftForEdit rosterWeek
-
-        let maybeStaffParam = paramOrNothing @Text "staffId"
-        let maybeStartTimeParam = paramOrNothing @Text "startTime"
-        let maybeEndTimeParam = paramOrNothing @Text "endTime"
-        let maybeShiftTypeParam = paramOrNothing @Text "shiftTypeId"
+        (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
         let rosterGroupId = coerce rosterWeek.rosterGroupId
-        let updatedSlot =
-                rosterSlot
-                    |> applyOptionalField #staffId (parseOptionalStaffId maybeStaffParam) maybeStaffParam
-                    |> applyOptionalField #startTime (parseOptionalTime maybeStartTimeParam) maybeStartTimeParam
-                    |> applyOptionalField #endTime (parseOptionalTime maybeEndTimeParam) maybeEndTimeParam
-                    |> applyOptionalField #shiftTypeId (parseOptionalShiftTypeId maybeShiftTypeParam) maybeShiftTypeParam
-                    |> applyRosterSlotDuration
-
-        ensureRosterSlotTimingValidForSave rosterWeek updatedSlot
-        ensureOptionalStaffInCurrentVenue updatedSlot.staffId
-        ensureOptionalShiftTypeInCurrentVenue updatedSlot.shiftTypeId
-        isEligibleForAssignment <-
-            case updatedSlot.staffId of
-                Nothing -> pure True
-                Just staffId -> staffIsEligibleForRosterGroup (Id staffId) rosterGroupId
-
-        if not isEligibleForAssignment
-            then do
-                let errorMessage = "That staff member is not applicable to this roster group."
-                if isHtmxRequest
-                    then respondWithRosterToast errorMessage "app-toast-error"
-                    else do
-                        setErrorMessage errorMessage
-                        redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
-            else do
+        validation <- validateRosterShiftDialogSubmission rosterGroupId rosterWeek (Just rosterSlot)
+        case validation of
+            Left values -> renderRosterShiftDialogForEdit rosterSlot rosterDay rosterWeek values
+            Right valid -> do
+                let updatedSlot = applyValidatedRosterShift valid rosterSlot
                 mutationResult <- updateRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot updatedSlot
                 let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId, rosterSlotMutationShouldWarnSourceTimesheetUnchanged = shouldWarnSourceTimesheetUnchanged } = mutationResult.liveMutationValue
-
-                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, updatedSlot.staffId])
+                relatedSlots <- fetchRelatedSlotsForStaffIdsInRosterWeek rosterWeek (catMaybes [previousStaffId, Just valid.validRosterShiftStaffId])
                 let impactedRowKeys = impactedRowKeysForSlotUpdate previousStaffId updatedSlot relatedSlots
-                layoutMode <- fetchCurrentRosterLayoutMode
-                let actorFragmentCandidates =
-                        case rosterLayoutModeValue layoutMode of
-                            "day_columns" ->
-                                rosterContentAndStaffPanelFragments
-                            _ ->
-                                rosterContentAndStaffPanelFragments
-                                    <> actorRosterRowFragments maybeStaffParam impactedRowKeys
-                                    <> assignmentRefreshFragments maybeStaffParam
-                let actorFragments =
-                        rosterActorFragmentsForTouchedResources
-                            rosterGroupId
-                            rosterWeek.weekOffset
-                            mutationResult.liveMutationTouchedResources
-                            actorFragmentCandidates
-                respondWithRosterActorRefreshWithToast
-                    rosterGroupId
-                    rosterWeek.weekOffset
-                    actorFragments
-                    ( if shouldWarnSourceTimesheetUnchanged
-                        then Just "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly."
-                        else Nothing
-                    )
+                respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult (Just valid.validRosterShiftStaffId) impactedRowKeys shouldWarnSourceTimesheetUnchanged
+
+    action DeleteRosterSlotAction { rosterSlotId } = do
+        ensureManagerRole
+        ensureVenueWritable
+        (rosterSlot, rosterDay, rosterWeek) <- fetchRosterSlotEditContext rosterSlotId
+        let rosterGroupId = coerce rosterWeek.rosterGroupId
+        mutationResult <- deleteRosterSlotMutation rosterGroupId rosterWeek rosterDay rosterSlot
+        let RosterSlotMutationResult { rosterSlotMutationPreviousStaffId = previousStaffId } = mutationResult.liveMutationValue
+        respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult previousStaffId [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
+
+data ValidatedRosterShift = ValidatedRosterShift
+    { validRosterShiftStaffId    :: !UUID.UUID
+    , validRosterShiftStartTime  :: !TimeOfDay
+    , validRosterShiftEndTime    :: !(Maybe TimeOfDay)
+    , validRosterShiftTypeId     :: !UUID.UUID
+    }
+
+fetchRosterSlotCreateContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> Id RosterWeekSlotDefinition -> Int -> IO (RosterDay, RosterWeek, RosterWeekSlotDefinition)
+fetchRosterSlotCreateContext rosterDayId rosterWeekSlotDefinitionId rowIndex = do
+    rosterDay <- fetch rosterDayId
+    let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
+    rosterWeek <- fetch rosterWeekId
+    ensureRecordInCurrentVenue rosterWeek.venueId
+    ensureRosterWeekIsDraftForEdit rosterWeek
+    accessDeniedUnless (not rosterDay.isClosed)
+    accessDeniedUnless (rowIndex >= 0)
+    slotDefinition <- fetch rosterWeekSlotDefinitionId
+    accessDeniedUnless (slotDefinition.rosterWeekId == unpackId rosterWeek.id)
+    accessDeniedUnless (isNothing slotDefinition.deletedAt)
+    pure (rosterDay, rosterWeek, slotDefinition)
+
+fetchRosterSlotEditContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterSlot -> IO (RosterSlot, RosterDay, RosterWeek)
+fetchRosterSlotEditContext rosterSlotId = do
+    rosterSlot <- fetch rosterSlotId
+    accessDeniedUnless (isNothing rosterSlot.deletedAt)
+    let rosterDayId = (coerce rosterSlot.rosterDayId :: Id RosterDay)
+    rosterDay <- fetch rosterDayId
+    let rosterWeekId = (coerce rosterDay.rosterWeekId :: Id RosterWeek)
+    rosterWeek <- fetch rosterWeekId
+    ensureRecordInCurrentVenue rosterWeek.venueId
+    ensureRosterWeekIsDraftForEdit rosterWeek
+    accessDeniedUnless (not rosterDay.isClosed)
+    pure (rosterSlot, rosterDay, rosterWeek)
+
+renderRosterShiftDialogForCreate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterDay -> RosterWeek -> RosterWeekSlotDefinition -> Int -> RosterShiftDialogValues -> IO ()
+renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex values = do
+    staffMembers <- fetchEligibleRosterGroupStaff (coerce rosterWeek.rosterGroupId)
+    shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
+    venueConfig <- fetchVenueConfig
+    respondHtmlProfiled $ renderRosterShiftDialog RosterShiftDialogData
+        { rosterShiftDialogMode = NewRosterShiftDialog rosterDay.id slotDefinition.id rowIndex
+        , rosterShiftDialogTitle = "Add shift"
+        , rosterShiftDialogStaff = staffMembers
+        , rosterShiftDialogShiftTypes = shiftTypes
+        , rosterShiftDialogEndTimes = venueConfig.rosterEndTimesEnabled
+        , rosterShiftDialogValues = values
+        }
+
+renderRosterShiftDialogForEdit :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => RosterSlot -> RosterDay -> RosterWeek -> RosterShiftDialogValues -> IO ()
+renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values = do
+    staffMembers <- fetchEligibleRosterGroupStaff (coerce rosterWeek.rosterGroupId)
+    shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
+    venueConfig <- fetchVenueConfig
+    respondHtmlProfiled $ renderRosterShiftDialog RosterShiftDialogData
+        { rosterShiftDialogMode = EditRosterShiftDialog rosterSlot.id
+        , rosterShiftDialogTitle = "Edit shift"
+        , rosterShiftDialogStaff = staffMembers
+        , rosterShiftDialogShiftTypes = shiftTypes
+        , rosterShiftDialogEndTimes = venueConfig.rosterEndTimesEnabled
+        , rosterShiftDialogValues = values
+        }
+
+fetchCurrentVenueRosterShiftTypesForDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
+fetchCurrentVenueRosterShiftTypesForDialog =
+    query @ShiftType
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#archivedAt, Nothing)
+        |> orderByAsc #sortOrder
+        |> orderByAsc #createdAt
+        |> fetch
+
+validateRosterShiftDialogSubmission :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> Maybe RosterSlot -> IO (Either RosterShiftDialogValues ValidatedRosterShift)
+validateRosterShiftDialogSubmission rosterGroupId rosterWeek maybeExistingSlot = do
+    venueConfig <- fetchVenueConfig
+    let staffParam = paramOrNothing @Text "staffId"
+    let startParam = paramOrNothing @Text "startTime"
+    let endParam = paramOrNothing @Text "endTime"
+    let shiftTypeParam = paramOrNothing @Text "shiftTypeId"
+    let parsedStaffId = parseOptionalStaffId staffParam
+    let parsedStartTime = parseOptionalTime startParam
+    let parsedEndTime = parseOptionalTime endParam
+    let parsedShiftTypeId = parseOptionalShiftTypeId shiftTypeParam
+    staffInVenue <- maybe (pure False) staffIdIsInCurrentVenue parsedStaffId
+    staffEligible <- maybe (pure False) (\staffId -> staffIsEligibleForRosterGroup (Id staffId) rosterGroupId) parsedStaffId
+    shiftTypeInVenue <- maybe (pure False) shiftTypeIdIsInCurrentVenue parsedShiftTypeId
+    let baseValues = emptyRosterShiftDialogValues
+            { rosterShiftStaffId = parsedStaffId
+            , rosterShiftStartTime = fromMaybe "" (normalizeOptionalText startParam)
+            , rosterShiftEndTime = fromMaybe "" (normalizeOptionalText endParam)
+            , rosterShiftTypeId = parsedShiftTypeId
+            }
+    let staffError
+            | isNothing (normalizeOptionalText staffParam) = Just "Choose a staff member."
+            | isNothing parsedStaffId || not staffInVenue = Just "Choose a staff member for this venue."
+            | not staffEligible = Just "That staff member is not applicable to this roster group."
+            | otherwise = Nothing
+    let startError
+            | isNothing (normalizeOptionalText startParam) = Just "Choose a start time."
+            | isNothing parsedStartTime = Just "Choose a valid start time."
+            | otherwise = Nothing
+    let endError
+            | not venueConfig.rosterEndTimesEnabled = Nothing
+            | isNothing (normalizeOptionalText endParam) = Just "Choose an end time."
+            | isNothing parsedEndTime = Just "Choose a valid end time."
+            | otherwise = Nothing
+    let shiftTypeError
+            | isNothing (normalizeOptionalText shiftTypeParam) = Just "Choose a shift type."
+            | isNothing parsedShiftTypeId || not shiftTypeInVenue = Just "Choose a shift type for this venue."
+            | otherwise = Nothing
+    let timingError =
+            case (parsedStartTime, if venueConfig.rosterEndTimesEnabled then parsedEndTime else Nothing) of
+                (Just startTime, Just endTime)
+                    | not (isValidRosterShiftTimePair startTime endTime) -> Just invalidRosterSlotTimingMessage
+                _ -> Nothing
+    let valuesWithErrors = baseValues
+            { rosterShiftFormError = timingError
+            , rosterShiftStaffError = staffError
+            , rosterShiftStartError = startError
+            , rosterShiftEndError = endError <|> timingError
+            , rosterShiftTypeError = shiftTypeError
+            }
+    case (staffError, startError, endError, shiftTypeError, timingError, parsedStaffId, parsedStartTime, parsedShiftTypeId) of
+        (Nothing, Nothing, Nothing, Nothing, Nothing, Just staffId, Just startTime, Just shiftTypeId) ->
+            pure (Right ValidatedRosterShift
+                { validRosterShiftStaffId = staffId
+                , validRosterShiftStartTime = startTime
+                , validRosterShiftEndTime = if venueConfig.rosterEndTimesEnabled then parsedEndTime else Nothing
+                , validRosterShiftTypeId = shiftTypeId
+                })
+        _ -> pure (Left valuesWithErrors)
+
+staffIdIsInCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
+staffIdIsInCurrentVenue staffId =
+    query @Staff
+        |> filterWhere (#id, Id staffId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#isActive, True)
+        |> filterWhere (#archivedAt, Nothing)
+        |> fetchExists
+
+shiftTypeIdIsInCurrentVenue :: (?context :: ControllerContext, ?modelContext :: ModelContext) => UUID.UUID -> IO Bool
+shiftTypeIdIsInCurrentVenue shiftTypeId =
+    query @ShiftType
+        |> filterWhere (#id, Id shiftTypeId)
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#isActive, True)
+        |> filterWhere (#archivedAt, Nothing)
+        |> fetchExists
+
+applyValidatedRosterShift :: ValidatedRosterShift -> RosterSlot -> RosterSlot
+applyValidatedRosterShift valid slot =
+    slot
+        |> set #staffId (Just valid.validRosterShiftStaffId)
+        |> set #startTime (Just valid.validRosterShiftStartTime)
+        |> set #endTime valid.validRosterShiftEndTime
+        |> set #shiftTypeId (Just valid.validRosterShiftTypeId)
+        |> applyRosterSlotDuration
+
+respondToRosterSlotMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterDay -> Int -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> Text -> IO ()
+respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutationResult maybeStaffId successMessage = do
+    layoutMode <- fetchCurrentRosterLayoutMode
+    let maybeStaffParam = tshow <$> maybeStaffId
+    let actorFragmentCandidates =
+            case rosterLayoutModeValue layoutMode of
+                "day_columns" -> rosterContentAndStaffPanelFragments
+                _ -> rosterContentAndStaffPanelFragments
+                    <> actorRosterRowFragments maybeStaffParam [(unpackId rosterDay.id, rowIndex)]
+                    <> assignmentRefreshFragments maybeStaffParam
+    let actorFragments =
+            rosterActorFragmentsForTouchedResources
+                rosterGroupId
+                rosterWeek.weekOffset
+                mutationResult.liveMutationTouchedResources
+                actorFragmentCandidates
+    if isHtmxRequest
+        then respondWithRosterActorRefreshWithSuccess rosterGroupId rosterWeek.weekOffset actorFragments successMessage
+        else do
+            setSuccessMessage successMessage
+            redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
+
+respondToRosterSlotUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> LiveMutationResult RosterSlotMutationResult -> Maybe UUID.UUID -> [(UUID.UUID, Int)] -> Bool -> IO ()
+respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult maybeStaffId impactedRowKeys shouldWarnSourceTimesheetUnchanged = do
+    layoutMode <- fetchCurrentRosterLayoutMode
+    let maybeStaffParam = tshow <$> maybeStaffId
+    let actorFragmentCandidates =
+            case rosterLayoutModeValue layoutMode of
+                "day_columns" -> rosterContentAndStaffPanelFragments
+                _ -> rosterContentAndStaffPanelFragments
+                    <> actorRosterRowFragments maybeStaffParam impactedRowKeys
+                    <> assignmentRefreshFragments maybeStaffParam
+    let actorFragments =
+            rosterActorFragmentsForTouchedResources
+                rosterGroupId
+                rosterWeek.weekOffset
+                mutationResult.liveMutationTouchedResources
+                actorFragmentCandidates
+    respondWithRosterActorRefreshWithToast
+        rosterGroupId
+        rosterWeek.weekOffset
+        actorFragments
+        ( if shouldWarnSourceTimesheetUnchanged
+            then Just "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly."
+            else Nothing
+        )
 
 resolveRequestedRosterGroup :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => IO RosterGroup
 resolveRequestedRosterGroup =
@@ -697,7 +809,16 @@ respondWithRosterActorRefreshWithToast :: (?context :: ControllerContext, ?reque
 respondWithRosterActorRefreshWithToast rosterGroupId weekOffset fragments maybeWarningMessage = do
     setTypedLiveSurfaceActorRefresh rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) fragments
     respondHtmlProfiled $
-        maybe mempty (renderToastOob ToastBottomCenter . errorToast) maybeWarningMessage
+        clearDialogOverlayOob <> maybe mempty (renderToastOob ToastBottomCenter . errorToast) maybeWarningMessage
+
+respondWithRosterActorRefreshWithSuccess :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> Text -> IO ()
+respondWithRosterActorRefreshWithSuccess rosterGroupId weekOffset fragments successMessage = do
+    setTypedLiveSurfaceActorRefresh rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroupId weekOffset) fragments
+    respondHtmlProfiled $
+        clearDialogOverlayOob <> renderToastOob ToastBottomCenter (successToast successMessage)
+
+clearDialogOverlayOob :: Blaze.Html
+clearDialogOverlayOob = [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
 
 respondWithActorRosterFragmentRefresh :: (?context :: ControllerContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> IO ()
 respondWithActorRosterFragmentRefresh rosterGroupId weekOffset fragments = do

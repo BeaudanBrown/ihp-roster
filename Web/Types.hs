@@ -225,8 +225,11 @@ data RosterWeeksController
     | RemoveRosterRowAction { rosterDayId :: !(Id RosterDay) }
     | UpdateRosterLayoutPreferenceAction { weekOffset :: !Int }
     | UpdateRosterWageEstimatePreferenceAction { weekOffset :: !Int }
+    | NewRosterSlotDialogAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition), rowIndex :: !Int }
+    | EditRosterSlotDialogAction { rosterSlotId :: !(Id RosterSlot) }
     | CreateRosterSlotAction { rosterDayId :: !(Id RosterDay), rosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition), rowIndex :: !Int }
     | UpdateRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
+    | DeleteRosterSlotAction { rosterSlotId :: !(Id RosterSlot) }
     deriving (Eq, Show, Data)
 
 -- Auth support: where to redirect unauthenticated users
