@@ -1,6 +1,6 @@
 ---
 id: ir-cqg3
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-29T00:51:30Z
@@ -27,3 +27,7 @@ The roster CSS is decomposed into focused modules under static/css/features/rost
 **2026-05-29T00:51:45Z**
 
 Initial CSS scan before implementation: app-owned CSS source is about 4,369 lines excluding vendor/prod.css. Largest files: static/css/features/roster.css 2,138 lines, static/css/components.css 796, static/css/features/timesheets.css 399, static/css/layout.css 286. bin/style-audit currently passes hard checks (undefined vars and Layout/Makefile asset sync) but reports raw palette colors outside tokens, one banned light utility in Web/View/Billing/Index.hs, and inline style attributes for review. Preserve direct assetPath links in Web/View/Layout.hs and Makefile CSS_FILES; do not use app-owned @import or edit static/prod.css/vendor files.
+
+**2026-05-29T02:28:25Z**
+
+Epic complete. Final state: app-owned CSS is 4,162 lines across 41 files; no file exceeds the 1,000-line budget; roster CSS is decomposed into focused static/css/features/roster modules; shared components are split under static/css/components; shift-type palette values live in static/css/palette.css; horizontal, dense-control, and compact action-button primitives are documented and composed in views; stale selectors and stale styling-regression assumptions were pruned; bin/style-audit now enforces CSS architecture guardrails. Final sweep recorded on ir-bio0: style-audit, typecheck, css-inventory, styling-regression, roster-mobile, and mobile-experience all passed.
