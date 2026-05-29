@@ -68,6 +68,11 @@ to both `Web/View/Layout.hs` and `Makefile` in the same cascade position.
   `data-horizontal-*` attributes remain for JS and tests.
 - A dialog footer or toast visual change belongs in `overlays.css` and the
   shared overlay helpers, not in a feature stylesheet.
+- Leave request list/accordion rules belong in `features/leave.css`; shared
+  accordion chrome belongs in `components/accordions.css`.
+- Admin setting rows and admin-specific colour controls belong in
+  `components/admin.css`/`components/admin-responsive.css`; if the same control
+  appears outside admin, extract a shared component primitive first.
 - A form field spacing rule used by roster and admin belongs in a shared forms
   component module. Roster dense cells compose `app-dense-control`,
   `app-dense-select-plain`, `app-dense-static`, and `app-dense-time-value` for

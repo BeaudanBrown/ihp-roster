@@ -102,6 +102,8 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
   - page shells: `app-shell`, `app-content`, `app-page`, `app-page-auth`
   - surfaces: `app-panel`, `app-auth-card`, `app-panel-body`, `app-auth-body`
   - sizing/text helpers: `app-form-width`, `app-muted`
+  - horizontal strips: `app-horizontal-frame`, `app-horizontal-grid`, `app-horizontal-panel`
+  - dense controls/buttons: `app-dense-control`, `app-dense-select-plain`, `app-dense-static`, `app-dense-time-value`, `app-icon-button`, `app-compact-action-button`
 - Signed-in pages should use `renderAppPage` from `Application/Helper/View/Chrome.hs` plus `app-panel` surfaces. Reserve `app-page-auth` / `app-auth-card` for unauthenticated auth and welcome flows only.
 - Prefer `renderAppPanel` from `Application/Helper/View/Chrome.hs` for ordinary themed surfaces instead of hand-writing `app-panel`, `app-panel-header`, and `app-panel-body` markup in each view. Use the custom-header escape hatch only when a surface needs richer toolbar chrome like week navigation.
 - Keep page-level titles and summary copy in the shared `app-page-header`. Use panel headers (`app-panel-header`, `app-panel-title`, `app-panel-description`) only for secondary sections inside the page body.

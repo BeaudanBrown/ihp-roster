@@ -29,8 +29,9 @@ Read this before editing `static/` assets.
 - Add feature CSS to the narrowest matching file instead of growing
   `static/app.css`; keep `static/app.css` compatibility-only.
 - Before adding selectors, search for existing modules/classes, prefer shared
-  component primitives, add semantic tokens before raw colours, and scope
-  feature CSS by feature root/prefix.
+  component primitives such as `app-horizontal-*`, `app-dense-*`,
+  `app-icon-button`, and `app-compact-action-button`, add semantic tokens
+  before raw colours, and scope feature CSS by feature root/prefix.
 - Avoid global `.app-*`, `.btn`, `.form-*`, `.nav-*`, `.breadcrumb`, or
   Bootstrap overrides in feature stylesheets unless the exception is explicitly
   documented in the CSS README or local feature docs.
