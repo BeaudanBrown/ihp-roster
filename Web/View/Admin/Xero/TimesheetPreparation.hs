@@ -3,6 +3,7 @@ module Web.View.Admin.Xero.TimesheetPreparation
     , renderXeroTimesheetPreparationErrorDialog
     , renderXeroTimesheetPreparationLoadingDialog
     , renderXeroTimesheetPreparationStaffMappingsFragment
+    , renderXeroTimesheetPreparationSubmittingDialog
     ) where
 
 import Application.Helper.View.Overlay
@@ -16,20 +17,12 @@ import Data.Time.Calendar (Day)
 import Web.View.Prelude
 
 renderXeroTimesheetPreparationDialog :: XeroTimesheetPreparationView -> Html
-renderXeroTimesheetPreparationDialog view =
-    renderDialogOverlay DialogOverlayConfig
-        { dialogOverlayTitle = "Prepare Xero draft timesheets"
-        , dialogOverlayBody = renderPreparationBody view
-        , dialogOverlayStartButtons = []
-        , dialogOverlayButtons =
-            [ OverlayButton
-                { overlayButtonLabel = "Close"
-                , overlayButtonClass = "btn btn-outline-secondary"
-                , overlayButtonAction = OverlayCloseAction
-                }
-            ]
-        , dialogOverlayDialogClass = "modal-xl"
-        }
+renderXeroTimesheetPreparationDialog view
+    | needsStaffStep view = renderXeroTimesheetPreparationStaffStep view
+    | needsPayItemStep view = renderXeroTimesheetPreparationPayItemsStep view
+    | view.preparationState == XeroPreparationSubmitted = renderXeroTimesheetPreparationSubmittedDialog view
+    | view.preparationState == XeroPreparationFailed = renderXeroTimesheetPreparationFailureDialog view
+    | otherwise = renderXeroTimesheetPreparationSummaryStep view
 
 renderXeroTimesheetPreparationErrorDialog :: Text -> Html
 renderXeroTimesheetPreparationErrorDialog message =
@@ -74,16 +67,225 @@ renderXeroTimesheetPreparationLoadingDialog selectedPeriodKey =
         , dialogOverlayDialogClass = ""
         }
 
-renderPreparationBody :: XeroTimesheetPreparationView -> Html
-renderPreparationBody view = [hsx|
-    <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
-        {renderRunSummary view}
-        {renderConnectionNotice view}
-        {renderStaffMappings view}
-        {renderPayItemDecisions view}
-        {renderReadiness view.preparationReadiness}
-        {renderPreview view}
-        {renderFooterActions view}
+renderXeroTimesheetPreparationStaffStep :: XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationStaffStep view =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Match staff to Xero employees"
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
+                {renderRunSummary view}
+                {renderConnectionNotice view}
+                {renderStepNotice "Step 1 of 3" "Confirm proposed staff matches or choose the right Xero employee before continuing."}
+                {renderStaffMappings view}
+                {renderReadiness view.preparationReadiness}
+                <form id="xero-preparation-staff-continue-form"
+                      method="POST"
+                      action={ContinueXeroTimesheetPreparationStaffStepAction view.preparationRun.id}
+                      hx-post={pathTo (ContinueXeroTimesheetPreparationStaffStepAction view.preparationRun.id)}
+                      hx-target={"#" <> dialogOverlayMountId}
+                      hx-swap="innerHTML">
+                </form>
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = closeButton : [continueStaffButton view]
+        , dialogOverlayDialogClass = "modal-xl"
+        }
+
+renderXeroTimesheetPreparationPayItemsStep :: XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationPayItemsStep view =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Approve Xero pay items"
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
+                {renderRunSummary view}
+                {renderStepNotice "Step 2 of 3" "Review the managed pay items Bepis will create during final submission, and choose the Xero account code to use."}
+                {renderPayItemDecisions view}
+                <form id="xero-preparation-pay-items-form"
+                      method="POST"
+                      action={ApproveXeroTimesheetPreparationPayItemsAction view.preparationRun.id}
+                      hx-post={pathTo (ApproveXeroTimesheetPreparationPayItemsAction view.preparationRun.id)}
+                      hx-target={"#" <> dialogOverlayMountId}
+                      hx-swap="innerHTML">
+                </form>
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = closeButton : [approvePayItemsButton]
+        , dialogOverlayDialogClass = "modal-xl"
+        }
+
+renderXeroTimesheetPreparationSummaryStep :: XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationSummaryStep view =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Review Xero draft timesheets"
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
+                {renderRunSummary view}
+                {renderStepNotice "Step 3 of 3" "Review the employee-level draft timesheet summary before creating draft timesheets in Xero."}
+                {renderFinalSummaryCards view}
+                {renderReadiness view.preparationReadiness}
+                {renderSummaryPreview view}
+                {renderFinalSubmissionCopy}
+                <form id="xero-preparation-confirm-submit-form"
+                      method="POST"
+                      action={ConfirmXeroTimesheetPreparationSubmissionAction view.preparationRun.id}
+                      hx-post={pathTo (ConfirmXeroTimesheetPreparationSubmissionAction view.preparationRun.id)}
+                      hx-target={"#" <> dialogOverlayMountId}
+                      hx-swap="innerHTML">
+                </form>
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = closeButton : [confirmSubmitButton view]
+        , dialogOverlayDialogClass = "modal-xl"
+        }
+
+renderXeroTimesheetPreparationSubmittingDialog :: XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationSubmittingDialog view =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Submitting to Xero"
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex align-items-center gap-3" data-xero-timesheet-preparation-submitting="true">
+                <div id="xero-timesheet-preparation-submitting-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                <div>
+                    <div class="fw-semibold">Creating Xero draft timesheets...</div>
+                    <div class="small app-muted">Bepis is creating any approved managed pay items first, then submitting each employee draft timesheet to Xero. This can take a moment.</div>
+                </div>
+                <form method="POST"
+                      action={RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id}
+                      hx-post={pathTo (RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id)}
+                      hx-trigger="load"
+                      hx-target={"#" <> dialogOverlayMountId}
+                      hx-swap="innerHTML"
+                      hx-indicator="#xero-timesheet-preparation-submitting-indicator">
+                </form>
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = []
+        , dialogOverlayDialogClass = ""
+        }
+
+renderXeroTimesheetPreparationFailureDialog :: XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationFailureDialog view =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Xero submission needs attention"
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex flex-column gap-3">
+                {renderRunSummary view}
+                <div class="alert alert-danger mb-0">{fromMaybe "Xero draft-timesheet submission did not complete successfully." view.preparationRun.errorSummary}</div>
+                {renderPreview view}
+                <div class="small app-muted">Close this dialog to review employee-level submission status in the Xero panel.</div>
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = [closeButton]
+        , dialogOverlayDialogClass = "modal-xl"
+        }
+
+renderXeroTimesheetPreparationSubmittedDialog :: XeroTimesheetPreparationView -> Html
+renderXeroTimesheetPreparationSubmittedDialog view =
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = "Xero draft timesheets submitted"
+        , dialogOverlayBody = [hsx|
+            <div class="d-flex flex-column gap-3">
+                {renderRunSummary view}
+                <div class="alert alert-success mb-0">Submitted Xero draft timesheets.</div>
+                {renderPreview view}
+            </div>
+        |]
+        , dialogOverlayStartButtons = []
+        , dialogOverlayButtons = [closeButton]
+        , dialogOverlayDialogClass = "modal-xl"
+        }
+
+renderStepNotice :: Text -> Text -> Html
+renderStepNotice label detail = [hsx|
+    <div class={appSurfaceClasses "p-3"}>
+        <div class="small text-uppercase app-muted fw-semibold">{label}</div>
+        <div>{detail}</div>
+    </div>
+|]
+
+closeButton :: OverlayButton
+closeButton = OverlayButton
+    { overlayButtonLabel = "Close"
+    , overlayButtonClass = "btn btn-outline-secondary"
+    , overlayButtonAction = OverlayCloseAction
+    }
+
+continueStaffButton :: XeroTimesheetPreparationView -> OverlayButton
+continueStaffButton _view = OverlayButton
+    { overlayButtonLabel = "Continue"
+    , overlayButtonClass = "btn btn-primary"
+    , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-staff-continue-form"
+    }
+
+approvePayItemsButton :: OverlayButton
+approvePayItemsButton = OverlayButton
+    { overlayButtonLabel = "Approve pay items and continue"
+    , overlayButtonClass = "btn btn-primary"
+    , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-pay-items-form"
+    }
+
+confirmSubmitButton :: XeroTimesheetPreparationView -> OverlayButton
+confirmSubmitButton _view = OverlayButton
+    { overlayButtonLabel = "Submit draft timesheets to Xero"
+    , overlayButtonClass = "btn btn-primary"
+    , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-confirm-submit-form"
+    }
+
+needsStaffStep :: XeroTimesheetPreparationView -> Bool
+needsStaffStep view =
+    view.preparationManualStaffDecisionCount > 0
+        || any staffRowNeedsAttention view.preparationStaffRows
+
+needsPayItemStep :: XeroTimesheetPreparationView -> Bool
+needsPayItemStep view = not (null (proposedPayItemRows view)) && isNothing (selectedAccountCode view)
+
+proposedPayItemRows :: XeroTimesheetPreparationView -> [XeroPreparationPayItemRow]
+proposedPayItemRows view =
+    view.preparationPayItemRows
+        |> filter \row ->
+            row.preparationPayItemRequirement.payItemRequirementStatus == "proposed"
+
+renderFinalSummaryCards :: XeroTimesheetPreparationView -> Html
+renderFinalSummaryCards view = [hsx|
+    <div class="row g-2">
+        {renderSummaryCard "Employees" (tshow (length view.preparationPreviewRows))}
+        {renderSummaryCard "Source entries" (tshow (sum (map (.previewRowSourceCount) view.preparationPreviewRows)))}
+        {renderSummaryCard "Total units" (formatUnits (sum (map (.previewRowTotalUnits) view.preparationPreviewRows)))}
+        {renderSummaryCard "Earnings lines" (tshow (sum (map (length . (.previewRowLines)) view.preparationPreviewRows)))}
+    </div>
+|]
+
+renderSummaryCard :: Text -> Text -> Html
+renderSummaryCard label value = [hsx|
+    <div class="col-6 col-lg-3">
+        <div class={appSurfaceClasses "p-3 h-100"}>
+            <div class="small app-muted">{label}</div>
+            <div class="fs-5 fw-semibold">{value}</div>
+        </div>
+    </div>
+|]
+
+renderSummaryPreview :: XeroTimesheetPreparationView -> Html
+renderSummaryPreview view
+    | null view.preparationPreviewRows = [hsx|
+        <section>
+            <h6 class="mb-2">Employee summary</h6>
+            <div class={appSurfaceClasses "p-3 small app-muted"}>
+                Employee-level preview rows will be finalized after Bepis creates the approved Xero pay items during submission.
+            </div>
+        </section>
+    |]
+    | otherwise = renderPreview view
+
+renderFinalSubmissionCopy :: Html
+renderFinalSubmissionCopy = [hsx|
+    <div class="small app-muted">
+        This creates Xero Payroll AU draft timesheets only. Review and approve payroll in Xero before paying staff.
     </div>
 |]
 
@@ -421,7 +623,7 @@ renderPayItemDecisions view
                 </div>
                 <label class="form-label small fw-semibold" for="xero-preparation-submit-account-code">Account code for created pay items</label>
                 <select id="xero-preparation-submit-account-code"
-                        form="xero-preparation-submit-form"
+                        form="xero-preparation-pay-items-form"
                         name="accountCode"
                         class="form-select form-select-sm"
                         aria-label="Xero account code"

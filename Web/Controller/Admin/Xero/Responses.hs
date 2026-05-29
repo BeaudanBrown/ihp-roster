@@ -15,6 +15,7 @@ module Web.Controller.Admin.Xero.Responses
     , respondWithXeroStaffMappingToastOnly
     , respondWithXeroStaffMappingsFragment
     , respondWithXeroTimesheetMutation
+    , respondWithXeroTimesheetMutationAndCloseDialog
     , respondWithXeroTimesheetsFragment
     , xeroErrorToast
     , xeroSuccessToast
@@ -24,8 +25,8 @@ import Application.Helper.LiveSurface (setTypedLiveSurfaceActorRefresh)
 import Application.Helper.Profiling
 import Application.Helper.View (ToastOverlayConfig (..),
                                 ToastOverlayPosition (ToastBottomCenter),
-                                errorToast, renderToastOverlayHostOob,
-                                successToast)
+                                dialogOverlayMountId, errorToast,
+                                renderToastOverlayHostOob, successToast)
 import Application.Helper.XeroAdminTypes
 import Application.Xero.Admin.ReadModel hiding
                                         (fetchCurrentVenueXeroAdminSectionData)
@@ -133,6 +134,18 @@ respondWithXeroTimesheetMutation maybeToast = do
     setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [adminXeroTimesheetsFragment]
     respondHtmlProfiled $
         maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
+
+respondWithXeroTimesheetMutationAndCloseDialog ::
+    (?context :: ControllerContext, ?request :: Request) =>
+    Maybe ToastOverlayConfig ->
+    IO ()
+respondWithXeroTimesheetMutationAndCloseDialog maybeToast = do
+    setTypedLiveSurfaceActorRefresh adminXeroLiveSurfaceDefinition () [adminXeroTimesheetsFragment]
+    respondHtmlProfiled $
+        mconcat
+            [ [hsx|<div id={dialogOverlayMountId} hx-swap-oob="innerHTML"></div>|]
+            , maybe mempty (\toast -> renderToastOverlayHostOob ToastBottomCenter [toast]) maybeToast
+            ]
 
 xeroSuccessToast :: Text -> ToastOverlayConfig
 xeroSuccessToast = successToast

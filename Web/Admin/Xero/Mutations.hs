@@ -16,7 +16,9 @@ module Web.Admin.Xero.Mutations
     , saveXeroPayrollCalendarSelectionMutation
     , saveXeroStaffMappingMutation
     , applyXeroTimesheetPreparationStaffDecisionMutation
+    , approveXeroTimesheetPreparationPayItemsMutation
     , createPersistedXeroTimesheetPreviewMutation
+    , previewXeroTimesheetPreparationMutation
     , refreshXeroTimesheetPreparationMutation
     , retryXeroDraftTimesheetSubmissionMutation
     , runXeroTimesheetPreparationMutation
@@ -508,6 +510,14 @@ refreshXeroTimesheetPreparationMutation runId =
 applyXeroTimesheetPreparationStaffDecisionMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Id Staff -> XeroPrepare.XeroPreparationStaffDecision -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 applyXeroTimesheetPreparationStaffDecisionMutation runId staffId decision =
     XeroPrepare.applyXeroPreparationStaffDecision runId staffId decision >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.staff_decision"
+
+approveXeroTimesheetPreparationPayItemsMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Maybe Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+approveXeroTimesheetPreparationPayItemsMutation runId maybeAccountCode =
+    XeroPrepare.approveXeroPreparationPayItemDecisions runId maybeAccountCode >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.pay_items_approve"
+
+previewXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
+previewXeroTimesheetPreparationMutation runId =
+    XeroPrepare.previewXeroTimesheetPreparation runId >>= recordXeroTimesheetsMutation "xero.timesheets.preparation.preview"
 
 submitXeroTimesheetPreparationMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id XeroTimesheetPreparationRun -> Maybe Text -> IO (LiveMutationResult (Either Text XeroTimesheetPreparationView))
 submitXeroTimesheetPreparationMutation runId maybeAccountCode =

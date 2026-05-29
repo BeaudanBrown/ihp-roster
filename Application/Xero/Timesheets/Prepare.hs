@@ -1,7 +1,9 @@
 module Application.Xero.Timesheets.Prepare
     ( XeroPreparationStaffDecision (..)
     , applyXeroPreparationStaffDecision
+    , approveXeroPreparationPayItemDecisions
     , loadXeroTimesheetPreparationView
+    , previewXeroTimesheetPreparation
     , refreshXeroTimesheetPreparation
     , startXeroTimesheetPreparation
     , submitXeroTimesheetPreparation
@@ -385,6 +387,17 @@ saveXeroPreparationPayrollCalendar runId payrollCalendarId =
                                     |> set #xeroPayRunStatus Nothing
                                     |> updateRecord
                             refreshXeroTimesheetPreparation run.id
+
+approveXeroPreparationPayItemDecisions ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Id XeroTimesheetPreparationRun ->
+    Maybe Text ->
+    IO (Either Text XeroTimesheetPreparationView)
+approveXeroPreparationPayItemDecisions runId maybeAccountCode = do
+    let accountCode = Text.strip (fromMaybe "" maybeAccountCode)
+    if Text.null accountCode
+        then pure (Left "Choose a Xero account code before continuing.")
+        else saveXeroPreparationAccountCode runId accountCode
 
 saveXeroPreparationAccountCode ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
