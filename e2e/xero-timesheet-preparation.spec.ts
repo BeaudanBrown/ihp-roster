@@ -221,11 +221,12 @@ test.describe('Xero timesheet preparation', () => {
         const preparationDialog = page.locator('[data-xero-timesheet-preparation-dialog="true"]');
 
         await expect(dialog).toBeVisible({ timeout: E2E_TIMEOUT.assertion });
-        await expect(page.getByRole('heading', { name: 'Prepare Xero draft timesheets' })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Match staff to Xero employees' })).toBeVisible();
         await expect(preparationDialog).toContainText('Pay Period');
         await expect(preparationDialog).toContainText(/\d{2}\/\d{2}\/\d{4} to \d{2}\/\d{2}\/\d{4} · payment \d{2}\/\d{2}\/\d{4}/);
+        await expect(preparationDialog).toContainText('Step 1 of 3');
         await expect(preparationDialog).toContainText('Staff mappings');
-        await expect(preparationDialog).toContainText('Managed pay items');
+        await expect(preparationDialog).toContainText('Readiness validation');
         await expect(preparationDialog.locator('a[href="/StartXeroConnection"]')).toBeVisible();
     });
 });
