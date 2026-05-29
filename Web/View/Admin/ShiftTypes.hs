@@ -32,19 +32,19 @@ import qualified Data.Text as Text
 import Web.View.Admin.Common
 import Web.View.Prelude
 
-renderShiftTypesSection :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates =
+renderShiftTypesSection :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
+renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems =
     renderConfigSection
         "shift-types"
         (renderInactiveToggleSummary "showInactiveShiftTypes" (pathTo ShowAdminShiftTypesFragmentAction) "admin-shift-types-fragment" shiftTypes showInactive)
-        (renderShiftTypeCreateForm shiftTypes showInactive awardLevels awardLevelBaseRates)
-        (renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates)
+        (renderShiftTypeCreateForm shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems)
+        (renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems)
 
-renderShiftTypesSectionFragment :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBaseRates = [hsx|
+renderShiftTypesSectionFragment :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
+renderShiftTypesSectionFragment shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems = [hsx|
     <div id="admin-shift-types-fragment"
          data-live-update-surface={liveSurfaceConfigJson adminShiftTypesLiveSurface}>
-        {renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates}
+        {renderShiftTypesSection shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems}
     </div>
 |]
 
@@ -108,8 +108,8 @@ adminShiftTypesFocusProtection =
             , containerSelector = Just "form[data-admin-shift-type-row]"
             }
 
-renderShiftTypeCreateForm :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRates = [hsx|
+renderShiftTypeCreateForm :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
+renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems = [hsx|
     <form method="POST"
           action={CreateShiftTypeAction}
           class={appSurfaceClasses "p-3"}
@@ -131,6 +131,9 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
                 </select>
             </div>
             <div class="col-12 col-lg-2">
+                {renderImportedPayItemSelect "new-shift-type-imported-pay-item" Nothing importedPayItems Nothing}
+            </div>
+            <div class="col-12 col-lg-2">
                 {renderShiftTypeColourSelect "new-shift-type-colour" defaultCreateColourKey Nothing}
             </div>
             <div class="col-12 col-lg-1">
@@ -146,12 +149,12 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
     where
         defaultCreateColourKey = blankShiftTypeColourKey
 
-renderShiftTypeRows :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates
+renderShiftTypeRows :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
+renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems
     | null visibleRows = renderEmptyState "No shift types yet."
     | otherwise = [hsx|
         <div class="d-flex flex-column gap-2">
-            {forEach (zip [0 :: Int ..] visibleRows) (renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates activeCount)}
+            {forEach (zip [0 :: Int ..] visibleRows) (renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems activeCount)}
         </div>
     |]
     where
@@ -160,8 +163,8 @@ renderShiftTypeRows shiftTypes showInactive awardLevels awardLevelBaseRates
         activeCount = length activeRows
         visibleRows = activeRows <> if showInactive then inactiveRows else []
 
-renderShiftTypeRow :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> Int -> (Int, ShiftType) -> Html
-renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates activeCount (shiftTypeIndex, shiftType) = [hsx|
+renderShiftTypeRow :: [ShiftType] -> Bool -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Int -> (Int, ShiftType) -> Html
+renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates importedPayItems activeCount (shiftTypeIndex, shiftType) = [hsx|
     <form method="POST"
           action={UpdateShiftTypeAction (get #id shiftType)}
           class={appSurfaceClasses "p-3 mb-2"}
@@ -206,6 +209,9 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates activ
                 </select>
             </div>
             <div class="col-12 col-lg-3">
+                {renderImportedPayItemSelect ("shift-type-imported-pay-item-" <> tshow shiftType.id) shiftType.importedXeroPayItemId importedPayItems (Just (pathTo (UpdateShiftTypeAction shiftType.id)))}
+            </div>
+            <div class="col-12 col-lg-3">
                 {renderShiftTypeColourSelect ("shift-type-colour-" <> tshow shiftType.id) shiftType.colourKey (Just (pathTo (UpdateShiftTypeAction shiftType.id)))}
             </div>
             <div class="col-12 col-lg-2">
@@ -214,6 +220,29 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates activ
             </div>
         </div>
     </form>
+|]
+
+renderImportedPayItemSelect :: Text -> Maybe (Id XeroImportedPayItem) -> [XeroImportedPayItem] -> Maybe Text -> Html
+renderImportedPayItemSelect fieldId selectedImportedPayItemId importedPayItems maybePostPath = [hsx|
+    <label class="form-label" for={fieldId}>Xero Pay Item</label>
+    <select id={fieldId}
+            class="form-select"
+            name="importedXeroPayItemId"
+            hx-post={fromMaybe "" maybePostPath}
+            hx-trigger={if isJust maybePostPath then ("change" :: Text) else ("" :: Text)}
+            hx-include="closest form"
+            hx-target="#admin-shift-types-fragment"
+            hx-swap="outerHTML">
+        <option value="" selected={isNothing selectedImportedPayItemId}>Use Bepis award pay</option>
+        {forEach importedPayItems (renderImportedPayItemOption selectedImportedPayItemId)}
+    </select>
+|]
+
+renderImportedPayItemOption :: Maybe (Id XeroImportedPayItem) -> XeroImportedPayItem -> Html
+renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
+    <option value={inputValue importedPayItem.id} selected={selectedImportedPayItemId == Just importedPayItem.id}>
+        {importedPayItem.name} — ${tshow importedPayItem.ratePerUnit}/hr
+    </option>
 |]
 
 renderShiftTypeColourSelect :: Text -> Text -> Maybe Text -> Html

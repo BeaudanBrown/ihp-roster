@@ -33,6 +33,9 @@ data XeroTimesheetPreviewInput = XeroTimesheetPreviewInput
     , previewTimesheetEntries      :: ![TimesheetEntry]
     , previewStaff                 :: ![Staff]
     , previewStaffMappings         :: ![XeroStaffMapping]
+    , previewStaffPayVersions      :: ![StaffPayVersion]
+    , previewShiftTypePayVersions  :: ![ShiftTypePayVersion]
+    , previewImportedPayItems      :: ![XeroImportedPayItem]
     , previewEarningsMappings      :: ![XeroEarningsRateMapping]
     , previewPayItemRequirements   :: ![XeroPayItemRequirementRecord]
     , previewPayResultsByEntryId   :: !(Map.Map Text TimesheetPayResult)
@@ -219,6 +222,19 @@ fetchPreviewInput request connection = do
             |> filterWhere (#venueId, unpackId request.readinessVenueId)
             |> filterWhereIn (#id, map (Id . (.staffId)) entries)
             |> fetch
+    staffPayVersions <-
+        query @StaffPayVersion
+            |> filterWhereIn (#id, mapMaybe (fmap Id . (.staffPayVersionId)) entries)
+            |> fetch
+    shiftTypePayVersions <-
+        query @ShiftTypePayVersion
+            |> filterWhereIn (#id, mapMaybe (fmap Id . (.shiftTypePayVersionId)) entries)
+            |> fetch
+    importedPayItems <-
+        query @XeroImportedPayItem
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhereIn (#id, mapMaybe (.importedXeroPayItemId) staffPayVersions <> mapMaybe (.importedXeroPayItemId) shiftTypePayVersions)
+            |> fetch
     earningsMappings <-
         query @XeroEarningsRateMapping
             |> filterWhere (#xeroConnectionId, unpackId connection.id)
@@ -241,6 +257,9 @@ fetchPreviewInput request connection = do
         , previewTimesheetEntries = entries
         , previewStaff = staffMembers
         , previewStaffMappings = staffMappings
+        , previewStaffPayVersions = staffPayVersions
+        , previewShiftTypePayVersions = shiftTypePayVersions
+        , previewImportedPayItems = importedPayItems
         , previewEarningsMappings = earningsMappings
         , previewPayItemRequirements = payItemRequirements
         , previewPayResultsByEntryId = payResults
@@ -309,8 +328,7 @@ segmentContribution ::
 segmentContribution input entry staff xeroEmployeeId staffVersionId shiftVersionId payResult segment = do
     segmentDate <- maybeToEither ("Missing pay segment date for timesheet entry " <> tshow (unpackId entry.id)) segment.segmentDate
     let workedOn = segmentDate
-    localBucketKey <- localBucketKeyForSegment input staff payResult segment workedOn
-    earningsRateId <- earningsRateIdForBucket input localBucketKey
+    (localBucketKey, earningsRateId) <- earningsRateForSegment input staff staffVersionId shiftVersionId payResult segment workedOn
     pure SegmentContribution
         { contributionStaffId = unpackId staff.id
         , contributionXeroEmployeeId = xeroEmployeeId
@@ -328,6 +346,28 @@ staffXeroEmployeeId input entry =
     maybeToEither ("Missing verified Xero employee mapping for staff " <> tshow entry.staffId) do
         mapping <- find (\candidate -> candidate.staffId == entry.staffId) input.previewStaffMappings
         mapping.xeroEmployeeId
+
+earningsRateForSegment :: XeroTimesheetPreviewInput -> Staff -> UUID -> UUID -> TimesheetPayResult -> PaySegment -> Day -> Either Text (Text, Text)
+earningsRateForSegment input staff staffVersionId shiftVersionId payResult segment workedOn =
+    case importedPayItemForVersions input staffVersionId shiftVersionId of
+        Just importedPayItem ->
+            pure ("xero:imported-pay-item:" <> tshow (unpackId importedPayItem.id), importedPayItem.xeroEarningsRateId)
+        Nothing -> do
+            localBucketKey <- localBucketKeyForSegment input staff payResult segment workedOn
+            earningsRateId <- earningsRateIdForBucket input localBucketKey
+            pure (localBucketKey, earningsRateId)
+
+importedPayItemForVersions :: XeroTimesheetPreviewInput -> UUID -> UUID -> Maybe XeroImportedPayItem
+importedPayItemForVersions input staffVersionId shiftVersionId = do
+    importedPayItemId <- shiftImportedPayItemId <|> staffImportedPayItemId
+    find (\item -> item.id == importedPayItemId) input.previewImportedPayItems
+    where
+        shiftImportedPayItemId = do
+            version <- find (\candidate -> unpackId candidate.id == shiftVersionId) input.previewShiftTypePayVersions
+            version.importedXeroPayItemId
+        staffImportedPayItemId = do
+            version <- find (\candidate -> unpackId candidate.id == staffVersionId) input.previewStaffPayVersions
+            version.importedXeroPayItemId
 
 earningsRateIdForBucket :: XeroTimesheetPreviewInput -> Text -> Either Text Text
 earningsRateIdForBucket input localBucketKey =

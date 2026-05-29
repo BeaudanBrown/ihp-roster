@@ -162,6 +162,7 @@ ensureStaffPayVersionForStaff actorUserId staff effectiveFrom = do
     case currentVersion of
         Just version
             | version.defaultAwardLevelId == fmap unpackId staff.defaultAwardLevelId
+                && version.importedXeroPayItemId == staff.importedXeroPayItemId
                 && version.employmentBasis == staff.employmentBasis ->
                 pure version
         _ -> do
@@ -175,6 +176,7 @@ ensureStaffPayVersionForStaff actorUserId staff effectiveFrom = do
                 |> set #venueId staff.venueId
                 |> set #staffId (unpackId staff.id)
                 |> set #defaultAwardLevelId (fmap unpackId staff.defaultAwardLevelId)
+                |> set #importedXeroPayItemId staff.importedXeroPayItemId
                 |> set #employmentBasis staff.employmentBasis
                 |> set #effectiveFrom effectiveFrom
                 |> set #createdByUserId (unpackId actorUserId)
@@ -194,6 +196,7 @@ ensureShiftTypePayVersionForShiftType actorUserId shiftType effectiveFrom = do
     case currentVersion of
         Just version
             | version.overrideAwardLevelId == fmap unpackId shiftType.overrideAwardLevelId
+                && version.importedXeroPayItemId == shiftType.importedXeroPayItemId
                 && version.payrollLabel == shiftType.name ->
                 pure version
         _ -> do
@@ -207,6 +210,7 @@ ensureShiftTypePayVersionForShiftType actorUserId shiftType effectiveFrom = do
                 |> set #venueId shiftType.venueId
                 |> set #shiftTypeId (unpackId shiftType.id)
                 |> set #overrideAwardLevelId (fmap unpackId shiftType.overrideAwardLevelId)
+                |> set #importedXeroPayItemId shiftType.importedXeroPayItemId
                 |> set #payrollLabel shiftType.name
                 |> set #effectiveFrom effectiveFrom
                 |> set #createdByUserId (unpackId actorUserId)

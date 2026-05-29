@@ -12,6 +12,7 @@ data EditView = EditView
     , rosterGroups             :: [RosterGroup]
     , awardLevels              :: [AwardLevel]
     , awardLevelBaseRates      :: [AwardLevelBaseRate]
+    , importedPayItems         :: [XeroImportedPayItem]
     , selectedRosterGroupIds   :: [Id RosterGroup]
     , preferenceWeekdays       :: [PreferenceWeekday]
     , selectedShiftPreferences :: [ShiftPreferenceSelection]
@@ -26,19 +27,19 @@ instance View EditView where
         renderStaffEditPageModal
             weekOffset
             staffEditFormId
-            (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+            (renderStaffEditBody PageOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
 
 staffEditFormId :: Text
 staffEditFormId = "staff-edit-form"
 
-renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> Day -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId =
+renderStaffEditModalFragment :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> Day -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId =
     renderStaffEditDialog
         staffEditFormId
-        (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+        (renderStaffEditBody HtmxOverlayForm staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
 
-renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> Day -> Int -> Maybe (Id RosterGroup) -> Html
-renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId =
+renderStaffEditBody :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Maybe StaffDocument -> Day -> Int -> Maybe (Id RosterGroup) -> Html
+renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId =
     let rsaPanel =
             renderRsaDocumentPanel
                 RsaPanelConfig
@@ -55,7 +56,7 @@ renderStaffEditBody formMode staff maybeLinkedUserEmail rosterGroups awardLevels
                     , rsaPanelShowHeader = True
                     }
      in [hsx|
-        {renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff))}
+        {renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId (UpdateStaffAction (get #id staff))}
         <div class="mt-4">
             {renderStaffLoginAccessPanel staff maybeLinkedUserEmail weekOffset maybeRosterGroupId}
         </div>
@@ -113,8 +114,8 @@ renderStaffPasskeyReturnInputs weekOffset maybeRosterGroupId = [hsx|
 renderStaffPasskeyRosterGroupInput :: Id RosterGroup -> Html
 renderStaffPasskeyRosterGroupInput rosterGroupId = [hsx|<input type="hidden" name="rosterGroupId" value={tshow rosterGroupId}/>|]
 
-renderForm :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
-renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId action =
+renderForm :: OverlayFormMode -> Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> StaffController -> Html
+renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId action =
     case formMode of
         HtmxOverlayForm -> [hsx|
             <form id={staffEditFormId}
@@ -126,7 +127,7 @@ renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLev
                   hx-target={"#" <> dialogOverlayMountId}
                   hx-swap="innerHTML"
                   hx-push-url="false">
-                {renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId}
+                {renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId}
             </form>
         |]
         PageOverlayForm -> [hsx|
@@ -134,16 +135,16 @@ renderForm formMode staff maybeLinkedUserEmail rosterGroups awardLevels awardLev
                   method="POST"
                   action={action}
                   class="mt-3">
-                {renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId}
+                {renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId}
             </form>
         |]
 
-renderFormFields :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> Html
-renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId = [hsx|
+renderFormFields :: Staff -> Maybe Text -> [RosterGroup] -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> [Id RosterGroup] -> [PreferenceWeekday] -> [ShiftPreferenceSelection] -> Int -> Maybe (Id RosterGroup) -> Html
+renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences weekOffset maybeRosterGroupId = [hsx|
         <input type="hidden" name="weekOffset" value={tshow weekOffset} />
         {renderRosterGroupHiddenInput maybeRosterGroupId}
         {renderPersonalProfileFields staff maybeLinkedUserEmail}
-        {when currentUserIsAdmin (renderStaffPayFields staff awardLevels awardLevelBaseRates)}
+        {when currentUserIsAdmin (renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems)}
         <div class="mb-3">
             <label for="isActive" class="form-label">Status</label>
             <select name="isActive" id="isActive" class={selectClass staff "isActive"}>
@@ -164,8 +165,8 @@ renderFormFields staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelB
         </div>
 |]
 
-renderStaffPayFields :: Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> Html
-renderStaffPayFields staff awardLevels awardLevelBaseRates = [hsx|
+renderStaffPayFields :: Staff -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Html
+renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems = [hsx|
     <div class="row g-3">
         <div class="col-12 col-md-6">
             <label for="employmentBasis" class="form-label">Employment Basis</label>
@@ -183,7 +184,23 @@ renderStaffPayFields staff awardLevels awardLevelBaseRates = [hsx|
             </select>
             {renderStaffFieldError staff "defaultAwardLevelId"}
         </div>
+        <div class="col-12">
+            <label for="importedXeroPayItemId" class="form-label">Xero Pay Item Override</label>
+            <select name="importedXeroPayItemId" id="importedXeroPayItemId" class={selectClass staff "importedXeroPayItemId"}>
+                <option value="" selected={isNothing staff.importedXeroPayItemId}>Use Bepis award pay</option>
+                {forEach importedPayItems (renderImportedPayItemOption staff.importedXeroPayItemId)}
+            </select>
+            {renderStaffFieldError staff "importedXeroPayItemId"}
+            <div class="form-text">Shift type Xero pay-item overrides take precedence over this staff default.</div>
+        </div>
     </div>
+|]
+
+renderImportedPayItemOption :: Maybe (Id XeroImportedPayItem) -> XeroImportedPayItem -> Html
+renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
+    <option value={inputValue importedPayItem.id} selected={selectedImportedPayItemId == Just importedPayItem.id}>
+        {importedPayItem.name} — {tshow importedPayItem.ratePerUnit}/hr
+    </option>
 |]
 
 renderAwardLevelOption :: Staff -> [AwardLevelBaseRate] -> AwardLevel -> Html

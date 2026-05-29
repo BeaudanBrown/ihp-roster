@@ -181,6 +181,36 @@ tests = do
                     result.payLevelId `shouldBe` Just (unpackId shiftLevel.id)
                     result.totals.totalAmount `shouldBe` 160
 
+            it "uses a staff imported Xero pay item as the hourly rate" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Imported Staff Bar"
+                    importedPayItem <- createImportedPayItem venue "Imported Staff Rate" "xero-staff-rate" 55
+                    _ <- staff |> set #importedXeroPayItemId (Just importedPayItem.id) |> updateRecord
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+
+                    result <- expectPayResult entry
+
+                    result.payLevelName `shouldBe` Just "Imported Staff Rate"
+                    fmap (.baseRate) result.segments `shouldBe` [55]
+                    fmap (.amount) result.segments `shouldBe` [220]
+                    result.totals.totalAmount `shouldBe` 220
+
+            it "lets shift type imported Xero pay items override staff imported Xero pay items" $ withContext do
+                withCleanDb do
+                    (venue, staff, shiftType, _) <- createPayFixture "Imported Shift Bar"
+                    staffImportedPayItem <- createImportedPayItem venue "Imported Staff Rate" "xero-staff-rate" 55
+                    shiftImportedPayItem <- createImportedPayItem venue "Imported Shift Rate" "xero-shift-rate" 70
+                    _ <- staff |> set #importedXeroPayItemId (Just staffImportedPayItem.id) |> updateRecord
+                    _ <- shiftType |> set #importedXeroPayItemId (Just shiftImportedPayItem.id) |> updateRecord
+                    entry <- createEntry venue staff shiftType (fromGregorian 2025 1 10) (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)
+
+                    result <- expectPayResult entry
+
+                    result.payLevelName `shouldBe` Just "Imported Shift Rate"
+                    fmap (.baseRate) result.segments `shouldBe` [70]
+                    fmap (.amount) result.segments `shouldBe` [280]
+                    result.totals.totalAmount `shouldBe` 280
+
             it "allocates breaks to the actual penalty segment instead of trimming the end of an overnight shift" $ withContext do
                 withCleanDb do
                     (venue, staff, shiftType, _) <- createPayFixture "Break Placement Bar"
@@ -418,6 +448,38 @@ createPayFixture shiftTypeName = do
             |> set #isActive True
             |> createRecord
     pure (venue, staff, shiftType, level)
+
+createImportedPayItem :: (?modelContext :: ModelContext) => Venue -> Text -> Text -> Scientific -> IO XeroImportedPayItem
+createImportedPayItem venue name earningsRateId rate = do
+    owner <- createUserRecord ("xero-pay-" <> earningsRateId <> "@example.com") "admin" True
+    maybeConnection <-
+        query @XeroConnection
+            |> filterWhere (#venueId, unpackId venue.id)
+            |> filterWhere (#connectionStatus, "active" :: Text)
+            |> fetchOneOrNothing
+    connection <- case maybeConnection of
+        Just existingConnection -> pure existingConnection
+        Nothing ->
+            newRecord @XeroConnection
+                |> set #venueId (unpackId venue.id)
+                |> set #tenantId ("tenant-" <> earningsRateId)
+                |> set #tenantName (Just "Demo Company")
+                |> set #connectionStatus ("active" :: Text)
+                |> set #scopes ("payroll.payitems.read payroll.payitems" :: Text)
+                |> set #encryptedRefreshToken ("encrypted-refresh-token" :: Text)
+                |> set #connectedByUserId (Just (unpackId owner.id))
+                |> createRecord
+    newRecord @XeroImportedPayItem
+        |> set #venueId (unpackId venue.id)
+        |> set #xeroConnectionId (unpackId connection.id)
+        |> set #xeroEarningsRateId earningsRateId
+        |> set #name name
+        |> set #earningsType ("ORDINARYTIMEEARNINGS" :: Text)
+        |> set #rateType ("RATEPERUNIT" :: Text)
+        |> set #typeOfUnits ("Hours" :: Text)
+        |> set #ratePerUnit rate
+        |> set #importedByUserId (unpackId owner.id)
+        |> createRecord
 
 createEntry :: (?modelContext :: ModelContext) => Venue -> Staff -> ShiftType -> Day -> TimeOfDay -> TimeOfDay -> IO TimesheetEntry
 createEntry venue staff shiftType workedOn startTime endTime =

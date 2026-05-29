@@ -414,6 +414,9 @@ buildFixturePreview fixture = do
     staffMappings <- query @XeroStaffMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
     earningsMappings <- query @XeroEarningsRateMapping |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
     payItemRequirements <- query @XeroPayItemRequirementRecord |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+    staffPayVersions <- query @StaffPayVersion |> filterWhereIn (#id, mapMaybe (fmap Id . (.staffPayVersionId)) fixture.entries) |> fetch
+    shiftTypePayVersions <- query @ShiftTypePayVersion |> filterWhereIn (#id, mapMaybe (fmap Id . (.shiftTypePayVersionId)) fixture.entries) |> fetch
+    importedPayItems <- query @XeroImportedPayItem |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
     awardLevels <- query @AwardLevel |> fetch
     baseRates <- query @AwardLevelBaseRate |> fetch
     penaltyRates <- query @AwardLevelPenaltyRate |> fetch
@@ -426,6 +429,9 @@ buildFixturePreview fixture = do
                 , previewTimesheetEntries = fixture.entries
                 , previewStaff = [fixture.staffA, fixture.staffB]
                 , previewStaffMappings = staffMappings
+                , previewStaffPayVersions = staffPayVersions
+                , previewShiftTypePayVersions = shiftTypePayVersions
+                , previewImportedPayItems = importedPayItems
                 , previewEarningsMappings = earningsMappings
                 , previewPayItemRequirements = payItemRequirements
                 , previewPayResultsByEntryId = payResults

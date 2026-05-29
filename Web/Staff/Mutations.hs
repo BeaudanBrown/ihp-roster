@@ -18,11 +18,10 @@ staffXeroPayItemScopeChanged :: Staff -> Staff -> Bool
 staffXeroPayItemScopeChanged oldStaff newStaff =
     staffXeroPayItemScope oldStaff /= staffXeroPayItemScope newStaff
 
-staffXeroPayItemScope :: Staff -> Maybe (Id AwardLevel, StaffEmploymentBasisEnum)
+staffXeroPayItemScope :: Staff -> Maybe (Maybe (Id AwardLevel), Maybe (Id XeroImportedPayItem), StaffEmploymentBasisEnum)
 staffXeroPayItemScope staff
-    | staff.isActive && isNothing staff.archivedAt = do
-        awardLevelId <- staff.defaultAwardLevelId
-        pure (awardLevelId, staff.employmentBasis)
+    | staff.isActive && isNothing staff.archivedAt =
+        Just (staff.defaultAwardLevelId, staff.importedXeroPayItemId, staff.employmentBasis)
     | otherwise = Nothing
 
 updateStaffMember :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Staff -> Staff -> [Id RosterGroup] -> [ShiftPreferenceSelection] -> IO (LiveMutationResult Staff)

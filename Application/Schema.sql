@@ -2060,8 +2060,10 @@ AS $$
         SELECT
             te.*,
             spv.default_award_level_id AS version_staff_award_level_id,
+            spv.imported_xero_pay_item_id AS version_staff_imported_xero_pay_item_id,
             spv.employment_basis AS version_employment_basis,
             stpv.override_award_level_id AS version_shift_award_level_id,
+            stpv.imported_xero_pay_item_id AS version_shift_imported_xero_pay_item_id,
             stpv.payroll_label AS version_shift_type_name
         FROM timesheet_entries te
         LEFT JOIN staff_pay_versions spv ON spv.id = te.staff_pay_version_id
@@ -2149,7 +2151,23 @@ AS $$
                     e.shift_type_id,
                     EXTRACT(DOW FROM e.worked_on)::INT
                 )
-            ) AS pay_level_id
+            ) AS pay_level_id,
+            COALESCE(
+                e.version_shift_imported_xero_pay_item_id,
+                CASE WHEN e.shift_type_pay_version_id IS NULL THEN (
+                    SELECT st.imported_xero_pay_item_id
+                    FROM shift_types st
+                    WHERE st.id = e.shift_type_id
+                    LIMIT 1
+                ) ELSE NULL END,
+                e.version_staff_imported_xero_pay_item_id,
+                CASE WHEN e.staff_pay_version_id IS NULL THEN (
+                    SELECT s.imported_xero_pay_item_id
+                    FROM staff s
+                    WHERE s.id = e.staff_id
+                    LIMIT 1
+                ) ELSE NULL END
+            ) AS imported_xero_pay_item_id
         FROM entry_data e
     ),
     labelled AS (
@@ -2164,11 +2182,19 @@ AS $$
                     LIMIT 1
                 )
             ) AS shift_type_name,
-            (
-                SELECT COALESCE(al.classification_level || ' - ', '') || al.classification
-                FROM award_levels al
-                WHERE al.id = r.pay_level_id
-                LIMIT 1
+            COALESCE(
+                (
+                    SELECT xipi.name
+                    FROM xero_imported_pay_items xipi
+                    WHERE xipi.id = r.imported_xero_pay_item_id
+                    LIMIT 1
+                ),
+                (
+                    SELECT COALESCE(al.classification_level || ' - ', '') || al.classification
+                    FROM award_levels al
+                    WHERE al.id = r.pay_level_id
+                    LIMIT 1
+                )
             ) AS pay_level_name,
             (
                 SELECT al.award_fixed_id
@@ -2177,6 +2203,12 @@ AS $$
                 LIMIT 1
             ) AS award_fixed_id,
             COALESCE(
+                (
+                    SELECT xipi.rate_per_unit
+                    FROM xero_imported_pay_items xipi
+                    WHERE xipi.id = r.imported_xero_pay_item_id
+                    LIMIT 1
+                ),
                 (
                     SELECT albr.hourly_rate
                     FROM award_level_base_rates albr
@@ -2191,6 +2223,12 @@ AS $$
                 0::NUMERIC(12,4)
             ) AS base_rate,
             COALESCE(
+                (
+                    SELECT xipi.rate_per_unit
+                    FROM xero_imported_pay_items xipi
+                    WHERE xipi.id = r.imported_xero_pay_item_id
+                    LIMIT 1
+                ),
                 (
                     SELECT albr.hourly_rate
                     FROM award_level_base_rates albr
@@ -2285,6 +2323,7 @@ AS $$
     segment_rows AS (
         SELECT scoped.*,
             CASE
+                WHEN scoped.imported_xero_pay_item_id IS NOT NULL THEN scoped.base_rate
                 WHEN scoped.penalty_kind IN ('delayed_meal_break_weekday', 'delayed_meal_break_saturday', 'delayed_meal_break_sunday', 'delayed_meal_break_public_holiday') THEN
                     (
                         CASE
@@ -2370,6 +2409,7 @@ AS $$
                 pw.shift_type_id,
                 pw.shift_type_name,
                 pw.pay_level_id,
+                pw.imported_xero_pay_item_id,
                 pw.pay_level_name,
                 pw.award_fixed_id,
                 pw.employment_basis,

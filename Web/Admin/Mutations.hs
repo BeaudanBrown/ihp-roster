@@ -142,8 +142,8 @@ moveRosterGroupMutation _rosterGroup direction = do
         syncVenueDefaultRosterGroupToTopActive currentVenueId
     invalidateTouchedResources "admin.roster_group.move" (liveMutationResult () [AdminRosterGroupsResource (unpackId currentVenueId)])
 
-createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
-createShiftTypeMutation name isActive overrideAwardLevelId maybeSubmittedColourKey = do
+createShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
+createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId maybeSubmittedColourKey = do
     sortOrder <- nextShiftTypeSortOrder
     colourKey <- resolveSubmittedShiftTypeColourKey Nothing isActive maybeSubmittedColourKey blankShiftTypeColourKey
     now <- getCurrentTime
@@ -153,6 +153,7 @@ createShiftTypeMutation name isActive overrideAwardLevelId maybeSubmittedColourK
             |> set #name name
             |> set #sortOrder sortOrder
             |> set #overrideAwardLevelId overrideAwardLevelId
+            |> set #importedXeroPayItemId importedXeroPayItemId
             |> set #colourKey colourKey
             |> set #isActive isActive
             |> createRecord
@@ -161,8 +162,8 @@ createShiftTypeMutation name isActive overrideAwardLevelId maybeSubmittedColourK
     let shouldRefreshXero = shiftTypeAffectsXeroPayItems shiftType
     invalidateTouchedResources "admin.shift_type.create" (liveMutationResult (AdminShiftTypeMutationResult shiftType shouldRefreshXero) (shiftTypeTouchedResources shouldRefreshXero))
 
-updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
-updateShiftTypeMutation shiftType name isActive overrideAwardLevelId maybeSubmittedColourKey = do
+updateShiftTypeMutation :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => ShiftType -> Text -> Bool -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> Maybe Text -> IO (LiveMutationResult AdminShiftTypeMutationResult)
+updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId maybeSubmittedColourKey = do
     now <- getCurrentTime
     sortOrder <-
         if not shiftType.isActive && isActive
@@ -174,10 +175,11 @@ updateShiftTypeMutation shiftType name isActive overrideAwardLevelId maybeSubmit
             |> set #name name
             |> set #sortOrder sortOrder
             |> set #overrideAwardLevelId overrideAwardLevelId
+            |> set #importedXeroPayItemId importedXeroPayItemId
             |> set #colourKey colourKey
             |> set #isActive isActive
             |> updateRecord
-        when (shiftType.name /= updated.name || shiftType.overrideAwardLevelId /= updated.overrideAwardLevelId) do
+        when (shiftType.name /= updated.name || shiftType.overrideAwardLevelId /= updated.overrideAwardLevelId || shiftType.importedXeroPayItemId /= updated.importedXeroPayItemId) do
             _ <- ensureShiftTypePayVersionForShiftType currentUser.id updated (utctDay now)
             pure ()
         pure updated
@@ -204,13 +206,13 @@ shiftTypeTouchedResources shouldRefreshXero =
 
 shiftTypeAffectsXeroPayItems :: ShiftType -> Bool
 shiftTypeAffectsXeroPayItems shiftType =
-    shiftType.isActive && isJust shiftType.overrideAwardLevelId
+    shiftType.isActive && (isJust shiftType.overrideAwardLevelId || isJust shiftType.importedXeroPayItemId)
 
 shiftTypeXeroPayItemScopeChanged :: ShiftType -> ShiftType -> Bool
 shiftTypeXeroPayItemScopeChanged oldShiftType newShiftType =
     shiftTypeXeroPayItemScope oldShiftType /= shiftTypeXeroPayItemScope newShiftType
 
-shiftTypeXeroPayItemScope :: ShiftType -> Maybe (Id AwardLevel)
+shiftTypeXeroPayItemScope :: ShiftType -> Maybe (Maybe (Id AwardLevel), Maybe (Id XeroImportedPayItem))
 shiftTypeXeroPayItemScope shiftType
-    | shiftType.isActive = shiftType.overrideAwardLevelId
+    | shiftType.isActive = Just (shiftType.overrideAwardLevelId, shiftType.importedXeroPayItemId)
     | otherwise = Nothing

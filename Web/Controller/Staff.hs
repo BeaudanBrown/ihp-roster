@@ -5,6 +5,7 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroups,
                                         fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
+import Web.Controller.Admin.Support (fetchActiveImportedXeroPayItems, parseSubmittedImportedXeroPayItemId)
 import Application.Helper.Url (appendQueryParams)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
 import Data.Time.Calendar (Day)
@@ -31,13 +32,14 @@ instance Controller StaffController where
         rosterGroups <- fetchCurrentVenueRosterGroups
         awardLevels <- fetchAwardLevelsForStaffForm
         awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
+        importedPayItems <- fetchActiveImportedXeroPayItems
         selectedRosterGroupIds <- fetchStaffRosterGroupIds staff
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         selectedShiftPreferences <- fetchStaffShiftPreferenceSelections staff
         staffRsaDocument <- latestRsaDocumentForStaff staff
         today <- utctDay <$> getCurrentTime
         if isHtmxRequest
-            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+            then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
             else render EditView { .. }
 
     action UpdateStaffAction { staffId } = do
@@ -53,10 +55,12 @@ instance Controller StaffController where
         rosterGroups <- fetchCurrentVenueRosterGroups
         awardLevels <- fetchAwardLevelsForStaffForm
         awardLevelBaseRates <- fetchAwardLevelBaseRatesForStaffForm
+        importedPayItems <- fetchActiveImportedXeroPayItems
         let submittedRosterGroupIds = nub (mapMaybe parseRosterGroupIdText (paramTexts "rosterGroupIds"))
         maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
         let canManageStaffPay = hasRole VenueAdminRole
         maybeSubmittedDefaultAwardLevelId <- parseSubmittedDefaultAwardLevelId canManageStaffPay
+        maybeSubmittedImportedXeroPayItemId <- if canManageStaffPay then parseSubmittedImportedXeroPayItemId else pure (Just Nothing)
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         staffRsaDocument <- latestRsaDocumentForStaff staff
         today <- utctDay <$> getCurrentTime
@@ -65,32 +69,37 @@ instance Controller StaffController where
                     Right selections -> selections
                     Left _           -> []
         staff
-            |> buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId
+            |> buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId
             |> ifValid \case
                 Left staff -> do
                     if isHtmxRequest
-                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates submittedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems submittedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
                         else do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             render EditView { .. }
                 Right staff -> do
-                    case (maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId) of
-                        (Nothing, _) -> do
+                    case (maybeSelectedRosterGroupIds, maybeSubmittedDefaultAwardLevelId, maybeSubmittedImportedXeroPayItemId) of
+                        (Nothing, _, _) -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
-                        (_, Nothing) -> do
+                        (_, Nothing, _) -> do
                             let selectedRosterGroupIds = submittedRosterGroupIds
                             if isHtmxRequest
-                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
                                 else render EditView { .. }
-                        (Just selectedRosterGroupIds, Just _) -> do
+                        (_, _, Nothing) -> do
+                            let selectedRosterGroupIds = submittedRosterGroupIds
+                            if isHtmxRequest
+                                then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+                                else render EditView { .. }
+                        (Just selectedRosterGroupIds, Just _, Just _) -> do
                             case parseShiftPreferenceSelections preferenceWeekdays submittedShiftPreferenceKeys of
                                 Left preferenceError -> do
                                     setErrorMessage preferenceError
                                     if isHtmxRequest
-                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
+                                        then respondHtml (renderStaffEditModalFragment staff maybeLinkedUserEmail rosterGroups awardLevels awardLevelBaseRates importedPayItems selectedRosterGroupIds preferenceWeekdays selectedShiftPreferences staffRsaDocument today weekOffset maybeRosterGroupId)
                                         else render EditView { .. }
                                 Right submittedSelections -> do
                                     _ <- updateStaffMember originalStaff staff selectedRosterGroupIds submittedSelections
@@ -108,8 +117,8 @@ instance Controller StaffController where
                                                     (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
                                                     maybeRosterGroupId
 
-buildStaff :: (?request :: Request) => Bool -> Maybe (Maybe (Id AwardLevel)) -> Staff -> Staff
-buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId staff =
+buildStaff :: (?request :: Request) => Bool -> Maybe (Maybe (Id AwardLevel)) -> Maybe (Maybe (Id XeroImportedPayItem)) -> Staff -> Staff
+buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId staff =
     staff
         |> requireParam #firstName "firstName" "First name is required"
         |> requireParam #lastName "lastName" "Last name is required"
@@ -136,8 +145,13 @@ buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId staff =
             | otherwise =
                 let withEmploymentBasis = currentStaff |> fill @'["employmentBasis"]
                  in case maybeSubmittedDefaultAwardLevelId of
-                        Just defaultAwardLevelId -> withEmploymentBasis |> set #defaultAwardLevelId defaultAwardLevelId
-                        Nothing -> withEmploymentBasis
+                        Just defaultAwardLevelId -> withEmploymentBasis |> set #defaultAwardLevelId defaultAwardLevelId |> applyImportedPayItem
+                        Nothing -> withEmploymentBasis |> applyImportedPayItem
+
+        applyImportedPayItem currentStaff =
+            case maybeSubmittedImportedXeroPayItemId of
+                Just importedXeroPayItemId -> currentStaff |> set #importedXeroPayItemId importedXeroPayItemId
+                Nothing -> currentStaff
 
 fetchAwardLevelsForStaffForm :: (?modelContext :: ModelContext) => IO [AwardLevel]
 fetchAwardLevelsForStaffForm =

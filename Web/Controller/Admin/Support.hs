@@ -12,6 +12,7 @@ import Control.Monad (void)
 import Data.Functor ((<&>))
 import qualified Data.List as List
 import qualified Data.Text as Text
+import Data.Time.Clock (UTCTime)
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
 import Web.View.Admin.Invites
@@ -40,6 +41,14 @@ fetchCurrentAwardLevelBaseRates =
     query @AwardLevelBaseRate
         |> filterWhere (#operativeTo, Nothing :: Maybe Day)
         |> orderByAsc #createdAt
+        |> fetch
+
+fetchActiveImportedXeroPayItems :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [XeroImportedPayItem]
+fetchActiveImportedXeroPayItems =
+    query @XeroImportedPayItem
+        |> filterWhere (#venueId, unpackId currentVenueId)
+        |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
+        |> orderByAsc #name
         |> fetch
 
 nextRosterGroupSortOrder :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO Int
@@ -107,8 +116,9 @@ respondToShiftTypesSectionMutation =
             shiftTypes <- fetchCurrentVenueShiftTypes
             awardLevels <- fetchActiveAwardLevels
             awardLevelBaseRates <- fetchCurrentAwardLevelBaseRates
+            importedPayItems <- fetchActiveImportedXeroPayItems
             let showInactiveShiftTypes = parseShowInactiveParam "showInactiveShiftTypes"
-            pure (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates)
+            pure (renderShiftTypesSectionFragment shiftTypes showInactiveShiftTypes awardLevels awardLevelBaseRates importedPayItems)
         }
 
 respondToRosterGroupsSectionMutation ::
@@ -269,6 +279,25 @@ parseShowInactiveParam paramName = paramOrDefault "false" paramName == ("true" :
 
 parseSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?request :: Request) => Maybe Text
 parseSubmittedShiftTypeColourKey = paramOrNothing "colourKey"
+
+parseSubmittedImportedXeroPayItemId ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO (Maybe (Maybe (Id XeroImportedPayItem)))
+parseSubmittedImportedXeroPayItemId =
+    case paramOrNothing @(Id XeroImportedPayItem) "importedXeroPayItemId" of
+        Nothing -> pure (Just Nothing)
+        Just importedPayItemId -> do
+            maybeImportedPayItem <-
+                query @XeroImportedPayItem
+                    |> filterWhere (#id, importedPayItemId)
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
+                    |> fetchOneOrNothing
+            case maybeImportedPayItem of
+                Just _ -> pure (Just (Just importedPayItemId))
+                Nothing -> do
+                    setErrorMessage "Choose an active imported Xero pay item, or leave Bepis award pay selected."
+                    pure Nothing
 
 parseSubmittedOverrideAwardLevelId ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
