@@ -386,6 +386,8 @@ tests = beforeAll testContext do
                             (Just "REGULAR")
                             (Just "RATEPERUNIT")
                             (Just "477")
+                            (Just "Hours")
+                            (Just 30)
                             True
                             (Aeson.object ["EarningsRateID" Aeson..= ("earnings-1" :: Text)])
                         ]
@@ -463,6 +465,8 @@ tests = beforeAll testContext do
                             (Just "REGULAR")
                             (Just "RATEPERUNIT")
                             (Just "477")
+                            (Just "Hours")
+                            (Just 30)
                             True
                             (Aeson.object ["EarningsRateID" Aeson..= ("earnings-1" :: Text)])
                         , XeroEarningsRateRef
@@ -471,6 +475,8 @@ tests = beforeAll testContext do
                             (Just "REGULAR")
                             (Just "RATEPERUNIT")
                             (Just "478")
+                            (Just "Hours")
+                            (Just 35)
                             True
                             (Aeson.object ["EarningsRateID" Aeson..= ("earnings-2" :: Text)])
                         ]
@@ -2076,6 +2082,8 @@ earningsRateRefFromValue value@(Aeson.Object earningsRate) = do
             (Just "ORDINARYTIMEEARNINGS")
             (Just "RATEPERUNIT")
             accountCode
+            (Just "Hours")
+            (Just 30)
             True
             value
 earningsRateRefFromValue _ = fail "Expected earnings rate"

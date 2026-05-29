@@ -152,6 +152,8 @@ data XeroEarningsRateRef = XeroEarningsRateRef
     , xeroEarningsRateType        :: !(Maybe Text)
     , xeroEarningsRateRateType    :: !(Maybe Text)
     , xeroEarningsRateAccountCode :: !(Maybe Text)
+    , xeroEarningsRateTypeOfUnits :: !(Maybe Text)
+    , xeroEarningsRateRatePerUnit :: !(Maybe Scientific)
     , xeroEarningsRateIsActive    :: !Bool
     , xeroEarningsRateRaw         :: !Aeson.Value
     }
@@ -165,6 +167,8 @@ instance Aeson.FromJSON XeroEarningsRateRef where
             <*> optionalText object ["EarningsType", "earningsType"]
             <*> optionalText object ["RateType", "rateType"]
             <*> optionalText object ["AccountCode", "accountCode"]
+            <*> optionalText object ["TypeOfUnits", "typeOfUnits"]
+            <*> optionalScientific object ["RatePerUnit", "ratePerUnit"]
             <*> activeFromObject object
             <*> pure value
     parseJSON _ = fail "Expected Xero earnings rate object"

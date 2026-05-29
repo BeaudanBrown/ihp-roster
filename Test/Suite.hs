@@ -60,6 +60,7 @@ import qualified Test.SurfaceProjectionSpec
 import qualified Test.VenueInvitationSpec
 import qualified Test.VenueOnboardingInvitationSpec
 import qualified Test.XeroContractSpec
+import qualified Test.XeroImportedPayItemsSpec
 import qualified Test.XeroKeepaliveSpec
 import qualified Test.XeroTimesheetPreviewSpec
 import qualified Test.XeroTimesheetReadinessSpec
@@ -190,6 +191,7 @@ allSuites =
     , TestSuite "MutationBoundary" Test.MutationBoundarySpec.tests
     , TestSuite "SurfaceProjection" Test.SurfaceProjectionSpec.tests
     , TestSuite "XeroContract" Test.XeroContractSpec.tests
+    , TestSuite "XeroImportedPayItems" Test.XeroImportedPayItemsSpec.tests
     , TestSuite "XeroKeepalive" Test.XeroKeepaliveSpec.tests
     , TestSuite "XeroTimesheetPreview" Test.XeroTimesheetPreviewSpec.tests
     , TestSuite "XeroTimesheetReadiness" Test.XeroTimesheetReadinessSpec.tests
