@@ -96,7 +96,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Keep HTMX autosave on the hidden input (`hx-trigger="change"`), and let JS dispatch `change` after selecting/clearing a modal option.
 
 ## Theming Pattern (Dark Mode)
-- The app uses a centralized token system in `static/app.css` (`:root` CSS variables) with dark mode as the default.
+- The app uses a centralized token system in `static/css/tokens.css` (`:root` CSS variables) with dark mode as the default. Read `static/css/README.md` before adding or moving app-owned CSS.
 - Root layout sets dark mode via `<html data-bs-theme="dark">`; all new views should inherit this instead of setting per-page theme flags.
 - Prefer semantic app wrappers/classes over one-off utilities:
   - page shells: `app-shell`, `app-content`, `app-page`, `app-page-auth`
@@ -105,7 +105,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Signed-in pages should use `renderAppPage` from `Application/Helper/View/Chrome.hs` plus `app-panel` surfaces. Reserve `app-page-auth` / `app-auth-card` for unauthenticated auth and welcome flows only.
 - Prefer `renderAppPanel` from `Application/Helper/View/Chrome.hs` for ordinary themed surfaces instead of hand-writing `app-panel`, `app-panel-header`, and `app-panel-body` markup in each view. Use the custom-header escape hatch only when a surface needs richer toolbar chrome like week navigation.
 - Keep page-level titles and summary copy in the shared `app-page-header`. Use panel headers (`app-panel-header`, `app-panel-title`, `app-panel-description`) only for secondary sections inside the page body.
-- Avoid inline `style="..."` in HSX for layout/sizing; add a reusable class in `static/app.css` instead.
+- Avoid inline `style="..."` in HSX for layout/sizing; add a reusable class in the narrowest matching `static/css/` module instead.
 - Avoid hardcoded light-mode classes (`bg-light`, `text-muted`) in new views; use semantic classes/tokens.
 - For new component colors, add/consume CSS variables first, then apply them in selectors (including Bootstrap overrides).
 

@@ -1,6 +1,6 @@
 ---
 id: ir-re0y
-status: open
+status: closed
 deps: []
 links: []
 created: 2026-05-29T00:51:30Z
@@ -22,3 +22,9 @@ Add static/css/README.md. Update static/AGENTS.md and Web/View/AGENTS.md. Keep r
 
 static/css/README.md exists and gives a clear ownership map plus examples for roster, timesheets, overlays, forms, buttons, tables, palettes, and feature-only CSS. static/AGENTS.md tells agents how to choose a module, how to add stylesheet links, and what not to duplicate. Web/View/AGENTS.md references static/css/tokens.css and the CSS README. No runtime CSS behavior changes are made. bash ./bin/in-env ./bin/style-audit still passes its failing checks.
 
+
+## Notes
+
+**2026-05-29T01:09:17Z**
+
+Implemented static/css/README.md ownership map and updated static/Web view agent guidance. Verification: bash ./bin/in-env ./bin/style-audit (passed; existing warning-only hardcoded palette/light utility/inline-style findings remain reported).

@@ -18,15 +18,30 @@ Read this before editing `static/` assets.
   - `app-timesheets.js`
   - `app-toasts.js`
   - `app.js`
-- Keep CSS split by concern under `static/css/`.
+- Keep CSS split by concern under `static/css/`; read `static/css/README.md`
+  before adding or moving app-owned CSS.
+- Choose the narrowest owner: tokens in `static/css/tokens.css`, Bootstrap
+  bridges in `static/css/bootstrap-bridge.css`, shell/header layout in
+  `static/css/layout.css`, shared UI primitives in `static/css/components.css`
+  or `static/css/components/*.css`, overlays in `static/css/overlays.css`, and
+  feature-only rules in `static/css/features/*` or focused feature modules.
 - Add feature CSS to the narrowest matching file instead of growing
-  `static/app.css`.
+  `static/app.css`; keep `static/app.css` compatibility-only.
+- Before adding selectors, search for existing modules/classes, prefer shared
+  component primitives, add semantic tokens before raw colours, and scope
+  feature CSS by feature root/prefix.
+- Avoid global `.app-*`, `.btn`, `.form-*`, `.nav-*`, `.breadcrumb`, or
+  Bootstrap overrides in feature stylesheets unless the exception is explicitly
+  documented in the CSS README or local feature docs.
 - Link split CSS from `Web/View/Layout.hs` with `assetPath`; mirror each linked
   app-owned stylesheet in `Makefile` `CSS_FILES` so packaging hash inputs stay
-  complete.
+  complete and in cascade order.
 - Do not use production CSS `@import` for app-owned files because imported URLs
   do not receive IHP's cache-busting query string.
-- Run `bash ./bin/in-env ./bin/style-audit` after stylesheet link changes.
+- Do not edit generated or third-party CSS (`static/prod.css`,
+  `static/vendor/**`) as part of app stylesheet refactors.
+- Run `bash ./bin/in-env ./bin/style-audit` after stylesheet link, token, or
+  architecture changes.
 - Do not add a bundler as part of ordinary runtime refactors.
 
 ## Live Runtime
