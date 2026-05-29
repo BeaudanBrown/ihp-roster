@@ -142,6 +142,47 @@ tests = beforeAll testContext do
 
                 liveFragmentResponseShouldRenderTarget response fragmentRef
 
+        it "renders unified toolbar and day-columns fragments for HTMX week navigation" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet HTMX Fragment Venue"
+                manager <- createUserRecord "timesheet-htmx-fragment-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callActionWithParams ShowTimesheetWeekAction { weekOffset = 1 }
+                            [ ("showApproved", "true")
+                            , ("showAllStaff", "false")
+                            ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
+                response `responseBodyShouldContain` "id=\"timesheet-day-columns\""
+                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+                response `responseBodyShouldContain` "data-live-update-surface="
+                response `responseBodyShouldNotContain` "id=\"timesheet-week-shell\" hx-history-elt"
+
+        it "renders declared timesheet toolbar and day-columns fragment targets" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Timesheet Layout Fragment Venue"
+                manager <- createUserRecord "timesheet-layout-fragment-manager@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createStaffRecord venue (Just manager) "Mia" "Manager"
+
+                toolbarResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction ShowTimesheetToolbarFragmentAction { weekOffset = 0 }
+                columnsResponse <- withUserAndCurrentVenue manager venue.id do
+                    callAction ShowTimesheetDayColumnsFragmentAction { weekOffset = 0 }
+
+                toolbarResponse `responseStatusShouldBe` status200
+                toolbarResponse `responseBodyShouldContain` "id=\"timesheet-week-toolbar\""
+                toolbarResponse `responseBodyShouldContain` "data-live-update-url=\"/ShowTimesheetToolbarFragment"
+                columnsResponse `responseStatusShouldBe` status200
+                columnsResponse `responseBodyShouldContain` "id=\"timesheet-day-columns\""
+                columnsResponse `responseBodyShouldContain` "data-live-update-surface="
+                columnsResponse `responseBodyShouldContain` "id=\"timesheet-day-section-0\""
+
         it "lets super-admin create timesheet entries for venue staff without a staff identity" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Support Timesheet Venue"
@@ -622,7 +663,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "id=\"timesheet-day-section-1\""
-                response `responseBodyShouldNotContain` "id=\"timesheet-day-section-1\" hx-swap-oob="
+                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
                 versionAfter <- currentLiveUpdateVersion TimesheetWeekScope { venueId = unpackId venue.id, weekOffset = 0 }
                 versionAfter `shouldBe` versionBefore + 1
 
