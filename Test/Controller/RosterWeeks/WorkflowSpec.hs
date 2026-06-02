@@ -1,11 +1,12 @@
 module Test.Controller.RosterWeeks.WorkflowSpec where
 
 import Application.Async.Queue (EnqueueAppJobResult (..))
-import Application.Helper.Controller (PlatformRole (SuperAdminRole), venueWeekStartDate)
+import Application.Helper.Controller (PlatformRole (SuperAdminRole),
+                                      venueWeekStartDate)
 import Application.Helper.LiveResource (LiveResource (..))
-import Application.Helper.UserPreferences
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
+import Application.Helper.UserPreferences
 import Application.RosterTimesheets.Automation (enqueueRosterTimesheetCreationJobsForWeek,
                                                 performRosterTimesheetCreationJob,
                                                 rosterTimesheetCreationJobKind,
@@ -15,8 +16,8 @@ import qualified Data.Aeson as Aeson
 import qualified Data.ByteString.Char8 as ByteString
 import Data.Coerce (coerce)
 import Data.List (sortOn)
-import qualified Data.Set as Set
 import Data.Maybe (fromJust)
+import qualified Data.Set as Set
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
 import Generated.Types
@@ -104,7 +105,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs body :: String
-                bodyText `shouldBe` ""
+                bodyText `shouldContain` "id=\"dialog-overlay-mount\""
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 fromJust triggerHeader `shouldContain` "app-live-fragments-refresh"
@@ -181,7 +182,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs body :: String
-                bodyText `shouldBe` ""
+                bodyText `shouldContain` "id=\"dialog-overlay-mount\""
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
@@ -214,7 +215,7 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs body :: String
-                bodyText `shouldBe` ""
+                bodyText `shouldContain` "id=\"dialog-overlay-mount\""
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
@@ -485,7 +486,12 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-invalid-slot-time@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled True)
                 slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                level <- createPayLevelRecord venue "Level 1"
+                shiftType <- createShiftTypeRecord venue level "Floor"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay slotName
@@ -494,7 +500,11 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (CreateRosterSlotAction rosterDay.id slotDefinition.id 0)
-                            [("startTime", "09:00"), ("endTime", "08:00")]
+                            [ ("staffId", idToParam staffMember.id)
+                            , ("startTime", "09:00")
+                            , ("endTime", "08:00")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
 
                 createResponse `responseStatusShouldBe` status200
                 createResponse `responseBodyShouldContain` "Choose an end time after the start time within the 6:00 AM to 5:45 AM roster day."
@@ -504,12 +514,12 @@ tests = beforeAll testContext do
                     |> fetchCount
                     >>= (`shouldBe` 0)
 
-                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 1
                 completeSlot <- updateRecord
                     ( slot
                         |> set #startTime (Just (timeOfDay 9 0))
                         |> set #endTime (Just (timeOfDay 17 0))
+                        |> set #shiftTypeId (Just (unpackId shiftType.id))
                         |> set #durationMinutes (Just 480)
                     )
 
@@ -517,7 +527,11 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterSlotAction completeSlot.id)
-                            [("endTime", "08:00")]
+                            [ ("staffId", idToParam staffMember.id)
+                            , ("startTime", "09:00")
+                            , ("endTime", "08:00")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
 
                 updateResponse `responseStatusShouldBe` status200
                 updateResponse `responseBodyShouldContain` "Choose an end time after the start time within the 6:00 AM to 5:45 AM roster day."
@@ -913,7 +927,7 @@ tests = beforeAll testContext do
                 manager <- createUserRecord "roster-manager-republish-auto-timesheets@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True |> set #rosterEndTimesEnabled True)
                 slotName <- fetchSlotNameRecord venue "Late"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 level <- createPayLevelRecord venue "Level 1"
@@ -951,7 +965,11 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterSlotAction completeSlot.id)
-                            [("endTime", "03:00")]
+                            [ ("staffId", idToParam staffMember.id)
+                            , ("startTime", "22:00")
+                            , ("endTime", "03:00")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
                 editResponse `responseStatusShouldBe` status200
                 [entryAfterDraftEdit] <- query @TimesheetEntry |> fetch
                 entryAfterDraftEdit.id `shouldBe` generatedEntry.id
@@ -986,7 +1004,7 @@ tests = beforeAll testContext do
                 manager <- createUserRecord "roster-manager-auto-timesheet-edit-warning@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
-                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True)
+                _ <- updateRecord (venueConfig |> set #autoTimesheetCreationEnabled True |> set #rosterEndTimesEnabled True)
                 slotName <- fetchSlotNameRecord venue "Late"
                 alpha <- createStaffRecord venue Nothing "Alpha" "Crew"
                 bravo <- createStaffRecord venue Nothing "Bravo" "Crew"
@@ -1012,7 +1030,11 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterSlotAction completeSlot.id)
-                            [("staffId", idToParam bravo.id)]
+                            [ ("staffId", idToParam bravo.id)
+                            , ("startTime", "22:00")
+                            , ("endTime", "02:00")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "A pending timesheet already exists for this roster slot, so the timesheet was not changed. Edit the timesheet entry directly."
@@ -1038,12 +1060,12 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)) |> set #shiftTypeId Nothing)
 
                 draftResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekAction 0)
                 draftResponse `responseStatusShouldBe` status200
-                draftResponse `responseBodyShouldNotContain` "is-publish-required"
+                draftResponse `responseBodyShouldNotContain` "is-roster-shift-publish-required"
                 draftResponse `responseBodyShouldNotContain` "required after failed publish"
 
                 blockedResponse <- withUserAndCurrentVenue manager venue.id do
@@ -1054,9 +1076,7 @@ tests = beforeAll testContext do
 
                 blockedResponse `responseStatusShouldBe` status200
                 blockedResponse `responseBodyShouldContain` "Roster week cannot go live until every staffed shift has a start time, valid end time, and shift type."
-                blockedResponse `responseBodyShouldContain` "is-publish-required"
-                blockedResponse `responseBodyShouldContain` "Select roster slot end time required after failed publish"
-                blockedResponse `responseBodyShouldContain` "Shift type required after failed publish"
+                blockedResponse `responseBodyShouldContain` "is-roster-shift-publish-required"
                 blockedWeek <- fetch rosterWeek.id
                 blockedWeek.isLive `shouldBe` False
 
@@ -1074,7 +1094,7 @@ tests = beforeAll testContext do
                             [("isLive", "on")]
 
                 publishedResponse `responseStatusShouldBe` status200
-                publishedResponse `responseBodyShouldNotContain` "is-publish-required"
+                publishedResponse `responseBodyShouldNotContain` "is-roster-shift-publish-required"
                 publishedResponse `responseBodyShouldNotContain` "required after failed publish"
                 publishedWeek <- fetch rosterWeek.id
                 publishedWeek.isLive `shouldBe` True
@@ -1093,7 +1113,7 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
-                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)))
+                _ <- updateRecord (slot |> set #startTime (Just (timeOfDay 9 0)) |> set #shiftTypeId Nothing)
 
                 blockedResponse <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
@@ -1123,6 +1143,8 @@ tests = beforeAll testContext do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-slot-end-type@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                venueConfig <- query @VenueConfig |> filterWhere (#venueId, unpackId venue.id) |> fetchOne
+                _ <- updateRecord (venueConfig |> set #rosterEndTimesEnabled True)
                 slotName <- fetchSlotNameRecord venue "Late"
                 staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 level <- createPayLevelRecord venue "Level 1"
@@ -1135,7 +1157,8 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (UpdateRosterSlotAction slot.id)
-                            [ ("startTime", "22:00")
+                            [ ("staffId", idToParam staffMember.id)
+                            , ("startTime", "22:00")
                             , ("endTime", "02:00")
                             , ("shiftTypeId", idToParam shiftType.id)
                             ]
@@ -1178,7 +1201,8 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs (rosterRowDomIdText rosterDay.id 0)
-                response `responseBodyShouldContain` ">Alpha</option>"
+                response `responseBodyShouldContain` ">Alpha</div>"
+                response `responseBodyShouldContain` "hx-get=\"/EditRosterSlotDialog?rosterSlotId="
 
         it "renders shift type colours without a roster highlight toggle" $ withContext do
             withCleanDb do
@@ -1253,7 +1277,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` cs rosterContentFragmentId
                 response `responseBodyShouldNotContain` cs rosterStaffPanelFragmentId
-                response `responseBodyShouldContain` ">Alpha</option>"
+                response `responseBodyShouldContain` ">Alpha</div>"
+                response `responseBodyShouldContain` "hx-get=\"/EditRosterSlotDialog?rosterSlotId="
 
         it "manager can fetch the roster staff panel fragment for the current venue" $ withContext do
             withCleanDb do

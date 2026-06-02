@@ -87,7 +87,7 @@
         if (!(root instanceof HTMLElement) || !preserveField) return null;
 
         const fieldKey = preserveField.fieldKey;
-        const fieldKeyAttr = preserveField.fieldKeyAttr || 'data-roster-field-key';
+        const fieldKeyAttr = preserveField.fieldKeyAttr || 'data-live-field-key';
         if (fieldKey) {
             const escapedKey = window.CSS && typeof window.CSS.escape === 'function'
                 ? window.CSS.escape(fieldKey)

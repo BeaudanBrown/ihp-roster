@@ -484,7 +484,7 @@ export function firstRosterDaySection(scope: Page | Locator) {
 }
 
 export function editableRosterDaySections(scope: Page | Locator) {
-    return scope.locator('[data-roster-day-section]:has(select[name="staffId"])');
+    return scope.locator('[data-roster-day-section]:has([data-roster-shift-launcher="true"])');
 }
 
 export function firstEditableRosterDaySection(scope: Page | Locator) {
@@ -500,7 +500,7 @@ export function firstRemovableRosterDaySection(scope: Page | Locator) {
 }
 
 export function editableRosterRows(scope: Page | Locator) {
-    return scope.locator('[data-roster-row]:has(select[name="staffId"])');
+    return scope.locator('[data-roster-row]:has([data-roster-shift-launcher="true"])');
 }
 
 export function rosterDayAddButton(scope: Page | Locator) {

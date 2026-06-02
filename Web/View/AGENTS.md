@@ -56,16 +56,14 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Use `appendQueryParams` for links/forms that need query strings. It URL-encodes keys and values; do not hand-build `?key=value` strings from user or token text.
 
 ## Roster HTMX Pattern
-- For high-frequency roster edits, avoid `hx-target="#roster-content"` full-fragment swaps on each input.
-- Prefer row-targeted updates: set stable `<tr id=... data-roster-row="true">` IDs and return only affected rows with `hx-swap-oob="outerHTML"`.
-- Keep `hx-sync` on roster inputs anchored to a stable wrapper that will not be replaced by the response (for roster week pages, use `#roster-week-shell:queue last`, not `#roster-content`).
+- Roster shift edits are whole-shift dialog submits. Grid cells/cards are launchers with `data-roster-shift-launcher`, not inline autosave inputs.
+- Dialog forms post atomically to the slot create/update actions and target `#dialog-overlay-mount`; successful actor responses clear the dialog and trigger live fragment refreshes.
+- Keep row/day/content fragment IDs stable (`data-roster-row="true"`, day section ids) so actor and passive live refreshes can replace the right server-rendered fragment.
 - Do not wire feature/view behavior directly to `turbolinks:load`. The shared client runtime emits `app:page-ready` for full-page loads and HTMX swaps, and that runtime is responsible for re-processing any fresh `hx-*` markup.
 - When a roster shell participates in live fragments, render scope metadata on the stable shell (`#roster-week-shell`) so JS can subscribe/unsubscribe as `weekOffset` changes without guessing from the URL.
 - Live fragment refetch endpoints should return plain server-rendered fragments for the target DOM node; reserve `hx-swap-oob` variants for the actor path.
 - For viewer-side row refetches, do not return `hx-swap-oob` row wrappers from the fragment GET action; return the plain `<tr>` fragment and let JS replace the target row directly.
-- Mark row fragments as blur-deferred on the client when remote updates should not overwrite focused `.slot-cell-input` controls.
-- If a blur-deferred row contains repeated field names across slot columns (`staffId`, `shiftTypeId`, `startTime`), render a stable per-control key such as `data-roster-field-key` from the slot id. Client-side restore logic must target that key instead of the first matching `[name=...]` in the row.
-- Do not add blur deferral for discrete roster controls like staff selects, shift-type selects, or committed time-picker changes. Reintroduce narrow protection only if a delayed free-text control returns.
+- Do not add blur deferral for roster shift launchers or committed dialog submits. Reintroduce narrow protection only if a delayed free-text control returns.
 
 ## Shared Live Shell Pattern
 - Treat the page shell or stable section shell as the subscription owner. Render declarative surface metadata on that owner so the shared client can subscribe/unsubscribe as HTMX navigation swaps shells in and out.
@@ -76,7 +74,7 @@ HTML form attributes are not validation. Keep `required`, hidden inputs, and sel
 - Use one fragment model with multiple triggers: plain fragment renderers serve GET/live refetches, and the same typed fragment enum feeds actor OOB responses through `respondWithTypedLiveSurfaceFragments`. Avoid adding parallel `renderXxxOob` wrappers unless a scoped migration cannot use the shared helper yet.
 - Use `LiveFragmentProtection` policies for reusable browser-side protection such as focused-field deferral. Do not add feature adapters for generic websocket lifecycle, reconnect, dedupe, version tracking, request decoration, resync, refetch queueing, or swapping.
 - Shared reconnect contract: subscriptions should carry a `lastSeenVersion`, subscribe acks should report `currentVersion` plus whether a scope resync is needed, and a gap in scope versions should trigger a full scope resync using the surface's `resyncFragments` instead of guessing which invalidations were missed.
-- When a reconnect resync falls back to a coarse content fragment, keep the same focus-protection rules as normal live invalidations: defer the content refetch until blur if a `.slot-cell-input` inside that fragment is still focused, while allowing unrelated mounted fragments such as side panels to refresh immediately.
+- When a reconnect resync falls back to a coarse content fragment, keep the same focus-protection rules as normal live invalidations; do not defer roster content just because a shift launcher is focused.
 - Do not use a live surface just because a form currently redirects. A surface is warranted when the mounted page can become stale from another actor, another tab, or an async job. For actor-only edits, prefer HTMX fragments/OOB swaps. For auth, passkey, support venue switching, and other session/security flows, prefer normal browser navigation unless the product explicitly needs in-place behavior.
 - Fan-out invalidations should not search every historical table row just to discover possible cold targets. Use the active live-scope snapshot helpers in `Application.Helper.LiveUpdate` to narrow broad mutations to currently mounted scopes, then fetch detailed fragment data for those scopes only.
 - Existing non-live candidate areas:

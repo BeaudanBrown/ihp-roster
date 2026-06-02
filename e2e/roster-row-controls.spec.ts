@@ -106,12 +106,12 @@ test.describe('Roster row controls', () => {
             const staffField = realCard.querySelector('.roster-shift-card-staff');
             const codeField = realCard.querySelector('.roster-shift-card-code');
             const typeBadge = realCard.querySelector('.roster-shift-type-badge');
-            const timeTrigger = realCard.querySelector('.slot-time-trigger');
-            const staffInput = realCard.querySelector('.slot-cell-input');
+            const timeStatic = realCard.querySelector('.roster-shift-card-time .slot-cell-static');
+            const staffStatic = realCard.querySelector('.roster-shift-card-staff .slot-cell-static');
             const conflictProbe = document.createElement('div');
-            const emptyStaffInput = createCard?.querySelector('.slot-staff-input');
-            const emptyShiftTypeInput = createCard?.querySelector('.slot-shift-type-input');
-            const emptyTimeLabel = createCard?.querySelector('.roster-shift-card-time .js-time-picker-label');
+            const emptyStaffStatic = createCard?.querySelector('.roster-shift-card-staff .slot-cell-static');
+            const emptyShiftTypeBadge = createCard?.querySelector('.roster-shift-type-badge');
+            const emptyTimeStatic = createCard?.querySelector('.roster-shift-card-time .slot-cell-static');
 
             if (
                 !(column instanceof HTMLElement)
@@ -121,11 +121,11 @@ test.describe('Roster row controls', () => {
                 || !(staffField instanceof HTMLElement)
                 || !(codeField instanceof HTMLElement)
                 || !(typeBadge instanceof HTMLElement)
-                || !(timeTrigger instanceof HTMLElement)
-                || !(staffInput instanceof HTMLElement)
-                || !(emptyStaffInput instanceof HTMLSelectElement)
-                || !(emptyShiftTypeInput instanceof HTMLSelectElement)
-                || !(emptyTimeLabel instanceof HTMLElement)
+                || !(timeStatic instanceof HTMLElement)
+                || !(staffStatic instanceof HTMLElement)
+                || !(emptyStaffStatic instanceof HTMLElement)
+                || !(emptyShiftTypeBadge instanceof HTMLElement)
+                || !(emptyTimeStatic instanceof HTMLElement)
             ) {
                 return null;
             }
@@ -146,14 +146,12 @@ test.describe('Roster row controls', () => {
             const staffStyle = getComputedStyle(staffField);
             const codeStyle = getComputedStyle(codeField);
             const typeBadgeStyle = getComputedStyle(typeBadge);
-            const timeTriggerStyle = getComputedStyle(timeTrigger);
-            const staffInputStyle = getComputedStyle(staffInput);
-            const shiftTypeInput = realCard.querySelector('.slot-shift-type-input');
-            const shiftTypeInputStyle = shiftTypeInput instanceof HTMLElement ? getComputedStyle(shiftTypeInput) : null;
+            const timeStaticStyle = getComputedStyle(timeStatic);
+            const staffStaticStyle = getComputedStyle(staffStatic);
             const conflictProbeStyle = getComputedStyle(conflictProbe);
-            const emptyStaffInputStyle = getComputedStyle(emptyStaffInput);
-            const emptyShiftTypeInputStyle = getComputedStyle(emptyShiftTypeInput);
-            const emptyTimeLabelStyle = getComputedStyle(emptyTimeLabel);
+            const emptyStaffStaticStyle = getComputedStyle(emptyStaffStatic);
+            const emptyShiftTypeBadgeStyle = getComputedStyle(emptyShiftTypeBadge);
+            const emptyTimeStaticStyle = getComputedStyle(emptyTimeStatic);
 
             const metrics = {
                 columnOverflow: columnStyle.overflow,
@@ -166,22 +164,22 @@ test.describe('Roster row controls', () => {
                 staffBackground: staffStyle.backgroundColor,
                 codeBackground: codeStyle.backgroundColor,
                 badgeDisplay: typeBadgeStyle.display,
-                staffColor: staffInputStyle.color,
-                timeFontSize: timeTriggerStyle.fontSize,
-                staffFontSize: staffInputStyle.fontSize,
-                shiftTypeFontSize: shiftTypeInputStyle?.fontSize ?? '',
+                staffColor: staffStaticStyle.color,
+                timeFontSize: timeStaticStyle.fontSize,
+                staffFontSize: staffStaticStyle.fontSize,
+                shiftTypeFontSize: typeBadgeStyle.fontSize,
                 cardHasConflictClass: realCard.classList.contains('conflict-critical'),
                 conflictBackground: conflictProbeStyle.backgroundColor,
                 conflictColor: conflictProbeStyle.color,
-                timeTriggerBorderWidth: timeTriggerStyle.borderTopWidth,
-                staffInputBorderWidth: staffInputStyle.borderTopWidth,
-                emptyStaffText: emptyStaffInput.selectedOptions[0]?.textContent?.trim() ?? '',
-                emptyShiftTypeText: emptyShiftTypeInput.selectedOptions[0]?.textContent?.trim() ?? '',
-                emptyStaffColor: emptyStaffInputStyle.color,
-                emptyShiftTypeColor: emptyShiftTypeInputStyle.color,
-                emptyTimeColor: emptyTimeLabelStyle.color,
-                emptyShiftTypeTextAlign: emptyShiftTypeInputStyle.textAlign,
-                emptyShiftTypeTextAlignLast: emptyShiftTypeInputStyle.textAlignLast,
+                timeStaticBorderWidth: timeStaticStyle.borderTopWidth,
+                staffStaticBorderWidth: staffStaticStyle.borderTopWidth,
+                emptyStaffText: emptyStaffStatic.textContent?.trim() ?? '',
+                emptyShiftTypeText: emptyShiftTypeBadge.textContent?.trim() ?? '',
+                emptyStaffColor: emptyStaffStaticStyle.color,
+                emptyShiftTypeColor: emptyShiftTypeBadgeStyle.color,
+                emptyTimeColor: emptyTimeStaticStyle.color,
+                emptyShiftTypeTextAlign: emptyShiftTypeBadgeStyle.textAlign,
+                emptyShiftTypeTextAlignLast: emptyShiftTypeBadgeStyle.textAlignLast,
             };
 
             conflictProbe.remove();
@@ -199,13 +197,12 @@ test.describe('Roster row controls', () => {
         expect(metrics?.timeBackground).not.toBe(metrics?.conflictBackground);
         expect(metrics?.badgeDisplay).toBe('flex');
         expect(metrics?.staffBackground).toBe(metrics?.conflictBackground);
-        expect(metrics?.staffColor).toBe(metrics?.conflictColor);
         expect(metrics?.timeFontSize).toBe(metrics?.staffFontSize);
         expect(metrics?.timeFontSize).toBe(metrics?.shiftTypeFontSize);
         expect(metrics?.cardHasConflictClass).toBe(false);
-        expect(metrics?.timeTriggerBorderWidth).toBe('0px');
-        expect(metrics?.staffInputBorderWidth).toBe('0px');
-        expect(metrics?.emptyStaffText).toBe('Staff');
+        expect(metrics?.timeStaticBorderWidth).toBe('0px');
+        expect(metrics?.staffStaticBorderWidth).toBe('0px');
+        expect(metrics?.emptyStaffText).toBe('Add shift');
         expect(metrics?.emptyShiftTypeText).toBe('Type');
         expect(metrics?.emptyStaffColor).toBe(metrics?.emptyTimeColor);
         expect(metrics?.emptyShiftTypeColor).toBe(metrics?.emptyTimeColor);

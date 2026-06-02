@@ -81,9 +81,15 @@ tests = beforeAll testContext do
             withEnv "IHP_ROSTER_PROFILING" (Just "1") do
                 withCleanDb do
                     BaselineRoster { brVenue, brManager, brRosterDay, brMutableSlot, brAlternateStaff } <- createBaselineRoster
+                    shiftType <- ensureVenueDefaultShiftType brVenue
 
                     mutationResponse <- withUserAndCurrentVenue brManager brVenue.id do
-                        callActionWithParams (UpdateRosterSlotAction brMutableSlot.id) [("staffId", ByteString.pack (cs (tshow brAlternateStaff.id)))]
+                        callActionWithParams
+                            (UpdateRosterSlotAction brMutableSlot.id)
+                            [ ("staffId", idToParam brAlternateStaff.id)
+                            , ("startTime", "08:00")
+                            , ("shiftTypeId", idToParam shiftType.id)
+                            ]
                     passiveRefetch <- withUserAndCurrentVenue brManager brVenue.id do
                         callAction (ShowRosterWeekRowFragmentAction 0 brRosterDay.id 0)
 
@@ -170,5 +176,5 @@ withEnv name value action =
         restore previous =
             apply previous
 
-        apply Nothing = Environment.unsetEnv name
+        apply Nothing         = Environment.unsetEnv name
         apply (Just envValue) = Environment.setEnv name envValue

@@ -7,6 +7,7 @@
 module Web.Controller.RosterWeeks where
 
 import Application.Helper.Controller
+import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource)
 import Application.Helper.LiveSurface (serveTypedLiveFragment,
                                        setTypedLiveSurfaceActorRefresh,
                                        typedLiveSurfaceAffectedFragments)
@@ -20,15 +21,15 @@ import Application.Helper.View (DialogOverlayConfig (..), OverlayButton (..),
                                 dialogOverlayMountId, errorToast,
                                 renderDialogOverlay, renderToastOob,
                                 successToast)
-import Application.Helper.LiveResource (LiveMutationResult (..), LiveResource)
 import Data.Coerce (coerce)
 import Data.List (nub)
-import qualified Data.Set as Set
+import qualified Data.Map.Strict as Map
 import Data.Maybe (catMaybes, fromMaybe, isJust, mapMaybe)
+import qualified Data.Set as Set
 import qualified Data.Text as Text
 import Data.Time (getCurrentTime, utctDay)
-import Data.Time.LocalTime (TimeOfDay)
 import qualified Data.Time.Calendar as Calendar
+import Data.Time.LocalTime (TimeOfDay)
 import qualified Data.UUID as UUID
 import qualified Text.Blaze.Html as Blaze
 import Web.Controller.Prelude
@@ -48,6 +49,7 @@ import Web.RosterWeeks.Responses (respondWithRosterContent,
                                   respondWithRosterToast)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
+import Web.RosterWeeks.StaffOptions (buildRosterStaffOptionStates)
 import Web.RosterWeeks.Types
 import Web.View.RosterWeeks.Overview (renderWeekOverviewPanelFragment)
 import Web.View.RosterWeeks.ShiftDialog
@@ -518,10 +520,10 @@ instance Controller RosterWeeksController where
         respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult previousStaffId [(rosterSlot.rosterDayId, rosterSlot.rowIndex)] False
 
 data ValidatedRosterShift = ValidatedRosterShift
-    { validRosterShiftStaffId    :: !UUID.UUID
-    , validRosterShiftStartTime  :: !TimeOfDay
-    , validRosterShiftEndTime    :: !(Maybe TimeOfDay)
-    , validRosterShiftTypeId     :: !UUID.UUID
+    { validRosterShiftStaffId   :: !UUID.UUID
+    , validRosterShiftStartTime :: !TimeOfDay
+    , validRosterShiftEndTime   :: !(Maybe TimeOfDay)
+    , validRosterShiftTypeId    :: !UUID.UUID
     }
 
 fetchRosterSlotCreateContext :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterDay -> Id RosterWeekSlotDefinition -> Int -> IO (RosterDay, RosterWeek, RosterWeekSlotDefinition)
@@ -556,10 +558,18 @@ renderRosterShiftDialogForCreate rosterDay rosterWeek slotDefinition rowIndex va
     staffMembers <- fetchEligibleRosterGroupStaff (coerce rosterWeek.rosterGroupId)
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
     venueConfig <- fetchVenueConfig
+    let targetSlot =
+            newRecord @RosterSlot
+                |> set #rosterDayId (unpackId rosterDay.id)
+                |> set #rosterWeekSlotDefinitionId (unpackId slotDefinition.id)
+                |> set #slotSortOrder slotDefinition.sortOrder
+                |> set #rowIndex rowIndex
+    staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek targetSlot staffMembers
     respondHtmlProfiled $ renderRosterShiftDialog RosterShiftDialogData
         { rosterShiftDialogMode = NewRosterShiftDialog rosterDay.id slotDefinition.id rowIndex
         , rosterShiftDialogTitle = "Add shift"
         , rosterShiftDialogStaff = staffMembers
+        , rosterShiftDialogStaffOptionStates = staffOptionStates
         , rosterShiftDialogShiftTypes = shiftTypes
         , rosterShiftDialogEndTimes = venueConfig.rosterEndTimesEnabled
         , rosterShiftDialogValues = values
@@ -570,14 +580,40 @@ renderRosterShiftDialogForEdit rosterSlot _rosterDay rosterWeek values = do
     staffMembers <- fetchEligibleRosterGroupStaff (coerce rosterWeek.rosterGroupId)
     shiftTypes <- fetchCurrentVenueRosterShiftTypesForDialog
     venueConfig <- fetchVenueConfig
+    staffOptionStates <- buildRosterShiftDialogStaffOptionStates (coerce rosterWeek.rosterGroupId) rosterWeek rosterSlot staffMembers
     respondHtmlProfiled $ renderRosterShiftDialog RosterShiftDialogData
         { rosterShiftDialogMode = EditRosterShiftDialog rosterSlot.id
         , rosterShiftDialogTitle = "Edit shift"
         , rosterShiftDialogStaff = staffMembers
+        , rosterShiftDialogStaffOptionStates = staffOptionStates
         , rosterShiftDialogShiftTypes = shiftTypes
         , rosterShiftDialogEndTimes = venueConfig.rosterEndTimesEnabled
         , rosterShiftDialogValues = values
         }
+
+buildRosterShiftDialogStaffOptionStates :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> RosterWeek -> RosterSlot -> [Staff] -> IO (Map.Map UUID.UUID RosterAssignmentOptionState)
+buildRosterShiftDialogStaffOptionStates rosterGroupId rosterWeek targetSlot staffMembers = do
+    venueConfig <- fetchVenueConfig
+    assignmentFilters <- fetchRosterAssignmentFilters
+    let weekStartDate = venueWeekStartDate venueConfig rosterWeek.weekOffset
+    rosterDays <- query @RosterDay
+        |> filterWhere (#rosterWeekId, unpackId rosterWeek.id)
+        |> fetch
+    visibleSlots <-
+        if null rosterDays
+            then pure []
+            else query @RosterSlot
+                |> filterWhereIn (#rosterDayId, map (unpackId . (.id)) rosterDays)
+                |> filterWhere (#deletedAt, Nothing)
+                |> fetch
+    let targetSlotId = coerce targetSlot.id
+    let slotsForOptions = targetSlot : filter (\slot -> coerce slot.id /= targetSlotId) visibleSlots
+    optionStates <- buildRosterStaffOptionStates rosterGroupId assignmentFilters weekStartDate rosterDays slotsForOptions staffMembers
+    pure $ Map.fromList
+        [ (coerce staff.id, optionState)
+        | staff <- staffMembers
+        , Just optionState <- [Map.lookup (targetSlotId, coerce staff.id) optionStates]
+        ]
 
 fetchCurrentVenueRosterShiftTypesForDialog :: (?context :: ControllerContext, ?modelContext :: ModelContext) => IO [ShiftType]
 fetchCurrentVenueRosterShiftTypesForDialog =
@@ -830,9 +866,9 @@ respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefresh
     rosterData <- fetchVisibleRosterReadModel rosterGroupId weekOffset
     case rosterData of
         Nothing -> respondHtmlProfiled [hsx||]
-        Just RosterRenderData { rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } -> do
+        Just RosterRenderData { rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } -> do
             let uniqueRowKeys = nub requestedRowKeys
-            let renderedRows = mapMaybe (renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers staffOptionStates shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled) uniqueRowKeys
+            let renderedRows = mapMaybe (renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled) uniqueRowKeys
             let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId RosterStaffPanelCurrentGroup panelStaff | shouldRefreshStaffPanel]
             respondHtmlProfiled (mconcat (renderedRows <> renderedStaffPanel))
 
@@ -850,7 +886,7 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
     passkeySetupPrompt <- passkeySetupPromptFromSession
 
     case rosterDataOrNothing of
-        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates } ->
+        Just RosterRenderData { rosterWeek, rosterDays, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates } ->
             let visibleRosterWeek =
                     if rosterWeek.isLive || hasRole ManagerRole'
                         then Just rosterWeek
@@ -866,7 +902,6 @@ renderRosterWeekPage weekOffset requestedRosterGroupId = do
                         , weekEndDate
                         , assignmentFilters
                         , staffMembers
-                        , staffOptionStates
                         , panelStaff
                         , staffSelfServicePanel
                         , slotNames = orderedSlotNames

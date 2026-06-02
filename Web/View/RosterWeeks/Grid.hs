@@ -75,14 +75,13 @@ renderRosterContent =
     renderRosterMainPanel
 
 renderRosterMainPanel :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridStaffOptionStates, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridPublishAttempted } =
+renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridPublishAttempted } =
     let dayModel =
             RosterDayRenderModel
                 { dayIsEditable = rosterWeekIsEditable gridRosterWeek
                 , daySlotNames = gridSlotNames
                 , dayAssignmentFilters = gridAssignmentFilters
                 , dayStaffMembers = gridStaffMembers
-                , dayStaffOptionStates = gridStaffOptionStates
                 , dayShiftTypes = gridShiftTypes
                 , dayWeekStartDate = gridWeekStartDate
                 , dayAllSlots = gridAllSlots
@@ -458,12 +457,12 @@ rosterSlotHasVisibleData slot =
         || isJust slot.durationMinutes
 
 renderDayColumnRow :: (?context :: ControllerContext) => RosterRowRenderModel -> (Int, (Int, [RosterSlot])) -> Maybe Text -> Html
-renderDayColumnRow RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowStaffOptionStates, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
+renderDayColumnRow RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
     <div id={rosterRowDomIdText rowRosterDay.id rowIndex}
          data-roster-row="true"
          hx-swap-oob={maybeSwapOob}
          class={classes [("roster-day-column-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True)]}>
-        {forEach (zip [0 :: Int ..] rowSlotNames) (renderDayColumnSlotCard rowIsEditable rowAssignmentFilters rowStaffMembers rowStaffOptionStates rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
+        {forEach (zip [0 :: Int ..] rowSlotNames) (renderDayColumnSlotCard rowIsEditable rowAssignmentFilters rowStaffMembers rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
     </div>
 |]
 
@@ -481,14 +480,13 @@ lastRowIndexForRows :: [(Int, [RosterSlot])] -> Int
 lastRowIndexForRows dayRows = maybe (-1) fst (last dayRows)
 
 renderDayRows :: (?context :: ControllerContext) => RosterDayRenderModel -> Day -> RosterDay -> [(Int, [RosterSlot])] -> Html
-renderDayRows RosterDayRenderModel { dayIsEditable, daySlotNames, dayAssignmentFilters, dayStaffMembers, dayStaffOptionStates, dayShiftTypes, dayRenderIndexes, dayRosterLayoutMode, dayRosterEndTimesEnabled, dayPublishAttempted } date rosterDay dayRows =
+renderDayRows RosterDayRenderModel { dayIsEditable, daySlotNames, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayRenderIndexes, dayRosterLayoutMode, dayRosterEndTimesEnabled, dayPublishAttempted } date rosterDay dayRows =
     let rowModel =
             RosterRowRenderModel
                 { rowIsEditable = dayIsEditable
                 , rowSlotNames = daySlotNames
                 , rowAssignmentFilters = dayAssignmentFilters
                 , rowStaffMembers = dayStaffMembers
-                , rowStaffOptionStates = dayStaffOptionStates
                 , rowShiftTypes = dayShiftTypes
                 , rowDate = date
                 , rowRosterDay = rosterDay
@@ -522,13 +520,13 @@ renderRowWithAttrs :: (?context :: ControllerContext) => RosterRowRenderModel ->
 renderRowWithAttrs rowModel@RosterRowRenderModel { rowRosterLayoutMode } rowData maybeSwapOob
     | rosterLayoutModeValue rowRosterLayoutMode == "day_columns" =
         renderDayColumnRow rowModel rowData maybeSwapOob
-renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowStaffOptionStates, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
+renderRowWithAttrs RosterRowRenderModel { rowIsEditable, rowSlotNames, rowAssignmentFilters, rowStaffMembers, rowShiftTypes, rowRosterDay, rowRenderIndexes, rowRosterEndTimesEnabled, rowPublishAttempted } (_, (rowIndex, rowSlots)) maybeSwapOob = [hsx|
     <div id={rosterRowDomIdText rowRosterDay.id rowIndex}
          role="row"
          data-roster-row="true"
          hx-swap-oob={maybeSwapOob}
          class={classes [("day-row", True), ("day-row-" <> tshow (get #dayOffset rowRosterDay), True), ("day-alt-dark", odd (get #dayOffset rowRosterDay)), ("day-alt-light", even (get #dayOffset rowRosterDay))]}>
-        {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowStaffOptionStates rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
+        {forEach (zip [0 :: Int ..] rowSlotNames) (renderBlockCells rowIsEditable rowAssignmentFilters rowStaffMembers rowShiftTypes rowRosterEndTimesEnabled rowPublishAttempted rowRosterDay rowIndex rowSlots rowRenderIndexes)}
     </div>
 |]
 
@@ -649,20 +647,20 @@ renderDeleteLastRowButton rosterDay rowIndex =
         |]
         else [hsx|<span></span>|]
 
-renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
-renderBlockCells isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex rowSlots renderIndexes (blockIndex, slotName) =
+renderBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
+renderBlockCells isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex rowSlots renderIndexes (blockIndex, slotName) =
     if rosterDay.isClosed
         then renderClosedBlockCells endTimesEnabled blockIndex
         else
             maybe
                 (if isEditable
-                    then renderCreateBlockCells assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled rosterDay rowIndex blockIndex slotName
+                    then renderCreateBlockCells assignmentFilters staffMembers shiftTypes endTimesEnabled rosterDay rowIndex blockIndex slotName
                     else renderEmptyBlockCells endTimesEnabled blockIndex)
-                (renderExistingSlotBlockCells isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex)
+                (renderExistingSlotBlockCells isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex)
                 (Map.lookup (coerce (get #id rosterDay), rowIndex, coerce (get #id slotName)) renderIndexes.rosterSlotByDayRowSlotName)
 
-renderExistingSlotBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> Int -> RosterSlot -> Html
-renderExistingSlotBlockCells isEditable _assignmentFilters _staffMembers _staffOptionStates shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot =
+renderExistingSlotBlockCells :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> Int -> RosterSlot -> Html
+renderExistingSlotBlockCells isEditable _assignmentFilters _staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes blockIndex slot =
     let currentStartTime = optionalTimeOfDayToStorageValue slot.startTime
         currentEndTime = optionalTimeOfDayToStorageValue slot.endTime
         currentPrimaryConflict = primaryConflict (lookupConflicts (get #id slot) renderIndexes)
@@ -785,17 +783,17 @@ renderExistingSlotBlockCells isEditable _assignmentFilters _staffMembers _staffO
         |]
 
 renderDayColumnRosterSlotCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterSlot -> Html
-renderDayColumnRosterSlotCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayStaffOptionStates, dayShiftTypes, dayRenderIndexes, dayRosterEndTimesEnabled, dayPublishAttempted } slot =
-    renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayStaffOptionStates dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
+renderDayColumnRosterSlotCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayRenderIndexes, dayRosterEndTimesEnabled, dayPublishAttempted } slot =
+    renderDayColumnSlotCardContent dayIsEditable dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled dayPublishAttempted dayRenderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) dayRenderIndexes))
 
 renderDayColumnCreateCard :: (?context :: ControllerContext) => RosterDayRenderModel -> RosterDay -> Maybe RosterSlotCellTarget -> Html
-renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayStaffOptionStates, dayShiftTypes, dayRosterEndTimesEnabled } rosterDay maybeTarget
+renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable, dayAssignmentFilters, dayStaffMembers, dayShiftTypes, dayRosterEndTimesEnabled } rosterDay maybeTarget
     | not dayIsEditable || rosterDay.isClosed = mempty
     | otherwise =
         case maybeTarget of
             Nothing -> mempty
             Just target ->
-                renderDayColumnSlotCardContent True dayAssignmentFilters dayStaffMembers dayStaffOptionStates dayShiftTypes dayRosterEndTimesEnabled False emptyRenderIndexes target Nothing Nothing Nothing Nothing Nothing
+                renderDayColumnSlotCardContent True dayAssignmentFilters dayStaffMembers dayShiftTypes dayRosterEndTimesEnabled False emptyRenderIndexes target Nothing Nothing Nothing Nothing Nothing
   where
     emptyRenderIndexes =
         RosterRenderIndexes
@@ -806,17 +804,17 @@ renderDayColumnCreateCard RosterDayRenderModel { dayIsEditable, dayAssignmentFil
             , rosterConflictsBySlotId = Map.empty
             }
 
-renderDayColumnSlotCard :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
-renderDayColumnSlotCard isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex rowSlots renderIndexes (_, slotName)
+renderDayColumnSlotCard :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterDay -> Int -> [RosterSlot] -> RosterRenderIndexes -> (Int, RosterWeekSlotDefinition) -> Html
+renderDayColumnSlotCard isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted rosterDay rowIndex rowSlots renderIndexes (_, slotName)
     | rosterDay.isClosed = [hsx|<div class="roster-shift-card roster-shift-card-closed"><span>Closed</span></div>|]
     | otherwise =
         case Map.lookup (coerce (get #id rosterDay), rowIndex, coerce (get #id slotName)) renderIndexes.rosterSlotByDayRowSlotName of
             Just slot ->
-                renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers staffOptionStates shiftTypes endTimesEnabled publishAttempted renderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) renderIndexes))
+                renderDayColumnSlotCardContent isEditable assignmentFilters staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes (ExistingRosterSlotTarget slot.id) slot.staffId slot.startTime slot.endTime slot.shiftTypeId (primaryConflict (lookupConflicts (get #id slot) renderIndexes))
             Nothing -> [hsx|<div class="roster-shift-card roster-shift-card-empty"></div>|]
 
-renderDayColumnSlotCardContent :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> RosterSlotCellTarget -> Maybe UUID -> Maybe TimeOfDay -> Maybe TimeOfDay -> Maybe UUID -> Maybe RosterConflict -> Html
-renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers _staffOptionStates shiftTypes endTimesEnabled publishAttempted renderIndexes target staffId startTime endTime shiftTypeId currentPrimaryConflict =
+renderDayColumnSlotCardContent :: (?context :: ControllerContext) => Bool -> RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> Bool -> RosterRenderIndexes -> RosterSlotCellTarget -> Maybe UUID -> Maybe TimeOfDay -> Maybe TimeOfDay -> Maybe UUID -> Maybe RosterConflict -> Html
+renderDayColumnSlotCardContent isEditable _assignmentFilters _staffMembers shiftTypes endTimesEnabled publishAttempted renderIndexes target staffId startTime endTime shiftTypeId currentPrimaryConflict =
     let currentStartTime = optionalTimeOfDayToStorageValue startTime
         currentEndTime = optionalTimeOfDayToStorageValue endTime
         currentStaffLabel = fromMaybe "" (renderAssignedStaffLabel staffId renderIndexes)
@@ -886,8 +884,8 @@ renderEmptyBlockCells False blockIndex =
         , [hsx|<div role="gridcell" class="slot-empty-cell roster-block-end"></div>|]
         ]
 
-renderCreateBlockCells :: (?context :: ControllerContext) => RosterAssignmentFilters -> [Staff] -> Map.Map (UUID, UUID) RosterAssignmentOptionState -> [ShiftType] -> Bool -> RosterDay -> Int -> Int -> RosterWeekSlotDefinition -> Html
-renderCreateBlockCells _assignmentFilters _staffMembers _staffOptionStates _shiftTypes True rosterDay rowIndex blockIndex slotName =
+renderCreateBlockCells :: (?context :: ControllerContext) => RosterAssignmentFilters -> [Staff] -> [ShiftType] -> Bool -> RosterDay -> Int -> Int -> RosterWeekSlotDefinition -> Html
+renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes True rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
         groupKey = rosterShiftGroupKey target
      in mconcat
@@ -896,7 +894,7 @@ renderCreateBlockCells _assignmentFilters _staffMembers _staffOptionStates _shif
         , renderCreateLauncherCell target groupKey "slot-staff-cell position-relative roster-shift-launcher" ""
         , renderCreateLauncherCell target groupKey "slot-shift-type-cell roster-block-end is-shift-type-empty roster-shift-launcher" ""
         ]
-renderCreateBlockCells _assignmentFilters _staffMembers _staffOptionStates _shiftTypes False rosterDay rowIndex blockIndex slotName =
+renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes False rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
         groupKey = rosterShiftGroupKey target
      in mconcat

@@ -36,7 +36,6 @@ data ShowView = ShowView
     , weekEndDate           :: Day
     , assignmentFilters     :: RosterAssignmentFilters
     , staffMembers          :: [Staff]
-    , staffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
     , panelStaff            :: [RosterStaffPanelEntry]
     , staffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , slotNames             :: [RosterWeekSlotDefinition]
@@ -124,7 +123,6 @@ data RosterRenderData = RosterRenderData
     , weekStartDate         :: Day
     , assignmentFilters     :: RosterAssignmentFilters
     , staffMembers          :: [Staff]
-    , staffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
     , panelStaff            :: [RosterStaffPanelEntry]
     , staffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , orderedSlotNames      :: [RosterWeekSlotDefinition]
@@ -146,7 +144,6 @@ data RosterGridRenderModel = RosterGridRenderModel
     , gridCurrentRosterGroup    :: RosterGroup
     , gridAssignmentFilters     :: RosterAssignmentFilters
     , gridStaffMembers          :: [Staff]
-    , gridStaffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
     , gridPanelStaff            :: [RosterStaffPanelEntry]
     , gridStaffSelfServicePanel :: Maybe RosterStaffSelfServicePanel
     , gridSlotNames             :: [RosterWeekSlotDefinition]
@@ -168,7 +165,6 @@ data RosterDayRenderModel = RosterDayRenderModel
     , daySlotNames             :: [RosterWeekSlotDefinition]
     , dayAssignmentFilters     :: RosterAssignmentFilters
     , dayStaffMembers          :: [Staff]
-    , dayStaffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
     , dayShiftTypes            :: [ShiftType]
     , dayWeekStartDate         :: Day
     , dayAllSlots              :: [RosterSlot]
@@ -186,7 +182,6 @@ data RosterRowRenderModel = RosterRowRenderModel
     , rowSlotNames             :: [RosterWeekSlotDefinition]
     , rowAssignmentFilters     :: RosterAssignmentFilters
     , rowStaffMembers          :: [Staff]
-    , rowStaffOptionStates     :: Map (UUID, UUID) RosterAssignmentOptionState
     , rowShiftTypes            :: [ShiftType]
     , rowDate                  :: Day
     , rowRosterDay             :: RosterDay

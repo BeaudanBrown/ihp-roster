@@ -3,11 +3,12 @@ module Test.Controller.RosterWeeks.FragmentsSpec where
 import Application.Helper.Controller (PlatformRole (SuperAdminRole))
 import Application.Helper.LiveResource (LiveResource (..))
 import Application.Helper.LiveUpdate (LiveUpdateScope (..))
-import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..), LiveUpdateWireFragment (..))
+import Application.Helper.LiveUpdate.Runtime (LiveFragmentKey (..),
+                                              LiveUpdateWireFragment (..))
 import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Config
-import qualified Data.ByteString.Char8 as ByteString
+import Data.ByteString (ByteString)
 import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import Data.Time.Calendar (addDays)
@@ -24,7 +25,8 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
-import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..), planRegisteredLiveSurfaceInvalidations)
+import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
+                                planRegisteredLiveSurfaceInvalidations)
 import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDaySectionDomId,
                             rosterRowDomIdText, rosterStaffPanelFragmentId)
 import Web.Routes
@@ -51,14 +53,15 @@ tests = beforeAll testContext do
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just staffA) 0
 
+                shiftType <- ensureVenueDefaultShiftType venue
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow staffB.id)))]
+                    callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams staffB shiftType)
 
                 response `responseStatusShouldBe` status200
 
                 body <- responseBody response
                 let bodyText = cs body :: String
-                bodyText `shouldBe` ""
+                bodyText `shouldContain` "id=\"dialog-overlay-mount\""
 
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
                 let contentTarget = cs rosterContentFragmentId :: String
@@ -112,8 +115,9 @@ tests = beforeAll testContext do
                 otherDay <- createRosterDayRecord otherWeek 0
                 _ <- createRosterSlotRecord otherDay slotName (Just staffA) 2
 
+                shiftType <- ensureVenueDefaultShiftType venue
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction currentSlot.id) [("staffId", ByteString.pack (cs (tshow staffB.id)))]
+                    callActionWithParams (UpdateRosterSlotAction currentSlot.id) (fullShiftParams staffB shiftType)
 
                 response `responseStatusShouldBe` status200
                 let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
@@ -137,11 +141,11 @@ tests = beforeAll testContext do
                 _ <- updateRecord (staffMember |> set #idealShiftsPerWeek 1)
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
-                _ <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffAtIdealShifts", "true")]
-                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+                    callAction (EditRosterSlotDialogAction slot.id)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "selected=\"selected\">Alpha</option>"
@@ -169,11 +173,11 @@ tests = beforeAll testContext do
                         |> createRecord
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 mondayRosterDay <- createRosterDayRecord rosterWeek 0
-                _ <- createRosterSlotRecord mondayRosterDay slotName (Just selectedStaff) 0
+                slot <- createRosterSlotRecord mondayRosterDay slotName (Just selectedStaff) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffUnavailable", "true")]
-                    callAction (ShowRosterWeekRowFragmentAction 0 mondayRosterDay.id 0)
+                    callAction (EditRosterSlotDialogAction slot.id)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "selected=\"selected\">Selected</option>"
@@ -200,11 +204,11 @@ tests = beforeAll testContext do
                         |> createRecord
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
                 mondayRosterDay <- createRosterDayRecord rosterWeek 0
-                _ <- createRosterSlotRecord mondayRosterDay frontSlotName Nothing 0
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName mondayRosterDay frontSlotName
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffUnavailable", "true")]
-                    callAction (ShowRosterWeekRowFragmentAction 0 mondayRosterDay.id 0)
+                    callAction (NewRosterSlotDialogAction mondayRosterDay.id slotDefinition.id 0)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` ">CrossGroup</option>"
@@ -233,11 +237,11 @@ tests = beforeAll testContext do
                 _ <- createLeaveRequestRecord venue futureStaff (addDays 7 defaultWeekEpoch) (addDays 8 defaultWeekEpoch) "approved"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 mondayRosterDay <- createRosterDayRecord rosterWeek 0
-                _ <- createRosterSlotRecord mondayRosterDay slotName Nothing 0
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName mondayRosterDay slotName
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     _ <- callActionWithParams (UpdateRosterAssignmentFiltersAction 0) [("hideStaffOnApprovedLeave", "true")]
-                    callAction (ShowRosterWeekRowFragmentAction 0 mondayRosterDay.id 0)
+                    callAction (NewRosterSlotDialogAction mondayRosterDay.id slotDefinition.id 0)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` ">Approved</option>"
@@ -245,7 +249,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` ">Ended</option>"
                 response `responseBodyShouldContain` ">Future</option>"
 
-        it "renders unique roster field keys for each editable control in a multi-slot row fragment" $ withContext do
+        it "renders unique roster shift launchers in a multi-slot row fragment" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-field-keys@example.com" "staff" True
@@ -258,7 +262,7 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 firstSlot <- createRosterSlotRecord rosterDay early (Just staffMember) 0
-                secondSlot <- createRosterSlotRecord rosterDay late Nothing 0
+                lateDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay late
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
@@ -266,12 +270,11 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 body <- responseBody response
                 let bodyText = cs body :: String
-                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow firstSlot.id) <> ":startTime\"")
-                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow firstSlot.id) <> ":staffId\"")
-                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow firstSlot.id) <> ":shiftTypeId\"")
-                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow secondSlot.id) <> ":startTime\"")
-                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow secondSlot.id) <> ":staffId\"")
-                bodyText `shouldContain` ("data-roster-field-key=\"" <> cs (tshow secondSlot.id) <> ":shiftTypeId\"")
+                bodyText `shouldContain` ("data-roster-shift-group-key=\"existing:" <> cs (tshow firstSlot.id) <> "\"")
+                bodyText `shouldContain` ("hx-get=\"/EditRosterSlotDialog?rosterSlotId=" <> cs (tshow firstSlot.id) <> "\"")
+                bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow lateDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow lateDefinition.id) <> "&amp;rowIndex=0\"")
+                bodyText `shouldNotContain` "data-roster-field-key="
 
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do
@@ -287,9 +290,10 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName Nothing 0
+                shiftType <- ensureVenueDefaultShiftType venue
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow alpha.id)))]
+                    callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams alpha shiftType)
 
                 response `responseStatusShouldBe` status200
                 updatedSlot <- fetch slot.id
@@ -331,21 +335,24 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecord venue 0 True
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
+                shiftType <- ensureVenueDefaultShiftType venue
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow bravo.id)))]
+                        callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams bravo shiftType)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Live roster weeks are read-only. Move it back to draft to make changes."
                 unchangedSlot <- fetch slot.id
                 unchangedSlot.staffId `shouldBe` Just (unpackId alpha.id)
 
-        it "creates a sparse roster slot when editing a synthetic empty cell" $ withContext do
+        it "creates a complete roster slot from a dialog submit" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
-                manager <- createUserRecord "roster-manager-create-sparse-slot@example.com" "staff" True
+                manager <- createUserRecord "roster-manager-create-complete-slot@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                shiftType <- ensureVenueDefaultShiftType venue
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slotDefinition <- newRecord @RosterWeekSlotDefinition
@@ -358,7 +365,7 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (CreateRosterSlotAction rosterDay.id slotDefinition.id 2)
-                            [("startTime", "09:00")]
+                            (fullShiftParams staffMember shiftType)
 
                 response `responseStatusShouldBe` status200
                 createdSlot <- query @RosterSlot
@@ -367,15 +374,19 @@ tests = beforeAll testContext do
                     |> filterWhere (#rowIndex, 2)
                     |> filterWhere (#deletedAt, Nothing)
                     |> fetchOne
+                createdSlot.staffId `shouldBe` Just (unpackId staffMember.id)
                 createdSlot.startTime `shouldBe` Just (timeOfDay 9 0)
+                createdSlot.shiftTypeId `shouldBe` Just (unpackId shiftType.id)
                 updatedDay <- fetch rosterDay.id
                 updatedDay.rowCount `shouldBe` 4
 
-        it "extends day row count when creating a sparse slot beyond the current rows" $ withContext do
+        it "extends day row count when creating a complete slot beyond the current rows" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
-                manager <- createUserRecord "roster-manager-create-sparse-slot-new-row@example.com" "staff" True
+                manager <- createUserRecord "roster-manager-create-complete-slot-new-row@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
+                shiftType <- ensureVenueDefaultShiftType venue
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slotDefinition <- newRecord @RosterWeekSlotDefinition
@@ -388,25 +399,26 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams
                             (CreateRosterSlotAction rosterDay.id slotDefinition.id 5)
-                            [("startTime", "09:00")]
+                            (fullShiftParams staffMember shiftType)
 
                 response `responseStatusShouldBe` status200
                 updatedDay <- fetch rosterDay.id
                 updatedDay.rowCount `shouldBe` 6
 
-        it "soft-deletes a roster slot when its final data field is cleared" $ withContext do
+        it "deletes a roster slot via the explicit delete action" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
-                manager <- createUserRecord "roster-manager-clear-sparse-slot@example.com" "staff" True
+                manager <- createUserRecord "roster-manager-delete-slot@example.com" "staff" True
                 _ <- createVenueMembershipRecord venue manager "manager"
                 slotName <- fetchSlotNameRecord venue "Early"
+                staffMember <- createStaffRecord venue Nothing "Alpha" "Crew"
                 rosterWeek <- createRosterWeekRecord venue 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
-                slot <- createRosterSlotRecord rosterDay slotName Nothing 0 >>= updateRecord . set #startTime (Just (timeOfDay 9 0))
+                slot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterSlotAction slot.id) [("startTime", "")]
+                        callAction (DeleteRosterSlotAction slot.id)
 
                 response `responseStatusShouldBe` status200
                 clearedSlot <- fetch slot.id
@@ -431,17 +443,18 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
+                shiftType <- ensureVenueDefaultShiftType venue
 
                 response <- withUserAndCurrentVenue manager venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
-                        callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow bravo.id)))]
+                        callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams bravo shiftType)
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "That staff member is not applicable to this roster group."
                 rejectedSlot <- fetch slot.id
                 rejectedSlot.staffId `shouldBe` Just (unpackId alpha.id)
 
-        it "redirects with an error when a non-HTMX slot update tries to assign ineligible staff" $ withContext do
+        it "renders an error when a non-HTMX slot update tries to assign ineligible staff" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-group-reject@example.com" "staff" True
@@ -460,16 +473,17 @@ tests = beforeAll testContext do
                 rosterWeek <- createRosterWeekRecordForRosterGroup venue frontOfHouse 0 False
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
+                shiftType <- ensureVenueDefaultShiftType venue
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", ByteString.pack (cs (tshow bravo.id)))]
+                    callActionWithParams (UpdateRosterSlotAction slot.id) (fullShiftParams bravo shiftType)
 
-                response `responseStatusShouldBe` status302
-                lookup "Location" (responseHeaders response) `shouldBe` Just (cs ("http://localhost/ShowRosterWeek?weekOffset=0&rosterGroupId=" <> tshow frontOfHouse.id))
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "That staff member is not applicable to this roster group."
                 rejectedSlot <- fetch slot.id
                 rejectedSlot.staffId `shouldBe` Just (unpackId alpha.id)
 
-        it "allows clearing a slot assignment even when the previously assigned staff is no longer applicable" $ withContext do
+        it "allows deleting a slot even when the previously assigned staff is no longer applicable" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Venue A"
                 manager <- createUserRecord "roster-manager-group-clear@example.com" "staff" True
@@ -486,11 +500,11 @@ tests = beforeAll testContext do
                 slot <- createRosterSlotRecord rosterDay slotName (Just alpha) 0
 
                 response <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction slot.id) [("staffId", "")]
+                    callAction (DeleteRosterSlotAction slot.id)
 
                 response `responseStatusShouldBe` status200
                 clearedSlot <- fetch slot.id
-                clearedSlot.staffId `shouldBe` Nothing
+                clearedSlot.deletedAt `shouldSatisfy` isJust
 
         it "row fragment endpoint renders duplicate conflicts after a duplicate assignment is created" $ withContext do
             withCleanDb do
@@ -505,11 +519,11 @@ tests = beforeAll testContext do
                 rosterDay <- createRosterDayRecord rosterWeek 0
                 firstSlot <- createRosterSlotRecord rosterDay slotName (Just staffMember) 0
                 secondSlot <- createRosterSlotRecord rosterDay slotName Nothing 1
+                shiftType <- ensureVenueDefaultShiftType venue
                 _ <- updateRecord (firstSlot |> set #startTime (Just (timeOfDay 9 0)))
-                _ <- updateRecord (secondSlot |> set #startTime (Just (timeOfDay 13 0)))
 
                 _ <- withUserAndCurrentVenue manager venue.id do
-                    callActionWithParams (UpdateRosterSlotAction secondSlot.id) [("staffId", ByteString.pack (cs (tshow staffMember.id)))]
+                    callActionWithParams (UpdateRosterSlotAction secondSlot.id) (fullShiftParamsAt staffMember shiftType "13:00")
 
                 firstRowResponse <- withUserAndCurrentVenue manager venue.id do
                     callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
@@ -588,6 +602,16 @@ targetFragmentKeys :: [LiveSurfaceInvalidationTarget] -> [[LiveFragmentKey]]
 targetFragmentKeys targets =
     [ map (.fragmentKey) target.targetFragments
     | target <- targets
+    ]
+
+fullShiftParams :: Staff -> ShiftType -> [(ByteString, ByteString)]
+fullShiftParams staff shiftType = fullShiftParamsAt staff shiftType "09:00"
+
+fullShiftParamsAt :: Staff -> ShiftType -> ByteString -> [(ByteString, ByteString)]
+fullShiftParamsAt staff shiftType startTime =
+    [ ("staffId", idToParam staff.id)
+    , ("startTime", startTime)
+    , ("shiftTypeId", idToParam shiftType.id)
     ]
 
 timeOfDay :: Int -> Int -> TimeOfDay

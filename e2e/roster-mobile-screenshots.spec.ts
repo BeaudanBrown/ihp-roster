@@ -10,20 +10,19 @@ test.describe('Roster mobile screenshots', () => {
         await attachRosterMobileDiagnostics(page, testInfo, 'initial');
 
         await addRowToFirstRosterDay(page);
-        await expect(page.locator('[data-roster-row]:has(select[name="staffId"])').first()).toBeVisible();
+        await expect(page.locator('[data-roster-row]:has([data-roster-shift-launcher="true"])').first()).toBeVisible();
         await expectRosterMobileLayoutStable(page);
         await attachRosterMobileDiagnostics(page, testInfo, 'after-add-row');
 
-        const firstTimeField = page.locator('[data-time-picker-field]').first();
-        await firstTimeField.scrollIntoViewIfNeeded();
-        await firstTimeField.click();
+        const firstLauncher = page.locator('[data-roster-shift-launcher="true"]').first();
+        await firstLauncher.scrollIntoViewIfNeeded();
+        await firstLauncher.focus();
         await expectRosterMobileLayoutStable(page);
-        await attachRosterMobileDiagnostics(page, testInfo, 'after-time-field-focus');
+        await attachRosterMobileDiagnostics(page, testInfo, 'after-launcher-focus');
 
-        const firstStaffSelect = page.locator('.slot-staff-input').first();
-        await firstStaffSelect.scrollIntoViewIfNeeded();
-        await firstStaffSelect.focus();
+        await firstLauncher.click();
+        await expect(page.locator('#dialog-overlay-mount [data-dialog-overlay="true"]')).toBeVisible();
         await expectRosterMobileLayoutStable(page);
-        await attachRosterMobileDiagnostics(page, testInfo, 'after-staff-select-focus');
+        await attachRosterMobileDiagnostics(page, testInfo, 'after-shift-dialog-open');
     });
 });

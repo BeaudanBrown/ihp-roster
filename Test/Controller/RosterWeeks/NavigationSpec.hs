@@ -217,7 +217,8 @@ tests = beforeAll testContext do
                     callAction (ShowRosterWeekAction 0)
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` ">Alpha</option>"
+                response `responseBodyShouldContain` ">Alpha</div>"
+                response `responseBodyShouldContain` "hx-get=\"/EditRosterSlotDialog?rosterSlotId="
                 response `responseBodyShouldContain` "hx-post=\"/ToggleRosterWeekLiveStatus?rosterWeekId="
                 response `responseBodyShouldContain` ">Live</span></label>"
 

@@ -19,16 +19,18 @@ import Application.Helper.View.TimePicker (defaultTimePickerConfig,
                                            optionalTimeOfDayToStorageValue,
                                            renderTimePickerField)
 import Data.Coerce (coerce)
+import qualified Data.Map.Strict as Map
 import Data.Maybe (isJust, isNothing)
 import Data.UUID (UUID)
+import Web.RosterWeeks.Types (RosterAssignmentOptionState (..))
 import Web.View.Prelude
 
 
 data RosterShiftDialogMode
     = NewRosterShiftDialog
-        { dialogRosterDayId :: !(Id RosterDay)
+        { dialogRosterDayId                :: !(Id RosterDay)
         , dialogRosterWeekSlotDefinitionId :: !(Id RosterWeekSlotDefinition)
-        , dialogRowIndex :: !Int
+        , dialogRowIndex                   :: !Int
         }
     | EditRosterShiftDialog
         { dialogRosterSlotId :: !(Id RosterSlot)
@@ -36,23 +38,24 @@ data RosterShiftDialogMode
 
 
 data RosterShiftDialogValues = RosterShiftDialogValues
-    { rosterShiftStaffId     :: !(Maybe UUID)
-    , rosterShiftStartTime   :: !Text
-    , rosterShiftEndTime     :: !Text
-    , rosterShiftTypeId      :: !(Maybe UUID)
-    , rosterShiftFormError   :: !(Maybe Text)
-    , rosterShiftStaffError  :: !(Maybe Text)
-    , rosterShiftStartError  :: !(Maybe Text)
-    , rosterShiftEndError    :: !(Maybe Text)
-    , rosterShiftTypeError   :: !(Maybe Text)
+    { rosterShiftStaffId    :: !(Maybe UUID)
+    , rosterShiftStartTime  :: !Text
+    , rosterShiftEndTime    :: !Text
+    , rosterShiftTypeId     :: !(Maybe UUID)
+    , rosterShiftFormError  :: !(Maybe Text)
+    , rosterShiftStaffError :: !(Maybe Text)
+    , rosterShiftStartError :: !(Maybe Text)
+    , rosterShiftEndError   :: !(Maybe Text)
+    , rosterShiftTypeError  :: !(Maybe Text)
     }
 
 
 data RosterShiftDialogData = RosterShiftDialogData
     { rosterShiftDialogMode       :: !RosterShiftDialogMode
     , rosterShiftDialogTitle      :: !Text
-    , rosterShiftDialogStaff      :: ![Staff]
-    , rosterShiftDialogShiftTypes :: ![ShiftType]
+    , rosterShiftDialogStaff             :: ![Staff]
+    , rosterShiftDialogStaffOptionStates :: !(Map.Map UUID RosterAssignmentOptionState)
+    , rosterShiftDialogShiftTypes        :: ![ShiftType]
     , rosterShiftDialogEndTimes   :: !Bool
     , rosterShiftDialogValues     :: !RosterShiftDialogValues
     }
@@ -83,18 +86,13 @@ rosterShiftDialogValuesFromSlot slot = emptyRosterShiftDialogValues
 
 renderRosterShiftDialog :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
 renderRosterShiftDialog dialogData@RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogTitle } =
-    let dialog = renderDialogOverlay DialogOverlayConfig
-            { dialogOverlayTitle = rosterShiftDialogTitle
-            , dialogOverlayBody = renderRosterShiftForm dialogData
-            , dialogOverlayStartButtons = deleteButton rosterShiftDialogMode
-            , dialogOverlayButtons = defaultOverlayButtons (rosterShiftFormId rosterShiftDialogMode)
-            , dialogOverlayDialogClass = ""
-            }
-     in [hsx|
-        <div id={dialogOverlayMountId} hx-swap-oob="innerHTML">
-            {dialog}
-        </div>
-    |]
+    renderDialogOverlay DialogOverlayConfig
+        { dialogOverlayTitle = rosterShiftDialogTitle
+        , dialogOverlayBody = renderRosterShiftForm dialogData
+        , dialogOverlayStartButtons = deleteButton rosterShiftDialogMode
+        , dialogOverlayButtons = defaultOverlayButtons (rosterShiftFormId rosterShiftDialogMode)
+        , dialogOverlayDialogClass = ""
+        }
 
 
 deleteButton :: RosterShiftDialogMode -> [OverlayButton]
@@ -109,7 +107,7 @@ deleteButton (EditRosterShiftDialog rosterSlotId) =
 
 
 renderRosterShiftForm :: (?context :: ControllerContext) => RosterShiftDialogData -> Html
-renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogShiftTypes, rosterShiftDialogEndTimes, rosterShiftDialogValues } = [hsx|
+renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShiftDialogStaff, rosterShiftDialogStaffOptionStates, rosterShiftDialogShiftTypes, rosterShiftDialogEndTimes, rosterShiftDialogValues } = [hsx|
     <form id={rosterShiftFormId rosterShiftDialogMode}
           method="POST"
           action={rosterShiftFormAction rosterShiftDialogMode}
@@ -123,7 +121,7 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
             <label class="form-label" for="roster-shift-staff-id">Staff</label>
             <select id="roster-shift-staff-id" name="staffId" class={classes [("form-select", True), ("is-invalid", isJust rosterShiftDialogValues.rosterShiftStaffError)]}>
                 <option value="">Select staff</option>
-                {forEach rosterShiftDialogStaff (renderStaffOption rosterShiftDialogValues.rosterShiftStaffId rosterShiftDialogStaff)}
+                {forEach visibleStaffMembers (renderStaffOption rosterShiftDialogValues.rosterShiftStaffId rosterShiftDialogStaff)}
             </select>
             {renderDialogFieldError rosterShiftDialogValues.rosterShiftStaffError}
         </div>
@@ -153,6 +151,11 @@ renderRosterShiftForm RosterShiftDialogData { rosterShiftDialogMode, rosterShift
             </div>
         |]
         | otherwise = mempty
+    selectedOrVisible staff =
+        let staffId = coerce staff.id
+            isSelected = Just staffId == rosterShiftDialogValues.rosterShiftStaffId
+         in isSelected || maybe True (not . (.optionHidden)) (Map.lookup staffId rosterShiftDialogStaffOptionStates)
+    visibleStaffMembers = filter selectedOrVisible rosterShiftDialogStaff
     visibleShiftTypes = filter (\shiftType -> shiftType.isActive || Just (coerce shiftType.id) == rosterShiftDialogValues.rosterShiftTypeId) rosterShiftDialogShiftTypes
 
 
@@ -193,7 +196,7 @@ renderDialogShiftTypeOption selectedShiftTypeId shiftType = [hsx|
 
 
 rosterShiftFormId :: RosterShiftDialogMode -> Text
-rosterShiftFormId NewRosterShiftDialog {} = "new-roster-shift-form"
+rosterShiftFormId NewRosterShiftDialog {}  = "new-roster-shift-form"
 rosterShiftFormId EditRosterShiftDialog {} = "edit-roster-shift-form"
 
 

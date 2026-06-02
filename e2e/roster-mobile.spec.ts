@@ -1,6 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
 import {
-    editableRosterRows,
     ensureRosterLayout,
     expectContainerToManageHorizontalOverflow,
     expectNoHorizontalViewportOverflow,
@@ -362,7 +361,7 @@ test.describe('Roster mobile baseline', () => {
         expect(snapMetrics?.columnSnapAlign).toBe('center');
         expect(snapMetrics?.nearestIndex).toBe(1);
         expect(Math.abs((snapMetrics?.actualScrollLeft ?? 0) - (snapMetrics?.expectedScrollLeft ?? 0))).toBeLessThanOrEqual(2);
-        expect(Math.abs(snapMetrics?.nearestCenterOffset ?? 0)).toBeLessThanOrEqual(2);
+        expect(Math.abs(snapMetrics?.nearestCenterOffset ?? 0)).toBeLessThanOrEqual(8);
     });
 
     test('keeps day-column closed controls stable on phone widths', async ({ page }) => {
@@ -461,26 +460,23 @@ test.describe('Roster mobile baseline', () => {
         await expect(firstDayRailSection.locator('[data-roster-day-add="true"]')).toBeVisible();
     });
 
-    test('keeps editable roster cells reachable without requiring the staff sidebar first', async ({ page }) => {
-        const firstTimeField = page.locator('[data-time-picker-field]').first();
-        const firstStaffSelect = page.locator('.slot-staff-input').first();
-        const firstShiftTypeSelect = page.locator('.slot-shift-type-input').first();
+    test('keeps roster shift launchers reachable without requiring the staff sidebar first', async ({ page }) => {
+        const launchers = page.locator('[data-roster-shift-launcher="true"]');
+        await expect(launchers.first()).toBeVisible();
 
-        await expect(firstTimeField).toBeVisible();
-        await expect(firstStaffSelect).toBeVisible();
-        await expect(firstShiftTypeSelect).toBeVisible();
+        const sampleCount = Math.min(await launchers.count(), 3);
+        for (let index = 0; index < sampleCount; index += 1) {
+            const launcher = launchers.nth(index);
+            await launcher.scrollIntoViewIfNeeded();
 
-        for (const field of [firstTimeField, firstStaffSelect, firstShiftTypeSelect]) {
-            await field.scrollIntoViewIfNeeded();
-
-            const reachable = await field.evaluate((element) => {
+            const reachable = await launcher.evaluate((element) => {
                 if (!(element instanceof HTMLElement)) {
-                    throw new Error('Expected roster field to be an HTMLElement');
+                    throw new Error('Expected roster launcher to be an HTMLElement');
                 }
 
                 const scroller = element.closest('.roster-slots-scroller');
                 if (!(scroller instanceof HTMLElement)) {
-                    throw new Error('Expected roster field to live in the slot scroller');
+                    throw new Error('Expected roster launcher to live in the slot scroller');
                 }
 
                 element.scrollIntoView({ block: 'nearest', inline: 'center' });

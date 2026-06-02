@@ -246,7 +246,6 @@ data RosterRenderDataSnapshot = RosterRenderDataSnapshot
     , snapshotWeekStartDate           :: Calendar.Day
     , snapshotAssignmentFilters       :: (Bool, Bool, Bool, Bool)
     , snapshotStaffIds                :: [UUID.UUID]
-    , snapshotStaffOptionStates       :: [((UUID.UUID, UUID.UUID), (Bool, Int, Bool, Bool, Bool, Bool))]
     , snapshotPanelStaff              :: [(UUID.UUID, Int, Text)]
     , snapshotSelfServiceStaffIds     :: Maybe [UUID.UUID]
     , snapshotOrderedSlotNames        :: [(UUID.UUID, Text, Int)]
@@ -264,7 +263,7 @@ data RosterRenderDataSnapshot = RosterRenderDataSnapshot
     } deriving (Eq, Show)
 
 snapshotRosterRenderData :: RosterRenderData -> RosterRenderDataSnapshot
-snapshotRosterRenderData RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, staffOptionStates, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates } =
+snapshotRosterRenderData RosterRenderData { rosterWeek, rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, staffSelfServicePanel, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled, rosterWagePrediction, showWageEstimates } =
     RosterRenderDataSnapshot
         { snapshotRosterWeekId = coerce rosterWeek.id
         , snapshotRosterWeekIsLive = rosterWeek.isLive
@@ -272,7 +271,6 @@ snapshotRosterRenderData RosterRenderData { rosterWeek, rosterDays, weekStartDat
         , snapshotWeekStartDate = weekStartDate
         , snapshotAssignmentFilters = (assignmentFilters.hideStaffAtIdealShifts, assignmentFilters.hideStaffUnavailable, assignmentFilters.hideStaffOnApprovedLeave, assignmentFilters.hideStaffAlreadyAssignedToday)
         , snapshotStaffIds = map (coerce . (.id)) staffMembers
-        , snapshotStaffOptionStates = Map.toAscList (Map.map snapshotOptionState staffOptionStates)
         , snapshotPanelStaff = map snapshotPanelEntry panelStaff
         , snapshotSelfServiceStaffIds = fmap (map (coerce . (.id)) . (.quickToolsStaffMembers)) staffSelfServicePanel
         , snapshotOrderedSlotNames = map (\slotName -> (coerce slotName.id, slotName.name, slotName.sortOrder)) orderedSlotNames
@@ -291,16 +289,6 @@ snapshotRosterRenderData RosterRenderData { rosterWeek, rosterDays, weekStartDat
 
 snapshotRosterDay :: RosterDay -> (UUID.UUID, Int, Bool)
 snapshotRosterDay rosterDay = (coerce rosterDay.id, rosterDay.dayOffset, rosterDay.isClosed)
-
-snapshotOptionState :: RosterAssignmentOptionState -> (Bool, Int, Bool, Bool, Bool, Bool)
-snapshotOptionState optionState =
-    ( optionState.optionHidden
-    , optionState.optionAssignedShiftCount
-    , optionState.optionHiddenByIdeal
-    , optionState.optionHiddenByUnavailable
-    , optionState.optionHiddenByLeave
-    , optionState.optionHiddenByAssignedToday
-    )
 
 snapshotPanelEntry :: RosterStaffPanelEntry -> (UUID.UUID, Int, Text)
 snapshotPanelEntry entry = (coerce entry.staff.id, entry.assignedShiftCount, entry.userRole)

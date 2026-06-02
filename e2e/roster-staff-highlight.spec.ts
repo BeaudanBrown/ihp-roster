@@ -7,35 +7,17 @@ type GridSlotMetrics = {
     startCount: number;
     endCount: number;
     lastBorderRightWidth: string;
-    lastPseudoBorderRightWidth: string;
+    lastBoxShadow: string;
     lastControlLeft: number | null;
     lastControlWidth: number | null;
 };
 
-async function firstStaffOptionValue(page: Page) {
-    const staffSelect = page.locator('select[name="staffId"]').first();
-    await expect(staffSelect).toBeVisible();
-
-    return await staffSelect.evaluate((select) => {
-        if (!(select instanceof HTMLSelectElement)) return '';
-
-        const option = Array.from(select.options).find((candidate) => candidate.value);
-        return option?.value ?? '';
-    });
-}
-
-async function assignFirstSlotToStaff(page: Page, staffId: string) {
-    const staffSelect = page.locator('select[name="staffId"]').first();
-    await staffSelect.selectOption(staffId);
-    await expect(staffSelect).toHaveValue(staffId);
-
-    await expect
-        .poll(async () =>
-            await page
-                .locator(`.roster-grid [role="gridcell"][data-roster-staff-id="${staffId}"][data-roster-slot-id]`)
-                .count(),
-        )
-        .toBeGreaterThan(0);
+async function firstAssignedStaffId(page: Page) {
+    const assignedLauncher = page
+        .locator('[data-roster-shift-launcher="true"][data-roster-staff-id]:not([data-roster-staff-id=""])')
+        .first();
+    await expect(assignedLauncher).toBeVisible();
+    return (await assignedLauncher.getAttribute('data-roster-staff-id')) ?? '';
 }
 
 async function chooseRosterLayout(page: Page, layoutMode: 'day_rows' | 'day_columns') {
@@ -70,9 +52,7 @@ async function gridSlotMetrics(page: Page, staffId: string): Promise<GridSlotMet
         const slotId = staffCells[0]?.dataset.rosterSlotId ?? '';
         const slotCells = staffCells.filter((cell) => cell.dataset.rosterSlotId === slotId);
         const lastCell = slotCells[slotCells.length - 1] ?? null;
-        const lastControl = lastCell?.querySelector<HTMLElement>(
-            '.slot-cell-input, .slot-time-trigger, .slot-cell-static',
-        ) ?? null;
+        const lastControl = lastCell?.querySelector<HTMLElement>('.slot-cell-static') ?? null;
         const lastControlRect = lastControl?.getBoundingClientRect();
 
         return {
@@ -81,7 +61,7 @@ async function gridSlotMetrics(page: Page, staffId: string): Promise<GridSlotMet
             startCount: slotCells.filter((cell) => cell.classList.contains('is-roster-staff-slot-highlighted-start')).length,
             endCount: slotCells.filter((cell) => cell.classList.contains('is-roster-staff-slot-highlighted-end')).length,
             lastBorderRightWidth: lastCell ? getComputedStyle(lastCell).borderRightWidth : '',
-            lastPseudoBorderRightWidth: lastCell ? getComputedStyle(lastCell, '::after').borderRightWidth : '',
+            lastBoxShadow: lastCell ? getComputedStyle(lastCell).boxShadow : '',
             lastControlLeft: lastControlRect?.left ?? null,
             lastControlWidth: lastControlRect?.width ?? null,
         };
@@ -95,9 +75,8 @@ test.describe('Roster staff shift highlight', () => {
         await openRoster(page, { email: 'e2e-test@example.com' });
         await chooseRosterLayout(page, 'day_rows');
 
-        const staffId = await firstStaffOptionValue(page);
+        const staffId = await firstAssignedStaffId(page);
         expect(staffId).not.toBe('');
-        await assignFirstSlotToStaff(page, staffId);
 
         const beforeHover = await gridSlotMetrics(page, staffId);
         expect(beforeHover.slotCellCount).toBeGreaterThan(0);
@@ -108,7 +87,7 @@ test.describe('Roster staff shift highlight', () => {
         expect(afterHover.highlightedCount).toBe(afterHover.slotCellCount);
         expect(afterHover.startCount).toBe(1);
         expect(afterHover.endCount).toBe(1);
-        expect(afterHover.lastPseudoBorderRightWidth).toBe('3px');
+        expect(afterHover.lastBoxShadow).not.toBe('none');
         expect(afterHover.lastBorderRightWidth).toBe(beforeHover.lastBorderRightWidth);
         expect(afterHover.lastControlLeft ?? 0).toBeCloseTo(beforeHover.lastControlLeft ?? 0, 0);
         expect(afterHover.lastControlWidth ?? 0).toBeCloseTo(beforeHover.lastControlWidth ?? 0, 0);
@@ -118,9 +97,8 @@ test.describe('Roster staff shift highlight', () => {
         await openRoster(page, { email: 'e2e-test@example.com' });
         await chooseRosterLayout(page, 'day_rows');
 
-        const staffId = await firstStaffOptionValue(page);
+        const staffId = await firstAssignedStaffId(page);
         expect(staffId).not.toBe('');
-        await assignFirstSlotToStaff(page, staffId);
 
         await chooseRosterLayout(page, 'day_columns');
 
@@ -139,9 +117,8 @@ test.describe('Roster staff shift highlight', () => {
         await openRoster(page, { email: 'e2e-test@example.com' });
         await chooseRosterLayout(page, 'day_rows');
 
-        const staffId = await firstStaffOptionValue(page);
+        const staffId = await firstAssignedStaffId(page);
         expect(staffId).not.toBe('');
-        await assignFirstSlotToStaff(page, staffId);
 
         await toggleLocateShifts(page, staffId);
 
