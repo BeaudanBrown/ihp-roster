@@ -1461,7 +1461,9 @@ tests = beforeAll testContext do
                 approvalResponse `responseBodyShouldContain` "Step 3 of 3"
                 approvalResponse `responseBodyShouldContain` "Review the draft timesheets Bepis will submit to Xero."
                 approvalResponse `responseBodyShouldContain` "Approved entries"
+                approvalResponse `responseBodyShouldContain` "Estimated wages"
                 approvalResponse `responseBodyShouldContain` "4.00"
+                approvalResponse `responseBodyShouldContain` "$"
                 approvalResponse `responseBodyShouldNotContain` "Managed Xero pay item requirements must be matched or created before timesheet readiness."
                 approvalResponse `responseBodyShouldNotContain` "Employee-level preview rows will be finalized"
                 approvalRequests <- liftIO $ IORef.readIORef requestsRef

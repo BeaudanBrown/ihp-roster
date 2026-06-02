@@ -9,6 +9,7 @@ module Application.Xero.Timesheets.Prepare
     , submitXeroTimesheetPreparation
     ) where
 
+import Application.Helper.Pay (PayTotals (..), TimesheetPayResult (..), fetchTimesheetPayResultsForEntries, timesheetEntryIdKey)
 import Application.Helper.Xero
 import Application.Helper.XeroAdminTypes
 import Application.Helper.TimeRules (shiftDurationMinutes)
@@ -26,6 +27,7 @@ import Control.Monad (void)
 import qualified Data.Aeson as Aeson
 import qualified Data.Aeson.Types as AesonTypes
 import qualified Data.List as List
+import qualified Data.Map.Strict as Map
 import Data.Scientific (Scientific)
 import qualified Data.Text as Text
 import Data.Time.Calendar (Day)
@@ -491,12 +493,13 @@ fetchPreparationReviewRows ::
     IO [XeroPreparationReviewRow]
 fetchPreparationReviewRows run staffRows = do
     entries <- fetchApprovedPreparationEntries run
+    payResultsByEntryId <- fetchTimesheetPayResultsForEntries entries
     let xeroMappedStaffRows =
             staffRows
                 |> filter (staffMappingVerified . (.mappingRowMapping))
                 |> filter (\row -> unpackId row.mappingRowStaff.id `elem` map (.staffId) entries)
                 |> List.sortOn (staffSortKey . (.mappingRowStaff))
-    pure (map (reviewRowForStaff entries) xeroMappedStaffRows)
+    pure (map (reviewRowForStaff entries payResultsByEntryId) xeroMappedStaffRows)
 
 fetchApprovedPreparationEntries ::
     (?modelContext :: ModelContext) =>
@@ -511,15 +514,25 @@ fetchApprovedPreparationEntries run =
         |> filterWhere (#deletedAt, Nothing)
         |> fetch
 
-reviewRowForStaff :: [TimesheetEntry] -> XeroStaffMappingRow -> XeroPreparationReviewRow
-reviewRowForStaff entries row =
+reviewRowForStaff :: [TimesheetEntry] -> Map.Map Text TimesheetPayResult -> XeroStaffMappingRow -> XeroPreparationReviewRow
+reviewRowForStaff entries payResultsByEntryId row =
     let staff = row.mappingRowStaff
         staffEntries = filter (\entry -> entry.staffId == unpackId staff.id) entries
      in XeroPreparationReviewRow
             { reviewRowStaff = staff
             , reviewRowEntryCount = length staffEntries
             , reviewRowTotalUnits = totalEntryUnits staffEntries
+            , reviewRowTotalAmount = totalEntryAmount payResultsByEntryId staffEntries
             }
+
+totalEntryAmount :: Map.Map Text TimesheetPayResult -> [TimesheetEntry] -> Scientific
+totalEntryAmount payResultsByEntryId entries =
+    sum (map entryAmount entries)
+    where
+        entryAmount entry =
+            case Map.lookup (timesheetEntryIdKey entry.id) payResultsByEntryId of
+                Nothing -> 0
+                Just result -> result.totals.totalAmount
 
 totalEntryUnits :: [TimesheetEntry] -> Scientific
 totalEntryUnits entries =

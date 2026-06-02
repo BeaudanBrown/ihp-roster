@@ -265,7 +265,7 @@ renderFinalSummaryCards view = [hsx|
         {renderSummaryCard "Employees" (tshow (length view.preparationReviewRows))}
         {renderSummaryCard "Approved entries" (tshow (sum (map (.reviewRowEntryCount) view.preparationReviewRows)))}
         {renderSummaryCard "Total hours" (formatUnits (sum (map (.reviewRowTotalUnits) view.preparationReviewRows)))}
-        {renderSummaryCard "Pay period" (tshow (payPeriodDays view) <> " days")}
+        {renderSummaryCard "Estimated wages" (formatMoney (sum (map (.reviewRowTotalAmount) view.preparationReviewRows)))}
     </div>
 |]
 
@@ -299,6 +299,7 @@ renderReviewSummary view
                             <th>Staff member</th>
                             <th class="text-end">Approved entries</th>
                             <th class="text-end">Hours</th>
+                            <th class="text-end">Estimated wages</th>
                         </tr>
                     </thead>
                     <tbody>{forEach view.preparationReviewRows renderReviewRow}</tbody>
@@ -313,6 +314,7 @@ renderReviewRow row = [hsx|
         <td><div class="fw-semibold">{staffName row.reviewRowStaff}</div></td>
         <td class="text-end">{tshow row.reviewRowEntryCount}</td>
         <td class="text-end">{formatUnits row.reviewRowTotalUnits}</td>
+        <td class="text-end">{formatMoney row.reviewRowTotalAmount}</td>
     </tr>
 |]
 
@@ -847,3 +849,6 @@ staffSecondaryLabel row =
 
 formatUnits :: Scientific -> Text
 formatUnits value = cs (formatScientific Fixed (Just 2) value)
+
+formatMoney :: Scientific -> Text
+formatMoney value = "$" <> cs (formatScientific Fixed (Just 2) value)

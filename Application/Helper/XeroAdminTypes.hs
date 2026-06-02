@@ -160,9 +160,10 @@ data XeroTimesheetPreviewRowView = XeroTimesheetPreviewRowView
     deriving (Eq, Show)
 
 data XeroPreparationReviewRow = XeroPreparationReviewRow
-    { reviewRowStaff       :: Staff
-    , reviewRowEntryCount  :: Int
-    , reviewRowTotalUnits  :: Scientific
+    { reviewRowStaff        :: Staff
+    , reviewRowEntryCount   :: Int
+    , reviewRowTotalUnits   :: Scientific
+    , reviewRowTotalAmount  :: Scientific
     }
     deriving (Eq, Show)
 
