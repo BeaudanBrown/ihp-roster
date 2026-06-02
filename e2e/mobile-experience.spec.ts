@@ -4,6 +4,7 @@ import {
     expectContainerToManageHorizontalOverflow,
     expectDialogToFitViewport,
     expectNoHorizontalViewportOverflow,
+    ensureRosterLayout,
     gotoWhenReady,
     loginAs,
     openNewLeaveRequestDialog,
@@ -335,6 +336,67 @@ test.describe('Mobile experience smoke', () => {
         expect(snapMetrics.snapDragging).toBe('');
         expect(snapMetrics.dragDragging).toBe('');
         expect(snapMetrics.suppressClickUntil).toBe('');
+    });
+
+    test('roster assignment filters preserve horizontal scroll in both layouts', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+
+        const setScroll = async (selector: string) => page.locator(selector).first().evaluate((element) => {
+            if (!(element instanceof HTMLElement)) {
+                throw new Error('Expected roster scroll frame to be an HTMLElement');
+            }
+            const maxScrollLeft = Math.max(0, element.scrollWidth - element.clientWidth);
+            if (maxScrollLeft <= 0) return 0;
+            element.scrollLeft = Math.min(Math.max(90, element.clientWidth * 0.8), maxScrollLeft);
+            return element.scrollLeft;
+        });
+        const readScroll = async (selector: string) => page.locator(selector).first().evaluate((element) => {
+            if (!(element instanceof HTMLElement)) {
+                throw new Error('Expected roster scroll frame to be an HTMLElement');
+            }
+            return element.scrollLeft;
+        });
+        const markScrollOwner = async (selector: string, marker: string) => page.locator(selector).first().evaluate((element, markerValue) => {
+            if (!(element instanceof HTMLElement)) {
+                throw new Error('Expected roster scroll frame to be an HTMLElement');
+            }
+            element.dataset.e2eScrollOwnerMarker = markerValue;
+        }, marker);
+        const expectScrollOwnerMarker = async (selector: string, marker: string) => {
+            await expect(page.locator(selector).first()).toHaveAttribute('data-e2e-scroll-owner-marker', marker);
+        };
+        const toggleAssignmentFilter = async (label: string) => {
+            await page.getByRole('button', { name: 'Roster settings' }).click();
+            await expect(page.locator('form[data-roster-filter-form="true"]')).toBeVisible();
+            const responsePromise = page.waitForResponse((response) => (
+                response.request().method() === 'POST'
+                && response.url().includes('/UpdateRosterAssignmentFilters')
+            ));
+            await page.locator('label', { hasText: label }).click();
+            await responsePromise;
+            await expect(page.locator('#roster-grid-frame')).toBeVisible();
+        };
+
+        await openRoster(page, { rosterLayoutMode: 'day_columns' });
+        await expect(page.locator('.roster-day-columns')).toBeVisible();
+        const dayColumnsScroll = await setScroll('#roster-grid-frame');
+        await markScrollOwner('#roster-grid-frame', 'day-columns-owner');
+        await toggleAssignmentFilter('At ideal shifts or greater');
+        await expectScrollOwnerMarker('#roster-grid-frame', 'day-columns-owner');
+        if (dayColumnsScroll > 0) {
+            expect(Math.abs((await readScroll('#roster-grid-frame')) - dayColumnsScroll)).toBeLessThanOrEqual(2);
+        }
+
+        await ensureRosterLayout(page, 'day_rows');
+        await expect(page.locator('.roster-slots-scroller')).toBeVisible();
+        const dayRowsScroll = await setScroll('.roster-slots-scroller');
+        await markScrollOwner('.roster-slots-scroller', 'day-rows-owner');
+        await toggleAssignmentFilter('No preferred shifts that day');
+        await expectScrollOwnerMarker('.roster-slots-scroller', 'day-rows-owner');
+        if (dayRowsScroll > 0) {
+            expect(Math.abs((await readScroll('.roster-slots-scroller')) - dayRowsScroll)).toBeLessThanOrEqual(2);
+        }
     });
 
     test('timesheet filter and week navigation preserve horizontal scroll', async ({ page }) => {
