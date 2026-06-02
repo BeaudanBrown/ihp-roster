@@ -1282,7 +1282,9 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Pay period:"
                 response `responseBodyShouldContain` "Step 1 of 3"
                 response `responseBodyShouldContain` "Staff mappings"
-                response `responseBodyShouldContain` "Continue"
+                response `responseBodyShouldContain` "Approve"
+                response `responseBodyShouldNotContain` "Readiness validation"
+                response `responseBodyShouldNotContain` ">Continue</button>"
                 response `responseBodyShouldNotContain` "· payment"
                 response `responseBodyShouldNotContain` "Setup"
                 response `responseBodyShouldNotContain` "Sync reference data"
@@ -1340,7 +1342,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Show matched"
                 response `responseBodyShouldContain` "Xero employee"
                 response `responseBodyShouldNotContain` "name=\"xeroEmployeeSelection\""
-                response `responseBodyShouldContain` "Suggested match — click Continue to approve"
+                response `responseBodyShouldContain` "Suggested match — click Approve to confirm"
                 response `responseBodyShouldContain` "Ada Lovelace"
                 response `responseBodyShouldContain` "Edit"
                 pendingStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
@@ -1355,7 +1357,7 @@ tests = beforeAll testContext do
 
                 matchedResponse `responseStatusShouldBe` status200
                 matchedResponse `responseBodyShouldNotContain` "name=\"xeroEmployeeSelection\""
-                matchedResponse `responseBodyShouldContain` "Suggested match — click Continue to approve"
+                matchedResponse `responseBodyShouldContain` "Suggested match — click Approve to confirm"
                 matchedResponse `responseBodyShouldContain` "Edit"
                 matchedResponse `responseBodyShouldNotContain` ">Approve</button>"
                 matchedResponse `responseBodyShouldNotContain` "Skip this time"
@@ -1589,9 +1591,15 @@ tests = beforeAll testContext do
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "posted"
-                response `responseBodyShouldContain` "Draft timesheet creation is blocked"
+                response `responseBodyShouldNotContain` "Readiness validation"
+                response `responseBodyShouldNotContain` "Draft timesheet creation is blocked"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
+                continueResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ContinueXeroTimesheetPreparationStaffStepAction preparationRun.id)
+                continueResponse `responseStatusShouldBe` status200
+                continueResponse `responseBodyShouldContain` "posted"
+                continueResponse `responseBodyShouldContain` "Draft timesheet creation is blocked"
                 preparationRun.status `shouldBe` "blocked"
                 preparationRun.xeroPayRunId `shouldBe` Just "payrun-posted"
                 preparationRun.remotePayRunsJson `shouldSatisfy` Preview.jsonContainsKey "remotePayRuns"
@@ -1628,9 +1636,15 @@ tests = beforeAll testContext do
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Xero already has a timesheet for this employee and period"
-                response `responseBodyShouldContain` "Create is blocked until update support exists"
+                response `responseBodyShouldNotContain` "Readiness validation"
+                response `responseBodyShouldNotContain` "Xero already has a timesheet for this employee and period"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
+                continueResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ContinueXeroTimesheetPreparationStaffStepAction preparationRun.id)
+                continueResponse `responseStatusShouldBe` status200
+                continueResponse `responseBodyShouldContain` "Xero already has a timesheet for this employee and period"
+                continueResponse `responseBodyShouldContain` "Create is blocked until update support exists"
                 preparationRun.status `shouldBe` "blocked"
                 preparationRun.remoteTimesheetsJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
                 preparationRun.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"

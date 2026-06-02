@@ -81,7 +81,6 @@ renderXeroTimesheetPreparationStaffStep view =
                 {renderStepNotice "Step 1 of 3" "Confirm proposed staff matches or choose the right Xero employee before continuing."}
                 {renderConnectionNotice view}
                 {renderStaffMappings view}
-                {renderReadiness view.preparationReadiness}
                 <form id="xero-preparation-staff-continue-form"
                       method="POST"
                       action={ContinueXeroTimesheetPreparationStaffStepAction view.preparationRun.id}
@@ -224,7 +223,7 @@ closeButton = OverlayButton
 
 continueStaffButton :: XeroTimesheetPreparationView -> OverlayButton
 continueStaffButton _view = OverlayButton
-    { overlayButtonLabel = "Continue"
+    { overlayButtonLabel = "Approve"
     , overlayButtonClass = "btn btn-primary"
     , overlayButtonAction = OverlaySubmitFormAction "xero-preparation-staff-continue-form"
     }
@@ -516,7 +515,7 @@ staffEmployeeDisplay row
 
 staffEmployeeStatusLabel :: XeroPreparationStaffRow -> Text
 staffEmployeeStatusLabel row
-    | staffRowHasPendingAutoMatch row = "Suggested match — click Continue to approve"
+    | staffRowHasPendingAutoMatch row = "Suggested match — click Approve to confirm"
     | staffRowIsConfirmed row = "Approved"
     | otherwise = "Selected"
 
