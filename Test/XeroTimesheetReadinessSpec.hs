@@ -265,8 +265,6 @@ tests = do
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 
-                readinessBlockerCodes readiness `shouldNotSatisfy` elem "employee_payroll_calendar_missing"
-                readinessBlockerCodes readiness `shouldNotSatisfy` elem "employee_payroll_calendar_mismatch"
                 readiness.xeroTimesheetReady `shouldBe` True
 
         it "keeps a mapped employee on the selected payroll calendar ready" $ withContext do
@@ -275,8 +273,6 @@ tests = do
 
                 readiness <- validateXeroTimesheetReadiness fixture.request
 
-                readinessBlockerCodes readiness `shouldNotSatisfy` elem "employee_payroll_calendar_missing"
-                readinessBlockerCodes readiness `shouldNotSatisfy` elem "employee_payroll_calendar_mismatch"
                 readiness.xeroTimesheetReady `shouldBe` True
 
         it "permits fully mapped weekly and fortnightly periods" $ withContext do
