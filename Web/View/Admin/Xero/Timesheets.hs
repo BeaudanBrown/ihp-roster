@@ -88,7 +88,7 @@ renderPeriodNotice panel =
                     <div class={appSurfaceClasses "p-3 small"}>
                         <span class="fw-semibold">Selected Xero payroll period:</span>
                         {formatDateDisplay readiness.timesheetReadinessPeriodStart} to {formatDateDisplay readiness.timesheetReadinessPeriodEnd}
-                        <span class="app-muted ms-2">{tshow readiness.timesheetReadinessEntryCount} approved entries, {tshow readiness.timesheetReadinessStaffCount} staff, {tshow readiness.timesheetReadinessBucketCount} earnings buckets</span>
+                        <span class="app-muted ms-2">{tshow readiness.timesheetReadinessEntryCount} approved shifts, {tshow readiness.timesheetReadinessStaffCount} staff, {tshow readiness.timesheetReadinessBucketCount} earnings buckets</span>
                     </div>
                 |]
 

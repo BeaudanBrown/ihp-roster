@@ -265,7 +265,7 @@ renderFinalSummaryCards :: XeroTimesheetPreparationView -> Html
 renderFinalSummaryCards view = [hsx|
     <div class="row g-2">
         {renderSummaryCard "Employees" (tshow (length view.preparationReviewRows))}
-        {renderSummaryCard "Approved entries" (tshow (sum (map (.reviewRowEntryCount) view.preparationReviewRows)))}
+        {renderSummaryCard "Approved shifts" (tshow (sum (map (.reviewRowEntryCount) view.preparationReviewRows)))}
         {renderSummaryCard "Total hours" (formatUnits (sum (map (.reviewRowTotalUnits) view.preparationReviewRows)))}
         {renderSummaryCard "Estimated wages" (formatMoney (sum (map (.reviewRowTotalAmount) view.preparationReviewRows)))}
     </div>
@@ -287,7 +287,7 @@ renderReviewSummary view
         <section>
             <h6 class="mb-2">Timesheet summary</h6>
             <div class={appSurfaceClasses "p-3 small app-muted"}>
-                No Xero-paid staff with approved entries were found for this pay period.
+                No Xero-paid staff with approved shifts were found for this pay period.
             </div>
         </section>
     |]
@@ -299,7 +299,7 @@ renderReviewSummary view
                     <thead>
                         <tr>
                             <th>Staff member</th>
-                            <th class="text-end">Approved entries</th>
+                            <th class="text-end">Approved shifts</th>
                             <th class="text-end">Hours</th>
                             <th class="text-end">Estimated wages</th>
                         </tr>
@@ -325,11 +325,7 @@ payPeriodDays view =
     fromIntegral (diffDays view.preparationRun.payPeriodEnd view.preparationRun.payPeriodStart) + 1
 
 renderFinalSubmissionCopy :: Html
-renderFinalSubmissionCopy = [hsx|
-    <div class="small app-muted">
-        This creates new Xero Payroll AU draft timesheets or updates existing Xero draft timesheets shown above. Review and approve payroll in Xero before paying staff.
-    </div>
-|]
+renderFinalSubmissionCopy = mempty
 
 renderRunSummary :: XeroTimesheetPreparationView -> Html
 renderRunSummary view = [hsx|

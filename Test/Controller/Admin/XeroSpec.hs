@@ -1310,7 +1310,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "Pay period:"
                 response `responseBodyShouldContain` "Step 3 of 3"
                 response `responseBodyShouldContain` "Timesheet summary"
-                response `responseBodyShouldContain` "Approved entries"
+                response `responseBodyShouldContain` "Approved shifts"
                 response `responseBodyShouldContain` "Submit draft timesheets to Xero"
                 response `responseBodyShouldNotContain` "Step 1 of 3"
                 response `responseBodyShouldNotContain` "Staff mappings"
@@ -1509,7 +1509,7 @@ tests = beforeAll testContext do
                 approvalResponse `responseStatusShouldBe` status200
                 approvalResponse `responseBodyShouldContain` "Step 3 of 3"
                 approvalResponse `responseBodyShouldContain` "Review the draft timesheets Bepis will submit to Xero."
-                approvalResponse `responseBodyShouldContain` "Approved entries"
+                approvalResponse `responseBodyShouldContain` "Approved shifts"
                 approvalResponse `responseBodyShouldContain` "Estimated wages"
                 approvalResponse `responseBodyShouldContain` "4.00"
                 approvalResponse `responseBodyShouldContain` "$"
