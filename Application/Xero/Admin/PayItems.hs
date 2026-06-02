@@ -215,9 +215,9 @@ upsertFetchedXeroEarningsRates connection now fetchedRates =
         markStaleXeroEarningsRateMappings connection fetchedRates
 
 xeroPayItemRequestPayload :: [Aeson.Value] -> Text -> XeroPayItemRequirement -> Aeson.Value
-xeroPayItemRequestPayload existingEarningsRates accountCode requirement =
+xeroPayItemRequestPayload _existingEarningsRates accountCode requirement =
     Aeson.object
-        [ "EarningsRates" Aeson..= (existingEarningsRates <> [xeroEarningsRatePayload accountCode requirement])
+        [ "EarningsRates" Aeson..= [xeroEarningsRatePayload accountCode requirement]
         ]
 
 xeroEarningsRatePayload :: Text -> XeroPayItemRequirement -> Aeson.Value

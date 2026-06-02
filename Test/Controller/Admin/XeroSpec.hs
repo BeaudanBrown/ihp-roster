@@ -846,6 +846,7 @@ tests = beforeAll testContext do
                 map fst requests `shouldSatisfy` all (Text.isPrefixOf "bepis-pay-item-")
                 map fst requests `shouldSatisfy` \keys -> length (List.nub keys) == length keys
                 map snd requests `shouldSatisfy` any (xeroPayItemRequestHas ordinaryName 31.50)
+                map snd requests `shouldSatisfy` all ((== 1) . xeroPayItemRequestEarningsRateCount)
                 map snd requests `shouldSatisfy` all xeroPayItemRequestOnlyTouchesEarningsRates
                 createdRate <- query @XeroEarningsRate
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
@@ -2163,8 +2164,8 @@ payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef maybeVerified
     (referenceSyncXeroClient tokenResponse [] [] [])
         { fetchEarningsRates = \_ _ -> do
             requests <- IORef.readIORef requestsRef
-            let latestRates = maybe [] xeroPayItemRequestEarningsRateRefs (lastMay (map snd requests))
-            pure (Right (maybe latestRates (`take` latestRates) maybeVerifiedLimit))
+            let createdRates = concatMap (xeroPayItemRequestEarningsRateRefs . snd) requests
+            pure (Right (maybe createdRates (`take` createdRates) maybeVerifiedLimit))
         , createPayItem = \_ _ idempotencyKey body -> do
             IORef.modifyIORef' requestsRef (<> [(idempotencyKey, body)])
             pure (Right [])
@@ -2176,8 +2177,8 @@ payItemCreateXeroClientFailingRequest tokenResponse requestsRef failingRequestNu
         { fetchEarningsRates = \_ _ -> do
             requests <- IORef.readIORef requestsRef
             let successfulBodies = map (snd . snd) (filter (\(index, _) -> index /= failingRequestNumber) (zip [1 :: Int ..] requests))
-            let latestSuccessfulRates = maybe [] xeroPayItemRequestEarningsRateRefs (lastMay successfulBodies)
-            pure (Right latestSuccessfulRates)
+            let successfulRates = concatMap xeroPayItemRequestEarningsRateRefs successfulBodies
+            pure (Right successfulRates)
         , createPayItem = \_ _ idempotencyKey body -> do
             IORef.modifyIORef' requestsRef (<> [(idempotencyKey, body)])
             requests <- IORef.readIORef requestsRef
@@ -2210,6 +2211,14 @@ earningsRateRefFromValue value@(Aeson.Object earningsRate) = do
             True
             value
 earningsRateRefFromValue _ = fail "Expected earnings rate"
+
+xeroPayItemRequestEarningsRateCount :: Aeson.Value -> Int
+xeroPayItemRequestEarningsRateCount =
+    fromMaybe 0 . AesonTypes.parseMaybe \body ->
+        Aeson.withObject "PayItem" (\object -> do
+            earningsRates <- object Aeson..: "EarningsRates"
+            pure (length (earningsRates :: [Aeson.Value]))
+        ) body
 
 xeroPayItemRequestName :: Aeson.Value -> Maybe Text
 xeroPayItemRequestName =
