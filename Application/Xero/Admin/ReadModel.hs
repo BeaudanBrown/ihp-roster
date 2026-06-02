@@ -467,10 +467,23 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
             |> orderByDesc #workedOn
             |> fetch
     today <- utctDay <$> getCurrentTime
+    verifiedMappings <-
+        query @XeroStaffMapping
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#mappingStatus, "verified" :: Text)
+            |> filterWhereIn (#staffId, List.nub (map (.staffId) approvedEntries))
+            |> fetch
+    mappedEmployees <-
+        query @XeroEmployee
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhereIn (#xeroEmployeeId, List.nub (mapMaybe (.xeroEmployeeId) verifiedMappings))
+            |> fetch
     let approvedWorkedOnDates = List.nub (map (.workedOn) approvedEntries)
+        staffCalendarAssignments = staffPayrollCalendarAssignments verifiedMappings mappedEmployees
         calendarPeriodOptions = concatMap (derivedPeriodOptions today payRuns approvedWorkedOnDates) calendars
     pure $
         calendarPeriodOptions
+            |> filter (periodOptionMatchesApprovedEmployeeCalendars approvedEntries staffCalendarAssignments)
             |> List.nubBy samePeriodOption
             |> List.sortOn (Down . (.periodOptionStart))
 
@@ -498,6 +511,34 @@ payRunOnlyPeriodOption calendars approvedWorkedOnDates payRun = do
 periodContainsApprovedEntry :: [Day] -> Day -> Day -> Bool
 periodContainsApprovedEntry approvedWorkedOnDates periodStart periodEnd =
     any (\workedOn -> workedOn >= periodStart && workedOn <= periodEnd) approvedWorkedOnDates
+
+staffPayrollCalendarAssignments :: [XeroStaffMapping] -> [XeroEmployee] -> Map.Map UUID Text
+staffPayrollCalendarAssignments mappings employees =
+    Map.fromList do
+        mapping <- mappings
+        employeeId <- maybeToList mapping.xeroEmployeeId
+        employee <- maybeToList (List.find (\candidate -> candidate.xeroEmployeeId == employeeId) employees)
+        calendarId <- maybeToList (xeroEmployeePayrollCalendarId employee)
+        pure (mapping.staffId, calendarId)
+
+periodOptionMatchesApprovedEmployeeCalendars :: [TimesheetEntry] -> Map.Map UUID Text -> XeroTimesheetPeriodOption -> Bool
+periodOptionMatchesApprovedEmployeeCalendars approvedEntries staffCalendarAssignments option =
+    all entryMatches (periodEntries approvedEntries)
+    where
+        periodEntries =
+            filter \entry ->
+                entry.workedOn >= option.periodOptionStart && entry.workedOn <= option.periodOptionEnd
+        entryMatches entry =
+            case Map.lookup entry.staffId staffCalendarAssignments of
+                Nothing -> True
+                Just employeeCalendarId -> employeeCalendarId == option.periodOptionPayrollCalendarId
+
+xeroEmployeePayrollCalendarId :: XeroEmployee -> Maybe Text
+xeroEmployeePayrollCalendarId employee =
+    join $ AesonTypes.parseMaybe parser employee.rawPayload
+    where
+        parser = AesonTypes.withObject "Xero employee" \object ->
+            (object AesonTypes..:? "PayrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarID") <|> (object AesonTypes..:? "payrollCalendarId")
 
 periodOptionFrom :: XeroPayrollCalendar -> Day -> Day -> Maybe XeroPayRun -> Bool -> XeroTimesheetPeriodOption
 periodOptionFrom calendar periodStart periodEnd maybePayRun derivedFromSyncedXero =

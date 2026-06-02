@@ -1211,6 +1211,26 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "No synced Xero pay periods available"
                 response `responseBodyShouldNotContain` "DRAFT"
 
+        it "only offers payroll-calendar periods that match the approved employees' Xero calendars" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                _ <- createXeroPayrollCalendarRecord fixture.connection "Other Weekly Calendar" "calendar-other"
+                employees <- query @XeroEmployee |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ employees \employee ->
+                    employee
+                        |> set #rawPayload (Aeson.object ["EmployeeID" Aeson..= employee.xeroEmployeeId, "PayrollCalendarID" Aeson..= ("calendar-other" :: Text)])
+                        |> updateRecord
+                        >>= const (pure ())
+                let otherPeriodKey = "calendar-other:" <> tshow fixture.periodStart <> ":" <> tshow fixture.periodEnd
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    callAction ShowAdminXeroFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` ("value=\"" <> fixturePeriodKey fixture <> "\"")
+                response `responseBodyShouldContain` ("value=\"" <> otherPeriodKey <> "\"")
+                response `responseBodyShouldContain` "Other Weekly Calendar"
+
         it "does not show Xero pay periods that only have unapproved local entries" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
