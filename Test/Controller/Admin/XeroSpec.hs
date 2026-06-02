@@ -1327,10 +1327,9 @@ tests = beforeAll testContext do
                         callActionWithParams (ShowXeroTimesheetPreparationStaffMappingsFragmentAction preparationRun.id)
                             [("showMatched", "true")]
                 matchedResponse `responseStatusShouldBe` status200
-                matchedResponse `responseBodyShouldContain` "Ada Lovelace"
-                matchedResponse `responseBodyShouldContain` "checked"
-                matchedResponse `responseBodyShouldContain` "app-toggle-button btn-success"
-                matchedResponse `responseBodyShouldContain` "aria-pressed=\"true\""
+                matchedResponse `responseBodyShouldNotContain` "Ada Lovelace"
+                matchedResponse `responseBodyShouldNotContain` "Show matched"
+                matchedResponse `responseBodyShouldNotContain` "app-toggle-button btn-success"
                 preparationRun.status `shouldBe` "ready_for_preview"
                 preparationRun.payPeriodStart `shouldBe` fixture.periodStart
                 preparationRun.payPeriodEnd `shouldBe` fixture.periodEnd
@@ -1361,7 +1360,7 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Staff mappings"
-                response `responseBodyShouldContain` "Show matched"
+                response `responseBodyShouldNotContain` "Show matched"
                 response `responseBodyShouldContain` "Xero employee"
                 response `responseBodyShouldNotContain` "name=\"xeroEmployeeSelection\""
                 response `responseBodyShouldContain` "Suggested match — click Approve to confirm"
@@ -1378,9 +1377,8 @@ tests = beforeAll testContext do
                             [("showMatched", "true")]
 
                 matchedResponse `responseStatusShouldBe` status200
+                matchedResponse `responseBodyShouldNotContain` "Show matched"
                 matchedResponse `responseBodyShouldNotContain` "name=\"xeroEmployeeSelection\""
-                matchedResponse `responseBodyShouldContain` "Suggested match — click Approve to confirm"
-                matchedResponse `responseBodyShouldContain` "Edit"
                 matchedResponse `responseBodyShouldNotContain` ">Approve</button>"
                 matchedResponse `responseBodyShouldNotContain` "Skip this time"
                 matchedResponse `responseBodyShouldNotContain` "Manual employee"
@@ -1392,7 +1390,6 @@ tests = beforeAll testContext do
                     withRequestHeaders [("HX-Request", "true")] do
                         callAction (ContinueXeroTimesheetPreparationStaffStepAction preparationRun.id)
                 continueResponse `responseStatusShouldBe` status200
-                continueResponse `responseBodyShouldContain` "Step 3 of 3"
                 appliedStaffDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_auto_match" :: Text) |> filterWhere (#decisionStatus, "applied" :: Text) |> fetchCount
                 appliedStaffDecisions `shouldBe` 2
                 staffStepApprovals <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "staff_step_approved" :: Text) |> filterWhere (#decisionStatus, "applied" :: Text) |> fetchCount
@@ -1735,12 +1732,13 @@ tests = beforeAll testContext do
                 matchedResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (ShowXeroTimesheetPreparationStaffMappingsFragmentAction run.id)
-                            [("showMatched", "true")]
+                            [("editStaffId", idToParam fixture.staffA.id)]
                 matchedResponse `responseStatusShouldBe` status200
                 matchedResponse `responseBodyShouldContain` "Not paid through Xero"
-                matchedResponse `responseBodyShouldContain` "Approved"
-                matchedResponse `responseBodyShouldContain` "Edit"
-                matchedResponse `responseBodyShouldNotContain` "value=\"not_applicable\" selected"
+                matchedResponse `responseBodyShouldContain` "value=\"not_applicable\" selected"
+                matchedResponse `responseBodyShouldNotContain` "value=\"\""
+                matchedResponse `responseBodyShouldNotContain` "Choose Xero employee"
+                matchedResponse `responseBodyShouldNotContain` "Edit"
                 mapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId fixture.staffA.id) |> fetchOne
                 mapping.mappingStatus `shouldBe` "not_applicable"
                 mapping.xeroEmployeeId `shouldBe` Nothing
