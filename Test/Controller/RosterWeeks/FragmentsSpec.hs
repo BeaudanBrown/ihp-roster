@@ -9,7 +9,6 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Config
 import Data.ByteString (ByteString)
-import Data.Maybe (fromJust)
 import qualified Data.Set as Set
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -27,7 +26,7 @@ import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
                                 planRegisteredLiveSurfaceInvalidations)
-import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDaySectionDomId,
+import Web.RosterWeeks.Dom (rosterDaySectionDomId, rosterGridFrameFragmentId,
                             rosterRowDomIdText, rosterStaffPanelFragmentId)
 import Web.Routes
 import Web.Types
@@ -63,20 +62,11 @@ tests = beforeAll testContext do
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
 
-                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                let contentTarget = cs rosterContentFragmentId :: String
+                let gridFrameTarget = cs rosterGridFrameFragmentId :: String
                 let staffPanelTarget = cs rosterStaffPanelFragmentId :: String
-                let updatedRowTarget = cs (rosterRowDomIdText rosterDay.id 0) :: String
-                fromJust triggerHeader `shouldContain` "app-live-fragments-refresh"
-                fromJust triggerHeader `shouldContain` contentTarget
-                fromJust triggerHeader `shouldContain` staffPanelTarget
-                fromJust triggerHeader `shouldNotContain` updatedRowTarget
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
-                fromJust triggerHeader `shouldNotContain` "ShowRosterWeekRowFragment"
-                fromJust triggerHeader `shouldContain` ("\"targetId\":\"" <> contentTarget <> "\"")
-                fromJust triggerHeader `shouldNotContain` ("\"targetId\":\"" <> updatedRowTarget <> "\"")
-                fromJust triggerHeader `shouldContain` "\"deferUntilBlur\":false"
+                bodyText `shouldContain` ("id=\"" <> gridFrameTarget <> "\"")
+                bodyText `shouldContain` ("id=\"" <> staffPanelTarget <> "\"")
+                bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
 
         it "plans non-overlapping passive roster content and staff panel fragments" $ withContext do
             withCleanDb do
@@ -93,7 +83,7 @@ tests = beforeAll testContext do
                             [RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = rosterWeek.rosterGroupId, weekOffset = rosterWeek.weekOffset }]
 
                 targetFragmentKeys targets
-                    `shouldBe` [[RosterContentFragment, RosterStaffPanelFragment]]
+                    `shouldBe` [[RosterGridToolbarFragment, RosterGridFrameFragment, RosterStaffPanelFragment]]
 
         it "does not include rows from other weeks when refreshing related assignment rows" $ withContext do
             withCleanDb do
@@ -120,14 +110,11 @@ tests = beforeAll testContext do
                     callActionWithParams (UpdateRosterSlotAction currentSlot.id) (fullShiftParams staffB shiftType)
 
                 response `responseStatusShouldBe` status200
-                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                let editedRowTarget = cs (rosterRowDomIdText currentDay.id 0) :: String
-                let relatedCurrentRowTarget = cs (rosterRowDomIdText currentDay.id 1) :: String
+                body <- responseBody response
+                let bodyText = cs body :: String
                 let otherWeekRowTarget = cs (rosterRowDomIdText otherDay.id 2) :: String
-                fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
-                fromJust triggerHeader `shouldNotContain` editedRowTarget
-                fromJust triggerHeader `shouldNotContain` relatedCurrentRowTarget
-                fromJust triggerHeader `shouldNotContain` otherWeekRowTarget
+                bodyText `shouldContain` (cs rosterGridFrameFragmentId :: String)
+                bodyText `shouldNotContain` ("id=\"" <> otherWeekRowTarget <> "\"")
 
         it "keeps selected staff labels plain when ideal-shift filters hide them" $ withContext do
             withCleanDb do

@@ -34,7 +34,7 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
-import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDaySectionDomId,
+import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterGridFrameFragmentId, rosterDaySectionDomId,
                             rosterRowDomIdText, rosterStaffPanelFragmentId)
 import Web.RosterWeeks.Mutations (rosterDayTouchedResources,
                                   rosterSlotTouchedResources,
@@ -106,13 +106,9 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
-
-                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                fromJust triggerHeader `shouldContain` "app-live-fragments-refresh"
-                fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
-                fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
+                bodyText `shouldContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
+                bodyText `shouldContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
+                bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
 
                 updatedDay <- fetch rosterDay.id
                 updatedDay.isClosed `shouldBe` True
@@ -183,12 +179,9 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
-
-                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
-                fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
+                bodyText `shouldContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
+                bodyText `shouldContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
+                bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
 
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDay.id)
@@ -216,12 +209,9 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
-
-                let triggerHeader = cs <$> lookup "HX-Trigger" (responseHeaders response)
-                fromJust triggerHeader `shouldContain` (cs rosterContentFragmentId :: String)
-                fromJust triggerHeader `shouldContain` (cs rosterStaffPanelFragmentId :: String)
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekContentFragment"
-                fromJust triggerHeader `shouldContain` "ShowRosterWeekStaffPanelFragment"
+                bodyText `shouldContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
+                bodyText `shouldContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
+                bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
 
                 slotsForDay <- query @RosterSlot
                     |> filterWhere (#rosterDayId, unpackId rosterDayWithRows.id)
