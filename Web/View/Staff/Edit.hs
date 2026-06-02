@@ -185,7 +185,6 @@ renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems = [h
             </select>
             {renderStaffFieldError staff "defaultAwardLevelId"}
             {renderStaffFieldError staff "importedXeroPayItemId"}
-            <div class="form-text">FWC pay rates are listed first. Shift type pay-rate overrides take precedence over this staff default.</div>
         </div>
     </div>
 |]

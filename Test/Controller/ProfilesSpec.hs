@@ -137,9 +137,8 @@ tests = beforeAll testContext do
                 response `responseBodyShouldContain` "<option value=\"0\""
                 response `responseBodyShouldContain` "<option value=\"7\""
                 response `responseBodyShouldContain` "Available"
-                response `responseBodyShouldContain` "Start time"
                 response `responseBodyShouldContain` "<th scope=\"col\" class=\"shift-preference-table__available\">Available</th>"
-                response `responseBodyShouldContain` "<th scope=\"col\" class=\"shift-preference-table__start-time\">Start time</th>"
+                response `responseBodyShouldNotContain` "<th scope=\"col\" class=\"shift-preference-table__start-time\">Start time</th>"
                 response `responseBodyShouldContain` "style=\"--preference-start: 5.556%; --preference-end: 66.667%;\""
                 response `responseBodyShouldContain` "class=\"shift-preference-window is-unavailable\""
                 response `responseBodyShouldContain` ">Mon<"
@@ -152,7 +151,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "<th scope=\"col\">Day</th>"
                 response `responseBodyShouldNotContain` "table-responsive"
                 response `responseBodyShouldNotContain` "Tick available days and choose the preferred shift start window"
-                response `responseBodyShouldContain` "Login email is read-only here for now."
+                response `responseBodyShouldNotContain` "Login email is read-only here for now."
 
                 fragmentResponse <- withUserAndCurrentVenue user venue.id do
                     callAction ShowProfileLeaveRequestsContentFragmentAction

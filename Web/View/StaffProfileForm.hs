@@ -54,7 +54,6 @@ renderPersonalProfileFields staff maybeEmail = [hsx|
                 readonly="readonly"
                 disabled="disabled"
             />
-            <div class="form-text">Login email is read-only here for now.</div>
         </div>
         <div class="col-12 col-lg-6">
             <label for="phone" class="form-label">Phone</label>
@@ -128,7 +127,6 @@ renderShiftPreferenceRows weekdays selectedShiftPreferences = [hsx|
         <thead>
             <tr>
                 <th scope="col" class="shift-preference-table__available">Available</th>
-                <th scope="col" class="shift-preference-table__start-time">Start time</th>
             </tr>
         </thead>
         <tbody>
