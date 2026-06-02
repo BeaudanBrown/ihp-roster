@@ -438,7 +438,7 @@ fetchCurrentVenueXeroTimesheetPanelData actionsAllowed maybeConnection maybeCale
         , xeroTimesheetPeriodMessage =
             case (maybeConnection, maybeCalendarSelection, maybeReadinessRequest) of
                 (Nothing, _, _) -> Just "Connect Xero before preparing draft timesheets."
-                (_, Nothing, _) -> Just "Select and verify a Xero payroll calendar before preparing draft timesheets."
+                (_, Nothing, _) -> Nothing
                 (_, _, Nothing) -> Just "The selected Xero payroll calendar period could not be derived."
                 _ -> Nothing
         , xeroTimesheetPeriodOptions

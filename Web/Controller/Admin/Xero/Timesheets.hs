@@ -208,7 +208,7 @@ currentTimesheetReadinessRequestForAction = do
     maybeCalendarSelection <- fetchCurrentVenueXeroPayrollCalendarSelection maybeConnection
     currentVenueXeroTimesheetReadinessRequest maybeConnection maybeCalendarSelection >>= \case
         Just readinessRequest -> pure (Right readinessRequest)
-        Nothing -> pure (Left "Select and verify a Xero payroll calendar before preparing draft timesheets.")
+        Nothing -> pure (Left "Choose a Xero pay period before preparing draft timesheets.")
 
 parseStaffDecision :: (?context :: ControllerContext, ?request :: Request) => Either Text XeroPreparationStaffDecision
 parseStaffDecision =
