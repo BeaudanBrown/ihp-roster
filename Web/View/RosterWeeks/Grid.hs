@@ -956,17 +956,17 @@ renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes True rosterD
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
         groupKey = rosterShiftGroupKey target
      in mconcat
-        [ renderCreateLauncherCell target groupKey (classes [("slot-time-cell slot-start-time-cell roster-shift-launcher", True), ("roster-block-start", blockIndex > 0)]) "Add"
+        [ renderCreateLauncherCell target groupKey (classes [("slot-time-cell slot-start-time-cell roster-shift-launcher", True), ("roster-block-start", blockIndex > 0)]) ""
         , renderCreateLauncherCell target groupKey "slot-time-cell slot-end-time-cell roster-shift-launcher" ""
-        , renderCreateLauncherCell target groupKey "slot-staff-cell position-relative roster-shift-launcher" ""
+        , renderCreateLauncherCell target groupKey "slot-staff-cell position-relative roster-shift-launcher roster-shift-create-plus-cell" "+"
         , renderCreateLauncherCell target groupKey "slot-shift-type-cell roster-block-end is-shift-type-empty roster-shift-launcher" ""
         ]
 renderCreateBlockCells _assignmentFilters _staffMembers _shiftTypes False rosterDay rowIndex blockIndex slotName =
     let target = NewRosterSlotTarget rosterDay.id slotName.id rowIndex
         groupKey = rosterShiftGroupKey target
      in mconcat
-        [ renderCreateLauncherCell target groupKey (classes [("slot-time-cell roster-shift-launcher", True), ("roster-block-start", blockIndex > 0)]) "Add"
-        , renderCreateLauncherCell target groupKey "slot-staff-cell position-relative roster-shift-launcher" ""
+        [ renderCreateLauncherCell target groupKey (classes [("slot-time-cell roster-shift-launcher", True), ("roster-block-start", blockIndex > 0)]) ""
+        , renderCreateLauncherCell target groupKey "slot-staff-cell position-relative roster-shift-launcher roster-shift-create-plus-cell" "+"
         , renderCreateLauncherCell target groupKey "slot-shift-type-cell roster-block-end is-shift-type-empty roster-shift-launcher" ""
         ]
 

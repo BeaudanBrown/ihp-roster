@@ -49,6 +49,22 @@
     background-color: inherit;
 }
 
+.roster-grid .roster-shift-create-plus-cell .slot-cell-static {
+    color: var(--bs-success);
+    font-size: 1.15rem;
+    font-weight: 800;
+    justify-content: center;
+    opacity: 0;
+    text-align: center;
+    transition: opacity 140ms ease;
+}
+
+.roster-grid .roster-shift-create-plus-cell:hover .slot-cell-static,
+.roster-grid .roster-shift-create-plus-cell:focus-visible .slot-cell-static,
+.roster-grid .roster-shift-create-plus-cell.is-roster-shift-group-highlighted .slot-cell-static {
+    opacity: 1;
+}
+
 .roster-grid .slot-closed-cell {
     background-color: var(--roster-empty);
 }

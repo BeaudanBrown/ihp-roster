@@ -9,6 +9,7 @@ import Application.Helper.RosterGroups (createVenueRosterGroupWithDefaults,
                                         syncStaffRosterGroupAssignments)
 import Config
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as ByteString
 import qualified Data.Set as Set
 import Data.Time.Calendar (addDays)
 import Data.Time.LocalTime (TimeOfDay (..))
@@ -265,6 +266,54 @@ tests = beforeAll testContext do
                 bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow lateDefinition.id) <> ":0\"")
                 bodyText `shouldContain` ("hx-get=\"/NewRosterSlotDialog?rosterDayId=" <> cs (tshow rosterDay.id) <> "&amp;rosterWeekSlotDefinitionId=" <> cs (tshow lateDefinition.id) <> "&amp;rowIndex=0\"")
                 bodyText `shouldNotContain` "data-roster-field-key="
+
+        it "renders draft empty day-row shifts with a hover-only staff-cell create marker" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-empty-create@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                early <- fetchSlotNameRecord venue "Early"
+                rosterWeek <- createRosterWeekRecord venue 0 False
+                rosterDay <- createRosterDayRecord rosterWeek 0
+                slotDefinition <- ensureRosterWeekSlotDefinitionForSlotName rosterDay early
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+
+                response `responseStatusShouldBe` status200
+                body <- responseBody response
+                let bodyText = cs body :: String
+                bodyText `shouldContain` "roster-shift-create-plus-cell"
+                bodyText `shouldContain` ("data-roster-shift-group-key=\"new:" <> cs (tshow rosterDay.id) <> ":" <> cs (tshow slotDefinition.id) <> ":0\"")
+                bodyText `shouldContain` ">+</div>"
+                bodyText `shouldNotContain` ">Add</div>"
+
+        it "does not render empty day-row create markers for live rosters" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-live-empty-create@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                rosterWeek <- createRosterWeekRecord venue 0 True
+                rosterDay <- createRosterDayRecord rosterWeek 0
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekRowFragmentAction 0 rosterDay.id 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldNotContain` "roster-shift-create-plus-cell"
+                response `responseBodyShouldNotContain` ">+</div>"
+                response `responseBodyShouldNotContain` ">Add</div>"
+
+        it "keeps empty-shift plus markers hover-only and staff-panel names padded" $ withContext do
+            cssBytes <- ByteString.readFile "static/css/features/roster/grid-cells.css"
+            staffPanelCssBytes <- ByteString.readFile "static/css/features/roster/staff-panel.css"
+            let css = cs cssBytes :: String
+            let staffPanelCss = cs staffPanelCssBytes :: String
+            css `shouldContain` ".roster-grid .roster-shift-create-plus-cell .slot-cell-static"
+            css `shouldContain` "opacity: 0;"
+            css `shouldContain` ".roster-grid .roster-shift-create-plus-cell:hover .slot-cell-static"
+            staffPanelCss `shouldContain` ".roster-staff-name"
+            staffPanelCss `shouldContain` "padding-left: 0.55rem !important;"
 
         it "allows assigning staff who are applicable to the slot's roster group" $ withContext do
             withCleanDb do

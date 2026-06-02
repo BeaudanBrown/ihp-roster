@@ -185,7 +185,8 @@
 
 .roster-staff-name {
     min-width: 0;
-    padding-right: 0.55rem;
+    padding-left: 0.55rem !important;
+    padding-right: 0.55rem !important;
     text-align: left;
 }
 
