@@ -137,7 +137,7 @@ renderXeroTimesheetPreparationSummaryStep view =
             </div>
         |]
         , dialogOverlayStartButtons = []
-        , dialogOverlayButtons = closeButton : [confirmSubmitButton view]
+        , dialogOverlayButtons = closeButton : [confirmSubmitButton view | view.preparationCanSubmit]
         , dialogOverlayDialogClass = "modal-xl"
         }
 
