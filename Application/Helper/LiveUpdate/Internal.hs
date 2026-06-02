@@ -97,6 +97,10 @@ data LiveFragmentKey
     = RosterContentFragment
     | RosterGridToolbarFragment
     | RosterGridFrameFragment
+    | RosterDayColumnsFragment
+    | RosterDayRailFragment
+    | RosterWageRailFragment
+    | RosterSlotsGridFragment
     | RosterStaffPanelFragment
     | RosterDaySectionFragment
         { rosterDayId :: !UUID.UUID
@@ -345,6 +349,14 @@ instance Aeson.ToJSON LiveFragmentKey where
         Aeson.object ["kind" Aeson..= ("roster_grid_toolbar" :: Text)]
     toJSON RosterGridFrameFragment =
         Aeson.object ["kind" Aeson..= ("roster_grid_frame" :: Text)]
+    toJSON RosterDayColumnsFragment =
+        Aeson.object ["kind" Aeson..= ("roster_day_columns" :: Text)]
+    toJSON RosterDayRailFragment =
+        Aeson.object ["kind" Aeson..= ("roster_day_rail" :: Text)]
+    toJSON RosterWageRailFragment =
+        Aeson.object ["kind" Aeson..= ("roster_wage_rail" :: Text)]
+    toJSON RosterSlotsGridFragment =
+        Aeson.object ["kind" Aeson..= ("roster_slots_grid" :: Text)]
     toJSON RosterStaffPanelFragment =
         Aeson.object ["kind" Aeson..= ("roster_staff_panel" :: Text)]
     toJSON RosterDaySectionFragment { rosterDayId } =
@@ -405,6 +417,10 @@ instance Aeson.FromJSON LiveFragmentKey where
             "roster_content" -> pure RosterContentFragment
             "roster_grid_toolbar" -> pure RosterGridToolbarFragment
             "roster_grid_frame" -> pure RosterGridFrameFragment
+            "roster_day_columns" -> pure RosterDayColumnsFragment
+            "roster_day_rail" -> pure RosterDayRailFragment
+            "roster_wage_rail" -> pure RosterWageRailFragment
+            "roster_slots_grid" -> pure RosterSlotsGridFragment
             "roster_staff_panel" -> pure RosterStaffPanelFragment
             "roster_day_section" ->
                 RosterDaySectionFragment

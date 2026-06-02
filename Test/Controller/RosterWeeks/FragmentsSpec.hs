@@ -26,8 +26,9 @@ import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
 import Web.LiveSurfaceRegistry (LiveSurfaceInvalidationTarget (..),
                                 planRegisteredLiveSurfaceInvalidations)
-import Web.RosterWeeks.Dom (rosterDaySectionDomId, rosterGridFrameFragmentId,
-                            rosterRowDomIdText, rosterStaffPanelFragmentId)
+import Web.RosterWeeks.Dom (rosterDayColumnsFragmentId, rosterDaySectionDomId,
+                            rosterGridFrameFragmentId, rosterRowDomIdText,
+                            rosterStaffPanelFragmentId)
 import Web.Routes
 import Web.Types
 
@@ -62,9 +63,10 @@ tests = beforeAll testContext do
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
 
-                let gridFrameTarget = cs rosterGridFrameFragmentId :: String
+                let dayColumnsTarget = cs rosterDayColumnsFragmentId :: String
                 let staffPanelTarget = cs rosterStaffPanelFragmentId :: String
-                bodyText `shouldContain` ("id=\"" <> gridFrameTarget <> "\"")
+                bodyText `shouldContain` ("id=\"" <> dayColumnsTarget <> "\"")
+                bodyText `shouldNotContain` ("id=\"" <> (cs rosterGridFrameFragmentId :: String) <> "\"")
                 bodyText `shouldContain` ("id=\"" <> staffPanelTarget <> "\"")
                 bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
 
@@ -83,7 +85,7 @@ tests = beforeAll testContext do
                             [RosterWeekScope { venueId = unpackId venue.id, rosterGroupId = rosterWeek.rosterGroupId, weekOffset = rosterWeek.weekOffset }]
 
                 targetFragmentKeys targets
-                    `shouldBe` [[RosterGridToolbarFragment, RosterGridFrameFragment, RosterStaffPanelFragment]]
+                    `shouldBe` [[RosterGridToolbarFragment, RosterDayColumnsFragment, RosterDayRailFragment, RosterWageRailFragment, RosterSlotsGridFragment, RosterStaffPanelFragment]]
 
         it "does not include rows from other weeks when refreshing related assignment rows" $ withContext do
             withCleanDb do
@@ -113,7 +115,8 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 let otherWeekRowTarget = cs (rosterRowDomIdText otherDay.id 2) :: String
-                bodyText `shouldContain` (cs rosterGridFrameFragmentId :: String)
+                bodyText `shouldContain` (cs rosterDayColumnsFragmentId :: String)
+                bodyText `shouldNotContain` (cs rosterGridFrameFragmentId :: String)
                 bodyText `shouldNotContain` ("id=\"" <> otherWeekRowTarget <> "\"")
 
         it "keeps selected staff labels plain when ideal-shift filters hide them" $ withContext do

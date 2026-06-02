@@ -211,6 +211,10 @@ data RosterWeeksController
     | ShowRosterWeekContentFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekGridToolbarFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekGridFrameFragmentAction { weekOffset :: !Int }
+    | ShowRosterWeekDayColumnsFragmentAction { weekOffset :: !Int }
+    | ShowRosterWeekDayRailFragmentAction { weekOffset :: !Int }
+    | ShowRosterWeekWageRailFragmentAction { weekOffset :: !Int }
+    | ShowRosterWeekSlotsGridFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekStaffPanelFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekDaySectionFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekRowFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }

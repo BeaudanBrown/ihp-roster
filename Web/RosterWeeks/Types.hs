@@ -205,6 +205,10 @@ data RosterProjectionFragment
     = RosterProjectionContent
     | RosterProjectionGridToolbar
     | RosterProjectionGridFrame
+    | RosterProjectionDayColumns
+    | RosterProjectionDayRail
+    | RosterProjectionWageRail
+    | RosterProjectionSlotsGrid
     | RosterProjectionStaffPanel
     | RosterProjectionDaySection !UUID
     | RosterProjectionRow !UUID !Int

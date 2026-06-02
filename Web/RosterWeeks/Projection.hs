@@ -7,6 +7,7 @@ module Web.RosterWeeks.Projection
     , rosterContentFragment
     , rosterGridFrameFragment
     , rosterGridToolbarFragment
+    , rosterGridInnerAndStaffPanelFragments
     , rosterGridFrameAndStaffPanelFragments
     , rosterGridStructuralFragments
     , rosterDaySectionFragment
@@ -57,6 +58,15 @@ rosterGridStructuralFragments :: [RosterProjectionFragment]
 rosterGridStructuralFragments =
     [ rosterGridToolbarFragment
     , rosterGridFrameFragment
+    ]
+
+rosterGridInnerAndStaffPanelFragments :: [RosterProjectionFragment]
+rosterGridInnerAndStaffPanelFragments =
+    [ RosterProjectionDayColumns
+    , RosterProjectionDayRail
+    , RosterProjectionWageRail
+    , RosterProjectionSlotsGrid
+    , rosterStaffPanelFragment
     ]
 
 rosterGridFrameAndStaffPanelFragments :: [RosterProjectionFragment]

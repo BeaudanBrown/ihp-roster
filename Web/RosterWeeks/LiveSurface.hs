@@ -24,11 +24,15 @@ import Web.Controller.Prelude
 import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Paths (rosterWeekContentFragmentUrl,
+                              rosterWeekDayColumnsFragmentUrl,
+                              rosterWeekDayRailFragmentUrl,
                               rosterWeekDaySectionFragmentUrl,
                               rosterWeekGridFrameFragmentUrl,
                               rosterWeekGridToolbarFragmentUrl,
                               rosterWeekRowFragmentUrl,
-                              rosterWeekStaffPanelFragmentUrl)
+                              rosterWeekSlotsGridFragmentUrl,
+                              rosterWeekStaffPanelFragmentUrl,
+                              rosterWeekWageRailFragmentUrl)
 import Web.RosterWeeks.Projection
 import Web.RosterWeeks.Types
 
@@ -40,7 +44,7 @@ rosterLiveSurfaceDefinition =
         { typedSurfaceFeature = "roster"
         , typedSurfaceScope = rosterSurfaceScope
         , typedSurfaceScopeFromWire = rosterSurfaceScopeFromWire
-        , typedSurfaceDefaultFragments = const [RosterProjectionGridToolbar, RosterProjectionGridFrame, RosterProjectionStaffPanel]
+        , typedSurfaceDefaultFragments = const [RosterProjectionGridToolbar, RosterProjectionDayColumns, RosterProjectionDayRail, RosterProjectionWageRail, RosterProjectionSlotsGrid, RosterProjectionStaffPanel]
         , typedSurfaceFragmentContract = \scope fragment ->
             mkSurfaceFragmentContract
                 (rosterFragmentRef scope fragment)
@@ -82,6 +86,30 @@ rosterFragmentRef scope = \case
             rosterGridFrameFragmentId
             (rosterWeekGridFrameFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
             |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionGridFrame)
+    RosterProjectionDayColumns ->
+        mkSurfaceFragmentRef
+            RosterDayColumnsFragment
+            rosterDayColumnsFragmentId
+            (rosterWeekDayColumnsFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
+            |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionDayColumns)
+    RosterProjectionDayRail ->
+        mkSurfaceFragmentRef
+            RosterDayRailFragment
+            rosterDayRailFragmentId
+            (rosterWeekDayRailFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
+            |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionDayRail)
+    RosterProjectionWageRail ->
+        mkSurfaceFragmentRef
+            RosterWageRailFragment
+            rosterWageRailFragmentId
+            (rosterWeekWageRailFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
+            |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionWageRail)
+    RosterProjectionSlotsGrid ->
+        mkSurfaceFragmentRef
+            RosterSlotsGridFragment
+            rosterSlotsGridFragmentId
+            (rosterWeekSlotsGridFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
+            |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionSlotsGrid)
     RosterProjectionStaffPanel ->
         mkSurfaceFragmentRef
             RosterStaffPanelFragment
@@ -123,6 +151,30 @@ rosterFragmentDependencies scope =
                     [ RosterEndTimesConfigResource venueId
                     , RosterWeekBoundaryConfigResource venueId
                     ]
+            RosterProjectionDayColumns ->
+                liveFragmentDependsOn
+                    (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset)
+                    [ RosterEndTimesConfigResource venueId
+                    , RosterWeekBoundaryConfigResource venueId
+                    ]
+            RosterProjectionDayRail ->
+                liveFragmentDependsOn
+                    (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset)
+                    [ RosterEndTimesConfigResource venueId
+                    , RosterWeekBoundaryConfigResource venueId
+                    ]
+            RosterProjectionWageRail ->
+                liveFragmentDependsOn
+                    (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset)
+                    [ RosterEndTimesConfigResource venueId
+                    , RosterWeekBoundaryConfigResource venueId
+                    ]
+            RosterProjectionSlotsGrid ->
+                liveFragmentDependsOn
+                    (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset)
+                    [ RosterEndTimesConfigResource venueId
+                    , RosterWeekBoundaryConfigResource venueId
+                    ]
             RosterProjectionStaffPanel ->
                 liveFragmentDependsOn (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset) []
             RosterProjectionDaySection rosterDayId ->
@@ -146,6 +198,14 @@ rosterFragmentContainmentPath = \case
         [rosterContentFragmentId, rosterGridToolbarFragmentId]
     RosterProjectionGridFrame ->
         [rosterContentFragmentId, rosterGridFrameFragmentId]
+    RosterProjectionDayColumns ->
+        [rosterContentFragmentId, rosterGridFrameFragmentId, rosterDayColumnsFragmentId]
+    RosterProjectionDayRail ->
+        [rosterContentFragmentId, rosterGridFrameFragmentId, rosterDayRailFragmentId]
+    RosterProjectionWageRail ->
+        [rosterContentFragmentId, rosterGridFrameFragmentId, rosterWageRailFragmentId]
+    RosterProjectionSlotsGrid ->
+        [rosterContentFragmentId, rosterGridFrameFragmentId, rosterSlotsGridFragmentId]
     RosterProjectionStaffPanel ->
         [rosterStaffPanelFragmentId]
     RosterProjectionDaySection rosterDayId ->

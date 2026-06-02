@@ -112,6 +112,30 @@ instance Controller RosterWeeksController where
             frameHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridFrame
             respondHtmlProfiled (fromMaybe mempty frameHtml)
 
+    action ShowRosterWeekDayColumnsFragmentAction { weekOffset } = do
+        rosterGroup <- resolveRequestedRosterGroup
+        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionDayColumns \_ -> do
+            fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayColumns
+            respondHtmlProfiled (fromMaybe mempty fragmentHtml)
+
+    action ShowRosterWeekDayRailFragmentAction { weekOffset } = do
+        rosterGroup <- resolveRequestedRosterGroup
+        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionDayRail \_ -> do
+            fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionDayRail
+            respondHtmlProfiled (fromMaybe mempty fragmentHtml)
+
+    action ShowRosterWeekWageRailFragmentAction { weekOffset } = do
+        rosterGroup <- resolveRequestedRosterGroup
+        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionWageRail \_ -> do
+            fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionWageRail
+            respondHtmlProfiled (fromMaybe mempty fragmentHtml)
+
+    action ShowRosterWeekSlotsGridFragmentAction { weekOffset } = do
+        rosterGroup <- resolveRequestedRosterGroup
+        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionSlotsGrid \_ -> do
+            fragmentHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionSlotsGrid
+            respondHtmlProfiled (fromMaybe mempty fragmentHtml)
+
     action ShowRosterWeekStaffPanelFragmentAction { weekOffset } = do
         rosterGroup <- resolveRequestedRosterGroup
         let panelScope = rosterStaffPanelScopeFromParams
@@ -300,7 +324,7 @@ instance Controller RosterWeeksController where
                 respondWithRosterActorRefresh
                     rosterGroupId
                     rosterWeek.weekOffset
-                    rosterGridFrameAndStaffPanelFragments
+                    rosterGridInnerAndStaffPanelFragments
             else do
                 setSuccessMessage "Roster sorted."
                 redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -331,7 +355,7 @@ instance Controller RosterWeeksController where
                 respondWithRosterActorRefresh
                     rosterGroupId
                     rosterWeek.weekOffset
-                    rosterGridFrameAndStaffPanelFragments
+                    rosterGridInnerAndStaffPanelFragments
             else do
                 setSuccessMessage successMessage
                 redirectToPath targetPath
@@ -374,7 +398,7 @@ instance Controller RosterWeeksController where
                         respondWithRosterActorRefresh
                             rosterGroupId
                             rosterWeek.weekOffset
-                            rosterGridFrameAndStaffPanelFragments
+                            rosterGridInnerAndStaffPanelFragments
                     else do
                         setSuccessMessage "Roster row added."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -423,7 +447,7 @@ instance Controller RosterWeeksController where
                         respondWithRosterActorRefresh
                             rosterGroupId
                             rosterWeek.weekOffset
-                            rosterGridFrameAndStaffPanelFragments
+                            rosterGridInnerAndStaffPanelFragments
                     else do
                         setSuccessMessage "Roster row removed."
                         redirectToPath (rosterWeekUrl rosterWeek.weekOffset rosterGroupId)
@@ -730,8 +754,8 @@ respondToRosterSlotMutation rosterGroupId rosterWeek rosterDay rowIndex mutation
     let maybeStaffParam = tshow <$> maybeStaffId
     let actorFragmentCandidates =
             case rosterLayoutModeValue layoutMode of
-                "day_columns" -> rosterGridFrameAndStaffPanelFragments
-                _ -> rosterGridFrameAndStaffPanelFragments
+                "day_columns" -> rosterGridInnerAndStaffPanelFragments
+                _ -> rosterGridInnerAndStaffPanelFragments
                     <> actorRosterRowFragments maybeStaffParam [(unpackId rosterDay.id, rowIndex)]
                     <> assignmentRefreshFragments maybeStaffParam
     let actorFragments =
@@ -752,8 +776,8 @@ respondToRosterSlotUpdate rosterGroupId rosterWeek mutationResult maybeStaffId i
     let maybeStaffParam = tshow <$> maybeStaffId
     let actorFragmentCandidates =
             case rosterLayoutModeValue layoutMode of
-                "day_columns" -> rosterGridFrameAndStaffPanelFragments
-                _ -> rosterGridFrameAndStaffPanelFragments
+                "day_columns" -> rosterGridInnerAndStaffPanelFragments
+                _ -> rosterGridInnerAndStaffPanelFragments
                     <> actorRosterRowFragments maybeStaffParam impactedRowKeys
                     <> assignmentRefreshFragments maybeStaffParam
     let actorFragments =

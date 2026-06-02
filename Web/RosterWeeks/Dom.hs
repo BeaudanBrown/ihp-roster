@@ -4,6 +4,10 @@ module Web.RosterWeeks.Dom
     , rosterContentFragmentId
     , rosterGridFrameFragmentId
     , rosterGridToolbarFragmentId
+    , rosterDayColumnsFragmentId
+    , rosterDayRailFragmentId
+    , rosterSlotsGridFragmentId
+    , rosterWageRailFragmentId
     , rosterDaySectionDomId
     , rosterRowDomIdText
     , rosterStaffPanelFragmentId
@@ -30,6 +34,18 @@ rosterGridToolbarFragmentId = "roster-grid-toolbar"
 
 rosterGridFrameFragmentId :: Text
 rosterGridFrameFragmentId = "roster-grid-frame"
+
+rosterDayColumnsFragmentId :: Text
+rosterDayColumnsFragmentId = "roster-day-columns"
+
+rosterDayRailFragmentId :: Text
+rosterDayRailFragmentId = "roster-day-rail"
+
+rosterWageRailFragmentId :: Text
+rosterWageRailFragmentId = "roster-wage-rail"
+
+rosterSlotsGridFragmentId :: Text
+rosterSlotsGridFragmentId = "roster-slots-grid"
 
 rosterStaffPanelFragmentId :: Text
 rosterStaffPanelFragmentId = "roster-staff-panel-fragment"

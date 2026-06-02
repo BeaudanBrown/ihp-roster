@@ -34,8 +34,8 @@ import Test.Hspec
 import Test.Support
 import Web.Controller.RosterWeeks ()
 import Web.FrontController ()
-import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterGridFrameFragmentId, rosterDaySectionDomId,
-                            rosterRowDomIdText, rosterStaffPanelFragmentId)
+import Web.RosterWeeks.Dom (rosterContentFragmentId, rosterDayColumnsFragmentId, rosterDaySectionDomId,
+                            rosterGridFrameFragmentId, rosterRowDomIdText, rosterStaffPanelFragmentId)
 import Web.RosterWeeks.Mutations (rosterDayTouchedResources,
                                   rosterSlotTouchedResources,
                                   rosterWeekTouchedResources)
@@ -106,7 +106,8 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
-                bodyText `shouldContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
+                bodyText `shouldContain` ("id=\"" <> cs rosterDayColumnsFragmentId <> "\"" :: String)
+                bodyText `shouldNotContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
                 bodyText `shouldContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
                 bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
 
@@ -179,7 +180,8 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
-                bodyText `shouldContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
+                bodyText `shouldContain` ("id=\"" <> cs rosterDayColumnsFragmentId <> "\"" :: String)
+                bodyText `shouldNotContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
                 bodyText `shouldContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
                 bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
 
@@ -209,7 +211,8 @@ tests = beforeAll testContext do
                 body <- responseBody response
                 let bodyText = cs body :: String
                 bodyText `shouldContain` "id=\"dialog-overlay-mount\""
-                bodyText `shouldContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
+                bodyText `shouldContain` ("id=\"" <> cs rosterDayColumnsFragmentId <> "\"" :: String)
+                bodyText `shouldNotContain` ("id=\"" <> cs rosterGridFrameFragmentId <> "\"" :: String)
                 bodyText `shouldContain` ("id=\"" <> cs rosterStaffPanelFragmentId <> "\"" :: String)
                 bodyText `shouldContain` "hx-swap-oob=\"outerHTML\""
 

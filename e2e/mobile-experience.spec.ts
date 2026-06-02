@@ -388,6 +388,22 @@ test.describe('Mobile experience smoke', () => {
             expect(Math.abs((await readScroll('#roster-grid-frame')) - dayColumnsScroll)).toBeLessThanOrEqual(2);
         }
 
+        await markScrollOwner('#roster-grid-frame', 'day-columns-close-owner');
+        const closeResponsePromise = page.waitForResponse((response) => (
+            response.request().method() === 'POST'
+            && response.url().includes('/ToggleRosterDayClosed')
+        ));
+        await page.locator('[data-roster-day-closed-toggle="true"]').first().evaluate((button) => {
+            const form = button.closest('form');
+            if (!(form instanceof HTMLFormElement)) throw new Error('Expected day closed toggle form');
+            form.requestSubmit();
+        });
+        await closeResponsePromise;
+        await expectScrollOwnerMarker('#roster-grid-frame', 'day-columns-close-owner');
+        if (dayColumnsScroll > 0) {
+            expect(Math.abs((await readScroll('#roster-grid-frame')) - dayColumnsScroll)).toBeLessThanOrEqual(2);
+        }
+
         await ensureRosterLayout(page, 'day_rows');
         await expect(page.locator('.roster-slots-scroller')).toBeVisible();
         const dayRowsScroll = await setScroll('.roster-slots-scroller');
