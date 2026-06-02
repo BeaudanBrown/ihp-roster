@@ -1,14 +1,32 @@
 /* Shared app-panel accordion contract and nested panel flattening. */
 
 .accordion-item.app-panel {
+    position: relative;
     overflow: hidden;
     border-radius: 0.9rem;
-    background-color: var(--app-surface);
+    background: linear-gradient(180deg, var(--app-surface-2), var(--app-surface));
+    box-shadow:
+        0 0.45rem 1rem var(--app-shadow-sm-raw),
+        inset 0 1px 0 var(--app-white-alpha-05);
+    transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease, background 140ms ease;
+}
+
+.accordion-item.app-panel:hover,
+.accordion-item.app-panel:focus-within {
+    z-index: 2;
+    border-color: var(--app-border-strong);
+    box-shadow:
+        0 0.7rem 1.45rem var(--app-shadow-md-raw),
+        inset 0 1px 0 var(--app-white-alpha-08);
+    transform: translateY(-1px);
 }
 
 .accordion-item.app-panel:has(.accordion-button:not(.collapsed)) {
     border-color: var(--app-accent-border-soft);
-    box-shadow: 0 0.7rem 1.7rem var(--app-shadow-md-raw), 0 0 0 1px var(--app-accent-softer);
+    box-shadow:
+        0 0.85rem 1.9rem var(--app-shadow-md-raw),
+        0 0 0 1px var(--app-accent-softer),
+        inset 0 1px 0 var(--app-white-alpha-08);
 }
 
 .accordion-item.app-panel .accordion-header {
@@ -17,9 +35,21 @@
 
 .accordion-item.app-panel .accordion-button {
     border-radius: calc(0.9rem - 1px);
-    background-color: var(--app-surface);
+    background: linear-gradient(180deg, var(--app-surface-2), var(--app-surface));
     color: var(--app-text);
     border-bottom: 1px solid transparent;
+    box-shadow: inset 0 1px 0 var(--app-white-alpha-05);
+    transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease;
+}
+
+.accordion-item.app-panel .accordion-button:hover,
+.accordion-item.app-panel .accordion-button:focus-visible {
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--app-surface-2) 90%, var(--app-accent) 10%),
+        color-mix(in srgb, var(--app-surface) 92%, var(--app-accent) 8%)
+    );
+    color: var(--app-accent-hover);
 }
 
 .accordion-item.app-panel:first-of-type,
@@ -43,18 +73,23 @@
 }
 
 .accordion-item.app-panel .accordion-button:not(.collapsed) {
-    background-color: var(--app-surface-2);
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--app-surface-2) 88%, var(--app-accent) 12%),
+        var(--app-surface-2)
+    );
     color: var(--app-accent-hover);
     border-bottom-color: var(--app-accent-border-soft);
     border-bottom-left-radius: 0;
     border-bottom-right-radius: 0;
-    box-shadow: none;
+    box-shadow: inset 0 1px 0 var(--app-white-alpha-08);
 }
 
 .accordion-item.app-panel .accordion-body {
-    background-color: var(--app-surface);
+    background: linear-gradient(180deg, var(--app-surface), var(--app-surface-muted));
     border-top: 1px solid var(--app-border-alpha-70);
     border-radius: 0 0 calc(0.9rem - 1px) calc(0.9rem - 1px);
+    box-shadow: inset 0 0.8rem 1.2rem color-mix(in srgb, var(--app-bg) 30%, transparent);
 }
 
 .accordion-item.app-panel .accordion-body.p-0 > .app-panel {
