@@ -727,7 +727,7 @@ tests = beforeAll testContext do
                 ambiguousMapping <- query @XeroStaffMapping |> filterWhere (#staffId, unpackId ambiguousStaff.id) |> fetchOne
                 ambiguousMapping.mappingStatus `shouldBe` "not_applicable"
 
-        it "shows managed Xero pay items and saves setup selections from the admin fragment" $ withContext do
+        it "keeps managed pay item requirements out of the admin fragment while saving setup selections" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Earnings Mapping Venue"
                 admin <- createUserRecord "xero-earnings-mapping@example.com" "staff" True
@@ -744,29 +744,19 @@ tests = beforeAll testContext do
                 pageResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroFragmentAction
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "Pay item requirements"
                 pageResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
+                pageResponse `responseBodyShouldContain` "Imported Xero pay items"
+                pageResponse `responseBodyShouldNotContain` "Pay item requirements"
                 pageResponse `responseBodyShouldNotContain` "admin_xero_pay_items"
                 pageResponse `responseBodyShouldNotContain` "name=\"xeroPayItemAccountCodeSelection\""
                 payItemsFragmentResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
                     callAction ShowAdminXeroPayItemsFragmentAction
                 payItemsFragmentResponse `responseStatusShouldBe` status200
                 payItemsFragmentResponse `responseBodyShouldContain` "id=\"xero-pay-items-data\""
-                payItemsFragmentResponse `responseBodyShouldContain` "Pay item requirements"
-                payItemsFragmentResponse `responseBodyShouldContain` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
-                payItemsFragmentResponse `responseBodyShouldContain` "$39.3750/hr"
-                payItemsFragmentResponse `responseBodyShouldContain` "Evening After 7pm Loading"
-                payItemsFragmentResponse `responseBodyShouldContain` "$3.1500/hr"
-                payItemsFragmentResponse `responseBodyShouldContain` "M-F Delayed Meal Break"
-                payItemsFragmentResponse `responseBodyShouldContain` "$47.2500/hr"
-                payItemsFragmentResponse `responseBodyShouldContain` "Saturday Delayed Meal Break"
-                payItemsFragmentResponse `responseBodyShouldContain` "$55.1250/hr"
-                payItemsFragmentResponse `responseBodyShouldContain` "matched"
-                payItemsFragmentResponse `responseBodyShouldContain` "proposed"
-                payItemsFragmentResponse `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - Undated"
-                payItemsFragmentResponse `responseBodyShouldContain` "Create 6 missing pay items in Xero"
-                payItemsFragmentResponse `responseBodyShouldContain` "hx-target=\"#xero-pay-items-data\""
-                payItemsFragmentResponse `responseBodyShouldContain` "hx-indicator=\"#xero-pay-items-sync-indicator\""
+                payItemsFragmentResponse `responseBodyShouldContain` "Imported Xero pay items"
+                payItemsFragmentResponse `responseBodyShouldNotContain` "Pay item requirements"
+                payItemsFragmentResponse `responseBodyShouldNotContain` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
+                payItemsFragmentResponse `responseBodyShouldNotContain` "Create 6 missing pay items in Xero"
                 payItemsFragmentResponse `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 saturdayRequirement <- query @XeroPayItemRequirementRecord |> filterWhere (#displayName, "Saturday Penalty - Level 2 - PERM - Bepis - Undated") |> fetchOne
                 saturdayRequirement.requirementStatus `shouldBe` "matched"
@@ -830,7 +820,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Created and verified 8 missing Xero pay items."
                 response `responseBodyShouldContain` "id=\"xero-pay-items-data\""
-                response `responseBodyShouldContain` "id=\"xero-pay-items-sync-indicator\""
+                response `responseBodyShouldContain` "Imported Xero pay items"
+                response `responseBodyShouldNotContain` "id=\"xero-pay-items-sync-indicator\""
                 response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 requests <- IORef.readIORef requestsRef
                 length requests `shouldBe` 8
@@ -941,7 +932,7 @@ tests = beforeAll testContext do
                     |> fetch
                 length createdRequirements `shouldBe` 7
 
-        it "shows current Xero pay item requirements first and keeps expired rates in the archive" $ withContext do
+        it "keeps current and archived Xero pay item requirements persisted while hiding them from the admin fragment" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Xero Pay Item Archive Venue"
                 admin <- createUserRecord "xero-pay-item-archive@example.com" "staff" True
@@ -970,11 +961,10 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroPayItemsFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "Create 6 missing pay items in Xero"
-                pageResponse `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - 1-July-2025"
-                pageResponse `responseBodyShouldContain` "Archived pay item requirements (2)"
-                pageResponse `responseBodyShouldContain` "Ordinary - Level 2 - PERM - Bepis - 1-July-2024"
-                pageResponse `responseBodyShouldContain` "M-F Delayed Meal Break - Level 2 - PERM - Bepis - 1-July-2024"
+                pageResponse `responseBodyShouldContain` "Imported Xero pay items"
+                pageResponse `responseBodyShouldNotContain` "Create 6 missing pay items in Xero"
+                pageResponse `responseBodyShouldNotContain` "Ordinary - Level 2 - PERM - Bepis - 1-July-2025"
+                pageResponse `responseBodyShouldNotContain` "Archived pay item requirements (2)"
 
         it "keeps Xero pay item requirement keys unique across employment bases" $ withContext do
             withCleanDb do
@@ -991,8 +981,9 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroPayItemsFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
-                pageResponse `responseBodyShouldContain` "Saturday Penalty - Level 2 - CAS - Bepis - Undated"
+                pageResponse `responseBodyShouldContain` "Imported Xero pay items"
+                pageResponse `responseBodyShouldNotContain` "Saturday Penalty - Level 2 - PERM - Bepis - Undated"
+                pageResponse `responseBodyShouldNotContain` "Saturday Penalty - Level 2 - CAS - Bepis - Undated"
 
                 let permanentKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:penalty:saturday_penalty"
                 let casualKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:casual:effective:undated:penalty:saturday_penalty"
@@ -1071,10 +1062,11 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroPayItemsFragmentAction
 
                 pageResponse `responseStatusShouldBe` status200
-                pageResponse `responseBodyShouldContain` "Ordinary - Floor Level - PERM - Bepis - Undated"
-                pageResponse `responseBodyShouldContain` "Ordinary - Floor Level - CAS - Bepis - Undated"
-                pageResponse `responseBodyShouldContain` "Ordinary - Kitchen Level - PERM - Bepis - Undated"
-                pageResponse `responseBodyShouldContain` "Ordinary - Kitchen Level - CAS - Bepis - Undated"
+                pageResponse `responseBodyShouldContain` "Imported Xero pay items"
+                pageResponse `responseBodyShouldNotContain` "Ordinary - Floor Level - PERM - Bepis - Undated"
+                pageResponse `responseBodyShouldNotContain` "Ordinary - Floor Level - CAS - Bepis - Undated"
+                pageResponse `responseBodyShouldNotContain` "Ordinary - Kitchen Level - PERM - Bepis - Undated"
+                pageResponse `responseBodyShouldNotContain` "Ordinary - Kitchen Level - CAS - Bepis - Undated"
                 pageResponse `responseBodyShouldNotContain` "Unused Level"
 
                 let unusedKey = "xero:pay-item:classification:" <> tshow unusedLevel.classificationFixedId <> ":basis:permanent:effective:undated:ordinary"
@@ -1124,7 +1116,8 @@ tests = beforeAll testContext do
                     callAction ShowAdminXeroPayItemsFragmentAction
 
                 rateChangedResponse `responseStatusShouldBe` status200
-                rateChangedResponse `responseBodyShouldContain` "rate changed"
+                rateChangedResponse `responseBodyShouldContain` "Imported Xero pay items"
+                rateChangedResponse `responseBodyShouldNotContain` "rate changed"
                 updatedRequirement <- query @XeroPayItemRequirementRecord
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
                     |> filterWhere (#requirementKey, saturdayKey)

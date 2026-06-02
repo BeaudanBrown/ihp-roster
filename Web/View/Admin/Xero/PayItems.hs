@@ -70,65 +70,11 @@ renderXeroPayItemsDataOob =
     renderXeroPayItemsDataWith outerHtmlOobSwap
 
 renderXeroPayItemsDataWith :: OobSwapAttr -> [XeroPayItemAccountCodeOption] -> [XeroPayItemRequirement] -> [XeroImportedPayItem] -> Maybe XeroPayItemAccountCodeSelection -> Maybe XeroSyncRun -> Bool -> Html
-renderXeroPayItemsDataWith maybeOobSwap accountCodeOptions requirements importedPayItems maybePayItemAccountCodeSelection maybePayItemSyncRun canManagePayItems
-    | null requirements = [hsx|
-        <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"} hx-swap-oob={maybeOobSwap}>
-            <h3 class="h6 mb-2">Pay item requirements</h3>
-            <p class="small app-muted mb-3">No award-backed Xero pay item requirements are available yet.</p>
-            {renderImportedXeroPayItemsPanel importedPayItems canManagePayItems}
-        </div>
-    |]
-    | otherwise = [hsx|
-        <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"} hx-swap-oob={maybeOobSwap}>
-            <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
-                <div>
-                    <h3 class="h6 mb-1">Pay item requirements</h3>
-                    <p class="small app-muted mb-0">Review the managed Xero earnings-rate pay items this venue needs before timesheet export mapping. Managed names include Bepis and put the pay condition first.</p>
-                </div>
-                <div class="d-flex flex-wrap gap-2">
-                    {renderAppStatusBadge AppStatusSuccess (tshow matchedCount <> " matched")}
-                    {renderAppStatusBadge AppStatusNeutral (tshow proposedCount <> " proposed")}
-                    {renderAppStatusBadge AppStatusWarning (tshow rateChangedCount <> " rate changed")}
-                    {renderAppStatusBadge AppStatusWarning (tshow staleCount <> " stale")}
-                    {renderAppStatusBadge AppStatusNeutral (tshow archivedCount <> " archived")}
-                    {renderXeroPayItemSyncStatus maybePayItemSyncRun}
-                </div>
-            </div>
-            {renderCreateMissingXeroPayItemsControl canManagePayItems hasAccountCode proposedCount}
-            {renderXeroPayItemSyncIndicator maybePayItemSyncRun}
-            <div class="table-responsive">
-                <table class="table table-sm align-middle mb-0">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Value</th>
-                            <th>Xero status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {forEach activeRequirements renderXeroPayItemRequirementRow}
-                    </tbody>
-                </table>
-            </div>
-            {renderArchivedXeroPayItemRequirements archivedRequirements}
-            <div class="mt-4">
-                {renderImportedXeroPayItemsPanel importedPayItems canManagePayItems}
-            </div>
-        </div>
-    |]
-    where
-        activeRequirements = sortPayItemRequirementsByName (filter (.payItemRequirementIsActive) requirements)
-        archivedRequirements = sortPayItemRequirementsByName (filter (not . (.payItemRequirementIsActive)) requirements)
-        matchedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "matched") activeRequirements)
-        proposedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "proposed") activeRequirements)
-        rateChangedCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "rate_changed") activeRequirements)
-        staleCount = length (filter (\requirement -> requirement.payItemRequirementStatus == "stale") activeRequirements)
-        archivedCount = length archivedRequirements
-        accountCodeOptionValues = xeroPayItemAccountCodeOptionValues accountCodeOptions
-        hasAccountCode =
-            case maybePayItemAccountCodeSelection of
-                Just selection -> selection.selectionStatus == "verified" && maybe False (\accountCode -> Text.strip accountCode `elem` accountCodeOptionValues) selection.accountCode
-                Nothing -> False
+renderXeroPayItemsDataWith maybeOobSwap _accountCodeOptions _requirements importedPayItems _maybePayItemAccountCodeSelection _maybePayItemSyncRun canManagePayItems = [hsx|
+    <div id="xero-pay-items-data" class={appSurfaceClasses "p-3"} hx-swap-oob={maybeOobSwap}>
+        {renderImportedXeroPayItemsPanel importedPayItems canManagePayItems}
+    </div>
+|]
 
 sortPayItemRequirementsByName :: [XeroPayItemRequirement] -> [XeroPayItemRequirement]
 sortPayItemRequirementsByName =
