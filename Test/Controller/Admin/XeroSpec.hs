@@ -1268,7 +1268,7 @@ tests = beforeAll testContext do
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Review Xero draft timesheets"
+                response `responseBodyShouldContain` "Pay period:"
                 response `responseBodyShouldContain` "Step 3 of 3"
                 response `responseBodyShouldContain` "Readiness validation"
                 response `responseBodyShouldContain` "Submit draft timesheets to Xero"
@@ -1457,7 +1457,7 @@ tests = beforeAll testContext do
                                     [("accountCode", "477")]
 
                 approvalResponse `responseStatusShouldBe` status200
-                approvalResponse `responseBodyShouldContain` "Review Xero draft timesheets"
+                approvalResponse `responseBodyShouldContain` "Step 3 of 3"
                 approvalRequests <- liftIO $ IORef.readIORef requestsRef
                 approvalRequests `shouldBe` []
                 pendingAfterApproval <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
