@@ -315,9 +315,12 @@ ensurePreparationPayItemsReady run maybeAccountCode = do
                                 now <- getCurrentTime
                                 createProposedXeroPayItems xeroClient refreshedConnection accessToken now accountCode proposedRequirements >>= \case
                                     Left message -> pure (Left message)
-                                    Right _ -> do
-                                        markPayItemCreateDecisionsApplied run proposedRequirements
-                                        pure (Right ())
+                                    Right verification
+                                        | verification.failedCount > 0 || verification.missingCount > 0 ->
+                                            pure (Left (xeroPayItemVerificationFailureMessage verification))
+                                        | otherwise -> do
+                                            markPayItemCreateDecisionsApplied run proposedRequirements
+                                            pure (Right ())
 
 syncXeroPreparationReferenceData ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

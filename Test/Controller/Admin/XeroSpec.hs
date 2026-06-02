@@ -1522,6 +1522,58 @@ tests = beforeAll testContext do
                 pendingPayItemDecisions <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount
                 pendingPayItemDecisions `shouldBe` 0
 
+        it "reports unverified managed pay item creation during preparation submit" $ withContext do
+            withCleanDb do
+                fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
+                encryptedRefreshToken <- encryptXeroToken testXeroConfig.tokenEncryptionKey "refresh-token"
+                _ <-
+                    fixture.connection
+                        |> set #tenantId ("tenant-id" :: Text)
+                        |> set #encryptedRefreshToken encryptedRefreshToken
+                        |> updateRecord
+                existingRates <- query @XeroEarningsRate |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetch
+                forM_ existingRates \rate ->
+                    rate
+                        |> set #isActive False
+                        |> updateRecord
+                        >>= const (pure ())
+                _ <- createXeroEarningsRateRecord fixture.connection "Ordinary Hours" "earnings-account-code"
+                requestsRef <- liftIO $ IORef.newIORef []
+                let tokenResponse = XeroTokenResponse "submit-access-token" "submit-refresh-token" 1800 (Just requiredXeroScopesText)
+                    xeroClient = payItemCreateXeroClientWithVerifiedLimit tokenResponse requestsRef (Just 0)
+                _ <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest xeroClient do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams RunXeroTimesheetPreparationAction
+                                    [("periodKey", fixturePeriodKey fixture)]
+                run <- query @XeroTimesheetPreparationRun |> fetchOne
+                _ <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                    withRequestHeaders [("HX-Request", "true")] do
+                        callAction (ContinueXeroTimesheetPreparationStaffStepAction run.id)
+                _ <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest xeroClient do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams (ApproveXeroTimesheetPreparationPayItemsAction run.id)
+                                    [("accountCode", "477")]
+
+                response <- withXeroConfigForTest (Right testXeroConfig) do
+                    withXeroClientForTest xeroClient do
+                        withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
+                            withRequestHeaders [("HX-Request", "true")] do
+                                callActionWithParams (SubmitXeroTimesheetPreparationAction run.id)
+                                    [("accountCode", "477")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Submitted 1 Xero pay item creates and verified 0 after pulling Xero pay items."
+                response `responseBodyShouldContain` "Still missing:"
+                response `responseBodyShouldNotContain` "Managed Xero pay item requirements must be matched or created before timesheet readiness."
+                createRequests <- liftIO $ IORef.readIORef requestsRef
+                length createRequests `shouldBe` 1
+                refreshedRun <- fetch run.id
+                refreshedRun.status `shouldNotBe` "submitted"
+
         it "keeps stale Xero payroll calendar selections out of the guided preparation path" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
