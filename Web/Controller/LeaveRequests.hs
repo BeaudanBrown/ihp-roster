@@ -30,11 +30,22 @@ instance Controller LeaveRequestsController where
     action ShowLeaveRequestsContentFragmentAction = do
         ensureProfileCompleted
         ensureManagerRole
-        serveTypedLiveFragment leaveRequestsLiveSurfaceDefinition () LeaveRequestsProjectionContent \_ -> do
-            maybeHtml <- renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
-            when (isNothing maybeHtml) do
-                TextIO.putStrLn "leave_projection_miss: fragment=content"
-            respondHtmlProfiled (fromMaybe mempty maybeHtml)
+        if paramOrDefault @Text "" "swapOob" == "true"
+            then do
+                projection <- fetchLeaveRequestsProjectionCached
+                respondHtmlProfiled $
+                    renderArchivePageContentOob
+                        projection.leaveProjectionRequests
+                        projection.leaveProjectionStaffMembers
+                        projection.leaveProjectionCurrentViewerStaffId
+                        projection.leaveProjectionToday
+                        currentLeaveArchivePage
+            else do
+                serveTypedLiveFragment leaveRequestsLiveSurfaceDefinition () LeaveRequestsProjectionContent \_ -> do
+                    maybeHtml <- renderLeaveRequestsProjectionFragment LeaveRequestsProjectionContent
+                    when (isNothing maybeHtml) do
+                        TextIO.putStrLn "leave_projection_miss: fragment=content"
+                    respondHtmlProfiled (fromMaybe mempty maybeHtml)
 
     action NewLeaveRequestAction = do
         ensureStaffSelfServiceAccess
@@ -114,8 +125,8 @@ respondWithLeaveRequestsContent successMessage renderMainFragmentOob = do
     projection <- fetchLeaveRequestsProjectionCached
     let mainFragment =
             if renderMainFragmentOob
-                then renderLeaveRequestsContentFragmentOob projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday currentLeaveArchivePage
-                else renderLeaveRequestsContentFragment projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday currentLeaveArchivePage
+                then renderLeaveRequestsContentFragmentOob projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday currentLeaveArchivePage currentLeaveArchiveOpen
+                else renderLeaveRequestsContentFragment projection.leaveProjectionRequests projection.leaveProjectionStaffMembers projection.leaveProjectionCurrentViewerStaffId projection.leaveProjectionToday currentLeaveArchivePage currentLeaveArchiveOpen
     respondHtmlProfiled $
         mconcat
             [ mainFragment

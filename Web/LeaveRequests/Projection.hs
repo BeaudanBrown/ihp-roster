@@ -7,6 +7,7 @@ module Web.LeaveRequests.Projection
     , buildLeaveRequestsContentFragmentRef
     , buildLeaveRequestsPageFragmentRef
     , buildLeaveRequestsScope
+    , currentLeaveArchiveOpen
     , currentLeaveArchivePage
     , fetchLeaveRequestsProjection
     , fetchLeaveRequestsProjectionCached
@@ -137,6 +138,7 @@ renderLeaveRequestsProjectionHtml projection fragment =
                     projection.leaveProjectionCurrentViewerStaffId
                     projection.leaveProjectionToday
                     currentLeaveArchivePage
+                    currentLeaveArchiveOpen
                 )
 
 leaveRequestsIndexView :: (?context :: ControllerContext, ?request :: Request) => LeaveRequestsProjection -> IndexView
@@ -147,12 +149,17 @@ leaveRequestsIndexView LeaveRequestsProjection { leaveProjectionRequests, leaveP
         , currentViewerStaffId = leaveProjectionCurrentViewerStaffId
         , today = leaveProjectionToday
         , archivePage = currentLeaveArchivePage
+        , archiveIsOpen = currentLeaveArchiveOpen
         , liveUpdateSurface = Just (mkTypedDefinedLiveSurface leaveRequestsLiveSurfaceDefinition ())
         }
 
 currentLeaveArchivePage :: (?request :: Request) => Int
 currentLeaveArchivePage =
     fromMaybe 1 (paramOrNothing @Int "archivePage")
+
+currentLeaveArchiveOpen :: (?request :: Request) => Bool
+currentLeaveArchiveOpen =
+    paramOrDefault @Text "" "openSection" == "archive"
 
 affectedRosterWeekInvalidationTargetsForScopes ::
     Id Venue ->

@@ -343,6 +343,38 @@ tests = beforeAll testContext do
                 fragmentResponse `responseBodyShouldContain` "archive-page-note-11"
                 fragmentResponse `responseBodyShouldNotContain` "id=\"app\""
 
+        it "returns only the archive page content for archive pagination OOB swaps" $ withContext do
+            withCleanDb do
+                today <- utctDay <$> getCurrentTime
+                venue <- createVenueWithConfig "Leave Archive OOB Pagination Venue"
+                manager <- createUserRecord "leave-manager-archive-oob@example.com" "staff" True
+                workerUser <- createUserRecord "leave-worker-archive-oob@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue workerUser "worker"
+                staff <- createStaffRecord venue (Just workerUser) "Oob" "Archive"
+                forM_ [1 .. 12 :: Int] \index -> do
+                    let endDate = addDays (negate (toInteger index)) today
+                    leaveRequest <- createLeaveRequestRecord venue staff (addDays (-1) endDate) endDate "approved"
+                    leaveRequest
+                        |> set #notes (Just ("archive-oob-note-" <> tshow index))
+                        |> updateRecord
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callActionWithParams ShowLeaveRequestsContentFragmentAction
+                        [ ("archivePage", "2")
+                        , ("openSection", "archive")
+                        , ("swapOob", "true")
+                        ]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"leave-archive-page-content\""
+                response `responseBodyShouldContain` "hx-swap-oob=\"outerHTML\""
+                response `responseBodyShouldContain` "archive-oob-note-11"
+                response `responseBodyShouldContain` "archive-oob-note-12"
+                response `responseBodyShouldNotContain` "id=\"leave-requests-content\""
+                response `responseBodyShouldNotContain` "id=\"leave-pending\""
+                response `responseBodyShouldNotContain` "id=\"leave-archive-collapse\""
+
         it "renders manager accordions with zero counts instead of empty-state copy when there are no leave requests" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Leave Venue"
