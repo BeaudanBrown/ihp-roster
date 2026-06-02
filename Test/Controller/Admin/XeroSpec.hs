@@ -1270,7 +1270,8 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Pay period:"
                 response `responseBodyShouldContain` "Step 3 of 3"
-                response `responseBodyShouldContain` "Readiness validation"
+                response `responseBodyShouldContain` "Timesheet summary"
+                response `responseBodyShouldContain` "Approved entries"
                 response `responseBodyShouldContain` "Submit draft timesheets to Xero"
                 response `responseBodyShouldNotContain` "Staff mappings"
                 response `responseBodyShouldNotContain` "Setup"
@@ -1458,6 +1459,11 @@ tests = beforeAll testContext do
 
                 approvalResponse `responseStatusShouldBe` status200
                 approvalResponse `responseBodyShouldContain` "Step 3 of 3"
+                approvalResponse `responseBodyShouldContain` "Review the draft timesheets Bepis will submit to Xero."
+                approvalResponse `responseBodyShouldContain` "Approved entries"
+                approvalResponse `responseBodyShouldContain` "4.00"
+                approvalResponse `responseBodyShouldNotContain` "Managed Xero pay item requirements must be matched or created before timesheet readiness."
+                approvalResponse `responseBodyShouldNotContain` "Employee-level preview rows will be finalized"
                 approvalRequests <- liftIO $ IORef.readIORef requestsRef
                 approvalRequests `shouldBe` []
                 pendingAfterApproval <- query @XeroTimesheetPreparationDecision |> filterWhere (#decisionKind, "pay_item_create" :: Text) |> filterWhere (#decisionStatus, "pending" :: Text) |> fetchCount

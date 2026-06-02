@@ -13,7 +13,7 @@ import Control.Monad (guard)
 import qualified Data.List as List
 import Data.Scientific (FPFormat (Fixed), Scientific, formatScientific)
 import qualified Data.Text as Text
-import Data.Time.Calendar (Day)
+import Data.Time.Calendar (Day, diffDays)
 import Web.View.Prelude
 
 renderXeroTimesheetPreparationDialog :: XeroTimesheetPreparationView -> Html
@@ -119,10 +119,10 @@ renderXeroTimesheetPreparationSummaryStep view =
         { dialogOverlayTitle = preparationDialogTitle view
         , dialogOverlayBody = [hsx|
             <div class="d-flex flex-column gap-3" data-xero-timesheet-preparation-dialog="true">
-                {renderStepNotice "Step 3 of 3" "Review the employee-level draft timesheet summary before creating draft timesheets in Xero."}
+                {renderStepNotice "Step 3 of 3" "Review the draft timesheets Bepis will submit to Xero."}
                 {renderFinalSummaryCards view}
-                {renderReadiness view.preparationReadiness}
-                {renderSummaryPreview view}
+                {renderReviewReadiness view}
+                {renderReviewSummary view}
                 {renderFinalSubmissionCopy}
                 <form id="xero-preparation-confirm-submit-form"
                       method="POST"
@@ -147,7 +147,7 @@ renderXeroTimesheetPreparationSubmittingDialog view =
                 <div id="xero-timesheet-preparation-submitting-indicator" class="spinner-border text-primary" role="status" aria-hidden="true"></div>
                 <div>
                     <div class="fw-semibold">Creating Xero draft timesheets...</div>
-                    <div class="small app-muted">Bepis is creating any approved managed pay items first, then submitting each employee draft timesheet to Xero. This can take a moment.</div>
+                    <div class="small app-muted">Bepis is submitting each employee draft timesheet to Xero. This can take a moment.</div>
                 </div>
                 <form method="POST"
                       action={RunXeroTimesheetPreparationSubmissionAction view.preparationRun.id}
@@ -262,10 +262,10 @@ proposedPayItemRows view =
 renderFinalSummaryCards :: XeroTimesheetPreparationView -> Html
 renderFinalSummaryCards view = [hsx|
     <div class="row g-2">
-        {renderSummaryCard "Employees" (tshow (length view.preparationPreviewRows))}
-        {renderSummaryCard "Source entries" (tshow (sum (map (.previewRowSourceCount) view.preparationPreviewRows)))}
-        {renderSummaryCard "Total units" (formatUnits (sum (map (.previewRowTotalUnits) view.preparationPreviewRows)))}
-        {renderSummaryCard "Earnings lines" (tshow (sum (map (length . (.previewRowLines)) view.preparationPreviewRows)))}
+        {renderSummaryCard "Employees" (tshow (length view.preparationReviewRows))}
+        {renderSummaryCard "Approved entries" (tshow (sum (map (.reviewRowEntryCount) view.preparationReviewRows)))}
+        {renderSummaryCard "Total hours" (formatUnits (sum (map (.reviewRowTotalUnits) view.preparationReviewRows)))}
+        {renderSummaryCard "Pay period" (tshow (payPeriodDays view) <> " days")}
     </div>
 |]
 
@@ -279,17 +279,46 @@ renderSummaryCard label value = [hsx|
     </div>
 |]
 
-renderSummaryPreview :: XeroTimesheetPreparationView -> Html
-renderSummaryPreview view
-    | null view.preparationPreviewRows = [hsx|
+renderReviewSummary :: XeroTimesheetPreparationView -> Html
+renderReviewSummary view
+    | null view.preparationReviewRows = [hsx|
         <section>
-            <h6 class="mb-2">Employee summary</h6>
+            <h6 class="mb-2">Timesheet summary</h6>
             <div class={appSurfaceClasses "p-3 small app-muted"}>
-                Employee-level preview rows will be finalized after Bepis creates the approved Xero pay items during submission.
+                No Xero-paid staff with approved entries were found for this pay period.
             </div>
         </section>
     |]
-    | otherwise = renderPreview view
+    | otherwise = [hsx|
+        <section>
+            <h6 class="mb-2">Timesheet summary</h6>
+            <div class="table-responsive">
+                <table class="table table-sm align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>Staff member</th>
+                            <th class="text-end">Approved entries</th>
+                            <th class="text-end">Hours</th>
+                        </tr>
+                    </thead>
+                    <tbody>{forEach view.preparationReviewRows renderReviewRow}</tbody>
+                </table>
+            </div>
+        </section>
+    |]
+
+renderReviewRow :: XeroPreparationReviewRow -> Html
+renderReviewRow row = [hsx|
+    <tr>
+        <td><div class="fw-semibold">{staffName row.reviewRowStaff}</div></td>
+        <td class="text-end">{tshow row.reviewRowEntryCount}</td>
+        <td class="text-end">{formatUnits row.reviewRowTotalUnits}</td>
+    </tr>
+|]
+
+payPeriodDays :: XeroTimesheetPreparationView -> Int
+payPeriodDays view =
+    fromIntegral (diffDays view.preparationRun.payPeriodEnd view.preparationRun.payPeriodStart) + 1
 
 renderFinalSubmissionCopy :: Html
 renderFinalSubmissionCopy = [hsx|
@@ -683,6 +712,22 @@ renderReadiness readiness = [hsx|
     </section>
 |]
 
+renderReviewReadiness :: XeroTimesheetPreparationView -> Html
+renderReviewReadiness view
+    | null actionableBlockers = mempty
+    | otherwise = [hsx|
+        <section>
+            <h6 class="mb-2">Needs attention</h6>
+            {renderIssues "Blockers" actionableBlockers}
+        </section>
+    |]
+    where
+        actionableBlockers = filter reviewActionableBlocker view.preparationReadiness.timesheetReadinessBlockers
+
+reviewActionableBlocker :: XeroTimesheetIssueView -> Bool
+reviewActionableBlocker issue =
+    issue.timesheetIssueCode /= "managed_pay_item_not_ready"
+
 renderIssues :: Text -> [XeroTimesheetIssueView] -> Html
 renderIssues title [] = [hsx|<div class="small app-muted">{title}: none</div>|]
 renderIssues title issues = [hsx|
@@ -766,7 +811,7 @@ renderSubmitForm view = [hsx|
         <button type="submit"
                 class="btn btn-primary"
                 disabled={not view.preparationCanSubmit}
-                hx-confirm="Submit to Xero? This will create any listed managed pay items first, then create Xero draft timesheets.">
+                hx-confirm="Submit draft timesheets to Xero?">
             Submit to Xero
         </button>
     </form>
