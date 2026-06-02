@@ -280,6 +280,96 @@ parseShowInactiveParam paramName = paramOrDefault "false" paramName == ("true" :
 parseSubmittedShiftTypeColourKey :: (?context :: ControllerContext, ?request :: Request) => Maybe Text
 parseSubmittedShiftTypeColourKey = paramOrNothing "colourKey"
 
+data SubmittedPayRateSelection = SubmittedPayRateSelection
+    { submittedAwardLevelId          :: !(Maybe (Id AwardLevel))
+    , submittedImportedXeroPayItemId :: !(Maybe (Id XeroImportedPayItem))
+    }
+
+emptySubmittedPayRateSelection :: SubmittedPayRateSelection
+emptySubmittedPayRateSelection = SubmittedPayRateSelection Nothing Nothing
+
+parseSubmittedPayRateSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    ByteString ->
+    IO (Maybe SubmittedPayRateSelection)
+parseSubmittedPayRateSelection paramName =
+    case paramOrNothing @Text paramName of
+        Nothing -> parseLegacySubmittedPayRateSelection
+        Just "" -> pure (Just emptySubmittedPayRateSelection)
+        Just value
+            | Just rawAwardLevelId <- Text.stripPrefix "award:" value ->
+                validateSubmittedAwardLevelId rawAwardLevelId
+            | Just rawImportedPayItemId <- Text.stripPrefix "xero:" value ->
+                validateSubmittedImportedPayItemId rawImportedPayItemId
+            | otherwise -> do
+                setErrorMessage "Choose a pay rate from the list, or leave the default selected."
+                pure Nothing
+
+parseLegacySubmittedPayRateSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO (Maybe SubmittedPayRateSelection)
+parseLegacySubmittedPayRateSelection = do
+    let maybeAwardLevelText =
+            case paramOrNothing @Text "overrideAwardLevelId" of
+                Just value -> Just value
+                Nothing    -> paramOrNothing @Text "defaultAwardLevelId"
+    case maybeAwardLevelText of
+        Just "" -> parseLegacyImportedPayItemSelection
+        Just awardLevelText -> validateSubmittedAwardLevelId awardLevelText
+        Nothing -> parseLegacyImportedPayItemSelection
+
+parseLegacyImportedPayItemSelection ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    IO (Maybe SubmittedPayRateSelection)
+parseLegacyImportedPayItemSelection =
+    case paramOrNothing @Text "importedXeroPayItemId" of
+        Just "" -> pure (Just emptySubmittedPayRateSelection)
+        Just importedPayItemText -> validateSubmittedImportedPayItemId importedPayItemText
+        Nothing -> pure (Just emptySubmittedPayRateSelection)
+
+validateSubmittedAwardLevelId ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Text ->
+    IO (Maybe SubmittedPayRateSelection)
+validateSubmittedAwardLevelId rawAwardLevelId =
+    case Id <$> parseUUIDText rawAwardLevelId of
+        Nothing -> invalidAwardLevel
+        Just awardLevelId -> do
+            maybeAwardLevel <-
+                query @AwardLevel
+                    |> filterWhere (#id, awardLevelId)
+                    |> filterWhere (#isActive, True)
+                    |> fetchOneOrNothing
+            case maybeAwardLevel of
+                Just _ -> pure (Just emptySubmittedPayRateSelection { submittedAwardLevelId = Just awardLevelId })
+                Nothing -> invalidAwardLevel
+    where
+        invalidAwardLevel = do
+            setErrorMessage "Choose an active FWC pay rate, or leave the default selected."
+            pure Nothing
+
+validateSubmittedImportedPayItemId ::
+    (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
+    Text ->
+    IO (Maybe SubmittedPayRateSelection)
+validateSubmittedImportedPayItemId rawImportedPayItemId =
+    case Id <$> parseUUIDText rawImportedPayItemId of
+        Nothing -> invalidImportedPayItem
+        Just importedPayItemId -> do
+            maybeImportedPayItem <-
+                query @XeroImportedPayItem
+                    |> filterWhere (#id, importedPayItemId)
+                    |> filterWhere (#venueId, unpackId currentVenueId)
+                    |> filterWhere (#archivedAt, Nothing :: Maybe UTCTime)
+                    |> fetchOneOrNothing
+            case maybeImportedPayItem of
+                Just _ -> pure (Just emptySubmittedPayRateSelection { submittedImportedXeroPayItemId = Just importedPayItemId })
+                Nothing -> invalidImportedPayItem
+    where
+        invalidImportedPayItem = do
+            setErrorMessage "Choose an active imported Xero pay item, or leave the default selected."
+            pure Nothing
+
 parseSubmittedImportedXeroPayItemId ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
     IO (Maybe (Maybe (Id XeroImportedPayItem)))

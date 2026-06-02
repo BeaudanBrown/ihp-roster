@@ -13,7 +13,7 @@ import IHP.ViewPrelude
 
 awardLevelDisplayLabel :: AwardLevel -> Text
 awardLevelDisplayLabel awardLevel =
-    maybe "" (<> " - ") awardLevel.classificationLevel <> awardLevel.classification
+    awardLevel.classification
 
 awardLevelOptionLabel :: [AwardLevelBaseRate] -> AwardLevel -> Text
 awardLevelOptionLabel awardLevelBaseRates awardLevel =

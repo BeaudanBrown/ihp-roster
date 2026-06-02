@@ -123,15 +123,8 @@ renderShiftTypeCreateForm _shiftTypes showInactive awardLevels awardLevelBaseRat
                 <label class="form-label" for="new-shift-type-name">Name</label>
                 <input id="new-shift-type-name" class="form-control" type="text" name="name" placeholder="Standard Shift" />
             </div>
-            <div class="col-12 col-lg-3">
-                <label class="form-label" for="new-shift-type-award-level">Award Override</label>
-                <select id="new-shift-type-award-level" class="form-select" name="overrideAwardLevelId">
-                    <option value="" selected={True}>Use staff default award level</option>
-                    {forEach awardLevels (renderAwardLevelOption awardLevelBaseRates Nothing)}
-                </select>
-            </div>
-            <div class="col-12 col-lg-2">
-                {renderImportedPayItemSelect "new-shift-type-imported-pay-item" Nothing importedPayItems Nothing}
+            <div class="col-12 col-lg-4">
+                {renderPayRateSelect "new-shift-type-pay-rate" Nothing Nothing awardLevels awardLevelBaseRates importedPayItems Nothing}
             </div>
             <div class="col-12 col-lg-2">
                 {renderShiftTypeColourSelect "new-shift-type-colour" defaultCreateColourKey Nothing}
@@ -195,21 +188,8 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
                        hx-target="#admin-shift-types-fragment"
                        hx-swap="outerHTML" />
             </div>
-            <div class="col-12 col-lg-3">
-                <label class="form-label">Award Override</label>
-                <select class="form-select"
-                        name="overrideAwardLevelId"
-                        hx-post={UpdateShiftTypeAction (get #id shiftType)}
-                        hx-trigger="change"
-                        hx-include="closest form"
-                        hx-target="#admin-shift-types-fragment"
-                        hx-swap="outerHTML">
-                    <option value="" selected={isNothing shiftType.overrideAwardLevelId}>Use staff default award level</option>
-                    {forEach awardLevels (renderAwardLevelOption awardLevelBaseRates shiftType.overrideAwardLevelId)}
-                </select>
-            </div>
-            <div class="col-12 col-lg-3">
-                {renderImportedPayItemSelect ("shift-type-imported-pay-item-" <> tshow shiftType.id) shiftType.importedXeroPayItemId importedPayItems (Just (pathTo (UpdateShiftTypeAction shiftType.id)))}
+            <div class="col-12 col-lg-4">
+                {renderPayRateSelect ("shift-type-pay-rate-" <> tshow shiftType.id) shiftType.overrideAwardLevelId shiftType.importedXeroPayItemId awardLevels awardLevelBaseRates importedPayItems (Just (pathTo (UpdateShiftTypeAction shiftType.id)))}
             </div>
             <div class="col-12 col-lg-3">
                 {renderShiftTypeColourSelect ("shift-type-colour-" <> tshow shiftType.id) shiftType.colourKey (Just (pathTo (UpdateShiftTypeAction shiftType.id)))}
@@ -222,26 +202,27 @@ renderShiftTypeRow shiftTypes showInactive awardLevels awardLevelBaseRates impor
     </form>
 |]
 
-renderImportedPayItemSelect :: Text -> Maybe (Id XeroImportedPayItem) -> [XeroImportedPayItem] -> Maybe Text -> Html
-renderImportedPayItemSelect fieldId selectedImportedPayItemId importedPayItems maybePostPath = [hsx|
-    <label class="form-label" for={fieldId}>Xero Pay Item</label>
+renderPayRateSelect :: Text -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> [AwardLevel] -> [AwardLevelBaseRate] -> [XeroImportedPayItem] -> Maybe Text -> Html
+renderPayRateSelect fieldId selectedAwardLevelId selectedImportedPayItemId awardLevels awardLevelBaseRates importedPayItems maybePostPath = [hsx|
+    <label class="form-label" for={fieldId}>Pay Rate</label>
     <select id={fieldId}
             class="form-select"
-            name="importedXeroPayItemId"
+            name="payRateSelection"
             hx-post={fromMaybe "" maybePostPath}
             hx-trigger={if isJust maybePostPath then ("change" :: Text) else ("" :: Text)}
             hx-include="closest form"
             hx-target="#admin-shift-types-fragment"
             hx-swap="outerHTML">
-        <option value="" selected={isNothing selectedImportedPayItemId}>Use Bepis award pay</option>
+        <option value="" selected={isNothing selectedAwardLevelId && isNothing selectedImportedPayItemId}>Use staff default pay rate</option>
+        {forEach awardLevels (renderAwardLevelOption awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId)}
         {forEach importedPayItems (renderImportedPayItemOption selectedImportedPayItemId)}
     </select>
 |]
 
 renderImportedPayItemOption :: Maybe (Id XeroImportedPayItem) -> XeroImportedPayItem -> Html
 renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
-    <option value={inputValue importedPayItem.id} selected={selectedImportedPayItemId == Just importedPayItem.id}>
-        {importedPayItem.name} — ${tshow importedPayItem.ratePerUnit}/hr
+    <option value={"xero:" <> inputValue importedPayItem.id} selected={selectedImportedPayItemId == Just importedPayItem.id}>
+        Xero: {importedPayItem.name} — ${tshow importedPayItem.ratePerUnit}/hr
     </option>
 |]
 
@@ -297,9 +278,9 @@ shiftTypeFieldKey :: Id ShiftType -> Text -> Text
 shiftTypeFieldKey shiftTypeId fieldName =
     tshow shiftTypeId <> ":" <> fieldName
 
-renderAwardLevelOption :: [AwardLevelBaseRate] -> Maybe (Id AwardLevel) -> AwardLevel -> Html
-renderAwardLevelOption awardLevelBaseRates selectedAwardLevelId awardLevel = [hsx|
-    <option value={inputValue awardLevel.id} selected={selectedAwardLevelId == Just awardLevel.id}>
-        {awardLevelOptionLabel awardLevelBaseRates awardLevel}
+renderAwardLevelOption :: [AwardLevelBaseRate] -> Maybe (Id AwardLevel) -> Maybe (Id XeroImportedPayItem) -> AwardLevel -> Html
+renderAwardLevelOption awardLevelBaseRates selectedAwardLevelId selectedImportedPayItemId awardLevel = [hsx|
+    <option value={"award:" <> inputValue awardLevel.id} selected={isNothing selectedImportedPayItemId && selectedAwardLevelId == Just awardLevel.id}>
+        FWC: {awardLevelOptionLabel awardLevelBaseRates awardLevel}
     </option>
 |]

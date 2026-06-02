@@ -5,7 +5,9 @@ import Application.Helper.RosterGroups (fetchCurrentVenueDefaultRosterGroup,
                                         fetchCurrentVenueRosterGroups,
                                         fetchStaffRosterGroupIds)
 import Application.Helper.StaffShiftPreferences
-import Web.Controller.Admin.Support (fetchActiveImportedXeroPayItems, parseSubmittedImportedXeroPayItemId)
+import Web.Controller.Admin.Support (SubmittedPayRateSelection (..),
+                                     fetchActiveImportedXeroPayItems,
+                                     parseSubmittedPayRateSelection)
 import Application.Helper.Url (appendQueryParams)
 import Application.StaffDocuments.Rsa (latestRsaDocumentForStaff)
 import Data.Time.Calendar (Day)
@@ -59,8 +61,9 @@ instance Controller StaffController where
         let submittedRosterGroupIds = nub (mapMaybe parseRosterGroupIdText (paramTexts "rosterGroupIds"))
         maybeSelectedRosterGroupIds <- parseStaffRosterGroupIds
         let canManageStaffPay = hasRole VenueAdminRole
-        maybeSubmittedDefaultAwardLevelId <- parseSubmittedDefaultAwardLevelId canManageStaffPay
-        maybeSubmittedImportedXeroPayItemId <- if canManageStaffPay then parseSubmittedImportedXeroPayItemId else pure (Just Nothing)
+        maybeSubmittedPayRateSelection <- if canManageStaffPay then parseSubmittedPayRateSelection "payRateSelection" else pure (Just emptyStaffPayRateSelection)
+        let maybeSubmittedDefaultAwardLevelId = submittedAwardLevelId <$> maybeSubmittedPayRateSelection
+        let maybeSubmittedImportedXeroPayItemId = submittedImportedXeroPayItemId <$> maybeSubmittedPayRateSelection
         let preferenceWeekdays = allPreferenceWeekdays venueConfig
         staffRsaDocument <- latestRsaDocumentForStaff staff
         today <- utctDay <$> getCurrentTime
@@ -116,6 +119,9 @@ instance Controller StaffController where
                                                     (pathTo ShowRosterWeekAction { weekOffset })
                                                     (\rosterGroupId -> appendQueryParams (pathTo ShowRosterWeekAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)])
                                                     maybeRosterGroupId
+
+emptyStaffPayRateSelection :: SubmittedPayRateSelection
+emptyStaffPayRateSelection = SubmittedPayRateSelection Nothing Nothing
 
 buildStaff :: (?request :: Request) => Bool -> Maybe (Maybe (Id AwardLevel)) -> Maybe (Maybe (Id XeroImportedPayItem)) -> Staff -> Staff
 buildStaff canManageStaffPay maybeSubmittedDefaultAwardLevelId maybeSubmittedImportedXeroPayItemId staff =

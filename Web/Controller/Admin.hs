@@ -464,15 +464,14 @@ instance Controller AdminController where
             Nothing -> respondToShiftTypesSectionMutation
             Just name -> do
                 let isActive = parseIsActiveParam
-                maybeOverrideAwardLevelId <- parseSubmittedOverrideAwardLevelId
-                maybeImportedXeroPayItemId <- parseSubmittedImportedXeroPayItemId
-                case (maybeOverrideAwardLevelId, maybeImportedXeroPayItemId) of
-                    (Just overrideAwardLevelId, Just importedXeroPayItemId) -> do
+                maybePayRateSelection <- parseSubmittedPayRateSelection "payRateSelection"
+                case maybePayRateSelection of
+                    Just payRateSelection -> do
                         let maybeColourKey = parseSubmittedShiftTypeColourKey
-                        LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- createShiftTypeMutation name isActive overrideAwardLevelId importedXeroPayItemId maybeColourKey
+                        LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- createShiftTypeMutation name isActive payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId maybeColourKey
                         setSuccessMessage "Shift type added"
                         respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
-                    _ -> respondToShiftTypesSectionMutation
+                    Nothing -> respondToShiftTypesSectionMutation
 
     action UpdateShiftTypeAction { shiftTypeId } = do
         ensureVenueWritable
@@ -483,16 +482,15 @@ instance Controller AdminController where
             Nothing -> respondToShiftTypesSectionMutation
             Just name -> do
                 let isActive = parseIsActiveParam
-                maybeOverrideAwardLevelId <- parseSubmittedOverrideAwardLevelId
-                maybeImportedXeroPayItemId <- parseSubmittedImportedXeroPayItemId
-                case (maybeOverrideAwardLevelId, maybeImportedXeroPayItemId) of
-                    (Just overrideAwardLevelId, Just importedXeroPayItemId) -> do
+                maybePayRateSelection <- parseSubmittedPayRateSelection "payRateSelection"
+                case maybePayRateSelection of
+                    Just payRateSelection -> do
                         let maybeColourKey = parseSubmittedShiftTypeColourKey
-                        LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- updateShiftTypeMutation shiftType name isActive overrideAwardLevelId importedXeroPayItemId maybeColourKey
+                        LiveMutationResult { liveMutationValue = AdminShiftTypeMutationResult { adminShiftTypeMutationShouldRefreshXero = shouldRefreshXero } } <- updateShiftTypeMutation shiftType name isActive payRateSelection.submittedAwardLevelId payRateSelection.submittedImportedXeroPayItemId maybeColourKey
                         unless isHtmxRequest do
                             setSuccessMessage "Shift type updated"
                         respondToShiftTypesSectionMutationWithXeroRefresh shouldRefreshXero
-                    _ -> respondToShiftTypesSectionMutation
+                    Nothing -> respondToShiftTypesSectionMutation
 
     action MoveShiftTypeUpAction { shiftTypeId } = do
         ensureVenueWritable

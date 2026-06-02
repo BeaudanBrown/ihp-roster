@@ -177,36 +177,30 @@ renderStaffPayFields staff awardLevels awardLevelBaseRates importedPayItems = [h
             {renderStaffFieldError staff "employmentBasis"}
         </div>
         <div class="col-12 col-md-6">
-            <label for="defaultAwardLevelId" class="form-label">Default Award Level</label>
-            <select name="defaultAwardLevelId" id="defaultAwardLevelId" class={selectClass staff "defaultAwardLevelId"}>
-                <option value="" selected={isNothing staff.defaultAwardLevelId}>Not assigned</option>
+            <label for="payRateSelection" class="form-label">Default Pay Rate</label>
+            <select name="payRateSelection" id="payRateSelection" class={selectClass staff "defaultAwardLevelId"}>
+                <option value="" selected={isNothing staff.defaultAwardLevelId && isNothing staff.importedXeroPayItemId}>Not assigned</option>
                 {forEach awardLevels (renderAwardLevelOption staff awardLevelBaseRates)}
-            </select>
-            {renderStaffFieldError staff "defaultAwardLevelId"}
-        </div>
-        <div class="col-12">
-            <label for="importedXeroPayItemId" class="form-label">Xero Pay Item Override</label>
-            <select name="importedXeroPayItemId" id="importedXeroPayItemId" class={selectClass staff "importedXeroPayItemId"}>
-                <option value="" selected={isNothing staff.importedXeroPayItemId}>Use Bepis award pay</option>
                 {forEach importedPayItems (renderImportedPayItemOption staff.importedXeroPayItemId)}
             </select>
+            {renderStaffFieldError staff "defaultAwardLevelId"}
             {renderStaffFieldError staff "importedXeroPayItemId"}
-            <div class="form-text">Shift type Xero pay-item overrides take precedence over this staff default.</div>
+            <div class="form-text">FWC pay rates are listed first. Shift type pay-rate overrides take precedence over this staff default.</div>
         </div>
     </div>
 |]
 
 renderImportedPayItemOption :: Maybe (Id XeroImportedPayItem) -> XeroImportedPayItem -> Html
 renderImportedPayItemOption selectedImportedPayItemId importedPayItem = [hsx|
-    <option value={inputValue importedPayItem.id} selected={selectedImportedPayItemId == Just importedPayItem.id}>
-        {importedPayItem.name} — {tshow importedPayItem.ratePerUnit}/hr
+    <option value={"xero:" <> inputValue importedPayItem.id} selected={selectedImportedPayItemId == Just importedPayItem.id}>
+        Xero: {importedPayItem.name} — {tshow importedPayItem.ratePerUnit}/hr
     </option>
 |]
 
 renderAwardLevelOption :: Staff -> [AwardLevelBaseRate] -> AwardLevel -> Html
 renderAwardLevelOption staff awardLevelBaseRates awardLevel = [hsx|
-    <option value={inputValue awardLevel.id} selected={staff.defaultAwardLevelId == Just awardLevel.id}>
-        {awardLevelOptionLabel awardLevelBaseRates awardLevel}
+    <option value={"award:" <> inputValue awardLevel.id} selected={isNothing staff.importedXeroPayItemId && staff.defaultAwardLevelId == Just awardLevel.id}>
+        FWC: {awardLevelOptionLabel awardLevelBaseRates awardLevel}
     </option>
 |]
 

@@ -114,6 +114,35 @@ createTestPasskeyRecord user passkeyName =
         |> set #name passkeyName
         |> createRecord
 
+createImportedXeroPayItemRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> Text -> Scientific -> IO XeroImportedPayItem
+createImportedXeroPayItemRecord venue importedBy name earningsRateId rate = do
+    connection <- createXeroConnectionRecord venue importedBy ("tenant-" <> earningsRateId)
+    newRecord @XeroImportedPayItem
+        |> set #venueId (unpackId venue.id)
+        |> set #xeroConnectionId (unpackId connection.id)
+        |> set #xeroEarningsRateId earningsRateId
+        |> set #name name
+        |> set #accountCode (Just ("477" :: Text))
+        |> set #earningsType ("ORDINARYTIMEEARNINGS" :: Text)
+        |> set #rateType ("RATEPERUNIT" :: Text)
+        |> set #typeOfUnits ("Hours" :: Text)
+        |> set #ratePerUnit rate
+        |> set #rawPayload (Aeson.object [])
+        |> set #importedByUserId (unpackId importedBy.id)
+        |> createRecord
+
+createXeroConnectionRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO XeroConnection
+createXeroConnectionRecord venue connectedBy tenantId =
+    newRecord @XeroConnection
+        |> set #venueId (unpackId venue.id)
+        |> set #tenantId tenantId
+        |> set #tenantName (Just ("Test Tenant" :: Text))
+        |> set #connectionStatus ("active" :: Text)
+        |> set #scopes ("payroll.employees payroll.payitems" :: Text)
+        |> set #encryptedRefreshToken ("encrypted-refresh-token" :: Text)
+        |> set #connectedByUserId (Just (unpackId connectedBy.id))
+        |> createRecord
+
 createVenueMembershipRecord :: (?modelContext :: ModelContext) => Venue -> User -> Text -> IO VenueMembership
 createVenueMembershipRecord venue user venueRole = do
     membership <- newRecord @VenueMembership

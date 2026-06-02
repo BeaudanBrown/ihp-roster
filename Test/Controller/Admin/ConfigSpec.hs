@@ -141,6 +141,63 @@ tests = beforeAll testContext do
                 xeroResponse `responseStatusShouldBe` status302
                 lookup "Location" (responseHeaders xeroResponse) `shouldBe` Just "http://localhost/RosterWeeks"
 
+        it "shows active imported Xero pay items in shift type dropdowns" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Imported Pay Item Venue"
+                admin <- createUserRecord "admin-imported-pay-items@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                level <- createPayLevelRecord venue "Level 1"
+                _ <- createShiftTypeRecord venue level "Custom Rate Shift"
+                importedPayItem <- createImportedXeroPayItemRecord venue admin "Imported Bar Rate" "imported-bar-rate" 42.50
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminShiftTypesFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "id=\"admin-shift-types-fragment\""
+                response `responseBodyShouldContain` "Pay Rate"
+                response `responseBodyShouldContain` (cs ("<option value=\"xero:" <> inputValue importedPayItem.id <> "\""))
+                response `responseBodyShouldContain` "Xero: Imported Bar Rate"
+                response `responseBodyShouldContain` "42.5/hr"
+                responseBodyText <- responseBody response
+                (cs responseBodyText :: String) `shouldContainInOrder` ["FWC: Level 1", "Xero: Imported Bar Rate"]
+
+                createResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams CreateShiftTypeAction
+                        [ ("name", "Imported Pay Rate Shift")
+                        , ("isActive", "true")
+                        , ("payRateSelection", cs ("xero:" <> tshow importedPayItem.id))
+                        ]
+                createResponse `responseStatusShouldBe` status302
+                createdShiftType <- query @ShiftType
+                    |> filterWhere (#venueId, unpackId venue.id)
+                    |> filterWhere (#name, "Imported Pay Rate Shift" :: Text)
+                    |> fetchOne
+                createdShiftType.overrideAwardLevelId `shouldBe` Nothing
+                createdShiftType.importedXeroPayItemId `shouldBe` Just importedPayItem.id
+
+        it "hides archived imported Xero pay items from shift type dropdowns" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Admin Archived Imported Pay Item Venue"
+                admin <- createUserRecord "admin-archived-imported-pay-items@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                level <- createPayLevelRecord venue "Level 1"
+                _ <- createShiftTypeRecord venue level "Custom Rate Shift"
+                importedPayItem <- createImportedXeroPayItemRecord venue admin "Archived Bar Rate" "archived-bar-rate" 42.50
+                now <- getCurrentTime
+                _ <- importedPayItem
+                    |> set #archivedAt (Just now)
+                    |> set #archivedByUserId (Just (unpackId admin.id))
+                    |> set #archiveReason (Just ("Test archive" :: Text))
+                    |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callAction ShowAdminShiftTypesFragmentAction
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Pay Rate"
+                response `responseBodyShouldNotContain` "Archived Bar Rate"
+
         it "serves inactive toggles through targeted admin fragments" $ withContext do
             withCleanDb do
                 venue <- createVenueWithConfig "Admin Fragment Venue"

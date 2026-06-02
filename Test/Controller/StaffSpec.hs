@@ -10,6 +10,7 @@ import IHP.FrameworkConfig
 import IHP.HaskellSupport
 import IHP.Prelude
 import IHP.Test.Mocking
+import qualified Data.List as List
 import qualified Data.Set as Set
 import Network.HTTP.Types.Status
 import Network.Wai
@@ -164,7 +165,7 @@ tests = beforeAll testContext do
                         , ("idealShiftsPerWeek", "4")
                         , ("isActive", "on")
                         , ("employmentBasis", "permanent")
-                        , ("defaultAwardLevelId", cs (tshow payLevel.id))
+                        , ("payRateSelection", cs ("award:" <> tshow payLevel.id))
                         , ("weekOffset", "0")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
@@ -188,9 +189,70 @@ tests = beforeAll testContext do
                     callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Default Award Level"
-                response `responseBodyShouldContain` "Level 3 (perm $32.75/hr)"
+                response `responseBodyShouldContain` "Default Pay Rate"
+                response `responseBodyShouldContain` "FWC: Level 3 (perm $32.75/hr)"
                 response `responseBodyShouldContain` "Not assigned"
+
+        it "shows active imported Xero pay items in the staff pay override dropdown" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Imported Pay Item Venue"
+                admin <- createUserRecord "staff-imported-pay-items-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Alpha" "Crew"
+                _ <- createPayLevelRecordWithRates venue "Level Staff" 45.00 4.50 9.00 1 1.25 1.50
+                importedPayItem <- createImportedXeroPayItemRecord venue admin "Imported Staff Rate" "imported-staff-rate" 55.25
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Default Pay Rate"
+                response `responseBodyShouldContain` (cs ("<option value=\"xero:" <> inputValue importedPayItem.id <> "\""))
+                response `responseBodyShouldContain` "Xero: Imported Staff Rate"
+                response `responseBodyShouldContain` "55.25/hr"
+                responseBodyText <- responseBody response
+                (cs responseBodyText :: String) `shouldContainInOrder` ["FWC: Level Staff", "Xero: Imported Staff Rate"]
+
+                rosterGroup <- query @RosterGroup |> filterWhere (#venueId, unpackId venue.id) |> filterWhere (#isDefault, True) |> fetchOne
+                updateResponse <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (UpdateStaffAction staff.id)
+                        [ ("firstName", "Alpha")
+                        , ("lastName", "Crew")
+                        , ("phone", "0400000000")
+                        , ("emergencyContactName", "Jordan Crew")
+                        , ("emergencyContactPhone", "0411111111")
+                        , ("idealShiftsPerWeek", "4")
+                        , ("isActive", "on")
+                        , ("employmentBasis", "permanent")
+                        , ("payRateSelection", cs ("xero:" <> tshow importedPayItem.id))
+                        , ("weekOffset", "0")
+                        , ("rosterGroupIds", cs (tshow rosterGroup.id))
+                        ]
+                updateResponse `responseStatusShouldBe` status302
+                updatedStaff <- fetch staff.id
+                updatedStaff.defaultAwardLevelId `shouldBe` Nothing
+                updatedStaff.importedXeroPayItemId `shouldBe` Just importedPayItem.id
+
+        it "hides archived imported Xero pay items from the staff pay override dropdown" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Staff Archived Imported Pay Item Venue"
+                admin <- createUserRecord "staff-archived-imported-pay-items-admin@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue admin "venue_admin"
+                staff <- createStaffRecord venue Nothing "Alpha" "Crew"
+                importedPayItem <- createImportedXeroPayItemRecord venue admin "Archived Staff Rate" "archived-staff-rate" 55.25
+                now <- getCurrentTime
+                _ <- importedPayItem
+                    |> set #archivedAt (Just now)
+                    |> set #archivedByUserId (Just (unpackId admin.id))
+                    |> set #archiveReason (Just ("Test archive" :: Text))
+                    |> updateRecord
+
+                response <- withPasskeyVerifiedUserAndCurrentVenue admin venue.id do
+                    callActionWithParams (EditStaffAction staff.id) [("weekOffset", "0")]
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "Default Pay Rate"
+                response `responseBodyShouldNotContain` "Archived Staff Rate"
 
         it "renders staff login access and scan-first RSA upload in the staff edit modal" $ withContext do
             withCleanDb do
@@ -236,7 +298,7 @@ tests = beforeAll testContext do
                         , ("idealShiftsPerWeek", "4")
                         , ("isActive", "on")
                         , ("employmentBasis", "permanent")
-                        , ("defaultAwardLevelId", cs (tshow payLevel.id))
+                        , ("payRateSelection", cs ("award:" <> tshow payLevel.id))
                         , ("weekOffset", "0")
                         , ("rosterGroupIds", cs (tshow rosterGroup.id))
                         ]
@@ -245,3 +307,18 @@ tests = beforeAll testContext do
                 updatedStaff <- fetch staff.id
                 updatedStaff.employmentBasis `shouldBe` Casual
                 updatedStaff.defaultAwardLevelId `shouldBe` Nothing
+
+shouldContainInOrder :: String -> [String] -> Expectation
+shouldContainInOrder haystack needles =
+    go haystack needles
+    where
+        go _ [] = pure ()
+        go remaining (needle : rest) =
+            case findNeedle needle remaining of
+                Nothing -> expectationFailure "Expected to find text in order"
+                Just afterNeedle -> go afterNeedle rest
+
+        findNeedle needle value =
+            case List.dropWhile (not . List.isPrefixOf needle) (List.tails value) of
+                [] -> Nothing
+                match : _ -> Just (drop (length needle) match)
