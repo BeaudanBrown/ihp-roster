@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import {
     addRowToRosterDay,
     editableRosterRows,
@@ -9,7 +9,7 @@ import {
     rosterDayRemoveButtonForSection,
 } from './test-helpers';
 
-async function loginAndOpenRoster(page) {
+async function loginAndOpenRoster(page: Page) {
     await openRoster(page);
 }
 
@@ -49,8 +49,58 @@ test.describe('Roster row controls', () => {
     });
 
     test('keeps the staff panel sticky, viewport-capped, and internally scrollable', async ({ page }) => {
+        await page.setViewportSize({ width: 1440, height: 700 });
         await loginAndOpenRoster(page);
-        await page.setViewportSize({ width: 1440, height: 900 });
+
+        await page.evaluate(() => {
+            const content = document.querySelector('#roster-content');
+            const list = document.querySelector('.roster-staff-panel-list');
+            const tableBody = document.querySelector('.roster-staff-table-body');
+
+            if (!(content instanceof HTMLElement) || !(list instanceof HTMLElement) || !(tableBody instanceof HTMLElement)) {
+                return;
+            }
+
+            const spacer = document.createElement('div');
+            spacer.setAttribute('data-testid', 'roster-sticky-scroll-spacer');
+            spacer.style.height = '1600px';
+            spacer.style.pointerEvents = 'none';
+            content.appendChild(spacer);
+
+            const sourceRows = Array.from(tableBody.querySelectorAll('tr'));
+            for (let index = 0; index < 80 && list.scrollHeight <= list.clientHeight + 100; index += 1) {
+                const sourceRow = sourceRows[index % sourceRows.length];
+                if (!(sourceRow instanceof HTMLElement)) break;
+
+                const clone = sourceRow.cloneNode(true);
+                if (clone instanceof HTMLElement) {
+                    clone.setAttribute('aria-hidden', 'true');
+                    clone.removeAttribute('hx-get');
+                    clone.removeAttribute('tabindex');
+                    tableBody.appendChild(clone);
+                }
+            }
+        });
+
+        const initialMetrics = await page.evaluate(() => {
+            const side = document.querySelector('.roster-layout-side');
+            const main = document.querySelector('.roster-layout-main');
+
+            if (!(side instanceof HTMLElement) || !(main instanceof HTMLElement)) {
+                return null;
+            }
+
+            return {
+                mainRight: Math.round(main.getBoundingClientRect().right),
+                sideLeft: Math.round(side.getBoundingClientRect().left),
+            };
+        });
+
+        expect(initialMetrics).not.toBeNull();
+        expect(initialMetrics?.sideLeft ?? 0).toBeGreaterThanOrEqual(initialMetrics?.mainRight ?? 0);
+
+        await page.evaluate(() => window.scrollTo(0, 650));
+        await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(600);
 
         const sidebarMetrics = await page.evaluate(() => {
             const side = document.querySelector('.roster-layout-side');
@@ -64,24 +114,37 @@ test.describe('Roster row controls', () => {
             const sideStyle = getComputedStyle(side);
             const panelStyle = getComputedStyle(panel);
             const listStyle = getComputedStyle(list);
+            const stickyTop = Number.parseFloat(sideStyle.top);
+            const sideRect = side.getBoundingClientRect();
+            const panelRect = panel.getBoundingClientRect();
+
+            list.scrollTop = 0;
+            list.scrollTop = 96;
 
             return {
                 sidePosition: sideStyle.position,
-                sideTop: sideStyle.top,
-                panelHeight: Math.round(panel.getBoundingClientRect().height),
+                sideTop: Math.round(sideRect.top),
+                sideStickyTop: Math.round(stickyTop),
+                panelHeight: Math.round(panelRect.height),
+                panelBottom: Math.round(panelRect.bottom),
                 viewportHeight: window.innerHeight,
                 panelOverflow: panelStyle.overflowY,
                 listOverflow: listStyle.overflowY,
-                listScrollable: list.scrollHeight > list.clientHeight,
+                listClientHeight: list.clientHeight,
+                listScrollHeight: list.scrollHeight,
+                listScrollTop: list.scrollTop,
             };
         });
 
         expect(sidebarMetrics).not.toBeNull();
         expect(sidebarMetrics?.sidePosition).toBe('sticky');
-        expect(sidebarMetrics?.sideTop).not.toBe('auto');
+        expect(Math.abs((sidebarMetrics?.sideTop ?? 0) - (sidebarMetrics?.sideStickyTop ?? 0))).toBeLessThanOrEqual(1);
         expect(sidebarMetrics?.panelHeight ?? 0).toBeLessThanOrEqual(sidebarMetrics?.viewportHeight ?? 0);
+        expect(sidebarMetrics?.panelBottom ?? 0).toBeLessThanOrEqual(sidebarMetrics?.viewportHeight ?? 0);
         expect(sidebarMetrics?.panelOverflow).toBe('hidden');
         expect(sidebarMetrics?.listOverflow).toBe('auto');
+        expect(sidebarMetrics?.listScrollHeight ?? 0).toBeGreaterThan(sidebarMetrics?.listClientHeight ?? 0);
+        expect(sidebarMetrics?.listScrollTop ?? 0).toBeGreaterThan(0);
     });
 
     test('clips day-column cards and carries conflict color across all compact controls', async ({ page }) => {

@@ -1,13 +1,15 @@
 /* App shell, document-level layout, and authenticated navigation chrome. */
 
+/* Suppress page-level horizontal overflow without creating a root scroll
+   container that breaks position: sticky side panels. */
 html {
-    overflow-x: hidden;
+    overflow-x: clip;
     width: 100%;
     max-width: 100%;
 }
 
 body {
-    overflow-x: hidden;
+    overflow-x: clip;
     width: 100%;
     max-width: 100%;
 }
