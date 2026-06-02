@@ -245,7 +245,7 @@ confirmSubmitButton _view = OverlayButton
 needsStaffStep :: XeroTimesheetPreparationView -> Bool
 needsStaffStep view =
     not (null view.preparationStaffRows)
-        && (not view.preparationStaffStepApproved || any staffRowNeedsAttention view.preparationStaffRows)
+        && any staffRowNeedsAttention view.preparationStaffRows
 
 needsPayItemStep :: XeroTimesheetPreparationView -> Bool
 needsPayItemStep view = any payItemRowNeedsApproval proposedRows || (not (null proposedRows) && isNothing (selectedAccountCode view))

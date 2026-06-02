@@ -1308,9 +1308,12 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "Pay period:"
-                response `responseBodyShouldContain` "Step 1 of 3"
-                response `responseBodyShouldContain` "Staff mappings"
-                response `responseBodyShouldContain` "Approve"
+                response `responseBodyShouldContain` "Step 3 of 3"
+                response `responseBodyShouldContain` "Timesheet summary"
+                response `responseBodyShouldContain` "Approved entries"
+                response `responseBodyShouldContain` "Submit draft timesheets to Xero"
+                response `responseBodyShouldNotContain` "Step 1 of 3"
+                response `responseBodyShouldNotContain` "Staff mappings"
                 response `responseBodyShouldNotContain` "Readiness validation"
                 response `responseBodyShouldNotContain` ">Continue</button>"
                 response `responseBodyShouldNotContain` "· payment"
@@ -1319,15 +1322,6 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Earnings-rate mappings"
                 response `responseBodyShouldNotContain` "name=\"xeroEarningsRateSelection\""
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                continueResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callAction (ContinueXeroTimesheetPreparationStaffStepAction preparationRun.id)
-                continueResponse `responseStatusShouldBe` status200
-                continueResponse `responseBodyShouldContain` "Step 3 of 3"
-                continueResponse `responseBodyShouldContain` "Timesheet summary"
-                continueResponse `responseBodyShouldContain` "Approved entries"
-                continueResponse `responseBodyShouldContain` "Submit draft timesheets to Xero"
-                continueResponse `responseBodyShouldNotContain` "Staff mappings"
                 matchedResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     withRequestHeaders [("HX-Request", "true")] do
                         callActionWithParams (ShowXeroTimesheetPreparationStaffMappingsFragmentAction preparationRun.id)
@@ -1462,12 +1456,10 @@ tests = beforeAll testContext do
                                     [("periodKey", fixturePeriodKey fixture)]
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Step 1 of 3"
+                response `responseBodyShouldNotContain` "Step 1 of 3"
+                response `responseBodyShouldContain` "Step 2 of 3"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                payItemResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callAction (ContinueXeroTimesheetPreparationStaffStepAction preparationRun.id)
-                payItemResponse `responseStatusShouldBe` status200
+                let payItemResponse = response
                 payItemResponse `responseBodyShouldContain` "Managed pay items"
                 payItemResponse `responseBodyShouldNotContain` "will be created on submit"
                 payItemResponse `responseBodyShouldNotContain` "1 will be created on submit"
@@ -1672,14 +1664,9 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "Readiness validation"
-                response `responseBodyShouldNotContain` "Draft timesheet creation is blocked"
+                response `responseBodyShouldContain` "posted"
+                response `responseBodyShouldContain` "Draft timesheet creation is blocked"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                continueResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callAction (ContinueXeroTimesheetPreparationStaffStepAction preparationRun.id)
-                continueResponse `responseStatusShouldBe` status200
-                continueResponse `responseBodyShouldContain` "posted"
-                continueResponse `responseBodyShouldContain` "Draft timesheet creation is blocked"
                 preparationRun.status `shouldBe` "blocked"
                 preparationRun.xeroPayRunId `shouldBe` Just "payrun-posted"
                 preparationRun.remotePayRunsJson `shouldSatisfy` Preview.jsonContainsKey "remotePayRuns"
@@ -1717,14 +1704,9 @@ tests = beforeAll testContext do
 
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldNotContain` "Readiness validation"
-                response `responseBodyShouldNotContain` "Xero already has a timesheet for this employee and period"
+                response `responseBodyShouldContain` "Xero already has a timesheet for this employee and period"
+                response `responseBodyShouldContain` "Create is blocked until update support exists"
                 preparationRun <- query @XeroTimesheetPreparationRun |> fetchOne
-                continueResponse <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
-                    withRequestHeaders [("HX-Request", "true")] do
-                        callAction (ContinueXeroTimesheetPreparationStaffStepAction preparationRun.id)
-                continueResponse `responseStatusShouldBe` status200
-                continueResponse `responseBodyShouldContain` "Xero already has a timesheet for this employee and period"
-                continueResponse `responseBodyShouldContain` "Create is blocked until update support exists"
                 preparationRun.status `shouldBe` "blocked"
                 preparationRun.remoteTimesheetsJson `shouldSatisfy` Preview.jsonContainsKey "remoteTimesheets"
                 preparationRun.readinessSnapshotJson `shouldSatisfy` Preview.jsonContainsKey "blockers"
