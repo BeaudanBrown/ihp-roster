@@ -99,16 +99,18 @@ tests =
             XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
 
         it "constructs Payroll AU write requests with idempotency headers and documented body envelopes" do
-            XeroMock.assertSpecOperation payrollSpec "/PayItems" "post"
             XeroMock.assertSpecOperation payrollSpec "/Timesheets" "post"
             XeroMock.assertSpecOperation payrollSpec "/Timesheets/{TimesheetID}" "post"
             XeroMock.assertSpecContains payrollSpec "name: Idempotency-Key"
             XeroMock.assertOperationContains payrollSpec "/Timesheets" "post" "type: array"
             XeroMock.assertOperationContains payrollSpec "/Timesheets/{TimesheetID}" "post" "type: array"
 
-            let payItemsRequest = buildCreatePayItemRequest "access-token" "tenant-id" "idem-pay-items" XeroMock.samplePayItemsBody
-            assertWriteRequest payItemsRequest "/PayItems" "idem-pay-items"
-            XeroMock.jsonBody payItemsRequest `shouldSatisfy` XeroMock.hasArrayField "EarningsRates"
+            let earningsRateRequest = buildCreatePayItemRequest "access-token" "tenant-id" "idem-pay-items" XeroMock.sampleEarningsRateBody
+            assertRequest earningsRateRequest "POST" XeroMock.xeroPayrollV2Server "/earningsRates"
+            assertWriteHeaders earningsRateRequest "idem-pay-items"
+            XeroMock.jsonBody earningsRateRequest `shouldSatisfy` XeroMock.hasObjectField "Name"
+            XeroMock.jsonBody earningsRateRequest `shouldSatisfy` XeroMock.hasObjectField "EarningsType"
+            XeroMock.jsonBody earningsRateRequest `shouldSatisfy` XeroMock.hasObjectField "RateType"
 
             let createRequest = buildCreateTimesheetRequest "access-token" "tenant-id" "idem-create" XeroMock.sampleTimesheetArrayBody
             assertWriteRequest createRequest "/Timesheets" "idem-create"
@@ -170,7 +172,7 @@ tests =
                     payRunsResult <- client.fetchPayRuns "access-token" "tenant-id" XeroMock.samplePayRunQuery
                     fmap (map (.xeroPayRunId)) payRunsResult `shouldBe` Right ["pay-run-id"]
 
-                    payItemResult <- client.createPayItem "access-token" "tenant-id" "idem-pay-items" XeroMock.samplePayItemsBody
+                    payItemResult <- client.createPayItem "access-token" "tenant-id" "idem-pay-items" XeroMock.sampleEarningsRateBody
                     fmap (map (.xeroEarningsRateId)) payItemResult `shouldBe` Right ["earnings-rate-id"]
 
                     timesheetsResult <- client.fetchTimesheets "access-token" "tenant-id" XeroMock.sampleTimesheetQuery
@@ -246,7 +248,7 @@ expectedContractCaseNames =
     , "pay runs list"
     , "timesheets list"
     , "timesheet show"
-    , "pay item create"
+    , "earnings rate create"
     , "timesheet create"
     , "timesheet update"
     ]
@@ -289,6 +291,10 @@ assertRequest request method server path = do
 assertWriteRequest :: XeroHttpRequest -> Text -> ByteString -> Expectation
 assertWriteRequest request path idempotencyKey = do
     assertRequest request "POST" XeroMock.xeroPayrollServer path
+    assertWriteHeaders request idempotencyKey
+
+assertWriteHeaders :: XeroHttpRequest -> ByteString -> Expectation
+assertWriteHeaders request idempotencyKey = do
     XeroMock.headerValue "Authorization" request `shouldBe` Just "Bearer access-token"
     XeroMock.headerValue "Xero-Tenant-Id" request `shouldBe` Just "tenant-id"
     XeroMock.headerValue "Accept" request `shouldBe` Just "application/json"

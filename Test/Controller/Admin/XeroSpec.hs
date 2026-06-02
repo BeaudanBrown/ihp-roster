@@ -846,8 +846,7 @@ tests = beforeAll testContext do
                 map fst requests `shouldSatisfy` all (Text.isPrefixOf "bepis-pay-item-")
                 map fst requests `shouldSatisfy` \keys -> length (List.nub keys) == length keys
                 map snd requests `shouldSatisfy` any (xeroPayItemRequestHas ordinaryName 31.50)
-                map snd requests `shouldSatisfy` \bodies -> map xeroPayItemRequestEarningsRateCount bodies == [1 .. length bodies]
-                map snd requests `shouldSatisfy` all xeroPayItemRequestOnlyTouchesEarningsRates
+                map snd requests `shouldSatisfy` all xeroPayItemRequestIsSingleEarningsRate
                 createdRate <- query @XeroEarningsRate
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
                     |> filterWhere (#name, ordinaryName)
@@ -2188,81 +2187,67 @@ payItemCreateXeroClientFailingRequest tokenResponse requestsRef failingRequestNu
         }
 
 xeroPayItemRequestEarningsRateRefs :: Aeson.Value -> [XeroEarningsRateRef]
-xeroPayItemRequestEarningsRateRefs =
-    fromMaybe [] . AesonTypes.parseMaybe \body ->
-        Aeson.withObject "PayItem" (\object -> do
-            earningsRates <- object Aeson..: "EarningsRates"
-            mapM earningsRateRefFromValue (earningsRates :: [Aeson.Value])
-        ) body
+xeroPayItemRequestEarningsRateRefs body =
+    maybe [] (: []) (AesonTypes.parseMaybe earningsRateRefFromValue body)
 
 earningsRateRefFromValue :: Aeson.Value -> AesonTypes.Parser XeroEarningsRateRef
 earningsRateRefFromValue value@(Aeson.Object earningsRate) = do
     name <- earningsRate Aeson..: "Name"
     accountCode <- earningsRate Aeson..:? "AccountCode"
+    expenseAccountId <- earningsRate Aeson..:? "ExpenseAccountID"
+    let resolvedAccountCode = case accountCode of
+            Just code -> Just code
+            Nothing -> xeroTestAccountCodeFromExpenseAccountId expenseAccountId
     pure $
         XeroEarningsRateRef
             ("created-" <> name)
             name
             (Just "ORDINARYTIMEEARNINGS")
             (Just "RATEPERUNIT")
-            accountCode
+            resolvedAccountCode
             (Just "Hours")
             (Just 30)
             True
             value
 earningsRateRefFromValue _ = fail "Expected earnings rate"
 
-xeroPayItemRequestEarningsRateCount :: Aeson.Value -> Int
-xeroPayItemRequestEarningsRateCount =
-    fromMaybe 0 . AesonTypes.parseMaybe \body ->
-        Aeson.withObject "PayItem" (\object -> do
-            earningsRates <- object Aeson..: "EarningsRates"
-            pure (length (earningsRates :: [Aeson.Value]))
-        ) body
-
 xeroPayItemRequestName :: Aeson.Value -> Maybe Text
 xeroPayItemRequestName =
     AesonTypes.parseMaybe \body ->
-        Aeson.withObject "PayItem" (\object -> do
-            earningsRates <- object Aeson..: "EarningsRates"
-            case earningsRates :: [Aeson.Value] of
-                Aeson.Object earningsRate : _ -> earningsRate Aeson..: "Name"
-                _                             -> fail "Missing earnings rate"
-        ) body
+        Aeson.withObject "EarningsRate" (Aeson..: "Name") body
 
 xeroPayItemRequestAccountCode :: Aeson.Value -> Maybe Text
 xeroPayItemRequestAccountCode =
     AesonTypes.parseMaybe \body ->
-        Aeson.withObject "PayItem" (\object -> do
-            earningsRates <- object Aeson..: "EarningsRates"
-            case earningsRates :: [Aeson.Value] of
-                Aeson.Object earningsRate : _ -> earningsRate Aeson..: "AccountCode"
-                _ -> fail "Missing earnings rate"
-        ) body
+        Aeson.withObject "EarningsRate" (Aeson..: "AccountCode") body
 
 xeroPayItemRequestHas :: Text -> Scientific -> Aeson.Value -> Bool
 xeroPayItemRequestHas expectedName expectedRate =
     fromMaybe False . AesonTypes.parseMaybe \body ->
-        Aeson.withObject "PayItem" (\object -> do
-            earningsRates <- object Aeson..: "EarningsRates"
-            case earningsRates :: [Aeson.Value] of
-                Aeson.Object earningsRate : _ -> do
-                    name <- earningsRate Aeson..: "Name"
-                    rate <- earningsRate Aeson..: "RatePerUnit"
-                    rateType <- earningsRate Aeson..: "RateType"
-                    typeOfUnits <- earningsRate Aeson..: "TypeOfUnits"
-                    accountCode <- earningsRate Aeson..: "AccountCode"
-                    pure (name == expectedName && rate == expectedRate && rateType == ("RATEPERUNIT" :: Text) && typeOfUnits == ("Hours" :: Text) && accountCode == ("477" :: Text))
-                _ -> fail "Missing earnings rate"
+        Aeson.withObject "EarningsRate" (\earningsRate -> do
+            name <- earningsRate Aeson..: "Name"
+            rate <- earningsRate Aeson..: "RatePerUnit"
+            rateType <- earningsRate Aeson..: "RateType"
+            typeOfUnits <- earningsRate Aeson..: "TypeOfUnits"
+            accountCode <- earningsRate Aeson..:? "AccountCode"
+            expenseAccountId <- earningsRate Aeson..:? "ExpenseAccountID"
+            let hasExpectedAccount = accountCode == Just ("477" :: Text) || expenseAccountId == Just ("account-477" :: Text)
+            pure (name == expectedName && rate == expectedRate && rateType == ("RATEPERUNIT" :: Text) && typeOfUnits == ("Hours" :: Text) && hasExpectedAccount)
         ) body
 
-xeroPayItemRequestOnlyTouchesEarningsRates :: Aeson.Value -> Bool
-xeroPayItemRequestOnlyTouchesEarningsRates (Aeson.Object object) =
-    AesonKeyMap.member (AesonKey.fromText "EarningsRates") object
+xeroTestAccountCodeFromExpenseAccountId :: Maybe Text -> Maybe Text
+xeroTestAccountCodeFromExpenseAccountId (Just "account-477") = Just "477"
+xeroTestAccountCodeFromExpenseAccountId _ = Nothing
+
+xeroPayItemRequestIsSingleEarningsRate :: Aeson.Value -> Bool
+xeroPayItemRequestIsSingleEarningsRate (Aeson.Object object) =
+    AesonKeyMap.member (AesonKey.fromText "Name") object
+        && AesonKeyMap.member (AesonKey.fromText "EarningsType") object
+        && AesonKeyMap.member (AesonKey.fromText "RateType") object
         && all
             (not . (`AesonKeyMap.member` object) . AesonKey.fromText)
-            ["DeductionTypes", "LeaveTypes", "ReimbursementTypes"]
-xeroPayItemRequestOnlyTouchesEarningsRates _ = False
+            ["EarningsRates", "DeductionTypes", "LeaveTypes", "ReimbursementTypes"]
+xeroPayItemRequestIsSingleEarningsRate _ = False
 
 failingRefreshXeroClient :: Text -> XeroClient
 failingRefreshXeroClient message =

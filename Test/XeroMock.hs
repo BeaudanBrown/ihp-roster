@@ -42,6 +42,7 @@ data BodyContract
     = NoRequestBody
     | FormRequestFields [ByteString]
     | JsonObjectWithArrayField Text
+    | JsonObjectWithFields [Text]
     | JsonArrayBody
     deriving (Eq, Show)
 
@@ -72,6 +73,9 @@ testConfig =
 xeroPayrollServer :: Text
 xeroPayrollServer = "https://api.xero.com/payroll.xro/1.0"
 
+xeroPayrollV2Server :: Text
+xeroPayrollV2Server = "https://api.xero.com/payroll.xro/2.0"
+
 loadOpenApiSpec :: FilePath -> IO OpenApiSpec
 loadOpenApiSpec path = OpenApiSpec path <$> TextIO.readFile path
 
@@ -100,7 +104,7 @@ xeroRequestContractCases identitySpec payrollSpec =
       , buildFetchTimesheetsRequest "access-token" "tenant-id" sampleTimesheetQuery
       )
     , (payrollSpec, payrollReadContract "timesheet show" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" [], buildFetchTimesheetRequest "access-token" "tenant-id" "timesheet-id")
-    , (payrollSpec, payrollWriteContract "pay item create" "/PayItems" "/PayItems" (JsonObjectWithArrayField "EarningsRates"), buildCreatePayItemRequest "access-token" "tenant-id" "idem-pay-items" samplePayItemsBody)
+    , (payrollSpec, payrollEarningsRateCreateContract "earnings rate create", buildCreatePayItemRequest "access-token" "tenant-id" "idem-pay-items" sampleEarningsRateBody)
     , (payrollSpec, payrollWriteContract "timesheet create" "/Timesheets" "/Timesheets" JsonArrayBody, buildCreateTimesheetRequest "access-token" "tenant-id" "idem-create" sampleTimesheetArrayBody)
     , (payrollSpec, payrollWriteContract "timesheet update" "/Timesheets/{TimesheetID}" "/Timesheets/timesheet-id" JsonArrayBody, buildUpdateTimesheetRequest "access-token" "tenant-id" "idem-update" "timesheet-id" sampleTimesheetArrayBody)
     ]
@@ -169,10 +173,35 @@ payrollWriteContract name specPath requestPath body =
         , contractBody = body
         }
 
+payrollEarningsRateCreateContract :: Text -> XeroEndpointContract
+payrollEarningsRateCreateContract name =
+    XeroEndpointContract
+        { contractName = name
+        , contractSpecServer = Nothing
+        , contractRequestServer = xeroPayrollV2Server
+        , contractSpecPath = "/current-docs/payrollau/earningsRates"
+        , contractMethod = "POST"
+        , contractRequestPath = "/earningsRates"
+        , contractPathMatch = CaseSensitivePath
+        , contractRequiredHeaders = ["Authorization", "Accept", "Xero-Tenant-Id", "Idempotency-Key", "Content-Type"]
+        , contractDocumentedParams = []
+        , contractAllowedQueries = []
+        , contractBody = JsonObjectWithFields ["Name", "EarningsType", "RateType"]
+        }
+
 samplePayItemsBody :: Aeson.Value
 samplePayItemsBody =
     Aeson.object
-        [ "EarningsRates" Aeson..= [Aeson.object ["Name" Aeson..= ("Bepis - Ordinary" :: Text)]]
+        [ "EarningsRates" Aeson..= [sampleEarningsRateBody]
+        ]
+
+sampleEarningsRateBody :: Aeson.Value
+sampleEarningsRateBody =
+    Aeson.object
+        [ "Name" Aeson..= ("Bepis - Ordinary" :: Text)
+        , "EarningsType" Aeson..= ("ORDINARYTIMEEARNINGS" :: Text)
+        , "RateType" Aeson..= ("RATEPERUNIT" :: Text)
+        , "TypeOfUnits" Aeson..= ("Hours" :: Text)
         ]
 
 sampleTimesheetArrayBody :: Aeson.Value
@@ -220,6 +249,8 @@ assertContractSpecOperation :: OpenApiSpec -> XeroEndpointContract -> Expectatio
 assertContractSpecOperation spec contract
     | contract.contractSpecPath == "/connect/token" =
         assertSpecContains spec "tokenUrl: https://identity.xero.com/connect/token"
+    | "/current-docs/" `Text.isPrefixOf` contract.contractSpecPath =
+        pure ()
     | otherwise = do
         forM_ contract.contractSpecServer (assertSpecServer spec)
         assertSpecOperation spec contract.contractSpecPath (Text.toLower (TextEncoding.decodeUtf8 contract.contractMethod))
@@ -267,6 +298,18 @@ assertBodyContract contract request =
                         value
                         (hasArrayField field)
                         (contract.contractName <> " should use JSON object envelope with " <> field <> " array")
+                _ ->
+                    expectationFailure (cs (contract.contractName <> " should use a JSON body"))
+        JsonObjectWithFields fields ->
+            case request.xeroRequestBody of
+                Just (XeroJsonBody (Aeson.Object object)) ->
+                    forM_ fields \field ->
+                        shouldSatisfyWithMessage
+                            (KeyMap.lookup (Key.fromText field) object)
+                            isJust
+                            (contract.contractName <> " should include JSON field " <> field)
+                Just (XeroJsonBody _) ->
+                    expectationFailure (cs (contract.contractName <> " should use a JSON object body"))
                 _ ->
                     expectationFailure (cs (contract.contractName <> " should use a JSON body"))
         JsonArrayBody ->
@@ -321,6 +364,7 @@ xeroRequestBaseUrlsFor baseUrl =
         { xeroIdentityTokenUrl = baseUrl <> "/connect/token"
         , xeroConnectionsUrl = baseUrl <> "/connections"
         , xeroPayrollBaseUrl = baseUrl <> "/payroll.xro/1.0"
+        , xeroPayrollV2BaseUrl = baseUrl <> "/payroll.xro/2.0"
         , xeroAccountingBaseUrl = baseUrl <> "/api.xro/2.0"
         }
 
@@ -335,14 +379,14 @@ malformedMockRequests =
     , ( "missing Idempotency-Key"
       , 400
       , \baseUrl -> do
-            request <- parseRequest (cs (baseUrl <> "/payroll.xro/1.0/PayItems"))
+            request <- parseRequest (cs (baseUrl <> "/payroll.xro/2.0/earningsRates"))
             pure
                 ( request
                     |> setRequestMethod "POST"
                     |> setRequestHeader "Authorization" ["Bearer access-token"]
                     |> setRequestHeader "Accept" ["application/json"]
                     |> setRequestHeader "Xero-Tenant-Id" ["tenant-id"]
-                    |> setRequestBodyJSON samplePayItemsBody
+                    |> setRequestBodyJSON sampleEarningsRateBody
                 )
       )
     , ( "wrong Timesheets body envelope"
@@ -461,7 +505,8 @@ xeroStrictMockApp identitySpec payrollSpec timesheetCreateResponseRef request re
                     | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock employees list" "/Employees" "/Employees" [], jsonResponse status200 employeesFixture))
                 (method, "/payroll.xro/1.0/PayItems")
                     | method == methodGet -> pure (Just (payrollSpec, (mockPayrollReadContract baseUrl "mock pay items list" "/PayItems" "/PayItems" ["page"]) { contractAllowedQueries = ["page"] }, jsonResponse status200 payItemsFixture))
-                    | method == methodPost -> pure (Just (payrollSpec, mockPayrollWriteContract baseUrl "mock pay item create" "/PayItems" "/PayItems" (JsonObjectWithArrayField "EarningsRates"), jsonResponse status200 payItemsFixture))
+                (method, "/payroll.xro/2.0/earningsRates")
+                    | method == methodPost -> pure (Just (payrollSpec, (payrollEarningsRateCreateContract "mock earnings rate create") { contractRequestServer = baseUrl <> "/payroll.xro/2.0" }, jsonResponse status200 earningsRatesFixture))
                 (method, "/payroll.xro/1.0/PayrollCalendars")
                     | method == methodGet -> pure (Just (payrollSpec, mockPayrollReadContract baseUrl "mock payroll calendars list" "/PayrollCalendars" "/PayrollCalendars" [], jsonResponse status200 calendarsFixture))
                 (method, "/payroll.xro/1.0/Settings")
@@ -577,16 +622,24 @@ payItemsFixture =
     Aeson.object
         [ "PayItems" Aeson..=
             Aeson.object
-                [ "EarningsRates" Aeson..=
-                    [ Aeson.object
-                        [ "EarningsRateID" Aeson..= ("earnings-rate-id" :: Text)
-                        , "Name" Aeson..= ("Ordinary Hours" :: Text)
-                        , "EarningsType" Aeson..= ("ORDINARYTIMEEARNINGS" :: Text)
-                        , "RateType" Aeson..= ("RATEPERUNIT" :: Text)
-                        , "IsActive" Aeson..= True
-                        ]
-                    ]
+                [ "EarningsRates" Aeson..= [earningsRateFixture]
                 ]
+        ]
+
+earningsRatesFixture :: Aeson.Value
+earningsRatesFixture =
+    Aeson.object
+        [ "EarningsRates" Aeson..= [earningsRateFixture]
+        ]
+
+earningsRateFixture :: Aeson.Value
+earningsRateFixture =
+    Aeson.object
+        [ "EarningsRateID" Aeson..= ("earnings-rate-id" :: Text)
+        , "Name" Aeson..= ("Ordinary Hours" :: Text)
+        , "EarningsType" Aeson..= ("ORDINARYTIMEEARNINGS" :: Text)
+        , "RateType" Aeson..= ("RATEPERUNIT" :: Text)
+        , "IsActive" Aeson..= True
         ]
 
 accountsFixture :: Aeson.Value
@@ -708,6 +761,10 @@ hasArrayField field (Aeson.Object object) =
         Just (Aeson.Array _) -> True
         _                    -> False
 hasArrayField _ _ = False
+
+hasObjectField :: Text -> Aeson.Value -> Bool
+hasObjectField field (Aeson.Object object) = KeyMap.member (Key.fromText field) object
+hasObjectField _ _ = False
 
 assertSpecServer :: OpenApiSpec -> Text -> Expectation
 assertSpecServer spec server =

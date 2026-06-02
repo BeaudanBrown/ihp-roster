@@ -311,6 +311,7 @@ data XeroRequestBaseUrls = XeroRequestBaseUrls
     { xeroIdentityTokenUrl   :: !Text
     , xeroConnectionsUrl     :: !Text
     , xeroPayrollBaseUrl     :: !Text
+    , xeroPayrollV2BaseUrl   :: !Text
     , xeroAccountingBaseUrl  :: !Text
     }
     deriving (Eq, Show)
@@ -492,6 +493,7 @@ defaultXeroRequestBaseUrls =
         { xeroIdentityTokenUrl = "https://identity.xero.com/connect/token"
         , xeroConnectionsUrl = "https://api.xero.com/connections"
         , xeroPayrollBaseUrl = "https://api.xero.com/payroll.xro/1.0"
+        , xeroPayrollV2BaseUrl = "https://api.xero.com/payroll.xro/2.0"
         , xeroAccountingBaseUrl = "https://api.xero.com/api.xro/2.0"
         }
 
@@ -600,8 +602,8 @@ fetchPayRunsRequest accessToken tenantId query = do
 createPayItemRequest :: Text -> Text -> Text -> Aeson.Value -> IO (Either XeroClientError [XeroEarningsRateRef])
 createPayItemRequest accessToken tenantId idempotencyKey body = do
     urls <- currentXeroRequestBaseUrls
-    fmap unXeroPayItemsResponse <$>
-        sendXeroJsonRequest "Xero payroll pay item create request" (buildCreatePayItemRequestWith urls accessToken tenantId idempotencyKey body)
+    fmap unXeroEarningsRatesResponse <$>
+        sendXeroJsonRequest "Xero payroll earnings rate create request" (buildCreatePayItemRequestWith urls accessToken tenantId idempotencyKey body)
 
 fetchTimesheetsRequest :: Text -> Text -> XeroTimesheetQuery -> IO (Either XeroClientError [XeroTimesheetRef])
 fetchTimesheetsRequest accessToken tenantId query = do
@@ -756,7 +758,7 @@ buildCreatePayItemRequest =
 
 buildCreatePayItemRequestWith :: XeroRequestBaseUrls -> Text -> Text -> Text -> Aeson.Value -> XeroHttpRequest
 buildCreatePayItemRequestWith urls accessToken tenantId idempotencyKey =
-    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollBaseUrl <> "/PayItems")
+    buildXeroPayrollPostRequest accessToken tenantId idempotencyKey (urls.xeroPayrollV2BaseUrl <> "/earningsRates")
 
 buildFetchTimesheetsRequest :: Text -> Text -> XeroTimesheetQuery -> XeroHttpRequest
 buildFetchTimesheetsRequest =
@@ -960,7 +962,15 @@ instance Aeson.FromJSON XeroEmployeesResponse where
 newtype XeroEarningsRatesResponse = XeroEarningsRatesResponse { unXeroEarningsRatesResponse :: [XeroEarningsRateRef] }
 
 instance Aeson.FromJSON XeroEarningsRatesResponse where
-    parseJSON = parseXeroListResponse XeroEarningsRatesResponse "EarningsRates"
+    parseJSON value@(Aeson.Object object) =
+        case firstPresent object ["EarningsRates", "earningsRates"] of
+            Just ratesValue -> do
+                rates <- Aeson.parseJSON ratesValue
+                pure (XeroEarningsRatesResponse rates)
+            Nothing -> do
+                rate <- Aeson.parseJSON value
+                pure (XeroEarningsRatesResponse [rate])
+    parseJSON value = parseXeroListResponse XeroEarningsRatesResponse "EarningsRates" value
 
 newtype XeroPayItemsResponse = XeroPayItemsResponse { unXeroPayItemsResponse :: [XeroEarningsRateRef] }
 

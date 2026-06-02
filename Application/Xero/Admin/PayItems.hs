@@ -15,8 +15,6 @@ import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection (xeroClientErrorText)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
-import qualified Data.Aeson.Key as AesonKey
-import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
@@ -70,8 +68,8 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
         Left err -> pure (Left ("Xero pay item preflight pull failed before creating pay items: " <> xeroClientErrorText err))
         Right initialRates -> do
             upsertFetchedXeroEarningsRates connection now initialRates
-            let existingEarningsRatePayloads = map (.xeroEarningsRateRaw) initialRates
-            (submittedCount, submissionFailures) <- submitCreates batchKey (1 :: Int) 0 [] existingEarningsRatePayloads requirements
+            maybeExpenseAccountId <- selectedXeroPayItemExpenseAccountId connection accountCode
+            (submittedCount, submissionFailures) <- submitCreates batchKey (1 :: Int) 0 [] maybeExpenseAccountId requirements
             verifySubmittedCreates submittedCount submissionFailures
     where
         verifySubmittedCreates submittedCount submissionFailures = do
@@ -96,9 +94,9 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
                                 }
 
         submitCreates _ _ submittedCount failures _ [] = pure (submittedCount, reverse failures)
-        submitCreates batchKey itemIndex submittedCount failures knownEarningsRates (requirement : rest) = do
+        submitCreates batchKey itemIndex submittedCount failures maybeExpenseAccountId (requirement : rest) = do
             let idempotencyKey = xeroPayItemIdempotencyKey batchKey itemIndex requirement
-            let body = xeroPayItemRequestPayload knownEarningsRates accountCode requirement
+            let body = xeroPayItemRequestPayload maybeExpenseAccountId accountCode requirement
             createResult <-
                 createPayItem
                     xeroClient
@@ -114,7 +112,7 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
                         submittedCount
                         ( xeroPayItemSubmissionFailure requirement idempotencyKey err : failures
                         )
-                        knownEarningsRates
+                        maybeExpenseAccountId
                         rest
                 Right _ ->
                     submitCreates
@@ -122,7 +120,7 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
                         (itemIndex + 1)
                         (submittedCount + 1)
                         failures
-                        (knownEarningsRates <> [xeroEarningsRatePayload accountCode requirement])
+                        maybeExpenseAccountId
                         rest
 
 xeroPayItemSubmissionFailurePayload :: XeroPayItemSubmissionFailure -> Aeson.Value
@@ -216,37 +214,35 @@ upsertFetchedXeroEarningsRates connection now fetchedRates =
         mapM_ (upsertXeroEarningsRate connection now) fetchedRates
         markStaleXeroEarningsRateMappings connection fetchedRates
 
-xeroPayItemRequestPayload :: [Aeson.Value] -> Text -> XeroPayItemRequirement -> Aeson.Value
-xeroPayItemRequestPayload existingEarningsRates accountCode requirement =
-    Aeson.object
-        [ "EarningsRates" Aeson..= (map normalizeExistingEarningsRatePayload existingEarningsRates <> [xeroEarningsRatePayload accountCode requirement])
-        ]
+selectedXeroPayItemExpenseAccountId :: (?modelContext :: ModelContext) => XeroConnection -> Text -> IO (Maybe Text)
+selectedXeroPayItemExpenseAccountId connection accountCode = do
+    accounts <-
+        query @XeroAccount
+            |> filterWhere (#xeroConnectionId, unpackId connection.id)
+            |> filterWhere (#code, Just accountCode)
+            |> filterWhere (#accountType, Just ("EXPENSE" :: Text))
+            |> filterWhere (#status, Just ("ACTIVE" :: Text))
+            |> fetch
+    pure (fmap (.xeroAccountId) (listToMaybe accounts))
 
-normalizeExistingEarningsRatePayload :: Aeson.Value -> Aeson.Value
-normalizeExistingEarningsRatePayload value@(Aeson.Object object)
-    | earningsType == Just "ALLOWANCE" && not (AesonKeyMap.member (AesonKey.fromText "AllowanceType") object) =
-        Aeson.Object (AesonKeyMap.insert (AesonKey.fromText "AllowanceType") (Aeson.String "OTHER") object)
-    | otherwise = value
-    where
-        earningsType = case AesonKeyMap.lookup (AesonKey.fromText "EarningsType") object of
-            Just (Aeson.String text) -> Just text
-            _ -> Nothing
-normalizeExistingEarningsRatePayload value = value
+xeroPayItemRequestPayload :: Maybe Text -> Text -> XeroPayItemRequirement -> Aeson.Value
+xeroPayItemRequestPayload maybeExpenseAccountId accountCode requirement =
+    xeroEarningsRatePayload maybeExpenseAccountId accountCode requirement
 
-xeroEarningsRatePayload :: Text -> XeroPayItemRequirement -> Aeson.Value
-xeroEarningsRatePayload accountCode requirement =
-    Aeson.object
+xeroEarningsRatePayload :: Maybe Text -> Text -> XeroPayItemRequirement -> Aeson.Value
+xeroEarningsRatePayload maybeExpenseAccountId accountCode requirement =
+    Aeson.object $
         [ "Name" Aeson..= requirement.payItemRequirementName
         , "TypeOfUnits" Aeson..= ("Hours" :: Text)
         , "EarningsType" Aeson..= requirement.payItemRequirementEarningsType
         , "RateType" Aeson..= requirement.payItemRequirementRateType
         , "RatePerUnit" Aeson..= requirement.payItemRequirementRatePerUnit
-        , "IsExemptFromTax" Aeson..= False
-        , "IsExemptFromSuper" Aeson..= False
+        , "IsSubjectToTax" Aeson..= True
+        , "IsSubjectToSuper" Aeson..= True
         , "IsReportableAsW1" Aeson..= True
         , "IsQualifyingEarnings" Aeson..= True
-        , "AccountCode" Aeson..= accountCode
         ]
+            <> maybe ["AccountCode" Aeson..= accountCode] (\expenseAccountId -> ["ExpenseAccountID" Aeson..= expenseAccountId]) maybeExpenseAccountId
 
 persistCreatedXeroPayItem ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>
