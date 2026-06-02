@@ -1,4 +1,4 @@
-// Toggle break-time controls based on the "Had break" checkbox.
+// Enable/disable break-time controls based on the "Had break" checkbox.
 (function enableBreakTimeToggle() {
     if (typeof window === 'undefined') return;
 
@@ -10,7 +10,6 @@
         if (!targetEl) return;
 
         const isEnabled = checkboxEl.checked;
-        targetEl.hidden = !isEnabled;
         targetEl.querySelectorAll('.js-time-picker-input, .js-time-picker-trigger, .js-time-picker-step-down, .js-time-picker-step-up').forEach(function (element) {
             element.disabled = !isEnabled;
         });

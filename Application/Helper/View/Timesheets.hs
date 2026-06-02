@@ -90,7 +90,7 @@ renderTimesheetFormFields entry staffMembers shiftTypes weekOffset showApproved 
         {renderFieldError entry "hadBreak"}
     </div>
 
-    <div id="timesheet-break-time-fields" class="row mb-3" hidden={not entry.hadBreak}>
+    <div id="timesheet-break-time-fields" class="row mb-3">
         <div class="col">
             <label class="form-label">Break Start</label>
             {renderTimePickerField (defaultTimePickerConfig "breakStartTime" breakStartTimeValue "06:00" "04:45" (not entry.hadBreak))}
