@@ -99,9 +99,12 @@
     width: calc(100% + 1px);
     max-width: calc(100% + 1px);
     contain: inline-size;
-    overflow-x: hidden;
     overflow-y: hidden;
     background-color: var(--app-panel-bg);
+}
+
+.roster-grid-frame:not([data-roster-layout="day_columns"]) {
+    overflow-x: hidden;
 }
 
 .roster-grid-frame[data-roster-wages="visible"] {

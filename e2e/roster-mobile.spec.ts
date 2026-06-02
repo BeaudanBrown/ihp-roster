@@ -364,6 +364,56 @@ test.describe('Roster mobile baseline', () => {
         expect(Math.abs(snapMetrics?.nearestCenterOffset ?? 0)).toBeLessThanOrEqual(8);
     });
 
+    test('allows native horizontal wheel scrolling in day-column layout', async ({ page }) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        await ensureRosterLayout(page, 'day_columns');
+        await expect(page.locator('.roster-day-columns')).toBeVisible();
+
+        const frame = page.locator('.roster-grid-frame[data-roster-layout="day_columns"]').first();
+        const frameMetrics = await frame.evaluate((element) => {
+            if (!(element instanceof HTMLElement)) {
+                throw new Error('Expected day-column roster frame to be an HTMLElement');
+            }
+
+            const columnsContainer = element.querySelector('.roster-day-columns');
+            if (!(columnsContainer instanceof HTMLElement)) {
+                throw new Error('Expected day-column roster frame to contain day columns');
+            }
+
+            while (element.scrollWidth <= element.clientWidth) {
+                const firstColumn = columnsContainer.querySelector('.roster-day-column');
+                if (!(firstColumn instanceof HTMLElement)) {
+                    throw new Error('Expected at least one rendered day column');
+                }
+                columnsContainer.appendChild(firstColumn.cloneNode(true));
+                columnsContainer.style.setProperty('--roster-day-count', String(columnsContainer.querySelectorAll('.roster-day-column').length));
+            }
+
+            element.scrollLeft = 0;
+            return {
+                overflowX: getComputedStyle(element).overflowX,
+                clientWidth: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+            };
+        });
+
+        expect(frameMetrics.overflowX).toBe('auto');
+        expect(frameMetrics.scrollWidth).toBeGreaterThan(frameMetrics.clientWidth);
+
+        const box = await frame.boundingBox();
+        expect(box).not.toBeNull();
+        if (!box) return;
+
+        await page.mouse.move(box.x + (box.width / 2), box.y + (box.height / 2));
+        await page.mouse.wheel(420, 0);
+
+        await expect.poll(async () => frame.evaluate((element) => {
+            if (!(element instanceof HTMLElement)) return 0;
+            return element.scrollLeft;
+        })).toBeGreaterThan(0);
+    });
+
     test('keeps day-column closed controls stable on phone widths', async ({ page }) => {
         await page.setViewportSize({ width: 390, height: 844 });
         await ensureRosterLayout(page, 'day_columns');
