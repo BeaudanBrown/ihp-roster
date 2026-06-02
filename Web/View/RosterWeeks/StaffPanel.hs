@@ -11,28 +11,28 @@ import Web.RosterWeeks.Dom (rosterStaffPanelFragmentId)
 import Web.RosterWeeks.Types (RosterStaffPanelEntry (..), RosterStaffPanelScope (..))
 import Web.View.Prelude
 
-renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanelFragment :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragment =
     renderRosterStaffPanelFragmentWithSwap Nothing
 
-renderRosterStaffPanelFragmentOob :: (?context :: ControllerContext) => Int -> Id RosterGroup -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanelFragmentOob :: (?context :: ControllerContext) => Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
 renderRosterStaffPanelFragmentOob =
     renderRosterStaffPanelFragmentWithSwap (Just "outerHTML")
 
-renderRosterStaffPanelFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Int -> Id RosterGroup -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanelFragmentWithSwap maybeSwapOob weekOffset currentRosterGroupId panelScope panelStaff =
+renderRosterStaffPanelFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanelFragmentWithSwap maybeSwapOob weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff =
     if currentUserIsManager
         then [hsx|
             <div id={rosterStaffPanelFragmentId}
                  class="col-12 col-xl-4 col-xxl-3 roster-layout-side"
                  hx-swap-oob={maybeSwapOob}>
-                {renderRosterStaffPanel weekOffset currentRosterGroupId panelScope panelStaff}
+                {renderRosterStaffPanel weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff}
             </div>
         |]
         else mempty
 
-renderRosterStaffPanel :: Int -> Id RosterGroup -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
-renderRosterStaffPanel weekOffset currentRosterGroupId panelScope panelStaff = [hsx|
+renderRosterStaffPanel :: Int -> Id RosterGroup -> Bool -> RosterStaffPanelScope -> [RosterStaffPanelEntry] -> Html
+renderRosterStaffPanel weekOffset currentRosterGroupId hasMultipleRosterGroups panelScope panelStaff = [hsx|
     <div class="app-panel roster-staff-panel">
         <div class="app-panel-body">
             <div class="roster-staff-panel-header">
@@ -40,7 +40,7 @@ renderRosterStaffPanel weekOffset currentRosterGroupId panelScope panelStaff = [
                     <h2 class="h5 mb-1">Staff</h2>
                     <div class="roster-staff-panel-summary">{staffPanelSummary panelScope panelStaff}</div>
                 </div>
-                {renderStaffScopeToggle weekOffset currentRosterGroupId panelScope}
+                {when hasMultipleRosterGroups (renderStaffScopeToggle weekOffset currentRosterGroupId panelScope)}
             </div>
 
             <div class="roster-staff-panel-list">

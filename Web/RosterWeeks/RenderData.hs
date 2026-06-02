@@ -259,10 +259,11 @@ renderRosterStaffPanelFromProjectionWithMode :: (?context :: ControllerContext, 
 renderRosterStaffPanelFromProjectionWithMode renderMode rosterData =
     case rosterData of
         Nothing -> mempty
-        Just RosterRenderData { rosterWeek, panelStaff } ->
-            case renderMode of
-                FragmentPlain -> renderRosterStaffPanelFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) RosterStaffPanelCurrentGroup panelStaff
-                FragmentOob swapAttr -> renderRosterStaffPanelFragmentWithSwap swapAttr rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) RosterStaffPanelCurrentGroup panelStaff
+        Just RosterRenderData { rosterWeek, rosterGroups, panelStaff } ->
+            let hasMultipleRosterGroups = length rosterGroups > 1
+             in case renderMode of
+                    FragmentPlain -> renderRosterStaffPanelFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) hasMultipleRosterGroups RosterStaffPanelCurrentGroup panelStaff
+                    FragmentOob swapAttr -> renderRosterStaffPanelFragmentWithSwap swapAttr rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) hasMultipleRosterGroups RosterStaffPanelCurrentGroup panelStaff
 
 renderRequestedRowFragmentFromProjection :: (?context :: ControllerContext, ?request :: Request) => RosterRenderData -> UUID.UUID -> Int -> Maybe Blaze.Html
 renderRequestedRowFragmentFromProjection =
@@ -524,8 +525,9 @@ renderVisibleRosterReadModelFragmentDirect rosterGroupId weekOffset fragment = d
         Just rosterWeek ->
             case fragment of
                 RosterProjectionStaffPanel -> do
+                    rosterGroups <- fetchCurrentVenueRosterGroups
                     panelStaff <- profileActionSpan "roster.build_staff_panel" (fetchRosterStaffPanelEntriesDirect RosterStaffPanelCurrentGroup rosterGroupId rosterWeek)
-                    pure (Just (renderRosterStaffPanelFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) RosterStaffPanelCurrentGroup panelStaff))
+                    pure (Just (renderRosterStaffPanelFragment rosterWeek.weekOffset (coerce rosterWeek.rosterGroupId) (length rosterGroups > 1) RosterStaffPanelCurrentGroup panelStaff))
                 RosterProjectionContent -> do
                     rosterData <- fetchVisibleRosterReadModelDirect rosterGroupId weekOffset
                     case rosterData of

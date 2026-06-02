@@ -68,10 +68,10 @@ renderRosterContentFragmentWithSwap maybeSwapOob gridModel = [hsx|
 |]
 
 renderRosterLayout :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridPanelStaff, gridStaffSelfServicePanel } = [hsx|
+renderRosterLayout gridModel@RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridRosterGroups, gridPanelStaff, gridStaffSelfServicePanel } = [hsx|
     <div class="row g-4 align-items-start roster-layout">
         {renderRosterContentFragment gridModel}
-        {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) RosterStaffPanelCurrentGroup gridPanelStaff)}
+        {forEach gridRosterWeek (\rosterWeek -> renderRosterStaffPanelFragment gridWeekOffset (coerce rosterWeek.rosterGroupId) (length gridRosterGroups > 1) RosterStaffPanelCurrentGroup gridPanelStaff)}
         {renderRosterStaffSelfServicePanelFragment gridStaffSelfServicePanel}
     </div>
 |]

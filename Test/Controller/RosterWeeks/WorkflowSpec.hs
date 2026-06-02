@@ -1316,6 +1316,24 @@ tests = beforeAll testContext do
                 response `responseStatusShouldBe` status200
                 response `responseBodyShouldContain` "data-roster-staff-name=\"Alpha\""
                 response `responseBodyShouldNotContain` "data-roster-staff-name=\"Bravo\""
+                response `responseBodyShouldContain` "Show all staff"
+
+        it "hides the all-staff staff panel toggle when the venue has one roster group" $ withContext do
+            withCleanDb do
+                venue <- createVenueWithConfig "Venue A"
+                manager <- createUserRecord "roster-manager-single-group-panel@example.com" "staff" True
+                worker <- createUserRecord "roster-worker-single-group-panel@example.com" "staff" True
+                _ <- createVenueMembershipRecord venue manager "manager"
+                _ <- createVenueMembershipRecord venue worker "worker"
+                _ <- createStaffRecord venue (Just worker) "Solo" "Crew"
+
+                response <- withUserAndCurrentVenue manager venue.id do
+                    callAction (ShowRosterWeekStaffPanelFragmentAction 0)
+
+                response `responseStatusShouldBe` status200
+                response `responseBodyShouldContain` "data-roster-staff-name=\"Solo\""
+                response `responseBodyShouldNotContain` "Show all staff"
+                response `responseBodyShouldNotContain` "name=\"staffScope\""
 
         it "manager can toggle the roster staff panel to all active venue staff, including unlinked staff" $ withContext do
             withCleanDb do

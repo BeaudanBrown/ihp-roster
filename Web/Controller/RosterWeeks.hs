@@ -140,9 +140,10 @@ instance Controller RosterWeeksController where
         rosterGroup <- resolveRequestedRosterGroup
         let panelScope = rosterStaffPanelScopeFromParams
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionStaffPanel \_ -> do
+            rosterGroups <- fetchCurrentVenueRosterGroups
             panelStaff <- fetchVisibleRosterStaffPanelEntries panelScope rosterGroup.id weekOffset
             respondHtmlProfiled $
-                maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id panelScope) panelStaff
+                maybe mempty (renderRosterStaffPanelFragment weekOffset rosterGroup.id (length rosterGroups > 1) panelScope) panelStaff
 
     action ShowRosterWeekDaySectionFragmentAction { weekOffset, rosterDayId } = do
         rosterGroupId <- resolveRosterGroupIdForFragmentRosterDay weekOffset rosterDayId
@@ -918,7 +919,8 @@ respondWithRosterPatches rosterGroupId weekOffset requestedRowKeys shouldRefresh
         Just RosterRenderData { rosterDays, weekStartDate, assignmentFilters, staffMembers, panelStaff, orderedSlotNames, shiftTypes, allSlots, slotConflicts, renderIndexes, rosterLayoutMode, rosterEndTimesEnabled } -> do
             let uniqueRowKeys = nub requestedRowKeys
             let renderedRows = mapMaybe (renderRequestedRow weekStartDate orderedSlotNames assignmentFilters staffMembers shiftTypes renderIndexes rosterLayoutMode rosterEndTimesEnabled) uniqueRowKeys
-            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId RosterStaffPanelCurrentGroup panelStaff | shouldRefreshStaffPanel]
+            rosterGroups <- fetchCurrentVenueRosterGroups
+            let renderedStaffPanel = [renderRosterStaffPanelFragmentOob weekOffset rosterGroupId (length rosterGroups > 1) RosterStaffPanelCurrentGroup panelStaff | shouldRefreshStaffPanel]
             respondHtmlProfiled (mconcat (renderedRows <> renderedStaffPanel))
 
 renderRosterWeekPage :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request, ?respond :: Respond) => Int -> Id RosterGroup -> IO ()
