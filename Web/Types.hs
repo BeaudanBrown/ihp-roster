@@ -209,6 +209,8 @@ data RosterWeeksController
     | ShowRosterWeekAction { weekOffset :: !Int }
     | ShowRosterWeekOverviewFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekContentFragmentAction { weekOffset :: !Int }
+    | ShowRosterWeekGridToolbarFragmentAction { weekOffset :: !Int }
+    | ShowRosterWeekGridFrameFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekStaffPanelFragmentAction { weekOffset :: !Int }
     | ShowRosterWeekDaySectionFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay) }
     | ShowRosterWeekRowFragmentAction { weekOffset :: !Int, rosterDayId :: !(Id RosterDay), rowIndex :: !Int }

@@ -25,6 +25,8 @@ import Web.RosterWeeks.Dom
 import Web.RosterWeeks.Filters
 import Web.RosterWeeks.Paths (rosterWeekContentFragmentUrl,
                               rosterWeekDaySectionFragmentUrl,
+                              rosterWeekGridFrameFragmentUrl,
+                              rosterWeekGridToolbarFragmentUrl,
                               rosterWeekRowFragmentUrl,
                               rosterWeekStaffPanelFragmentUrl)
 import Web.RosterWeeks.Projection
@@ -38,7 +40,7 @@ rosterLiveSurfaceDefinition =
         { typedSurfaceFeature = "roster"
         , typedSurfaceScope = rosterSurfaceScope
         , typedSurfaceScopeFromWire = rosterSurfaceScopeFromWire
-        , typedSurfaceDefaultFragments = const [RosterProjectionContent, RosterProjectionStaffPanel]
+        , typedSurfaceDefaultFragments = const [RosterProjectionGridToolbar, RosterProjectionGridFrame, RosterProjectionStaffPanel]
         , typedSurfaceFragmentContract = \scope fragment ->
             mkSurfaceFragmentContract
                 (rosterFragmentRef scope fragment)
@@ -68,6 +70,18 @@ rosterFragmentRef scope = \case
             rosterContentFragmentId
             (rosterWeekContentFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
             |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionContent)
+    RosterProjectionGridToolbar ->
+        mkSurfaceFragmentRef
+            RosterGridToolbarFragment
+            rosterGridToolbarFragmentId
+            (rosterWeekGridToolbarFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
+            |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionGridToolbar)
+    RosterProjectionGridFrame ->
+        mkSurfaceFragmentRef
+            RosterGridFrameFragment
+            rosterGridFrameFragmentId
+            (rosterWeekGridFrameFragmentUrl scope.rosterProjectionWeekOffset scope.rosterProjectionGroupId)
+            |> surfaceFragmentRefWithPath (rosterFragmentContainmentPath RosterProjectionGridFrame)
     RosterProjectionStaffPanel ->
         mkSurfaceFragmentRef
             RosterStaffPanelFragment
@@ -97,6 +111,18 @@ rosterFragmentDependencies scope =
                     [ RosterEndTimesConfigResource venueId
                     , RosterWeekBoundaryConfigResource venueId
                     ]
+            RosterProjectionGridToolbar ->
+                liveFragmentDependsOn
+                    (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset)
+                    [ RosterEndTimesConfigResource venueId
+                    , RosterWeekBoundaryConfigResource venueId
+                    ]
+            RosterProjectionGridFrame ->
+                liveFragmentDependsOn
+                    (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset)
+                    [ RosterEndTimesConfigResource venueId
+                    , RosterWeekBoundaryConfigResource venueId
+                    ]
             RosterProjectionStaffPanel ->
                 liveFragmentDependsOn (RosterWeekResource (unpackId scope.rosterProjectionGroupId) scope.rosterProjectionWeekOffset) []
             RosterProjectionDaySection rosterDayId ->
@@ -116,12 +142,16 @@ rosterFragmentContainmentPath :: RosterProjectionFragment -> [Text]
 rosterFragmentContainmentPath = \case
     RosterProjectionContent ->
         [rosterContentFragmentId]
+    RosterProjectionGridToolbar ->
+        [rosterContentFragmentId, rosterGridToolbarFragmentId]
+    RosterProjectionGridFrame ->
+        [rosterContentFragmentId, rosterGridFrameFragmentId]
     RosterProjectionStaffPanel ->
         [rosterStaffPanelFragmentId]
     RosterProjectionDaySection rosterDayId ->
-        [rosterContentFragmentId, rosterDaySectionDomId (coerce rosterDayId)]
+        [rosterContentFragmentId, rosterGridFrameFragmentId, rosterDaySectionDomId (coerce rosterDayId)]
     RosterProjectionRow rosterDayId rowIndex ->
-        [rosterContentFragmentId, rosterDaySectionDomId (coerce rosterDayId), rosterRowDomIdText (coerce rosterDayId) rowIndex]
+        [rosterContentFragmentId, rosterGridFrameFragmentId, rosterDaySectionDomId (coerce rosterDayId), rosterRowDomIdText (coerce rosterDayId) rowIndex]
 
 mkRosterProjectionDefinition ::
     (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) =>

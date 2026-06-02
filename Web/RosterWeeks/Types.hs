@@ -119,6 +119,8 @@ data RosterAssignmentOptionState = RosterAssignmentOptionState
 
 data RosterRenderData = RosterRenderData
     { rosterWeek            :: RosterWeek
+    , rosterGroups          :: [RosterGroup]
+    , currentRosterGroup    :: RosterGroup
     , rosterDays            :: [RosterDay]
     , weekStartDate         :: Day
     , assignmentFilters     :: RosterAssignmentFilters
@@ -201,6 +203,8 @@ data RosterProjectionScope = RosterProjectionScope
 
 data RosterProjectionFragment
     = RosterProjectionContent
+    | RosterProjectionGridToolbar
+    | RosterProjectionGridFrame
     | RosterProjectionStaffPanel
     | RosterProjectionDaySection !UUID
     | RosterProjectionRow !UUID !Int

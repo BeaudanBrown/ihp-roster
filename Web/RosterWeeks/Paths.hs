@@ -5,6 +5,8 @@ module Web.RosterWeeks.Paths
     , rosterWageEstimatePreferenceUrl
     , rosterOverviewFragmentUrl
     , rosterWeekContentFragmentUrl
+    , rosterWeekGridFrameFragmentUrl
+    , rosterWeekGridToolbarFragmentUrl
     , rosterWeekDaySectionFragmentUrl
     , rosterWeekRowFragmentUrl
     , rosterWeekStaffPanelFragmentUrl
@@ -40,6 +42,14 @@ rosterOverviewFragmentUrl weekOffset rosterGroupId =
 rosterWeekContentFragmentUrl :: Int -> Id RosterGroup -> Text
 rosterWeekContentFragmentUrl weekOffset rosterGroupId =
     appendQueryParams (pathTo ShowRosterWeekContentFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
+
+rosterWeekGridToolbarFragmentUrl :: Int -> Id RosterGroup -> Text
+rosterWeekGridToolbarFragmentUrl weekOffset rosterGroupId =
+    appendQueryParams (pathTo ShowRosterWeekGridToolbarFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
+
+rosterWeekGridFrameFragmentUrl :: Int -> Id RosterGroup -> Text
+rosterWeekGridFrameFragmentUrl weekOffset rosterGroupId =
+    appendQueryParams (pathTo ShowRosterWeekGridFrameFragmentAction { weekOffset }) [("rosterGroupId", tshow rosterGroupId)]
 
 rosterWeekStaffPanelFragmentUrl :: Int -> Id RosterGroup -> Text
 rosterWeekStaffPanelFragmentUrl weekOffset rosterGroupId =

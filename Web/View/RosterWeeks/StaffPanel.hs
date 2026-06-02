@@ -1,6 +1,7 @@
 module Web.View.RosterWeeks.StaffPanel
     ( renderRosterStaffPanelFragment
     , renderRosterStaffPanelFragmentOob
+    , renderRosterStaffPanelFragmentWithSwap
     ) where
 
 import Application.Helper.View (staffDisplayName)

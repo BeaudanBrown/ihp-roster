@@ -2,6 +2,10 @@ module Web.View.RosterWeeks.Grid
     ( lastRowIndexForRows
     , renderRosterContentFragment
     , renderRosterContentFragmentOob
+    , renderRosterGridFrameFragment
+    , renderRosterGridFrameFragmentWithSwap
+    , renderRosterGridToolbarFragment
+    , renderRosterGridToolbarFragmentWithSwap
     , renderRosterLayout
     , renderRosterDaySectionFragment
     , renderRosterDaySectionFragmentOob
@@ -75,7 +79,30 @@ renderRosterContent =
     renderRosterMainPanel
 
 renderRosterMainPanel :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
-renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridPublishAttempted } =
+renderRosterMainPanel gridModel = [hsx|
+    <div class="app-panel overflow-hidden mb-5 mb-xl-0">
+        {renderRosterGridToolbarFragment gridModel}
+        {renderRosterGridFrameFragment gridModel}
+    </div>
+|]
+
+renderRosterGridToolbarFragment :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
+renderRosterGridToolbarFragment =
+    renderRosterGridToolbarFragmentWithSwap Nothing
+
+renderRosterGridToolbarFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
+renderRosterGridToolbarFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridWeekOffset, gridRosterGroups, gridCurrentRosterGroup, gridAssignmentFilters, gridWeekStartDate, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates } = [hsx|
+    <div id={rosterGridToolbarFragmentId} hx-swap-oob={maybeSwapOob}>
+        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates}
+    </div>
+|]
+
+renderRosterGridFrameFragment :: (?context :: ControllerContext) => RosterGridRenderModel -> Html
+renderRosterGridFrameFragment =
+    renderRosterGridFrameFragmentWithSwap Nothing
+
+renderRosterGridFrameFragmentWithSwap :: (?context :: ControllerContext) => Maybe Text -> RosterGridRenderModel -> Html
+renderRosterGridFrameFragmentWithSwap maybeSwapOob RosterGridRenderModel { gridRosterWeek, gridRosterDays, gridAssignmentFilters, gridStaffMembers, gridSlotNames, gridShiftTypes, gridWeekStartDate, gridAllSlots, gridSlotConflicts, gridRenderIndexes, gridViewCapabilities, gridRosterLayoutMode, gridRosterEndTimesEnabled, gridRosterWagePrediction, gridShowWageEstimates, gridPublishAttempted } =
     let dayModel =
             RosterDayRenderModel
                 { dayIsEditable = rosterWeekIsEditable gridRosterWeek
@@ -100,9 +127,9 @@ renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gr
                 then renderRosterDayColumns dayModel gridRosterDays
                 else renderRosterDayRowsGrid gridRosterEndTimesEnabled slotColumnsAreEditable gridRosterWeek gridSlotNames dayModel gridRosterDays
      in [hsx|
-    <div class="app-panel overflow-hidden mb-5 mb-xl-0">
-        {renderRosterGridHeader gridRosterWeek gridWeekOffset gridRosterGroups gridCurrentRosterGroup gridAssignmentFilters gridWeekStartDate gridViewCapabilities gridRosterLayoutMode gridRosterEndTimesEnabled gridRosterWagePrediction gridShowWageEstimates}
-        <div class={classes [("roster-grid-frame", True), ("app-horizontal-frame", isDayColumnsLayout)]}
+        <div id={rosterGridFrameFragmentId}
+             class={classes [("roster-grid-frame", True), ("app-horizontal-frame", isDayColumnsLayout)]}
+             hx-swap-oob={maybeSwapOob}
              data-roster-layout={rosterLayoutModeValue gridRosterLayoutMode}
              data-horizontal-snap={if isDayColumnsLayout then ("nearest-item" :: Text) else ""}
              data-horizontal-snap-item-selector={if isDayColumnsLayout then (".roster-day-column" :: Text) else ""}
@@ -114,7 +141,6 @@ renderRosterMainPanel RosterGridRenderModel { gridRosterWeek, gridRosterDays, gr
              style={"--roster-slot-count:" <> tshow (max 1 (length gridSlotNames)) <> ";"}>
             {gridBody}
         </div>
-    </div>
 |]
 
 renderDayRowsWageAmount :: Maybe RosterWagePrediction -> Day -> Html

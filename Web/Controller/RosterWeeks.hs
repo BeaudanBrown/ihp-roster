@@ -46,6 +46,7 @@ import Web.RosterWeeks.RenderData
 import Web.RosterWeeks.Responses (respondWithRosterContent,
                                   respondWithRosterContentError,
                                   respondWithRosterContentUpdate,
+                                  respondWithRosterFragmentsUpdate,
                                   respondWithRosterToast)
 import Web.RosterWeeks.Rows
 import Web.RosterWeeks.Service
@@ -98,6 +99,18 @@ instance Controller RosterWeeksController where
         rosterGroup <- resolveRequestedRosterGroup
         serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionContent \_ ->
             respondWithRosterContent rosterGroup.id weekOffset
+
+    action ShowRosterWeekGridToolbarFragmentAction { weekOffset } = do
+        rosterGroup <- resolveRequestedRosterGroup
+        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionGridToolbar \_ -> do
+            toolbarHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridToolbar
+            respondHtmlProfiled (fromMaybe mempty toolbarHtml)
+
+    action ShowRosterWeekGridFrameFragmentAction { weekOffset } = do
+        rosterGroup <- resolveRequestedRosterGroup
+        serveTypedLiveFragment rosterLiveSurfaceDefinition (buildRosterProjectionScope rosterGroup.id weekOffset) RosterProjectionGridFrame \_ -> do
+            frameHtml <- renderVisibleRosterReadModelFragment rosterGroup.id weekOffset RosterProjectionGridFrame
+            respondHtmlProfiled (fromMaybe mempty frameHtml)
 
     action ShowRosterWeekStaffPanelFragmentAction { weekOffset } = do
         rosterGroup <- resolveRequestedRosterGroup
@@ -429,7 +442,7 @@ instance Controller RosterWeeksController where
             Just layoutMode -> do
                 _ <- upsertCurrentUserRosterLayoutMode layoutMode
                 if isHtmxRequest
-                    then respondWithRosterContent rosterGroup.id weekOffset
+                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralFragments (successToast "Roster layout preference saved.")
                     else do
                         setSuccessMessage "Roster layout preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
@@ -443,13 +456,13 @@ instance Controller RosterWeeksController where
                 let showWageEstimates = paramOrDefault @Text "false" "showWageEstimates" == "true"
                 _ <- upsertCurrentUserShowWageEstimates showWageEstimates
                 if isHtmxRequest
-                    then respondWithRosterContent rosterGroup.id weekOffset
+                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset rosterGridStructuralFragments (successToast "Roster wage estimate preference saved.")
                     else do
                         setSuccessMessage "Roster wage estimate preference saved."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)
             else
                 if isHtmxRequest
-                    then respondWithRosterContent rosterGroup.id weekOffset
+                    then respondWithRosterFragmentsUpdate rosterGroup.id weekOffset [RosterProjectionGridToolbar] (errorToast "Enable roster end times before showing wage estimates.")
                     else do
                         setErrorMessage "Enable roster end times before showing wage estimates."
                         redirectToPath (rosterWeekUrl weekOffset rosterGroup.id)

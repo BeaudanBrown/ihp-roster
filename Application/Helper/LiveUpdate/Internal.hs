@@ -95,6 +95,8 @@ data LiveUpdateScope
 
 data LiveFragmentKey
     = RosterContentFragment
+    | RosterGridToolbarFragment
+    | RosterGridFrameFragment
     | RosterStaffPanelFragment
     | RosterDaySectionFragment
         { rosterDayId :: !UUID.UUID
@@ -339,6 +341,10 @@ instance Aeson.FromJSON LiveUpdateScope where
 instance Aeson.ToJSON LiveFragmentKey where
     toJSON RosterContentFragment =
         Aeson.object ["kind" Aeson..= ("roster_content" :: Text)]
+    toJSON RosterGridToolbarFragment =
+        Aeson.object ["kind" Aeson..= ("roster_grid_toolbar" :: Text)]
+    toJSON RosterGridFrameFragment =
+        Aeson.object ["kind" Aeson..= ("roster_grid_frame" :: Text)]
     toJSON RosterStaffPanelFragment =
         Aeson.object ["kind" Aeson..= ("roster_staff_panel" :: Text)]
     toJSON RosterDaySectionFragment { rosterDayId } =
@@ -397,6 +403,8 @@ instance Aeson.FromJSON LiveFragmentKey where
         kind <- object Aeson..: "kind"
         case (kind :: Text) of
             "roster_content" -> pure RosterContentFragment
+            "roster_grid_toolbar" -> pure RosterGridToolbarFragment
+            "roster_grid_frame" -> pure RosterGridFrameFragment
             "roster_staff_panel" -> pure RosterStaffPanelFragment
             "roster_day_section" ->
                 RosterDaySectionFragment

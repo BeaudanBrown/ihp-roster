@@ -3,9 +3,11 @@ module Web.RosterWeeks.Responses
     , respondWithRosterContentError
     , respondWithRosterContentOob
     , respondWithRosterContentUpdate
+    , respondWithRosterFragmentsUpdate
     , respondWithRosterToast
     ) where
 
+import Application.Helper.LiveSurface (respondWithTypedLiveSurfaceFragments)
 import Application.Helper.Profiling (respondHtmlProfiled)
 import Application.Helper.RosterGroups (fetchCurrentVenueRosterGroupOrDefault,
                                         fetchCurrentVenueRosterGroups)
@@ -15,10 +17,13 @@ import Application.Helper.View (ToastOverlayConfig,
 import qualified Data.Text.IO as TextIO
 import Web.Controller.Prelude
 import Web.RosterWeeks.Capabilities (buildRosterViewCapabilities)
+import Web.RosterWeeks.Projection (buildRosterProjectionScope)
 import Web.RosterWeeks.RenderData (fetchVisibleRosterReadModel,
-                                   renderVisibleRosterReadModelFragment)
+                                   renderRosterProjectionFragmentWithMode,
+                                   renderVisibleRosterReadModelFragment,
+                                   rosterProjectionDefinition)
 import Web.RosterWeeks.Types (RosterGridRenderModel (..),
-                              RosterProjectionFragment (RosterProjectionContent),
+                              RosterProjectionFragment (..),
                               RosterRenderData (..))
 import Web.View.RosterWeeks.Grid (renderRosterContentFragment,
                                   renderRosterContentFragmentOob)
@@ -29,6 +34,15 @@ respondWithRosterContent rosterGroupId weekOffset = do
     when (isNothing maybeHtml) do
         TextIO.putStrLn ("roster_projection_miss: rosterGroupId=" <> tshow rosterGroupId <> " weekOffset=" <> tshow weekOffset)
     respondHtmlProfiled (fromMaybe mempty maybeHtml)
+
+respondWithRosterFragmentsUpdate :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> [RosterProjectionFragment] -> ToastOverlayConfig -> IO ()
+respondWithRosterFragmentsUpdate rosterGroupId weekOffset fragments toast =
+    respondWithTypedLiveSurfaceFragments
+        rosterProjectionDefinition
+        (buildRosterProjectionScope rosterGroupId weekOffset)
+        fragments
+        (renderToastOob ToastBottomCenter toast)
+        renderRosterProjectionFragmentWithMode
 
 respondWithRosterContentOob :: (?context :: ControllerContext, ?modelContext :: ModelContext, ?request :: Request) => Id RosterGroup -> Int -> IO ()
 respondWithRosterContentOob rosterGroupId weekOffset = do
