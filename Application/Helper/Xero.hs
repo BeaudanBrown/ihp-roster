@@ -130,7 +130,6 @@ data XeroEmployeeRef = XeroEmployeeRef
     , xeroEmployeeName       :: !Text
     , xeroEmployeeEmail      :: !(Maybe Text)
     , xeroEmployeeStatus     :: !(Maybe Text)
-    , xeroEmployeeCalendarId :: !(Maybe Text)
     , xeroEmployeeRaw        :: !Aeson.Value
     }
     deriving (Eq, Show)
@@ -142,7 +141,6 @@ instance Aeson.FromJSON XeroEmployeeRef where
             <*> employeeDisplayName object
             <*> optionalText object ["Email", "email"]
             <*> optionalText object ["Status", "status"]
-            <*> optionalText object ["PayrollCalendarID", "payrollCalendarID", "payrollCalendarId"]
             <*> pure value
     parseJSON _ = fail "Expected Xero employee object"
 

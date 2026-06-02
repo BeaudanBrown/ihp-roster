@@ -379,7 +379,6 @@ tests = beforeAll testContext do
                             "Ada Lovelace"
                             (Just "ada@example.com")
                             (Just "ACTIVE")
-                            (Just "calendar-1")
                             (Aeson.object ["EmployeeID" Aeson..= ("employee-1" :: Text)])
                         ]
                 let earningsRates =
