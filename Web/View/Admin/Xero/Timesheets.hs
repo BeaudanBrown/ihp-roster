@@ -21,7 +21,6 @@ renderXeroTimesheetPanel panel = [hsx|
                 {renderPreparationButton panel}
             </div>
         </div>
-        {renderTimesheetSubmissionIndicator}
         {renderPeriodNotice panel}
         {maybe mempty renderReadiness panel.xeroTimesheetReadiness}
         {maybe renderEmptyLatestRun renderLatestRun panel.xeroTimesheetLatestRun}
@@ -36,8 +35,7 @@ renderPreparationButton panel = [hsx|
           data-xero-timesheet-preparation-form="true"
           hx-post={pathTo OpenXeroTimesheetPreparationAction}
           hx-target={"#" <> dialogOverlayMountId}
-          hx-swap="innerHTML"
-          hx-indicator="#xero-timesheet-submission-indicator">
+          hx-swap="innerHTML">
         <select name="periodKey"
                 id="xero-timesheet-period-select"
                 class="form-select form-select-sm"
@@ -73,14 +71,6 @@ periodOptionLabel option =
         <> formatDateDisplay option.periodOptionEnd
         <> maybe "" (\status -> " · " <> Text.toUpper status) option.periodOptionXeroPayRunStatus
         <> maybe "" (\reason -> " · blocked: " <> reason) option.periodOptionBlockReason
-
-renderTimesheetSubmissionIndicator :: Html
-renderTimesheetSubmissionIndicator = [hsx|
-    <div id="xero-timesheet-submission-indicator" class="htmx-indicator d-flex align-items-center gap-2 small text-primary" role="status" aria-live="polite">
-        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-        <span>Working on Xero draft timesheets...</span>
-    </div>
-|]
 
 canOpenPreparation :: XeroTimesheetPanelData -> Bool
 canOpenPreparation panel =
