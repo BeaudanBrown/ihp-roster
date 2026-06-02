@@ -846,7 +846,7 @@ tests = beforeAll testContext do
                 map fst requests `shouldSatisfy` all (Text.isPrefixOf "bepis-pay-item-")
                 map fst requests `shouldSatisfy` \keys -> length (List.nub keys) == length keys
                 map snd requests `shouldSatisfy` any (xeroPayItemRequestHas ordinaryName 31.50)
-                map snd requests `shouldSatisfy` all ((== 1) . xeroPayItemRequestEarningsRateCount)
+                map snd requests `shouldSatisfy` \bodies -> map xeroPayItemRequestEarningsRateCount bodies == [1 .. length bodies]
                 map snd requests `shouldSatisfy` all xeroPayItemRequestOnlyTouchesEarningsRates
                 createdRate <- query @XeroEarningsRate
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)

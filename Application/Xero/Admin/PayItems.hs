@@ -15,6 +15,8 @@ import Application.Xero.Admin.ReferenceData
 import Application.Xero.Connection (xeroClientErrorText)
 import Control.Monad (void)
 import qualified Data.Aeson as Aeson
+import qualified Data.Aeson.Key as AesonKey
+import qualified Data.Aeson.KeyMap as AesonKeyMap
 import qualified Data.Char as Char
 import qualified Data.List as List
 import qualified Data.Maybe as Maybe
@@ -215,10 +217,21 @@ upsertFetchedXeroEarningsRates connection now fetchedRates =
         markStaleXeroEarningsRateMappings connection fetchedRates
 
 xeroPayItemRequestPayload :: [Aeson.Value] -> Text -> XeroPayItemRequirement -> Aeson.Value
-xeroPayItemRequestPayload _existingEarningsRates accountCode requirement =
+xeroPayItemRequestPayload existingEarningsRates accountCode requirement =
     Aeson.object
-        [ "EarningsRates" Aeson..= [xeroEarningsRatePayload accountCode requirement]
+        [ "EarningsRates" Aeson..= (map normalizeExistingEarningsRatePayload existingEarningsRates <> [xeroEarningsRatePayload accountCode requirement])
         ]
+
+normalizeExistingEarningsRatePayload :: Aeson.Value -> Aeson.Value
+normalizeExistingEarningsRatePayload value@(Aeson.Object object)
+    | earningsType == Just "ALLOWANCE" && not (AesonKeyMap.member (AesonKey.fromText "AllowanceType") object) =
+        Aeson.Object (AesonKeyMap.insert (AesonKey.fromText "AllowanceType") (Aeson.String "OTHER") object)
+    | otherwise = value
+    where
+        earningsType = case AesonKeyMap.lookup (AesonKey.fromText "EarningsType") object of
+            Just (Aeson.String text) -> Just text
+            _ -> Nothing
+normalizeExistingEarningsRatePayload value = value
 
 xeroEarningsRatePayload :: Text -> XeroPayItemRequirement -> Aeson.Value
 xeroEarningsRatePayload accountCode requirement =
