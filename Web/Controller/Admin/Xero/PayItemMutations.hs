@@ -69,8 +69,8 @@ createMissingXeroPayItems connection = do
                                                     , "submissionFailures" Aeson..= map xeroPayItemSubmissionFailurePayload verification.submissionFailures
                                                     ]
                                                 )
-                                            if verification.failedCount == 0 && verification.missingCount == 0
-                                                then completeXeroPayItemSync syncRun verification.verifiedCount ("Created and verified " <> tshow verification.verifiedCount <> " missing Xero pay items.")
+                                            if verification.missingCount == 0
+                                                then completeXeroPayItemSync syncRun verification.verifiedCount ("Verified " <> tshow verification.verifiedCount <> " required Xero pay items.")
                                                 else failXeroPayItemSyncWithVerifiedCount syncRun verification.verifiedCount (xeroPayItemVerificationFailureMessage verification)
 
 completeXeroPayItemSync ::

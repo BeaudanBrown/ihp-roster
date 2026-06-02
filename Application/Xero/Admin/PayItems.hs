@@ -68,8 +68,12 @@ createProposedXeroPayItems xeroClient connection accessToken now accountCode req
         Left err -> pure (Left ("Xero pay item preflight pull failed before creating pay items: " <> xeroClientErrorText err))
         Right initialRates -> do
             upsertFetchedXeroEarningsRates connection now initialRates
+            let initiallyVerifiedPairs = Maybe.mapMaybe (verifiedRequirementRate initialRates) requirements
+                initiallyVerifiedRequirementKeys = map (.payItemRequirementKey) (map fst initiallyVerifiedPairs)
+                requirementsToCreate = filter (\requirement -> requirement.payItemRequirementKey `List.notElem` initiallyVerifiedRequirementKeys) requirements
+            mapM_ (uncurry (persistCreatedXeroPayItem connection now)) initiallyVerifiedPairs
             maybeExpenseAccountId <- selectedXeroPayItemExpenseAccountId connection accountCode
-            (submittedCount, submissionFailures) <- submitCreates batchKey (1 :: Int) 0 [] maybeExpenseAccountId requirements
+            (submittedCount, submissionFailures) <- submitCreates batchKey (1 :: Int) 0 [] maybeExpenseAccountId requirementsToCreate
             verifySubmittedCreates submittedCount submissionFailures
     where
         verifySubmittedCreates submittedCount submissionFailures = do

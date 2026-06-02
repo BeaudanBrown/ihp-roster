@@ -466,12 +466,10 @@ fetchCurrentVenueXeroTimesheetPeriodOptions (Just connection) = do
             |> filterWhere (#deletedAt, Nothing)
             |> orderByDesc #workedOn
             |> fetch
-    today <- utctDay <$> getCurrentTime
     let approvedWorkedOnDates = List.nub (map (.workedOn) approvedEntries)
-        derivedOptions = concatMap (derivedPeriodOptions today payRuns approvedWorkedOnDates) calendars
         payRunOnlyOptions = mapMaybe (payRunOnlyPeriodOption calendars approvedWorkedOnDates) payRuns
     pure $
-        (derivedOptions <> payRunOnlyOptions)
+        payRunOnlyOptions
             |> List.nubBy samePeriodOption
             |> List.sortOn (Down . (.periodOptionStart))
 

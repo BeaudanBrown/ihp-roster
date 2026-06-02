@@ -194,6 +194,7 @@ createPreviewFixture calendarType entrySpecs = do
         periodStart = addDays (periodsElapsed * periodLength) anchorStart
     fixture <- createPreviewFixtureAtPeriod calendarType periodStart entrySpecs
     createPreviewPayrollCalendarSelection fixture.venue fixture.connection fixture.owner
+    _ <- createPreviewPayRun fixture "DRAFT"
     pure fixture
 
 createPreviewFixtureAtPeriod :: (?modelContext :: ModelContext) => Text -> Day -> [EntrySpec] -> IO PreviewFixture
@@ -264,6 +265,21 @@ createPreviewXeroConnection venue owner =
         |> set #scopes requiredXeroScopesText
         |> set #encryptedRefreshToken ("encrypted-refresh-token" :: Text)
         |> set #connectedByUserId (Just (unpackId owner.id))
+        |> createRecord
+
+createPreviewPayRun :: (?modelContext :: ModelContext) => PreviewFixture -> Text -> IO XeroPayRun
+createPreviewPayRun fixture status = do
+    now <- getCurrentTime
+    newRecord @XeroPayRun
+        |> set #venueId (unpackId fixture.venue.id)
+        |> set #xeroConnectionId (unpackId fixture.connection.id)
+        |> set #xeroPayRunId ("pay-run-" <> Text.toLower status)
+        |> set #xeroPayrollCalendarId ("calendar-preview" :: Text)
+        |> set #payPeriodStart fixture.periodStart
+        |> set #payPeriodEnd fixture.periodEnd
+        |> set #payRunStatus (Just status)
+        |> set #rawPayload (Aeson.object ["PayRunID" Aeson..= ("pay-run-" <> Text.toLower status)])
+        |> set #syncedAt now
         |> createRecord
 
 createPreviewSyncRun :: (?modelContext :: ModelContext) => Venue -> XeroConnection -> IO XeroSyncRun

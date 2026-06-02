@@ -821,7 +821,9 @@ tests = beforeAll testContext do
                 connection <- createSyncableXeroConnection venue owner
                 awardLevel <- createPayLevelRecordWithRates venue "Level 2" 31.50 3.15 6.30 1 1.25 1.50
                 _ <- createStaffUsingAwardLevel venue "Permanent" "Worker" awardLevel Permanent
-                _ <- createXeroEarningsRateRecord connection "Ordinary Hours" "earnings-existing"
+                let ordinaryName = "Ordinary - Level 2 - PERM - Bepis - Undated"
+                    ordinaryKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:ordinary"
+                _ <- createXeroEarningsRateRecord connection ordinaryName "earnings-existing"
                 _ <- createXeroPayItemAccountCodeSelectionRecord connection "477"
                 requestsRef <- IORef.newIORef []
                 let tokenResponse = XeroTokenResponse "pay-item-access-token" "pay-item-refresh-token" 1800 (Just requiredXeroScopesText)
@@ -834,24 +836,22 @@ tests = beforeAll testContext do
                                 callAction CreateMissingXeroPayItemsAction
 
                 response `responseStatusShouldBe` status200
-                response `responseBodyShouldContain` "Created and verified 8 missing Xero pay items."
+                response `responseBodyShouldContain` "Verified 7 required Xero pay items."
                 response `responseBodyShouldContain` "id=\"xero-pay-items-data\""
                 response `responseBodyShouldContain` "Imported Xero pay items"
                 response `responseBodyShouldNotContain` "id=\"xero-pay-items-sync-indicator\""
                 response `responseBodyShouldNotContain` "id=\"admin-xero-fragment\""
                 requests <- IORef.readIORef requestsRef
-                length requests `shouldBe` 8
-                let ordinaryName = "Ordinary - Level 2 - PERM - Bepis - Undated"
-                let ordinaryKey = "xero:pay-item:classification:" <> tshow awardLevel.classificationFixedId <> ":basis:permanent:effective:undated:ordinary"
+                length requests `shouldBe` 7
                 map fst requests `shouldSatisfy` all (Text.isPrefixOf "bepis-pay-item-")
                 map fst requests `shouldSatisfy` \keys -> length (List.nub keys) == length keys
-                map snd requests `shouldSatisfy` any (xeroPayItemRequestHas ordinaryName 31.50)
+                map snd requests `shouldSatisfy` all (not . xeroPayItemRequestHasName ordinaryName)
                 map snd requests `shouldSatisfy` all xeroPayItemRequestIsSingleEarningsRate
                 createdRate <- query @XeroEarningsRate
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
                     |> filterWhere (#name, ordinaryName)
                     |> fetchOne
-                createdRate.xeroEarningsRateId `shouldBe` "created-Ordinary - Level 2 - PERM - Bepis - Undated"
+                createdRate.xeroEarningsRateId `shouldBe` "earnings-existing"
                 createdRate.accountCode `shouldBe` Just "477"
                 mapping <- query @XeroEarningsRateMapping
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
@@ -863,11 +863,11 @@ tests = beforeAll testContext do
                     |> filterWhere (#xeroConnectionId, unpackId connection.id)
                     |> filterWhere (#requirementKey, ordinaryKey)
                     |> fetchOne
-                requirement.requirementStatus `shouldBe` "created"
+                requirement.requirementStatus `shouldBe` "matched"
                 requirement.xeroEarningsRateId `shouldBe` Just createdRate.xeroEarningsRateId
                 syncRun <- query @XeroSyncRun |> filterWhere (#syncKind, "pay_item_create" :: Text) |> fetchOne
                 syncRun.syncStatus `shouldBe` "succeeded"
-                syncRun.earningsRatesCount `shouldBe` 8
+                syncRun.earningsRatesCount `shouldBe` 7
                 versionAfter <- currentLiveUpdateVersion AdminXeroScope { venueId = unpackId venue.id }
                 versionAfter `shouldBe` (versionBefore + 2)
 
@@ -1192,7 +1192,7 @@ tests = beforeAll testContext do
                 response `responseBodyShouldNotContain` "Working on Xero draft timesheets"
                 response `responseBodyShouldContain` "Selected Xero payroll period"
 
-        it "only shows Xero pay periods that contain approved local entries" $ withContext do
+        it "only shows Xero pay-run periods that contain approved local entries" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
 
@@ -1226,7 +1226,8 @@ tests = beforeAll testContext do
         it "does not show posted Xero pay-run periods in the draft-timesheet dropdown" $ withContext do
             withCleanDb do
                 fixture <- Preview.createPreviewFixture "weekly" [Preview.EntrySpec 0 Preview.fixtureStaffA (TimeOfDay 9 0 0) (TimeOfDay 13 0 0)]
-                _ <- createXeroPayRunForFixture fixture "POSTED"
+                payRun <- query @XeroPayRun |> filterWhere (#xeroConnectionId, unpackId fixture.connection.id) |> fetchOne
+                _ <- payRun |> set #payRunStatus (Just ("POSTED" :: Text)) |> updateRecord
 
                 response <- withPasskeyVerifiedUserAndCurrentVenue fixture.owner fixture.venue.id do
                     callAction ShowAdminXeroFragmentAction
@@ -2220,6 +2221,10 @@ xeroPayItemRequestAccountCode :: Aeson.Value -> Maybe Text
 xeroPayItemRequestAccountCode =
     AesonTypes.parseMaybe \body ->
         Aeson.withObject "EarningsRate" (Aeson..: "AccountCode") body
+
+xeroPayItemRequestHasName :: Text -> Aeson.Value -> Bool
+xeroPayItemRequestHasName expectedName body =
+    xeroPayItemRequestName body == Just expectedName
 
 xeroPayItemRequestHas :: Text -> Scientific -> Aeson.Value -> Bool
 xeroPayItemRequestHas expectedName expectedRate =

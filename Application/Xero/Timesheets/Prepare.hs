@@ -316,7 +316,7 @@ ensurePreparationPayItemsReady run maybeAccountCode = do
                                 createProposedXeroPayItems xeroClient refreshedConnection accessToken now accountCode proposedRequirements >>= \case
                                     Left message -> pure (Left message)
                                     Right verification
-                                        | verification.failedCount > 0 || verification.missingCount > 0 ->
+                                        | verification.missingCount > 0 ->
                                             pure (Left (xeroPayItemVerificationFailureMessage verification))
                                         | otherwise -> do
                                             markPayItemCreateDecisionsApplied run proposedRequirements
